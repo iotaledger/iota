@@ -15,7 +15,10 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
-        className={cx('fixed inset-0 z-[99998] bg-primary-60 backdrop-blur-lg', className)}
+        className={cx(
+            'fixed inset-0 z-[99998] bg-shader-neutral-light-72 backdrop-blur-lg dark:bg-shader-neutral-dark-72',
+            className,
+        )}
         {...props}
     />
 ));
@@ -35,7 +38,7 @@ const DialogContent = React.forwardRef<
             <RadixDialog.Content
                 ref={ref}
                 className={cx(
-                    'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center gap-3 overflow-hidden rounded-xl bg-primary-100',
+                    'absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center gap-3 overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96',
                     className,
                 )}
                 {...props}
@@ -59,8 +62,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <RadixDialog.Title
         ref={ref}
-        className={cx('', className)}
-        // className={cx('text-semibold text-heading6 text-gray-90 m-0', className)}
+        className={cx('font-inter text-title-lg text-neutral-10 dark:text-neutral-92', className)}
         {...props}
     />
 ));
@@ -70,7 +72,11 @@ const DialogDescription = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Description>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Description>
 >(({ className, ...props }, ref) => (
-    <RadixDialog.Description ref={ref} className={cx('text-body-sm', className)} {...props} />
+    <RadixDialog.Description
+        ref={ref}
+        className={cx('text-body-sm text-neutral-40 dark:text-neutral-60', className)}
+        {...props}
+    />
 ));
 DialogDescription.displayName = RadixDialog.Description.displayName;
 

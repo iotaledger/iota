@@ -12,17 +12,19 @@ import {
     DialogContent,
     DialogFooter,
     DialogHeader,
-    // DialogTitle,
     DialogDescription,
 } from '@/components';
+import { useState } from 'react';
 
 const meta = {
     component: Dialog,
     tags: ['autodocs'],
-    render: (props) => {
+    render: () => {
+        const [open, setOpen] = useState(false);
         return (
-            <div className="flex h-96">
-                <Dialog defaultOpen>
+            <div className="flex">
+                <Button size={ButtonSize.Small} text="Open Dialog" onClick={() => setOpen(true)} />
+                <Dialog open={open}>
                     <DialogContent>
                         <DialogHeader>
                             <Header
@@ -30,15 +32,18 @@ const meta = {
                                 hasLeftIcon
                                 hasRightIcon
                                 titleCentered
+                                onClose={() => setOpen(false)}
+                                onBack={() => setOpen(false)}
                             />
-                            {/* <DialogTitle>Connect Ledger Wallet</DialogTitle> */}
                         </DialogHeader>
                         <DialogDescription>
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center px-lg">
                                 <div className="mt-4.5">Logo</div>
                                 <div className="mt-4.5 break-words text-center">
-                                    Connect your Ledger device to continue.
+                                    Connect your ledger to your computer, unlock it, and launch the
+                                    IOTA app. Click Continue when done.
                                 </div>
+                                <div className="mt-4.5"> Need more help? View tutorial.</div>
                             </div>
                         </DialogDescription>
                         <DialogFooter>
@@ -47,6 +52,7 @@ const meta = {
                                     size={ButtonSize.Small}
                                     type={ButtonType.Outlined}
                                     text="Cancel"
+                                    onClick={() => setOpen(false)}
                                 />
                                 <Button size={ButtonSize.Small} text="Connect" />
                             </div>
@@ -62,26 +68,4 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    // args: {
-    //     title: 'Title',
-    //     subtitle: 'Subtitle',
-    //     button: {
-    //         ...ButtonStory.Default.args,
-    //     },
-    // },
-    // argTypes: {
-    //     title: {
-    //         control: 'text',
-    //     },
-    //     subtitle: {
-    //         control: 'text',
-    //     },
-    //     info: {
-    //         control: 'text',
-    //     },
-    //     button: {
-    //         control: 'object',
-    //     },
-    // },
-};
+export const Default: Story = {};
