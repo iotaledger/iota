@@ -13,7 +13,7 @@ type RadioButtonProps = {
 const RadioButton: React.FC<RadioButtonProps> = ({ checked, disabled, onChange }) => {
     return (
         <div
-            className={cx('relative flex h-4 w-4 items-center justify-center rounded-full p-lg', {
+            className={cx('relative flex h-5 w-5 items-center justify-center rounded-full p-lg', {
                 'state-layer': !disabled,
             })}
         >
@@ -23,7 +23,7 @@ const RadioButton: React.FC<RadioButtonProps> = ({ checked, disabled, onChange }
                 onChange={onChange}
                 disabled={disabled}
                 className={cx(
-                    'peer h-4 w-4 shrink-0 appearance-none rounded-full border border-2 border-neutral-40 checked:border-primary-30 disabled:opacity-40 checked:disabled:border-neutral-40 dark:border-neutral-60 dark:checked:border-primary-30 dark:disabled:border-neutral-40',
+                    'peer h-5 w-5 shrink-0 appearance-none rounded-full border border-2 border-neutral-40 checked:border-primary-30 disabled:opacity-40 checked:disabled:border-neutral-40 dark:border-neutral-60 dark:checked:border-primary-30 dark:disabled:border-neutral-40',
                 )}
             />
             <span
