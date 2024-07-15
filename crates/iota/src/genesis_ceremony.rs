@@ -244,7 +244,7 @@ pub fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::BuildUnsignedCheckpoint => {
-            let mut builder = Builder::load(&dir)?;
+            let mut builder = Builder::load(&dir)?.with_migrated_state()?;
             let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
             println!(
                 "Successfully built unsigned checkpoint: {}",
