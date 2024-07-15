@@ -5,7 +5,8 @@ import React from 'react';
 import cx from 'classnames';
 import { AccountType } from './account.enums';
 import { BACKGROUND_BADGE_COLORS, TEXT_COLORS, BADGE_TEXT_CLASS } from './account.classes';
-import { Button, ButtonSize, ButtonType } from '../button';
+import { Button, ButtonSize, ButtonType } from '../../atoms/button';
+import { Address } from '../../atoms';
 
 interface AccountProps {
     /**
@@ -76,7 +77,7 @@ export function Account({
                             </div>
                         )}
                     </div>
-                    <p className="text-body-sm text-neutral-40 dark:text-neutral-60">{subtitle}</p>{' '}
+                    <Address text={subtitle} />
                 </div>
             </div>
             <div
