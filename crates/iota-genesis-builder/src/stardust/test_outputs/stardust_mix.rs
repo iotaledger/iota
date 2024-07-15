@@ -215,7 +215,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Nft(NftOutputBuilder::new_with_amount(
                     OUTPUT_IOTA_AMOUNT,
-                    NftId::new(rng.gen()),
+                    NftId::null(),
                 )),
                 address,
                 native_tokens_for_nft_outputs,
