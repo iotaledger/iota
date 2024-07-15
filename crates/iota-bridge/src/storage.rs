@@ -80,7 +80,7 @@ impl BridgeOrchestratorTables {
             .insert_batch(&self.iota_syncer_cursors, [(module, cursor)])
             .map_err(|e| {
                 BridgeError::StorageError(format!(
-                    "Coudln't insert into iota_syncer_cursors: {:?}",
+                    "Couldn't insert into iota_syncer_cursors: {:?}",
                     e
                 ))
             })?;
@@ -100,7 +100,7 @@ impl BridgeOrchestratorTables {
             .insert_batch(&self.eth_syncer_cursors, [(contract_address, cursor)])
             .map_err(|e| {
                 BridgeError::StorageError(format!(
-                    "Coudln't insert into eth_syncer_cursors: {:?}",
+                    "Couldn't insert into eth_syncer_cursors: {:?}",
                     e
                 ))
             })?;

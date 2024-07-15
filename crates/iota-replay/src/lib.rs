@@ -523,10 +523,10 @@ pub async fn execute_replay_command(
                 .await
                 .into_iter()
                 .for_each(|x| match x {
-                    Ok((suceeded, total, time)) => {
+                    Ok((succeeded, total, time)) => {
                         total_tx += total;
                         total_time_ms += time.as_millis() as u64;
-                        total_succeeded += suceeded;
+                        total_succeeded += succeeded;
                     }
                     Err(e) => {
                         error!("Task failed: {:?}", e);

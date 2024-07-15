@@ -1,13 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { hasBalance, mergeAccounts, recoverAccounts } from './accounts-finder';
+import { type AccountFromFinder } from '_src/shared/accounts';
+import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { AccountType } from '../accounts/Account';
 import { GAS_COIN_TYPE } from '_redux/slices/iota-objects/Coin';
-import { getEmptyBalance, getPublicKey } from '_src/background/accounts-finder/helpers';
+import {
+    persistAddressesToSource,
+    getEmptyBalance,
+    getPublicKey,
+} from '_src/background/accounts-finder/helpers';
 import { type FindBalance } from '_src/background/accounts-finder/types';
 
 // Note: we exclude private keys for the account finder because more addresses cant be derived from them
@@ -53,11 +57,11 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
         },
         [AccountType.MnemonicDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 30,
+            addressGapLimit: 10,
         },
         [AccountType.SeedDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 2,
+            addressGapLimit: 10,
         },
     },
     // In shimmer we focus on accounts indexes and never rotate addresses
@@ -121,6 +125,16 @@ class AccountsFinder {
             GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
     }
 
+    async processAccounts({ foundAccounts }: { foundAccounts: AccountFromFinder[] }) {
+        const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
+
+        // Persist new addresses
+        const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
+        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
+
+        this.accounts = mergedAccounts;
+    }
+
     async runDepthSearch() {
         const depthAccounts = this.accounts;
 
@@ -146,9 +160,8 @@ class AccountsFinder {
                 findBalance: this.findBalance,
             });
 
-            this.accounts = mergeAccounts(this.accounts, foundAccounts);
+            await this.processAccounts({ foundAccounts });
         }
-        return this.accounts;
     }
 
     async runBreadthSearch() {
@@ -164,8 +177,7 @@ class AccountsFinder {
             findBalance: this.findBalance,
         });
 
-        this.accounts = [...this.accounts, ...foundAccounts];
-        return this.accounts;
+        await this.processAccounts({ foundAccounts });
     }
 
     // This function calls each time when user press "Search" button
@@ -208,25 +220,11 @@ class AccountsFinder {
             coinType: this.coinType,
         });
 
-        console.log(
-            '--- foundBalance',
-            params.accountIndex,
-            params.addressIndex,
-            params.changeIndex,
-            foundBalance,
-        );
-
         return {
             publicKeyHash,
             balance: foundBalance || emptyBalance,
         };
     };
-
-    getResults(): AddressFromFinder[] {
-        return this.accounts
-            .flatMap((acc) => acc.addresses.flat())
-            .filter((addr) => hasBalance(addr.balance));
-    }
 }
 
 const accountsFinder = new AccountsFinder();
