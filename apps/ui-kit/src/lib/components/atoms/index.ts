@@ -5,3 +5,4 @@ export * from './badge';
 export * from './button';
 export * from './header';
 export * from './divider';
+export * from './navbarItem';
