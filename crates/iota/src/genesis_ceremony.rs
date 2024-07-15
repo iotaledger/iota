@@ -8,7 +8,10 @@ use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_config::{genesis::UnsignedGenesis, IOTA_GENESIS_FILENAME};
+use iota_config::{
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    IOTA_GENESIS_FILENAME,
+};
 use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
@@ -93,6 +96,13 @@ pub enum CeremonyCommand {
         #[clap(long)]
         project_url: Option<String>,
     },
+    /// Add token allocation for the given address.
+    AddTokenAllocation {
+        #[clap(long)]
+        recipient_address: IotaAddress,
+        #[clap(long)]
+        amount_nanos: u64,
+    },
     /// List the current validators in the Genesis builder.
     ListValidators,
     /// Build the Genesis checkpoint.
@@ -136,6 +146,24 @@ pub fn run(cmd: Ceremony) -> Result<()> {
                 "Successfully validated ceremony builder at {}",
                 dir.join(GENESIS_BUILDER_PARAMETERS_FILE)
             );
+        }
+
+        CeremonyCommand::AddTokenAllocation {
+            recipient_address,
+            amount_nanos,
+        } => {
+            let mut builder = Builder::load(&dir)?;
+            let token_allocation = TokenAllocation {
+                recipient_address,
+                amount_nanos,
+                staked_with_validator: None,
+                staked_with_timelock_expiration: None,
+            };
+            let mut schedule_builder = TokenDistributionScheduleBuilder::new();
+            schedule_builder.add_allocation(token_allocation);
+            builder = builder.with_token_distribution_schedule(schedule_builder.build());
+
+            builder.save(dir)?;
         }
 
         CeremonyCommand::AddValidator {
