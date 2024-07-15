@@ -181,7 +181,8 @@ impl RWLockDependencyBuilder {
             for dep in reads {
                 trace!(
                     "Assuming additional dependency when constructing checkpoint {:?} -> {:?}",
-                    digest, *dep
+                    digest,
+                    *dep
                 );
                 v.insert(*dep);
             }
