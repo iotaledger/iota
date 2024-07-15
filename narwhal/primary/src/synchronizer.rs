@@ -72,7 +72,7 @@ struct Inner {
     gc_round: AtomicU64,
     // Highest round of certificate accepted into the certificate store.
     highest_processed_round: AtomicU64,
-    // Highest round of verfied certificate that has been received.
+    // Highest round of verified certificate that has been received.
     highest_received_round: AtomicU64,
     // Client for fetching payloads.
     client: NetworkClient,
@@ -370,7 +370,7 @@ impl Synchronizer {
         primary_channel_metrics: &PrimaryChannelMetrics,
     ) -> Self {
         let committee: &Committee = &committee;
-        let genesis = Self::make_genesis(&protocol_config, committee);
+        let genesis = Self::make_genesis(committee);
         let highest_processed_round = certificate_store.highest_round_number();
         let highest_created_certificate = certificate_store.last_round(authority_id).unwrap();
         let gc_round = rx_consensus_round_updates.borrow().gc_round;
@@ -649,6 +649,7 @@ impl Synchronizer {
     /// potentially return early. This helps to verify consistency, and has
     /// little extra cost because fetched certificates usually are not
     /// suspended.
+    #[cfg(test)]
     pub async fn try_accept_fetched_certificate(&self, certificate: Certificate) -> DagResult<()> {
         let _scope = monitored_scope("Synchronizer::try_accept_fetched_certificate");
         self.process_certificate_internal(certificate, false, false)
@@ -803,11 +804,8 @@ impl Synchronizer {
         Ok(())
     }
 
-    fn make_genesis(
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-    ) -> HashMap<CertificateDigest, Certificate> {
-        Certificate::genesis(protocol_config, committee)
+    fn make_genesis(committee: &Committee) -> HashMap<CertificateDigest, Certificate> {
+        Certificate::genesis(committee)
             .into_iter()
             .map(|x| (x.digest(), x))
             .collect()
@@ -825,10 +823,10 @@ impl Synchronizer {
     ) -> DagResult<Vec<Certificate>> {
         // Number of certificates to verify in a batch. Verifications in each batch run
         // serially. Batch size is chosen so that verifying a batch takes
-        // non-trival time (verifying a batch of 50 certificates should take >
+        // non-trivial time (verifying a batch of 50 certificates should take >
         // 25ms).
         const VERIFY_CERTIFICATES_V2_BATCH_SIZE: usize = 50;
-        // Number of rounds to force verfication of certificates by signature, to bound
+        // Number of rounds to force verification of certificates by signature, to bound
         // the maximum number of certificates with bad signatures in storage.
         const CERTIFICATE_VERIFICATION_ROUND_INTERVAL: u64 = 50;
 
@@ -1573,9 +1571,8 @@ impl State {
         // Accept suspended certificates at and below gc round because their parents
         // will not be accepted into the DAG store anymore, in
         // sanitize_certificate().
-        let Some(((round, digest), _children)) = self.missing.first_key_value() else {
-            return None;
-        };
+        let ((round, digest), _children) = self.missing.first_key_value()?;
+
         // Note that gc_round is the highest round where certificates are gc'ed, and
         // which will never be in a consensus commit. It's safe to gc up to
         // gc_round, so anything suspended on gc_round + 1 can safely be
@@ -1617,7 +1614,7 @@ mod tests {
     use config::Committee;
     use fastcrypto::{hash::Hash, traits::KeyPair};
     use itertools::Itertools;
-    use test_utils::{latest_protocol_version, make_optimal_signed_certificates, CommitteeFixture};
+    use test_utils::{make_optimal_signed_certificates, CommitteeFixture};
     use types::{Certificate, Round};
 
     use crate::synchronizer::State;
@@ -1635,7 +1632,7 @@ mod tests {
             .build();
 
         let committee: Committee = fixture.committee();
-        let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+        let genesis = Certificate::genesis(&committee)
             .iter()
             .map(|x| x.digest())
             .collect::<BTreeSet<_>>();
@@ -1643,13 +1640,8 @@ mod tests {
             .authorities()
             .map(|a| (a.id(), a.keypair().copy()))
             .collect();
-        let (certificates, _next_parents) = make_optimal_signed_certificates(
-            1..=3,
-            &genesis,
-            &committee,
-            &latest_protocol_version(),
-            keys.as_slice(),
-        );
+        let (certificates, _next_parents) =
+            make_optimal_signed_certificates(1..=3, &genesis, &committee, keys.as_slice());
         let certificates = certificates.into_iter().collect_vec();
 
         let mut state = State::default();

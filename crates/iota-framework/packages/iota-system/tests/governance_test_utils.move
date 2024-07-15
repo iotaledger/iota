@@ -17,6 +17,7 @@ module iota_system::governance_test_utils {
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils;
     use iota::balance::Balance;
+    use iota::timelock;
 
     const MICROS_PER_IOTA: u64 = 1_000_000_000;
 
@@ -63,7 +64,7 @@ module iota_system::governance_test_utils {
     ) {
         let system_parameters = iota_system_state_inner::create_system_parameters(
             42,  // epoch_duration_ms, doesn't matter what number we put here
-            0,   // stake_subsidy_start_epoch
+            18446744073709551615,   // stake_subsidy_start_epoch
 
             150, // max_validator_count
             1,   // min_validator_joining_stake
@@ -75,15 +76,18 @@ module iota_system::governance_test_utils {
 
         let mut iota_treasury_cap = iota::create_for_testing(ctx);
 
-        let stake_subsidy_balance = iota_treasury_cap.mint_balance(
+        // We mint the given amount so the system appears to have a total supply of iota_supply_amount,
+        // but we don't put it in the subsidy fund.
+        let iota_total_supply_balance = iota_treasury_cap.mint_balance(
             iota_supply_amount * MICROS_PER_IOTA,
             ctx,
         );
+        iota_total_supply_balance.destroy_for_testing();
 
         let stake_subsidy = stake_subsidy::create(
-            stake_subsidy_balance,
+            balance::zero(),
             0,  // stake subsidy initial distribution amount
-            10, // stake_subsidy_period_length
+            18446744073709551615, // stake_subsidy_period_length
             0,  // stake_subsidy_decrease_rate
             ctx,
         );
@@ -102,6 +106,7 @@ module iota_system::governance_test_utils {
             0,   // chain_start_timestamp_ms
             system_parameters,
             stake_subsidy,
+            timelock::new_system_timelock_cap_for_testing(),
             ctx,
         )
     }

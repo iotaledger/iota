@@ -4,7 +4,7 @@
 
 # ledgerjs-hw-app-iota
 
-[Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [Iota](https://iota.io/),
+[Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [Iota](https://iota.org/),
 based on [LedgerJS](https://github.com/LedgerHQ/ledgerjs).
 
 ## Using LedgerJS for Iota

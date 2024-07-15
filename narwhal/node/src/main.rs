@@ -308,7 +308,7 @@ async fn main() -> Result<(), eyre::Report> {
 
 /// Generate all the genesis files required for benchmarks.
 fn benchmark_genesis(
-    ips: &Vec<String>,
+    ips: &[String],
     working_directory: &PathBuf,
     num_workers: usize,
     base_port: usize,
@@ -594,12 +594,7 @@ async fn run(
             (Some(primary), None, None)
         }
         NodeType::Worker { id } => {
-            let worker = WorkerNode::new(
-                *id,
-                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
-                parameters.clone(),
-                registry_service.clone(),
-            );
+            let worker = WorkerNode::new(*id, parameters.clone(), registry_service.clone());
 
             worker
                 .start(
@@ -639,12 +634,7 @@ async fn run(
                 )
                 .await?;
 
-            let worker = WorkerNode::new(
-                *worker_id,
-                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
-                parameters.clone(),
-                registry_service.clone(),
-            );
+            let worker = WorkerNode::new(*worker_id, parameters.clone(), registry_service.clone());
 
             let mut worker_store_path = PathBuf::new();
             if let Some(parent) = store_path.parent() {

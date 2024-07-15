@@ -6,7 +6,6 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-
     use std::{
         collections::{BTreeMap, BTreeSet},
         fmt,
@@ -31,14 +30,16 @@ mod checked {
         id::{RESOLVED_IOTA_ID, UID},
         metrics::LimitsMetrics,
         move_package::{
-            normalize_deserialized_modules, MovePackage, TypeOrigin, UpgradeCap, UpgradePolicy,
-            UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules, MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt,
+            UpgradeTicket,
         },
         storage::{get_package_objects, PackageObject},
         transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
-        Identifier, IOTA_FRAMEWORK_ADDRESS,
+        transfer::RESOLVED_RECEIVING_STRUCT,
+        IOTA_FRAMEWORK_ADDRESS,
     };
     use iota_verifier::{
+        default_verifier_config,
         private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
         INIT_FN_NAME,
     };
@@ -52,7 +53,7 @@ mod checked {
     use move_core_types::{
         account_address::AccountAddress,
         identifier::IdentStr,
-        language_storage::{ModuleId, StructTag, TypeTag},
+        language_storage::{ModuleId, TypeTag},
         u256::U256,
     };
     use move_vm_runtime::{
@@ -61,6 +62,7 @@ mod checked {
     };
     use move_vm_types::loaded_data::runtime_types::{StructType, Type};
     use serde::{de::DeserializeSeed, Deserialize};
+    use tracing::instrument;
 
     use crate::{
         adapter::substitute_package_id, gas_charger::GasCharger,
@@ -90,29 +92,38 @@ mod checked {
         let mut mode_results = Mode::empty_results();
         for (idx, command) in commands.into_iter().enumerate() {
             if let Err(err) = execute_command::<Mode>(&mut context, &mut mode_results, command) {
-                let object_runtime: &ObjectRuntime = context.session.get_native_extensions().get();
+                let object_runtime: &ObjectRuntime = context.object_runtime();
                 // We still need to record the loaded child objects for replay
-                let loaded_child_objects = object_runtime.loaded_child_objects();
+                let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
+                // we do not save the wrapped objects since on error, they should not be
+                // modified
                 drop(context);
-                state_view.save_loaded_runtime_objects(loaded_child_objects);
+                state_view.save_loaded_runtime_objects(loaded_runtime_objects);
                 return Err(err.with_command_index(idx));
             };
         }
 
         // Save loaded objects table in case we fail in post execution
-        let object_runtime: &ObjectRuntime = context.session.get_native_extensions().get();
+        let object_runtime: &ObjectRuntime = context.object_runtime();
         // We still need to record the loaded child objects for replay
-        let loaded_child_objects = object_runtime.loaded_child_objects();
+        // Record the objects loaded at runtime (dynamic fields + received) for
+        // storage rebate calculation.
+        let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
+        // We record what objects were contained in at the start of the transaction
+        // for expensive invariant checks
+        let wrapped_object_containers = object_runtime.wrapped_object_containers();
 
         // apply changes
         let finished = context.finish::<Mode>();
         // Save loaded objects for debug. We dont want to lose the info
-        state_view.save_loaded_runtime_objects(loaded_child_objects);
+        state_view.save_loaded_runtime_objects(loaded_runtime_objects);
+        state_view.save_wrapped_object_containers(wrapped_object_containers);
         state_view.record_execution_results(finished?);
         Ok(mode_results)
     }
 
     /// Execute a single command
+    #[instrument(level = "trace", skip_all)]
     fn execute_command<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         mode_results: &mut Mode::ExecutionResults,
@@ -131,7 +142,8 @@ mod checked {
                     .map_err(|e| context.convert_vm_error(e))?;
                 let ty = Type::Vector(Box::new(elem_ty));
                 let abilities = context
-                    .session
+                    .vm
+                    .get_runtime()
                     .get_type_abilities(&ty)
                     .map_err(|e| context.convert_vm_error(e))?;
                 // BCS layout for any empty vector should be the same
@@ -175,7 +187,8 @@ mod checked {
                 }
                 let ty = Type::Vector(Box::new(elem_ty));
                 let abilities = context
-                    .session
+                    .vm
+                    .get_runtime()
                     .get_type_abilities(&ty)
                     .map_err(|e| context.convert_vm_error(e))?;
                 vec![Value::Raw(
@@ -256,7 +269,7 @@ mod checked {
                     let ObjectContents::Coin(Coin { id, balance }) = coin.contents else {
                         invariant_violation!(
                             "Target coin was a coin, and we already checked for the same type. \
-                        This should be a coin"
+                            This should be a coin"
                         );
                     };
                     context.delete_id(*id.object_id())?;
@@ -300,7 +313,7 @@ mod checked {
                     false,
                 );
 
-                context.reset_linkage();
+                context.linkage_view.reset_linkage();
                 return_values?
             }
             Command::Publish(modules, dep_ids) => {
@@ -371,7 +384,7 @@ mod checked {
 
         // save the link context because calls to `make_value` below can set new ones,
         // and we don't want it to be clobbered.
-        let saved_linkage = context.steal_linkage();
+        let saved_linkage = context.linkage_view.steal_linkage();
         // write back mutable inputs. We also update if they were used in non entry Move
         // calls though we do not care for immutable usages of objects or other
         // values
@@ -389,7 +402,7 @@ mod checked {
             return_value_kinds,
         );
 
-        context.restore_linkage(saved_linkage)?;
+        context.linkage_view.restore_linkage(saved_linkage)?;
         res
     }
 
@@ -433,9 +446,7 @@ mod checked {
             ValueKind::Object {
                 type_,
                 has_public_transfer,
-            } => Value::Object(make_object_value(
-                context.vm,
-                &mut context.session,
+            } => Value::Object(context.make_object_value(
                 type_,
                 has_public_transfer,
                 used_in_non_entry_move_call,
@@ -484,45 +495,32 @@ mod checked {
 
         // For newly published packages, runtime ID matches storage ID.
         let storage_id = runtime_id;
+        let dependencies = fetch_packages(context, &dep_ids)?;
+        let package =
+            context.new_package(&modules, dependencies.iter().map(|p| p.move_package()))?;
 
-        // Preserve the old order of operations when package upgrades are not supported,
-        // because it affects the order in which error cases are checked.
-        let package_obj = if context.protocol_config.package_upgrades_supported() {
-            let dependencies = fetch_packages(context, &dep_ids)?;
-            let package_obj =
-                context.new_package(&modules, dependencies.iter().map(|p| p.move_package()))?;
+        // Here we optimistically push the package that is being published/upgraded
+        // and if there is an error of any kind (verification or module init) we
+        // remove it.
+        // The call to `pop_last_package` later is fine because we cannot re-enter and
+        // the last package we pushed is the one we are verifying and running the init
+        // from
+        context.linkage_view.set_linkage(&package)?;
+        context.write_package(package);
+        let res = publish_and_verify_modules(context, runtime_id, &modules)
+            .and_then(|_| init_modules::<Mode>(context, argument_updates, &modules));
+        context.linkage_view.reset_linkage();
+        if res.is_err() {
+            context.pop_package();
+        }
+        res?;
 
-            let Some(package) = package_obj.data.try_as_package() else {
-                invariant_violation!("Newly created package object is not a package");
-            };
-
-            context.set_linkage(package)?;
-            let res = publish_and_verify_modules(context, runtime_id, &modules)
-                .and_then(|_| init_modules::<Mode>(context, argument_updates, &modules));
-            context.reset_linkage();
-            res?;
-
-            package_obj
-        } else {
-            // FOR THE LOVE OF ALL THAT IS GOOD DO NOT RE-ORDER THIS.  It looks redundant,
-            // but is required to maintain backwards compatibility.
-            publish_and_verify_modules(context, runtime_id, &modules)?;
-            let dependencies = fetch_packages(context, &dep_ids)?;
-            let package =
-                context.new_package(&modules, dependencies.iter().map(|p| p.move_package()))?;
-            init_modules::<Mode>(context, argument_updates, &modules)?;
-            package
-        };
-
-        context.write_package(package_obj)?;
         let values = if Mode::packages_are_predefined() {
             // no upgrade cap for genesis modules
             vec![]
         } else {
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
-            vec![Value::Object(make_object_value(
-                context.vm,
-                &mut context.session,
+            vec![Value::Object(context.make_object_value(
                 UpgradeCap::type_().into(),
                 // has_public_transfer
                 true,
@@ -543,22 +541,19 @@ mod checked {
         current_package_id: ObjectID,
         upgrade_ticket_arg: Argument,
     ) -> Result<Vec<Value>, ExecutionError> {
-        // Check that package upgrades are supported.
-        context
-            .protocol_config
-            .check_package_upgrades_supported()
-            .map_err(|_| ExecutionError::from_kind(ExecutionErrorKind::FeatureNotYetSupported))?;
-
         assert_invariant!(
             !module_bytes.is_empty(),
             "empty package is checked in transaction input checker"
         );
+        context
+            .gas_charger
+            .charge_upgrade_package(module_bytes.iter().map(|v| v.len()).sum())?;
 
         let upgrade_ticket_type = context
-            .load_type(&TypeTag::Struct(Box::new(UpgradeTicket::type_())))
+            .load_type_from_struct(&UpgradeTicket::type_())
             .map_err(|e| context.convert_vm_error(e))?;
         let upgrade_receipt_type = context
-            .load_type(&TypeTag::Struct(Box::new(UpgradeReceipt::type_())))
+            .load_type_from_struct(&UpgradeReceipt::type_())
             .map_err(|e| context.convert_vm_error(e))?;
 
         let upgrade_ticket: UpgradeTicket = {
@@ -589,12 +584,10 @@ mod checked {
         }
 
         // Check digest.
-        let computed_digest = MovePackage::compute_digest_for_modules_and_deps(
-            &module_bytes,
-            &dep_ids,
-            context.protocol_config.package_digest_hash_module(),
-        )
-        .to_vec();
+        let hash_modules = true;
+        let computed_digest =
+            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids, hash_modules)
+                .to_vec();
         if computed_digest != upgrade_ticket.digest {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
@@ -618,52 +611,16 @@ mod checked {
         let storage_id = context.tx_context.fresh_id();
 
         let dependencies = fetch_packages(context, &dep_ids)?;
-        let package_obj = context.upgrade_package(
+        let package = context.upgrade_package(
             storage_id,
             current_package.move_package(),
             &modules,
             dependencies.iter().map(|p| p.move_package()),
         )?;
 
-        let Some(package) = package_obj.data.try_as_package() else {
-            invariant_violation!("Newly created package object is not a package");
-        };
-
-        // Populate loader with all previous types.
-        if !context
-            .protocol_config
-            .disallow_adding_abilities_on_upgrade()
-        {
-            for TypeOrigin {
-                module_name,
-                struct_name,
-                package: origin,
-            } in package.type_origin_table()
-            {
-                if package.id() == *origin {
-                    continue;
-                }
-
-                let Ok(module) = Identifier::new(module_name.as_str()) else {
-                    continue;
-                };
-
-                let Ok(name) = Identifier::new(struct_name.as_str()) else {
-                    continue;
-                };
-
-                let _ = context.load_type(&TypeTag::Struct(Box::new(StructTag {
-                    address: (*origin).into(),
-                    module,
-                    name,
-                    type_params: vec![],
-                })));
-            }
-        }
-
-        context.set_linkage(package)?;
+        context.linkage_view.set_linkage(&package)?;
         let res = publish_and_verify_modules(context, runtime_id, &modules);
-        context.reset_linkage();
+        context.linkage_view.reset_linkage();
         res?;
 
         check_compatibility(
@@ -673,7 +630,7 @@ mod checked {
             upgrade_ticket.policy,
         )?;
 
-        context.write_package(package_obj)?;
+        context.write_package(package);
         Ok(vec![Value::Raw(
             RawValueType::Loaded {
                 ty: upgrade_receipt_type,
@@ -715,7 +672,7 @@ mod checked {
                 ));
             };
 
-            check_module_compatibility(&policy, context.protocol_config, &cur_module, &new_module)?;
+            check_module_compatibility(&policy, &cur_module, &new_module)?;
         }
 
         Ok(())
@@ -723,7 +680,6 @@ mod checked {
 
     fn check_module_compatibility(
         policy: &UpgradePolicy,
-        protocol_config: &ProtocolConfig,
         cur_module: &normalized::Module,
         new_module: &normalized::Module,
     ) -> Result<(), ExecutionError> {
@@ -731,21 +687,13 @@ mod checked {
             UpgradePolicy::Additive => InclusionCheck::Subset.check(cur_module, new_module),
             UpgradePolicy::DepOnly => InclusionCheck::Equal.check(cur_module, new_module),
             UpgradePolicy::Compatible => {
-                let disallowed_new_abilities =
-                    if protocol_config.disallow_adding_abilities_on_upgrade() {
-                        AbilitySet::ALL
-                    } else {
-                        AbilitySet::EMPTY
-                    };
-
                 let compatibility = Compatibility {
                     check_struct_and_pub_function_linking: true,
                     check_struct_layout: true,
                     check_friend_linking: false,
                     check_private_entry_linking: false,
-                    disallowed_new_abilities,
-                    disallow_change_struct_type_params: protocol_config
-                        .disallow_change_struct_type_params_on_upgrade(),
+                    disallowed_new_abilities: AbilitySet::ALL,
+                    disallow_change_struct_type_params: true,
                 };
 
                 compatibility.check(cur_module, new_module)
@@ -827,13 +775,11 @@ mod checked {
         }
         // script visibility checked manually for entry points
         let mut result = context
-            .session
             .execute_function_bypass_visibility(
                 module_id,
                 function,
                 type_arguments,
                 serialized_arguments,
-                context.gas_charger.move_gas_status_mut(),
             )
             .map_err(|e| context.convert_vm_error(e))?;
 
@@ -896,14 +842,7 @@ mod checked {
             })
             .collect();
         context
-            .session
-            .publish_module_bundle(
-                new_module_bytes,
-                AccountAddress::from(package_id),
-                // TODO: publish_module_bundle() currently doesn't charge gas.
-                // Do we want to charge there?
-                context.gas_charger.move_gas_status_mut(),
-            )
+            .publish_module_bundle(new_module_bytes, AccountAddress::from(package_id))
             .map_err(|e| context.convert_vm_error(e))?;
 
         // run the Iota verifier
@@ -911,9 +850,9 @@ mod checked {
             // Run Iota bytecode verifier, which runs some additional checks that assume the
             // Move bytecode verifier has passed.
             iota_verifier::verifier::iota_verify_module_unmetered(
-                context.protocol_config,
                 module,
                 &BTreeMap::new(),
+                &default_verifier_config(context.protocol_config, false),
             )?;
         }
 
@@ -1007,21 +946,18 @@ mod checked {
         from_init: bool,
     ) -> Result<LoadedFunctionInfo, ExecutionError> {
         if from_init {
-            // the session is weird and does not load the module on publishing. This is a
-            // temporary work around, since loading the function through the
-            // session will cause the module to be loaded through the sessions
-            // data store.
-            let result = context
-                .session
-                .load_function(module_id, function, type_arguments);
+            let result = context.load_function(module_id, function, type_arguments);
             assert_invariant!(
                 result.is_ok(),
                 "The modules init should be able to be loaded"
             );
         }
+        let no_new_packages = vec![];
+        let data_store = IotaDataStore::new(&context.linkage_view, &no_new_packages);
         let module = context
             .vm
-            .load_module(module_id, context.session.get_resolver())
+            .get_runtime()
+            .load_module(module_id, &data_store)
             .map_err(|e| context.convert_vm_error(e))?;
         let Some((index, fdef)) = module
             .function_defs
@@ -1077,7 +1013,6 @@ mod checked {
             }
         };
         let signature = context
-            .session
             .load_function(module_id, function, type_arguments)
             .map_err(|e| context.convert_vm_error(e))?;
         let signature =
@@ -1157,7 +1092,8 @@ mod checked {
                     t => t,
                 };
                 let abilities = context
-                    .session
+                    .vm
+                    .get_runtime()
                     .get_type_abilities(return_type)
                     .map_err(|e| context.convert_vm_error(e))?;
                 Ok(match return_type {
@@ -1167,7 +1103,8 @@ mod checked {
                     }
                     Type::Struct(_) | Type::StructInstantiation(_) if abilities.has_key() => {
                         let type_tag = context
-                            .session
+                            .vm
+                            .get_runtime()
                             .get_type_tag(return_type)
                             .map_err(|e| context.convert_vm_error(e))?;
                         let TypeTag::Struct(struct_tag) = type_tag else {
@@ -1214,7 +1151,7 @@ mod checked {
         {
             let msg = format!(
                 "Cannot directly call iota::{m}::{f}. \
-            Use the public variant instead, iota::{m}::public_{f}",
+                Use the public variant instead, iota::{m}::public_{f}",
                 m = TRANSFER_MODULE,
                 f = function
             );
@@ -1299,7 +1236,8 @@ mod checked {
                     }) = &value
                     {
                         let type_tag = context
-                            .session
+                            .vm
+                            .get_runtime()
                             .get_type_tag(type_)
                             .map_err(|e| context.convert_vm_error(e))?;
                         let TypeTag::Struct(struct_tag) = type_tag else {
@@ -1312,7 +1250,8 @@ mod checked {
                         }
                     } else {
                         let abilities = context
-                            .session
+                            .vm
+                            .get_runtime()
                             .get_type_abilities(inner)
                             .map_err(|e| context.convert_vm_error(e))?;
                         ValueKind::Raw((**inner).clone(), abilities)
@@ -1320,7 +1259,7 @@ mod checked {
                     by_mut_ref.push((idx as LocalIndex, object_info));
                     (value, inner)
                 }
-                Type::Reference(inner) => (context.borrow_arg(idx, arg)?, inner),
+                Type::Reference(inner) => (context.borrow_arg(idx, arg, param_ty)?, inner),
                 t => {
                     let value = context.by_value_arg(command_kind, idx, arg)?;
                     (value, t)
@@ -1354,7 +1293,7 @@ mod checked {
         value: &Value,
         param_ty: &Type,
     ) -> Result<(), ExecutionError> {
-        let ty = match value {
+        match value {
             // For dev-spect, allow any BCS bytes. This does mean internal invariants for types can
             // be violated (like for string or Option)
             Value::Raw(RawValueType::Any, _) if Mode::allow_arbitrary_values() => return Ok(()),
@@ -1365,7 +1304,7 @@ mod checked {
                 let Some(layout) = primitive_serialization_layout(context, param_ty)? else {
                     let msg = format!(
                         "Non-primitive argument at index {}. If it is an object, it must be \
-                    populated by an object",
+                        populated by an object",
                         idx,
                     );
                     return Err(ExecutionError::new_with_source(
@@ -1384,21 +1323,56 @@ mod checked {
                     Mode::allow_arbitrary_values() || !abilities.has_key(),
                     "Raw value should never be an object"
                 );
-                ty
+                if ty != param_ty {
+                    return Err(command_argument_error(
+                        CommandArgumentError::TypeMismatch,
+                        idx,
+                    ));
+                }
             }
-            Value::Object(obj) => &obj.type_,
-            Value::Receiving(_, _, _) => {
-                unreachable!("Receiving value should never occur in v0 execution")
+            Value::Object(obj) => {
+                let ty = &obj.type_;
+                if ty != param_ty {
+                    return Err(command_argument_error(
+                        CommandArgumentError::TypeMismatch,
+                        idx,
+                    ));
+                }
             }
-        };
-        if ty != param_ty {
-            Err(command_argument_error(
-                CommandArgumentError::TypeMismatch,
-                idx,
-            ))
-        } else {
-            Ok(())
+            Value::Receiving(_, _, assigned_type) => {
+                // If the type has been fixed, make sure the types match up
+                if let Some(assigned_type) = assigned_type {
+                    if assigned_type != param_ty {
+                        return Err(command_argument_error(
+                            CommandArgumentError::TypeMismatch,
+                            idx,
+                        ));
+                    }
+                }
+
+                // Now make sure the param type is a struct instantiation of the receiving
+                // struct
+                let Type::StructInstantiation(struct_inst) = param_ty else {
+                    return Err(command_argument_error(
+                        CommandArgumentError::TypeMismatch,
+                        idx,
+                    ));
+                };
+                let (sidx, targs) = &**struct_inst;
+                let Some(s) = context.vm.get_runtime().get_struct_type(*sidx) else {
+                    invariant_violation!("iota::transfer::Receiving struct not found in session")
+                };
+                let resolved_struct = get_struct_ident(&s);
+
+                if resolved_struct != RESOLVED_RECEIVING_STRUCT || targs.len() != 1 {
+                    return Err(command_argument_error(
+                        CommandArgumentError::TypeMismatch,
+                        idx,
+                    ));
+                }
+            }
         }
+        Ok(())
     }
 
     fn get_struct_ident(s: &StructType) -> (&AccountAddress, &IdentStr, &IdentStr) {
@@ -1426,7 +1400,7 @@ mod checked {
         let Type::Struct(idx) = &**inner else {
             return Ok(TxContextKind::None);
         };
-        let Some(s) = context.session.get_struct_type(*idx) else {
+        let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_struct_ident(&s);
@@ -1470,7 +1444,7 @@ mod checked {
             }
             Type::StructInstantiation(struct_inst) => {
                 let (idx, targs) = &**struct_inst;
-                let Some(s) = context.session.get_struct_type(*idx) else {
+                let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
                     invariant_violation!("Loaded struct not found")
                 };
                 let resolved_struct = get_struct_ident(&s);
@@ -1483,7 +1457,7 @@ mod checked {
                 }
             }
             Type::Struct(idx) => {
-                let Some(s) = context.session.get_struct_type(*idx) else {
+                let Some(s) = context.vm.get_runtime().get_struct_type(*idx) else {
                     invariant_violation!("Loaded struct not found")
                 };
                 let resolved_struct = get_struct_ident(&s);

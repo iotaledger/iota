@@ -2,8 +2,8 @@
 title: Module `0x2::iota`
 ---
 
-Coin<IOTA> is the token used to pay for gas in Iota.
-It has 9 decimals, and the smallest unit (10^-9) is called "micros".
+Coin<IOTA> is the token used to pay for gas in IOTA.
+It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 
 
 -  [Struct `IOTA`](#0x2_iota_IOTA)
@@ -16,7 +16,6 @@ It has 9 decimals, and the smallest unit (10^-9) is called "micros".
 -  [Function `burn`](#0x2_iota_burn)
 -  [Function `burn_balance`](#0x2_iota_burn_balance)
 -  [Function `total_supply`](#0x2_iota_total_supply)
--  [Function `mint_genesis_supply`](#0x2_iota_mint_genesis_supply)
 
 
 <pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
@@ -110,37 +109,6 @@ Sender is not @0x0 the system address.
 
 
 
-<a name="0x2_iota_MICROS_PER_IOTA"></a>
-
-The amount of Micros per Iota token based on the fact that micros is
-10^-9 of a Iota token
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_MICROS_PER_IOTA">MICROS_PER_IOTA</a>: u64 = 1000000000;
-</code></pre>
-
-
-
-<a name="0x2_iota_TOTAL_SUPPLY_IOTA"></a>
-
-The total supply of Iota denominated in whole Iota tokens (10 Billion)
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_IOTA">TOTAL_SUPPLY_IOTA</a>: u64 = 10000000000;
-</code></pre>
-
-
-
-<a name="0x2_iota_TOTAL_SUPPLY_MICROS"></a>
-
-The total supply of Iota denominated in Micros (10 Billion * 10^9)
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_MICROS">TOTAL_SUPPLY_MICROS</a>: u64 = 10000000000000000000;
-</code></pre>
-
-
-
 <a name="0x2_iota_new"></a>
 
 ## Function `new`
@@ -166,10 +134,9 @@ This should be called only once during genesis creation.
         <a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a> {},
         9,
         b"<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>",
-        b"Iota",
-        // TODO: add appropriate description and logo <a href="../iota-framework/url.md#0x2_url">url</a>
-        b"",
-        <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
+        b"<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>",
+        b"The main (gas)token of the <a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a> Network.",
+        <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(<a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(b"https://<a href="../iota-framework/iota.md#0x2_iota">iota</a>.org/logo.png")),
         ctx
     );
 
@@ -336,34 +303,6 @@ Return the total number of IOTA's in circulation.
 
 <pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/iota.md#0x2_iota_total_supply">total_supply</a>(cap: &<a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</a>): u64 {
     cap.inner.<a href="../iota-framework/iota.md#0x2_iota_total_supply">total_supply</a>()
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="0x2_iota_mint_genesis_supply"></a>
-
-## Function `mint_genesis_supply`
-
-Increase the IOTA supply.
-This should be called only once during genesis creation.
-
-
-<pre><code><b>fun</b> <a href="../iota-framework/iota.md#0x2_iota_mint_genesis_supply">mint_genesis_supply</a>(cap: &<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, value: u64, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>fun</b> <a href="../iota-framework/iota.md#0x2_iota_mint_genesis_supply">mint_genesis_supply</a>(cap: &<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</a>, value: u64, ctx: &TxContext): Balance&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>&gt; {
-    <b>assert</b>!(ctx.epoch() == 0, <a href="../iota-framework/iota.md#0x2_iota_EAlreadyMinted">EAlreadyMinted</a>);
-
-    cap.<a href="../iota-framework/iota.md#0x2_iota_mint_balance">mint_balance</a>(value, ctx)
 }
 </code></pre>
 

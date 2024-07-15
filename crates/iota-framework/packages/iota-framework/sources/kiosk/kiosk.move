@@ -115,7 +115,7 @@ module iota::kiosk {
     const EListedExclusively: u64 = 4;
     /// `PurchaseCap` does not match the `Kiosk`.
     const EWrongKiosk: u64 = 5;
-    /// Tryng to exclusively list an already listed item.
+    /// Trying to exclusively list an already listed item.
     const EAlreadyListed: u64 = 6;
     /// Trying to call `uid_mut` when `allow_extensions` set to false.
     const EUidAccessNotAllowed: u64 = 7;
@@ -163,7 +163,7 @@ module iota::kiosk {
     /// purchase it from a `Kiosk` for any price no less than `min_price`.
     ///
     /// Allows exclusive listing: only bearer of the `PurchaseCap` can
-    /// purchase the asset. However, the capablity should be used
+    /// purchase the asset. However, the capability should be used
     /// carefully as losing it would lock the asset in the `Kiosk`.
     ///
     /// The main application for the `PurchaseCap` is building extensions

@@ -29,14 +29,16 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <PopupProvider>
-                    <QueryClientProvider client={queryClient}>
-                        <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
-                            <WalletProvider>{children}</WalletProvider>
-                            <Popup />
-                        </IotaClientProvider>
-                    </QueryClientProvider>
-                </PopupProvider>
+                <QueryClientProvider client={queryClient}>
+                    <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
+                        <WalletProvider>
+                            <PopupProvider>
+                                {children}
+                                <Popup />
+                            </PopupProvider>
+                        </WalletProvider>
+                    </IotaClientProvider>
+                </QueryClientProvider>
             </body>
         </html>
     );

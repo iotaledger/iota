@@ -10,20 +10,17 @@ use std::{
 };
 
 use anyhow::Result;
-use fastcrypto::hash::HashFunction;
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
-    crypto::DefaultHash,
-    digests::TransactionDigest,
     epoch_data::EpochData,
     object::Object,
-    timelock::timelock::{is_timelocked_balance, TimeLock},
+    stardust::coin_type::CoinType,
+    timelock::timelock::{self, is_timelocked_balance, TimeLock},
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    TIMELOCK_PACKAGE_ID,
 };
 use tracing::info;
 
@@ -31,24 +28,27 @@ use crate::stardust::{
     migration::{
         executor::Executor,
         verification::{created_objects::CreatedObjects, verify_outputs},
+        MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{snapshot::OutputHeader, timelock},
+    types::output_header::OutputHeader,
 };
 
 /// We fix the protocol version used in the migration.
 pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 5] = [
+pub const PACKAGE_DEPS: [ObjectID; 4] = [
     MOVE_STDLIB_PACKAGE_ID,
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
-    TIMELOCK_PACKAGE_ID,
 ];
 
 pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
+
+/// An alias for representing the timestamp of a Timelock
+pub type ExpirationTimestamp = u64;
 
 /// The orchestrator of the migration process.
 ///
@@ -70,18 +70,31 @@ pub struct Migration {
     total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
+    /// The coin type to use in order to migrate outputs. Can be either `Iota`
+    /// or `Shimmer`. Is fixed for the entire migration process.
+    coin_type: CoinType,
 }
 
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
     /// and bootstraping the in-memory storage.
-    pub fn new(target_milestone_timestamp_sec: u32, total_supply: u64) -> Result<Self> {
-        let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
+    pub fn new(
+        target_milestone_timestamp_sec: u32,
+        total_supply: u64,
+        target_network: MigrationTargetNetwork,
+        coin_type: CoinType,
+    ) -> Result<Self> {
+        let executor = Executor::new(
+            ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
+            target_network,
+            coin_type,
+        )?;
         Ok(Self {
             target_milestone_timestamp_sec,
             total_supply,
             executor,
             output_objects_map: Default::default(),
+            coin_type,
         })
     }
 
@@ -108,14 +121,12 @@ impl Migration {
         // a certain milestone timestamp remains the same between runs.
         //
         // This guarantees that fresh ids created through the transaction
-        // context will also map to the same objects betwen runs.
+        // context will also map to the same objects between runs.
         outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
-        // TODO: Possibly pass the typeTag argument in the scope of the Shimmer
-        // integration.
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
@@ -182,8 +193,14 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
+                Output::Alias(alias) => {
+                    self.executor
+                        .create_alias_objects(header, alias, self.coin_type)?
+                }
+                Output::Nft(nft) => {
+                    self.executor
+                        .create_nft_objects(header, nft, self.coin_type)?
+                }
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -198,7 +215,12 @@ impl Migration {
                             self.target_milestone_timestamp_sec,
                         )?
                     } else {
-                        self.executor.create_basic_objects(header, basic)?
+                        self.executor.create_basic_objects(
+                            header,
+                            basic,
+                            self.target_milestone_timestamp_sec,
+                            &self.coin_type,
+                        )?
                     }
                 }
                 Output::Treasury(_) | Output::Foundry(_) => continue,
@@ -209,7 +231,7 @@ impl Migration {
     }
 
     /// Verify the ledger state represented by the objects in
-    /// [`InMemoryStorage`].
+    /// [`InMemoryStorage`](iota_types::in_memory_storage::InMemoryStorage).
     pub fn verify_ledger_state<'a>(
         &self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
@@ -299,35 +321,45 @@ impl MigrationObjects {
         self.inner.is_empty()
     }
 
-    /// Get [`TimeLock`] objects created during the migration.
+    /// Get [`TimeLock`] objects created during the migration together with
+    /// their expiration timestamp.
     ///
     /// The query is filtered by the object owner.
     ///
     /// The returned objects are ordered by expiration timestamp, in descending
     /// order.
-    pub fn get_sorted_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
-        self.get_timelocks_by_owner(address).map(|mut timelocks| {
-            timelocks.sort_by_cached_key(|object| {
-                Reverse(
-                    object
-                        .to_rust::<TimeLock<Balance>>()
-                        .expect("this should be a TimeLock object")
-                        .expiration_timestamp_ms(),
-                )
-            });
-            timelocks
-        })
+    pub fn get_sorted_timelocks_and_expiration_by_owner(
+        &self,
+        address: IotaAddress,
+    ) -> Option<Vec<(&Object, ExpirationTimestamp)>> {
+        self.get_timelocks_and_expiration_by_owner(address)
+            .map(|mut timelocks| {
+                timelocks.sort_by_key(|&(_, timestamp)| Reverse(timestamp));
+                timelocks
+            })
     }
 
-    /// Get [`TimeLock`] objects created during the migration.
+    /// Get [`TimeLock`] objects created during the migration togeter with their
+    /// expiration timestamp.
     ///
     /// The query is filtered by the object owner.
-    pub fn get_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+    pub fn get_timelocks_and_expiration_by_owner(
+        &self,
+        address: IotaAddress,
+    ) -> Option<Vec<(&Object, ExpirationTimestamp)>> {
         Some(
             self.owner_timelock
                 .get(&address)?
                 .iter()
-                .map(|i| &self.inner[*i])
+                .map(|i| {
+                    (
+                        &self.inner[*i],
+                        self.inner[*i]
+                            .to_rust::<TimeLock<Balance>>()
+                            .expect("this should be a TimeLock object")
+                            .expiration_timestamp_ms(),
+                    )
+                })
                 .collect(),
         )
     }
@@ -373,15 +405,10 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
 }
 
 /// Create a [`TxContext]` that remains the same across invocations.
-pub(super) fn create_migration_context() -> TxContext {
-    let mut hasher = DefaultHash::default();
-    hasher.update(b"stardust-migration");
-    let hash = hasher.finalize();
-    let stardust_migration_transaction_digest = TransactionDigest::new(hash.into());
-
+pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -> TxContext {
     TxContext::new(
         &IotaAddress::default(),
-        &stardust_migration_transaction_digest,
+        &target_network.migration_transaction_digest(),
         &EpochData::new_genesis(0),
     )
 }
@@ -395,11 +422,10 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::TimeLock,
+        timelock::timelock::{to_genesis_object, TimeLock},
     };
 
     use super::*;
-    use crate::stardust::types::timelock::to_genesis_object;
 
     #[test]
     fn migration_objects_get_timelocks() {
@@ -446,12 +472,14 @@ mod tests {
                 .chain(expected_timelocks.clone())
                 .collect(),
         );
-        let matching_objects = migration_objects.get_timelocks_by_owner(owner).unwrap();
+        let matching_objects = migration_objects
+            .get_timelocks_and_expiration_by_owner(owner)
+            .unwrap();
         assert_eq!(
             expected_timelocks,
             matching_objects
                 .into_iter()
-                .cloned()
+                .map(|(timelock, _)| timelock.clone())
                 .collect::<Vec<Object>>()
         );
     }

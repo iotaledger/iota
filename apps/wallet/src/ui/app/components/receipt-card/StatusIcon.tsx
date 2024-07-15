@@ -5,7 +5,11 @@
 import { ThumbUpFill32 } from '@iota/icons';
 import cl from 'clsx';
 
-export function StatusIcon({ status }: { status: boolean }) {
+interface StatusIconProps {
+    status: boolean;
+}
+
+export function StatusIcon({ status }: StatusIconProps) {
     return (
         <div
             className={cl(

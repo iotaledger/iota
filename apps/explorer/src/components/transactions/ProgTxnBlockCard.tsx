@@ -5,8 +5,12 @@
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
-import { ExpandableList, ExpandableListControl, ExpandableListItems } from '~/ui/ExpandableList';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
+import {
+    CollapsibleCard,
+    ExpandableList,
+    ExpandableListControl,
+    ExpandableListItems,
+} from '~/components/ui';
 
 interface ProgrammableTxnBlockCardProps {
     items: ReactNode[];

@@ -32,6 +32,13 @@ module.exports = {
             },
         },
         {
+            files: 'apps/ui-kit/**/*',
+            options: {
+                plugins: ['prettier-plugin-tailwindcss'],
+                tailwindConfig: './apps/ui-kit/tailwind.config.ts',
+            },
+        },
+        {
             files: 'sdk/**/*',
             options: {
                 proseWrap: 'always',

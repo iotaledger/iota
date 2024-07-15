@@ -6,7 +6,7 @@ import { useProductAnalyticsConfig } from '@iota/core';
 import { Text } from '@iota/ui';
 
 import { LEGAL_LINKS } from '~/lib/constants';
-import { Link } from '~/ui/Link';
+import { Link } from '~/components/ui';
 
 export function LegalText(): JSX.Element {
     return (

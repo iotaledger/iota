@@ -6,7 +6,7 @@ import { Content } from '_app/shared/bottom-menu-layout';
 import FiltersPortal from '_components/filters-tags';
 import AppsPlayGround, { ConnectedAppsCard } from '_components/iota-apps';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import type { DAppEntry } from '_src/ui/app/components/iota-apps/IotaApp';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -25,7 +25,7 @@ type FilterTag = {
 function AppsPage() {
     const navigate = useNavigate();
 
-    const defaultFilterTags: FilterTag[] = [
+    const DEFAULT_FILTER_TAGS: FilterTag[] = [
         {
             name: 'Connections',
             link: 'apps/connected',
@@ -35,7 +35,7 @@ function AppsPage() {
             link: 'apps',
         },
     ];
-    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value ?? [];
+    const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value ?? [];
 
     const uniqueAppTags = Array.from(new Set(ecosystemApps.flatMap((app) => app.tags)))
         .map((tag) => ({
@@ -46,7 +46,7 @@ function AppsPage() {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
-    const allFilterTags = [...defaultFilterTags, ...uniqueAppTags];
+    const allFilterTags = [...DEFAULT_FILTER_TAGS, ...uniqueAppTags];
 
     useEffect(() => {
         getFromSessionStorage<string>(APPS_PAGE_NAVIGATION).then((activeTagLink) => {

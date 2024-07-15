@@ -7,13 +7,13 @@ import { useMutation } from '@tanstack/react-query';
 
 import {
     useAccountsFormContext,
+    AccountsFormType,
     type AccountsFormValues,
 } from '../components/accounts/AccountsFormContext';
 import { useBackgroundClient } from './useBackgroundClient';
+import { AccountType } from '_src/background/accounts/Account';
 
-export type CreateType = NonNullable<AccountsFormValues>['type'];
-
-function validateAccountFormValues<T extends CreateType>(
+function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
     values: AccountsFormValues,
     password?: string,
@@ -24,20 +24,31 @@ function validateAccountFormValues<T extends CreateType>(
     if (values.type !== createType) {
         throw new Error('Account data values type mismatch');
     }
-    if (values.type !== 'mnemonic-derived' && values.type !== 'seed-derived' && !password) {
+    if (
+        values.type !== AccountsFormType.MnemonicSource &&
+        values.type !== AccountsFormType.SeedSource &&
+        !password
+    ) {
         throw new Error('Missing password');
     }
     return true;
 }
-
-const createTypeToAmpliAccount: Record<CreateType, AddedAccountsProperties['accountType']> = {
-    'new-mnemonic': 'Derived',
-    'import-mnemonic': 'Derived',
-    'mnemonic-derived': 'Derived',
-    'import-seed': 'Derived',
-    'seed-derived': 'Derived',
-    imported: 'Imported',
-    ledger: 'Ledger',
+enum AmpliAccountType {
+    Derived = 'Derived',
+    ImportPrivateKey = 'Private Key',
+    Ledger = 'Ledger',
+}
+const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
+    AccountsFormType,
+    AddedAccountsProperties['accountType']
+> = {
+    [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
+    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
+    [AccountsFormType.ImportSeed]: AmpliAccountType.Derived,
+    [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
+    [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
+    [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
+    [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
 };
 
 export function useCreateAccountsMutation() {
@@ -45,11 +56,12 @@ export function useCreateAccountsMutation() {
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
     return useMutation({
         mutationKey: ['create accounts'],
-        mutationFn: async ({ type, password }: { type: CreateType; password?: string }) => {
+        mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
             if (
-                (type === 'new-mnemonic' || type === 'import-mnemonic') &&
+                (type === AccountsFormType.NewMnemonic ||
+                    type === AccountsFormType.ImportMnemonic) &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
                 const accountSource = await backgroundClient.createMnemonicAccountSource({
@@ -63,11 +75,11 @@ export function useCreateAccountsMutation() {
                     id: accountSource.id,
                 });
                 createdAccounts = await backgroundClient.createAccounts({
-                    type: 'mnemonic-derived',
+                    type: AccountType.MnemonicDerived,
                     sourceID: accountSource.id,
                 });
             } else if (
-                type === 'mnemonic-derived' &&
+                type === AccountsFormType.MnemonicSource &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
                 if (password) {
@@ -77,11 +89,11 @@ export function useCreateAccountsMutation() {
                     });
                 }
                 createdAccounts = await backgroundClient.createAccounts({
-                    type: 'mnemonic-derived',
+                    type: AccountType.MnemonicDerived,
                     sourceID: accountsFormValues.sourceID,
                 });
             } else if (
-                type === 'import-seed' &&
+                type === AccountsFormType.ImportSeed &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
                 const accountSource = await backgroundClient.createSeedAccountSource({
@@ -94,32 +106,38 @@ export function useCreateAccountsMutation() {
                     id: accountSource.id,
                 });
                 createdAccounts = await backgroundClient.createAccounts({
-                    type: 'seed-derived',
+                    type: AccountType.SeedDerived,
                     sourceID: accountSource.id,
                 });
             } else if (
-                type === 'seed-derived' &&
+                type === AccountsFormType.SeedSource &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
+                if (password) {
+                    await backgroundClient.unlockAccountSourceOrAccount({
+                        password,
+                        id: accountsFormValues.sourceID,
+                    });
+                }
                 createdAccounts = await backgroundClient.createAccounts({
-                    type: 'seed-derived',
+                    type: AccountType.SeedDerived,
                     sourceID: accountsFormValues.sourceID,
                 });
             } else if (
-                type === 'imported' &&
+                type === AccountsFormType.ImportPrivateKey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
                 createdAccounts = await backgroundClient.createAccounts({
-                    type: 'imported',
+                    type: AccountType.PrivateKeyDerived,
                     keyPair: accountsFormValues.keyPair,
                     password: password!,
                 });
             } else if (
-                type === 'ledger' &&
+                type === AccountsFormType.ImportLedger &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
                 createdAccounts = await backgroundClient.createAccounts({
-                    type: 'ledger',
+                    type: AccountType.LedgerDerived,
                     accounts: accountsFormValues.accounts,
                     password: password!,
                 });
@@ -133,7 +151,7 @@ export function useCreateAccountsMutation() {
                 });
             }
             ampli.addedAccounts({
-                accountType: createTypeToAmpliAccount[type],
+                accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
                 numberOfAccounts: createdAccounts.length,
             });
             setAccountFormValues(null);

@@ -2,28 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Coin<IOTA> is the token used to pay for gas in Iota.
-/// It has 9 decimals, and the smallest unit (10^-9) is called "micros".
+/// Coin<IOTA> is the token used to pay for gas in IOTA.
+/// It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 module iota::iota {
     use iota::balance::Balance;
     use iota::coin::{Self, Coin, TreasuryCap};
+    use iota::url;
 
     const EAlreadyMinted: u64 = 0;
     /// Sender is not @0x0 the system address.
     const ENotSystemAddress: u64 = 1;
-
-    #[allow(unused_const)]
-    /// The amount of Micros per Iota token based on the fact that micros is
-    /// 10^-9 of a Iota token
-    const MICROS_PER_IOTA: u64 = 1_000_000_000;
-
-    #[allow(unused_const)]
-    /// The total supply of Iota denominated in whole Iota tokens (10 Billion)
-    const TOTAL_SUPPLY_IOTA: u64 = 10_000_000_000;
-
-    #[allow(unused_const)]
-    /// The total supply of Iota denominated in Micros (10 Billion * 10^9)
-    const TOTAL_SUPPLY_MICROS: u64 = 10_000_000_000_000_000_000;
 
     /// Name of the coin
     public struct IOTA has drop {}
@@ -45,10 +33,9 @@ module iota::iota {
             IOTA {},
             9,
             b"IOTA",
-            b"Iota",
-            // TODO: add appropriate description and logo url
-            b"",
-            option::none(),
+            b"IOTA",
+            b"The main (gas)token of the IOTA Network.",
+            option::some(url::new_unsafe_from_bytes(b"https://iota.org/logo.png")),
             ctx
         );
 
@@ -95,15 +82,6 @@ module iota::iota {
     /// Return the total number of IOTA's in circulation.
     public fun total_supply(cap: &IotaTreasuryCap): u64 {
         cap.inner.total_supply()
-    }
-
-    #[allow(unused_function)]
-    /// Increase the IOTA supply.
-    /// This should be called only once during genesis creation.
-    fun mint_genesis_supply(cap: &mut IotaTreasuryCap, value: u64, ctx: &TxContext): Balance<IOTA> {
-        assert!(ctx.epoch() == 0, EAlreadyMinted);
-
-        cap.mint_balance(value, ctx)
     }
 
     #[test_only]

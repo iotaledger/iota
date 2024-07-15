@@ -8,15 +8,18 @@ import { type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 import { type ReactNode, useMemo } from 'react';
 
+import { HighlightedTableCol } from '~/components';
+import {
+    AddressLink,
+    Banner,
+    ImageIcon,
+    Link,
+    PlaceholderTable,
+    TableCard,
+    ValidatorLink,
+} from '~/components/ui';
+import { ampli } from '~/lib/utils';
 import { StakeColumn } from './StakeColumn';
-import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
-import { Banner } from '~/ui/Banner';
-import { ImageIcon } from '~/ui/ImageIcon';
-import { AddressLink, ValidatorLink } from '~/ui/InternalLink';
-import { Link } from '~/ui/Link';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { TableCard } from '~/ui/TableCard';
-import { ampli } from '~/utils/analytics/ampli';
 
 const NUMBER_OF_VALIDATORS = 10;
 

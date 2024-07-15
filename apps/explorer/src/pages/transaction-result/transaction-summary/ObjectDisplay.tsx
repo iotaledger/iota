@@ -5,9 +5,7 @@
 import { type DisplayFieldsResponse } from '@iota/iota.js/client';
 import { useState } from 'react';
 
-import { ObjectLink } from '~/ui/InternalLink';
-import { ObjectModal } from '~/ui/Modal/ObjectModal';
-import { Image } from '~/ui/image/Image';
+import { Image, ObjectLink, ObjectModal } from '~/components/ui';
 
 interface ObjectDisplayProps {
     objectId: string;

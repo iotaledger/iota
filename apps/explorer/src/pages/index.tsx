@@ -14,7 +14,7 @@ import { Recent } from './recent';
 import TransactionResult from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
-import { Layout } from '~/components/Layout';
+import { Layout } from '~/components';
 import { IdPage } from '~/pages/id-page';
 
 interface RedirectWithIdProps {

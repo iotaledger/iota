@@ -45,7 +45,7 @@ function ExplorerLink({
 export function AddressLink({ address }: { address: string }) {
     return (
         <ExplorerLink
-            type={ExplorerLinkType.address}
+            type={ExplorerLinkType.Address}
             address={address}
             className="inline-block text-hero-dark no-underline"
         >

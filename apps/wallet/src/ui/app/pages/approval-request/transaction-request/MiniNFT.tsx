@@ -4,11 +4,11 @@
 
 import st from './TransactionRequest.module.scss';
 
-export type MiniNFTProps = {
+export interface MiniNFTProps {
     size?: 'xs' | 'sm';
     url: string;
     name?: string | null;
-};
+}
 
 export function MiniNFT({ size = 'sm', url, name }: MiniNFTProps) {
     const sizes = size === 'xs' ? st.nftImageTiny : st.nftImageSmall;

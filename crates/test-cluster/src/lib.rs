@@ -45,7 +45,7 @@ use iota_types::{
     crypto::{IotaKeyPair, KeypairTraits},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
+    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
         IotaSystemStateTrait,
@@ -766,6 +766,7 @@ pub struct TestClusterBuilder {
     additional_objects: Vec<Object>,
     num_validators: Option<usize>,
     fullnode_rpc_port: Option<u16>,
+    fullnode_rpc_addr: Option<SocketAddr>,
     enable_fullnode_events: bool,
     validator_supported_protocol_versions_config: ProtocolVersionsConfig,
     // Default to validator_supported_protocol_versions_config, but can be overridden.
@@ -788,6 +789,7 @@ impl TestClusterBuilder {
             network_config: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
+            fullnode_rpc_addr: None,
             num_validators: None,
             enable_fullnode_events: false,
             validator_supported_protocol_versions_config: ProtocolVersionsConfig::Default,
@@ -813,6 +815,11 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_port(mut self, rpc_port: u16) -> Self {
         self.fullnode_rpc_port = Some(rpc_port);
+        self
+    }
+
+    pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
+        self.fullnode_rpc_addr = Some(addr);
         self
     }
 
@@ -921,7 +928,7 @@ impl TestClusterBuilder {
             .accounts
             .extend(addresses.into_iter().map(|address| AccountConfig {
                 address: Some(address),
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_MICROS],
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_NANOS],
             }));
         self
     }
@@ -1052,9 +1059,12 @@ impl TestClusterBuilder {
             builder = builder.with_authority_overload_config(authority_overload_config);
         }
 
-        if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
+        if let Some(fullnode_rpc_addr) = self.fullnode_rpc_addr {
+            builder = builder.with_fullnode_rpc_addr(fullnode_rpc_addr);
+        } else if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
             builder = builder.with_fullnode_rpc_port(fullnode_rpc_port);
         }
+
         if let Some(num_unpruned_validators) = self.num_unpruned_validators {
             builder = builder.with_num_unpruned_validators(num_unpruned_validators);
         }

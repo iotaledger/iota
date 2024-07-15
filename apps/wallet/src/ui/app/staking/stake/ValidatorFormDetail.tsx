@@ -5,10 +5,6 @@
 import { Card } from '_app/shared/card';
 import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
-import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_src/shared/constants';
 import { Text } from '_src/ui/app/shared/text';
 import { IconTooltip } from '_src/ui/app/shared/tooltip';
 import {
@@ -16,6 +12,8 @@ import {
     formatPercentageDisplay,
     useGetDelegatedStake,
     useGetValidatorsApy,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
@@ -27,10 +25,10 @@ import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator'
 import { StakeAmount } from '../home/StakeAmount';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
 
-type ValidatorFormDetailProps = {
+interface ValidatorFormDetailProps {
     validatorAddress: string;
     unstake?: boolean;
-};
+}
 
 export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorFormDetailProps) {
     const accountAddress = useActiveAddress();

@@ -16,7 +16,7 @@ import { toast } from 'react-hot-toast';
 import { CustomRPCInput } from './custom-rpc-input';
 import st from './NetworkSelector.module.scss';
 
-const NetworkSelector = () => {
+function NetworkSelector() {
     const activeNetwork = useAppSelector(({ app }) => app.network);
     const activeCustomRpc = useAppSelector(({ app }) => app.customRpc);
     const [isCustomRpcInputVisible, setCustomRpcInputVisible] = useState<boolean>(
@@ -102,6 +102,6 @@ const NetworkSelector = () => {
             </AnimatePresence>
         </div>
     );
-};
+}
 
 export default NetworkSelector;

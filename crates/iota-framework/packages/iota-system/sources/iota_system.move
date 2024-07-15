@@ -46,6 +46,7 @@ module iota_system::iota_system {
     use iota_system::staking_pool::StakedIota;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
+    use iota::timelock::SystemTimelockCap;
     use iota_system::validator::Validator;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParameters, IotaSystemStateInner, IotaSystemStateInnerV2};
@@ -72,6 +73,8 @@ module iota_system::iota_system {
     const ENotSystemAddress: u64 = 0;
     const EWrongInnerVersion: u64 = 1;
 
+    const SYSTEM_TIMELOCK_CAP_DF_KEY: vector<u8> = b"sys_timelock_cap";
+
     // ==== functions that can only be called by genesis ====
 
     /// Create a new IotaSystemState object and make it shared.
@@ -85,6 +88,7 @@ module iota_system::iota_system {
         epoch_start_timestamp_ms: u64,
         parameters: SystemParameters,
         stake_subsidy: StakeSubsidy,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         let system_state = iota_system_state_inner::create(
@@ -103,6 +107,7 @@ module iota_system::iota_system {
             version,
         };
         dynamic_field::add(&mut self.id, version, system_state);
+        dynamic_field::add(&mut self.id, SYSTEM_TIMELOCK_CAP_DF_KEY, system_timelock_cap);
         transfer::share_object(self);
     }
 
@@ -532,11 +537,14 @@ module iota_system::iota_system {
     #[allow(unused_function)]
     /// This function should be called at the end of an epoch, and advances the system to the next epoch.
     /// It does the following things:
-    /// 1. Add storage charge to the storage fund.
+    /// 1. Add storage reward to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
-    /// 3. Distribute computation charge to validator stake.
-    /// 4. Update all validators.
+    /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+    /// or smaller than the computation reward.
+    /// 4. Distribute the target reward to the validators.
+    /// 5. Burn any leftover rewards.
+    /// 6. Update all validators.
     fun advance_epoch(
         validator_target_reward: u64,
         storage_reward: Balance<IOTA>,
@@ -591,6 +599,13 @@ module iota_system::iota_system {
         );
         assert!(inner.system_state_version() == self.version, EWrongInnerVersion);
         inner
+    }
+
+    public(package) fun load_system_timelock_cap(self: &IotaSystemState): &SystemTimelockCap {
+        dynamic_field::borrow(
+            &self.id,
+            SYSTEM_TIMELOCK_CAP_DF_KEY
+        )
     }
 
     #[test_only]

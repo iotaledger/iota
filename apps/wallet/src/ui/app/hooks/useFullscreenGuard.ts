@@ -12,10 +12,10 @@ export default function useFullscreenGuard(enabled: boolean) {
     const appType = useAppSelector((state) => state.app.appType);
     const isOpenTabInProgressRef = useRef(false);
     useEffect(() => {
-        if (enabled && appType === AppType.popup && !isOpenTabInProgressRef.current) {
+        if (enabled && appType === AppType.Popup && !isOpenTabInProgressRef.current) {
             isOpenTabInProgressRef.current = true;
             openInNewTab().finally(() => window.close());
         }
     }, [appType, enabled]);
-    return !enabled && appType === AppType.unknown;
+    return !enabled && appType === AppType.Unknown;
 }

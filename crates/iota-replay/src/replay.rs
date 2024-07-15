@@ -79,7 +79,7 @@ use crate::{
 pub struct ExecutionSandboxState {
     /// Information describing the transaction
     pub transaction_info: OnChainTransactionInfo,
-    /// All the obejcts that are required for the execution of the transaction
+    /// All the objects that are required for the execution of the transaction
     pub required_objects: Vec<Object>,
     /// Temporary store from executing this locally in
     /// `execute_transaction_to_effects`
@@ -1789,7 +1789,9 @@ impl LocalExec {
         // Download the child objects accessed at the version right before the execution
         // of this TX
         let loaded_child_refs = self.fetch_loaded_child_refs(&tx_info.tx_digest).await?;
-        self.diag.loaded_child_objects = loaded_child_refs.clone();
+        self.diag
+            .loaded_child_objects
+            .clone_from(&loaded_child_refs);
         self.multi_download_and_store(&loaded_child_refs).await?;
         tokio::task::yield_now().await;
 

@@ -45,7 +45,7 @@ pub struct ProverOptions {
     /// Whether output for e.g. diagnosis shall be stable/redacted so it can be
     /// used in test output.
     pub stable_test_output: bool,
-    /// [deprecated] Whether to emit global axiom that resources are
+    /// \[deprecated\] Whether to emit global axiom that resources are
     /// well-formed.
     pub resource_wellformed_axiom: bool,
     /// Whether to assume wellformedness when elements are read from memory,

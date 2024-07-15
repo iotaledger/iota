@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from '_app/shared/ButtonUI';
-import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils/bip39';
+import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils';
 import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
 import { Text } from '_src/ui/app/shared/text';
 import { useZodForm } from '@iota/core';
@@ -27,11 +27,11 @@ const formSchema = z.object({
 
 export type FormValues = z.infer<typeof formSchema>;
 
-type ImportRecoveryPhraseFormProps = {
+interface ImportRecoveryPhraseFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
     onSubmit: SubmitHandler<FormValues>;
-};
+}
 
 export function ImportRecoveryPhraseForm({
     submitButtonText,

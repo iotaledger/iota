@@ -23,12 +23,13 @@ import { PasswordInput } from '../../shared/forms/controls/PasswordInput';
 import { Form } from '../../shared/forms/Form';
 import FormField from '../../shared/forms/FormField';
 import { Link } from '../../shared/Link';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
 });
 
-export type PasswordModalDialogProps = {
+export interface PasswordModalDialogProps {
     onClose: () => void;
     open: boolean;
     showForgotPassword?: boolean;
@@ -38,7 +39,7 @@ export type PasswordModalDialogProps = {
     cancelText: string;
     onSubmit: (password: string) => Promise<void> | void;
     verify?: boolean;
-};
+}
 
 export function PasswordModalDialog({
     onClose,
@@ -68,7 +69,9 @@ export function PasswordModalDialog({
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
     const hasAccountsSources =
-        allAccountsSources?.some(({ type }) => type === 'mnemonic' || type === 'seed') || false;
+        allAccountsSources?.some(
+            ({ type }) => type === AccountSourceType.Mnemonic || type === AccountSourceType.Seed,
+        ) || false;
     return (
         <Dialog open={open}>
             <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>

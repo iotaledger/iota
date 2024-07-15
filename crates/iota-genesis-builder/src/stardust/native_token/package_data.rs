@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct,
+//! The `package_data` module provides the [`NativeTokenPackageData`] struct,
 //! which encapsulates all the data necessary to build a Stardust native token
 //! package.
 
@@ -10,6 +10,7 @@ use iota_sdk::types::block::{
     address::AliasAddress,
     output::{FoundryId, FoundryOutput},
 };
+use iota_types::stardust::error::StardustError;
 use move_compiler::parser::keywords;
 use rand::distributions::{Alphanumeric, DistString};
 use rand_pcg::Pcg64;
@@ -17,7 +18,7 @@ use rand_seeder::Seeder;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::stardust::{error::StardustError, types::token_scheme::SimpleTokenSchemeU64};
+use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 
 /// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to
 /// build a Stardust native token package.

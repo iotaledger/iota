@@ -83,6 +83,7 @@ the IotaSystemStateInner version, or vice versa.
 -  [Function `load_system_state`](#0x3_iota_system_load_system_state)
 -  [Function `load_system_state_mut`](#0x3_iota_system_load_system_state_mut)
 -  [Function `load_inner_maybe_upgrade`](#0x3_iota_system_load_inner_maybe_upgrade)
+-  [Function `load_system_timelock_cap`](#0x3_iota_system_load_system_timelock_cap)
 -  [Function `get_total_iota_supply`](#0x3_iota_system_get_total_iota_supply)
 
 
@@ -93,6 +94,7 @@ the IotaSystemStateInner version, or vice versa.
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/table.md#0x2_table">0x2::table</a>;
+<b>use</b> <a href="../iota-framework/timelock.md#0x2_timelock">0x2::timelock</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner">0x3::iota_system_state_inner</a>;
@@ -160,6 +162,15 @@ the IotaSystemStateInner version, or vice versa.
 
 
 
+<a name="0x3_iota_system_SYSTEM_TIMELOCK_CAP_DF_KEY"></a>
+
+
+
+<pre><code><b>const</b> <a href="iota_system.md#0x3_iota_system_SYSTEM_TIMELOCK_CAP_DF_KEY">SYSTEM_TIMELOCK_CAP_DF_KEY</a>: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; = [115, 121, 115, 95, 116, 105, 109, 101, 108, 111, 99, 107, 95, 99, 97, 112];
+</code></pre>
+
+
+
 <a name="0x3_iota_system_create"></a>
 
 ## Function `create`
@@ -168,7 +179,7 @@ Create a new IotaSystemState object and make it shared.
 This function will be called only once in genesis.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system.md#0x3_iota_system_create">create</a>(id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system.md#0x3_iota_system_create">create</a>(id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -186,6 +197,7 @@ This function will be called only once in genesis.
     epoch_start_timestamp_ms: u64,
     parameters: SystemParameters,
     <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: StakeSubsidy,
+    system_timelock_cap: SystemTimelockCap,
     ctx: &<b>mut</b> TxContext,
 ) {
     <b>let</b> system_state = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create">iota_system_state_inner::create</a>(
@@ -204,6 +216,7 @@ This function will be called only once in genesis.
         version,
     };
     <a href="../iota-framework/dynamic_field.md#0x2_dynamic_field_add">dynamic_field::add</a>(&<b>mut</b> self.id, version, system_state);
+    <a href="../iota-framework/dynamic_field.md#0x2_dynamic_field_add">dynamic_field::add</a>(&<b>mut</b> self.id, <a href="iota_system.md#0x3_iota_system_SYSTEM_TIMELOCK_CAP_DF_KEY">SYSTEM_TIMELOCK_CAP_DF_KEY</a>, system_timelock_cap);
     <a href="../iota-framework/transfer.md#0x2_transfer_share_object">transfer::share_object</a>(self);
 }
 </code></pre>
@@ -1356,11 +1369,14 @@ Getter returning addresses of the currently active validators.
 
 This function should be called at the end of an epoch, and advances the system to the next epoch.
 It does the following things:
-1. Add storage charge to the storage fund.
+1. Add storage reward to the storage fund.
 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
 gas coins.
-3. Distribute computation charge to validator stake.
-4. Update all validators.
+3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+or smaller than the computation reward.
+4. Distribute the target reward to the validators.
+5. Burn any leftover rewards.
+6. Update all validators.
 
 
 <pre><code><b>fun</b> <a href="iota_system.md#0x3_iota_system_advance_epoch">advance_epoch</a>(validator_target_reward: u64, storage_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, wrapper: &<b>mut</b> <a href="iota_system.md#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</a>, new_epoch: u64, next_protocol_version: u64, storage_rebate: u64, non_refundable_storage_fee: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
@@ -1486,6 +1502,33 @@ gas coins.
     );
     <b>assert</b>!(inner.system_state_version() == self.version, <a href="iota_system.md#0x3_iota_system_EWrongInnerVersion">EWrongInnerVersion</a>);
     inner
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_load_system_timelock_cap"></a>
+
+## Function `load_system_timelock_cap`
+
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system.md#0x3_iota_system_load_system_timelock_cap">load_system_timelock_cap</a>(self: &<a href="iota_system.md#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</a>): &<a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system.md#0x3_iota_system_load_system_timelock_cap">load_system_timelock_cap</a>(self: &<a href="iota_system.md#0x3_iota_system_IotaSystemState">IotaSystemState</a>): &SystemTimelockCap {
+    <a href="../iota-framework/dynamic_field.md#0x2_dynamic_field_borrow">dynamic_field::borrow</a>(
+        &self.id,
+        <a href="iota_system.md#0x3_iota_system_SYSTEM_TIMELOCK_CAP_DF_KEY">SYSTEM_TIMELOCK_CAP_DF_KEY</a>
+    )
 }
 </code></pre>
 

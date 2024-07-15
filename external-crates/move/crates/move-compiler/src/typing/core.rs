@@ -1457,7 +1457,7 @@ fn solve_ability_constraint(
 
         let constraint_msg = match &given_msg_opt {
             Some(s) => s.clone(),
-            None => format!("'{}' constraint not satisifed", constraint),
+            None => format!("'{}' constraint not satisfied", constraint),
         };
         let mut diag = diag!(AbilitySafety::Constraint, (loc, constraint_msg));
         ability_not_satisfied_tips(

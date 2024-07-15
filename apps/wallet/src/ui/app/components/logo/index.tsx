@@ -5,11 +5,11 @@
 import { IotaCustomRpc, IotaDevnet, IotaLocal, IotaMainnet, IotaTestnet } from '@iota/icons';
 import { Network } from '@iota/iota.js/client';
 
-type LogoProps = {
+interface LogoProps {
     network?: Network;
-};
+}
 
-const networkLogos = {
+const NETWORK_LOGOS = {
     [Network.Mainnet]: IotaMainnet,
     [Network.Devnet]: IotaDevnet,
     [Network.Testnet]: IotaTestnet,
@@ -17,14 +17,14 @@ const networkLogos = {
     [Network.Custom]: IotaCustomRpc,
 };
 
-const Logo = ({ network }: LogoProps) => {
-    let LogoComponent = networkLogos[Network.Custom];
+function Logo({ network }: LogoProps) {
+    let LogoComponent = NETWORK_LOGOS[Network.Custom];
 
-    if (network && networkLogos[network]) {
-        LogoComponent = networkLogos[network];
+    if (network && NETWORK_LOGOS[network]) {
+        LogoComponent = NETWORK_LOGOS[network];
     }
 
     return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;
-};
+}
 
 export default Logo;

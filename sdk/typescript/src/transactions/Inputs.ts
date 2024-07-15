@@ -51,9 +51,9 @@ function Pure(data: unknown, type?: string): PureCallArg {
             data instanceof Uint8Array
                 ? data
                 : isSerializedBcs(data)
-                ? data.toBytes()
-                : // NOTE: We explicitly set this to be growable to infinity, because we have maxSize validation at the builder-level:
-                  bcs.ser(type!, data, { maxSize: Infinity }).toBytes(),
+                  ? data.toBytes()
+                  : // NOTE: We explicitly set this to be growable to infinity, because we have maxSize validation at the builder-level:
+                    bcs.ser(type!, data, { maxSize: Infinity }).toBytes(),
         ),
     };
 }

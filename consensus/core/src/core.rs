@@ -1203,7 +1203,7 @@ mod test {
                 this_round_blocks.push(block.clone());
             }
 
-            last_round_blocks = this_round_blocks.clone();
+            last_round_blocks.clone_from(&this_round_blocks);
             all_blocks.extend(this_round_blocks);
         }
 

@@ -52,12 +52,12 @@ type WalletEventsMap = {
 };
 
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
-const name = process.env.APP_NAME || 'Iota Wallet';
+const NAME = process.env.APP_NAME || 'Iota Wallet';
 
 export class IotaWallet implements Wallet {
     readonly #events: Emitter<WalletEventsMap>;
     readonly #version = '1.0.0' as const;
-    readonly #name = name;
+    readonly #name = NAME;
     #accounts: ReadonlyWalletAccount[];
     #messagesStream: WindowMessageStream;
     #activeChain: ChainType | null = null;
@@ -198,7 +198,7 @@ export class IotaWallet implements Wallet {
     }) => {
         if (!isTransactionBlock(transactionBlock)) {
             throw new Error(
-                'Unexpect transaction format found. Ensure that you are using the `Transaction` class.',
+                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
             );
         }
 
@@ -220,7 +220,7 @@ export class IotaWallet implements Wallet {
     #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = async (input) => {
         if (!isTransactionBlock(input.transactionBlock)) {
             throw new Error(
-                'Unexpect transaction format found. Ensure that you are using the `Transaction` class.',
+                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
             );
         }
 

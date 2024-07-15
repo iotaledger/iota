@@ -227,6 +227,7 @@ pub(crate) struct HistoricalObjectCursor {
 
 /// Interface implemented by on-chain values that are addressable by an ID (also
 /// referred to as its address). This includes Move objects and packages.
+#[allow(clippy::duplicated_attributes)]
 #[derive(Interface)]
 #[graphql(
     name = "IObject",
@@ -522,13 +523,11 @@ impl Object {
 
     /// Attempts to convert the object into a MovePackage
     async fn as_move_package(&self, ctx: &Context<'_>) -> Option<MovePackage> {
-        let Some(checkpoint_viewed_at) = match self.checkpoint_viewed_at {
+        let checkpoint_viewed_at = match self.checkpoint_viewed_at {
             Some(value) => Ok(value),
             None => Checkpoint::query_latest_checkpoint_sequence_number(ctx.data_unchecked()).await,
         }
-        .ok() else {
-            return None;
-        };
+        .ok()?;
 
         MovePackage::try_from(self, checkpoint_viewed_at).ok()
     }
@@ -552,9 +551,7 @@ impl ObjectImpl<'_> {
     pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
         use NativeOwner as O;
 
-        let Some(native) = self.0.native_impl() else {
-            return None;
-        };
+        let native = self.0.native_impl()?;
 
         match native.owner {
             O::AddressOwner(address) => {

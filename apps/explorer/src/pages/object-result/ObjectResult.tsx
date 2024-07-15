@@ -8,14 +8,12 @@ import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useParams } from 'react-router-dom';
 
+import { ErrorBoundary, PageLayout } from '~/components';
+import { Banner, PageHeader } from '~/components/ui';
+import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { ObjectView } from '~/pages/object-result/views/ObjectView';
-import { Banner } from '~/ui/Banner';
-import { PageHeader } from '~/ui/PageHeader';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 

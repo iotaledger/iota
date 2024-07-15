@@ -275,7 +275,7 @@ fn main() {
                         println!("Unable to find event_json {}", target_id);
                     }
                     Err(_) => {
-                        println!("An error occured while fetching event_json {}", target_id);
+                        println!("An error occurred while fetching event_json {}", target_id);
                     }
                 }
 
@@ -326,7 +326,7 @@ fn main() {
                 exit(0);
             }
             Err(_) => {
-                println!("An error occured while fetching event {}", target_id);
+                println!("An error occurred while fetching event {}", target_id);
                 exit(0);
             }
         }

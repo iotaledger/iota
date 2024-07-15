@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { vanillaExtractPlugin } from '@vanilla-extract/esbuild-plugin';
 import autoprefixer from 'autoprefixer';
-import postcss from 'postcss';
+import postcss, { AcceptedPlugin } from 'postcss';
 import prefixSelector from 'postcss-prefix-selector';
 
 import { buildPackage } from './utils/buildPackage.js';
@@ -23,7 +23,7 @@ buildPackage({
                             // Example: [data-dapp-kit].ConnectModal, [data-dapp-kit] .ConnectModal
                             return `${prefix}${selector}, ${prefixedSelector}`;
                         },
-                    }),
+                    }) as AcceptedPlugin,
                 ]).process(css, {
                     // Suppress source map warning
                     from: undefined,

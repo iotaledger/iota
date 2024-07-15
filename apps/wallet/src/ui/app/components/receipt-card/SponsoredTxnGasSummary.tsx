@@ -8,10 +8,10 @@ import { useFormatCoin } from '@iota/core';
 
 import { TxnAddressLink } from './TxnAddressLink';
 
-type SponsoredTxnGasSummaryProps = {
+interface SponsoredTxnGasSummaryProps {
     totalGas: number;
     sponsor: string;
-};
+}
 
 export function SponsoredTxnGasSummary({ totalGas, sponsor }: SponsoredTxnGasSummaryProps) {
     const [sponsorTotalAmount, sponsorTotalAmountSymbol] = useFormatCoin(totalGas, GAS_TYPE_ARG);

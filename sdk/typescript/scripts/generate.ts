@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as fs from 'node:fs/promises';
@@ -783,11 +784,11 @@ function normalizeName(name: string) {
 
 export function normalizeMethodName(name: string): string {
     if (name.startsWith('iota_')) {
-        return normalizeMethodName(name.slice(4));
+        return normalizeMethodName(name.slice(5));
     }
 
     if (name.startsWith('iotax_')) {
-        return normalizeMethodName(name.slice(5));
+        return normalizeMethodName(name.slice(6));
     }
 
     const parts = name.split('_');

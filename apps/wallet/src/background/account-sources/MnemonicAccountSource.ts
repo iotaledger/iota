@@ -8,10 +8,11 @@ import {
     getRandomEntropy,
     toEntropy,
     validateEntropy,
-} from '_shared/utils/bip39';
+    deriveKeypairFromSeed,
+} from '_src/shared/utils';
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import type { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';
@@ -24,11 +25,12 @@ import { backupDB, getDB } from '../db';
 import { makeUniqueKey } from '../storage-utils';
 import {
     AccountSource,
+    AccountSourceType,
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './AccountSource';
 import { accountSourcesEvents } from './events';
-import { makeDerivationPath } from './bipPath';
+import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
     entropyHex: string;
@@ -36,18 +38,14 @@ type DataDecrypted = {
 };
 
 interface MnemonicAccountSourceSerialized extends AccountSourceSerialized {
-    type: 'mnemonic';
+    type: AccountSourceType.Mnemonic;
     encryptedData: string;
     // hash of entropy to be used for comparing sources (even when locked)
     sourceHash: string;
 }
 
 interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
-    type: 'mnemonic';
-}
-
-export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
-    return Ed25519Keypair.deriveKeypairFromSeed(mnemonicSeedHex, derivationPath);
+    type: AccountSourceType.Mnemonic;
 }
 
 export class MnemonicAccountSource extends AccountSource<
@@ -67,7 +65,7 @@ export class MnemonicAccountSource extends AccountSource<
         }
         const dataSerialized: MnemonicAccountSourceSerialized = {
             id: makeUniqueKey(),
-            type: 'mnemonic',
+            type: AccountSourceType.Mnemonic,
             encryptedData: await MnemonicAccountSource.createEncryptedData(entropy, password),
             sourceHash: bytesToHex(sha256(entropy)),
             createdAt: Date.now(),
@@ -87,7 +85,7 @@ export class MnemonicAccountSource extends AccountSource<
     static isOfType(
         serialized: AccountSourceSerialized,
     ): serialized is MnemonicAccountSourceSerialized {
-        return serialized.type === 'mnemonic';
+        return serialized.type === AccountSourceType.Mnemonic;
     }
 
     static async save(
@@ -116,7 +114,7 @@ export class MnemonicAccountSource extends AccountSource<
     }
 
     constructor(id: string) {
-        super({ type: 'mnemonic', id });
+        super({ type: AccountSourceType.Mnemonic, id });
     }
 
     async isLocked() {
@@ -139,15 +137,20 @@ export class MnemonicAccountSource extends AccountSource<
         accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
     }
 
-    async deriveAccount({ derivationPathIndex }: { derivationPathIndex?: number } = {}): Promise<
-        Omit<MnemonicSerializedAccount, 'id'>
-    > {
+    async deriveAccount(
+        derivationOptions?: MakeDerivationOptions,
+    ): Promise<Omit<MnemonicSerializedAccount, 'id'>> {
         const derivationPath =
-            typeof derivationPathIndex !== 'undefined'
-                ? makeDerivationPath(derivationPathIndex)
+            typeof derivationOptions !== 'undefined'
+                ? makeDerivationPath(derivationOptions)
                 : await this.#getAvailableDerivationPath();
         const keyPair = await this.deriveKeyPair(derivationPath);
         return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
+    }
+
+    async derivePubKey(derivationOptions: MakeDerivationOptions): Promise<Ed25519PublicKey> {
+        const keyPair = await this.deriveKeyPair(makeDerivationPath(derivationOptions));
+        return keyPair.getPublicKey();
     }
 
     async deriveKeyPair(derivationPath: string) {
@@ -201,7 +204,9 @@ export class MnemonicAccountSource extends AccountSource<
         let derivationPath = '';
         let temp;
         do {
-            temp = makeDerivationPath(index++);
+            temp = makeDerivationPath({
+                accountIndex: index++,
+            });
             if (!derivationPathMap[temp]) {
                 derivationPath = temp;
             }

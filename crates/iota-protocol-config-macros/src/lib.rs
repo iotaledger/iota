@@ -11,31 +11,29 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Type};
 /// This proc macro generates getters, attribute lookup, etc for protocol config
 /// fields of type `Option<T>` and for the feature flags
 /// Example for a field: `new_constant: Option<u64>`, and for feature flags
-/// `feature: bool`, we derive ```rust,ignore
-///     /// Returns the value of the field if exists at the given version,
-/// otherise panic     pub fn new_constant(&self) -> u64 {
+/// `feature: bool`, we derive
+/// ```rust,ignore
+///     /// Returns the value of the field if exists at the given version, otherwise panic
+///     pub fn new_constant(&self) -> u64 {
 ///         self.new_constant.expect(Self::CONSTANT_ERR_MSG)
 ///     }
-///     /// Returns the value of the field if exists at the given version,
-/// otherise None.     pub fn new_constant_as_option(&self) -> Option<u64> {
+///     /// Returns the value of the field if exists at the given version, otherwise None.
+///     pub fn new_constant_as_option(&self) -> Option<u64> {
 ///         self.new_constant
 ///     }
-///     // We auto derive an enum such that the variants are all the types of
-/// the fields     pub enum ProtocolConfigValue {
+///     // We auto derive an enum such that the variants are all the types of the fields
+///     pub enum ProtocolConfigValue {
 ///        u32(u32),
 ///        u64(u64),
 ///        ..............
 ///     }
-///     // This enum is used to return field values so that the type is also
-/// encoded in the response
+///     // This enum is used to return field values so that the type is also encoded in the response
 ///
-///     /// Returns the value of the field if exists at the given version,
-/// otherise None     pub fn lookup_attr(&self, value: String) ->
-/// Option<ProtocolConfigValue>;
+///     /// Returns the value of the field if exists at the given version, otherwise None
+///     pub fn lookup_attr(&self, value: String) -> Option<ProtocolConfigValue>;
 ///
 ///     /// Returns a map of all configs to values
-///     pub fn attr_map(&self) -> std::collections::BTreeMap<String,
-/// Option<ProtocolConfigValue>>;
+///     pub fn attr_map(&self) -> std::collections::BTreeMap<String, Option<ProtocolConfigValue>>;
 ///
 ///     /// Returns a feature by the string name or None if it doesn't exist
 ///     pub fn lookup_feature(&self, value: String) -> Option<bool>;

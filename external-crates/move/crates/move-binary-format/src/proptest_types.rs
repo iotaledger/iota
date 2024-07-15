@@ -41,7 +41,7 @@ pub type TableSize = u16;
 
 impl CompiledModule {
     /// Convenience wrapper around
-    /// [`CompiledModuleStrategyGen`][CompiledModuleStrategyGen] that
+    /// [`CompiledModuleStrategyGen`] that
     /// generates valid modules with the given size.
     pub fn valid_strategy(size: usize) -> impl Strategy<Value = Self> {
         CompiledModuleStrategyGen::new(size as TableSize).generate()
@@ -226,7 +226,7 @@ impl CompiledModuleStrategyGen {
             .prop_map(
                 |(
                     self_idx_gen,
-                    (address_identifier_gens, identifier_gens, constant_pool_gen, metdata_gen),
+                    (address_identifier_gens, identifier_gens, constant_pool_gen, metadata_gen),
                     module_handles_gen,
                     (struct_handle_gens, struct_def_gens),
                     random_sigs_gens,
@@ -240,7 +240,7 @@ impl CompiledModuleStrategyGen {
                     let identifiers_len = identifiers.len();
                     let constant_pool = constant_pool_gen.constant_pool();
                     let constant_pool_len = constant_pool.len();
-                    let metadata = metdata_gen.metadata();
+                    let metadata = metadata_gen.metadata();
 
                     // module handles
                     let mut module_handles_set = BTreeSet::new();

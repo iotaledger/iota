@@ -4,13 +4,17 @@
 
 module iota_system::genesis {
 
+    use std::string::String;
+
     use iota::balance::{Self, Balance};
     use iota::iota::{Self, IOTA, IotaTreasuryCap};
+    use iota::timelock::SystemTimelockCap;
     use iota_system::iota_system;
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set;
     use iota_system::iota_system_state_inner;
     use iota_system::stake_subsidy;
+    use iota_system::timelocked_staking;
 
     public struct GenesisValidatorMetadata has drop, copy {
         name: vector<u8>,
@@ -55,16 +59,19 @@ module iota_system::genesis {
     }
 
     public struct TokenDistributionSchedule {
-        stake_subsidy_fund_micros: u64,
+        stake_subsidy_fund_nanos: u64,
         allocations: vector<TokenAllocation>,
     }
 
     public struct TokenAllocation {
         recipient_address: address,
-        amount_micros: u64,
+        amount_nanos: u64,
 
         /// Indicates if this allocation should be staked at genesis and with which validator
         staked_with_validator: Option<address>,
+        /// Indicates if this allocation should be staked with timelock at genesis
+        /// and contains its timelock_expiration
+        staked_with_timelock_expiration: Option<u64>,
     }
 
     // Error codes
@@ -84,17 +91,19 @@ module iota_system::genesis {
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         token_distribution_schedule: TokenDistributionSchedule,
+        timelock_genesis_label: Option<String>,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         // Ensure this is only called at genesis
         assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
 
         let TokenDistributionSchedule {
-            stake_subsidy_fund_micros,
+            stake_subsidy_fund_nanos,
             allocations,
         } = token_distribution_schedule;
 
-        let subsidy_fund = iota_supply.split(stake_subsidy_fund_micros);
+        let subsidy_fund = iota_supply.split(stake_subsidy_fund_nanos);
         let storage_fund = balance::zero();
 
         // Create all the `Validator` structs
@@ -155,6 +164,7 @@ module iota_system::genesis {
             iota_supply,
             allocations,
             &mut validators,
+            timelock_genesis_label,
             ctx
         );
 
@@ -192,6 +202,7 @@ module iota_system::genesis {
             genesis_chain_parameters.chain_start_timestamp_ms,
             system_parameters,
             stake_subsidy,
+            system_timelock_cap,
             ctx,
         );
     }
@@ -200,26 +211,42 @@ module iota_system::genesis {
         mut iota_supply: Balance<IOTA>,
         mut allocations: vector<TokenAllocation>,
         validators: &mut vector<Validator>,
+        timelock_genesis_label: Option<String>,
         ctx: &mut TxContext,
     ) {
 
         while (!allocations.is_empty()) {
             let TokenAllocation {
                 recipient_address,
-                amount_micros,
+                amount_nanos,
                 staked_with_validator,
+                staked_with_timelock_expiration,
             } = allocations.pop_back();
 
-            let allocation_balance = iota_supply.split(amount_micros);
+            let allocation_balance = iota_supply.split(amount_nanos);
 
             if (staked_with_validator.is_some()) {
                 let validator_address = staked_with_validator.destroy_some();
-                let validator = validator_set::get_validator_mut(validators, validator_address);
-                validator.request_add_stake_at_genesis(
-                    allocation_balance,
-                    recipient_address,
-                    ctx
+                let validator = validator_set::get_validator_mut(
+                    validators, validator_address
                 );
+                if (staked_with_timelock_expiration.is_some()) {
+                    let timelock_expiration = staked_with_timelock_expiration.destroy_some();
+                    timelocked_staking::request_add_stake_at_genesis(
+                        validator,
+                        allocation_balance,
+                        recipient_address,
+                        timelock_expiration,
+                        timelock_genesis_label,
+                        ctx
+                    );
+                } else {
+                    validator.request_add_stake_at_genesis(
+                        allocation_balance,
+                        recipient_address,
+                        ctx
+                    );
+                }
             } else {
                 iota::transfer(
                     allocation_balance.into_coin(ctx),
