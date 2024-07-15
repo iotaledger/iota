@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 use anyhow::{Context, Result};
 use fastcrypto::{
@@ -174,17 +179,17 @@ impl Genesis {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
         trace!("Reading Genesis from {}", path.display());
-        let bytes = fs::read(path)
+        let read = File::open(path)
             .with_context(|| format!("Unable to load Genesis from {}", path.display()))?;
-        bcs::from_bytes(&bytes)
+        bcs::from_reader(BufReader::new(read))
             .with_context(|| format!("Unable to parse Genesis from {}", path.display()))
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
         trace!("Writing Genesis to {}", path.display());
-        let bytes = bcs::to_bytes(&self)?;
-        fs::write(path, bytes)
+        let mut write = BufWriter::new(File::create(path)?);
+        bcs::serialize_into(&mut write, &self)
             .with_context(|| format!("Unable to save Genesis to {}", path.display()))?;
         Ok(())
     }
@@ -229,13 +234,12 @@ impl Serialize for Genesis {
             objects: &self.objects,
         };
 
-        let bytes = bcs::to_bytes(&raw_genesis).map_err(|e| Error::custom(e.to_string()))?;
-
         if serializer.is_human_readable() {
-            let s = Base64::encode(&bytes);
+            let bytes = bcs::to_bytes(&raw_genesis).map_err(|e| Error::custom(e.to_string()))?;
+            let s = Base64::encode(bytes);
             serializer.serialize_str(&s)
         } else {
-            serializer.serialize_bytes(&bytes)
+            raw_genesis.serialize(serializer)
         }
     }
 }
@@ -257,30 +261,21 @@ impl<'de> Deserialize<'de> for Genesis {
             objects: Vec<Object>,
         }
 
-        let bytes = if deserializer.is_human_readable() {
+        let raw_genesis = if deserializer.is_human_readable() {
             let s = String::deserialize(deserializer)?;
-            Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?
+            let bytes = Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+            bcs::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))?
         } else {
-            let data: Vec<u8> = Vec::deserialize(deserializer)?;
-            data
+            RawGenesis::deserialize(deserializer)?
         };
 
-        let RawGenesis {
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
-        } = bcs::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))?;
-
         Ok(Genesis {
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
+            checkpoint: raw_genesis.checkpoint,
+            checkpoint_contents: raw_genesis.checkpoint_contents,
+            transaction: raw_genesis.transaction,
+            effects: raw_genesis.effects,
+            events: raw_genesis.events,
+            objects: raw_genesis.objects,
         })
     }
 }
@@ -504,8 +499,6 @@ impl TokenDistributionSchedule {
         &self,
         validators: I,
     ) {
-        use std::collections::HashMap;
-
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
@@ -546,6 +539,7 @@ impl TokenDistributionSchedule {
                     recipient_address: a,
                     amount_nanos: default_allocation,
                     staked_with_validator: Some(a),
+                    staked_with_timelock_expiration: None,
                 }
             })
             .collect();
@@ -610,6 +604,7 @@ impl TokenDistributionSchedule {
             recipient_address: IotaAddress::default(),
             amount_nanos: self.stake_subsidy_fund_nanos,
             staked_with_validator: None,
+            staked_with_timelock_expiration: None,
         })?;
 
         Ok(())
@@ -625,6 +620,9 @@ pub struct TokenAllocation {
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
     pub staked_with_validator: Option<IotaAddress>,
+    /// Indicates if this allocation should be staked with timelock at genesis
+    /// and contains its timelock_expiration
+    pub staked_with_timelock_expiration: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -653,6 +651,7 @@ impl TokenDistributionScheduleBuilder {
                 recipient_address: validator,
                 amount_nanos: default_allocation,
                 staked_with_validator: Some(validator),
+                staked_with_timelock_expiration: None,
             });
         }
     }

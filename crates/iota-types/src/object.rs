@@ -23,6 +23,7 @@ use serde_with::{serde_as, Bytes};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
+    balance::Balance,
     base_types::{
         IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef,
         SequenceNumber, TransactionDigest,
@@ -35,6 +36,7 @@ use crate::{
     gas_coin::{GasCoin, GAS},
     is_system_package,
     move_package::MovePackage,
+    timelock::timelock::TimeLock,
     type_resolver::LayoutResolver,
 };
 
@@ -826,6 +828,14 @@ impl ObjectInner {
         if let Some(move_object) = self.data.try_as_move() {
             let coin: Coin = bcs::from_bytes(move_object.contents()).ok()?;
             Some(coin)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
+        if let Some(move_object) = self.data.try_as_move() {
+            Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
         } else {
             None
         }
