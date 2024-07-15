@@ -53,7 +53,7 @@ export function Checkbox({
             <div className="relative h-5 w-5">
                 <input
                     type="checkbox"
-                    className="[&:not(:disabled)]:state-layer peer h-full w-full appearance-none rounded-[4px] border border-neutral-80 disabled:opacity-40 dark:border-neutral-20 [&:is(:checked,:indeterminate)]:border-primary-30 [&:is(:checked,:indeterminate)]:bg-primary-30 disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 dark:disabled:[&:is(:checked,:indeterminate)]:bg-neutral-40 disabled:[&:not(:checked,:indeterminate)]:border-neutral-70 dark:disabled:[&:not(:checked,:indeterminate)]:border-neutral-30"
+                    className="enabled:state-layer peer h-full w-full appearance-none rounded border border-neutral-80 disabled:opacity-40 dark:border-neutral-20 [&:is(:checked,:indeterminate)]:border-primary-30 [&:is(:checked,:indeterminate)]:bg-primary-30 disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 dark:disabled:[&:is(:checked,:indeterminate)]:bg-neutral-40 disabled:[&:not(:checked,:indeterminate)]:border-neutral-70 dark:disabled:[&:not(:checked,:indeterminate)]:border-neutral-30"
                     checked={checked}
                     ref={inputRef}
                     disabled={disabled}
