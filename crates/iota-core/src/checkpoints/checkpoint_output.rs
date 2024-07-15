@@ -124,7 +124,8 @@ impl CheckpointOutput for LogCheckpointOutput {
     ) -> IotaResult {
         trace!(
             "Including following transactions in checkpoint {}: {:?}",
-            summary.sequence_number, contents
+            summary.sequence_number,
+            contents
         );
         info!(
             "Creating checkpoint {:?} at epoch {}, sequence {}, previous digest {:?}, transactions count {}, content digest {:?}, end_of_epoch_data {:?}",
