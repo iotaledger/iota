@@ -254,7 +254,7 @@ title: Module `0x3::genesis`
 
 <dl>
 <dt>
-<code>stake_subsidy_fund_nanos: u64</code>
+<code>pre_minted_supply: u64</code>
 </dt>
 <dd>
 
@@ -341,6 +341,16 @@ The <code>create</code> function was called with duplicate validators.
 
 
 
+<a name="0x3_genesis_EWrongPreMintedSupply"></a>
+
+The <code>create</code> function was called with wrong pre-minted supply.
+
+
+<pre><code><b>const</b> <a href="genesis.md#0x3_genesis_EWrongPreMintedSupply">EWrongPreMintedSupply</a>: u64 = 2;
+</code></pre>
+
+
+
 <a name="0x3_genesis_create"></a>
 
 ## Function `create`
@@ -350,7 +360,7 @@ It will create a singleton IotaSystemState object, which contains
 all the information we need in the system.
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(iota_system_state_id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">genesis::GenesisChainParameters</a>, genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">genesis::GenesisValidatorMetadata</a>&gt;, token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">genesis::TokenDistributionSchedule</a>, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(iota_system_state_id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">genesis::GenesisChainParameters</a>, genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">genesis::GenesisValidatorMetadata</a>&gt;, token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">genesis::TokenDistributionSchedule</a>, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -361,8 +371,7 @@ all the information we need in the system.
 
 <pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(
     iota_system_state_id: UID,
-    iota_treasury_cap: IotaTreasuryCap,
-    <b>mut</b> iota_supply: Balance&lt;IOTA&gt;,
+    <b>mut</b> iota_treasury_cap: IotaTreasuryCap,
     genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">GenesisChainParameters</a>,
     genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">GenesisValidatorMetadata</a>&gt;,
     token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a>,
@@ -374,11 +383,13 @@ all the information we need in the system.
     <b>assert</b>!(ctx.epoch() == 0, <a href="genesis.md#0x3_genesis_ENotCalledAtGenesis">ENotCalledAtGenesis</a>);
 
     <b>let</b> <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a> {
-        stake_subsidy_fund_nanos,
+        pre_minted_supply,
         allocations,
     } = token_distribution_schedule;
 
-    <b>let</b> subsidy_fund = iota_supply.split(stake_subsidy_fund_nanos);
+    <b>assert</b>!(iota_treasury_cap.total_supply() == pre_minted_supply, <a href="genesis.md#0x3_genesis_EWrongPreMintedSupply">EWrongPreMintedSupply</a>);
+
+    <b>let</b> subsidy_fund = <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>();
     <b>let</b> <a href="storage_fund.md#0x3_storage_fund">storage_fund</a> = <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>();
 
     // Create all the `Validator` structs
@@ -436,7 +447,7 @@ all the information we need in the system.
 
     // Allocate tokens and staking operations
     <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(
-        iota_supply,
+        &<b>mut</b> iota_treasury_cap,
         allocations,
         &<b>mut</b> validators,
         timelock_genesis_label,
@@ -493,7 +504,7 @@ all the information we need in the system.
 
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">genesis::TokenAllocation</a>&gt;, validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(iota_treasury_cap: &<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">genesis::TokenAllocation</a>&gt;, validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -503,7 +514,7 @@ all the information we need in the system.
 
 
 <pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(
-    <b>mut</b> iota_supply: Balance&lt;IOTA&gt;,
+    iota_treasury_cap: &<b>mut</b> IotaTreasuryCap,
     <b>mut</b> allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a>&gt;,
     validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
     timelock_genesis_label: Option&lt;String&gt;,
@@ -518,7 +529,7 @@ all the information we need in the system.
             staked_with_timelock_expiration,
         } = allocations.pop_back();
 
-        <b>let</b> allocation_balance = iota_supply.split(amount_nanos);
+        <b>let</b> allocation_balance = iota_treasury_cap.mint_balance(amount_nanos, ctx);
 
         <b>if</b> (staked_with_validator.is_some()) {
             <b>let</b> validator_address = staked_with_validator.destroy_some();
@@ -550,10 +561,6 @@ all the information we need in the system.
         };
     };
     allocations.destroy_empty();
-
-    // Provided allocations must fully allocate the iota_supply and there
-    // should be none left at this point.
-    iota_supply.destroy_zero();
 }
 </code></pre>
 

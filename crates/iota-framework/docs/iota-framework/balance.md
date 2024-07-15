@@ -22,6 +22,7 @@ custom coins with <code><a href="../iota-framework/balance.md#0x2_balance_Supply
 -  [Function `destroy_zero`](#0x2_balance_destroy_zero)
 -  [Function `create_staking_rewards`](#0x2_balance_create_staking_rewards)
 -  [Function `destroy_storage_rebates`](#0x2_balance_destroy_storage_rebates)
+-  [Function `destroy_genesis_supply`](#0x2_balance_destroy_genesis_supply)
 -  [Function `destroy_supply`](#0x2_balance_destroy_supply)
 
 
@@ -119,6 +120,16 @@ For when trying to withdraw more than there is.
 
 
 <pre><code><b>const</b> <a href="../iota-framework/balance.md#0x2_balance_ENotEnough">ENotEnough</a>: u64 = 2;
+</code></pre>
+
+
+
+<a name="0x2_balance_ENotGenesisEpoch"></a>
+
+Epoch is not 0 (the genesis epoch).
+
+
+<pre><code><b>const</b> <a href="../iota-framework/balance.md#0x2_balance_ENotGenesisEpoch">ENotGenesisEpoch</a>: u64 = 4;
 </code></pre>
 
 
@@ -442,6 +453,36 @@ and nowhere else.
 
 <pre><code><b>fun</b> <a href="../iota-framework/balance.md#0x2_balance_destroy_storage_rebates">destroy_storage_rebates</a>&lt;T&gt;(self: <a href="../iota-framework/balance.md#0x2_balance_Balance">Balance</a>&lt;T&gt;, ctx: &TxContext) {
     <b>assert</b>!(ctx.sender() == @0x0, <a href="../iota-framework/balance.md#0x2_balance_ENotSystemAddress">ENotSystemAddress</a>);
+    <b>let</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">Balance</a> { value: _ } = self;
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_balance_destroy_genesis_supply"></a>
+
+## Function `destroy_genesis_supply`
+
+CAUTION: this function destroys a <code><a href="../iota-framework/balance.md#0x2_balance_Balance">Balance</a></code> without decreasing the supply.
+It should only be called by the genesis txn to destroy parts of the IOTA supply
+which was created during the migration and for no other reason.
+
+
+<pre><code><b>fun</b> <a href="../iota-framework/balance.md#0x2_balance_destroy_genesis_supply">destroy_genesis_supply</a>&lt;T&gt;(self: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="../iota-framework/balance.md#0x2_balance_destroy_genesis_supply">destroy_genesis_supply</a>&lt;T&gt;(self: <a href="../iota-framework/balance.md#0x2_balance_Balance">Balance</a>&lt;T&gt;, ctx: &TxContext) {
+    <b>assert</b>!(ctx.sender() == @0x0, <a href="../iota-framework/balance.md#0x2_balance_ENotSystemAddress">ENotSystemAddress</a>);
+    <b>assert</b>!(ctx.epoch() == 0, <a href="../iota-framework/balance.md#0x2_balance_ENotGenesisEpoch">ENotGenesisEpoch</a>);
+
     <b>let</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">Balance</a> { value: _ } = self;
 }
 </code></pre>

@@ -23,7 +23,6 @@ use iota_types::{
     deny_list::{get_coin_deny_list, PerTypeDenyList},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::{
         get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
         IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
@@ -483,22 +482,18 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_nanos: u64,
+    pub pre_minted_supply: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_nanos = self.stake_subsidy_fund_nanos;
+        let mut total_nanos = self.pre_minted_supply;
 
         for allocation in &self.allocations {
-            total_nanos += allocation.amount_nanos;
-        }
-
-        if total_nanos != TOTAL_SUPPLY_NANOS {
-            panic!(
-                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}"
-            );
+            total_nanos = total_nanos
+                .checked_add(allocation.amount_nanos)
+                .expect("TokenDistributionSchedule allocates more than the maximum supply which equals u64::MAX", );
         }
     }
 
@@ -537,24 +532,20 @@ impl TokenDistributionSchedule {
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
-        let mut supply = TOTAL_SUPPLY_NANOS;
         let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
 
         let allocations = validators
             .into_iter()
-            .map(|a| {
-                supply -= default_allocation;
-                TokenAllocation {
-                    recipient_address: a,
-                    amount_nanos: default_allocation,
-                    staked_with_validator: Some(a),
-                    staked_with_timelock_expiration: None,
-                }
+            .map(|a| TokenAllocation {
+                recipient_address: a,
+                amount_nanos: default_allocation,
+                staked_with_validator: Some(a),
+                staked_with_timelock_expiration: None,
             })
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_nanos: supply,
+            pre_minted_supply: 0,
             allocations,
         };
 
@@ -575,26 +566,20 @@ impl TokenDistributionSchedule {
         let mut reader = csv::Reader::from_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
-        assert_eq!(
-            TOTAL_SUPPLY_NANOS,
-            allocations.iter().map(|a| a.amount_nanos).sum::<u64>(),
-            "Token Distribution Schedule must add up to 10B Iota",
-        );
-        let stake_subsidy_fund_allocation = allocations.pop().unwrap();
+
+        let pre_minted_supply = allocations.pop().unwrap();
         assert_eq!(
             IotaAddress::default(),
-            stake_subsidy_fund_allocation.recipient_address,
-            "Final allocation must be for stake subsidy fund",
+            pre_minted_supply.recipient_address,
+            "Final allocation must be for the pre-minted supply amount",
         );
         assert!(
-            stake_subsidy_fund_allocation
-                .staked_with_validator
-                .is_none(),
-            "Can't stake the stake subsidy fund",
+            pre_minted_supply.staked_with_validator.is_none(),
+            "Can't stake the pre-minted supply amount",
         );
 
         let schedule = Self {
-            stake_subsidy_fund_nanos: stake_subsidy_fund_allocation.amount_nanos,
+            pre_minted_supply: pre_minted_supply.amount_nanos,
             allocations,
         };
 
@@ -611,7 +596,7 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_nanos: self.stake_subsidy_fund_nanos,
+            amount_nanos: self.pre_minted_supply,
             staked_with_validator: None,
             staked_with_timelock_expiration: None,
         })?;
@@ -636,7 +621,7 @@ pub struct TokenAllocation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenDistributionScheduleBuilder {
-    pool: u64,
+    pre_minted_supply: u64,
     allocations: Vec<TokenAllocation>,
 }
 
@@ -644,9 +629,13 @@ impl TokenDistributionScheduleBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            pool: TOTAL_SUPPLY_NANOS,
+            pre_minted_supply: 0,
             allocations: vec![],
         }
+    }
+
+    pub fn set_pre_minted_supply(&mut self, pre_minted_supply: u64) {
+        self.pre_minted_supply = pre_minted_supply;
     }
 
     pub fn default_allocation_for_validators<I: IntoIterator<Item = IotaAddress>>(
@@ -666,13 +655,12 @@ impl TokenDistributionScheduleBuilder {
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
-        self.pool = self.pool.checked_sub(allocation.amount_nanos).unwrap();
         self.allocations.push(allocation);
     }
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_nanos: self.pool,
+            pre_minted_supply: self.pre_minted_supply,
             allocations: self.allocations.clone(),
         };
 

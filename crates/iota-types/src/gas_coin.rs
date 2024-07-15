@@ -16,7 +16,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::Balance,
+    balance::{Balance, Supply},
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
@@ -185,6 +185,11 @@ mod checked {
                 name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),
             }
+        }
+
+        /// Returns the total `Supply` of `Coin<IOTA>`.
+        pub fn total_supply(&self) -> &Supply {
+            &self.inner.total_supply
         }
     }
 }

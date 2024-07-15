@@ -23,7 +23,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{types::block::address::Address, Url};
 use iota_types::{
-    balance::Balance,
+    balance::{Balance, BALANCE_MODULE_NAME},
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         TxContext,
@@ -38,7 +38,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
-    gas_coin::{GasCoin, GAS, TOTAL_SUPPLY_NANOS},
+    gas_coin::{GasCoin, GAS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -49,7 +49,10 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::stardust_to_iota_address,
-    timelock::stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
+    timelock::{
+        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
+        timelocked_staked_iota::TimelockedStakedIota,
+    },
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
@@ -317,6 +320,10 @@ impl Builder {
         if self.built_genesis.is_none() {
             self.build_and_cache_unsigned_genesis();
         }
+
+        // Verify that all on-chain state was properly created
+        self.validate().unwrap();
+
         let UnsignedGenesis {
             checkpoint,
             checkpoint_contents,
@@ -337,19 +344,14 @@ impl Builder {
             CertifiedCheckpointSummary::new(checkpoint, signatures, &committee).unwrap()
         };
 
-        let genesis = Genesis::new(
+        Genesis::new(
             checkpoint,
             checkpoint_contents,
             transaction,
             effects,
             events,
             objects,
-        );
-
-        // Verify that all on-chain state was properly created
-        self.validate().unwrap();
-
-        genesis
+        )
     }
 
     /// Validates the entire state of the build, no matter what the internal
@@ -418,8 +420,8 @@ impl Builder {
 
         // In non-testing code, genesis type must always be V1.
         let system_state = match unsigned_genesis.iota_system_object() {
-            IotaSystemState::V1(_) => unreachable!(),
-            IotaSystemState::V2(inner) => inner,
+            IotaSystemState::V1(inner) => inner,
+            IotaSystemState::V2(_) => unreachable!(),
             #[cfg(msim)]
             _ => {
                 // Types other than V1 used in simtests do not need to be validated.
@@ -564,9 +566,16 @@ impl Builder {
 
         // Check distribution is correct
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
+
+        let allocations_amount: u64 = token_distribution_schedule
+            .allocations
+            .iter()
+            .map(|allocation| allocation.amount_nanos)
+            .sum();
+
         assert_eq!(
-            system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_nanos
+            system_state.iota_treasury_cap.total_supply().value,
+            token_distribution_schedule.pre_minted_supply + allocations_amount
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
@@ -579,33 +588,72 @@ impl Builder {
             .iter()
             .filter_map(|o| StakedIota::try_from(o).ok().map(|s| (o.id(), (o, s))))
             .collect();
+        let mut timelock_staked_iota_objects: BTreeMap<ObjectID, (&Object, TimelockedStakedIota)> =
+            unsigned_genesis
+                .objects()
+                .iter()
+                .filter_map(|o| {
+                    TimelockedStakedIota::try_from(o)
+                        .ok()
+                        .map(|s| (o.id(), (o, s)))
+                })
+                .collect();
 
         for allocation in token_distribution_schedule.allocations {
             if let Some(staked_with_validator) = allocation.staked_with_validator {
                 let staking_pool_id = *address_to_pool_id
                     .get(&staked_with_validator)
                     .expect("staking pool should exist");
-                let staked_iota_object_id = staked_iota_objects
-                    .iter()
-                    .find(|(_k, (o, s))| {
-                        let Owner::AddressOwner(owner) = &o.owner else {
-                            panic!("gas object owner must be address owner");
-                        };
-                        *owner == allocation.recipient_address
-                            && s.principal() == allocation.amount_nanos
-                            && s.pool_id() == staking_pool_id
-                    })
-                    .map(|(k, _)| *k)
-                    .expect("all allocations should be present");
-                let staked_iota_object =
-                    staked_iota_objects.remove(&staked_iota_object_id).unwrap();
-                assert_eq!(
-                    staked_iota_object.0.owner,
-                    Owner::AddressOwner(allocation.recipient_address)
-                );
-                assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
-                assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
-                assert_eq!(staked_iota_object.1.activation_epoch(), 0);
+                if let Some(expiration) = allocation.staked_with_timelock_expiration {
+                    let timelock_staked_iota_object_id = timelock_staked_iota_objects
+                        .iter()
+                        .find(|(_k, (o, s))| {
+                            let Owner::AddressOwner(owner) = &o.owner else {
+                                panic!("gas object owner must be address owner");
+                            };
+                            *owner == allocation.recipient_address
+                                && s.principal() == allocation.amount_nanos
+                                && s.pool_id() == staking_pool_id
+                                && s.expiration_timestamp_ms() == expiration
+                        })
+                        .map(|(k, _)| *k)
+                        .expect("all allocations should be present");
+                    let timelock_staked_iota_object = timelock_staked_iota_objects
+                        .remove(&timelock_staked_iota_object_id)
+                        .unwrap();
+                    assert_eq!(
+                        timelock_staked_iota_object.0.owner,
+                        Owner::AddressOwner(allocation.recipient_address)
+                    );
+                    assert_eq!(
+                        timelock_staked_iota_object.1.principal(),
+                        allocation.amount_nanos
+                    );
+                    assert_eq!(timelock_staked_iota_object.1.pool_id(), staking_pool_id);
+                    assert_eq!(timelock_staked_iota_object.1.activation_epoch(), 0);
+                } else {
+                    let staked_iota_object_id = staked_iota_objects
+                        .iter()
+                        .find(|(_k, (o, s))| {
+                            let Owner::AddressOwner(owner) = &o.owner else {
+                                panic!("gas object owner must be address owner");
+                            };
+                            *owner == allocation.recipient_address
+                                && s.principal() == allocation.amount_nanos
+                                && s.pool_id() == staking_pool_id
+                        })
+                        .map(|(k, _)| *k)
+                        .expect("all allocations should be present");
+                    let staked_iota_object =
+                        staked_iota_objects.remove(&staked_iota_object_id).unwrap();
+                    assert_eq!(
+                        staked_iota_object.0.owner,
+                        Owner::AddressOwner(allocation.recipient_address)
+                    );
+                    assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
+                    assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
+                    assert_eq!(staked_iota_object.1.activation_epoch(), 0);
+                }
             } else {
                 let gas_object_id = gas_objects
                     .iter()
@@ -1223,17 +1271,24 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         );
-        // TODO: This is will need to be modified after the timelock staking changes and
-        // to account for the migration objects with pre-allocated funds.
-        let total_iota_supply = builder
-            .pure(&(TOTAL_SUPPLY_NANOS))
+
+        let pre_minted_supply_amount = builder
+            .pure(&(token_distribution_schedule.pre_minted_supply))
             .expect("serialization of u64 should succeed");
-        let total_iota = builder.programmable_move_call(
+        let pre_minted_supply = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("iota").to_owned(),
             ident_str!("mint_balance").to_owned(),
             vec![],
-            vec![iota_treasury_cap, total_iota_supply],
+            vec![iota_treasury_cap, pre_minted_supply_amount],
+        );
+
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            BALANCE_MODULE_NAME.to_owned(),
+            ident_str!("destroy_genesis_supply").to_owned(),
+            vec![GAS::type_tag()],
+            vec![pre_minted_supply],
         );
 
         // Step 5: Create System Timelock Cap.
@@ -1248,7 +1303,7 @@ pub fn generate_genesis_system_object(
         // Step 6: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
         // one is the IOTA `TreasuryCap` we got from step 4.
-        let mut arguments = vec![iota_system_state_uid, iota_treasury_cap, total_iota];
+        let mut arguments = vec![iota_system_state_uid, iota_treasury_cap];
         let mut call_arg_arguments = vec![
             CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
             CallArg::Pure(bcs::to_bytes(&genesis_validators).unwrap()),
