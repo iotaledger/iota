@@ -4,11 +4,11 @@ sidebar_label: Create and Publish
 description: Create DID Documents and publish them to the Tangle
 image: /img/Identity_icon.png
 tags:
-  - Documents
-  - DID
-  - Tangle
-  - Create
-  - Publish
+    - Documents
+    - DID
+    - Tangle
+    - Create
+    - Publish
 ---
 
 import Tabs from '@theme/Tabs';
@@ -20,12 +20,11 @@ This identity consists of many parts that have different functions.
 
 :::note DID method Specification
 
-Note that the Iota Identity Framework follows [IOTA DID Method Specification](../../../../../standards/iota-identity/iota-did-method-spec.mdx).
+Note that the Iota Identity Framework follows [IOTA DID Method Specification](../../../../references/iota-identity/iota-did-method-spec.mdx).
 
 :::
 
 ## Identity Generation Process
-
 
 ### 1. Get Funds to Cover the Storage Deposit
 
@@ -101,7 +100,6 @@ controller and the governor set to the generated Ed25519 address.
 Note that controllers don't need to be Ed25519 addresses, they can be any type of output.
 However, they must be unlocked in order perform a state or governance transition when the DID Document is updated or destroyed.
 
-
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
@@ -128,11 +126,10 @@ the Basic Output as input and the newly generated Alias Output as output, as wel
 the remaining tokens.
 
 The DID is only known once the [Alias Output](../../explanations/about-alias-outputs.mdx) is successfully published,
-since the DID's [Tag](../../../../../standards/iota-identity/iota-did-method-spec.mdx#iota-tag) contains the
+since the DID's [Tag](../../../../references/iota-identity/iota-did-method-spec.mdx#iota-tag) contains the
 [Alias ID](../../explanations/about-alias-outputs.mdx#alias-id).
 Once the transaction is confirmed, the `Alias ID` is assigned, and the DID can be derived from it,
 the DID Document is stored on the ledger and can be [resolved](resolve.mdx) using any node.
-
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>

@@ -310,13 +310,13 @@ const references = [
 		label: 'IOTA Identity',
 		link: {
 			type: 'doc',
-			id: 'standards/iota-identity/overview',
+			id: 'references/iota-identity/overview',
 		},
 		items: [
-			'standards/iota-identity/overview',
-			'standards/iota-identity/iota-did-method-spec',
-			'standards/iota-identity/revocation-bitmap-2022',
-			'standards/iota-identity/revocation-timeframe-2024',
+			'references/iota-identity/overview',
+			'references/iota-identity/iota-did-method-spec',
+			'references/iota-identity/revocation-bitmap-2022',
+			'references/iota-identity/revocation-timeframe-2024',
 			{
 				type: 'doc',
 				id: 'references/iota-identity/wasm',
