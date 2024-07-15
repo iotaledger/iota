@@ -265,7 +265,7 @@ export class UiConnection extends Connection {
                 await AccountsFinder.find({
                     accountType: payload.accountType,
                     bip44CoinType: payload.bip44CoinType,
-                    coinType: payload.coinType,
+                    gasCoinType: payload.gasCoinType,
                     sourceID: payload.sourceID,
                     accountGapLimit: payload.accountGapLimit,
                     addressGapLimit: payload.addressGapLimit,
