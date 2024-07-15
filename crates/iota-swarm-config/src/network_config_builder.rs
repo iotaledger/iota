@@ -326,11 +326,13 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     recipient_address: address,
                     amount_nanos: DEFAULT_GAS_AMOUNT,
                     staked_with_validator: None,
+                    staked_with_timelock_expiration: None,
                 };
                 let stake = TokenAllocation {
                     recipient_address: address,
                     amount_nanos: validator.stake,
                     staked_with_validator: Some(address),
+                    staked_with_timelock_expiration: None,
                 };
                 builder.add_allocation(gas_coin);
                 builder.add_allocation(stake);

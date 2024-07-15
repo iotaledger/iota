@@ -40,10 +40,7 @@ struct Cli {
         help = "Compress the resulting object snapshot"
     )]
     compress: bool,
-    #[clap(
-        long,
-        help = "Disable global snapshot verification",
-    )]
+    #[clap(long, help = "Disable global snapshot verification")]
     disable_global_snapshot_verification: bool,
 }
 

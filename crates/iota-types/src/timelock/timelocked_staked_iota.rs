@@ -11,10 +11,10 @@ use crate::{
     governance::StakedIota,
     id::UID,
     object::{Data, Object},
-    TIMELOCK_ADDRESS,
+    IOTA_SYSTEM_ADDRESS,
 };
 
-pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentStr = ident_str!("timelocked_staked_iota");
+pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentStr = ident_str!("timelocked_staking");
 pub const TIMELOCKED_STAKED_IOTA_STRUCT_NAME: &IdentStr = ident_str!("TimelockedStakedIota");
 
 /// Rust version of the Move
@@ -34,7 +34,7 @@ impl TimelockedStakedIota {
     /// Get the TimeLock's `type`.
     pub fn type_() -> StructTag {
         StructTag {
-            address: TIMELOCK_ADDRESS,
+            address: IOTA_SYSTEM_ADDRESS,
             module: TIMELOCKED_STAKED_IOTA_MODULE_NAME.to_owned(),
             name: TIMELOCKED_STAKED_IOTA_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -43,7 +43,7 @@ impl TimelockedStakedIota {
 
     /// Is this other StructTag representing a TimelockedStakedIota?
     pub fn is_timelocked_staked_iota(s: &StructTag) -> bool {
-        s.address == TIMELOCK_ADDRESS
+        s.address == IOTA_SYSTEM_ADDRESS
             && s.module.as_ident_str() == TIMELOCKED_STAKED_IOTA_MODULE_NAME
             && s.name.as_ident_str() == TIMELOCKED_STAKED_IOTA_STRUCT_NAME
             && s.type_params.is_empty()

@@ -1,26 +1,26 @@
 ---
-title: Module `0x10cf::stardust_upgrade_label`
+title: Module `0x107a::stardust_upgrade_label`
 ---
 
 All the vested rewards migrated from Stardust are labeled with this label.
 It can not be added to an object later after the migration.
 
 
--  [Struct `STARDUST_UPGRADE_LABEL`](#0x10cf_stardust_upgrade_label_STARDUST_UPGRADE_LABEL)
+-  [Struct `STARDUST_UPGRADE_LABEL`](#0x107a_stardust_upgrade_label_STARDUST_UPGRADE_LABEL)
 
 
 <pre><code></code></pre>
 
 
 
-<a name="0x10cf_stardust_upgrade_label_STARDUST_UPGRADE_LABEL"></a>
+<a name="0x107a_stardust_upgrade_label_STARDUST_UPGRADE_LABEL"></a>
 
 ## Struct `STARDUST_UPGRADE_LABEL`
 
 Name of the label.
 
 
-<pre><code><b>struct</b> <a href="stardust_upgrade_label.md#0x10cf_stardust_upgrade_label_STARDUST_UPGRADE_LABEL">STARDUST_UPGRADE_LABEL</a> <b>has</b> drop
+<pre><code><b>struct</b> <a href="stardust_upgrade_label.md#0x107a_stardust_upgrade_label_STARDUST_UPGRADE_LABEL">STARDUST_UPGRADE_LABEL</a> <b>has</b> drop
 </code></pre>
 
 
