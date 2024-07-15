@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module timelock::labeler_tests {
+module iota::labeler_tests {
 
     use iota::test_scenario;
-
-    use timelock::labeler;
+    use iota::labeler;
 
     public struct FAKE_WITNESS has drop {}
 

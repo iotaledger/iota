@@ -17,6 +17,7 @@ module iota_system::governance_test_utils {
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils;
     use iota::balance::Balance;
+    use iota::timelock;
 
     const MICROS_PER_IOTA: u64 = 1_000_000_000;
 
@@ -89,6 +90,7 @@ module iota_system::governance_test_utils {
             0,   // chain_start_timestamp_ms
             system_parameters,
             stake_subsidy,
+            timelock::new_system_timelock_cap_for_testing(),
             ctx,
         )
     }
