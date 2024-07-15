@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from "react";
 import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
+import Heading from "@theme/Heading";
 import RefNav from "./api-ref/refnav";
 import Methods from "./api-ref/method";
 
@@ -88,9 +89,9 @@ const Rpc = () => {
       <main className="flex-grow w-3/4">
         <div className="mx-8">
           <div className="">
-            <h1 className="fixed bg-white dark:bg-ifm-background-color-dark w-full py-4 top-14">
+            <Heading as="h1" className="fixed bg-white dark:bg-ifm-background-color-dark w-full py-4 top-14">
               IOTA JSON-RPC Reference - Version: {openrpc.info.version}
-            </h1>
+            </Heading>
             <ScrollSpy>
               <div className="">
                 <p className="pt-24">{openrpc.info.description}</p>
