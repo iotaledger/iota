@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import React from 'react';
 import cx from 'classnames';
 import { AccountType } from './account.enums';
 import { BACKGROUND_BADGE_COLORS, TEXT_COLORS, BADGE_TEXT_CLASS } from './account.classes';
@@ -42,18 +42,12 @@ export function Account({
     onThreeDotsClick,
     onLockAccount,
 }: AccountProps): React.JSX.Element {
-    const [isHovered, setIsHovered] = useState<boolean>(false);
-
     const backgroundBadgeClasses = accountType ? BACKGROUND_BADGE_COLORS[accountType] : '';
     const textClasses = accountType ? TEXT_COLORS[accountType] : '';
     const circleFillClass = isLocked ? 'fill-neutral-80 dark:fill-neutral-30' : 'fill-primary-30';
 
     return (
-        <div
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            className="state-layer relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer"
-        >
+        <div className="state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer">
             <div className="flex items-center space-x-3">
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -87,7 +81,7 @@ export function Account({
             </div>
             <div
                 className={cx('z-10 ml-auto flex items-center space-x-2', {
-                    hidden: !isHovered && !isLocked,
+                    'hidden group-hover:flex': !isLocked,
                 })}
             >
                 <Button
@@ -148,9 +142,7 @@ export function Account({
                         onClick={onLockAccount}
                         icon={
                             <svg
-                                className={cx('text-neutral-40 dark:text-neutral-60', {
-                                    hidden: !isHovered,
-                                })}
+                                className="hidden text-neutral-40 group-hover:flex dark:text-neutral-60"
                                 xmlns="http://www.w3.org/2000/svg"
                                 width="21"
                                 height="20"
