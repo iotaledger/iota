@@ -7,8 +7,8 @@ use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
 use std::{
-    collections::BTreeSet, fmt::Write, fs::read_dir, io::Read, path::PathBuf, str, str::FromStr,
-    thread, time::Duration,
+    collections::BTreeSet, fmt::Write, fs::read_dir, io::Read, path::PathBuf, str, thread,
+    time::Duration,
 };
 
 use expect_test::expect;
@@ -32,8 +32,8 @@ use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{iota_client_config::IotaClientConfig, wallet_context::WalletContext};
 use iota_swarm_config::{
-    genesis_config::{AccountConfig, GenesisConfig},
-    network_config::NetworkConfig,
+    genesis_config::{AccountConfig, GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES},
+    network_config::NetworkConfigLight,
 };
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
@@ -81,7 +81,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: 1,
+        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
     }
     .execute()
     .await?;
@@ -101,7 +101,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
 
     // Check network config
     let network_conf =
-        PersistedConfig::<NetworkConfig>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
+        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
     assert_eq!(4, network_conf.validator_configs().len());
 
     // Check wallet config
@@ -121,7 +121,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: 1,
+        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
     }
     .execute()
     .await;
