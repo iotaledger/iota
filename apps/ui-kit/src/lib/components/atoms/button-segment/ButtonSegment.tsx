@@ -46,7 +46,7 @@ export function ButtonSegment({
         <button
             onClick={onClick}
             className={cx(
-                'state-layer relative flex items-center rounded-full px-sm py-[6px] disabled:opacity-40',
+                'enabled:state-layer relative flex items-center rounded-full px-sm py-[6px] disabled:opacity-40',
                 backgroundColors,
                 textColors,
                 {
@@ -57,7 +57,7 @@ export function ButtonSegment({
         >
             <div className={cx('flex flex-row items-center justify-center gap-2 text-body-md')}>
                 {icon && <span>{icon}</span>}
-                <span className={cx('font-inter')}>{label}</span>
+                <span className="font-inter">{label}</span>
             </div>
         </button>
     );
