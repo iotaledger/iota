@@ -29,6 +29,6 @@ export const Default: Story = {
 export const LabelFirst: Story = {
     args: {
         label: 'Label',
-        labelFirst: true,
+        isLabelFirst: true,
     },
 };

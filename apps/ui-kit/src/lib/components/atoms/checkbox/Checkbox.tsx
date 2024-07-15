@@ -12,19 +12,19 @@ interface CheckboxProps {
     /**
      * The state of the checkbox.
      */
-    checked?: boolean;
+    isChecked?: boolean;
     /**
      * If true the checkbox will override the styles to show an indeterminate state.
      */
-    indeterminate?: boolean;
+    isIndeterminate?: boolean;
     /**
      * Whether the label should be placed before the checkbox.
      */
-    labelFirst?: boolean;
+    isLabelFirst?: boolean;
     /**
      * If true the checkbox will be disabled.
      */
-    disabled?: boolean;
+    isDisabled?: boolean;
     /**
      * The callback to call when the checkbox is clicked.
      */
@@ -32,38 +32,38 @@ interface CheckboxProps {
 }
 
 export function Checkbox({
-    checked,
-    indeterminate,
+    isChecked,
+    isIndeterminate,
     label,
-    labelFirst,
-    disabled,
+    isLabelFirst,
+    isDisabled,
     onChange,
 }: CheckboxProps) {
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (inputRef.current) {
-            inputRef.current.indeterminate = indeterminate ?? false;
+            inputRef.current.indeterminate = isIndeterminate ?? false;
         }
-    }, [indeterminate, inputRef]);
+    }, [isIndeterminate, inputRef]);
 
     return (
-        <label className={cx('group flex flex-row gap-x-2', { disabled })}>
-            {labelFirst && <Label label={label} />}
+        <label className={cx('group flex flex-row gap-x-2', { disabled: isDisabled })}>
+            {isLabelFirst && <Label label={label} />}
             <div className="relative h-5 w-5">
                 <input
                     type="checkbox"
                     className="enabled:state-layer peer h-full w-full appearance-none rounded border border-neutral-80 disabled:opacity-40 dark:border-neutral-20 [&:is(:checked,:indeterminate)]:border-primary-30 [&:is(:checked,:indeterminate)]:bg-primary-30 disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 dark:disabled:[&:is(:checked,:indeterminate)]:bg-neutral-40 disabled:[&:not(:checked,:indeterminate)]:border-neutral-70 dark:disabled:[&:not(:checked,:indeterminate)]:border-neutral-30"
-                    checked={checked}
+                    checked={isChecked}
                     ref={inputRef}
-                    disabled={disabled}
+                    disabled={isDisabled}
                     onChange={(e) => onChange?.(e.target.checked)}
                 />
                 <span className="absolute inset-0 flex h-full w-full items-center justify-center text-neutral-40 peer-disabled:text-neutral-70 peer-disabled:text-opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:text-opacity-40">
-                    {indeterminate ? <IndeterminateIcon /> : <CheckmarkIcon />}
+                    {isIndeterminate ? <IndeterminateIcon /> : <CheckmarkIcon />}
                 </span>
             </div>
-            {!labelFirst && <Label label={label} />}
+            {!isLabelFirst && <Label label={label} />}
         </label>
     );
 }
