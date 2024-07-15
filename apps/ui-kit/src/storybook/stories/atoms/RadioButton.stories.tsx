@@ -25,5 +25,8 @@ export const Default: Story = {
         checked: {
             control: 'boolean',
         },
+        disabled: {
+            control: 'boolean',
+        },
     },
 };
