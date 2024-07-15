@@ -2,37 +2,39 @@
 description: How to register a native token as ERC20
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - ERC20
-  - EVM
-  - how-to
+    - ERC20
+    - EVM
+    - how-to
 ---
-import ExampleCodeIntro from '../../../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
-import ObsoleteTokenCreation from '../../../../../../_snippets/iota-evm/how-tos/token/obsolete_token_creation.md';
+
+import ExampleCodeIntro from '../../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
+import ObsoleteTokenCreation from '../../../../../_snippets/iota-evm/how-tos/token/obsolete_token_creation.md';
 
 # Register Tokens
 
-<ObsoleteTokenCreation/>
+<ObsoleteTokenCreation />
 
 To properly use your native tokens, you should register them as ERC20 using the `registerERC20NativeToken` function from the ISC magic contract.
 
 ## Example Code
 
-<ExampleCodeIntro/>
+<ExampleCodeIntro />
 
-
-###  2. Register the Native Tokens
+### 2. Register the Native Tokens
 
 Register the native tokens specifying:
-* the foundry serial number
-* a name
-* a symbol
-* it's decimals 
-* the allowance.
+
+-   the foundry serial number
+-   a name
+-   a symbol
+-   it's decimals
+-   the allowance.
+
 ```solidity
 ISC.sandbox.registerERC20NativeToken(_foundrySN, _name, _symbol, _decimals, allowance);
 ```
 
-###  3. Get the Contract's Address
+### 3. Get the Contract's Address
 
 Get the ERC20 contract address with `erc20NativeTokensAddress`:
 

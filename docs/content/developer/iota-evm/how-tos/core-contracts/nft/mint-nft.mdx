@@ -2,20 +2,22 @@
 description: How to mint L1 NFT
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - NFT
-  - EVM
-  - how-to
+    - NFT
+    - EVM
+    - how-to
 ---
-import ExampleCodeIntro from '../../../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
+
+import ExampleCodeIntro from '../../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
 
 # Mint an NFT
+
 ## About NFTs
 
 The Stardust update allows you to create your own NFTs. You can also use [IRC27](https://github.com/iotaledger/tips/blob/main/tips/TIP-0027/tip-0027.md) for NFTs. This guide will show you how to create an IRC27 L1 NFT using a L2 smart contract.
 
 ## Example Code
 
-<ExampleCodeIntro/>
+<ExampleCodeIntro />
 
 2. Get the senders AgentID:
 
@@ -23,7 +25,7 @@ The Stardust update allows you to create your own NFTs. You can also use [IRC27]
 ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
 ```
 
-3. Create an `IRC27Metadata` struct  with all the needed data:
+3. Create an `IRC27Metadata` struct with all the needed data:
 
 ```solidity
 IRC27NFTMetadata memory metadata = IRC27NFTMetadata({
@@ -35,9 +37,10 @@ IRC27NFTMetadata memory metadata = IRC27NFTMetadata({
 });
 ```
 
-4. Create all the data for the core contract call. To do so, you should create a new `ISCDict` with 2 parameters like specified in the reference docs for [`mintNFT`](../../../../../../references/iota-evm/core-contracts/accounts.md#mintnfti-immutabledata-a-agentid-c-collectionid-w-withdrawonmint)
-* `I` is the immutable metadata we fill with the IRC27 metadata and
-* `a` is the AgendID of the owner of the NFT
+4. Create all the data for the core contract call. To do so, you should create a new `ISCDict` with 2 parameters like specified in the reference docs for [`mintNFT`](../../../../../references/iota-evm/core-contracts/accounts.md#mintnfti-immutabledata-a-agentid-c-collectionid-w-withdrawonmint)
+
+-   `I` is the immutable metadata we fill with the IRC27 metadata and
+-   `a` is the AgendID of the owner of the NFT
 
 ```solidity
 ISCDict memory params = ISCDict(new ISCDictItem[](2));
@@ -51,7 +54,7 @@ The full example below calls the `IRC27NFTMetadataToString` function, which simp
 
 :::
 
-5. Call the magic contract `call` function with all the parameters. You should specify the core contract you want to call, which in this case is the [`account`](../../../../../../references/iota-evm/core-contracts/accounts.md) contract, and the function for [minting an NFT](../../../../../../references/iota-evm/core-contracts/accounts.md#mintnfti-immutabledata-a-agentid-c-collectionid-w-withdrawonmint)
+5. Call the magic contract `call` function with all the parameters. You should specify the core contract you want to call, which in this case is the [`account`](../../../../../references/iota-evm/core-contracts/accounts.md) contract, and the function for [minting an NFT](../../../../../references/iota-evm/core-contracts/accounts.md#mintnfti-immutabledata-a-agentid-c-collectionid-w-withdrawonmint)
 
 ```solidity
 ISCDict memory ret = ISC.sandbox.call(
@@ -62,7 +65,7 @@ ISCDict memory ret = ISC.sandbox.call(
 );
 ```
 
-6. The call return value will contain a `mintID` which we can use in, for example, another contract function to get the actual L1 NFT ID once it is created using the [`accounts.NFTIDbyMintID`](../../../../../../references/iota-evm/core-contracts/accounts.md#nftidbymintidd-mintid) function
+6. The call return value will contain a `mintID` which we can use in, for example, another contract function to get the actual L1 NFT ID once it is created using the [`accounts.NFTIDbyMintID`](../../../../../references/iota-evm/core-contracts/accounts.md#nftidbymintidd-mintid) function
 
 ```solidity
 function getNFTIDFromMintID(bytes memory mintID) public view returns (bytes memory) {
@@ -75,10 +78,10 @@ function getNFTIDFromMintID(bytes memory mintID) public view returns (bytes memo
         params
     );
     return ret.items[0].value;
-} 
+}
 ```
 
-### Full Example Code 
+### Full Example Code
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -128,7 +131,7 @@ contract NFTContract {
             params
         );
         return ret.items[0].value;
-    } 
+    }
 
     function IRC27NFTMetadataToString(IRC27NFTMetadata memory metadata)
         public

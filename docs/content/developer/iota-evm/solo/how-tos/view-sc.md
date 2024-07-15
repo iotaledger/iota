@@ -2,13 +2,13 @@
 description: Calling smart contract view functions with Solo.
 image: /img/iota-evm/tutorial/call_view.png
 tags:
-  - how to
-  - testing
-  - solo
-  - views
-  - call
-  - synchronous
-  - entry points
+    - how to
+    - testing
+    - solo
+    - views
+    - call
+    - synchronous
+    - entry points
 ---
 
 # Calling a View
@@ -33,7 +33,7 @@ view entry point will result in an exception, returning all attached tokens to t
 
 Views are used to retrieve information about the smart contract's state, for example, to display on a website. Certain
 Solo methods such as `chain.GetInfo`, `chain.GetGasFeePolicy`, and `chain.L2Assets` call views of
-the [core smart contracts](../../../../../references/iota-evm/core-contracts/overview.md) behind the scenes to retrieve the information
+the [core smart contracts](../../../../references/iota-evm/core-contracts/overview.md) behind the scenes to retrieve the information
 about the chain or a specific smart contract.
 
 ## Decoding Results Returned by _PostRequestSync_ and _CallView_

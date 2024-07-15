@@ -14,7 +14,7 @@ tags:
 
 ---
 
-import OnOffLedgerRequest from '../../../../_snippets/iota-evm/on_off_ledger_request.md';
+import OnOffLedgerRequest from '../../../_snippets/iota-evm/on_off_ledger_request.md';
 
 # Calling a Smart Contract
 
@@ -65,7 +65,7 @@ exchange which would will the user's funds from one currency to another and send
 
 This is called _asynchronous composability_.
 
-<OnOffLedgerRequest/>
+<OnOffLedgerRequest />
 
 ---
 
@@ -78,7 +78,7 @@ as token swaps can require more due to the higher computational work involved.
 
 For users to specify how much they're willing to pay for a request, they need to specify a `GasBudget` in the request.
 This gas budget is the "maximum operations that this request can execute" and will be charged as a fee based on the
-chain's current [fee policy](../../../../references/iota-evm/core-contracts/governance.md#fee-policy).
+chain's current [fee policy](../../../references/iota-evm/core-contracts/governance.md#fee-policy).
 
 The funds to cover the gas used will be charged directly from the user's on-chain account.
 

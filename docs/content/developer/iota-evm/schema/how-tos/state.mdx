@@ -1,11 +1,11 @@
 ---
 tags:
-  - state
-  - access
-  - storage
-  - key
-  - data
-  - value
+    - state
+    - access
+    - storage
+    - key
+    - data
+    - value
 
 description: The smart contract state storage on the host consists of a single key/value map, as long as you access the data in the same way that you used to store it, you will always get valid data back.
 
@@ -39,13 +39,13 @@ Take a closer look at the `state` section in the `dividend` example to understan
 
 ```yaml
 state:
-  memberList: Address[] # array with all the recipients of this dividend
+    memberList: Address[] # array with all the recipients of this dividend
 
-  # factors per member
+    # factors per member
 
-  members: map[Address]Uint64 # map with all the recipient factors of this dividend
-  owner: AgentID # owner of contract, the only one who can call 'member' func
-  totalFactor: Uint64 # sum of all recipient factors
+    members: map[Address]Uint64 # map with all the recipient factors of this dividend
+    owner: AgentID # owner of contract, the only one who can call 'member' func
+    totalFactor: Uint64 # sum of all recipient factors
 ```
 
 </TabItem>
@@ -55,7 +55,7 @@ state:
 
 Starting with straightforward state variables, `totalFactor`,
 and `owner` are characterized as Uint64 and AgentID, respectively.
-These represent predefined [WasmLib value types](../../../../../references/iota-evm/wasm-lib-data-types.mdx).
+These represent predefined [WasmLib value types](../../../../references/iota-evm/wasm-lib-data-types.mdx).
 
 ### Arrays and Maps
 
@@ -140,29 +140,29 @@ impl MutableDividendState {
 
 ```ts
 export class MutableDividendState extends wasmtypes.ScProxy {
-  asImmutable(): sc.ImmutableDividendState {
-    return new sc.ImmutableDividendState(this.proxy);
-  }
+    asImmutable(): sc.ImmutableDividendState {
+        return new sc.ImmutableDividendState(this.proxy);
+    }
 
-  // array with all the recipients of this dividend
-  memberList(): sc.ArrayOfMutableAddress {
-    return new sc.ArrayOfMutableAddress(this.proxy.root(sc.StateMemberList));
-  }
+    // array with all the recipients of this dividend
+    memberList(): sc.ArrayOfMutableAddress {
+        return new sc.ArrayOfMutableAddress(this.proxy.root(sc.StateMemberList));
+    }
 
-  // map with all the recipient factors of this dividend
-  members(): sc.MapAddressToMutableUint64 {
-    return new sc.MapAddressToMutableUint64(this.proxy.root(sc.StateMembers));
-  }
+    // map with all the recipient factors of this dividend
+    members(): sc.MapAddressToMutableUint64 {
+        return new sc.MapAddressToMutableUint64(this.proxy.root(sc.StateMembers));
+    }
 
-  // owner of contract, the only one who can call 'member' func
-  owner(): wasmtypes.ScMutableAgentID {
-    return new wasmtypes.ScMutableAgentID(this.proxy.root(sc.StateOwner));
-  }
+    // owner of contract, the only one who can call 'member' func
+    owner(): wasmtypes.ScMutableAgentID {
+        return new wasmtypes.ScMutableAgentID(this.proxy.root(sc.StateOwner));
+    }
 
-  // sum of all recipient factors
-  totalFactor(): wasmtypes.ScMutableUint64 {
-    return new wasmtypes.ScMutableUint64(this.proxy.root(sc.StateTotalFactor));
-  }
+    // sum of all recipient factors
+    totalFactor(): wasmtypes.ScMutableUint64 {
+        return new wasmtypes.ScMutableUint64(this.proxy.root(sc.StateTotalFactor));
+    }
 }
 ```
 

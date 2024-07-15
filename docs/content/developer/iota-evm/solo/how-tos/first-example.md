@@ -2,19 +2,19 @@
 description: Example of a _Solo_ test. It deploys a new chain and invokes some view calls.
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - testing framework
-  - golang
-  - solo
-  - example
-  - new chain
-  - how-tos
+    - testing framework
+    - golang
+    - solo
+    - example
+    - new chain
+    - how-tos
 ---
 
 # First Example
 
 The following is an example of a _Solo_ test. It deploys a new chain and invokes some view calls in the
-[`root`](../../../../../references/iota-evm/core-contracts/root.md) and [`governance`](../../../../../references/iota-evm/core-contracts/governance.md)
-[core contracts](../../../../../references/iota-evm/core-contracts/overview.md).
+[`root`](../../../../references/iota-evm/core-contracts/root.md) and [`governance`](../../../../references/iota-evm/core-contracts/governance.md)
+[core contracts](../../../../references/iota-evm/core-contracts/overview.md).
 
 ```go
 import (
@@ -72,16 +72,16 @@ The output of the test will be something like this:
 
 :::note
 
-- The example uses [`stretchr/testify`](https://github.com/stretchr/testify) for assertions, but it is not strictly
-  required.
-- Addresses, chain IDs and other hashes should be the same on each run of the test because Solo uses a constant seed by
-  default.
-- The timestamps shown in the log come from the computer's timer, but the Solo environment operates on its own logical
-  time.
+-   The example uses [`stretchr/testify`](https://github.com/stretchr/testify) for assertions, but it is not strictly
+    required.
+-   Addresses, chain IDs and other hashes should be the same on each run of the test because Solo uses a constant seed by
+    default.
+-   The timestamps shown in the log come from the computer's timer, but the Solo environment operates on its own logical
+    time.
 
 :::
 
-The [core contracts](../../../../../references/iota-evm/core-contracts/overview.md) listed in the log are automatically deployed on each
+The [core contracts](../../../../references/iota-evm/core-contracts/overview.md) listed in the log are automatically deployed on each
 new chain. The log also shows their _contract IDs_.
 
 The output fragment in the log `state transition --> #1` means that the state of the chain has changed from block index

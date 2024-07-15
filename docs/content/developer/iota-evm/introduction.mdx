@@ -11,7 +11,8 @@ tags:
   - explanation
 
 ---
-import OnOffLedgerRequest from '../../../_snippets/iota-evm/on_off_ledger_request.md';
+
+import OnOffLedgerRequest from '../../_snippets/iota-evm/on_off_ledger_request.md';
 
 # Introduction
 
@@ -23,7 +24,7 @@ Their deterministic and distributed nature makes them predictable, stable and tr
 
 Due to the distributed nature of smart contracts, i.e. they run on a network of validators instead of a single computer,
 the execution of smart contract is resource intensive as it has to deal with the overhead of the communication between validators in the network.
-This can lead to relatively high [fees](#gas) for smart contract execution, as well as scalability issues when running on 
+This can lead to relatively high [fees](#gas) for smart contract execution, as well as scalability issues when running on
 a single blockchain. However, the IOTA Smart Contract Protocol allows **many blockchains that execute smart contracts to
 run in parallel** and communicate with one another, therefore solving the scalability problem. Enabling interoperability and horizontal scaling of dApps.
 
@@ -51,8 +52,8 @@ smart contracts, as well as an **experimental** [Wasm VM](getting-started/langua
 
 ## Sandbox Interface
 
-ISC Smart contracts can access the [Sandbox interface](explanations/sandbox.md). 
-This interface provides access to the chain state, native assets, allows interaction with other contracts/chains, as 
+ISC Smart contracts can access the [Sandbox interface](explanations/sandbox.md).
+This interface provides access to the chain state, native assets, allows interaction with other contracts/chains, as
 well as various utilities like cryptographic functions and event dispatching.
 
 ![Sandbox](/img/iota-evm/sandbox.png)
@@ -68,7 +69,7 @@ may involve delays.
 
 ### Gas
 
-Running a request consumes 'gas'. Gas units are a measurement of "how expensive" a computation is to execute. You can specify a `GasBudget` 
-for each request, with costs charged to your on-chain account. 
+Running a request consumes 'gas'. Gas units are a measurement of "how expensive" a computation is to execute. You can specify a `GasBudget`
+for each request, with costs charged to your on-chain account.
 
-<OnOffLedgerRequest/>
+<OnOffLedgerRequest />

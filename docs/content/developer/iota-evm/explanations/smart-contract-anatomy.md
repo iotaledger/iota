@@ -2,12 +2,12 @@
 description: Each smart contract instance has a program with a collection of entry points and a state.
 image: /img/iota-evm/tutorial/SC-structure.png
 tags:
-  - smart contracts
-  - structure
-  - state
-  - entry points
-  - Wasm
-  - explanation
+    - smart contracts
+    - structure
+    - state
+    - entry points
+    - Wasm
+    - explanation
 ---
 
 # Anatomy of a Smart Contract
@@ -23,9 +23,9 @@ contracts coexisting on the same chain.
 
 ## Identifying a Smart Contract
 
-The ISC [core contracts](core-contracts.md) and WASM contracts on the chain are identified by a _hname_ (pronounced 
+The ISC [core contracts](core-contracts.md) and WASM contracts on the chain are identified by a _hname_ (pronounced
 "aitch-name"), which is a `uint32` value calculated as a hash of the smart contract's instance name (a string).
-For example, the hname of the [`root`](../../../../references/iota-evm/core-contracts/root.md) core contract
+For example, the hname of the [`root`](../../../references/iota-evm/core-contracts/root.md) core contract
 is `0xcebf5908`. This value uniquely identifies this contract in every chain. This does not apply to EVM contracts.
 
 ## State
@@ -56,16 +56,16 @@ An entry point is a function through which you can invoke the program.
 
 There are two types of entry points:
 
-- _Full entry points_ (or simply _entry points_): These functions can modify
-  (mutate) the smart contract's state.
-- _View entry points_ (or _views_): These are read-only functions. They are only used
-  to retrieve the information from the smart contract state. They cannot
-  modify the state, i.e., they are read-only calls.
+-   _Full entry points_ (or simply _entry points_): These functions can modify
+    (mutate) the smart contract's state.
+-   _View entry points_ (or _views_): These are read-only functions. They are only used
+    to retrieve the information from the smart contract state. They cannot
+    modify the state, i.e., they are read-only calls.
 
 ## Execution Results
 
 After a request to a Smart Contract is executed (a call to a full entry point), a _receipt_ will be added to
-the [`blocklog`](../../../../references/iota-evm/core-contracts/blocklog.md) core contract. The receipt details the
+the [`blocklog`](../../../references/iota-evm/core-contracts/blocklog.md) core contract. The receipt details the
 execution results
 of said request: whether it was successful, the block it was included in, and other information.
 Any events dispatched by the smart contract in context of this execution will also be added to the receipt.

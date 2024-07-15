@@ -2,18 +2,19 @@
 description: Create and deploy a Solidity smart contract to mint NFTs using the ERC721 standard.
 image: /img/iota-evm/evm/ozw-721.png
 tags:
-  - smart contracts
-  - EVM
-  - Solidity
-  - ERC721
-  - eip-721
-  - token creation
-  - mint tokens
-  - how to
+    - smart contracts
+    - EVM
+    - Solidity
+    - ERC721
+    - eip-721
+    - token creation
+    - mint tokens
+    - how to
 ---
-import DeployAdmonition from '../../../../_snippets/iota-evm/deploy_a_smart_contract.md';
-import PriorKnowledge from '../../../../_snippets/iota-evm/EVM-required-prior-knowledge.md';
-import RemixIDE from '../../../../_snippets/iota-evm/remix-IDE.md';
+
+import DeployAdmonition from '../../../_snippets/iota-evm/deploy_a_smart_contract.md';
+import PriorKnowledge from '../../../_snippets/iota-evm/EVM-required-prior-knowledge.md';
+import RemixIDE from '../../../_snippets/iota-evm/remix-IDE.md';
 
 # Create ERC721 NFTs
 
@@ -72,17 +73,17 @@ contract IotaEVMSampleNFT is ERC721, Ownable {
 
 As you can see above, the contract uses standard methods for the most part. You should pay attention to the following:
 
-- `pragma solidity ^0.8.20;`: This line means the contract uses solidity compiler version `0.8.20` or above.
-- `contract IotaEVMSampleNFT is ERC721, ERC721URIStorage, Ownable`: This line defines the contract's name, and what
-  other contracts it implements.
-- `ERC721("IotaEVMSampleNFT", "SNFT") {}`: This line defines the token name and symbol. You can name it
-  whatever you want. We recommend using the same name for the token and the contract.
-- `return "https://example.com/nft/";`: You should define the base URI of your NFTs. That means the URL you provide here
-  will be used for all your tokens. Since this contract uses auto-incremental token IDs, your token URI will look
-  something like `https://example.com/nft/0`, `https://example.com/nft/1`, `https://example.com/nft/2`, and so on.
-- `function safeMint(address to, string memory uri) public onlyOwner {`: The `safeMint` function will
-  require that you manually input a token's `to` address and a `uri` every time you want to mint. This should work for
-  regular use cases.
+-   `pragma solidity ^0.8.20;`: This line means the contract uses solidity compiler version `0.8.20` or above.
+-   `contract IotaEVMSampleNFT is ERC721, ERC721URIStorage, Ownable`: This line defines the contract's name, and what
+    other contracts it implements.
+-   `ERC721("IotaEVMSampleNFT", "SNFT") {}`: This line defines the token name and symbol. You can name it
+    whatever you want. We recommend using the same name for the token and the contract.
+-   `return "https://example.com/nft/";`: You should define the base URI of your NFTs. That means the URL you provide here
+    will be used for all your tokens. Since this contract uses auto-incremental token IDs, your token URI will look
+    something like `https://example.com/nft/0`, `https://example.com/nft/1`, `https://example.com/nft/2`, and so on.
+-   `function safeMint(address to, string memory uri) public onlyOwner {`: The `safeMint` function will
+    require that you manually input a token's `to` address and a `uri` every time you want to mint. This should work for
+    regular use cases.
 
 ### Customize on OpenZeppelin
 
@@ -98,7 +99,6 @@ and questions:
 You can click on `Copy to Clipboard` and paste it into the IDE of your choice, download it, or click on `Open in Remix`
 directly.
 
-
 :::note Set the Initial Owner
 
 Before you can deploy this contract, you will need to set the `Initial Owner` address; this can be your own IOTA EVM address.
@@ -107,7 +107,7 @@ Before you can deploy this contract, you will need to set the `Initial Owner` ad
 
 :::
 
-<DeployAdmonition/>
+<DeployAdmonition />
 
 ### Mint Your Custom NFTs
 
@@ -116,14 +116,13 @@ To do, you should:
 
 1. Open the contract (listed under `Deployed Contracts`).
 2. Insert your target IOTA EVM in beside the `safeMint` button and then click the button.
-  
+
     ![Safe mint](/img/iota-evm/evm/how-tos/ERC721/safe-mint.png)
 
 3. Confirm the transaction on Metamask.
 
-   ![Confirm in metamask](/img/iota-evm/evm/how-tos/ERC721/confirm-in-metamask.png)
+    ![Confirm in metamask](/img/iota-evm/evm/how-tos/ERC721/confirm-in-metamask.png)
 
 If you visit your address in the visit the [IOTA EVM Explorer](https://explorer.evm.iota.org),
-[ShimmerEVM Explorer](https://explorer.evm.testnet.shimmer.network/) or  [EVM Testnet Explorer](https://explorer.evm.testnet.shimmer.network/)
+[ShimmerEVM Explorer](https://explorer.evm.testnet.shimmer.network/) or [EVM Testnet Explorer](https://explorer.evm.testnet.shimmer.network/)
 you should see your NFTs listed under `Tokens`.
-

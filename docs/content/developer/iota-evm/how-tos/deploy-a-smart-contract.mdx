@@ -1,17 +1,18 @@
 ---
 tags:
-- Smart Contract Deployment
-- Shimmer EVM
-- IOTA EVM
-- Remix IDE
-- Hardhat 
-- EVM Testnet
+    - Smart Contract Deployment
+    - Shimmer EVM
+    - IOTA EVM
+    - Remix IDE
+    - Hardhat
+    - EVM Testnet
 image: /img/logo/WASP_logo_dark.png
 description: 'Learn how to deploy smart contracts to IOTA EVM,  Shimmer EVM and EVM Testnet using popular tools like Remix and Hardhat.'
 ---
-import {AddToMetaMaskButton } from '@theme/AddToMetaMaskButton';
-import HardhatConfig from '../../../../_snippets/iota-evm/hardhat_config.mdx';
-import MetamaskButtons from '../../../../_snippets/iota-evm/metamask_buttons.mdx';
+
+import { AddToMetaMaskButton } from '@theme/AddToMetaMaskButton';
+import HardhatConfig from '../../../_snippets/iota-evm/hardhat_config.mdx';
+import MetamaskButtons from '../../../_snippets/iota-evm/metamask_buttons.mdx';
 import { Networks } from '@theme/constant';
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
@@ -45,7 +46,7 @@ You can check the connection details in the Networks & Endpoints section.
 
 :::
 
-<MetamaskButtons/>
+<MetamaskButtons />
 
 ### 2. Access Remix IDE
 
@@ -70,8 +71,8 @@ Open your web browser and navigate to [Remix IDE](https://remix.ethereum.org/).
 1. Switch to the "Deploy & Run Transactions" tab on the left sidebar.
 2. In the "Environment" dropdown, select and select `Injected Web3` from the `Environment` dropdown.
 
-   ![Select Injected Provider from the Environment dropdown](/img/iota-evm/evm/remix-injected-provider-metamask.png)
-   
+    ![Select Injected Provider from the Environment dropdown](/img/iota-evm/evm/remix-injected-provider-metamask.png)
+
 3. After selecting the environment, make sure the contract Counter is selected in the `Contract` dropdown.
 4. Click the `Deploy` button. If you're using an Ethereum network, confirm the transaction in your Web3 wallet.
 
@@ -89,36 +90,37 @@ project. Here's a step-by-step guide:
 
 ### Requirements
 
-* [Node.js](https://nodejs.org/).
-* [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/).
+-   [Node.js](https://nodejs.org/).
+-   [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/).
 
 ### 1. Set Up Hardhat
 
 1. Open a new terminal window.
 2. Create a new directory for your project, and navigate into it. For example:
-   ```bash
-   mkdir deploy-a-basic-contract &&
-   cd deploy-a-basic-contract
-   ```
+    ```bash
+    mkdir deploy-a-basic-contract &&
+    cd deploy-a-basic-contract
+    ```
 3. Create a new node project by running:
-   ```bash
-   npm init -y
-   ```
+    ```bash
+    npm init -y
+    ```
 4. Install Hardhat by running:
-   ```bash
-   npm install --save-dev hardhat
-   ```
+    ```bash
+    npm install --save-dev hardhat
+    ```
 5. Create a Hardhat Project by running the following command:
-   ```bash
-   npx hardhat init
-   ```
 
-   Select `Create a JavaScript project` (or whatever applies to your project) when prompted and answer the setup questions (you can press enter to
-   accept defaults).
+    ```bash
+    npx hardhat init
+    ```
+
+    Select `Create a JavaScript project` (or whatever applies to your project) when prompted and answer the setup questions (you can press enter to
+    accept defaults).
 
 ### 2. Add Your Contract
 
-1. Inside the `contracts` folder, create a new file called  `Counter.sol` and paste the content of
+1. Inside the `contracts` folder, create a new file called `Counter.sol` and paste the content of
    the [Counter Basic Contract](create-a-basic-contract.mdx.
 
 ### 3. Create a Deployment Script
@@ -126,27 +128,27 @@ project. Here's a step-by-step guide:
 1. Navigate to the `scripts` folder.
 2. Create a new file called `deploy.js` with the following code:
 
-   ```javascript
-   async function main() {
-       const Counter = await ethers.getContractFactory("Counter");
-       const counter = await Counter.deploy();
-   
-       console.log("Counter deployed to:", await counter.getAddress());
-   }
-   
-   main()
-       .then(() => process.exit(0))
-       .catch((error) => {
-           console.error(error);
-           process.exit(1);
-       });
-   ```
+    ```javascript
+    async function main() {
+        const Counter = await ethers.getContractFactory('Counter');
+        const counter = await Counter.deploy();
+
+        console.log('Counter deployed to:', await counter.getAddress());
+    }
+
+    main()
+        .then(() => process.exit(0))
+        .catch((error) => {
+            console.error(error);
+            process.exit(1);
+        });
+    ```
 
 ### 4. Compile and Deploy Your Contract
 
 1. Add your preferred network parameters to the `hardhat.config.js`, for example:
 
-<HardhatConfig/>
+<HardhatConfig />
 
 :::info Export the Metamask Private Key
 
@@ -155,7 +157,7 @@ project. Here's a step-by-step guide:
 3. On the account page, click the menu (three dots) in the upper right corner, then click the "Account Details" button.
 4. Click on "Export Private Key".
 5. Enter your wallet password to access your private key and click `Confirm` to continue.
-6. Your private key will now be displayed. Click to copy it and save it in a safe place. 
+6. Your private key will now be displayed. Click to copy it and save it in a safe place.
 
 You can find more information in the [official Metamask Documentation](https://support.metamask.io/managing-my-wallet/secret-recovery-phrase-and-private-keys/how-to-export-an-accounts-private-key/).
 
@@ -170,22 +172,23 @@ often offered through block explorer APIs.
 
 2. Compile your contract by running the following command:
 
-   ```bash
-   npx hardhat compile
-   ```
+    ```bash
+    npx hardhat compile
+    ```
 
 3. If you have no compilation errors, you can deploy your contract by running the following command:
 
-   ```bash
-   npx hardhat run scripts/deploy.js --network evm-testnet
-   ```
+    ```bash
+    npx hardhat run scripts/deploy.js --network evm-testnet
+    ```
 
-   **Expected output**:
+    **Expected output**:
 
-   ```bash
-   Counter deployed to: 0x123456789ABCDEFGHIJK123456789ABCDEFGHIJK
-   ```
-   ***** `0x123456789ABCDEFGHIJK123456789ABCDEFGHIJK` is the contract unlock address.
+    ```bash
+    Counter deployed to: 0x123456789ABCDEFGHIJK123456789ABCDEFGHIJK
+    ```
+
+    **\*** `0x123456789ABCDEFGHIJK123456789ABCDEFGHIJK` is the contract unlock address.
 
 4. You can verify your contract by visiting
    the [EVM Testnet Explorer](https://explorer.evm.testnet.shimmer.network/),

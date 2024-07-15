@@ -11,6 +11,7 @@ tags:
 - explanation
 
 ---
+
 # How Accounts Work
 
 On the L1 Ledger, like with any _DLT_, we have **trustless** and **atomic** transfers of assets between addresses on the
@@ -74,12 +75,12 @@ Tokens in an Ethereum account can only be moved by sending an Ethereum transacti
 
 ## The Accounts Contract
 
-The [`accounts` core contract](../../../../references/iota-evm/core-contracts/accounts.md) is responsible for managing the L2 ledger.
+The [`accounts` core contract](../../../references/iota-evm/core-contracts/accounts.md) is responsible for managing the L2 ledger.
 By calling this contract, it is possible to:
 
-- [View current account balances](../how-tos/core-contracts/basics/get-balance.md)
-- [Deposit funds to the chain](../how-tos/send-funds-from-L1-to-L2.mdx)
-- [Withdraw funds from the chain](../how-tos/core-contracts/basics/send-assets-to-l1.mdx)
+-   [View current account balances](../how-tos/core-contracts/basics/get-balance.md)
+-   [Deposit funds to the chain](../how-tos/send-funds-from-L1-to-L2.mdx)
+-   [Withdraw funds from the chain](../how-tos/core-contracts/basics/send-assets-to-l1.mdx)
 
 ## Example
 

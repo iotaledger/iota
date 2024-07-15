@@ -2,12 +2,12 @@
 description: 'Setting up a chain: requirements, configuration parameters, validators, and tests.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - Smart Contracts
-  - Chain
-  - Set up
-  - Configuration
-  - Nodes
-  - Tests
+    - Smart Contracts
+    - Chain
+    - Set up
+    - Configuration
+    - Nodes
+    - Tests
 ---
 
 # Set Up a Chain
@@ -22,7 +22,7 @@ However, in normal operation, multiple Wasp _nodes_ should be used.
 
 ## Requirements
 
-- [`wasp-cli` configured](wasp-cli.md) to interact with your wasp node.
+-   [`wasp-cli` configured](wasp-cli.md) to interact with your wasp node.
 
 ## Trust Setup
 
@@ -84,7 +84,7 @@ From now on, all chain commands will target this chain.
 The `--quorum` flag indicates the minimum number of nodes required to form a _consensus_.
 The recommended formula to obtain this number is `floor(N*2/3)+1` where `N` is the number of nodes in your committee.
 
-The `--block-keep-amount` parameter determines how many blocks are stored in the [`blocklog`](/isc/../../../references/iota-evm/core-contracts/blocklog) core contract.
+The `--block-keep-amount` parameter determines how many blocks are stored in the [`blocklog`](/isc/../../references/iota-evm/core-contracts/blocklog) core contract.
 
 After deployment, the chain must be activated by the node operators of all peers.
 
@@ -96,7 +96,7 @@ wasp-cli chain activate --chain=<name>
 ## Test If It Works
 
 You can check that the chain was deployed correctly in the Wasp node dashboard (`<URL>/wasp/dashboard` when using `node-docker-setup`).
-Note that the chain was deployed with some [core contracts](/isc/../../../references/iota-evm/core-contracts/overview).
+Note that the chain was deployed with some [core contracts](/isc/../../references/iota-evm/core-contracts/overview).
 
 You should also have an EVM-JSONRPC server opened on:
 

@@ -2,13 +2,14 @@
 description: How to mint native token on an L1 foundry.
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - foundry
-  - EVM
-  - how-to
-  - native tokens
-  - mint
+    - foundry
+    - EVM
+    - how-to
+    - native tokens
+    - mint
 ---
-import ExampleCodeIntro from '../../../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
+
+import ExampleCodeIntro from '../../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
 
 # Mint Native Tokens
 
@@ -16,12 +17,12 @@ To mint tokens from a [foundry](https://github.com/iotaledger/tips/blob/main/tip
 
 ## Example Code
 
-<ExampleCodeIntro/>
+<ExampleCodeIntro />
 
 ### 2. Mint the Native Token
 
 Mint the native token specifying the foundry serial number, the amount to mint and the allowance.
- 
+
 ```solidity
 ISC.accounts.mintNativeTokens(_foundrySN, _amount, allowance);
 ```
