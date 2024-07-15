@@ -15,10 +15,10 @@ const operator = [
     'operator/node-tools',
     {
         type: 'category',
-        label: 'IOTA Chains Node',
+        label: 'IOTA EVM Network',
         link: {
             type: 'doc',
-            id: 'guides/operator/iota-chains-node/how-tos/running-a-node',
+            id: 'operator/iota-evm/how-tos/running-a-node',
         },
         items: [
             {
@@ -28,26 +28,26 @@ const operator = [
                 items: [
                     {
                         type: 'doc',
-                        id: 'guides/operator/iota-chains-node/how-tos/running-a-node',
+                        id: 'operator/iota-evm/how-tos/running-a-node',
                         label: 'Run a Node',
                     },
                     {
                         type: 'doc',
-                        id: 'guides/operator/iota-chains-node/how-tos/running-an-access-node',
+                        id: 'operator/iota-evm/how-tos/running-an-access-node',
                         label: 'Run an Access Node',
                     },
                     {
-                        id: 'guides/operator/iota-chains-node/how-tos/wasp-cli',
+                        id: 'operator/iota-evm/how-tos/wasp-cli',
                         label: 'Configure wasp-cli',
                         type: 'doc',
                     },
                     {
-                        id: 'guides/operator/iota-chains-node/how-tos/setting-up-a-chain',
+                        id: 'operator/iota-evm/how-tos/setting-up-a-chain',
                         label: 'Set Up a Chain',
                         type: 'doc',
                     },
                     {
-                        id: 'guides/operator/iota-chains-node/how-tos/chain-management',
+                        id: 'operator/iota-evm/how-tos/chain-management',
                         label: 'Manage a Chain',
                         type: 'doc',
                     },
@@ -59,11 +59,11 @@ const operator = [
                 items: [
                     {
                         type: 'doc',
-                        id: 'guides/operator/iota-chains-node/reference/configuration',
+                        id: 'operator/iota-evm/reference/configuration',
                     },
                     {
                         type: 'doc',
-                        id: 'guides/operator/iota-chains-node/reference/metrics',
+                        id: 'operator/iota-evm/reference/metrics',
                     },
                 ],
             },
