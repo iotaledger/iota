@@ -495,7 +495,7 @@ module iota_system::rewards_distribution_tests {
         report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_4, scenario);
         report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, scenario);
 
-        // 1000 IOTA of storage rewards, 1500 IOTA of computation rewards, 50% slashing threshold
+        // 1000 IOTA of storage charges, 1500 IOTA of computation rewards, 50% slashing threshold
         // and 20% slashing rate
         advance_epoch_with_reward_amounts_and_slashing_rates(
             1000, 1500, 2000, scenario
@@ -541,7 +541,7 @@ module iota_system::rewards_distribution_tests {
         let mut system_state = scenario.take_shared<IotaSystemState>();
         assert_eq(system_state.get_storage_fund_total_balance(), 1000 * MICROS_PER_IOTA);
 
-        // The entire 1000 IOTA of storage rewards should go to the object rebate portion of the storage fund.
+        // The entire 1000 IOTA of storage charges should go to the object rebate portion of the storage fund.
         assert_eq(system_state.get_storage_fund_object_rebates(), 1000 * MICROS_PER_IOTA);
 
         test_scenario::return_shared(system_state);

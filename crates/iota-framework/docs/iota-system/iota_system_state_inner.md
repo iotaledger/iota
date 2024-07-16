@@ -343,7 +343,7 @@ The top-level object containing all information of the Iota system.
  are out of safe mode.
 </dd>
 <dt>
-<code>safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>safe_mode_storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -481,7 +481,7 @@ Uses SystemParametersV2 as the parameters.
  are out of safe mode.
 </dd>
 <dt>
-<code>safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>safe_mode_storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -789,7 +789,7 @@ This function will be called only once in genesis.
         validator_report_records: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
         <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode: <b>false</b>,
-        safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
+        safe_mode_storage_charges: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         safe_mode_computation_rewards: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         safe_mode_storage_rebates: 0,
         safe_mode_non_refundable_storage_fee: 0,
@@ -876,7 +876,7 @@ This function will be called only once in genesis.
         validator_report_records,
         <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode,
-        safe_mode_storage_rewards,
+        safe_mode_storage_charges,
         safe_mode_computation_rewards,
         safe_mode_storage_rebates,
         safe_mode_non_refundable_storage_fee,
@@ -915,7 +915,7 @@ This function will be called only once in genesis.
         validator_report_records,
         <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode,
-        safe_mode_storage_rewards,
+        safe_mode_storage_charges,
         safe_mode_computation_rewards,
         safe_mode_storage_rebates,
         safe_mode_non_refundable_storage_fee,
@@ -2071,7 +2071,7 @@ Update candidate validator's public key of network key.
 
 This function should be called at the end of an epoch, and advances the system to the next epoch.
 It does the following things:
-1. Add storage reward to the storage fund.
+1. Add storage charge to the storage fund.
 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
 gas coins.
 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
@@ -2081,7 +2081,7 @@ or smaller than the computation reward.
 6. Update all validators.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_epoch: u64, next_protocol_version: u64, validator_target_reward: u64, storage_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64, non_refundable_storage_fee_amount: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>, new_epoch: u64, next_protocol_version: u64, validator_target_reward: u64, storage_charge: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64, non_refundable_storage_fee_amount: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -2095,7 +2095,7 @@ or smaller than the computation reward.
     new_epoch: u64,
     next_protocol_version: u64,
     validator_target_reward: u64,
-    <b>mut</b> storage_reward: Balance&lt;IOTA&gt;,
+    <b>mut</b> storage_charge: Balance&lt;IOTA&gt;,
     <b>mut</b> computation_reward: Balance&lt;IOTA&gt;,
     <b>mut</b> storage_rebate_amount: u64,
     <b>mut</b> non_refundable_storage_fee_amount: u64,
@@ -2111,8 +2111,8 @@ or smaller than the computation reward.
     <b>assert</b>!(reward_slashing_rate &lt;= bps_denominator_u64, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>);
 
     // Accumulate the gas summary during safe_mode before processing any rewards:
-    <b>let</b> safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
-    storage_reward.join(safe_mode_storage_rewards);
+    <b>let</b> safe_mode_storage_charges = self.safe_mode_storage_charges.withdraw_all();
+    storage_charge.join(safe_mode_storage_charges);
     <b>let</b> safe_mode_computation_rewards = self.safe_mode_computation_rewards.withdraw_all();
     computation_reward.join(safe_mode_computation_rewards);
     storage_rebate_amount = storage_rebate_amount + self.safe_mode_storage_rebates;
@@ -2120,7 +2120,7 @@ or smaller than the computation reward.
     non_refundable_storage_fee_amount = non_refundable_storage_fee_amount + self.safe_mode_non_refundable_storage_fee;
     self.safe_mode_non_refundable_storage_fee = 0;
 
-    <b>let</b> storage_charge = storage_reward.value();
+    <b>let</b> storage_charge_value = storage_charge.value();
     <b>let</b> computation_charge = computation_reward.value();
 
     // Include stake subsidy in the rewards given out <b>to</b> validators and stakers.
@@ -2182,7 +2182,7 @@ or smaller than the computation reward.
 
     <b>let</b> refunded_storage_rebate =
         self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(
-            storage_reward,
+            storage_charge,
             storage_rebate_amount,
             non_refundable_storage_fee_amount,
         );
@@ -2194,7 +2194,7 @@ or smaller than the computation reward.
             protocol_version: self.protocol_version,
             reference_gas_price: self.reference_gas_price,
             total_stake: new_total_stake,
-            storage_charge,
+            storage_charge: storage_charge_value,
             storage_fund_reinvestment: 0,
             storage_rebate: storage_rebate_amount,
             storage_fund_balance: self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.total_balance(),
@@ -2207,7 +2207,7 @@ or smaller than the computation reward.
     self.safe_mode = <b>false</b>;
     // Double check that the gas from safe mode <b>has</b> been processed.
     <b>assert</b>!(self.safe_mode_storage_rebates == 0
-        && self.safe_mode_storage_rewards.value() == 0
+        && self.safe_mode_storage_charges.value() == 0
         && self.safe_mode_computation_rewards.value() == 0, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ESafeModeGasNotProcessed">ESafeModeGasNotProcessed</a>);
 
     // Return the storage rebate split from storage fund that's already refunded <b>to</b> the transaction senders.
