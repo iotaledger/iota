@@ -17,6 +17,9 @@ import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutati
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { Heading } from '../../shared/heading';
 import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { AccountType } from '_src/background/accounts/Account';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -77,8 +80,20 @@ export function ProtectAccountPage() {
                             onboarding: true,
                         },
                     });
-                } else if (REDIRECT_TO_ACCOUNTS_FINDER.includes(type)) {
+                } else if (
+                    REDIRECT_TO_ACCOUNTS_FINDER.includes(type) &&
+                    (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
+                        isSeedSerializedUiAccount(createdAccounts[0]))
+                ) {
                     const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
+                    navigate(path, {
+                        replace: true,
+                        state: {
+                            type: type,
+                        },
+                    });
+                } else if (isLedgerAccountSerializedUI(createdAccounts[0])) {
+                    const path = `/accounts/manage/accounts-finder/${AccountType.LedgerDerived}`;
                     navigate(path, {
                         replace: true,
                         state: {
