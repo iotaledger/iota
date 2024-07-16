@@ -217,16 +217,28 @@ impl CoinReadApiServer for CoinReadApi {
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
         with_tracing!(async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
-
-            let treasury_cap_object = self
-                .internal
-                .find_package_object(&coin_struct.address.into(), TreasuryCap::type_(coin_struct))
-                .await?;
-            let treasury_cap = TreasuryCap::from_bcs_bytes(
-                treasury_cap_object.data.try_as_move().unwrap().contents(),
-            )
-            .map_err(Error::from)?;
-            Ok(treasury_cap.total_supply)
+            Ok(if GAS::is_gas(&coin_struct) {
+                Supply {
+                    value: self
+                        .internal
+                        .get_state()
+                        .get_system_state_summary()?
+                        .iota_total_supply,
+                }
+            } else {
+                let treasury_cap_object = self
+                    .internal
+                    .find_package_object(
+                        &coin_struct.address.into(),
+                        TreasuryCap::type_(coin_struct),
+                    )
+                    .await?;
+                let treasury_cap = TreasuryCap::from_bcs_bytes(
+                    treasury_cap_object.data.try_as_move().unwrap().contents(),
+                )
+                .map_err(Error::from)?;
+                treasury_cap.total_supply
+            })
         })
     }
 }
@@ -1279,13 +1291,37 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_types::id::UID;
+        use iota_types::{
+            id::UID, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+        };
         use mockall::predicate;
 
         use super::{super::*, *};
 
         #[tokio::test]
-        async fn test_success_response_for_coin() {
+        async fn test_success_response_for_gas_coin() {
+            let coin_type = "0x2::iota::IOTA";
+
+            let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_get_system_state_summary()
+                .returning(move || {
+                    let mut summary = IotaSystemStateSummary::default();
+                    summary.iota_total_supply = 42;
+
+                    Ok(summary)
+                });
+
+            let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
+
+            let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
+
+            let supply = response.unwrap();
+            assert_eq!(supply.value, 42);
+        }
+
+        #[tokio::test]
+        async fn test_success_response_for_other_coin() {
             let package_id = get_test_package_id();
             let (coin_name, _, treasury_cap_struct, _, treasury_cap_object) =
                 get_test_treasury_cap_peripherals(package_id);

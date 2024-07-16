@@ -13,6 +13,7 @@ use iota_open_rpc::Module;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
+    gas_coin::GAS,
 };
 use jsonrpsee::{core::RpcResult, RpcModule};
 
@@ -135,11 +136,20 @@ impl CoinReadApiServer for CoinReadApi {
 
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
         let coin_struct = parse_to_struct_tag(&coin_type)?;
-
-        self.inner
-            .get_total_supply_in_blocking_task(coin_struct)
-            .await
-            .map_err(Into::into)
+        if GAS::is_gas(&coin_struct) {
+            Ok(Supply {
+                value: self
+                    .inner
+                    .spawn_blocking(|this| this.get_latest_iota_system_state())
+                    .await?
+                    .iota_total_supply,
+            })
+        } else {
+            self.inner
+                .get_total_supply_in_blocking_task(coin_struct)
+                .await
+                .map_err(Into::into)
+        }
     }
 }
 
