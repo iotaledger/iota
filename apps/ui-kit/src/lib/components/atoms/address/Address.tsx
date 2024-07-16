@@ -36,11 +36,16 @@ export function Address({
     onOpen,
 }: AddressProps): React.JSX.Element {
     return (
-        <div className="group flex cursor-pointer flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
+        <div className="group flex flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
-            {isCopyable && <Copy className="opacity-0 group-hover:opacity-100" onClick={onCopy} />}
+            {isCopyable && (
+                <Copy className="hidden cursor-pointer group-hover:flex" onClick={onCopy} />
+            )}
             {isExternal && (
-                <ArrowTopRight className="opacity-0 group-hover:opacity-100" onClick={onOpen} />
+                <ArrowTopRight
+                    className="hidden cursor-pointer group-hover:flex"
+                    onClick={onOpen}
+                />
             )}
         </div>
     );
