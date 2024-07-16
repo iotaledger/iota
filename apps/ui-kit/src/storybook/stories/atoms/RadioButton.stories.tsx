@@ -19,13 +19,13 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        checked: true,
+        isChecked: true,
     },
     argTypes: {
-        checked: {
+        isChecked: {
             control: 'boolean',
         },
-        disabled: {
+        isDisabled: {
             control: 'boolean',
         },
     },

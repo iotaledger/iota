@@ -5,23 +5,23 @@ import React from 'react';
 import cx from 'classnames';
 
 type RadioButtonProps = {
-    checked?: boolean;
-    disabled?: boolean;
+    isChecked?: boolean;
+    isDisabled?: boolean;
     onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 } & React.InputHTMLAttributes<HTMLInputElement>;
 
-const RadioButton: React.FC<RadioButtonProps> = ({ checked, disabled, onChange }) => {
+const RadioButton: React.FC<RadioButtonProps> = ({ isChecked, isDisabled, onChange }) => {
     return (
         <div
             className={cx('relative flex h-5 w-5 items-center justify-center rounded-full p-lg', {
-                'state-layer': !disabled,
+                'state-layer': !isDisabled,
             })}
         >
             <input
                 type="radio"
-                checked={checked}
+                checked={isChecked}
                 onChange={onChange}
-                disabled={disabled}
+                disabled={isDisabled}
                 className={cx(
                     'peer h-5 w-5 shrink-0 appearance-none rounded-full border border-2 border-neutral-40 checked:border-primary-30 disabled:opacity-40 checked:disabled:border-neutral-40 dark:border-neutral-60 dark:checked:border-primary-30 dark:disabled:border-neutral-40',
                 )}
