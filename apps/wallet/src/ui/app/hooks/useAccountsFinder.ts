@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from './useBackgroundClient';
-import { IOTA_COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
 import { AccountsFinder, type AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useIotaLedgerClient } from '../components/ledger/IotaLedgerClientProvider';
@@ -13,19 +12,21 @@ import type {
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { makeDerivationPath } from '_src/background/account-sources/bip44Path';
 import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { IOTA_BIP44_COIN_TYPE } from '../redux/slices/iota-objects/Coin';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 export interface UseAccountFinderOptions {
     accountSourceType: AllowedAccountSourceTypes;
-    coinType?: number;
-    gasType?: string;
+    bip44CoinType?: number;
+    coinType?: string;
     accountGapLimit?: number;
     addressGapLimit?: number;
     sourceStrategy: SourceStrategyToFind;
 }
 
 export function useAccountsFinder({
-    coinType = IOTA_COIN_TYPE_ID,
-    gasType = GAS_TYPE_ARG,
+    bip44CoinType = IOTA_BIP44_COIN_TYPE,
+    coinType = IOTA_TYPE_ARG,
     addressGapLimit,
     accountGapLimit,
     sourceStrategy,
@@ -39,8 +40,8 @@ export function useAccountsFinder({
         return new AccountsFinder({
             client,
             accountSourceType: accountType,
-            bip44CoinType: coinType,
-            coinType: gasType,
+            bip44CoinType,
+            coinType,
             accountGapLimit,
             addressGapLimit,
             getPublicKey: async (bipPath) => {
@@ -57,7 +58,7 @@ export function useAccountsFinder({
                         sourceStrategy.sourceID,
                         {
                             ...bipPath,
-                            coinType,
+                            bip44CoinType,
                         },
                     );
                     return publicKey;
@@ -69,7 +70,7 @@ export function useAccountsFinder({
         backgroundClient,
         accountType,
         coinType,
-        gasType,
+        bip44CoinType,
         accountGapLimit,
         addressGapLimit,
         sourceStrategy,
