@@ -13,7 +13,7 @@ module examples::strings {
     use std::string::{Self, String};
 
     /// A dummy Object that holds a String type
-    struct Name has key, store {
+    public struct Name has key, store {
         id: UID,
 
         /// Here it is - the String type

@@ -53,12 +53,12 @@ module example::wrapped {
     use iota::transfer;
     use iota::tx_context::{Self, TxContext};
 
-    struct Inner has key, store {
+    public struct Inner has key, store {
         id: UID,
         x: u64,
     }
 
-    struct Outer has key {
+    public struct Outer has key {
         id: UID,
         inner: Inner,
     }

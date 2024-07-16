@@ -19,7 +19,7 @@ Custom transfer rules for objects enable you to define the transfer conditions t
 This example creates an object type `O` that is transferable only if the `unlocked` flag inside of it is set to `true`:
 
 ```move
-struct O has key {
+public struct O has key {
   id: UID,
   // An `O` object can only be transferred if this field is `true`
   unlocked: bool
@@ -33,7 +33,7 @@ module examples::custom_transfer {
   // Error code for trying to transfer a locked object
   const EObjectLocked: u64 = 0;
 
-  struct O has key {
+  public struct O has key {
     id: UID,
     // An `O` object can only be transferred if this field is `true`
     unlocked: bool

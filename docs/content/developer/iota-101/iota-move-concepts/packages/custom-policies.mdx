@@ -512,7 +512,7 @@ In the `example/sources` directory, create an `example.move` file with the follo
 
 ```move
 module example::example {
-    struct Event has copy, drop { x: u64 }
+    public struct Event has copy, drop { x: u64 }
     entry fun nudge() {
         iota::event::emit(Event { x: 41 })
     }

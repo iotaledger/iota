@@ -15,7 +15,7 @@ The types and function discussed in this section are built into the Iota framewo
 ```move
 module iota::table {
 
-struct Table<K: copy + drop + store, V: store> has key, store { /* ... */ }
+public struct Table<K: copy + drop + store, V: store> has key, store { /* ... */ }
 
 public fun new<K: copy + drop + store, V: store>(
     ctx: &mut TxContext,
@@ -33,7 +33,7 @@ See `iota::object_table::ObjectTable` for the object-preserving version of `Tabl
 ```move
 module iota::bag {
 
-struct Bag has key, store { /* ... */ }
+public struct Bag has key, store { /* ... */ }
 
 public fun new(ctx: &mut TxContext): Bag;
 

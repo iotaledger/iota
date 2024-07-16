@@ -71,7 +71,7 @@ To explain further, look at the core of the receiving interface in Move, which i
 ```move
 module iota::transfer {
     /// Represents the ability to receive an object of type `T`. Cannot be stored.
-    struct Receiving<phantom T: key> has drop { ... }
+    public struct Receiving<phantom T: key> has drop { ... }
 
     /// Given mutable (i.e., locked) access to the `parent` and a `Receiving`
     /// object referencing an object owned by `parent` use the `Receiving` ticket
@@ -184,7 +184,7 @@ module examples::shared_object_auth {
     const EAccessDenied: u64 = 0;
     const AuthorizedReceiverAddr: address = @0xB0B;
 
-    struct SharedObject has key {
+    public struct SharedObject has key {
         id: object::UID,
         counter: u64,
     }
@@ -229,12 +229,12 @@ module examples::account {
 
     /// Account object that `Coin`s can be sent to. Balances of different types
     /// are held as dynamic fields indexed by the `Coin` type's `type_name`.
-    struct Account has key {
+    public struct Account has key {
         id: object::UID,
     }
 
     /// Dynamic field key representing a balance of a particular coin type.
-    struct AccountBalance<phantom T> has copy, drop, store { }
+    public struct AccountBalance<phantom T> has copy, drop, store { }
 
     /// This function will receive a coin sent to the `Account` object and then
     /// join it to the balance for each coin type.
@@ -291,7 +291,7 @@ module examples::soul_bound {
 
     /// This object has `key` only  -- if this had `store` we would not be
     /// able to ensure it is bound to whatever address we sent it to
-    struct SoulBound has key {
+    public struct SoulBound has key {
         id: UID,
     }
 
@@ -300,7 +300,7 @@ module examples::soul_bound {
     /// execute the transaction you need to destroy this `ReturnReceipt` and
     /// the only way to do that is to transfer it back to the same object you
     /// received it from in the transaction using the `return_object` function.
-    struct ReturnReceipt { 
+    public struct ReturnReceipt {
         // The object ID of the object that needs to be returned.
         // This field is required to prevent swapping of soul bound objects if
         // multiple are present in the same transaction.

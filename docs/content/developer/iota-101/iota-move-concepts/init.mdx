@@ -28,7 +28,7 @@ module examples::one_timer {
     use iota::tx_context::{Self, TxContext};
 
     /// The one of a kind - created in the module initializer.
-    struct CreatorCapability has key {
+    public struct CreatorCapability has key {
         id: UID
     }
 

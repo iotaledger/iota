@@ -57,11 +57,11 @@ These functions add a field with name `name` and value `value` to `object`. To s
 First, define two object types for the parent and the child:
 
 ```move
-struct Parent has key {
+public struct Parent has key {
     id: UID,
 }
 
-struct Child has key, store {
+public struct Child has key, store {
     id: UID,
     count: u64,
 }
