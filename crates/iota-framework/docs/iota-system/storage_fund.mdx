@@ -12,7 +12,8 @@ import Link from '@docusaurus/Link';
 -  [Function `total_balance`](#0x3_storage_fund_total_balance)
 
 
-<pre><code><b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
+<pre><code>
+<b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 </code></pre>
 
@@ -22,17 +23,23 @@ import Link from '@docusaurus/Link';
 
 ## Struct `StorageFund`
 
-Struct representing the storage fund, containing two <code>Balance</code>s:
-- <code>total_object_storage_rebates</code> has the invariant that it's the sum of <code>storage_rebate</code> of
+Struct representing the storage fund, containing two <code>
+Balance</code>s:
+- <code>
+total_object_storage_rebates</code> has the invariant that it's the sum of <code>
+storage_rebate</code> of
 all objects currently stored on-chain. To maintain this invariant, the only inflow of this
 balance is storage charges collected from transactions, and the only outflow is storage rebates
 of transactions, including both the portion refunded to the transaction senders as well as
-the non-refundable portion taken out and put into <code>non_refundable_balance</code>.
-- <code>non_refundable_balance</code> contains any remaining inflow of the storage fund that should not
+the non-refundable portion taken out and put into <code>
+non_refundable_balance</code>.
+- <code>
+non_refundable_balance</code> contains any remaining inflow of the storage fund that should not
 be taken out of the fund.
 
 
-<pre><code><b>struct</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> <b>has</b> store
+<pre><code>
+<b>struct</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> <b>has</b> store
 </code></pre>
 
 
@@ -43,13 +50,15 @@ be taken out of the fund.
 
 <dl>
 <dt>
-<code>total_object_storage_rebates: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>
+total_object_storage_rebates: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>non_refundable_balance: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>
+non_refundable_balance: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -63,10 +72,12 @@ be taken out of the fund.
 
 ## Function `new`
 
-Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> at genesis time.
+Called by <code>
+<a href="iota_system.md#0x3_iota_system">iota_system</a></code> at genesis time.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;): <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>
+<pre><code>
+<b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;): <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>
 </code></pre>
 
 
@@ -75,8 +86,9 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: Balance&lt;IOTA&gt;) : <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> {
-    <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> {
+<pre><code>
+<b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: Balance&lt;IOTA&gt;) : <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> \{
+    <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> \{
         // At the beginning there's no <a href="../iota-framework/object.md#0x2_object">object</a> in the storage yet
         total_object_storage_rebates: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         non_refundable_balance: initial_fund,
@@ -92,10 +104,12 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 
 ## Function `advance_epoch`
 
-Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> at epoch change times to process the inflows and outflows of storage fund.
+Called by <code>
+<a href="iota_system.md#0x3_iota_system">iota_system</a></code> at epoch change times to process the inflows and outflows of storage fund.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>, storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_fund_reinvestment: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, leftover_staking_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64, non_refundable_storage_fee_amount: u64): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<pre><code>
+<b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>, storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_fund_reinvestment: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, leftover_staking_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64, non_refundable_storage_fee_amount: u64): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -104,14 +118,15 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(
+<pre><code>
+<b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(
     self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>,
     storage_charges: Balance&lt;IOTA&gt;,
     storage_fund_reinvestment: Balance&lt;IOTA&gt;,
     leftover_staking_rewards: Balance&lt;IOTA&gt;,
     storage_rebate_amount: u64,
     non_refundable_storage_fee_amount: u64,
-) : Balance&lt;IOTA&gt; {
+) : Balance&lt;IOTA&gt; \{
     // Both the reinvestment and leftover rewards are not <b>to</b> be refunded so they go <b>to</b> the non-refundable <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
     self.non_refundable_balance.join(storage_fund_reinvestment);
     self.non_refundable_balance.join(leftover_staking_rewards);
@@ -145,7 +160,8 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_object_storage_rebates">total_object_storage_rebates</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>): u64
+<pre><code>
+<b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_object_storage_rebates">total_object_storage_rebates</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>): u64
 </code></pre>
 
 
@@ -154,7 +170,8 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_object_storage_rebates">total_object_storage_rebates</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>): u64 {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_object_storage_rebates">total_object_storage_rebates</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>): u64 \{
     self.total_object_storage_rebates.value()
 }
 </code></pre>
@@ -169,7 +186,8 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_balance">total_balance</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>): u64
+<pre><code>
+<b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_balance">total_balance</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>): u64
 </code></pre>
 
 
@@ -178,7 +196,8 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_balance">total_balance</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>): u64 {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_balance">total_balance</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>): u64 \{
     self.total_object_storage_rebates.value() + self.non_refundable_balance.value()
 }
 </code></pre>

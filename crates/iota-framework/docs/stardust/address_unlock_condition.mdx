@@ -14,7 +14,8 @@ import Link from '@docusaurus/Link';
 -  [Function `unlock_nft_address_owned_alias`](#0x107a_address_unlock_condition_unlock_nft_address_owned_alias)
 
 
-<pre><code><b>use</b> <a href="alias.md#0x107a_alias">0x107a::alias</a>;
+<pre><code>
+<b>use</b> <a href="alias.md#0x107a_alias">0x107a::alias</a>;
 <b>use</b> <a href="alias_output.md#0x107a_alias_output">0x107a::alias_output</a>;
 <b>use</b> <a href="basic_output.md#0x107a_basic_output">0x107a::basic_output</a>;
 <b>use</b> <a href="nft.md#0x107a_nft">0x107a::nft</a>;
@@ -30,10 +31,12 @@ import Link from '@docusaurus/Link';
 
 ## Function `unlock_alias_address_owned_basic`
 
-Unlock a <code>BasicOutput</code> locked to the alias address.
+Unlock a <code>
+BasicOutput</code> locked to the alias address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_basic">unlock_alias_address_owned_basic</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;&gt;): <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_basic">unlock_alias_address_owned_basic</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;&gt;): <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -42,10 +45,11 @@ Unlock a <code>BasicOutput</code> locked to the alias address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_basic">unlock_alias_address_owned_basic</a>&lt;T&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_basic">unlock_alias_address_owned_basic</a>&lt;T&gt;(
   self: &<b>mut</b> Alias,
   output_to_unlock: Receiving&lt;BasicOutput&lt;T&gt;&gt;
-): BasicOutput&lt;T&gt; {
+): BasicOutput&lt;T&gt; \{
     <a href="basic_output.md#0x107a_basic_output_receive">basic_output::receive</a>(self.id(), output_to_unlock)
 }
 </code></pre>
@@ -58,10 +62,12 @@ Unlock a <code>BasicOutput</code> locked to the alias address.
 
 ## Function `unlock_alias_address_owned_nft`
 
-Unlock an <code>NftOutput</code> locked to the alias address.
+Unlock an <code>
+NftOutput</code> locked to the alias address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_nft">unlock_alias_address_owned_nft</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;&gt;): <a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_nft">unlock_alias_address_owned_nft</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;&gt;): <a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -70,10 +76,11 @@ Unlock an <code>NftOutput</code> locked to the alias address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_nft">unlock_alias_address_owned_nft</a>&lt;T&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_nft">unlock_alias_address_owned_nft</a>&lt;T&gt;(
   self: &<b>mut</b> Alias,
   output_to_unlock: Receiving&lt;NftOutput&lt;T&gt;&gt;,
-): NftOutput&lt;T&gt; {
+): NftOutput&lt;T&gt; \{
     <a href="nft_output.md#0x107a_nft_output_receive">nft_output::receive</a>(self.id(), output_to_unlock)
 }
 </code></pre>
@@ -86,10 +93,12 @@ Unlock an <code>NftOutput</code> locked to the alias address.
 
 ## Function `unlock_alias_address_owned_alias`
 
-Unlock an <code>AliasOutput</code> locked to the alias address.
+Unlock an <code>
+AliasOutput</code> locked to the alias address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_alias">unlock_alias_address_owned_alias</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;&gt;): <a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_alias">unlock_alias_address_owned_alias</a>&lt;T&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;&gt;): <a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -98,10 +107,11 @@ Unlock an <code>AliasOutput</code> locked to the alias address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_alias">unlock_alias_address_owned_alias</a>&lt;T&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_alias">unlock_alias_address_owned_alias</a>&lt;T&gt;(
   self: &<b>mut</b> Alias,
   output_to_unlock: Receiving&lt;AliasOutput&lt;T&gt;&gt;,
-): AliasOutput&lt;T&gt; {
+): AliasOutput&lt;T&gt; \{
     <a href="alias_output.md#0x107a_alias_output_receive">alias_output::receive</a>(self.id(), output_to_unlock)
 }
 </code></pre>
@@ -114,10 +124,12 @@ Unlock an <code>AliasOutput</code> locked to the alias address.
 
 ## Function `unlock_alias_address_owned_coinmanager_treasury`
 
-Unlock a <code>CoinManagerTreasuryCap</code> locked to the alias address.
+Unlock a <code>
+CoinManagerTreasuryCap</code> locked to the alias address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T: store, key&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, treasury_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;&gt;): <a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T: store, key&gt;(self: &<b>mut</b> <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>, treasury_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;&gt;): <a href="../iota-framework/coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;
 </code></pre>
 
 
@@ -126,10 +138,11 @@ Unlock a <code>CoinManagerTreasuryCap</code> locked to the alias address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T: key + store&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</a>&lt;T: key + store&gt;(
   self: &<b>mut</b> Alias,
   treasury_to_unlock: Receiving&lt;CoinManagerTreasuryCap&lt;T&gt;&gt;,
-): CoinManagerTreasuryCap&lt;T&gt; {
+): CoinManagerTreasuryCap&lt;T&gt; \{
     <a href="../iota-framework/transfer.md#0x2_transfer_public_receive">transfer::public_receive</a>(self.id(), treasury_to_unlock)
 }
 </code></pre>
@@ -142,10 +155,13 @@ Unlock a <code>CoinManagerTreasuryCap</code> locked to the alias address.
 
 ## Function `unlock_nft_address_owned_basic`
 
-Unlock a <code>BasicOutput</code> locked to the <code>Nft</code> address.
+Unlock a <code>
+BasicOutput</code> locked to the <code>
+Nft</code> address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_basic">unlock_nft_address_owned_basic</a>&lt;T&gt;(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;&gt;): <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_basic">unlock_nft_address_owned_basic</a>&lt;T&gt;(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;&gt;): <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -154,10 +170,11 @@ Unlock a <code>BasicOutput</code> locked to the <code>Nft</code> address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_basic">unlock_nft_address_owned_basic</a>&lt;T&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_basic">unlock_nft_address_owned_basic</a>&lt;T&gt;(
   self: &<b>mut</b> Nft,
   output_to_unlock: Receiving&lt;BasicOutput&lt;T&gt;&gt;,
-): BasicOutput&lt;T&gt; {
+): BasicOutput&lt;T&gt; \{
     <a href="basic_output.md#0x107a_basic_output_receive">basic_output::receive</a>(self.id(), output_to_unlock)
 }
 </code></pre>
@@ -170,10 +187,13 @@ Unlock a <code>BasicOutput</code> locked to the <code>Nft</code> address.
 
 ## Function `unlock_nft_address_owned_nft`
 
-Unlock an <code>NftOutput</code> locked to the <code>Nft</code> address.
+Unlock an <code>
+NftOutput</code> locked to the <code>
+Nft</code> address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_nft">unlock_nft_address_owned_nft</a>&lt;T&gt;(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;&gt;): <a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_nft">unlock_nft_address_owned_nft</a>&lt;T&gt;(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;&gt;): <a href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -182,10 +202,11 @@ Unlock an <code>NftOutput</code> locked to the <code>Nft</code> address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_nft">unlock_nft_address_owned_nft</a>&lt;T&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_nft">unlock_nft_address_owned_nft</a>&lt;T&gt;(
   self: &<b>mut</b> Nft,
   output_to_unlock: Receiving&lt;NftOutput&lt;T&gt;&gt;,
-): NftOutput&lt;T&gt; {
+): NftOutput&lt;T&gt; \{
     <a href="nft_output.md#0x107a_nft_output_receive">nft_output::receive</a>(self.id(), output_to_unlock)
 }
 </code></pre>
@@ -198,10 +219,13 @@ Unlock an <code>NftOutput</code> locked to the <code>Nft</code> address.
 
 ## Function `unlock_nft_address_owned_alias`
 
-Unlock an <code>AliasOutput</code> locked to the <code>Nft</code> address.
+Unlock an <code>
+AliasOutput</code> locked to the <code>
+Nft</code> address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_alias">unlock_nft_address_owned_alias</a>&lt;T&gt;(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;&gt;): <a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_alias">unlock_nft_address_owned_alias</a>&lt;T&gt;(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>, output_to_unlock: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;&gt;): <a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -210,10 +234,11 @@ Unlock an <code>AliasOutput</code> locked to the <code>Nft</code> address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_alias">unlock_nft_address_owned_alias</a>&lt;T&gt;(
+<pre><code>
+<b>public</b> <b>fun</b> <a href="address_unlock_condition.md#0x107a_address_unlock_condition_unlock_nft_address_owned_alias">unlock_nft_address_owned_alias</a>&lt;T&gt;(
   self: &<b>mut</b> Nft,
   output_to_unlock: Receiving&lt;AliasOutput&lt;T&gt;&gt;,
-): AliasOutput&lt;T&gt; {
+): AliasOutput&lt;T&gt; \{
     <a href="alias_output.md#0x107a_alias_output_receive">alias_output::receive</a>(self.id(), output_to_unlock)
 }
 </code></pre>

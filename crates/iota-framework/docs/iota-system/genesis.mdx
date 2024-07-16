@@ -15,7 +15,8 @@ import Link from '@docusaurus/Link';
 -  [Function `activate_validators`](#0x3_genesis_activate_validators)
 
 
-<pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
+<pre><code>
+<b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
 <b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
@@ -40,7 +41,8 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code><b>struct</b> <a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">GenesisValidatorMetadata</a> <b>has</b> <b>copy</b>, drop
+<pre><code>
+<b>struct</b> <a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">GenesisValidatorMetadata</a> <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -51,91 +53,106 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-<code>name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>image_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+image_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>project_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+project_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>iota_address: <b>address</b></code>
+<code>
+iota_address: <b>address</b></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>gas_price: u64</code>
+<code>
+gas_price: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>commission_rate: u64</code>
+<code>
+commission_rate: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>protocol_public_key: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+protocol_public_key: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>network_public_key: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+network_public_key: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>worker_public_key: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+worker_public_key: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>network_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+network_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+<code>
+worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -151,7 +168,8 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code><b>struct</b> <a href="genesis.md#0x3_genesis_GenesisChainParameters">GenesisChainParameters</a> <b>has</b> <b>copy</b>, drop
+<pre><code>
+<b>struct</b> <a href="genesis.md#0x3_genesis_GenesisChainParameters">GenesisChainParameters</a> <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -162,73 +180,85 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-<code>protocol_version: u64</code>
+<code>
+protocol_version: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>chain_start_timestamp_ms: u64</code>
+<code>
+chain_start_timestamp_ms: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>epoch_duration_ms: u64</code>
+<code>
+epoch_duration_ms: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>stake_subsidy_start_epoch: u64</code>
+<code>
+stake_subsidy_start_epoch: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>stake_subsidy_initial_distribution_amount: u64</code>
+<code>
+stake_subsidy_initial_distribution_amount: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>stake_subsidy_period_length: u64</code>
+<code>
+stake_subsidy_period_length: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>stake_subsidy_decrease_rate: u16</code>
+<code>
+stake_subsidy_decrease_rate: u16</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>max_validator_count: u64</code>
+<code>
+max_validator_count: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>min_validator_joining_stake: u64</code>
+<code>
+min_validator_joining_stake: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>validator_low_stake_threshold: u64</code>
+<code>
+validator_low_stake_threshold: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>validator_very_low_stake_threshold: u64</code>
+<code>
+validator_very_low_stake_threshold: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>validator_low_stake_grace_period: u64</code>
+<code>
+validator_low_stake_grace_period: u64</code>
 </dt>
 <dd>
 
@@ -244,7 +274,8 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code><b>struct</b> <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a>
+<pre><code>
+<b>struct</b> <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a>
 </code></pre>
 
 
@@ -255,13 +286,15 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-<code>stake_subsidy_fund_nanos: u64</code>
+<code>
+stake_subsidy_fund_nanos: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">genesis::TokenAllocation</a>&gt;</code>
+<code>
+allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">genesis::TokenAllocation</a>&gt;</code>
 </dt>
 <dd>
 
@@ -277,7 +310,8 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code><b>struct</b> <a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a>
+<pre><code>
+<b>struct</b> <a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a>
 </code></pre>
 
 
@@ -288,25 +322,29 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-<code>recipient_address: <b>address</b></code>
+<code>
+recipient_address: <b>address</b></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>amount_nanos: u64</code>
+<code>
+amount_nanos: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>staked_with_validator: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
+<code>
+staked_with_validator: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  Indicates if this allocation should be staked at genesis and with which validator
 </dd>
 <dt>
-<code>staked_with_timelock_expiration: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;</code>
+<code>
+staked_with_timelock_expiration: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;</code>
 </dt>
 <dd>
  Indicates if this allocation should be staked with timelock at genesis
@@ -324,20 +362,24 @@ import Link from '@docusaurus/Link';
 
 <Link id="0x3_genesis_ENotCalledAtGenesis"></Link>
 
-The <code>create</code> function was called at a non-genesis epoch.
+The <code>
+create</code> function was called at a non-genesis epoch.
 
 
-<pre><code><b>const</b> <a href="genesis.md#0x3_genesis_ENotCalledAtGenesis">ENotCalledAtGenesis</a>: u64 = 0;
+<pre><code>
+<b>const</b> <a href="genesis.md#0x3_genesis_ENotCalledAtGenesis">ENotCalledAtGenesis</a>: u64 = 0;
 </code></pre>
 
 
 
 <Link id="0x3_genesis_EDuplicateValidator"></Link>
 
-The <code>create</code> function was called with duplicate validators.
+The <code>
+create</code> function was called with duplicate validators.
 
 
-<pre><code><b>const</b> <a href="genesis.md#0x3_genesis_EDuplicateValidator">EDuplicateValidator</a>: u64 = 1;
+<pre><code>
+<b>const</b> <a href="genesis.md#0x3_genesis_EDuplicateValidator">EDuplicateValidator</a>: u64 = 1;
 </code></pre>
 
 
@@ -351,7 +393,8 @@ It will create a singleton IotaSystemState object, which contains
 all the information we need in the system.
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(iota_system_state_id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">genesis::GenesisChainParameters</a>, genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">genesis::GenesisValidatorMetadata</a>&gt;, token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">genesis::TokenDistributionSchedule</a>, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code>
+<b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(iota_system_state_id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">genesis::GenesisChainParameters</a>, genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">genesis::GenesisValidatorMetadata</a>&gt;, token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">genesis::TokenDistributionSchedule</a>, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -360,7 +403,8 @@ all the information we need in the system.
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(
+<pre><code>
+<b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(
     iota_system_state_id: UID,
     <b>mut</b> iota_supply: Balance&lt;IOTA&gt;,
     genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">GenesisChainParameters</a>,
@@ -369,11 +413,11 @@ all the information we need in the system.
     timelock_genesis_label: Option&lt;String&gt;,
     system_timelock_cap: SystemTimelockCap,
     ctx: &<b>mut</b> TxContext,
-) {
+) \{
     // Ensure this is only called at <a href="genesis.md#0x3_genesis">genesis</a>
     <b>assert</b>!(ctx.epoch() == 0, <a href="genesis.md#0x3_genesis_ENotCalledAtGenesis">ENotCalledAtGenesis</a>);
 
-    <b>let</b> <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a> {
+    <b>let</b> <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a> \{
         stake_subsidy_fund_nanos,
         allocations,
     } = token_distribution_schedule;
@@ -385,8 +429,8 @@ all the information we need in the system.
     <b>let</b> <b>mut</b> validators = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
     <b>let</b> count = genesis_validators.length();
     <b>let</b> <b>mut</b> i = 0;
-    <b>while</b> (i &lt; count) {
-        <b>let</b> <a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">GenesisValidatorMetadata</a> {
+    <b>while</b> (i &lt; count) \{
+        <b>let</b> <a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">GenesisValidatorMetadata</a> \{
             name,
             description,
             image_url,
@@ -492,7 +536,8 @@ all the information we need in the system.
 
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">genesis::TokenAllocation</a>&gt;, validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code>
+<b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">genesis::TokenAllocation</a>&gt;, validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, timelock_genesis_label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -501,16 +546,17 @@ all the information we need in the system.
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(
+<pre><code>
+<b>fun</b> <a href="genesis.md#0x3_genesis_allocate_tokens">allocate_tokens</a>(
     <b>mut</b> iota_supply: Balance&lt;IOTA&gt;,
     <b>mut</b> allocations: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a>&gt;,
     validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
     timelock_genesis_label: Option&lt;String&gt;,
     ctx: &<b>mut</b> TxContext,
-) {
+) \{
 
-    <b>while</b> (!allocations.is_empty()) {
-        <b>let</b> <a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a> {
+    <b>while</b> (!allocations.is_empty()) \{
+        <b>let</b> <a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a> \{
             recipient_address,
             amount_nanos,
             staked_with_validator,
@@ -519,12 +565,12 @@ all the information we need in the system.
 
         <b>let</b> allocation_balance = iota_supply.split(amount_nanos);
 
-        <b>if</b> (staked_with_validator.is_some()) {
+        <b>if</b> (staked_with_validator.is_some()) \{
             <b>let</b> validator_address = staked_with_validator.destroy_some();
             <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="validator_set.md#0x3_validator_set_get_validator_mut">validator_set::get_validator_mut</a>(
                 validators, validator_address
             );
-            <b>if</b> (staked_with_timelock_expiration.is_some()) {
+            <b>if</b> (staked_with_timelock_expiration.is_some()) \{
                 <b>let</b> timelock_expiration = staked_with_timelock_expiration.destroy_some();
                 <a href="timelocked_staking.md#0x3_timelocked_staking_request_add_stake_at_genesis">timelocked_staking::request_add_stake_at_genesis</a>(
                     <a href="validator.md#0x3_validator">validator</a>,
@@ -534,14 +580,14 @@ all the information we need in the system.
                     timelock_genesis_label,
                     ctx
                 );
-            } <b>else</b> {
+            } <b>else</b> \{
                 <a href="validator.md#0x3_validator">validator</a>.request_add_stake_at_genesis(
                     allocation_balance,
                     recipient_address,
                     ctx
                 );
             }
-        } <b>else</b> {
+        } <b>else</b> \{
             <a href="../iota-framework/iota.md#0x2_iota_transfer">iota::transfer</a>(
                 allocation_balance.into_coin(ctx),
                 recipient_address,
@@ -566,7 +612,8 @@ all the information we need in the system.
 
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_activate_validators">activate_validators</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;)
+<pre><code>
+<b>fun</b> <a href="genesis.md#0x3_genesis_activate_validators">activate_validators</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;)
 </code></pre>
 
 
@@ -575,11 +622,12 @@ all the information we need in the system.
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_activate_validators">activate_validators</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;) {
+<pre><code>
+<b>fun</b> <a href="genesis.md#0x3_genesis_activate_validators">activate_validators</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;) \{
     // Activate all <a href="genesis.md#0x3_genesis">genesis</a> validators
     <b>let</b> count = validators.length();
     <b>let</b> <b>mut</b> i = 0;
-    <b>while</b> (i &lt; count) {
+    <b>while</b> (i &lt; count) \{
         <b>let</b> <a href="validator.md#0x3_validator">validator</a> = &<b>mut</b> validators[i];
         <a href="validator.md#0x3_validator">validator</a>.activate(0);
 

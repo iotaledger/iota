@@ -17,7 +17,8 @@ import Link from '@docusaurus/Link';
 -  [Function `id`](#0x107a_nft_id)
 
 
-<pre><code><b>use</b> <a href="irc27.md#0x107a_irc27">0x107a::irc27</a>;
+<pre><code>
+<b>use</b> <a href="irc27.md#0x107a_irc27">0x107a::irc27</a>;
 <b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
 <b>use</b> <a href="../iota-framework/display.md#0x2_display">0x2::display</a>;
@@ -36,7 +37,8 @@ import Link from '@docusaurus/Link';
 One Time Witness.
 
 
-<pre><code><b>struct</b> <a href="nft.md#0x107a_nft_NFT">NFT</a> <b>has</b> drop
+<pre><code>
+<b>struct</b> <a href="nft.md#0x107a_nft_NFT">NFT</a> <b>has</b> drop
 </code></pre>
 
 
@@ -47,7 +49,8 @@ One Time Witness.
 
 <dl>
 <dt>
-<code>dummy_field: bool</code>
+<code>
+dummy_field: bool</code>
 </dt>
 <dd>
 
@@ -64,7 +67,8 @@ One Time Witness.
 The Stardust NFT representation.
 
 
-<pre><code><b>struct</b> <a href="nft.md#0x107a_nft_Nft">Nft</a> <b>has</b> store, key
+<pre><code>
+<b>struct</b> <a href="nft.md#0x107a_nft_Nft">Nft</a> <b>has</b> store, key
 </code></pre>
 
 
@@ -75,38 +79,44 @@ The Stardust NFT representation.
 
 <dl>
 <dt>
-<code>id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
+<code>
+id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
 </dt>
 <dd>
  The Nft's ID is nested from Stardust.
 </dd>
 <dt>
-<code>legacy_sender: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
+<code>
+legacy_sender: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  The sender feature holds the last sender address assigned before the migration and
  is not supported by the protocol after it.
 </dd>
 <dt>
-<code>metadata: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;</code>
+<code>
+metadata: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  The metadata feature.
 </dd>
 <dt>
-<code>tag: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;</code>
+<code>
+tag: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  The tag feature.
 </dd>
 <dt>
-<code>immutable_issuer: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
+<code>
+immutable_issuer: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  The immutable issuer feature.
 </dd>
 <dt>
-<code>immutable_metadata: <a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a></code>
+<code>
+immutable_metadata: <a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a></code>
 </dt>
 <dd>
  The immutable metadata feature.
@@ -120,10 +130,12 @@ The Stardust NFT representation.
 
 ## Function `init`
 
-The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
+The <code>
+<a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
 
 
-<pre><code><b>fun</b> <a href="nft.md#0x107a_nft_init">init</a>(otw: <a href="nft.md#0x107a_nft_NFT">nft::NFT</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code>
+<b>fun</b> <a href="nft.md#0x107a_nft_init">init</a>(otw: <a href="nft.md#0x107a_nft_NFT">nft::NFT</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -132,7 +144,8 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="nft.md#0x107a_nft_init">init</a>(otw: <a href="nft.md#0x107a_nft_NFT">NFT</a>, ctx: &<b>mut</b> TxContext) {
+<pre><code>
+<b>fun</b> <a href="nft.md#0x107a_nft_init">init</a>(otw: <a href="nft.md#0x107a_nft_NFT">NFT</a>, ctx: &<b>mut</b> TxContext) \{
     // Claim the <b>module</b> publisher.
     <b>let</b> publisher = <a href="../iota-framework/package.md#0x2_package_claim">package::claim</a>(otw, ctx);
 
@@ -155,18 +168,18 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
 
     <b>let</b> values = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[
         // The Iota standard fields.
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.name}"),
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.uri}"),
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.description}"),
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.issuer_name}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.name}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.uri}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.description}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.issuer_name}"),
 
         // The extra IRC27-nested fields.
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.version}"),
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.media_type}"),
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.collection_name}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.version}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.media_type}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_metadata.collection_name}"),
 
         // The issuer of the <a href="nft.md#0x107a_nft_NFT">NFT</a>. Equivalent <b>to</b> IRC-27 `collectionId`.
-        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_issuer}"),
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"\{immutable_issuer}"),
     ];
 
     <b>let</b> <b>mut</b> <a href="../iota-framework/display.md#0x2_display">display</a> = <a href="../iota-framework/display.md#0x2_display_new_with_fields">display::new_with_fields</a>&lt;<a href="nft.md#0x107a_nft_Nft">Nft</a>&gt;(
@@ -195,10 +208,12 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
 
 ## Function `destroy`
 
-Permanently destroy an <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> object.
+Permanently destroy an <code>
+<a href="nft.md#0x107a_nft_Nft">Nft</a></code> object.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_destroy">destroy</a>(<a href="nft.md#0x107a_nft">nft</a>: <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>)
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_destroy">destroy</a>(<a href="nft.md#0x107a_nft">nft</a>: <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>)
 </code></pre>
 
 
@@ -207,8 +222,9 @@ Permanently destroy an <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> obje
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_destroy">destroy</a>(<a href="nft.md#0x107a_nft">nft</a>: <a href="nft.md#0x107a_nft_Nft">Nft</a>) {
-    <b>let</b> <a href="nft.md#0x107a_nft_Nft">Nft</a> {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_destroy">destroy</a>(<a href="nft.md#0x107a_nft">nft</a>: <a href="nft.md#0x107a_nft_Nft">Nft</a>) \{
+    <b>let</b> <a href="nft.md#0x107a_nft_Nft">Nft</a> \{
         id,
         legacy_sender: _,
         metadata: _,
@@ -231,10 +247,12 @@ Permanently destroy an <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> obje
 
 ## Function `legacy_sender`
 
-Get the Nft's <code>legacy_sender</code>.
+Get the Nft's <code>
+legacy_sender</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_legacy_sender">legacy_sender</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_legacy_sender">legacy_sender</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;
 </code></pre>
 
 
@@ -243,7 +261,8 @@ Get the Nft's <code>legacy_sender</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_legacy_sender">legacy_sender</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<b>address</b>&gt; {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_legacy_sender">legacy_sender</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<b>address</b>&gt; \{
     &<a href="nft.md#0x107a_nft">nft</a>.legacy_sender
 }
 </code></pre>
@@ -256,10 +275,12 @@ Get the Nft's <code>legacy_sender</code>.
 
 ## Function `metadata`
 
-Get the Nft's <code>metadata</code>.
+Get the Nft's <code>
+metadata</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_metadata">metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_metadata">metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;
 </code></pre>
 
 
@@ -268,7 +289,8 @@ Get the Nft's <code>metadata</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_metadata">metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt; {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_metadata">metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt; \{
     &<a href="nft.md#0x107a_nft">nft</a>.metadata
 }
 </code></pre>
@@ -281,10 +303,12 @@ Get the Nft's <code>metadata</code>.
 
 ## Function `tag`
 
-Get the Nft's <code>tag</code>.
+Get the Nft's <code>
+tag</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_tag">tag</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_tag">tag</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt;
 </code></pre>
 
 
@@ -293,7 +317,8 @@ Get the Nft's <code>tag</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_tag">tag</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt; {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_tag">tag</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;&gt; \{
     &<a href="nft.md#0x107a_nft">nft</a>.tag
 }
 </code></pre>
@@ -306,10 +331,12 @@ Get the Nft's <code>tag</code>.
 
 ## Function `immutable_issuer`
 
-Get the Nft's <code>immutable_sender</code>.
+Get the Nft's <code>
+immutable_sender</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_issuer">immutable_issuer</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_issuer">immutable_issuer</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;
 </code></pre>
 
 
@@ -318,7 +345,8 @@ Get the Nft's <code>immutable_sender</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_issuer">immutable_issuer</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<b>address</b>&gt; {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_issuer">immutable_issuer</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Option&lt;<b>address</b>&gt; \{
     &<a href="nft.md#0x107a_nft">nft</a>.immutable_issuer
 }
 </code></pre>
@@ -331,10 +359,12 @@ Get the Nft's <code>immutable_sender</code>.
 
 ## Function `immutable_metadata`
 
-Get the Nft's <code>immutable_metadata</code>.
+Get the Nft's <code>
+immutable_metadata</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_metadata">immutable_metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a>
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_metadata">immutable_metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a>
 </code></pre>
 
 
@@ -343,7 +373,8 @@ Get the Nft's <code>immutable_metadata</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_metadata">immutable_metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Irc27Metadata {
+<pre><code>
+<b>public</b> <b>fun</b> <a href="nft.md#0x107a_nft_immutable_metadata">immutable_metadata</a>(<a href="nft.md#0x107a_nft">nft</a>: &<a href="nft.md#0x107a_nft_Nft">Nft</a>): &Irc27Metadata \{
     &<a href="nft.md#0x107a_nft">nft</a>.immutable_metadata
 }
 </code></pre>
@@ -359,7 +390,8 @@ Get the Nft's <code>immutable_metadata</code>.
 Get the Nft's id.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="nft.md#0x107a_nft_id">id</a>(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<b>mut</b> <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>
+<pre><code>
+<b>public</b>(<b>friend</b>) <b>fun</b> <a href="nft.md#0x107a_nft_id">id</a>(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">nft::Nft</a>): &<b>mut</b> <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>
 </code></pre>
 
 
@@ -368,7 +400,8 @@ Get the Nft's id.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="nft.md#0x107a_nft_id">id</a>(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">Nft</a>): &<b>mut</b> UID {
+<pre><code>
+<b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="nft.md#0x107a_nft_id">id</a>(self: &<b>mut</b> <a href="nft.md#0x107a_nft_Nft">Nft</a>): &<b>mut</b> UID \{
     &<b>mut</b> self.id
 }
 </code></pre>

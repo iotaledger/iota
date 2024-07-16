@@ -246,6 +246,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     //```
     let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
     let link_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
+    let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
 
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
@@ -263,6 +264,11 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
         // Replace a-tags with Link to register anchors in docusaurus
         let content = link_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
 
+        // Escape `{` in <code> and add new lines
+        let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
+            let code_content = caps.get(1).unwrap().as_str();
+            format!("<code>\n{}</code>", code_content.replace("{", "\\{"))
+        });
 
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {
