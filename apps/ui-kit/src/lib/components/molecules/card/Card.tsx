@@ -14,6 +14,7 @@ enum CardVariant {
 }
 
 type CardProps = {
+    disabled: boolean;
     cardVariant: CardVariant;
     children: React.ReactNode;
 } & CardTextProps &
@@ -21,6 +22,7 @@ type CardProps = {
     CardActionProps;
 
 export function Card({
+    disabled = false,
     cardVariant = CardVariant.Default,
     title,
     subtitle,
@@ -40,11 +42,19 @@ export function Card({
         [CardVariant.Filled]: 'bg-shader-neutral-light-8 p-xs',
     };
 
+    const CARD_HOVER = `hover:cursor-pointer hover:bg-primary-60 hover:bg-opacity-8`;
+    const CARD_ACTIVE = `active:cursor-pointer active:bg-primary-60 active:bg-opacity-12`;
+    const CARD_DISABLED = `cursor-default opacity-40`;
+
     return (
         <div
+            // onClick={}
             className={cx(
                 'inline-flex items-center gap-3 rounded-lg px-md py-xs',
                 CARD_CLASSES_VARIANT[cardVariant],
+                !disabled && CARD_HOVER,
+                !disabled && CARD_ACTIVE,
+                disabled && CARD_DISABLED,
             )}
         >
             <CardImage
