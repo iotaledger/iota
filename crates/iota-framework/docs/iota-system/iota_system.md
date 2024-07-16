@@ -98,7 +98,6 @@ the IotaSystemStateInner version, or vice versa.
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner">0x3::iota_system_state_inner</a>;
-<b>use</b> <a href="stake_subsidy.md#0x3_stake_subsidy">0x3::stake_subsidy</a>;
 <b>use</b> <a href="staking_pool.md#0x3_staking_pool">0x3::staking_pool</a>;
 <b>use</b> <a href="validator.md#0x3_validator">0x3::validator</a>;
 <b>use</b> <a href="validator_cap.md#0x3_validator_cap">0x3::validator_cap</a>;
@@ -179,7 +178,7 @@ Create a new IotaSystemState object and make it shared.
 This function will be called only once in genesis.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system.md#0x3_iota_system_create">create</a>(id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system.md#0x3_iota_system_create">create</a>(id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_treasury_cap: <a href="../iota-framework/iota.md#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</a>, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -196,7 +195,6 @@ This function will be called only once in genesis.
     protocol_version: u64,
     epoch_start_timestamp_ms: u64,
     parameters: SystemParameters,
-    <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: StakeSubsidy,
     system_timelock_cap: SystemTimelockCap,
     ctx: &<b>mut</b> TxContext,
 ) {
@@ -207,7 +205,6 @@ This function will be called only once in genesis.
         protocol_version,
         epoch_start_timestamp_ms,
         parameters,
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         ctx,
     );
     <b>let</b> version = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_genesis_system_state_version">iota_system_state_inner::genesis_system_state_version</a>();

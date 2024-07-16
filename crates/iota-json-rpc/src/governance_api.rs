@@ -417,7 +417,6 @@ impl GovernanceReadApiServer for GovernanceReadApi {
             .map_err(Error::from)?;
 
         let apys = calculate_apys(
-            system_state_summary.stake_subsidy_start_epoch,
             exchange_rate_table,
         );
 
@@ -428,10 +427,9 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 }
 
-pub fn calculate_apys(
-    stake_subsidy_start_epoch: u64,
-    exchange_rate_table: Vec<ValidatorExchangeRates>,
-) -> Vec<ValidatorApy> {
+pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<ValidatorApy> {
+    // TODO: Fix properly.
+    let stake_subsidy_start_epoch: u64 = 0;
     let mut apys = vec![];
 
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
@@ -494,7 +492,7 @@ fn test_apys_calculation_filter_outliers() {
         })
         .collect();
 
-    let apys = calculate_apys(20, exchange_rates);
+    let apys = calculate_apys(exchange_rates);
 
     for apy in apys {
         println!("{}: {}", address_map[&apy.address], apy.apy);
