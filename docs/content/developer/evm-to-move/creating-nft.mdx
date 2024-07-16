@@ -1,0 +1,131 @@
+---
+title: Creating an ERC-721-like NFT
+---
+
+## How this works in Solidity / EVM
+
+NFTs (Non-Fungible-Tokens) are a popular building block commonly used in the EVM ecosystem. The most widely used standard on EVM-based chains is the ERC-721 standard, which allows a smart contract to mint and transfer NFTs with some basic metadata. These standard NFTs can be used on many different platforms in a common way to be viewed, traded, and used in other ways. 
+
+Here's an example of a typical ERC-721 NFT built with Solidity on an EVM chain:
+
+```solidity title="contracts/MyNFT.sol"
+pragma solidity ^0.8.3;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+
+contract MyNFT is ERC721, Ownable {
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
+
+    constructor() ERC721("MyNFT", "MNFT") {}
+
+    function mintNFT(address recipient, string memory tokenURI) public onlyOwner returns (uint256) {
+        _tokenIds.increment();
+
+        uint256 newItemId = _tokenIds.current();
+        _mint(recipient, newItemId);
+        _setTokenURI(newItemId, tokenURI);
+
+        return newItemId;
+    }
+}
+```
+
+In this example, we can see that we are using the widely accepted and trusted [OpenZeppelin](https://www.openzeppelin.com/contracts) library to abstract some of the logic surrounding an ERC721 away. The contract inherits from `Ownable` and `ERC721`, making it compatible with the standard and 'owned', giving the owner some extra powers (in this case, to call the `mintNFT` function). The ERC721 is created with the constructor, and the `mintNFT` function creates a new ERC721 NFT for us and assigns it to the provided address. It also takes the `tokenURI` argument which is supposed to contain a URL to a JSON file containing some metadata about this NFT (this is typically not on-chain). All created NFTs are stored within the state of this contract in a mapping where the ID of the NFT points towards its owner and the `tokenURI` for more information about the specific NFT.
+
+A lot of logic here is abstracted away, but every bit of logic can be overwritten - similar to the ERC-20 example. There's little enforcement of anything, which could lead to undesired situations. Also, using off-chain metadata means that if that data becomes unavailable, that data is lost, which is undesirable. There is no enforcement of the TokenURI contents either, meaning you can't rely on the contents being valid for what you wish to use the NFT for.
+
+## How to NFT with IOTA Move
+
+IOTA Move is based on objects instead of a global storage like EVM. Objects in IOTA Move can be owned, non-fungible, and unique - the exact properties of an NFT! This makes creating NFTs in IOTA Move very trivial, given that everything is already an NFT by default. An example of a very simplified NFT in IOTA Move:
+
+```move title="examples/Examplenft.move"
+module example::examplenft {
+    use std::string;
+    use iota::event;
+
+    /// An example NFT that can be minted by anybody
+    public struct ExampleNFT has key, store {
+        id: UID,
+        /// Name for the token
+        name: string::String,
+    }
+
+    // ===== Events =====
+
+    public struct NFTMinted has copy, drop {
+        // The Object ID of the NFT
+        object_id: ID,
+        // The creator of the NFT
+        creator: address,
+        // The name of the NFT
+        name: string::String,
+    }
+
+    // ===== Public view functions =====
+
+    /// Get the NFT's `name`
+    public fun name(nft: &ExampleNFT): &string::String {
+        &nft.name
+    }
+
+    // ===== Entrypoints =====
+
+    #[allow(lint(self_transfer))]
+	/// Anyone can mint a new NFT on this one
+    public fun mint_to_sender(
+        name: vector<u8>,
+        ctx: &mut TxContext
+    ) {
+        let sender = tx_context::sender(ctx);
+        let nft = ExampleNFT {
+            id: object::new(ctx),
+            name: string::utf8(name)
+        };
+
+        event::emit(NFTMinted {
+            object_id: object::id(&nft),
+            creator: sender,
+            name: nft.name,
+        });
+
+        transfer::public_transfer(nft, sender);
+    }
+
+    /// Transfer `nft` to `recipient`
+    public fun transfer(
+        nft: ExampleNFT, recipient: address, _: &mut TxContext
+    ) {
+        transfer::public_transfer(nft, recipient)
+    }
+
+    /// Permanently delete `nft`
+    public fun burn(nft: ExampleNFT, _: &mut TxContext) {
+        let ExampleNFT { id, name: _} = nft;
+        object::delete(id)
+    }
+}
+```
+
+This is just a simplified NFT that anyone can mint, with just a name in it as metadata. It can freely be transferred and burned, and the metadata can be directly accessed through the object from another contract. Given that this is just a normal object being created, there's little to add to this code example. It's straightforward if you know the basics of working with objects in IOTA. 
+
+### Using Object Display
+
+The framework has a built-in feature to represent objects with templates that can be easily used for off-chain use. This allows you to save the most important data like IDs in your objects and construct, for example, a templated URL and Image URL inside a JSON object out of that without needing to host a JSON file off-chain. These templates can also be modified later if things change, making this setup much more decentralized and future-proof than using the standard `tokenURI` in an ERC-721 implementation linking to a JSON file. You can learn more about using Object Display [in the documentation](../standards/display.mdx).
+
+## Differences, pitfalls, pros and cons
+
+To sum up the most important differences between the two approaches:
+
+| Solidity/EVM                                                                                                                       | IOTA Move                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| NFTs as a contract implementing a standard                                                                                         | Every object is an NFT by default!                                                                                                       |
+| All state within the same contract                                                                                                 | State within the NFT objects that can be transferred to anyone, with an off-chain useable representation possible with `Object Display`. |
+| Token logic is usually abstracted in externally imported libraries                                                                 | Object logic for using and transferring objects (and thus NFTs) is part of the standard framework and is always the same.                  |
+| NFTs can only be found if you have the smart contract address of that NFT                                                          | All NFTs are available in your wallet/account, given that they are sent to you as objects.                                                    |
+| Non-enforced standard functionality (you can implement the ERC-721 functions as you please, including in for users' undesired ways) | Enforced standard functionality for objects with customizability where needed.                                                          |
+
+NFTs in Move are clearly a big improvement over the afterthought counterparts in the EVM/Solidity ecosystem. There are more assurances and better usability when it comes to asset management. 
+
