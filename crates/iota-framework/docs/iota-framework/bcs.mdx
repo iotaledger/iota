@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::bcs`
 ---
+import Link from '@docusaurus/Link';
 
 This module implements BCS (de)serialization in Move.
 Full specification can be found here: https://github.com/diem/bcs
@@ -68,7 +69,7 @@ let leftovers = prepared.into_remainder_bytes();
 
 
 
-<a name="0x2_bcs_BCS"></a>
+<Link id="0x2_bcs_BCS"></Link>
 
 ## Struct `BCS`
 
@@ -98,12 +99,12 @@ enables use of <code><a href="../move-stdlib/vector.md#0x1_vector_pop_back">vect
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_bcs_ELenOutOfRange"></a>
+<Link id="0x2_bcs_ELenOutOfRange"></Link>
 
 For when ULEB byte is out of range (or not found).
 
@@ -113,7 +114,7 @@ For when ULEB byte is out of range (or not found).
 
 
 
-<a name="0x2_bcs_ENotBool"></a>
+<Link id="0x2_bcs_ENotBool"></Link>
 
 For when the boolean value different than <code>0</code> or <code>1</code>.
 
@@ -123,7 +124,7 @@ For when the boolean value different than <code>0</code> or <code>1</code>.
 
 
 
-<a name="0x2_bcs_EOutOfRange"></a>
+<Link id="0x2_bcs_EOutOfRange"></Link>
 
 For when bytes length is less than required for deserialization.
 
@@ -133,7 +134,7 @@ For when bytes length is less than required for deserialization.
 
 
 
-<a name="0x2_bcs_to_bytes"></a>
+<Link id="0x2_bcs_to_bytes"></Link>
 
 ## Function `to_bytes`
 
@@ -159,7 +160,7 @@ Re-exports stdlib <code><a href="../move-stdlib/bcs.md#0x1_bcs_to_bytes">bcs::to
 
 </details>
 
-<a name="0x2_bcs_new"></a>
+<Link id="0x2_bcs_new"></Link>
 
 ## Function `new`
 
@@ -186,7 +187,7 @@ bytes for better performance.
 
 </details>
 
-<a name="0x2_bcs_into_remainder_bytes"></a>
+<Link id="0x2_bcs_into_remainder_bytes"></Link>
 
 ## Function `into_remainder_bytes`
 
@@ -214,7 +215,7 @@ Useful for passing the data further after partial deserialization.
 
 </details>
 
-<a name="0x2_bcs_peel_address"></a>
+<Link id="0x2_bcs_peel_address"></Link>
 
 ## Function `peel_address`
 
@@ -245,7 +246,7 @@ Read address from the bcs-serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_bool"></a>
+<Link id="0x2_bcs_peel_bool"></Link>
 
 ## Function `peel_bool`
 
@@ -277,7 +278,7 @@ Read a <code>bool</code> value from bcs-serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_u8"></a>
+<Link id="0x2_bcs_peel_u8"></Link>
 
 ## Function `peel_u8`
 
@@ -303,7 +304,7 @@ Read <code>u8</code> value from bcs-serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_u64"></a>
+<Link id="0x2_bcs_peel_u64"></Link>
 
 ## Function `peel_u64`
 
@@ -337,7 +338,7 @@ Read <code>u64</code> value from bcs-serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_u128"></a>
+<Link id="0x2_bcs_peel_u128"></Link>
 
 ## Function `peel_u128`
 
@@ -371,7 +372,7 @@ Read <code>u128</code> value from bcs-serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_u256"></a>
+<Link id="0x2_bcs_peel_u256"></Link>
 
 ## Function `peel_u256`
 
@@ -405,7 +406,7 @@ Read <code>u256</code> value from bcs-serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_vec_length"></a>
+<Link id="0x2_bcs_peel_vec_length"></Link>
 
 ## Function `peel_vec_length`
 
@@ -445,7 +446,7 @@ See more here: https://en.wikipedia.org/wiki/LEB128
 
 </details>
 
-<a name="0x2_bcs_peel_vec_address"></a>
+<Link id="0x2_bcs_peel_vec_address"></Link>
 
 ## Function `peel_vec_address`
 
@@ -475,7 +476,7 @@ Peel a vector of <code><b>address</b></code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_vec_bool"></a>
+<Link id="0x2_bcs_peel_vec_bool"></Link>
 
 ## Function `peel_vec_bool`
 
@@ -505,7 +506,7 @@ Peel a vector of <code><b>address</b></code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_vec_u8"></a>
+<Link id="0x2_bcs_peel_vec_u8"></Link>
 
 ## Function `peel_vec_u8`
 
@@ -535,7 +536,7 @@ Peel a vector of <code>u8</code> (eg string) from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_vec_vec_u8"></a>
+<Link id="0x2_bcs_peel_vec_vec_u8"></Link>
 
 ## Function `peel_vec_vec_u8`
 
@@ -565,7 +566,7 @@ Peel a <code><a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href
 
 </details>
 
-<a name="0x2_bcs_peel_vec_u64"></a>
+<Link id="0x2_bcs_peel_vec_u64"></Link>
 
 ## Function `peel_vec_u64`
 
@@ -595,7 +596,7 @@ Peel a vector of <code>u64</code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_vec_u128"></a>
+<Link id="0x2_bcs_peel_vec_u128"></Link>
 
 ## Function `peel_vec_u128`
 
@@ -625,7 +626,7 @@ Peel a vector of <code>u128</code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_option_address"></a>
+<Link id="0x2_bcs_peel_option_address"></Link>
 
 ## Function `peel_option_address`
 
@@ -654,7 +655,7 @@ Peel <code>Option&lt;<b>address</b>&gt;</code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_option_bool"></a>
+<Link id="0x2_bcs_peel_option_bool"></Link>
 
 ## Function `peel_option_bool`
 
@@ -683,7 +684,7 @@ Peel <code>Option&lt;bool&gt;</code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_option_u8"></a>
+<Link id="0x2_bcs_peel_option_u8"></Link>
 
 ## Function `peel_option_u8`
 
@@ -712,7 +713,7 @@ Peel <code>Option&lt;u8&gt;</code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_option_u64"></a>
+<Link id="0x2_bcs_peel_option_u64"></Link>
 
 ## Function `peel_option_u64`
 
@@ -741,7 +742,7 @@ Peel <code>Option&lt;u64&gt;</code> from serialized bytes.
 
 </details>
 
-<a name="0x2_bcs_peel_option_u128"></a>
+<Link id="0x2_bcs_peel_option_u128"></Link>
 
 ## Function `peel_option_u128`
 

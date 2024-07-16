@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::balance`
 ---
+import Link from '@docusaurus/Link';
 
 A storable handler for Balances in general. Is used in the <code>Coin</code>
 module to allow balance operations and can be used to implement
@@ -30,7 +31,7 @@ custom coins with <code><a href="../iota-framework/balance.md#0x2_balance_Supply
 
 
 
-<a name="0x2_balance_Supply"></a>
+<Link id="0x2_balance_Supply"></Link>
 
 ## Struct `Supply`
 
@@ -59,7 +60,7 @@ Wrapped into a <code>TreasuryCap</code> in the <code>Coin</code> module.
 
 </details>
 
-<a name="0x2_balance_Balance"></a>
+<Link id="0x2_balance_Balance"></Link>
 
 ## Struct `Balance`
 
@@ -88,12 +89,12 @@ Can be used to store coins which don't need the key ability.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_balance_ENotSystemAddress"></a>
+<Link id="0x2_balance_ENotSystemAddress"></Link>
 
 Sender is not @0x0 the system address.
 
@@ -103,7 +104,7 @@ Sender is not @0x0 the system address.
 
 
 
-<a name="0x2_balance_ENonZero"></a>
+<Link id="0x2_balance_ENonZero"></Link>
 
 For when trying to destroy a non-zero balance.
 
@@ -113,7 +114,7 @@ For when trying to destroy a non-zero balance.
 
 
 
-<a name="0x2_balance_ENotEnough"></a>
+<Link id="0x2_balance_ENotEnough"></Link>
 
 For when trying to withdraw more than there is.
 
@@ -123,7 +124,7 @@ For when trying to withdraw more than there is.
 
 
 
-<a name="0x2_balance_EOverflow"></a>
+<Link id="0x2_balance_EOverflow"></Link>
 
 For when an overflow is happening on Supply operations.
 
@@ -133,7 +134,7 @@ For when an overflow is happening on Supply operations.
 
 
 
-<a name="0x2_balance_value"></a>
+<Link id="0x2_balance_value"></Link>
 
 ## Function `value`
 
@@ -158,7 +159,7 @@ Get the amount stored in a <code><a href="../iota-framework/balance.md#0x2_balan
 
 </details>
 
-<a name="0x2_balance_supply_value"></a>
+<Link id="0x2_balance_supply_value"></Link>
 
 ## Function `supply_value`
 
@@ -183,7 +184,7 @@ Get the <code><a href="../iota-framework/balance.md#0x2_balance_Supply">Supply</
 
 </details>
 
-<a name="0x2_balance_create_supply"></a>
+<Link id="0x2_balance_create_supply"></Link>
 
 ## Function `create_supply`
 
@@ -208,7 +209,7 @@ Create a new supply for type T.
 
 </details>
 
-<a name="0x2_balance_increase_supply"></a>
+<Link id="0x2_balance_increase_supply"></Link>
 
 ## Function `increase_supply`
 
@@ -235,7 +236,7 @@ Increase supply by <code>value</code> and create a new <code><a href="../iota-fr
 
 </details>
 
-<a name="0x2_balance_decrease_supply"></a>
+<Link id="0x2_balance_decrease_supply"></Link>
 
 ## Function `decrease_supply`
 
@@ -263,7 +264,7 @@ Burn a Balance<T> and decrease Supply<T>.
 
 </details>
 
-<a name="0x2_balance_zero"></a>
+<Link id="0x2_balance_zero"></Link>
 
 ## Function `zero`
 
@@ -288,7 +289,7 @@ Create a zero <code><a href="../iota-framework/balance.md#0x2_balance_Balance">B
 
 </details>
 
-<a name="0x2_balance_join"></a>
+<Link id="0x2_balance_join"></Link>
 
 ## Function `join`
 
@@ -315,7 +316,7 @@ Join two balances together.
 
 </details>
 
-<a name="0x2_balance_split"></a>
+<Link id="0x2_balance_split"></Link>
 
 ## Function `split`
 
@@ -342,7 +343,7 @@ Split a <code><a href="../iota-framework/balance.md#0x2_balance_Balance">Balance
 
 </details>
 
-<a name="0x2_balance_withdraw_all"></a>
+<Link id="0x2_balance_withdraw_all"></Link>
 
 ## Function `withdraw_all`
 
@@ -368,7 +369,7 @@ Withdraw all balance. After this the remaining balance must be 0.
 
 </details>
 
-<a name="0x2_balance_destroy_zero"></a>
+<Link id="0x2_balance_destroy_zero"></Link>
 
 ## Function `destroy_zero`
 
@@ -394,7 +395,7 @@ Destroy a zero <code><a href="../iota-framework/balance.md#0x2_balance_Balance">
 
 </details>
 
-<a name="0x2_balance_create_staking_rewards"></a>
+<Link id="0x2_balance_create_staking_rewards"></Link>
 
 ## Function `create_staking_rewards`
 
@@ -422,7 +423,7 @@ and nowhere else.
 
 </details>
 
-<a name="0x2_balance_destroy_storage_rebates"></a>
+<Link id="0x2_balance_destroy_storage_rebates"></Link>
 
 ## Function `destroy_storage_rebates`
 
@@ -450,7 +451,7 @@ and nowhere else.
 
 </details>
 
-<a name="0x2_balance_destroy_supply"></a>
+<Link id="0x2_balance_destroy_supply"></Link>
 
 ## Function `destroy_supply`
 

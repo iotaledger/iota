@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::vec_map`
 ---
+import Link from '@docusaurus/Link';
 
 
 
@@ -33,7 +34,7 @@ title: Module `0x2::vec_map`
 
 
 
-<a name="0x2_vec_map_VecMap"></a>
+<Link id="0x2_vec_map_VecMap"></Link>
 
 ## Struct `VecMap`
 
@@ -66,7 +67,7 @@ Maps that need sorted iteration rather than insertion order iteration should als
 
 </details>
 
-<a name="0x2_vec_map_Entry"></a>
+<Link id="0x2_vec_map_Entry"></Link>
 
 ## Struct `Entry`
 
@@ -100,12 +101,12 @@ An entry in the map
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_vec_map_EKeyAlreadyExists"></a>
+<Link id="0x2_vec_map_EKeyAlreadyExists"></Link>
 
 This key already exists in the map
 
@@ -115,7 +116,7 @@ This key already exists in the map
 
 
 
-<a name="0x2_vec_map_EKeyDoesNotExist"></a>
+<Link id="0x2_vec_map_EKeyDoesNotExist"></Link>
 
 This key does not exist in the map
 
@@ -125,7 +126,7 @@ This key does not exist in the map
 
 
 
-<a name="0x2_vec_map_EIndexOutOfBounds"></a>
+<Link id="0x2_vec_map_EIndexOutOfBounds"></Link>
 
 Trying to access an element of the map at an invalid index
 
@@ -135,7 +136,7 @@ Trying to access an element of the map at an invalid index
 
 
 
-<a name="0x2_vec_map_EMapEmpty"></a>
+<Link id="0x2_vec_map_EMapEmpty"></Link>
 
 Trying to pop from a map that is empty
 
@@ -145,7 +146,7 @@ Trying to pop from a map that is empty
 
 
 
-<a name="0x2_vec_map_EMapNotEmpty"></a>
+<Link id="0x2_vec_map_EMapNotEmpty"></Link>
 
 Trying to destroy a map that is not empty
 
@@ -155,7 +156,7 @@ Trying to destroy a map that is not empty
 
 
 
-<a name="0x2_vec_map_empty"></a>
+<Link id="0x2_vec_map_empty"></Link>
 
 ## Function `empty`
 
@@ -180,7 +181,7 @@ Create an empty <code><a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">
 
 </details>
 
-<a name="0x2_vec_map_insert"></a>
+<Link id="0x2_vec_map_insert"></Link>
 
 ## Function `insert`
 
@@ -207,7 +208,7 @@ Aborts if <code>key</code> is already bound in <code>self</code>.
 
 </details>
 
-<a name="0x2_vec_map_remove"></a>
+<Link id="0x2_vec_map_remove"></Link>
 
 ## Function `remove`
 
@@ -234,7 +235,7 @@ Remove the entry <code>key</code> |-> <code>value</code> from self. Aborts if <c
 
 </details>
 
-<a name="0x2_vec_map_pop"></a>
+<Link id="0x2_vec_map_pop"></Link>
 
 ## Function `pop`
 
@@ -261,7 +262,7 @@ Pop the most recently inserted entry from the map. Aborts if the map is empty.
 
 </details>
 
-<a name="0x2_vec_map_get_mut"></a>
+<Link id="0x2_vec_map_get_mut"></Link>
 
 ## Function `get_mut`
 
@@ -289,7 +290,7 @@ Aborts if <code>key</code> is not bound in <code>self</code>.
 
 </details>
 
-<a name="0x2_vec_map_get"></a>
+<Link id="0x2_vec_map_get"></Link>
 
 ## Function `get`
 
@@ -317,7 +318,7 @@ Aborts if <code>key</code> is not bound in <code>self</code>.
 
 </details>
 
-<a name="0x2_vec_map_try_get"></a>
+<Link id="0x2_vec_map_try_get"></Link>
 
 ## Function `try_get`
 
@@ -348,7 +349,7 @@ Only works for a "copyable" value as references cannot be stored in <code><a hre
 
 </details>
 
-<a name="0x2_vec_map_contains"></a>
+<Link id="0x2_vec_map_contains"></Link>
 
 ## Function `contains`
 
@@ -373,7 +374,7 @@ Return true if <code>self</code> contains an entry for <code>key</code>, false o
 
 </details>
 
-<a name="0x2_vec_map_size"></a>
+<Link id="0x2_vec_map_size"></Link>
 
 ## Function `size`
 
@@ -398,7 +399,7 @@ Return the number of entries in <code>self</code>
 
 </details>
 
-<a name="0x2_vec_map_is_empty"></a>
+<Link id="0x2_vec_map_is_empty"></Link>
 
 ## Function `is_empty`
 
@@ -423,7 +424,7 @@ Return true if <code>self</code> has 0 elements, false otherwise
 
 </details>
 
-<a name="0x2_vec_map_destroy_empty"></a>
+<Link id="0x2_vec_map_destroy_empty"></Link>
 
 ## Function `destroy_empty`
 
@@ -450,7 +451,7 @@ Destroy an empty map. Aborts if <code>self</code> is not empty
 
 </details>
 
-<a name="0x2_vec_map_into_keys_values"></a>
+<Link id="0x2_vec_map_into_keys_values"></Link>
 
 ## Function `into_keys_values`
 
@@ -490,7 +491,7 @@ The output keys and values are stored in insertion order, *not* sorted by key.
 
 </details>
 
-<a name="0x2_vec_map_keys"></a>
+<Link id="0x2_vec_map_keys"></Link>
 
 ## Function `keys`
 
@@ -524,7 +525,7 @@ Do not assume any particular ordering.
 
 </details>
 
-<a name="0x2_vec_map_get_idx_opt"></a>
+<Link id="0x2_vec_map_get_idx_opt"></Link>
 
 ## Function `get_idx_opt`
 
@@ -558,7 +559,7 @@ Note that map entries are stored in insertion order, *not* sorted by key.
 
 </details>
 
-<a name="0x2_vec_map_get_idx"></a>
+<Link id="0x2_vec_map_get_idx"></Link>
 
 ## Function `get_idx`
 
@@ -586,7 +587,7 @@ Note that map entries are stored in insertion order, *not* sorted by key.
 
 </details>
 
-<a name="0x2_vec_map_get_entry_by_idx"></a>
+<Link id="0x2_vec_map_get_entry_by_idx"></Link>
 
 ## Function `get_entry_by_idx`
 
@@ -615,7 +616,7 @@ Aborts if <code>idx</code> is greater than or equal to <code><a href="../iota-fr
 
 </details>
 
-<a name="0x2_vec_map_get_entry_by_idx_mut"></a>
+<Link id="0x2_vec_map_get_entry_by_idx_mut"></Link>
 
 ## Function `get_entry_by_idx_mut`
 
@@ -644,7 +645,7 @@ Aborts if <code>idx</code> is greater than or equal to <code><a href="../iota-fr
 
 </details>
 
-<a name="0x2_vec_map_remove_entry_by_idx"></a>
+<Link id="0x2_vec_map_remove_entry_by_idx"></Link>
 
 ## Function `remove_entry_by_idx`
 

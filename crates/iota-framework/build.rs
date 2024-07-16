@@ -244,7 +244,9 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     // +title: Module `0x2::display`
     // +---
     //```
-    let re = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
+    let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
+    let link_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
+
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
         let top_level = path.components().count() == 1;
@@ -258,15 +260,20 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             new_path.to_string_lossy().to_string()
         };
 
+        // Replace a-tags with Link to register anchors in docusaurus
+        let content = link_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
+
+
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {
-            re.replace_all(
-                &file_content
-                    .replace("../../dependencies/", "../")
-                    .replace("dependencies/", "../"),
-                "---\ntitle: $1\n---\n",
-            )
-            .to_string()
+            title_regex
+                .replace_all(
+                    &content
+                        .replace("../../dependencies/", "../")
+                        .replace("dependencies/", "../"),
+                    "---\ntitle: $1\n---\nimport Link from '@docusaurus/Link';\n",
+                )
+                .to_string()
         });
     }
 }

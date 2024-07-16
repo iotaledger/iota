@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::versioned`
 ---
+import Link from '@docusaurus/Link';
 
 
 
@@ -23,7 +24,7 @@ title: Module `0x2::versioned`
 
 
 
-<a name="0x2_versioned_Versioned"></a>
+<Link id="0x2_versioned_Versioned"></Link>
 
 ## Resource `Versioned`
 
@@ -62,7 +63,7 @@ to use mutable reference even if it's a read-only API.
 
 </details>
 
-<a name="0x2_versioned_VersionChangeCap"></a>
+<Link id="0x2_versioned_VersionChangeCap"></Link>
 
 ## Struct `VersionChangeCap`
 
@@ -97,12 +98,12 @@ This is to make sure that we always put a new value back.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_versioned_EInvalidUpgrade"></a>
+<Link id="0x2_versioned_EInvalidUpgrade"></Link>
 
 Failed to upgrade the inner object due to invalid capability or new version.
 
@@ -112,7 +113,7 @@ Failed to upgrade the inner object due to invalid capability or new version.
 
 
 
-<a name="0x2_versioned_create"></a>
+<Link id="0x2_versioned_create"></Link>
 
 ## Function `create`
 
@@ -142,7 +143,7 @@ Create a new Versioned object that contains a initial value of type <code>T</cod
 
 </details>
 
-<a name="0x2_versioned_version"></a>
+<Link id="0x2_versioned_version"></Link>
 
 ## Function `version`
 
@@ -167,7 +168,7 @@ Get the current version of the inner type.
 
 </details>
 
-<a name="0x2_versioned_load_value"></a>
+<Link id="0x2_versioned_load_value"></Link>
 
 ## Function `load_value`
 
@@ -193,7 +194,7 @@ If the type mismatch, the load will fail.
 
 </details>
 
-<a name="0x2_versioned_load_value_mut"></a>
+<Link id="0x2_versioned_load_value_mut"></Link>
 
 ## Function `load_value_mut`
 
@@ -218,7 +219,7 @@ Similar to load_value, but return a mutable reference.
 
 </details>
 
-<a name="0x2_versioned_remove_value_for_upgrade"></a>
+<Link id="0x2_versioned_remove_value_for_upgrade"></Link>
 
 ## Function `remove_value_for_upgrade`
 
@@ -250,7 +251,7 @@ and must be used when we upgrade.
 
 </details>
 
-<a name="0x2_versioned_upgrade"></a>
+<Link id="0x2_versioned_upgrade"></Link>
 
 ## Function `upgrade`
 
@@ -280,7 +281,7 @@ by calling remove_value_for_upgrade.
 
 </details>
 
-<a name="0x2_versioned_destroy"></a>
+<Link id="0x2_versioned_destroy"></Link>
 
 ## Function `destroy`
 

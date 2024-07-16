@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::transfer`
 ---
+import Link from '@docusaurus/Link';
 
 
 
@@ -26,7 +27,7 @@ title: Module `0x2::transfer`
 
 
 
-<a name="0x2_transfer_Receiving"></a>
+<Link id="0x2_transfer_Receiving"></Link>
 
 ## Struct `Receiving`
 
@@ -66,12 +67,12 @@ Internals of this struct are opaque outside this module.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_transfer_EBCSSerializationFailure"></a>
+<Link id="0x2_transfer_EBCSSerializationFailure"></Link>
 
 Serialization of the object failed.
 
@@ -81,7 +82,7 @@ Serialization of the object failed.
 
 
 
-<a name="0x2_transfer_EReceivingObjectTypeMismatch"></a>
+<Link id="0x2_transfer_EReceivingObjectTypeMismatch"></Link>
 
 The object being received is not of the expected type.
 
@@ -91,7 +92,7 @@ The object being received is not of the expected type.
 
 
 
-<a name="0x2_transfer_ESharedNonNewObject"></a>
+<Link id="0x2_transfer_ESharedNonNewObject"></Link>
 
 Shared an object that was previously created. Shared objects must currently
 be constructed in the transaction they are created.
@@ -102,7 +103,7 @@ be constructed in the transaction they are created.
 
 
 
-<a name="0x2_transfer_ESharedObjectOperationNotSupported"></a>
+<Link id="0x2_transfer_ESharedObjectOperationNotSupported"></Link>
 
 Shared object operations such as wrapping, freezing, and converting to owned are not allowed.
 
@@ -112,7 +113,7 @@ Shared object operations such as wrapping, freezing, and converting to owned are
 
 
 
-<a name="0x2_transfer_EUnableToReceiveObject"></a>
+<Link id="0x2_transfer_EUnableToReceiveObject"></Link>
 
 Represents both the case where the object does not exist and the case where the object is not
 able to be accessed through the parent that is passed-in.
@@ -123,7 +124,7 @@ able to be accessed through the parent that is passed-in.
 
 
 
-<a name="0x2_transfer_transfer"></a>
+<Link id="0x2_transfer_transfer"></Link>
 
 ## Function `transfer`
 
@@ -154,7 +155,7 @@ that <code>T</code> is an object defined in the module where <code><a href="../i
 
 </details>
 
-<a name="0x2_transfer_public_transfer"></a>
+<Link id="0x2_transfer_public_transfer"></Link>
 
 ## Function `public_transfer`
 
@@ -183,7 +184,7 @@ The object must have <code>store</code> to be transferred outside of its module.
 
 </details>
 
-<a name="0x2_transfer_freeze_object"></a>
+<Link id="0x2_transfer_freeze_object"></Link>
 
 ## Function `freeze_object`
 
@@ -212,7 +213,7 @@ that <code>T</code> is an object defined in the module where <code>freeze_object
 
 </details>
 
-<a name="0x2_transfer_public_freeze_object"></a>
+<Link id="0x2_transfer_public_freeze_object"></Link>
 
 ## Function `public_freeze_object`
 
@@ -239,7 +240,7 @@ The object must have <code>store</code> to be frozen outside of its module.
 
 </details>
 
-<a name="0x2_transfer_share_object"></a>
+<Link id="0x2_transfer_share_object"></Link>
 
 ## Function `share_object`
 
@@ -270,7 +271,7 @@ that <code>T</code> is an object defined in the module where <code>share_object<
 
 </details>
 
-<a name="0x2_transfer_public_share_object"></a>
+<Link id="0x2_transfer_public_share_object"></Link>
 
 ## Function `public_share_object`
 
@@ -299,7 +300,7 @@ The object must have <code>store</code> to be shared outside of its module.
 
 </details>
 
-<a name="0x2_transfer_receive"></a>
+<Link id="0x2_transfer_receive"></Link>
 
 ## Function `receive`
 
@@ -333,7 +334,7 @@ that <code>T</code> is an object defined in the module where <code>receive</code
 
 </details>
 
-<a name="0x2_transfer_public_receive"></a>
+<Link id="0x2_transfer_public_receive"></Link>
 
 ## Function `public_receive`
 
@@ -365,7 +366,7 @@ The object must have <code>store</code> to be received outside of its defining m
 
 </details>
 
-<a name="0x2_transfer_receiving_object_id"></a>
+<Link id="0x2_transfer_receiving_object_id"></Link>
 
 ## Function `receiving_object_id`
 
@@ -390,7 +391,7 @@ Return the object ID that the given <code><a href="../iota-framework/transfer.md
 
 </details>
 
-<a name="0x2_transfer_freeze_object_impl"></a>
+<Link id="0x2_transfer_freeze_object_impl"></Link>
 
 ## Function `freeze_object_impl`
 
@@ -412,7 +413,7 @@ Return the object ID that the given <code><a href="../iota-framework/transfer.md
 
 </details>
 
-<a name="0x2_transfer_share_object_impl"></a>
+<Link id="0x2_transfer_share_object_impl"></Link>
 
 ## Function `share_object_impl`
 
@@ -434,7 +435,7 @@ Return the object ID that the given <code><a href="../iota-framework/transfer.md
 
 </details>
 
-<a name="0x2_transfer_transfer_impl"></a>
+<Link id="0x2_transfer_transfer_impl"></Link>
 
 ## Function `transfer_impl`
 
@@ -456,7 +457,7 @@ Return the object ID that the given <code><a href="../iota-framework/transfer.md
 
 </details>
 
-<a name="0x2_transfer_receive_impl"></a>
+<Link id="0x2_transfer_receive_impl"></Link>
 
 ## Function `receive_impl`
 

@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::object_bag`
 ---
+import Link from '@docusaurus/Link';
 
 Similar to <code>iota::bag</code>, an <code><a href="object_bag.md#0x2_object_bag_ObjectBag">ObjectBag</a></code> is a heterogeneous map-like collection. But unlike
 <code>iota::bag</code>, the values bound to these dynamic fields _must_ be objects themselves. This allows
@@ -31,7 +32,7 @@ The difference is otherwise not observable from within Move.
 
 
 
-<a name="0x2_object_bag_ObjectBag"></a>
+<Link id="0x2_object_bag_ObjectBag"></Link>
 
 ## Resource `ObjectBag`
 
@@ -64,12 +65,12 @@ The difference is otherwise not observable from within Move.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_object_bag_EBagNotEmpty"></a>
+<Link id="0x2_object_bag_EBagNotEmpty"></Link>
 
 
 
@@ -78,7 +79,7 @@ The difference is otherwise not observable from within Move.
 
 
 
-<a name="0x2_object_bag_new"></a>
+<Link id="0x2_object_bag_new"></Link>
 
 ## Function `new`
 
@@ -106,7 +107,7 @@ Creates a new, empty bag
 
 </details>
 
-<a name="0x2_object_bag_add"></a>
+<Link id="0x2_object_bag_add"></Link>
 
 ## Function `add`
 
@@ -134,7 +135,7 @@ that key <code>k: K</code>.
 
 </details>
 
-<a name="0x2_object_bag_borrow"></a>
+<Link id="0x2_object_bag_borrow"></Link>
 
 ## Function `borrow`
 
@@ -163,7 +164,7 @@ the value does not have the specified type.
 
 </details>
 
-<a name="0x2_object_bag_borrow_mut"></a>
+<Link id="0x2_object_bag_borrow_mut"></Link>
 
 ## Function `borrow_mut`
 
@@ -192,7 +193,7 @@ the value does not have the specified type.
 
 </details>
 
-<a name="0x2_object_bag_remove"></a>
+<Link id="0x2_object_bag_remove"></Link>
 
 ## Function `remove`
 
@@ -223,7 +224,7 @@ the value does not have the specified type.
 
 </details>
 
-<a name="0x2_object_bag_contains"></a>
+<Link id="0x2_object_bag_contains"></Link>
 
 ## Function `contains`
 
@@ -248,7 +249,7 @@ Returns true iff there is an value associated with the key <code>k: K</code> in 
 
 </details>
 
-<a name="0x2_object_bag_contains_with_type"></a>
+<Link id="0x2_object_bag_contains_with_type"></Link>
 
 ## Function `contains_with_type`
 
@@ -274,7 +275,7 @@ with an assigned value of type <code>V</code>
 
 </details>
 
-<a name="0x2_object_bag_length"></a>
+<Link id="0x2_object_bag_length"></Link>
 
 ## Function `length`
 
@@ -299,7 +300,7 @@ Returns the size of the bag, the number of key-value pairs
 
 </details>
 
-<a name="0x2_object_bag_is_empty"></a>
+<Link id="0x2_object_bag_is_empty"></Link>
 
 ## Function `is_empty`
 
@@ -324,7 +325,7 @@ Returns true iff the bag is empty (if <code>length</code> returns <code>0</code>
 
 </details>
 
-<a name="0x2_object_bag_destroy_empty"></a>
+<Link id="0x2_object_bag_destroy_empty"></Link>
 
 ## Function `destroy_empty`
 
@@ -352,7 +353,7 @@ Aborts with <code><a href="object_bag.md#0x2_object_bag_EBagNotEmpty">EBagNotEmp
 
 </details>
 
-<a name="0x2_object_bag_value_id"></a>
+<Link id="0x2_object_bag_value_id"></Link>
 
 ## Function `value_id`
 

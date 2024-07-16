@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::borrow`
 ---
+import Link from '@docusaurus/Link';
 
 A simple library that enables hot-potato-locked borrow mechanics.
 
@@ -25,7 +26,7 @@ sure the object is returned and was not swapped for another one.
 
 
 
-<a name="0x2_borrow_Referent"></a>
+<Link id="0x2_borrow_Referent"></Link>
 
 ## Struct `Referent`
 
@@ -59,7 +60,7 @@ An object wrapping a <code>T</code> and providing the borrow API.
 
 </details>
 
-<a name="0x2_borrow_Borrow"></a>
+<Link id="0x2_borrow_Borrow"></Link>
 
 ## Struct `Borrow`
 
@@ -93,12 +94,12 @@ A hot potato making sure the object is put back once borrowed.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_borrow_EWrongBorrow"></a>
+<Link id="0x2_borrow_EWrongBorrow"></Link>
 
 The <code><a href="borrow.md#0x2_borrow_Borrow">Borrow</a></code> does not match the <code><a href="borrow.md#0x2_borrow_Referent">Referent</a></code>.
 
@@ -108,7 +109,7 @@ The <code><a href="borrow.md#0x2_borrow_Borrow">Borrow</a></code> does not match
 
 
 
-<a name="0x2_borrow_EWrongValue"></a>
+<Link id="0x2_borrow_EWrongValue"></Link>
 
 An attempt to swap the <code><a href="borrow.md#0x2_borrow_Referent">Referent</a>.value</code> with another object of the same type.
 
@@ -118,7 +119,7 @@ An attempt to swap the <code><a href="borrow.md#0x2_borrow_Referent">Referent</a
 
 
 
-<a name="0x2_borrow_new"></a>
+<Link id="0x2_borrow_new"></Link>
 
 ## Function `new`
 
@@ -146,7 +147,7 @@ Create a new <code><a href="borrow.md#0x2_borrow_Referent">Referent</a></code> s
 
 </details>
 
-<a name="0x2_borrow_borrow"></a>
+<Link id="0x2_borrow_borrow"></Link>
 
 ## Function `borrow`
 
@@ -178,7 +179,7 @@ hot potato.
 
 </details>
 
-<a name="0x2_borrow_put_back"></a>
+<Link id="0x2_borrow_put_back"></Link>
 
 ## Function `put_back`
 
@@ -207,7 +208,7 @@ Put an object and the <code><a href="borrow.md#0x2_borrow_Borrow">Borrow</a></co
 
 </details>
 
-<a name="0x2_borrow_destroy"></a>
+<Link id="0x2_borrow_destroy"></Link>
 
 ## Function `destroy`
 

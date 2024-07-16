@@ -1,13 +1,14 @@
 ---
 title: Module `0x2::kiosk`
 ---
+import Link from '@docusaurus/Link';
 
 Kiosk is a primitive for building safe, decentralized and trustless trading
 experiences. It allows storing and trading any types of assets as long as
 the creator of these assets implements a <code>TransferPolicy</code> for them.
 
 
-<a name="@Principles_and_philosophy:_0"></a>
+<Link id="@Principles_and_philosophy:_0"></Link>
 
 #### Principles and philosophy:
 
@@ -27,7 +28,7 @@ be implemented on top using the <code>list_with_purchase_cap</code> (and a match
 created - this way creators are fully in control of the trading experience.
 
 
-<a name="@Asset_states_in_the_Kiosk:_1"></a>
+<Link id="@Asset_states_in_the_Kiosk:_1"></Link>
 
 #### Asset states in the Kiosk:
 
@@ -77,7 +78,7 @@ a single <code>TransferPolicy&lt;T&gt;</code> for <code>T</code>; it is possible
 one having its own set of rules.
 
 
-<a name="@Examples:_3"></a>
+<Link id="@Examples:_3"></Link>
 
 #### Examples:
 
@@ -172,7 +173,7 @@ See <code><a href="transfer_policy.md#0x2_transfer_policy">transfer_policy</a></
 
 
 
-<a name="0x2_kiosk_Kiosk"></a>
+<Link id="0x2_kiosk_Kiosk"></Link>
 
 ## Resource `Kiosk`
 
@@ -233,7 +234,7 @@ needs to be approved via the <code>TransferPolicy</code>.
 
 </details>
 
-<a name="0x2_kiosk_KioskOwnerCap"></a>
+<Link id="0x2_kiosk_KioskOwnerCap"></Link>
 
 ## Resource `KioskOwnerCap`
 
@@ -268,7 +269,7 @@ from the <code><a href="kiosk.md#0x2_kiosk_Kiosk">Kiosk</a></code> as well as to
 
 </details>
 
-<a name="0x2_kiosk_PurchaseCap"></a>
+<Link id="0x2_kiosk_PurchaseCap"></Link>
 
 ## Resource `PurchaseCap`
 
@@ -322,7 +323,7 @@ on top of the <code><a href="kiosk.md#0x2_kiosk_Kiosk">Kiosk</a></code>.
 
 </details>
 
-<a name="0x2_kiosk_Borrow"></a>
+<Link id="0x2_kiosk_Borrow"></Link>
 
 ## Struct `Borrow`
 
@@ -357,7 +358,7 @@ the <code>borrow_val</code> call.
 
 </details>
 
-<a name="0x2_kiosk_Item"></a>
+<Link id="0x2_kiosk_Item"></Link>
 
 ## Struct `Item`
 
@@ -385,7 +386,7 @@ Dynamic field key for an item placed into the kiosk.
 
 </details>
 
-<a name="0x2_kiosk_Listing"></a>
+<Link id="0x2_kiosk_Listing"></Link>
 
 ## Struct `Listing`
 
@@ -420,7 +421,7 @@ item is listed without a <code><a href="kiosk.md#0x2_kiosk_PurchaseCap">Purchase
 
 </details>
 
-<a name="0x2_kiosk_Lock"></a>
+<Link id="0x2_kiosk_Lock"></Link>
 
 ## Struct `Lock`
 
@@ -450,7 +451,7 @@ Lock is released on <code>purchase</code>.
 
 </details>
 
-<a name="0x2_kiosk_ItemListed"></a>
+<Link id="0x2_kiosk_ItemListed"></Link>
 
 ## Struct `ItemListed`
 
@@ -492,7 +493,7 @@ type-indexed which allows for searching for offers of a specific <code>T</code>
 
 </details>
 
-<a name="0x2_kiosk_ItemPurchased"></a>
+<Link id="0x2_kiosk_ItemPurchased"></Link>
 
 ## Struct `ItemPurchased`
 
@@ -540,7 +541,7 @@ by the trading module / extension.
 
 </details>
 
-<a name="0x2_kiosk_ItemDelisted"></a>
+<Link id="0x2_kiosk_ItemDelisted"></Link>
 
 ## Struct `ItemDelisted`
 
@@ -575,12 +576,12 @@ to close tracked offers.
 
 </details>
 
-<a name="@Constants_4"></a>
+<Link id="@Constants_4"></Link>
 
 ## Constants
 
 
-<a name="0x2_kiosk_ENotEnough"></a>
+<Link id="0x2_kiosk_ENotEnough"></Link>
 
 Trying to withdraw higher amount than stored.
 
@@ -590,7 +591,7 @@ Trying to withdraw higher amount than stored.
 
 
 
-<a name="0x2_kiosk_ENotOwner"></a>
+<Link id="0x2_kiosk_ENotOwner"></Link>
 
 Trying to withdraw profits and sender is not owner.
 
@@ -600,7 +601,7 @@ Trying to withdraw profits and sender is not owner.
 
 
 
-<a name="0x2_kiosk_EAlreadyListed"></a>
+<Link id="0x2_kiosk_EAlreadyListed"></Link>
 
 Trying to exclusively list an already listed item.
 
@@ -610,7 +611,7 @@ Trying to exclusively list an already listed item.
 
 
 
-<a name="0x2_kiosk_EIncorrectAmount"></a>
+<Link id="0x2_kiosk_EIncorrectAmount"></Link>
 
 Coin paid does not match the offer price.
 
@@ -620,7 +621,7 @@ Coin paid does not match the offer price.
 
 
 
-<a name="0x2_kiosk_EItemIsListed"></a>
+<Link id="0x2_kiosk_EItemIsListed"></Link>
 
 Taking or mutably borrowing an item that is listed.
 
@@ -630,7 +631,7 @@ Taking or mutably borrowing an item that is listed.
 
 
 
-<a name="0x2_kiosk_EItemLocked"></a>
+<Link id="0x2_kiosk_EItemLocked"></Link>
 
 Attempt to <code>take</code> an item that is locked.
 
@@ -640,7 +641,7 @@ Attempt to <code>take</code> an item that is locked.
 
 
 
-<a name="0x2_kiosk_EItemMismatch"></a>
+<Link id="0x2_kiosk_EItemMismatch"></Link>
 
 Item does not match <code><a href="kiosk.md#0x2_kiosk_Borrow">Borrow</a></code> in <code>return_val</code>.
 
@@ -650,7 +651,7 @@ Item does not match <code><a href="kiosk.md#0x2_kiosk_Borrow">Borrow</a></code> 
 
 
 
-<a name="0x2_kiosk_EItemNotFound"></a>
+<Link id="0x2_kiosk_EItemNotFound"></Link>
 
 An is not found while trying to borrow.
 
@@ -660,7 +661,7 @@ An is not found while trying to borrow.
 
 
 
-<a name="0x2_kiosk_EListedExclusively"></a>
+<Link id="0x2_kiosk_EListedExclusively"></Link>
 
 Attempt to take an item that has a <code><a href="kiosk.md#0x2_kiosk_PurchaseCap">PurchaseCap</a></code> issued.
 
@@ -670,7 +671,7 @@ Attempt to take an item that has a <code><a href="kiosk.md#0x2_kiosk_PurchaseCap
 
 
 
-<a name="0x2_kiosk_ENotEmpty"></a>
+<Link id="0x2_kiosk_ENotEmpty"></Link>
 
 Trying to close a Kiosk and it has items in it.
 
@@ -680,7 +681,7 @@ Trying to close a Kiosk and it has items in it.
 
 
 
-<a name="0x2_kiosk_ENotListed"></a>
+<Link id="0x2_kiosk_ENotListed"></Link>
 
 Delisting an item that is not listed.
 
@@ -690,7 +691,7 @@ Delisting an item that is not listed.
 
 
 
-<a name="0x2_kiosk_EUidAccessNotAllowed"></a>
+<Link id="0x2_kiosk_EUidAccessNotAllowed"></Link>
 
 Trying to call <code>uid_mut</code> when <code>allow_extensions</code> set to false.
 
@@ -700,7 +701,7 @@ Trying to call <code>uid_mut</code> when <code>allow_extensions</code> set to fa
 
 
 
-<a name="0x2_kiosk_EWrongKiosk"></a>
+<Link id="0x2_kiosk_EWrongKiosk"></Link>
 
 <code><a href="kiosk.md#0x2_kiosk_PurchaseCap">PurchaseCap</a></code> does not match the <code><a href="kiosk.md#0x2_kiosk_Kiosk">Kiosk</a></code>.
 
@@ -710,7 +711,7 @@ Trying to call <code>uid_mut</code> when <code>allow_extensions</code> set to fa
 
 
 
-<a name="0x2_kiosk_default"></a>
+<Link id="0x2_kiosk_default"></Link>
 
 ## Function `default`
 
@@ -738,7 +739,7 @@ Creates a new Kiosk in a default configuration: sender receives the
 
 </details>
 
-<a name="0x2_kiosk_new"></a>
+<Link id="0x2_kiosk_new"></Link>
 
 ## Function `new`
 
@@ -776,7 +777,7 @@ Creates a new <code><a href="kiosk.md#0x2_kiosk_Kiosk">Kiosk</a></code> with a m
 
 </details>
 
-<a name="0x2_kiosk_close_and_withdraw"></a>
+<Link id="0x2_kiosk_close_and_withdraw"></Link>
 
 ## Function `close_and_withdraw`
 
@@ -814,7 +815,7 @@ case where there's no items inside and a <code><a href="kiosk.md#0x2_kiosk_Kiosk
 
 </details>
 
-<a name="0x2_kiosk_set_owner"></a>
+<Link id="0x2_kiosk_set_owner"></Link>
 
 ## Function `set_owner`
 
@@ -845,7 +846,7 @@ in a third party module.
 
 </details>
 
-<a name="0x2_kiosk_set_owner_custom"></a>
+<Link id="0x2_kiosk_set_owner_custom"></Link>
 
 ## Function `set_owner_custom`
 
@@ -874,7 +875,7 @@ implementing a custom logic that relies on the <code><a href="kiosk.md#0x2_kiosk
 
 </details>
 
-<a name="0x2_kiosk_place"></a>
+<Link id="0x2_kiosk_place"></Link>
 
 ## Function `place`
 
@@ -903,7 +904,7 @@ Performs an authorization check to make sure only owner can do that.
 
 </details>
 
-<a name="0x2_kiosk_lock"></a>
+<Link id="0x2_kiosk_lock"></Link>
 
 ## Function `lock`
 
@@ -936,7 +937,7 @@ and the item can be sold, otherwise the asset might be locked forever.
 
 </details>
 
-<a name="0x2_kiosk_take"></a>
+<Link id="0x2_kiosk_take"></Link>
 
 ## Function `take`
 
@@ -971,7 +972,7 @@ Performs an authorization check to make sure only owner can do that.
 
 </details>
 
-<a name="0x2_kiosk_list"></a>
+<Link id="0x2_kiosk_list"></Link>
 
 ## Function `list`
 
@@ -1004,7 +1005,7 @@ Performs an authorization check to make sure only owner can sell.
 
 </details>
 
-<a name="0x2_kiosk_place_and_list"></a>
+<Link id="0x2_kiosk_place_and_list"></Link>
 
 ## Function `place_and_list`
 
@@ -1033,7 +1034,7 @@ Calls <code>place</code> and <code>list</code> together - simplifies the flow.
 
 </details>
 
-<a name="0x2_kiosk_delist"></a>
+<Link id="0x2_kiosk_delist"></Link>
 
 ## Function `delist`
 
@@ -1067,7 +1068,7 @@ user Kiosk. Can only be performed by the owner of the <code><a href="kiosk.md#0x
 
 </details>
 
-<a name="0x2_kiosk_purchase"></a>
+<Link id="0x2_kiosk_purchase"></Link>
 
 ## Function `purchase`
 
@@ -1110,7 +1111,7 @@ finalized.
 
 </details>
 
-<a name="0x2_kiosk_list_with_purchase_cap"></a>
+<Link id="0x2_kiosk_list_with_purchase_cap"></Link>
 
 ## Function `list_with_purchase_cap`
 
@@ -1149,7 +1150,7 @@ for any price equal or higher than the <code>min_price</code>.
 
 </details>
 
-<a name="0x2_kiosk_purchase_with_cap"></a>
+<Link id="0x2_kiosk_purchase_with_cap"></Link>
 
 ## Function `purchase_with_cap`
 
@@ -1192,7 +1193,7 @@ as the price for the listing making sure it's no less than <code>min_amount</cod
 
 </details>
 
-<a name="0x2_kiosk_return_purchase_cap"></a>
+<Link id="0x2_kiosk_return_purchase_cap"></Link>
 
 ## Function `return_purchase_cap`
 
@@ -1224,7 +1225,7 @@ allow the item for taking. Can only be returned to its <code><a href="kiosk.md#0
 
 </details>
 
-<a name="0x2_kiosk_withdraw"></a>
+<Link id="0x2_kiosk_withdraw"></Link>
 
 ## Function `withdraw`
 
@@ -1261,7 +1262,7 @@ Withdraw profits from the Kiosk.
 
 </details>
 
-<a name="0x2_kiosk_lock_internal"></a>
+<Link id="0x2_kiosk_lock_internal"></Link>
 
 ## Function `lock_internal`
 
@@ -1287,7 +1288,7 @@ Internal: "lock" an item disabling the <code>take</code> action.
 
 </details>
 
-<a name="0x2_kiosk_place_internal"></a>
+<Link id="0x2_kiosk_place_internal"></Link>
 
 ## Function `place_internal`
 
@@ -1313,7 +1314,7 @@ Internal: "place" an item to the Kiosk and increment the item count.
 
 </details>
 
-<a name="0x2_kiosk_uid_mut_internal"></a>
+<Link id="0x2_kiosk_uid_mut_internal"></Link>
 
 ## Function `uid_mut_internal`
 
@@ -1338,7 +1339,7 @@ Internal: get a mutable access to the UID.
 
 </details>
 
-<a name="0x2_kiosk_has_item"></a>
+<Link id="0x2_kiosk_has_item"></Link>
 
 ## Function `has_item`
 
@@ -1363,7 +1364,7 @@ Check whether the <code>item</code> is present in the <code><a href="kiosk.md#0x
 
 </details>
 
-<a name="0x2_kiosk_has_item_with_type"></a>
+<Link id="0x2_kiosk_has_item_with_type"></Link>
 
 ## Function `has_item_with_type`
 
@@ -1388,7 +1389,7 @@ Check whether the <code>item</code> is present in the <code><a href="kiosk.md#0x
 
 </details>
 
-<a name="0x2_kiosk_is_locked"></a>
+<Link id="0x2_kiosk_is_locked"></Link>
 
 ## Function `is_locked`
 
@@ -1415,7 +1416,7 @@ that the only two actions that can be performed on it are <code>list</code> and
 
 </details>
 
-<a name="0x2_kiosk_is_listed"></a>
+<Link id="0x2_kiosk_is_listed"></Link>
 
 ## Function `is_listed`
 
@@ -1441,7 +1442,7 @@ Check whether an <code>item</code> is listed (exclusively or non exclusively).
 
 </details>
 
-<a name="0x2_kiosk_is_listed_exclusively"></a>
+<Link id="0x2_kiosk_is_listed_exclusively"></Link>
 
 ## Function `is_listed_exclusively`
 
@@ -1466,7 +1467,7 @@ Check whether there's a <code><a href="kiosk.md#0x2_kiosk_PurchaseCap">PurchaseC
 
 </details>
 
-<a name="0x2_kiosk_has_access"></a>
+<Link id="0x2_kiosk_has_access"></Link>
 
 ## Function `has_access`
 
@@ -1491,7 +1492,7 @@ Check whether the <code><a href="kiosk.md#0x2_kiosk_KioskOwnerCap">KioskOwnerCap
 
 </details>
 
-<a name="0x2_kiosk_uid_mut_as_owner"></a>
+<Link id="0x2_kiosk_uid_mut_as_owner"></Link>
 
 ## Function `uid_mut_as_owner`
 
@@ -1519,7 +1520,7 @@ Access the <code>UID</code> using the <code><a href="kiosk.md#0x2_kiosk_KioskOwn
 
 </details>
 
-<a name="0x2_kiosk_set_allow_extensions"></a>
+<Link id="0x2_kiosk_set_allow_extensions"></Link>
 
 ## Function `set_allow_extensions`
 
@@ -1549,7 +1550,7 @@ setting.
 
 </details>
 
-<a name="0x2_kiosk_uid"></a>
+<Link id="0x2_kiosk_uid"></Link>
 
 ## Function `uid`
 
@@ -1578,7 +1579,7 @@ its access
 
 </details>
 
-<a name="0x2_kiosk_uid_mut"></a>
+<Link id="0x2_kiosk_uid_mut"></Link>
 
 ## Function `uid_mut`
 
@@ -1605,7 +1606,7 @@ Aborts if <code>allow_extensions</code> set to <code><b>false</b></code>.
 
 </details>
 
-<a name="0x2_kiosk_owner"></a>
+<Link id="0x2_kiosk_owner"></Link>
 
 ## Function `owner`
 
@@ -1630,7 +1631,7 @@ Get the owner of the Kiosk.
 
 </details>
 
-<a name="0x2_kiosk_item_count"></a>
+<Link id="0x2_kiosk_item_count"></Link>
 
 ## Function `item_count`
 
@@ -1655,7 +1656,7 @@ Get the number of items stored in a Kiosk.
 
 </details>
 
-<a name="0x2_kiosk_profits_amount"></a>
+<Link id="0x2_kiosk_profits_amount"></Link>
 
 ## Function `profits_amount`
 
@@ -1680,7 +1681,7 @@ Get the amount of profits collected by selling items.
 
 </details>
 
-<a name="0x2_kiosk_profits_mut"></a>
+<Link id="0x2_kiosk_profits_mut"></Link>
 
 ## Function `profits_mut`
 
@@ -1706,7 +1707,7 @@ Get mutable access to <code>profits</code> - owner only action.
 
 </details>
 
-<a name="0x2_kiosk_borrow"></a>
+<Link id="0x2_kiosk_borrow"></Link>
 
 ## Function `borrow`
 
@@ -1737,7 +1738,7 @@ at any time.
 
 </details>
 
-<a name="0x2_kiosk_borrow_mut"></a>
+<Link id="0x2_kiosk_borrow_mut"></Link>
 
 ## Function `borrow_mut`
 
@@ -1769,7 +1770,7 @@ Item can be <code>borrow_mut</code>ed only if it's not <code>is_listed</code>.
 
 </details>
 
-<a name="0x2_kiosk_borrow_val"></a>
+<Link id="0x2_kiosk_borrow_val"></Link>
 
 ## Function `borrow_val`
 
@@ -1804,7 +1805,7 @@ Item can be <code>borrow_val</code>-ed only if it's not <code>is_listed</code>.
 
 </details>
 
-<a name="0x2_kiosk_return_val"></a>
+<Link id="0x2_kiosk_return_val"></Link>
 
 ## Function `return_val`
 
@@ -1837,7 +1838,7 @@ if <code>borrow_val</code> is used.
 
 </details>
 
-<a name="0x2_kiosk_kiosk_owner_cap_for"></a>
+<Link id="0x2_kiosk_kiosk_owner_cap_for"></Link>
 
 ## Function `kiosk_owner_cap_for`
 
@@ -1862,7 +1863,7 @@ Get the <code>for</code> field of the <code><a href="kiosk.md#0x2_kiosk_KioskOwn
 
 </details>
 
-<a name="0x2_kiosk_purchase_cap_kiosk"></a>
+<Link id="0x2_kiosk_purchase_cap_kiosk"></Link>
 
 ## Function `purchase_cap_kiosk`
 
@@ -1887,7 +1888,7 @@ Get the <code>kiosk_id</code> from the <code><a href="kiosk.md#0x2_kiosk_Purchas
 
 </details>
 
-<a name="0x2_kiosk_purchase_cap_item"></a>
+<Link id="0x2_kiosk_purchase_cap_item"></Link>
 
 ## Function `purchase_cap_item`
 
@@ -1912,7 +1913,7 @@ Get the <code>Item_id</code> from the <code><a href="kiosk.md#0x2_kiosk_Purchase
 
 </details>
 
-<a name="0x2_kiosk_purchase_cap_min_price"></a>
+<Link id="0x2_kiosk_purchase_cap_min_price"></Link>
 
 ## Function `purchase_cap_min_price`
 

@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::dynamic_field`
 ---
+import Link from '@docusaurus/Link';
 
 In addition to the fields declared in its type definition, a Iota object can have dynamic fields
 that can be added after the object has been constructed. Unlike ordinary field names
@@ -36,7 +37,7 @@ building block for core collection types
 
 
 
-<a name="0x2_dynamic_field_Field"></a>
+<Link id="0x2_dynamic_field_Field"></Link>
 
 ## Resource `Field`
 
@@ -77,12 +78,12 @@ Internal object used for storing the field and value
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_dynamic_field_EBCSSerializationFailure"></a>
+<Link id="0x2_dynamic_field_EBCSSerializationFailure"></Link>
 
 Failed to serialize the field's name
 
@@ -92,7 +93,7 @@ Failed to serialize the field's name
 
 
 
-<a name="0x2_dynamic_field_ESharedObjectOperationNotSupported"></a>
+<Link id="0x2_dynamic_field_ESharedObjectOperationNotSupported"></Link>
 
 The object added as a dynamic field was previously a shared object
 
@@ -102,7 +103,7 @@ The object added as a dynamic field was previously a shared object
 
 
 
-<a name="0x2_dynamic_field_EFieldAlreadyExists"></a>
+<Link id="0x2_dynamic_field_EFieldAlreadyExists"></Link>
 
 The object already has a dynamic field with this name (with the value and type specified)
 
@@ -112,7 +113,7 @@ The object already has a dynamic field with this name (with the value and type s
 
 
 
-<a name="0x2_dynamic_field_EFieldDoesNotExist"></a>
+<Link id="0x2_dynamic_field_EFieldDoesNotExist"></Link>
 
 Cannot load dynamic field.
 The object does not have a dynamic field with this name (with the value and type specified)
@@ -123,7 +124,7 @@ The object does not have a dynamic field with this name (with the value and type
 
 
 
-<a name="0x2_dynamic_field_EFieldTypeMismatch"></a>
+<Link id="0x2_dynamic_field_EFieldTypeMismatch"></Link>
 
 The object has a field with that name, but the value type does not match
 
@@ -133,7 +134,7 @@ The object has a field with that name, but the value type does not match
 
 
 
-<a name="0x2_dynamic_field_add"></a>
+<Link id="0x2_dynamic_field_add"></Link>
 
 ## Function `add`
 
@@ -172,7 +173,7 @@ Aborts with <code><a href="../iota-framework/dynamic_field.md#0x2_dynamic_field_
 
 </details>
 
-<a name="0x2_dynamic_field_borrow"></a>
+<Link id="0x2_dynamic_field_borrow"></Link>
 
 ## Function `borrow`
 
@@ -206,7 +207,7 @@ type.
 
 </details>
 
-<a name="0x2_dynamic_field_borrow_mut"></a>
+<Link id="0x2_dynamic_field_borrow_mut"></Link>
 
 ## Function `borrow_mut`
 
@@ -240,7 +241,7 @@ type.
 
 </details>
 
-<a name="0x2_dynamic_field_remove"></a>
+<Link id="0x2_dynamic_field_remove"></Link>
 
 ## Function `remove`
 
@@ -276,7 +277,7 @@ type.
 
 </details>
 
-<a name="0x2_dynamic_field_exists_"></a>
+<Link id="0x2_dynamic_field_exists_"></Link>
 
 ## Function `exists_`
 
@@ -307,7 +308,7 @@ Returns true if and only if the <code><a href="../iota-framework/object.md#0x2_o
 
 </details>
 
-<a name="0x2_dynamic_field_remove_if_exists"></a>
+<Link id="0x2_dynamic_field_remove_if_exists"></Link>
 
 ## Function `remove_if_exists`
 
@@ -339,7 +340,7 @@ Removes the dynamic field if it exists. Returns the <code>some(Value)</code> if 
 
 </details>
 
-<a name="0x2_dynamic_field_exists_with_type"></a>
+<Link id="0x2_dynamic_field_exists_with_type"></Link>
 
 ## Function `exists_with_type`
 
@@ -370,7 +371,7 @@ Returns true if and only if the <code><a href="../iota-framework/object.md#0x2_o
 
 </details>
 
-<a name="0x2_dynamic_field_field_info"></a>
+<Link id="0x2_dynamic_field_field_info"></Link>
 
 ## Function `field_info`
 
@@ -400,7 +401,7 @@ Returns true if and only if the <code><a href="../iota-framework/object.md#0x2_o
 
 </details>
 
-<a name="0x2_dynamic_field_field_info_mut"></a>
+<Link id="0x2_dynamic_field_field_info_mut"></Link>
 
 ## Function `field_info_mut`
 
@@ -430,7 +431,7 @@ Returns true if and only if the <code><a href="../iota-framework/object.md#0x2_o
 
 </details>
 
-<a name="0x2_dynamic_field_hash_type_and_key"></a>
+<Link id="0x2_dynamic_field_hash_type_and_key"></Link>
 
 ## Function `hash_type_and_key`
 
@@ -453,7 +454,7 @@ May abort with <code><a href="../iota-framework/dynamic_field.md#0x2_dynamic_fie
 
 </details>
 
-<a name="0x2_dynamic_field_add_child_object"></a>
+<Link id="0x2_dynamic_field_add_child_object"></Link>
 
 ## Function `add_child_object`
 
@@ -475,7 +476,7 @@ May abort with <code><a href="../iota-framework/dynamic_field.md#0x2_dynamic_fie
 
 </details>
 
-<a name="0x2_dynamic_field_borrow_child_object"></a>
+<Link id="0x2_dynamic_field_borrow_child_object"></Link>
 
 ## Function `borrow_child_object`
 
@@ -501,7 +502,7 @@ we need two versions to return a reference or a mutable reference
 
 </details>
 
-<a name="0x2_dynamic_field_borrow_child_object_mut"></a>
+<Link id="0x2_dynamic_field_borrow_child_object_mut"></Link>
 
 ## Function `borrow_child_object_mut`
 
@@ -523,7 +524,7 @@ we need two versions to return a reference or a mutable reference
 
 </details>
 
-<a name="0x2_dynamic_field_remove_child_object"></a>
+<Link id="0x2_dynamic_field_remove_child_object"></Link>
 
 ## Function `remove_child_object`
 
@@ -548,7 +549,7 @@ and may also abort with <code><a href="../iota-framework/dynamic_field.md#0x2_dy
 
 </details>
 
-<a name="0x2_dynamic_field_has_child_object"></a>
+<Link id="0x2_dynamic_field_has_child_object"></Link>
 
 ## Function `has_child_object`
 
@@ -570,7 +571,7 @@ and may also abort with <code><a href="../iota-framework/dynamic_field.md#0x2_dy
 
 </details>
 
-<a name="0x2_dynamic_field_has_child_object_with_ty"></a>
+<Link id="0x2_dynamic_field_has_child_object_with_ty"></Link>
 
 ## Function `has_child_object_with_ty`
 

@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::package`
 ---
+import Link from '@docusaurus/Link';
 
 Functions for operating on Move packages from within Move:
 - Creating proof-of-publish objects from one-time witnesses
@@ -48,7 +49,7 @@ Functions for operating on Move packages from within Move:
 
 
 
-<a name="0x2_package_Publisher"></a>
+<Link id="0x2_package_Publisher"></Link>
 
 ## Resource `Publisher`
 
@@ -91,7 +92,7 @@ a type originated from.
 
 </details>
 
-<a name="0x2_package_UpgradeCap"></a>
+<Link id="0x2_package_UpgradeCap"></Link>
 
 ## Resource `UpgradeCap`
 
@@ -138,7 +139,7 @@ Capability controlling the ability to upgrade a package.
 
 </details>
 
-<a name="0x2_package_UpgradeTicket"></a>
+<Link id="0x2_package_UpgradeTicket"></Link>
 
 ## Struct `UpgradeTicket`
 
@@ -193,7 +194,7 @@ progress.
 
 </details>
 
-<a name="0x2_package_UpgradeReceipt"></a>
+<Link id="0x2_package_UpgradeReceipt"></Link>
 
 ## Struct `UpgradeReceipt`
 
@@ -230,12 +231,12 @@ the end of the transaction that performed the upgrade.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_package_ADDITIVE"></a>
+<Link id="0x2_package_ADDITIVE"></Link>
 
 Add new functions or types, or change dependencies, existing
 functions can't change.
@@ -246,7 +247,7 @@ functions can't change.
 
 
 
-<a name="0x2_package_COMPATIBLE"></a>
+<Link id="0x2_package_COMPATIBLE"></Link>
 
 Update any part of the package (function implementations, add new
 functions or types, change dependencies)
@@ -257,7 +258,7 @@ functions or types, change dependencies)
 
 
 
-<a name="0x2_package_DEP_ONLY"></a>
+<Link id="0x2_package_DEP_ONLY"></Link>
 
 Only be able to change dependencies.
 
@@ -267,7 +268,7 @@ Only be able to change dependencies.
 
 
 
-<a name="0x2_package_EAlreadyAuthorized"></a>
+<Link id="0x2_package_EAlreadyAuthorized"></Link>
 
 This <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></code> has already authorized a pending upgrade.
 
@@ -277,7 +278,7 @@ This <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></code> has
 
 
 
-<a name="0x2_package_ENotAuthorized"></a>
+<Link id="0x2_package_ENotAuthorized"></Link>
 
 This <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></code> has not authorized an upgrade.
 
@@ -287,7 +288,7 @@ This <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></code> has
 
 
 
-<a name="0x2_package_ENotOneTimeWitness"></a>
+<Link id="0x2_package_ENotOneTimeWitness"></Link>
 
 Tried to create a <code><a href="package.md#0x2_package_Publisher">Publisher</a></code> using a type that isn't a
 one-time witness.
@@ -298,7 +299,7 @@ one-time witness.
 
 
 
-<a name="0x2_package_ETooPermissive"></a>
+<Link id="0x2_package_ETooPermissive"></Link>
 
 Tried to set a less restrictive policy than currently in place.
 
@@ -308,7 +309,7 @@ Tried to set a less restrictive policy than currently in place.
 
 
 
-<a name="0x2_package_EWrongUpgradeCap"></a>
+<Link id="0x2_package_EWrongUpgradeCap"></Link>
 
 Trying to commit an upgrade to the wrong <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></code>.
 
@@ -318,7 +319,7 @@ Trying to commit an upgrade to the wrong <code><a href="package.md#0x2_package_U
 
 
 
-<a name="0x2_package_claim"></a>
+<Link id="0x2_package_claim"></Link>
 
 ## Function `claim`
 
@@ -354,7 +355,7 @@ but multiple per package (!).
 
 </details>
 
-<a name="0x2_package_claim_and_keep"></a>
+<Link id="0x2_package_claim_and_keep"></Link>
 
 ## Function `claim_and_keep`
 
@@ -381,7 +382,7 @@ the sender is the publisher.
 
 </details>
 
-<a name="0x2_package_burn_publisher"></a>
+<Link id="0x2_package_burn_publisher"></Link>
 
 ## Function `burn_publisher`
 
@@ -408,7 +409,7 @@ associated with it.
 
 </details>
 
-<a name="0x2_package_from_package"></a>
+<Link id="0x2_package_from_package"></Link>
 
 ## Function `from_package`
 
@@ -433,7 +434,7 @@ Check whether type belongs to the same package as the publisher object.
 
 </details>
 
-<a name="0x2_package_from_module"></a>
+<Link id="0x2_package_from_module"></Link>
 
 ## Function `from_module`
 
@@ -460,7 +461,7 @@ Check whether a type belongs to the same module as the publisher object.
 
 </details>
 
-<a name="0x2_package_published_module"></a>
+<Link id="0x2_package_published_module"></Link>
 
 ## Function `published_module`
 
@@ -485,7 +486,7 @@ Read the name of the module.
 
 </details>
 
-<a name="0x2_package_published_package"></a>
+<Link id="0x2_package_published_package"></Link>
 
 ## Function `published_package`
 
@@ -510,7 +511,7 @@ Read the package address string.
 
 </details>
 
-<a name="0x2_package_upgrade_package"></a>
+<Link id="0x2_package_upgrade_package"></Link>
 
 ## Function `upgrade_package`
 
@@ -539,7 +540,7 @@ package.
 
 </details>
 
-<a name="0x2_package_version"></a>
+<Link id="0x2_package_version"></Link>
 
 ## Function `version`
 
@@ -565,7 +566,7 @@ successfully applied upgrade.
 
 </details>
 
-<a name="0x2_package_upgrade_policy"></a>
+<Link id="0x2_package_upgrade_policy"></Link>
 
 ## Function `upgrade_policy`
 
@@ -591,7 +592,7 @@ The most permissive kind of upgrade currently supported by this
 
 </details>
 
-<a name="0x2_package_ticket_package"></a>
+<Link id="0x2_package_ticket_package"></Link>
 
 ## Function `ticket_package`
 
@@ -616,7 +617,7 @@ The package that this ticket is authorized to upgrade
 
 </details>
 
-<a name="0x2_package_ticket_policy"></a>
+<Link id="0x2_package_ticket_policy"></Link>
 
 ## Function `ticket_policy`
 
@@ -641,7 +642,7 @@ The kind of upgrade that this ticket authorizes.
 
 </details>
 
-<a name="0x2_package_receipt_cap"></a>
+<Link id="0x2_package_receipt_cap"></Link>
 
 ## Function `receipt_cap`
 
@@ -667,7 +668,7 @@ update.
 
 </details>
 
-<a name="0x2_package_receipt_package"></a>
+<Link id="0x2_package_receipt_package"></Link>
 
 ## Function `receipt_package`
 
@@ -693,7 +694,7 @@ the package, as of the upgrade represented by this <code>receipt</code>.
 
 </details>
 
-<a name="0x2_package_ticket_digest"></a>
+<Link id="0x2_package_ticket_digest"></Link>
 
 ## Function `ticket_digest`
 
@@ -729,7 +730,7 @@ sha3_256(sort(modules ++ deps))
 
 </details>
 
-<a name="0x2_package_compatible_policy"></a>
+<Link id="0x2_package_compatible_policy"></Link>
 
 ## Function `compatible_policy`
 
@@ -752,7 +753,7 @@ Expose the constants representing various upgrade policies
 
 </details>
 
-<a name="0x2_package_additive_policy"></a>
+<Link id="0x2_package_additive_policy"></Link>
 
 ## Function `additive_policy`
 
@@ -774,7 +775,7 @@ Expose the constants representing various upgrade policies
 
 </details>
 
-<a name="0x2_package_dep_only_policy"></a>
+<Link id="0x2_package_dep_only_policy"></Link>
 
 ## Function `dep_only_policy`
 
@@ -796,7 +797,7 @@ Expose the constants representing various upgrade policies
 
 </details>
 
-<a name="0x2_package_only_additive_upgrades"></a>
+<Link id="0x2_package_only_additive_upgrades"></Link>
 
 ## Function `only_additive_upgrades`
 
@@ -822,7 +823,7 @@ change dependencies.
 
 </details>
 
-<a name="0x2_package_only_dep_upgrades"></a>
+<Link id="0x2_package_only_dep_upgrades"></Link>
 
 ## Function `only_dep_upgrades`
 
@@ -848,7 +849,7 @@ dependencies.
 
 </details>
 
-<a name="0x2_package_make_immutable"></a>
+<Link id="0x2_package_make_immutable"></Link>
 
 ## Function `make_immutable`
 
@@ -874,7 +875,7 @@ Discard the <code><a href="package.md#0x2_package_UpgradeCap">UpgradeCap</a></co
 
 </details>
 
-<a name="0x2_package_authorize_upgrade"></a>
+<Link id="0x2_package_authorize_upgrade"></Link>
 
 ## Function `authorize_upgrade`
 
@@ -924,7 +925,7 @@ for the upgrade to succeed.
 
 </details>
 
-<a name="0x2_package_commit_upgrade"></a>
+<Link id="0x2_package_commit_upgrade"></Link>
 
 ## Function `commit_upgrade`
 
@@ -959,7 +960,7 @@ the upgrade.
 
 </details>
 
-<a name="0x2_package_restrict"></a>
+<Link id="0x2_package_restrict"></Link>
 
 ## Function `restrict`
 

@@ -1,6 +1,7 @@
 ---
 title: Module `0x1::option`
 ---
+import Link from '@docusaurus/Link';
 
 This module defines the Option type and its methods to represent and handle an optional value.
 
@@ -31,7 +32,7 @@ This module defines the Option type and its methods to represent and handle an o
 
 
 
-<a name="0x1_option_Option"></a>
+<Link id="0x1_option_Option"></Link>
 
 ## Struct `Option`
 
@@ -60,12 +61,12 @@ zero or one because Move bytecode does not have ADTs.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x1_option_EOPTION_IS_SET"></a>
+<Link id="0x1_option_EOPTION_IS_SET"></Link>
 
 The <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a></code> is in an invalid state for the operation attempted.
 The <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a></code> is <code>Some</code> while it should be <code>None</code>.
@@ -76,7 +77,7 @@ The <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a></code>
 
 
 
-<a name="0x1_option_EOPTION_NOT_SET"></a>
+<Link id="0x1_option_EOPTION_NOT_SET"></Link>
 
 The <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a></code> is in an invalid state for the operation attempted.
 The <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a></code> is <code>None</code> while it should be <code>Some</code>.
@@ -87,7 +88,7 @@ The <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a></code>
 
 
 
-<a name="0x1_option_none"></a>
+<Link id="0x1_option_none"></Link>
 
 ## Function `none`
 
@@ -112,7 +113,7 @@ Return an empty <code><a href="../move-stdlib/option.md#0x1_option_Option">Optio
 
 </details>
 
-<a name="0x1_option_some"></a>
+<Link id="0x1_option_some"></Link>
 
 ## Function `some`
 
@@ -137,7 +138,7 @@ Return an <code><a href="../move-stdlib/option.md#0x1_option_Option">Option</a><
 
 </details>
 
-<a name="0x1_option_is_none"></a>
+<Link id="0x1_option_is_none"></Link>
 
 ## Function `is_none`
 
@@ -162,7 +163,7 @@ Return true if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_is_some"></a>
+<Link id="0x1_option_is_some"></Link>
 
 ## Function `is_some`
 
@@ -187,7 +188,7 @@ Return true if <code>t</code> holds a value
 
 </details>
 
-<a name="0x1_option_contains"></a>
+<Link id="0x1_option_contains"></Link>
 
 ## Function `contains`
 
@@ -213,7 +214,7 @@ Always returns <code><b>false</b></code> if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_borrow"></a>
+<Link id="0x1_option_borrow"></Link>
 
 ## Function `borrow`
 
@@ -240,7 +241,7 @@ Aborts if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_borrow_with_default"></a>
+<Link id="0x1_option_borrow_with_default"></Link>
 
 ## Function `borrow_with_default`
 
@@ -268,7 +269,7 @@ Return <code>default_ref</code> if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_get_with_default"></a>
+<Link id="0x1_option_get_with_default"></Link>
 
 ## Function `get_with_default`
 
@@ -299,7 +300,7 @@ Return <code>default</code> if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_fill"></a>
+<Link id="0x1_option_fill"></Link>
 
 ## Function `fill`
 
@@ -327,7 +328,7 @@ Aborts if <code>t</code> already holds a value
 
 </details>
 
-<a name="0x1_option_extract"></a>
+<Link id="0x1_option_extract"></Link>
 
 ## Function `extract`
 
@@ -354,7 +355,7 @@ Aborts if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_borrow_mut"></a>
+<Link id="0x1_option_borrow_mut"></Link>
 
 ## Function `borrow_mut`
 
@@ -381,7 +382,7 @@ Aborts if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_swap"></a>
+<Link id="0x1_option_swap"></Link>
 
 ## Function `swap`
 
@@ -411,7 +412,7 @@ Aborts if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_swap_or_fill"></a>
+<Link id="0x1_option_swap_or_fill"></Link>
 
 ## Function `swap_or_fill`
 
@@ -442,7 +443,7 @@ Different from swap(), swap_or_fill() allows for <code>t</code> not holding a va
 
 </details>
 
-<a name="0x1_option_destroy_with_default"></a>
+<Link id="0x1_option_destroy_with_default"></Link>
 
 ## Function `destroy_with_default`
 
@@ -469,7 +470,7 @@ Destroys <code>t.</code> If <code>t</code> holds a value, return it. Returns <co
 
 </details>
 
-<a name="0x1_option_destroy_some"></a>
+<Link id="0x1_option_destroy_some"></Link>
 
 ## Function `destroy_some`
 
@@ -499,7 +500,7 @@ Aborts if <code>t</code> does not hold a value
 
 </details>
 
-<a name="0x1_option_destroy_none"></a>
+<Link id="0x1_option_destroy_none"></Link>
 
 ## Function `destroy_none`
 
@@ -527,7 +528,7 @@ Aborts if <code>t</code> holds a value
 
 </details>
 
-<a name="0x1_option_to_vec"></a>
+<Link id="0x1_option_to_vec"></Link>
 
 ## Function `to_vec`
 

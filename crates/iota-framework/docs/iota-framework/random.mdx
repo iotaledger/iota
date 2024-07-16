@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::random`
 ---
+import Link from '@docusaurus/Link';
 
 This module provides functionality for generating secure randomness.
 
@@ -46,7 +47,7 @@ This module provides functionality for generating secure randomness.
 
 
 
-<a name="0x2_random_Random"></a>
+<Link id="0x2_random_Random"></Link>
 
 ## Resource `Random`
 
@@ -81,7 +82,7 @@ The actual state is stored in a versioned inner field.
 
 </details>
 
-<a name="0x2_random_RandomInner"></a>
+<Link id="0x2_random_RandomInner"></Link>
 
 ## Struct `RandomInner`
 
@@ -126,7 +127,7 @@ The actual state is stored in a versioned inner field.
 
 </details>
 
-<a name="0x2_random_RandomGenerator"></a>
+<Link id="0x2_random_RandomGenerator"></Link>
 
 ## Struct `RandomGenerator`
 
@@ -166,12 +167,12 @@ Unique randomness generator, derived from the global randomness.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_random_ENotSystemAddress"></a>
+<Link id="0x2_random_ENotSystemAddress"></Link>
 
 
 
@@ -180,7 +181,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_EWrongInnerVersion"></a>
+<Link id="0x2_random_EWrongInnerVersion"></Link>
 
 
 
@@ -189,7 +190,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_CURRENT_VERSION"></a>
+<Link id="0x2_random_CURRENT_VERSION"></Link>
 
 
 
@@ -198,7 +199,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_EInvalidLength"></a>
+<Link id="0x2_random_EInvalidLength"></Link>
 
 
 
@@ -207,7 +208,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_EInvalidRandomnessUpdate"></a>
+<Link id="0x2_random_EInvalidRandomnessUpdate"></Link>
 
 
 
@@ -216,7 +217,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_EInvalidRange"></a>
+<Link id="0x2_random_EInvalidRange"></Link>
 
 
 
@@ -225,7 +226,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_RAND_OUTPUT_LEN"></a>
+<Link id="0x2_random_RAND_OUTPUT_LEN"></Link>
 
 
 
@@ -234,7 +235,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_U16_MAX"></a>
+<Link id="0x2_random_U16_MAX"></Link>
 
 
 
@@ -243,7 +244,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 
-<a name="0x2_random_create"></a>
+<Link id="0x2_random_create"></Link>
 
 ## Function `create`
 
@@ -285,7 +286,7 @@ Can only be called by genesis or change_epoch transactions.
 
 </details>
 
-<a name="0x2_random_load_inner_mut"></a>
+<Link id="0x2_random_load_inner_mut"></Link>
 
 ## Function `load_inner_mut`
 
@@ -317,7 +318,7 @@ Can only be called by genesis or change_epoch transactions.
 
 </details>
 
-<a name="0x2_random_load_inner"></a>
+<Link id="0x2_random_load_inner"></Link>
 
 ## Function `load_inner`
 
@@ -349,7 +350,7 @@ Can only be called by genesis or change_epoch transactions.
 
 </details>
 
-<a name="0x2_random_update_randomness_state"></a>
+<Link id="0x2_random_update_randomness_state"></Link>
 
 ## Function `update_randomness_state`
 
@@ -402,7 +403,7 @@ transaction.
 
 </details>
 
-<a name="0x2_random_new_generator"></a>
+<Link id="0x2_random_new_generator"></Link>
 
 ## Function `new_generator`
 
@@ -432,7 +433,7 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 </details>
 
-<a name="0x2_random_derive_next_block"></a>
+<Link id="0x2_random_derive_next_block"></Link>
 
 ## Function `derive_next_block`
 
@@ -457,7 +458,7 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 </details>
 
-<a name="0x2_random_fill_buffer"></a>
+<Link id="0x2_random_fill_buffer"></Link>
 
 ## Function `fill_buffer`
 
@@ -482,7 +483,7 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 </details>
 
-<a name="0x2_random_generate_bytes"></a>
+<Link id="0x2_random_generate_bytes"></Link>
 
 ## Function `generate_bytes`
 
@@ -523,7 +524,7 @@ Generate n random bytes.
 
 </details>
 
-<a name="0x2_random_u256_from_bytes"></a>
+<Link id="0x2_random_u256_from_bytes"></Link>
 
 ## Function `u256_from_bytes`
 
@@ -557,7 +558,7 @@ Generate n random bytes.
 
 </details>
 
-<a name="0x2_random_generate_u256"></a>
+<Link id="0x2_random_generate_u256"></Link>
 
 ## Function `generate_u256`
 
@@ -582,7 +583,7 @@ Generate a u256.
 
 </details>
 
-<a name="0x2_random_generate_u128"></a>
+<Link id="0x2_random_generate_u128"></Link>
 
 ## Function `generate_u128`
 
@@ -607,7 +608,7 @@ Generate a u128.
 
 </details>
 
-<a name="0x2_random_generate_u64"></a>
+<Link id="0x2_random_generate_u64"></Link>
 
 ## Function `generate_u64`
 
@@ -632,7 +633,7 @@ Generate a u64.
 
 </details>
 
-<a name="0x2_random_generate_u32"></a>
+<Link id="0x2_random_generate_u32"></Link>
 
 ## Function `generate_u32`
 
@@ -657,7 +658,7 @@ Generate a u32.
 
 </details>
 
-<a name="0x2_random_generate_u16"></a>
+<Link id="0x2_random_generate_u16"></Link>
 
 ## Function `generate_u16`
 
@@ -682,7 +683,7 @@ Generate a u16.
 
 </details>
 
-<a name="0x2_random_generate_u8"></a>
+<Link id="0x2_random_generate_u8"></Link>
 
 ## Function `generate_u8`
 
@@ -707,7 +708,7 @@ Generate a u8.
 
 </details>
 
-<a name="0x2_random_generate_bool"></a>
+<Link id="0x2_random_generate_bool"></Link>
 
 ## Function `generate_bool`
 
@@ -732,7 +733,7 @@ Generate a boolean.
 
 </details>
 
-<a name="0x2_random_u128_in_range"></a>
+<Link id="0x2_random_u128_in_range"></Link>
 
 ## Function `u128_in_range`
 
@@ -765,7 +766,7 @@ Generate a boolean.
 
 </details>
 
-<a name="0x2_random_generate_u128_in_range"></a>
+<Link id="0x2_random_generate_u128_in_range"></Link>
 
 ## Function `generate_u128_in_range`
 
@@ -790,7 +791,7 @@ Generate a random u128 in [min, max] (with a bias of 2^{-64}).
 
 </details>
 
-<a name="0x2_random_generate_u64_in_range"></a>
+<Link id="0x2_random_generate_u64_in_range"></Link>
 
 ## Function `generate_u64_in_range`
 
@@ -814,7 +815,7 @@ Generate a random u128 in [min, max] (with a bias of 2^{-64}).
 
 </details>
 
-<a name="0x2_random_generate_u32_in_range"></a>
+<Link id="0x2_random_generate_u32_in_range"></Link>
 
 ## Function `generate_u32_in_range`
 
@@ -839,7 +840,7 @@ Generate a random u32 in [min, max] (with a bias of 2^{-64}).
 
 </details>
 
-<a name="0x2_random_generate_u16_in_range"></a>
+<Link id="0x2_random_generate_u16_in_range"></Link>
 
 ## Function `generate_u16_in_range`
 
@@ -864,7 +865,7 @@ Generate a random u16 in [min, max] (with a bias of 2^{-64}).
 
 </details>
 
-<a name="0x2_random_generate_u8_in_range"></a>
+<Link id="0x2_random_generate_u8_in_range"></Link>
 
 ## Function `generate_u8_in_range`
 
@@ -889,7 +890,7 @@ Generate a random u8 in [min, max] (with a bias of 2^{-64}).
 
 </details>
 
-<a name="0x2_random_shuffle"></a>
+<Link id="0x2_random_shuffle"></Link>
 
 ## Function `shuffle`
 

@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::coin`
 ---
+import Link from '@docusaurus/Link';
 
 Defines the <code><a href="../iota-framework/coin.md#0x2_coin_Coin">Coin</a></code> type - platform wide representation of fungible
 tokens and coins. <code><a href="../iota-framework/coin.md#0x2_coin_Coin">Coin</a></code> can be described as a secure wrapper around
@@ -66,7 +67,7 @@ tokens and coins. <code><a href="../iota-framework/coin.md#0x2_coin_Coin">Coin</
 
 
 
-<a name="0x2_coin_Coin"></a>
+<Link id="0x2_coin_Coin"></Link>
 
 ## Resource `Coin`
 
@@ -100,7 +101,7 @@ A coin of type <code>T</code> worth <code>value</code>. Transferable and storabl
 
 </details>
 
-<a name="0x2_coin_CoinMetadata"></a>
+<Link id="0x2_coin_CoinMetadata"></Link>
 
 ## Resource `CoinMetadata`
 
@@ -162,7 +163,7 @@ unique instance of CoinMetadata<T> that stores the metadata for this coin type.
 
 </details>
 
-<a name="0x2_coin_RegulatedCoinMetadata"></a>
+<Link id="0x2_coin_RegulatedCoinMetadata"></Link>
 
 ## Resource `RegulatedCoinMetadata`
 
@@ -203,7 +204,7 @@ This object is always immutable.
 
 </details>
 
-<a name="0x2_coin_TreasuryCap"></a>
+<Link id="0x2_coin_TreasuryCap"></Link>
 
 ## Resource `TreasuryCap`
 
@@ -238,7 +239,7 @@ coins of type <code>T</code>. Transferable
 
 </details>
 
-<a name="0x2_coin_DenyCap"></a>
+<Link id="0x2_coin_DenyCap"></Link>
 
 ## Resource `DenyCap`
 
@@ -267,7 +268,7 @@ interacting with the coin as an input to a transaction.
 
 </details>
 
-<a name="0x2_coin_CurrencyCreated"></a>
+<Link id="0x2_coin_CurrencyCreated"></Link>
 
 ## Struct `CurrencyCreated`
 
@@ -294,12 +295,12 @@ interacting with the coin as an input to a transaction.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_coin_ENotEnough"></a>
+<Link id="0x2_coin_ENotEnough"></Link>
 
 Trying to split a coin more times than its balance allows.
 
@@ -309,7 +310,7 @@ Trying to split a coin more times than its balance allows.
 
 
 
-<a name="0x2_coin_DENY_LIST_COIN_INDEX"></a>
+<Link id="0x2_coin_DENY_LIST_COIN_INDEX"></Link>
 
 The index into the deny list vector for the <code>iota::coin::Coin</code> type.
 
@@ -319,7 +320,7 @@ The index into the deny list vector for the <code>iota::coin::Coin</code> type.
 
 
 
-<a name="0x2_coin_EBadWitness"></a>
+<Link id="0x2_coin_EBadWitness"></Link>
 
 A type passed to create_supply is not a one-time witness.
 
@@ -329,7 +330,7 @@ A type passed to create_supply is not a one-time witness.
 
 
 
-<a name="0x2_coin_EInvalidArg"></a>
+<Link id="0x2_coin_EInvalidArg"></Link>
 
 Invalid arguments are passed to a function.
 
@@ -339,7 +340,7 @@ Invalid arguments are passed to a function.
 
 
 
-<a name="0x2_coin_total_supply"></a>
+<Link id="0x2_coin_total_supply"></Link>
 
 ## Function `total_supply`
 
@@ -364,7 +365,7 @@ Return the total number of <code>T</code>'s in circulation.
 
 </details>
 
-<a name="0x2_coin_treasury_into_supply"></a>
+<Link id="0x2_coin_treasury_into_supply"></Link>
 
 ## Function `treasury_into_supply`
 
@@ -394,7 +395,7 @@ to different security guarantees (TreasuryCap can be created only once for a typ
 
 </details>
 
-<a name="0x2_coin_supply_immut"></a>
+<Link id="0x2_coin_supply_immut"></Link>
 
 ## Function `supply_immut`
 
@@ -419,7 +420,7 @@ Get immutable reference to the treasury's <code>Supply</code>.
 
 </details>
 
-<a name="0x2_coin_supply_mut"></a>
+<Link id="0x2_coin_supply_mut"></Link>
 
 ## Function `supply_mut`
 
@@ -444,7 +445,7 @@ Get mutable reference to the treasury's <code>Supply</code>.
 
 </details>
 
-<a name="0x2_coin_value"></a>
+<Link id="0x2_coin_value"></Link>
 
 ## Function `value`
 
@@ -469,7 +470,7 @@ Public getter for the coin's value
 
 </details>
 
-<a name="0x2_coin_balance"></a>
+<Link id="0x2_coin_balance"></Link>
 
 ## Function `balance`
 
@@ -494,7 +495,7 @@ Get immutable reference to the balance of a coin.
 
 </details>
 
-<a name="0x2_coin_balance_mut"></a>
+<Link id="0x2_coin_balance_mut"></Link>
 
 ## Function `balance_mut`
 
@@ -519,7 +520,7 @@ Get a mutable reference to the balance of a coin.
 
 </details>
 
-<a name="0x2_coin_from_balance"></a>
+<Link id="0x2_coin_from_balance"></Link>
 
 ## Function `from_balance`
 
@@ -544,7 +545,7 @@ Wrap a balance into a Coin to make it transferable.
 
 </details>
 
-<a name="0x2_coin_into_balance"></a>
+<Link id="0x2_coin_into_balance"></Link>
 
 ## Function `into_balance`
 
@@ -571,7 +572,7 @@ Destruct a Coin wrapper and keep the balance.
 
 </details>
 
-<a name="0x2_coin_take"></a>
+<Link id="0x2_coin_take"></Link>
 
 ## Function `take`
 
@@ -602,7 +603,7 @@ Aborts if <code>value &gt; <a href="../iota-framework/balance.md#0x2_balance">ba
 
 </details>
 
-<a name="0x2_coin_put"></a>
+<Link id="0x2_coin_put"></Link>
 
 ## Function `put`
 
@@ -627,7 +628,7 @@ Put a <code><a href="../iota-framework/coin.md#0x2_coin_Coin">Coin</a>&lt;T&gt;<
 
 </details>
 
-<a name="0x2_coin_join"></a>
+<Link id="0x2_coin_join"></Link>
 
 ## Function `join`
 
@@ -655,7 +656,7 @@ Aborts if <code>c.value + self.value &gt; U64_MAX</code>
 
 </details>
 
-<a name="0x2_coin_split"></a>
+<Link id="0x2_coin_split"></Link>
 
 ## Function `split`
 
@@ -683,7 +684,7 @@ and the remaining balance is left is <code>self</code>.
 
 </details>
 
-<a name="0x2_coin_divide_into_n"></a>
+<Link id="0x2_coin_divide_into_n"></Link>
 
 ## Function `divide_into_n`
 
@@ -721,7 +722,7 @@ Split coin <code>self</code> into <code>n - 1</code> coins with equal balances. 
 
 </details>
 
-<a name="0x2_coin_zero"></a>
+<Link id="0x2_coin_zero"></Link>
 
 ## Function `zero`
 
@@ -747,7 +748,7 @@ bids/payments or preemptively making empty balances.
 
 </details>
 
-<a name="0x2_coin_destroy_zero"></a>
+<Link id="0x2_coin_destroy_zero"></Link>
 
 ## Function `destroy_zero`
 
@@ -774,7 +775,7 @@ Destroy a coin with value zero
 
 </details>
 
-<a name="0x2_coin_create_currency"></a>
+<Link id="0x2_coin_create_currency"></Link>
 
 ## Function `create_currency`
 
@@ -825,7 +826,7 @@ type, ensuring that there's only one <code><a href="../iota-framework/coin.md#0x
 
 </details>
 
-<a name="0x2_coin_create_regulated_currency"></a>
+<Link id="0x2_coin_create_regulated_currency"></Link>
 
 ## Function `create_regulated_currency`
 
@@ -877,7 +878,7 @@ with the coin as input objects.
 
 </details>
 
-<a name="0x2_coin_mint"></a>
+<Link id="0x2_coin_mint"></Link>
 
 ## Function `mint`
 
@@ -908,7 +909,7 @@ in <code>cap</code> accordingly.
 
 </details>
 
-<a name="0x2_coin_mint_balance"></a>
+<Link id="0x2_coin_mint_balance"></Link>
 
 ## Function `mint_balance`
 
@@ -937,7 +938,7 @@ Aborts if <code>value</code> + <code>cap.total_supply</code> >= U64_MAX
 
 </details>
 
-<a name="0x2_coin_burn"></a>
+<Link id="0x2_coin_burn"></Link>
 
 ## Function `burn`
 
@@ -965,7 +966,7 @@ accordingly.
 
 </details>
 
-<a name="0x2_coin_deny_list_add"></a>
+<Link id="0x2_coin_deny_list_add"></Link>
 
 ## Function `deny_list_add`
 
@@ -1003,7 +1004,7 @@ from interacting with the specified coin type as an input to a transaction.
 
 </details>
 
-<a name="0x2_coin_deny_list_remove"></a>
+<Link id="0x2_coin_deny_list_remove"></Link>
 
 ## Function `deny_list_remove`
 
@@ -1041,7 +1042,7 @@ Aborts with <code>ENotFrozen</code> if the address is not already in the list.
 
 </details>
 
-<a name="0x2_coin_deny_list_contains"></a>
+<Link id="0x2_coin_deny_list_contains"></Link>
 
 ## Function `deny_list_contains`
 
@@ -1074,7 +1075,7 @@ return false if given a non-coin type.
 
 </details>
 
-<a name="0x2_coin_mint_and_transfer"></a>
+<Link id="0x2_coin_mint_and_transfer"></Link>
 
 ## Function `mint_and_transfer`
 
@@ -1101,7 +1102,7 @@ Mint <code>amount</code> of <code><a href="../iota-framework/coin.md#0x2_coin_Co
 
 </details>
 
-<a name="0x2_coin_update_name"></a>
+<Link id="0x2_coin_update_name"></Link>
 
 ## Function `update_name`
 
@@ -1128,7 +1129,7 @@ Update name of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_Coi
 
 </details>
 
-<a name="0x2_coin_update_symbol"></a>
+<Link id="0x2_coin_update_symbol"></Link>
 
 ## Function `update_symbol`
 
@@ -1155,7 +1156,7 @@ Update the symbol of the coin in <code><a href="../iota-framework/coin.md#0x2_co
 
 </details>
 
-<a name="0x2_coin_update_description"></a>
+<Link id="0x2_coin_update_description"></Link>
 
 ## Function `update_description`
 
@@ -1182,7 +1183,7 @@ Update the description of the coin in <code><a href="../iota-framework/coin.md#0
 
 </details>
 
-<a name="0x2_coin_update_icon_url"></a>
+<Link id="0x2_coin_update_icon_url"></Link>
 
 ## Function `update_icon_url`
 
@@ -1209,7 +1210,7 @@ Update the url of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_
 
 </details>
 
-<a name="0x2_coin_get_decimals"></a>
+<Link id="0x2_coin_get_decimals"></Link>
 
 ## Function `get_decimals`
 
@@ -1233,7 +1234,7 @@ Update the url of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_
 
 </details>
 
-<a name="0x2_coin_get_name"></a>
+<Link id="0x2_coin_get_name"></Link>
 
 ## Function `get_name`
 
@@ -1257,7 +1258,7 @@ Update the url of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_
 
 </details>
 
-<a name="0x2_coin_get_symbol"></a>
+<Link id="0x2_coin_get_symbol"></Link>
 
 ## Function `get_symbol`
 
@@ -1281,7 +1282,7 @@ Update the url of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_
 
 </details>
 
-<a name="0x2_coin_get_description"></a>
+<Link id="0x2_coin_get_description"></Link>
 
 ## Function `get_description`
 
@@ -1305,7 +1306,7 @@ Update the url of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_
 
 </details>
 
-<a name="0x2_coin_get_icon_url"></a>
+<Link id="0x2_coin_get_icon_url"></Link>
 
 ## Function `get_icon_url`
 
@@ -1329,7 +1330,7 @@ Update the url of the coin in <code><a href="../iota-framework/coin.md#0x2_coin_
 
 </details>
 
-<a name="0x2_coin_supply"></a>
+<Link id="0x2_coin_supply"></Link>
 
 ## Function `supply`
 

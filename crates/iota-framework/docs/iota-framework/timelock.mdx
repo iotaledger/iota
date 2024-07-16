@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::timelock`
 ---
+import Link from '@docusaurus/Link';
 
 A timelock implementation.
 
@@ -47,7 +48,7 @@ A timelock implementation.
 
 
 
-<a name="0x2_timelock_TimeLock"></a>
+<Link id="0x2_timelock_TimeLock"></Link>
 
 ## Resource `TimeLock`
 
@@ -93,7 +94,7 @@ A timelock implementation.
 
 </details>
 
-<a name="0x2_timelock_SystemTimelockCap"></a>
+<Link id="0x2_timelock_SystemTimelockCap"></Link>
 
 ## Struct `SystemTimelockCap`
 
@@ -121,12 +122,12 @@ A timelock implementation.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_timelock_ENotSystemAddress"></a>
+<Link id="0x2_timelock_ENotSystemAddress"></Link>
 
 Sender is not @0x0 the system address.
 
@@ -136,7 +137,7 @@ Sender is not @0x0 the system address.
 
 
 
-<a name="0x2_timelock_EDifferentExpirationTime"></a>
+<Link id="0x2_timelock_EDifferentExpirationTime"></Link>
 
 For when trying to join two time-locked balances with different expiration time.
 
@@ -146,7 +147,7 @@ For when trying to join two time-locked balances with different expiration time.
 
 
 
-<a name="0x2_timelock_EDifferentLabels"></a>
+<Link id="0x2_timelock_EDifferentLabels"></Link>
 
 For when trying to join two time-locked balances with different labels.
 
@@ -156,7 +157,7 @@ For when trying to join two time-locked balances with different labels.
 
 
 
-<a name="0x2_timelock_EExpireEpochIsPast"></a>
+<Link id="0x2_timelock_EExpireEpochIsPast"></Link>
 
 Expiration timestamp of the lock is in the past.
 
@@ -166,7 +167,7 @@ Expiration timestamp of the lock is in the past.
 
 
 
-<a name="0x2_timelock_ENotCalledAtGenesis"></a>
+<Link id="0x2_timelock_ENotCalledAtGenesis"></Link>
 
 The <code>new</code> function was called at a non-genesis epoch.
 
@@ -176,7 +177,7 @@ The <code>new</code> function was called at a non-genesis epoch.
 
 
 
-<a name="0x2_timelock_ENotExpiredYet"></a>
+<Link id="0x2_timelock_ENotExpiredYet"></Link>
 
 The lock has not expired yet.
 
@@ -186,7 +187,7 @@ The lock has not expired yet.
 
 
 
-<a name="0x2_timelock_lock"></a>
+<Link id="0x2_timelock_lock"></Link>
 
 ## Function `lock`
 
@@ -215,7 +216,7 @@ Function to lock an object till a unix timestamp in milliseconds.
 
 </details>
 
-<a name="0x2_timelock_lock_with_label"></a>
+<Link id="0x2_timelock_lock_with_label"></Link>
 
 ## Function `lock_with_label`
 
@@ -252,7 +253,7 @@ Function to lock a labeled object till a unix timestamp in milliseconds.
 
 </details>
 
-<a name="0x2_timelock_lock_and_transfer"></a>
+<Link id="0x2_timelock_lock_and_transfer"></Link>
 
 ## Function `lock_and_transfer`
 
@@ -283,7 +284,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
 
 </details>
 
-<a name="0x2_timelock_lock_with_label_and_transfer"></a>
+<Link id="0x2_timelock_lock_with_label_and_transfer"></Link>
 
 ## Function `lock_with_label_and_transfer`
 
@@ -315,7 +316,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
 
 </details>
 
-<a name="0x2_timelock_unlock"></a>
+<Link id="0x2_timelock_unlock"></Link>
 
 ## Function `unlock`
 
@@ -346,7 +347,7 @@ Function to unlock the object from a <code><a href="../iota-framework/timelock.m
 
 </details>
 
-<a name="0x2_timelock_join"></a>
+<Link id="0x2_timelock_join"></Link>
 
 ## Function `join`
 
@@ -379,7 +380,7 @@ Join two <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">Tim
 
 </details>
 
-<a name="0x2_timelock_join_vec"></a>
+<Link id="0x2_timelock_join_vec"></Link>
 
 ## Function `join_vec`
 
@@ -415,7 +416,7 @@ Join everything in <code>others</code> with <code>self</code>.
 
 </details>
 
-<a name="0x2_timelock_split"></a>
+<Link id="0x2_timelock_split"></Link>
 
 ## Function `split`
 
@@ -444,7 +445,7 @@ Split a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">Time
 
 </details>
 
-<a name="0x2_timelock_split_balance"></a>
+<Link id="0x2_timelock_split_balance"></Link>
 
 ## Function `split_balance`
 
@@ -470,7 +471,7 @@ and transfer the newly split part to the sender address.
 
 </details>
 
-<a name="0x2_timelock_transfer_to_sender"></a>
+<Link id="0x2_timelock_transfer_to_sender"></Link>
 
 ## Function `transfer_to_sender`
 
@@ -495,7 +496,7 @@ A utility function to transfer a <code><a href="../iota-framework/timelock.md#0x
 
 </details>
 
-<a name="0x2_timelock_system_pack"></a>
+<Link id="0x2_timelock_system_pack"></Link>
 
 ## Function `system_pack`
 
@@ -526,7 +527,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 
 </details>
 
-<a name="0x2_timelock_system_unpack"></a>
+<Link id="0x2_timelock_system_unpack"></Link>
 
 ## Function `system_unpack`
 
@@ -551,7 +552,7 @@ An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2
 
 </details>
 
-<a name="0x2_timelock_type_name"></a>
+<Link id="0x2_timelock_type_name"></Link>
 
 ## Function `type_name`
 
@@ -577,7 +578,7 @@ that is used as type related a label value.
 
 </details>
 
-<a name="0x2_timelock_expiration_timestamp_ms"></a>
+<Link id="0x2_timelock_expiration_timestamp_ms"></Link>
 
 ## Function `expiration_timestamp_ms`
 
@@ -602,7 +603,7 @@ Function to get the expiration timestamp of a <code><a href="../iota-framework/t
 
 </details>
 
-<a name="0x2_timelock_is_locked"></a>
+<Link id="0x2_timelock_is_locked"></Link>
 
 ## Function `is_locked`
 
@@ -627,7 +628,7 @@ Function to check if a <code><a href="../iota-framework/timelock.md#0x2_timelock
 
 </details>
 
-<a name="0x2_timelock_remaining_time"></a>
+<Link id="0x2_timelock_remaining_time"></Link>
 
 ## Function `remaining_time`
 
@@ -662,7 +663,7 @@ Returns 0 if the lock has expired.
 
 </details>
 
-<a name="0x2_timelock_locked"></a>
+<Link id="0x2_timelock_locked"></Link>
 
 ## Function `locked`
 
@@ -687,7 +688,7 @@ Function to get the locked object of a <code><a href="../iota-framework/timelock
 
 </details>
 
-<a name="0x2_timelock_label"></a>
+<Link id="0x2_timelock_label"></Link>
 
 ## Function `label`
 
@@ -712,7 +713,7 @@ Function to get the label of a <code><a href="../iota-framework/timelock.md#0x2_
 
 </details>
 
-<a name="0x2_timelock_is_labeled_with"></a>
+<Link id="0x2_timelock_is_labeled_with"></Link>
 
 ## Function `is_labeled_with`
 
@@ -742,7 +743,7 @@ Check if a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">T
 
 </details>
 
-<a name="0x2_timelock_pack"></a>
+<Link id="0x2_timelock_pack"></Link>
 
 ## Function `pack`
 
@@ -778,7 +779,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 
 </details>
 
-<a name="0x2_timelock_unpack"></a>
+<Link id="0x2_timelock_unpack"></Link>
 
 ## Function `unpack`
 
@@ -814,7 +815,7 @@ An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2
 
 </details>
 
-<a name="0x2_timelock_transfer"></a>
+<Link id="0x2_timelock_transfer"></Link>
 
 ## Function `transfer`
 
@@ -839,7 +840,7 @@ A utility function to transfer a <code><a href="../iota-framework/timelock.md#0x
 
 </details>
 
-<a name="0x2_timelock_check_expiration_timestamp_ms"></a>
+<Link id="0x2_timelock_check_expiration_timestamp_ms"></Link>
 
 ## Function `check_expiration_timestamp_ms`
 
@@ -868,7 +869,7 @@ An utility function to check that the <code>expiration_timestamp_ms</code> value
 
 </details>
 
-<a name="0x2_timelock_new_system_timelock_cap"></a>
+<Link id="0x2_timelock_new_system_timelock_cap"></Link>
 
 ## Function `new_system_timelock_cap`
 

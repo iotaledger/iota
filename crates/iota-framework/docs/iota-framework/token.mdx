@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::token`
 ---
+import Link from '@docusaurus/Link';
 
 The Token module which implements a Closed Loop Token with a configurable
 policy. The policy is defined by a set of rules that must be satisfied for
@@ -92,7 +93,7 @@ control over the currency which a simple open-loop system can't provide.
 
 
 
-<a name="0x2_token_Token"></a>
+<Link id="0x2_token_Token"></Link>
 
 ## Resource `Token`
 
@@ -127,7 +128,7 @@ and actions performed on it must be confirmed in a matching <code><a href="token
 
 </details>
 
-<a name="0x2_token_TokenPolicyCap"></a>
+<Link id="0x2_token_TokenPolicyCap"></Link>
 
 ## Resource `TokenPolicyCap`
 
@@ -162,7 +163,7 @@ field. Created together with <code><a href="token.md#0x2_token_TokenPolicy">Toke
 
 </details>
 
-<a name="0x2_token_TokenPolicy"></a>
+<Link id="0x2_token_TokenPolicy"></Link>
 
 ## Resource `TokenPolicy`
 
@@ -217,7 +218,7 @@ action to succeed.
 
 </details>
 
-<a name="0x2_token_ActionRequest"></a>
+<Link id="0x2_token_ActionRequest"></Link>
 
 ## Struct `ActionRequest`
 
@@ -282,7 +283,7 @@ or <code>confirm_request_mut</code> functions when the Rules are satisfied.
 
 </details>
 
-<a name="0x2_token_RuleKey"></a>
+<Link id="0x2_token_RuleKey"></Link>
 
 ## Struct `RuleKey`
 
@@ -312,7 +313,7 @@ specific action <code>Rule</code>. There can be only one configuration per
 
 </details>
 
-<a name="0x2_token_TokenPolicyCreated"></a>
+<Link id="0x2_token_TokenPolicyCreated"></Link>
 
 ## Struct `TokenPolicyCreated`
 
@@ -349,12 +350,12 @@ we emit this event in the <code>share_policy</code> function and mark it as muta
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_token_ENotAuthorized"></a>
+<Link id="0x2_token_ENotAuthorized"></Link>
 
 Trying to perform an admin action with a wrong cap.
 
@@ -364,7 +365,7 @@ Trying to perform an admin action with a wrong cap.
 
 
 
-<a name="0x2_token_EBalanceTooLow"></a>
+<Link id="0x2_token_EBalanceTooLow"></Link>
 
 The balance is too low to perform the action.
 
@@ -374,7 +375,7 @@ The balance is too low to perform the action.
 
 
 
-<a name="0x2_token_ECantConsumeBalance"></a>
+<Link id="0x2_token_ECantConsumeBalance"></Link>
 
 The balance is not zero when trying to confirm with <code>TransferPolicyCap</code>.
 
@@ -384,7 +385,7 @@ The balance is not zero when trying to confirm with <code>TransferPolicyCap</cod
 
 
 
-<a name="0x2_token_ENoConfig"></a>
+<Link id="0x2_token_ENoConfig"></Link>
 
 Rule is trying to access a missing config (with type).
 
@@ -394,7 +395,7 @@ Rule is trying to access a missing config (with type).
 
 
 
-<a name="0x2_token_ENotApproved"></a>
+<Link id="0x2_token_ENotApproved"></Link>
 
 The rule was not approved.
 
@@ -404,7 +405,7 @@ The rule was not approved.
 
 
 
-<a name="0x2_token_ENotZero"></a>
+<Link id="0x2_token_ENotZero"></Link>
 
 The balance is not zero.
 
@@ -414,7 +415,7 @@ The balance is not zero.
 
 
 
-<a name="0x2_token_EUnknownAction"></a>
+<Link id="0x2_token_EUnknownAction"></Link>
 
 The action is not allowed (defined) in the policy.
 
@@ -424,7 +425,7 @@ The action is not allowed (defined) in the policy.
 
 
 
-<a name="0x2_token_EUseImmutableConfirm"></a>
+<Link id="0x2_token_EUseImmutableConfirm"></Link>
 
 Using <code>confirm_request_mut</code> without <code>spent_balance</code>. Immutable version
 of the function must be used instead.
@@ -435,7 +436,7 @@ of the function must be used instead.
 
 
 
-<a name="0x2_token_FROM_COIN"></a>
+<Link id="0x2_token_FROM_COIN"></Link>
 
 A Tag for the <code>from_coin</code> action.
 
@@ -445,7 +446,7 @@ A Tag for the <code>from_coin</code> action.
 
 
 
-<a name="0x2_token_SPEND"></a>
+<Link id="0x2_token_SPEND"></Link>
 
 A Tag for the <code>spend</code> action.
 
@@ -455,7 +456,7 @@ A Tag for the <code>spend</code> action.
 
 
 
-<a name="0x2_token_TO_COIN"></a>
+<Link id="0x2_token_TO_COIN"></Link>
 
 A Tag for the <code>to_coin</code> action.
 
@@ -465,7 +466,7 @@ A Tag for the <code>to_coin</code> action.
 
 
 
-<a name="0x2_token_TRANSFER"></a>
+<Link id="0x2_token_TRANSFER"></Link>
 
 A Tag for the <code><a href="transfer.md#0x2_transfer">transfer</a></code> action.
 
@@ -475,7 +476,7 @@ A Tag for the <code><a href="transfer.md#0x2_transfer">transfer</a></code> actio
 
 
 
-<a name="0x2_token_new_policy"></a>
+<Link id="0x2_token_new_policy"></Link>
 
 ## Function `new_policy`
 
@@ -517,7 +518,7 @@ hence it is safe to use it for authorization.
 
 </details>
 
-<a name="0x2_token_share_policy"></a>
+<Link id="0x2_token_share_policy"></Link>
 
 ## Function `share_policy`
 
@@ -548,7 +549,7 @@ shared after initialization.
 
 </details>
 
-<a name="0x2_token_transfer"></a>
+<Link id="0x2_token_transfer"></Link>
 
 ## Function `transfer`
 
@@ -586,7 +587,7 @@ to be used in verification.
 
 </details>
 
-<a name="0x2_token_spend"></a>
+<Link id="0x2_token_spend"></Link>
 
 ## Function `spend`
 
@@ -625,7 +626,7 @@ request and join the spent balance with the <code><a href="token.md#0x2_token_To
 
 </details>
 
-<a name="0x2_token_to_coin"></a>
+<Link id="0x2_token_to_coin"></Link>
 
 ## Function `to_coin`
 
@@ -666,7 +667,7 @@ Convert <code><a href="token.md#0x2_token_Token">Token</a></code> into an open <
 
 </details>
 
-<a name="0x2_token_from_coin"></a>
+<Link id="0x2_token_from_coin"></Link>
 
 ## Function `from_coin`
 
@@ -709,7 +710,7 @@ the "from_coin" action.
 
 </details>
 
-<a name="0x2_token_join"></a>
+<Link id="0x2_token_join"></Link>
 
 ## Function `join`
 
@@ -736,7 +737,7 @@ Join two <code><a href="token.md#0x2_token_Token">Token</a></code>s into one, al
 
 </details>
 
-<a name="0x2_token_split"></a>
+<Link id="0x2_token_split"></Link>
 
 ## Function `split`
 
@@ -768,7 +769,7 @@ Aborts if the <code><a href="token.md#0x2_token_Token">Token</a>.<a href="balanc
 
 </details>
 
-<a name="0x2_token_zero"></a>
+<Link id="0x2_token_zero"></Link>
 
 ## Function `zero`
 
@@ -796,7 +797,7 @@ Create a zero <code><a href="token.md#0x2_token_Token">Token</a></code>.
 
 </details>
 
-<a name="0x2_token_destroy_zero"></a>
+<Link id="0x2_token_destroy_zero"></Link>
 
 ## Function `destroy_zero`
 
@@ -825,7 +826,7 @@ Aborts if the <code><a href="token.md#0x2_token_Token">Token</a>.<a href="balanc
 
 </details>
 
-<a name="0x2_token_keep"></a>
+<Link id="0x2_token_keep"></Link>
 
 ## Function `keep`
 
@@ -850,7 +851,7 @@ Transfer the <code><a href="token.md#0x2_token_Token">Token</a></code> to the tr
 
 </details>
 
-<a name="0x2_token_new_request"></a>
+<Link id="0x2_token_new_request"></Link>
 
 ## Function `new_request`
 
@@ -889,7 +890,7 @@ Publicly available method to allow for custom actions.
 
 </details>
 
-<a name="0x2_token_confirm_request"></a>
+<Link id="0x2_token_confirm_request"></Link>
 
 ## Function `confirm_request`
 
@@ -948,7 +949,7 @@ Aborts if:
 
 </details>
 
-<a name="0x2_token_confirm_request_mut"></a>
+<Link id="0x2_token_confirm_request_mut"></Link>
 
 ## Function `confirm_request_mut`
 
@@ -989,7 +990,7 @@ See <code>confirm_request</code> for the list of abort conditions.
 
 </details>
 
-<a name="0x2_token_confirm_with_policy_cap"></a>
+<Link id="0x2_token_confirm_with_policy_cap"></Link>
 
 ## Function `confirm_with_policy_cap`
 
@@ -1032,7 +1033,7 @@ Aborts if request contains <code>spent_balance</code> due to inability of the
 
 </details>
 
-<a name="0x2_token_confirm_with_treasury_cap"></a>
+<Link id="0x2_token_confirm_with_treasury_cap"></Link>
 
 ## Function `confirm_with_treasury_cap`
 
@@ -1077,7 +1078,7 @@ to be consumed, decreasing the <code>total_supply</code> of the <code><a href="t
 
 </details>
 
-<a name="0x2_token_add_approval"></a>
+<Link id="0x2_token_add_approval"></Link>
 
 ## Function `add_approval`
 
@@ -1107,7 +1108,7 @@ required by the <code><a href="token.md#0x2_token_TokenPolicy">TokenPolicy</a></
 
 </details>
 
-<a name="0x2_token_add_rule_config"></a>
+<Link id="0x2_token_add_rule_config"></Link>
 
 ## Function `add_rule_config`
 
@@ -1146,7 +1147,7 @@ the <code><a href="token.md#0x2_token_TokenPolicy">TokenPolicy</a></code> owner.
 
 </details>
 
-<a name="0x2_token_rule_config"></a>
+<Link id="0x2_token_rule_config"></Link>
 
 ## Function `rule_config`
 
@@ -1180,7 +1181,7 @@ Aborts if the Config is not present.
 
 </details>
 
-<a name="0x2_token_rule_config_mut"></a>
+<Link id="0x2_token_rule_config_mut"></Link>
 
 ## Function `rule_config_mut`
 
@@ -1216,7 +1217,7 @@ Aborts if:
 
 </details>
 
-<a name="0x2_token_remove_rule_config"></a>
+<Link id="0x2_token_remove_rule_config"></Link>
 
 ## Function `remove_rule_config`
 
@@ -1256,7 +1257,7 @@ Aborts if:
 
 </details>
 
-<a name="0x2_token_has_rule_config"></a>
+<Link id="0x2_token_has_rule_config"></Link>
 
 ## Function `has_rule_config`
 
@@ -1282,7 +1283,7 @@ checking the type of the <code>Config</code>.
 
 </details>
 
-<a name="0x2_token_has_rule_config_with_type"></a>
+<Link id="0x2_token_has_rule_config_with_type"></Link>
 
 ## Function `has_rule_config_with_type`
 
@@ -1310,7 +1311,7 @@ it matches the type provided.
 
 </details>
 
-<a name="0x2_token_allow"></a>
+<Link id="0x2_token_allow"></Link>
 
 ## Function `allow`
 
@@ -1344,7 +1345,7 @@ Aborts if the <code><a href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</
 
 </details>
 
-<a name="0x2_token_disallow"></a>
+<Link id="0x2_token_disallow"></Link>
 
 ## Function `disallow`
 
@@ -1378,7 +1379,7 @@ Aborts if the <code><a href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</
 
 </details>
 
-<a name="0x2_token_add_rule_for_action"></a>
+<Link id="0x2_token_add_rule_for_action"></Link>
 
 ## Function `add_rule_for_action`
 
@@ -1415,7 +1416,7 @@ Aborts if the <code><a href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</
 
 </details>
 
-<a name="0x2_token_remove_rule_for_action"></a>
+<Link id="0x2_token_remove_rule_for_action"></Link>
 
 ## Function `remove_rule_for_action`
 
@@ -1450,7 +1451,7 @@ Aborts if the <code><a href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</
 
 </details>
 
-<a name="0x2_token_mint"></a>
+<Link id="0x2_token_mint"></Link>
 
 ## Function `mint`
 
@@ -1478,7 +1479,7 @@ Mint a <code><a href="token.md#0x2_token_Token">Token</a></code> with a given <c
 
 </details>
 
-<a name="0x2_token_burn"></a>
+<Link id="0x2_token_burn"></Link>
 
 ## Function `burn`
 
@@ -1505,7 +1506,7 @@ Burn a <code><a href="token.md#0x2_token_Token">Token</a></code> using the <code
 
 </details>
 
-<a name="0x2_token_flush"></a>
+<Link id="0x2_token_flush"></Link>
 
 ## Function `flush`
 
@@ -1537,7 +1538,7 @@ action is only available to the <code>TreasuryCap</code> owner.
 
 </details>
 
-<a name="0x2_token_is_allowed"></a>
+<Link id="0x2_token_is_allowed"></Link>
 
 ## Function `is_allowed`
 
@@ -1562,7 +1563,7 @@ Check whether an action is present in the rules VecMap.
 
 </details>
 
-<a name="0x2_token_rules"></a>
+<Link id="0x2_token_rules"></Link>
 
 ## Function `rules`
 
@@ -1589,7 +1590,7 @@ Returns the rules required for a specific action.
 
 </details>
 
-<a name="0x2_token_spent_balance"></a>
+<Link id="0x2_token_spent_balance"></Link>
 
 ## Function `spent_balance`
 
@@ -1614,7 +1615,7 @@ Returns the <code>spent_balance</code> of the <code><a href="token.md#0x2_token_
 
 </details>
 
-<a name="0x2_token_value"></a>
+<Link id="0x2_token_value"></Link>
 
 ## Function `value`
 
@@ -1639,7 +1640,7 @@ Returns the <code><a href="balance.md#0x2_balance">balance</a></code> of the <co
 
 </details>
 
-<a name="0x2_token_transfer_action"></a>
+<Link id="0x2_token_transfer_action"></Link>
 
 ## Function `transfer_action`
 
@@ -1665,7 +1666,7 @@ Name of the Transfer action.
 
 </details>
 
-<a name="0x2_token_spend_action"></a>
+<Link id="0x2_token_spend_action"></Link>
 
 ## Function `spend_action`
 
@@ -1691,7 +1692,7 @@ Name of the <code>Spend</code> action.
 
 </details>
 
-<a name="0x2_token_to_coin_action"></a>
+<Link id="0x2_token_to_coin_action"></Link>
 
 ## Function `to_coin_action`
 
@@ -1717,7 +1718,7 @@ Name of the <code>ToCoin</code> action.
 
 </details>
 
-<a name="0x2_token_from_coin_action"></a>
+<Link id="0x2_token_from_coin_action"></Link>
 
 ## Function `from_coin_action`
 
@@ -1743,7 +1744,7 @@ Name of the <code>FromCoin</code> action.
 
 </details>
 
-<a name="0x2_token_action"></a>
+<Link id="0x2_token_action"></Link>
 
 ## Function `action`
 
@@ -1766,7 +1767,7 @@ The Action in the <code><a href="token.md#0x2_token_ActionRequest">ActionRequest
 
 </details>
 
-<a name="0x2_token_amount"></a>
+<Link id="0x2_token_amount"></Link>
 
 ## Function `amount`
 
@@ -1789,7 +1790,7 @@ Amount of the <code><a href="token.md#0x2_token_ActionRequest">ActionRequest</a>
 
 </details>
 
-<a name="0x2_token_sender"></a>
+<Link id="0x2_token_sender"></Link>
 
 ## Function `sender`
 
@@ -1812,7 +1813,7 @@ Sender of the <code><a href="token.md#0x2_token_ActionRequest">ActionRequest</a>
 
 </details>
 
-<a name="0x2_token_recipient"></a>
+<Link id="0x2_token_recipient"></Link>
 
 ## Function `recipient`
 
@@ -1837,7 +1838,7 @@ Recipient of the <code><a href="token.md#0x2_token_ActionRequest">ActionRequest<
 
 </details>
 
-<a name="0x2_token_approvals"></a>
+<Link id="0x2_token_approvals"></Link>
 
 ## Function `approvals`
 
@@ -1862,7 +1863,7 @@ Approvals of the <code><a href="token.md#0x2_token_ActionRequest">ActionRequest<
 
 </details>
 
-<a name="0x2_token_spent"></a>
+<Link id="0x2_token_spent"></Link>
 
 ## Function `spent`
 
@@ -1891,7 +1892,7 @@ Burned balance of the <code><a href="token.md#0x2_token_ActionRequest">ActionReq
 
 </details>
 
-<a name="0x2_token_key"></a>
+<Link id="0x2_token_key"></Link>
 
 ## Function `key`
 

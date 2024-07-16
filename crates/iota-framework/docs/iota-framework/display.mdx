@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::display`
 ---
+import Link from '@docusaurus/Link';
 
 Defines a Display struct which defines the way an Object
 should be displayed. The intention is to keep data as independent
@@ -43,7 +44,7 @@ More entry functions might be added in the future depending on the use cases.
 
 
 
-<a name="0x2_display_Display"></a>
+<Link id="0x2_display_Display"></Link>
 
 ## Resource `Display`
 
@@ -104,7 +105,7 @@ the property names have a priority over their types.
 
 </details>
 
-<a name="0x2_display_DisplayCreated"></a>
+<Link id="0x2_display_DisplayCreated"></Link>
 
 ## Struct `DisplayCreated`
 
@@ -137,7 +138,7 @@ would be as simple as looking for the first event with <code><a href="display.md
 
 </details>
 
-<a name="0x2_display_VersionUpdated"></a>
+<Link id="0x2_display_VersionUpdated"></Link>
 
 ## Struct `VersionUpdated`
 
@@ -177,12 +178,12 @@ Version of Display got updated -
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_display_ENotOwner"></a>
+<Link id="0x2_display_ENotOwner"></Link>
 
 For when T does not belong to the package <code>Publisher</code>.
 
@@ -192,7 +193,7 @@ For when T does not belong to the package <code>Publisher</code>.
 
 
 
-<a name="0x2_display_EVecLengthMismatch"></a>
+<Link id="0x2_display_EVecLengthMismatch"></Link>
 
 For when vectors passed into one of the multiple insert functions
 don't match in their lengths.
@@ -203,7 +204,7 @@ don't match in their lengths.
 
 
 
-<a name="0x2_display_new"></a>
+<Link id="0x2_display_new"></Link>
 
 ## Function `new`
 
@@ -230,7 +231,7 @@ with data right away via cheaper <code>set_owned</code> method.
 
 </details>
 
-<a name="0x2_display_new_with_fields"></a>
+<Link id="0x2_display_new_with_fields"></Link>
 
 ## Function `new_with_fields`
 
@@ -267,7 +268,7 @@ Create a new Display<T> object with a set of fields.
 
 </details>
 
-<a name="0x2_display_create_and_keep"></a>
+<Link id="0x2_display_create_and_keep"></Link>
 
 ## Function `create_and_keep`
 
@@ -292,7 +293,7 @@ Create a new empty Display<T> object and keep it.
 
 </details>
 
-<a name="0x2_display_update_version"></a>
+<Link id="0x2_display_update_version"></Link>
 
 ## Function `update_version`
 
@@ -324,7 +325,7 @@ Manually bump the version and emit an event with the updated version's contents.
 
 </details>
 
-<a name="0x2_display_add"></a>
+<Link id="0x2_display_add"></Link>
 
 ## Function `add`
 
@@ -349,7 +350,7 @@ Sets a custom <code>name</code> field with the <code>value</code>.
 
 </details>
 
-<a name="0x2_display_add_multiple"></a>
+<Link id="0x2_display_add_multiple"></Link>
 
 ## Function `add_multiple`
 
@@ -383,7 +384,7 @@ Sets multiple <code>fields</code> with <code>values</code>.
 
 </details>
 
-<a name="0x2_display_edit"></a>
+<Link id="0x2_display_edit"></Link>
 
 ## Function `edit`
 
@@ -410,7 +411,7 @@ TODO (long run): version changes;
 
 </details>
 
-<a name="0x2_display_remove"></a>
+<Link id="0x2_display_remove"></Link>
 
 ## Function `remove`
 
@@ -435,7 +436,7 @@ Remove the key from the Display.
 
 </details>
 
-<a name="0x2_display_is_authorized"></a>
+<Link id="0x2_display_is_authorized"></Link>
 
 ## Function `is_authorized`
 
@@ -460,7 +461,7 @@ Authorization check; can be performed externally to implement protection rules f
 
 </details>
 
-<a name="0x2_display_version"></a>
+<Link id="0x2_display_version"></Link>
 
 ## Function `version`
 
@@ -485,7 +486,7 @@ Read the <code>version</code> field.
 
 </details>
 
-<a name="0x2_display_fields"></a>
+<Link id="0x2_display_fields"></Link>
 
 ## Function `fields`
 
@@ -510,7 +511,7 @@ Read the <code>fields</code> field.
 
 </details>
 
-<a name="0x2_display_create_internal"></a>
+<Link id="0x2_display_create_internal"></Link>
 
 ## Function `create_internal`
 
@@ -545,7 +546,7 @@ Internal function to create a new <code><a href="display.md#0x2_display_Display"
 
 </details>
 
-<a name="0x2_display_add_internal"></a>
+<Link id="0x2_display_add_internal"></Link>
 
 ## Function `add_internal`
 

@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::transfer_policy`
 ---
+import Link from '@docusaurus/Link';
 
 Defines the <code><a href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</a></code> type and the logic to approve <code><a href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</a></code>s.
 
@@ -67,7 +68,7 @@ of the type at once.
 
 
 
-<a name="0x2_transfer_policy_TransferRequest"></a>
+<Link id="0x2_transfer_policy_TransferRequest"></Link>
 
 ## Struct `TransferRequest`
 
@@ -119,7 +120,7 @@ from the item type (<code>T</code>) owner on purchase attempt.
 
 </details>
 
-<a name="0x2_transfer_policy_TransferPolicy"></a>
+<Link id="0x2_transfer_policy_TransferPolicy"></Link>
 
 ## Resource `TransferPolicy`
 
@@ -169,7 +170,7 @@ policies can be used to confirm the <code><a href="transfer_policy.md#0x2_transf
 
 </details>
 
-<a name="0x2_transfer_policy_TransferPolicyCap"></a>
+<Link id="0x2_transfer_policy_TransferPolicyCap"></Link>
 
 ## Resource `TransferPolicyCap`
 
@@ -204,7 +205,7 @@ as to <code>withdraw</code> and <code>destroy_and_withdraw</code> the <code><a h
 
 </details>
 
-<a name="0x2_transfer_policy_TransferPolicyCreated"></a>
+<Link id="0x2_transfer_policy_TransferPolicyCreated"></Link>
 
 ## Struct `TransferPolicyCreated`
 
@@ -233,7 +234,7 @@ making the discoverability and tracking the supported types easier.
 
 </details>
 
-<a name="0x2_transfer_policy_TransferPolicyDestroyed"></a>
+<Link id="0x2_transfer_policy_TransferPolicyDestroyed"></Link>
 
 ## Struct `TransferPolicyDestroyed`
 
@@ -262,7 +263,7 @@ Allows for tracking supported policies.
 
 </details>
 
-<a name="0x2_transfer_policy_RuleKey"></a>
+<Link id="0x2_transfer_policy_RuleKey"></Link>
 
 ## Struct `RuleKey`
 
@@ -290,12 +291,12 @@ Key to store "Rule" configuration for a specific <code><a href="transfer_policy.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_transfer_policy_ENotEnough"></a>
+<Link id="0x2_transfer_policy_ENotEnough"></Link>
 
 Trying to <code>withdraw</code> more than there is.
 
@@ -305,7 +306,7 @@ Trying to <code>withdraw</code> more than there is.
 
 
 
-<a name="0x2_transfer_policy_ENotOwner"></a>
+<Link id="0x2_transfer_policy_ENotOwner"></Link>
 
 Trying to <code>withdraw</code> or <code>close_and_withdraw</code> with a wrong Cap.
 
@@ -315,7 +316,7 @@ Trying to <code>withdraw</code> or <code>close_and_withdraw</code> with a wrong 
 
 
 
-<a name="0x2_transfer_policy_EIllegalRule"></a>
+<Link id="0x2_transfer_policy_EIllegalRule"></Link>
 
 A completed rule is not set in the <code><a href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</a></code>.
 
@@ -325,7 +326,7 @@ A completed rule is not set in the <code><a href="transfer_policy.md#0x2_transfe
 
 
 
-<a name="0x2_transfer_policy_EPolicyNotSatisfied"></a>
+<Link id="0x2_transfer_policy_EPolicyNotSatisfied"></Link>
 
 The number of receipts does not match the <code><a href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</a></code> requirement.
 
@@ -335,7 +336,7 @@ The number of receipts does not match the <code><a href="transfer_policy.md#0x2_
 
 
 
-<a name="0x2_transfer_policy_ERuleAlreadySet"></a>
+<Link id="0x2_transfer_policy_ERuleAlreadySet"></Link>
 
 Attempting to create a Rule that is already set.
 
@@ -345,7 +346,7 @@ Attempting to create a Rule that is already set.
 
 
 
-<a name="0x2_transfer_policy_EUnknownRequrement"></a>
+<Link id="0x2_transfer_policy_EUnknownRequrement"></Link>
 
 A Rule is not set.
 
@@ -355,7 +356,7 @@ A Rule is not set.
 
 
 
-<a name="0x2_transfer_policy_new_request"></a>
+<Link id="0x2_transfer_policy_new_request"></Link>
 
 ## Function `new_request`
 
@@ -385,7 +386,7 @@ the transaction will fail.
 
 </details>
 
-<a name="0x2_transfer_policy_new"></a>
+<Link id="0x2_transfer_policy_new"></Link>
 
 ## Function `new`
 
@@ -424,7 +425,7 @@ available for use, the type can not be traded in kiosks.
 
 </details>
 
-<a name="0x2_transfer_policy_default"></a>
+<Link id="0x2_transfer_policy_default"></Link>
 
 ## Function `default`
 
@@ -453,7 +454,7 @@ sender.
 
 </details>
 
-<a name="0x2_transfer_policy_withdraw"></a>
+<Link id="0x2_transfer_policy_withdraw"></Link>
 
 ## Function `withdraw`
 
@@ -494,7 +495,7 @@ is not specified, all profits are withdrawn.
 
 </details>
 
-<a name="0x2_transfer_policy_destroy_and_withdraw"></a>
+<Link id="0x2_transfer_policy_destroy_and_withdraw"></Link>
 
 ## Function `destroy_and_withdraw`
 
@@ -530,7 +531,7 @@ Can be performed by any party as long as they own it.
 
 </details>
 
-<a name="0x2_transfer_policy_confirm_request"></a>
+<Link id="0x2_transfer_policy_confirm_request"></Link>
 
 ## Function `confirm_request`
 
@@ -574,7 +575,7 @@ Kiosk trades will not be possible.
 
 </details>
 
-<a name="0x2_transfer_policy_add_rule"></a>
+<Link id="0x2_transfer_policy_add_rule"></Link>
 
 ## Function `add_rule`
 
@@ -612,7 +613,7 @@ even if graceful unpacking has not been implemented in a "rule module".
 
 </details>
 
-<a name="0x2_transfer_policy_get_rule"></a>
+<Link id="0x2_transfer_policy_get_rule"></Link>
 
 ## Function `get_rule`
 
@@ -639,7 +640,7 @@ Get the custom Config for the Rule (can be only one per "Rule" type).
 
 </details>
 
-<a name="0x2_transfer_policy_add_to_balance"></a>
+<Link id="0x2_transfer_policy_add_to_balance"></Link>
 
 ## Function `add_to_balance`
 
@@ -667,7 +668,7 @@ Add some <code>IOTA</code> to the balance of a <code><a href="transfer_policy.md
 
 </details>
 
-<a name="0x2_transfer_policy_add_receipt"></a>
+<Link id="0x2_transfer_policy_add_receipt"></Link>
 
 ## Function `add_receipt`
 
@@ -695,7 +696,7 @@ confirming that the policy requirements are satisfied.
 
 </details>
 
-<a name="0x2_transfer_policy_has_rule"></a>
+<Link id="0x2_transfer_policy_has_rule"></Link>
 
 ## Function `has_rule`
 
@@ -720,7 +721,7 @@ Check whether a custom rule has been added to the <code><a href="transfer_policy
 
 </details>
 
-<a name="0x2_transfer_policy_remove_rule"></a>
+<Link id="0x2_transfer_policy_remove_rule"></Link>
 
 ## Function `remove_rule`
 
@@ -749,7 +750,7 @@ Remove the Rule from the <code><a href="transfer_policy.md#0x2_transfer_policy_T
 
 </details>
 
-<a name="0x2_transfer_policy_uid"></a>
+<Link id="0x2_transfer_policy_uid"></Link>
 
 ## Function `uid`
 
@@ -772,7 +773,7 @@ Allows reading custom attachments to the <code><a href="transfer_policy.md#0x2_t
 
 </details>
 
-<a name="0x2_transfer_policy_uid_mut_as_owner"></a>
+<Link id="0x2_transfer_policy_uid_mut_as_owner"></Link>
 
 ## Function `uid_mut_as_owner`
 
@@ -801,7 +802,7 @@ to the <code><a href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">Tra
 
 </details>
 
-<a name="0x2_transfer_policy_rules"></a>
+<Link id="0x2_transfer_policy_rules"></Link>
 
 ## Function `rules`
 
@@ -826,7 +827,7 @@ Read the <code>rules</code> field from the <code><a href="transfer_policy.md#0x2
 
 </details>
 
-<a name="0x2_transfer_policy_item"></a>
+<Link id="0x2_transfer_policy_item"></Link>
 
 ## Function `item`
 
@@ -849,7 +850,7 @@ Get the <code>item</code> field of the <code><a href="transfer_policy.md#0x2_tra
 
 </details>
 
-<a name="0x2_transfer_policy_paid"></a>
+<Link id="0x2_transfer_policy_paid"></Link>
 
 ## Function `paid`
 
@@ -872,7 +873,7 @@ Get the <code>paid</code> field of the <code><a href="transfer_policy.md#0x2_tra
 
 </details>
 
-<a name="0x2_transfer_policy_from"></a>
+<Link id="0x2_transfer_policy_from"></Link>
 
 ## Function `from`
 

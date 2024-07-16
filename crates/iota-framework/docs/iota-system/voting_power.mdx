@@ -1,6 +1,7 @@
 ---
 title: Module `0x3::voting_power`
 ---
+import Link from '@docusaurus/Link';
 
 
 
@@ -25,7 +26,7 @@ title: Module `0x3::voting_power`
 
 
 
-<a name="0x3_voting_power_VotingPowerInfo"></a>
+<Link id="0x3_voting_power_VotingPowerInfo"></Link>
 
 ## Struct `VotingPowerInfo`
 
@@ -59,7 +60,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 </details>
 
-<a name="0x3_voting_power_VotingPowerInfoV2"></a>
+<Link id="0x3_voting_power_VotingPowerInfoV2"></Link>
 
 ## Struct `VotingPowerInfoV2`
 
@@ -98,12 +99,12 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x3_voting_power_EInvalidVotingPower"></a>
+<Link id="0x3_voting_power_EInvalidVotingPower"></Link>
 
 
 
@@ -112,7 +113,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 
 
-<a name="0x3_voting_power_ERelativePowerMismatch"></a>
+<Link id="0x3_voting_power_ERelativePowerMismatch"></Link>
 
 
 
@@ -121,7 +122,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 
 
-<a name="0x3_voting_power_ETotalPowerMismatch"></a>
+<Link id="0x3_voting_power_ETotalPowerMismatch"></Link>
 
 
 
@@ -130,7 +131,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 
 
-<a name="0x3_voting_power_EVotingPowerOverThreshold"></a>
+<Link id="0x3_voting_power_EVotingPowerOverThreshold"></Link>
 
 
 
@@ -139,7 +140,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 
 
-<a name="0x3_voting_power_MAX_VOTING_POWER"></a>
+<Link id="0x3_voting_power_MAX_VOTING_POWER"></Link>
 
 
 
@@ -148,7 +149,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 
 
-<a name="0x3_voting_power_QUORUM_THRESHOLD"></a>
+<Link id="0x3_voting_power_QUORUM_THRESHOLD"></Link>
 
 Quorum threshold for our fixed voting power--any message signed by this much voting power can be trusted
 up to BFT assumptions
@@ -159,7 +160,7 @@ up to BFT assumptions
 
 
 
-<a name="0x3_voting_power_TOTAL_VOTING_POWER"></a>
+<Link id="0x3_voting_power_TOTAL_VOTING_POWER"></Link>
 
 Set total_voting_power as 10_000 by convention. Individual voting powers can be interpreted
 as easily understandable basis points (e.g., voting_power: 100 = 1%, voting_power: 1 = 0.01%) rather than
@@ -173,7 +174,7 @@ than recomputing these.
 
 
 
-<a name="0x3_voting_power_set_voting_power"></a>
+<Link id="0x3_voting_power_set_voting_power"></Link>
 
 ## Function `set_voting_power`
 
@@ -209,7 +210,7 @@ at <code><a href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_
 
 </details>
 
-<a name="0x3_voting_power_init_voting_power_info"></a>
+<Link id="0x3_voting_power_init_voting_power_info"></Link>
 
 ## Function `init_voting_power_info`
 
@@ -259,7 +260,7 @@ Anything beyond the threshold is added to the remaining_power, which is also ret
 
 </details>
 
-<a name="0x3_voting_power_total_stake"></a>
+<Link id="0x3_voting_power_total_stake"></Link>
 
 ## Function `total_stake`
 
@@ -291,7 +292,7 @@ Sum up the total stake of all validators.
 
 </details>
 
-<a name="0x3_voting_power_insert"></a>
+<Link id="0x3_voting_power_insert"></Link>
 
 ## Function `insert`
 
@@ -322,7 +323,7 @@ using stake, in descending order.
 
 </details>
 
-<a name="0x3_voting_power_adjust_voting_power"></a>
+<Link id="0x3_voting_power_adjust_voting_power"></Link>
 
 ## Function `adjust_voting_power`
 
@@ -362,7 +363,7 @@ Distribute remaining_power to validators that are not capped at threshold.
 
 </details>
 
-<a name="0x3_voting_power_update_voting_power"></a>
+<Link id="0x3_voting_power_update_voting_power"></Link>
 
 ## Function `update_voting_power`
 
@@ -396,7 +397,7 @@ Update validators with the decided voting power.
 
 </details>
 
-<a name="0x3_voting_power_check_invariants"></a>
+<Link id="0x3_voting_power_check_invariants"></Link>
 
 ## Function `check_invariants`
 
@@ -455,7 +456,7 @@ Check a few invariants that must hold after setting the voting power.
 
 </details>
 
-<a name="0x3_voting_power_total_voting_power"></a>
+<Link id="0x3_voting_power_total_voting_power"></Link>
 
 ## Function `total_voting_power`
 
@@ -480,7 +481,7 @@ Return the (constant) total voting power
 
 </details>
 
-<a name="0x3_voting_power_quorum_threshold"></a>
+<Link id="0x3_voting_power_quorum_threshold"></Link>
 
 ## Function `quorum_threshold`
 

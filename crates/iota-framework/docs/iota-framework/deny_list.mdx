@@ -1,6 +1,7 @@
 ---
 title: Module `0x2::deny_list`
 ---
+import Link from '@docusaurus/Link';
 
 Defines the <code><a href="../iota-framework/deny_list.md#0x2_deny_list_DenyList">DenyList</a></code> type. The <code><a href="../iota-framework/deny_list.md#0x2_deny_list_DenyList">DenyList</a></code> shared object is used to restrict access to
 instances of certain core types from being used as inputs by specified addresses in the deny
@@ -30,7 +31,7 @@ list.
 
 
 
-<a name="0x2_deny_list_DenyList"></a>
+<Link id="0x2_deny_list_DenyList"></Link>
 
 ## Resource `DenyList`
 
@@ -64,7 +65,7 @@ A shared object that stores the addresses that are blocked for a given core type
 
 </details>
 
-<a name="0x2_deny_list_PerTypeList"></a>
+<Link id="0x2_deny_list_PerTypeList"></Link>
 
 ## Resource `PerTypeList`
 
@@ -107,12 +108,12 @@ Stores the addresses that are denied for a given core type.
 
 </details>
 
-<a name="@Constants_0"></a>
+<Link id="@Constants_0"></Link>
 
 ## Constants
 
 
-<a name="0x2_deny_list_ENotSystemAddress"></a>
+<Link id="0x2_deny_list_ENotSystemAddress"></Link>
 
 Trying to create a deny list object when not called by the system address.
 
@@ -122,7 +123,7 @@ Trying to create a deny list object when not called by the system address.
 
 
 
-<a name="0x2_deny_list_COIN_INDEX"></a>
+<Link id="0x2_deny_list_COIN_INDEX"></Link>
 
 The index into the deny list vector for the <code>iota::coin::Coin</code> type.
 
@@ -132,7 +133,7 @@ The index into the deny list vector for the <code>iota::coin::Coin</code> type.
 
 
 
-<a name="0x2_deny_list_ENotDenied"></a>
+<Link id="0x2_deny_list_ENotDenied"></Link>
 
 The specified address to be removed is not already in the deny list.
 
@@ -142,7 +143,7 @@ The specified address to be removed is not already in the deny list.
 
 
 
-<a name="0x2_deny_list_add"></a>
+<Link id="0x2_deny_list_add"></Link>
 
 ## Function `add`
 
@@ -176,7 +177,7 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 
 </details>
 
-<a name="0x2_deny_list_per_type_list_add"></a>
+<Link id="0x2_deny_list_per_type_list_add"></Link>
 
 ## Function `per_type_list_add`
 
@@ -216,7 +217,7 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 
 </details>
 
-<a name="0x2_deny_list_remove"></a>
+<Link id="0x2_deny_list_remove"></Link>
 
 ## Function `remove`
 
@@ -247,7 +248,7 @@ Aborts with <code><a href="../iota-framework/deny_list.md#0x2_deny_list_ENotDeni
 
 </details>
 
-<a name="0x2_deny_list_per_type_list_remove"></a>
+<Link id="0x2_deny_list_per_type_list_remove"></Link>
 
 ## Function `per_type_list_remove`
 
@@ -282,7 +283,7 @@ Aborts with <code><a href="../iota-framework/deny_list.md#0x2_deny_list_ENotDeni
 
 </details>
 
-<a name="0x2_deny_list_contains"></a>
+<Link id="0x2_deny_list_contains"></Link>
 
 ## Function `contains`
 
@@ -312,7 +313,7 @@ Returns true iff the given address is denied for the given type.
 
 </details>
 
-<a name="0x2_deny_list_per_type_list_contains"></a>
+<Link id="0x2_deny_list_per_type_list_contains"></Link>
 
 ## Function `per_type_list_contains`
 
@@ -348,7 +349,7 @@ Returns true iff the given address is denied for the given type.
 
 </details>
 
-<a name="0x2_deny_list_create"></a>
+<Link id="0x2_deny_list_create"></Link>
 
 ## Function `create`
 
@@ -382,7 +383,7 @@ via a system transaction.
 
 </details>
 
-<a name="0x2_deny_list_per_type_list"></a>
+<Link id="0x2_deny_list_per_type_list"></Link>
 
 ## Function `per_type_list`
 
