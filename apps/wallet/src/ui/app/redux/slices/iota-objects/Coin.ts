@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaMoveObject, IotaObjectData } from '@iota/iota.js/client';
+
 const COIN_TYPE = '0x2::coin::Coin';
 const COIN_TYPE_ARG_REGEX = /^0x2::coin::Coin<(.+)>$/;
 
-export const BIP44_COIN_TYPE = 4218;
+export const IOTA_BIP44_COIN_TYPE = 4218;
 export const GAS_SYMBOL = 'IOTA';
 
 // TODO use sdk
