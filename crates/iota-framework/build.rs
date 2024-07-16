@@ -247,6 +247,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
     let link_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
+    let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
 
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
@@ -269,6 +270,12 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             let code_content = caps.get(1).unwrap().as_str();
             format!("<code>\n{}</code>", code_content.replace("{", "\\{"))
         });
+
+        // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as React components otherwise
+        let content = type_regex.replace_all(
+            &content,
+            r#"`$1<$2>`"#,
+        );
 
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {
