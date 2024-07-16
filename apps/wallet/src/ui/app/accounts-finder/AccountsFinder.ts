@@ -4,15 +4,14 @@
 import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
 import type { IotaClient } from '@iota/iota.js/client';
-import { AccountType } from '../../../background/accounts/Account';
 import { getEmptyBalance } from './helpers';
 import type { FindBalance } from './types';
 import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 
 export enum AllowedAccountSourceTypes {
-    MnemonicDerived = 'mnemonic-derived',
-    SeedDerived = 'seed-derived',
-    LedgerDerived = 'ledger-derived',
+    MnemonicDerived = 'mnemonic',
+    SeedDerived = 'seed',
+    LedgerDerived = 'ledger',
 }
 
 export enum AllowedBip44CoinTypes {
@@ -58,26 +57,26 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
             accountGapLimit: 1,
             addressGapLimit: 5,
         },
-        [AccountType.MnemonicDerived]: {
+        [AllowedAccountSourceTypes.MnemonicDerived]: {
             accountGapLimit: 3,
             addressGapLimit: 10,
         },
-        [AccountType.SeedDerived]: {
+        [AllowedAccountSourceTypes.SeedDerived]: {
             accountGapLimit: 3,
             addressGapLimit: 10,
         },
     },
     // In shimmer we focus on accounts indexes and never rotate addresses
     [AllowedBip44CoinTypes.Shimmer]: {
-        [AccountType.LedgerDerived]: {
+        [AllowedAccountSourceTypes.LedgerDerived]: {
             accountGapLimit: 3,
             addressGapLimit: 0,
         },
-        [AccountType.MnemonicDerived]: {
+        [AllowedAccountSourceTypes.MnemonicDerived]: {
             accountGapLimit: 10,
             addressGapLimit: 0,
         },
-        [AccountType.SeedDerived]: {
+        [AllowedAccountSourceTypes.SeedDerived]: {
             accountGapLimit: 10,
             addressGapLimit: 0,
         },
@@ -109,7 +108,6 @@ export class AccountsFinder {
         this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
 
         this.algorithm = config.algorithm || SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
-
         this.accountGapLimit =
             config.accountGapLimit ??
             GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.accountGapLimit;
@@ -142,7 +140,6 @@ export class AccountsFinder {
 
         // Persist new addresses
         const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
-        //await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
 
         this.accounts = mergedAccounts;
 

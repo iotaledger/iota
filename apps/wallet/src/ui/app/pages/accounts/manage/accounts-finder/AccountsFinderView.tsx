@@ -57,7 +57,7 @@ export function AccountsFinderView(): JSX.Element {
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
 
-    function findMore() {
+    async function findMore() {
         if (accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient) {
             return setConnectLedgerModalOpen(true);
         }
@@ -69,7 +69,7 @@ export function AccountsFinderView(): JSX.Element {
             return setPasswordModalVisible(true);
         }
 
-        find();
+        await find();
         setSearched(true);
     }
 

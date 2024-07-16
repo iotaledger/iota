@@ -19,7 +19,7 @@ import { Heading } from '../../shared/heading';
 import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { AccountType } from '_src/background/accounts/Account';
+import { AllowedAccountSourceTypes } from '../../accounts-finder';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -93,7 +93,7 @@ export function ProtectAccountPage() {
                         },
                     });
                 } else if (isLedgerAccountSerializedUI(createdAccounts[0])) {
-                    const path = `/accounts/manage/accounts-finder/${AccountType.LedgerDerived}`;
+                    const path = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
                     navigate(path, {
                         replace: true,
                         state: {
