@@ -33,7 +33,7 @@ use iota_types::{
     transaction::{
         Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
     },
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, TIMELOCK_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
 };
 use move_binary_format::{
     binary_config::BinaryConfig, binary_views::BinaryIndexedView, file_format::SignatureToken,
@@ -827,7 +827,7 @@ impl TransactionBuilder {
                 builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
             ];
             builder.command(Command::move_call(
-                TIMELOCK_PACKAGE_ID,
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
                 ADD_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
                 vec![],
@@ -858,7 +858,7 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            TIMELOCK_PACKAGE_ID,
+            IOTA_SYSTEM_PACKAGE_ID,
             TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
             WITHDRAW_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
             vec![],

@@ -1,0 +1,17 @@
+import React from 'react';
+import { Meta, Title, IconGallery, IconItem } from '@storybook/blocks';
+import * as Icons from '@iota/ui-icons';
+
+<Meta title="Design Tokens/Icon Gallery" />
+
+# Icon Gallery
+
+<br />
+
+<IconGallery>
+    {Object.keys(Icons).map((icon) => (
+        <IconItem key={icon} name={icon}>
+            {React.createElement(Icons[icon])}
+        </IconItem>
+    ))}
+</IconGallery>
