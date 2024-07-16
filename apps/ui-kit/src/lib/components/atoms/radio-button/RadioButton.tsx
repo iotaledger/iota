@@ -8,7 +8,7 @@ type RadioButtonProps = {
     /**
      * The label of the radio button.
      */
-    label?: string;
+    label: string;
     /**
      * The state of the radio button.
      */
@@ -40,7 +40,7 @@ const RadioButton: React.FC<RadioButtonProps> = ({ label, isChecked, isDisabled,
                     onChange={onChange}
                     disabled={isDisabled}
                     className={cx(
-                        'peer h-5 w-5 shrink-0 appearance-none rounded-full border border-2 border-neutral-40 checked:border-primary-30 disabled:opacity-40 checked:disabled:border-neutral-40 dark:border-neutral-60 dark:checked:border-primary-30 dark:disabled:border-neutral-40',
+                        'peer h-5 w-5 shrink-0 appearance-none rounded-full border border-neutral-40 checked:border-primary-30 disabled:opacity-40 checked:disabled:border-neutral-40 dark:border-neutral-60 dark:checked:border-primary-30 dark:disabled:border-neutral-40',
                     )}
                 />
                 <span
