@@ -1,33 +1,66 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-interface CardProps {
-    title: string;
-    subtitle: string;
+import React from 'react';
+import cx from 'classnames';
+import { CardAction, CardActionProps, CardActionVariant } from './CardAction';
+import { CardText, CardTextProps } from './CardText';
+import { CardImage, CardImageProps, ImageVariant, ImageType } from './CardImage';
+
+enum CardVariant {
+    Default = 'default',
+    Outlined = 'outlined',
+    Filled = 'filled',
 }
 
-export function Card({ title, subtitle }: CardProps) {
+type CardProps = {
+    cardVariant: CardVariant;
+    children: React.ReactNode;
+} & CardTextProps &
+    CardImageProps &
+    CardActionProps;
+
+export function Card({
+    cardVariant = CardVariant.Default,
+    title,
+    subtitle,
+    imageType = ImageType.Placeholder,
+    imageVariant = ImageVariant.Rounded,
+    imageUrl,
+    iconName,
+    actionTitle,
+    actionSubtitle,
+    actionOnClick,
+    actionVariant = CardActionVariant.SupportingText,
+    children,
+}: CardProps) {
+    const CARD_CLASSES_VARIANT = {
+        [CardVariant.Default]: 'border border-shader-neutral-light-8 p-xs',
+        [CardVariant.Outlined]: 'border border-shader-neutral-light-8 p-xs',
+        [CardVariant.Filled]: 'bg-shader-neutral-light-8 p-xs',
+    };
+
     return (
-        <div>
-            <div>image</div>
-            <div>
-                <div>{title}</div>
-                <div>{subtitle}</div>
-            </div>
-            <div>
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                >
-                    <path
-                        d="M10.7071 6.29289L15.7071 11.2929C16.0976 11.6834 16.0976 12.3166 15.7071 12.7071L10.7071 17.7071C10.3166 18.0976 9.68342 18.0976 9.29289 17.7071C8.90237 17.3166 8.90237 16.6834 9.29289 16.2929L13.5858 12L9.29289 7.70711C8.90237 7.31658 8.90237 6.68342 9.29289 6.29289C9.68342 5.90237 10.3166 5.90237 10.7071 6.29289Z"
-                        fill="#171D26"
-                    />
-                </svg>
-            </div>
+        <div
+            className={cx(
+                'inline-flex items-center gap-3 rounded-lg px-md py-xs',
+                CARD_CLASSES_VARIANT[cardVariant],
+            )}
+        >
+            <CardImage
+                imageType={imageType}
+                imageVariant={imageVariant}
+                imageUrl={imageUrl}
+                iconName={iconName}
+            />
+            <CardText title={title} subtitle={subtitle} />
+            <CardAction
+                actionVariant={actionVariant}
+                actionOnClick={actionOnClick}
+                actionTitle={actionTitle}
+                actionSubtitle={actionSubtitle}
+            />
+            {children}
         </div>
     );
 }

@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './Card';
+export { CardAction } from '@/components/molecules/card/CardAction';

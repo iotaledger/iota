@@ -4,7 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Card } from '@/components/molecules/card/Card';
-// import * as ButtonStory from '../atoms/Button.stories';
+// import { BadgeType } from "@/lib";
 
 const meta = {
     component: Card,
