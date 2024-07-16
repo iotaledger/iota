@@ -40,13 +40,12 @@ import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
-    DeriveBipPathAccountsFinder,
-    isDeriveBipPathAccountsFinder,
+    type DeriveBipPathAccountsFinder,
     isDeriveBipPathAccountsFinderResponse,
-    PersistAccountsFinder,
-    SourceStrategyToPersist,
+    type PersistAccountsFinder,
+    type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
-import { MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,

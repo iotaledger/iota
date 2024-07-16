@@ -3,8 +3,7 @@
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import { MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
-import { type AccountFinderConfigParams } from '_src/ui/app/accounts-finder';
+import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 
 export interface DeriveBipPathAccountsFinder extends BasePayload {
     type: 'derive-bip-path-accounts-finder';
