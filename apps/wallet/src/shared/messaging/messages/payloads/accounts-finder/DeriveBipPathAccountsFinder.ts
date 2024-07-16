@@ -20,7 +20,7 @@ export function isDeriveBipPathAccountsFinder(
 }
 
 export interface DeriveBipPathAccountsFindeResponsePayload extends BasePayload {
-    address: string;
+    publicKey: string;
 }
 
 export function isDeriveBipPathAccountsFinderResponse(

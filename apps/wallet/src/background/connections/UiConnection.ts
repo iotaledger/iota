@@ -271,13 +271,13 @@ export class UiConnection extends Connection {
                     throw new Error('Could not find account source');
                 }
 
-                const pubKey = await accountSource.derivePubKey(payload.derivationOptions);
+                const publicKey = await accountSource.derivePubKey(payload.derivationOptions);
 
                 this.send(
                     createMessage(
                         {
                             type: 'derive-bip-path-accounts-finder-response',
-                            address: pubKey?.toIotaAddress(),
+                            publicKey: publicKey.toBase64(),
                         },
                         msg.id,
                     ),
@@ -303,10 +303,12 @@ export class UiConnection extends Connection {
                         break;
                     case 'ledger':
                         for (const address of payload.sourceStrategy.addresses) {
-                            LedgerAccount.createNew({
-                                password: payload.sourceStrategy.password,
-                                ...address,
-                            });
+                            derivedAccounts.push(
+                                await LedgerAccount.createNew({
+                                    password: payload.sourceStrategy.password,
+                                    ...address,
+                                }),
+                            );
                         }
                 }
 

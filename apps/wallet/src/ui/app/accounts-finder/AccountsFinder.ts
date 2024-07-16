@@ -1,15 +1,19 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Bip44Path, AccountFromFinder } from '_src/shared/accounts';
+import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
 import type { IotaClient } from '@iota/iota.js/client';
-import { AccountType } from '../../../background/accounts/Account'; // TODO: FIX THIS IMPORT
+import { AccountType } from '../../../background/accounts/Account';
 import { getEmptyBalance } from './helpers';
 import type { FindBalance } from './types';
+import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 
-// Note: we exclude private keys for the account finder because more addresses cant be derived from them
-export type AllowedAccountTypes = Exclude<AccountType, AccountType.PrivateKeyDerived>;
+export enum AllowedAccountSourceTypes {
+    MnemonicDerived = 'mnemonic-derived',
+    SeedDerived = 'seed-derived',
+    LedgerDerived = 'ledger-derived',
+}
 
 export enum AllowedBip44CoinTypes {
     IOTA = 4218,
@@ -30,7 +34,7 @@ export interface AccountFinderConfigParams {
     }) => Promise<string>;
     client: IotaClient;
     bip44CoinType: AllowedBip44CoinTypes;
-    accountType: AllowedAccountTypes;
+    accountSourceType: AllowedAccountSourceTypes;
     algorithm?: SearchAlgorithm;
     coinType: string; // format: '0x2::iota::IOTA'
     changeIndexes?: number[];
@@ -44,13 +48,13 @@ interface GapConfiguration {
 }
 
 type GapConfigurationByCoinType = {
-    [key in AllowedAccountTypes]: GapConfiguration;
+    [key in AllowedAccountSourceTypes]: GapConfiguration;
 };
 
 const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoinType } = {
     // in IOTA we have chrysalis users which could have rotated addresses
     [AllowedBip44CoinTypes.IOTA]: {
-        [AccountType.LedgerDerived]: {
+        [AllowedAccountSourceTypes.LedgerDerived]: {
             accountGapLimit: 1,
             addressGapLimit: 5,
         },
@@ -108,11 +112,11 @@ export class AccountsFinder {
 
         this.accountGapLimit =
             config.accountGapLimit ??
-            GAP_CONFIGURATION[this.bip44CoinType][config.accountType].accountGapLimit;
+            GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.accountGapLimit;
 
         this.addressGapLimit =
             config.addressGapLimit ??
-            GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
+            GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.addressGapLimit;
     }
 
     reset() {
@@ -158,7 +162,7 @@ export class AccountsFinder {
             }
         }
 
-        let processedAccounts: Bip44Path[] = [];
+        let processedAccounts: AddressFromFinder[] = [];
 
         // depth search is done by searching for more addresses for each account in isolation
         for (const account of depthAccounts) {
@@ -204,15 +208,16 @@ export class AccountsFinder {
             throw new Error('IotaClient is not initialized');
         }
 
-        const publicKeyHash = await this.getPublicKey(params);
+        const publicKeyB64 = await this.getPublicKey(params);
+        const publicKey = new Ed25519PublicKey(publicKeyB64);
 
         const foundBalance = await this.client.getBalance({
-            owner: publicKeyHash,
+            owner: publicKey.toIotaAddress(),
             coinType: this.coinType,
         });
 
         return {
-            publicKeyHash,
+            publicKey: publicKeyB64,
             balance: foundBalance || emptyBalance,
         };
     };

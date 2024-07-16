@@ -5,9 +5,8 @@ import { Search24 } from '@iota/icons';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useActiveAccount } from '_app/hooks/useActiveAccount';
-import { type AllowedAccountTypes } from '_src/ui/app/accounts-finder';
+import { useParams } from 'react-router-dom';
+import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { getKey } from '_src/ui/app/helpers/accounts';
 import { useState } from 'react';
@@ -19,18 +18,31 @@ import { ConnectLedgerModal } from '_src/ui/app/components/ledger/ConnectLedgerM
 import toast from 'react-hot-toast';
 import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
+import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
+
+function getAccountSourceType(
+    accountSource?: AccountSourceSerializedUI,
+): AllowedAccountSourceTypes {
+    if (accountSource) {
+        return accountSource.type as unknown as AllowedAccountSourceTypes;
+    } else {
+        return AllowedAccountSourceTypes.LedgerDerived;
+    }
+}
 
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
+    const { data: accountSources } = useAccountSources();
+    const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
+    const accountSourceType = getAccountSourceType(accountSource);
     const { data: accounts } = useAccounts();
     const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
-    const currentAccount = useActiveAccount();
     const [searched, setSearched] = useState(false);
     const [password, setPassword] = useState('');
     const { find } = useAccountsFinder({
-        accountType: currentAccount?.type as AllowedAccountTypes,
+        accountSourceType,
         sourceStrategy:
-            accountSourceId == AccountType.LedgerDerived
+            accountSourceType == AllowedAccountSourceTypes.LedgerDerived
                 ? {
                       type: 'ledger',
                       password,
@@ -40,26 +52,25 @@ export function AccountsFinderView(): JSX.Element {
                       sourceID: accountSourceId!,
                   },
     });
-    const ledgerIotaClinet = useIotaLedgerClient();
-    const { data: accountSources } = useAccountSources();
+    const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
 
-    const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
-
     function findMore() {
-
-        if (accountSourceId === AccountType.LedgerDerived && !ledgerIotaClinet){
+        if (accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient) {
             return setConnectLedgerModalOpen(true);
         }
-        
-        if (accountSource?.isLocked || accountSourceId === AccountType.LedgerDerived) {
-            return setPasswordModalVisible(true);
-        } 
 
-        setSearched(true);
+        if (
+            accountSource?.isLocked ||
+            (accountSourceId === AccountType.LedgerDerived && !password)
+        ) {
+            return setPasswordModalVisible(true);
+        }
+
         find();
+        setSearched(true);
     }
 
     return (
@@ -89,19 +100,18 @@ export function AccountsFinderView(): JSX.Element {
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
-                        if (accountSourceId) {
+                        if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived) {
+                            // for ledger
+                            setPassword(password);
+                        } else if (accountSourceId) {
                             // unlock software account sources
                             await unlockAccountSourceMutation.mutateAsync({
                                 id: accountSourceId,
                                 password,
                             });
-                        } else {
-                            // for ledger
-                            setPassword(password);
                         }
 
                         setPasswordModalVisible(false);
-                        find();
                     }}
                     onClose={() => setPasswordModalVisible(false)}
                 />
@@ -119,6 +129,7 @@ export function AccountsFinderView(): JSX.Element {
                     }}
                     onConfirm={() => {
                         setConnectLedgerModalOpen(false);
+                        setPasswordModalVisible(true);
                     }}
                 />
             )}

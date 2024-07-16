@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from './useBackgroundClient';
-import { useQueryClient } from '@tanstack/react-query';
 import { IOTA_COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
-import { AccountsFinder, type AllowedAccountTypes } from '_src/ui/app/accounts-finder';
+import { AccountsFinder, type AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useIotaLedgerClient } from '../components/ledger/IotaLedgerClientProvider';
 import { useMemo } from 'react';
@@ -16,7 +15,7 @@ import { makeDerivationPath } from '_src/background/account-sources/bip44Path';
 import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 
 export interface UseAccountFinderOptions {
-    accountType: AllowedAccountTypes;
+    accountSourceType: AllowedAccountSourceTypes;
     coinType?: number;
     gasType?: string;
     accountGapLimit?: number;
@@ -30,20 +29,16 @@ export function useAccountsFinder({
     addressGapLimit,
     accountGapLimit,
     sourceStrategy,
-    accountType,
+    accountSourceType: accountType,
 }: UseAccountFinderOptions) {
     const backgroundClient = useBackgroundClient();
-    const queryClient = useQueryClient();
-    const ledgerIotaClinet = useIotaLedgerClient();
+    const ledgerIotaClient = useIotaLedgerClient();
     const client = useIotaClient();
 
     const accountFinder = useMemo(() => {
-        if (sourceStrategy.type === 'ledger' && !ledgerIotaClinet.iotaLedgerClient) {
-            ledgerIotaClinet.connectToLedger();
-        }
         return new AccountsFinder({
             client,
-            accountType,
+            accountSourceType: accountType,
             bip44CoinType: coinType,
             coinType: gasType,
             accountGapLimit,
@@ -51,21 +46,21 @@ export function useAccountsFinder({
             getPublicKey: async (bipPath) => {
                 if (sourceStrategy.type == 'ledger') {
                     // Retrieve the public key using the ledger client
-                    const client = ledgerIotaClinet.iotaLedgerClient!;
+                    const client = ledgerIotaClient.iotaLedgerClient!;
                     const derivationPath = makeDerivationPath(bipPath);
                     const publicKeyResult = await client?.getPublicKey(derivationPath);
                     const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-                    return publicKey.toIotaAddress();
+                    return publicKey.toBase64();
                 } else {
                     // Retrieve the public key using the background client
-                    const { address } = await backgroundClient.deriveBipPathAccountsFinder(
+                    const { publicKey } = await backgroundClient.deriveBipPathAccountsFinder(
                         sourceStrategy.sourceID,
                         {
                             ...bipPath,
                             coinType,
                         },
                     );
-                    return address;
+                    return publicKey;
                 }
             },
         });
@@ -81,18 +76,15 @@ export function useAccountsFinder({
     ]);
 
     async function find() {
-        const bipPaths = await accountFinder.find();
+        const foundAddresses = await accountFinder.find();
 
         let sourceStrategyToPersist: SourceStrategyToPersist | undefined = undefined;
 
         if (sourceStrategy.type == 'ledger') {
-            // Generate addresses with ledger client
-            const client = ledgerIotaClinet.iotaLedgerClient!;
             const addresses = await Promise.all(
-                bipPaths.map(async (bipPath) => {
-                    const derivationPath = makeDerivationPath(bipPath);
-                    const publicKeyResult = await client.getPublicKey(derivationPath);
-                    const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
+                foundAddresses.map(async (address) => {
+                    const derivationPath = makeDerivationPath(address.bipPath);
+                    const publicKey = new Ed25519PublicKey(address.publicKey);
                     return {
                         address: publicKey.toIotaAddress(),
                         publicKey: publicKey.toBase64(),
@@ -106,6 +98,7 @@ export function useAccountsFinder({
                 addresses,
             };
         } else {
+            const bipPaths = foundAddresses.map((address) => address.bipPath);
             sourceStrategyToPersist = {
                 ...sourceStrategy,
                 bipPaths,
@@ -114,10 +107,6 @@ export function useAccountsFinder({
 
         // Persist accounts
         await backgroundClient.persistAccountsFinder(sourceStrategyToPersist);
-
-        queryClient.invalidateQueries({
-            queryKey: ['accounts-finder-results'],
-        });
     }
 
     return {
