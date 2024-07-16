@@ -34,7 +34,7 @@ use iota_sdk::{
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig, DEFAULT_GAS_AMOUNT},
-    network_config::NetworkConfig,
+    network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{ProtocolVersionsConfig, SupportedProtocolVersionsCallback},
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
 };
@@ -1090,7 +1090,20 @@ impl TestClusterBuilder {
         let wallet_path = dir.join(IOTA_CLIENT_CONFIG);
         let keystore_path = dir.join(IOTA_KEYSTORE_FILENAME);
 
-        swarm.config().save(network_path)?;
+        let network_config = swarm.config();
+        // Create light config to save
+        let account_keys = network_config
+            .account_keys
+            .iter()
+            .map(|kp| kp.copy())
+            .collect();
+        let network_config_light = NetworkConfigLight::new(
+            network_config.validator_configs.clone(),
+            account_keys,
+            &network_config.genesis,
+        );
+        network_config_light.save(network_path)?;
+
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
             keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
