@@ -85,11 +85,7 @@ impl ValidatorConfigBuilder {
         self
     }
 
-    pub fn build(
-        self,
-        validator: ValidatorGenesisConfig,
-        genesis: iota_config::genesis::Genesis,
-    ) -> NodeConfig {
+    pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
         let key_path = get_key_path(&validator.key_pair);
         let config_directory = self
             .config_directory
@@ -171,7 +167,7 @@ impl ValidatorConfigBuilder {
             consensus_config: Some(consensus_config),
             enable_event_processing: false,
             enable_index_processing: default_enable_index_processing(),
-            genesis: iota_config::node::Genesis::new(genesis),
+            genesis: iota_config::node::Genesis::new_empty(),
             grpc_load_shed: None,
             grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
             p2p_config,
@@ -208,6 +204,16 @@ impl ValidatorConfigBuilder {
             run_with_range: None,
             websocket_only: false,
         }
+    }
+
+    pub fn build(
+        self,
+        validator: ValidatorGenesisConfig,
+        genesis: iota_config::genesis::Genesis,
+    ) -> NodeConfig {
+        let mut config = self.build_without_genesis(validator);
+        config.genesis = iota_config::node::Genesis::new(genesis);
+        config
     }
 
     pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
@@ -336,10 +342,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
-        network_config: &NetworkConfig,
+        validator_configs: &[NodeConfig],
+        genesis: iota_config::node::Genesis,
     ) -> NodeConfig {
         // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and
         // addresses, even though this is a fullnode.
@@ -357,8 +364,7 @@ impl FullnodeConfigBuilder {
             .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
 
         let p2p_config = {
-            let seed_peers = network_config
-                .validator_configs
+            let seed_peers = validator_configs
                 .iter()
                 .map(|config| SeedPeer {
                     peer_id: Some(anemo::PeerId(
@@ -424,9 +430,7 @@ impl FullnodeConfigBuilder {
             consensus_config: None,
             enable_event_processing: true, // This is unused.
             enable_index_processing: default_enable_index_processing(),
-            genesis: self.genesis.unwrap_or(iota_config::node::Genesis::new(
-                network_config.genesis.clone(),
-            )),
+            genesis,
             grpc_load_shed: None,
             grpc_concurrency_limit: None,
             p2p_config,
@@ -461,6 +465,20 @@ impl FullnodeConfigBuilder {
             run_with_range: self.run_with_range,
             websocket_only: false,
         }
+    }
+
+    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+        self,
+        rng: &mut R,
+        network_config: &NetworkConfig,
+    ) -> NodeConfig {
+        let genesis = self
+            .genesis
+            .as_ref()
+            .or_else(|| network_config.get_validator_genesis())
+            .cloned()
+            .unwrap_or_else(|| iota_config::node::Genesis::new(network_config.genesis.clone()));
+        self.build_from_parts(rng, network_config.validator_configs(), genesis)
     }
 }
 
