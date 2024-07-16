@@ -1,12 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example to add test outputs to a full snapshot.
+//! Example to create a new full snapshot with only test outputs and sample
+//! outputs coming from a previous one.
 
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::{
-    stardust::{parse::HornetSnapshotParser, test_outputs::only_snapshot_test_outputs},
+    stardust::{parse::HornetSnapshotParser, test_outputs::add_snapshot_test_outputs},
     IF_STARDUST_ADDRESS,
 };
 use iota_sdk::types::block::address::Address;
@@ -47,12 +48,14 @@ async fn main() -> anyhow::Result<()> {
 
     parse_snapshot::<false>(&current_path)?;
 
-    only_snapshot_test_outputs::<false>(
+    add_snapshot_test_outputs::<false>(
         &current_path,
         &new_path,
-        *Address::try_from_bech32(IF_STARDUST_ADDRESS)
-            .unwrap()
-            .as_ed25519(),
+        Some(
+            *Address::try_from_bech32(IF_STARDUST_ADDRESS)
+                .unwrap()
+                .as_ed25519(),
+        ),
     )
     .await?;
 

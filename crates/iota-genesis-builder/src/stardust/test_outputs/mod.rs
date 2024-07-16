@@ -32,11 +32,14 @@ const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
 const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
+const A_WEEK_IN_SECONDS: u32 = 604_800;
+const TIMELOCK_MAX_ENDING_TIME: u32 = A_WEEK_IN_SECONDS * 208;
 
+const TO_MICROS: u64 = 1_000_000;
 const DELEGATOR_GAS_COIN_NUM: u8 = 100;
-const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * 1_000_000;
+const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
 const DELEGATOR_TIMELOCKS_NUM: u8 = 100;
-const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * 1_000_000;
+const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
 
 const NUM_OF_SAMPLES_TO_KEEP: u8 = 100;
 
@@ -91,9 +94,13 @@ pub(crate) fn new_vested_output(
 }
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
+/// If a delegator address is present, then the resulting snapshot will include
+/// only a sample of the original outputs and some dedicated outputs will be
+/// created for the delegator to make it compliant with a timelocked staking.
 pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     current_path: impl AsRef<Path> + core::fmt::Debug,
     new_path: impl AsRef<Path> + core::fmt::Debug,
+    delegator: Option<Ed25519Address>,
 ) -> anyhow::Result<()> {
     let current_file = File::open(current_path)?;
     let new_file = File::create(new_path)?;
@@ -103,65 +110,7 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
-
-    let new_outputs = [
-        alias_ownership::outputs().await?,
-        stardust_mix::outputs(&mut vested_index).await?,
-        vesting_schedule_entity::outputs(&mut vested_index).await?,
-        vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
-        vesting_schedule_portfolio_mix::outputs(&mut vested_index).await?,
-    ]
-    .concat();
-    let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
-
-    // Increments the output count according to newly generated outputs.
-    new_header.output_count += new_outputs.len() as u64;
-
-    // Writes the new header.
-    new_header.pack(&mut writer)?;
-
-    // Writes previous and new outputs.
-    for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
-        output_header.pack(&mut writer)?;
-
-        if output_header.output_id() == output_to_decrease_amount_from {
-            let basic = output.as_basic();
-            let amount = basic
-                .amount()
-                .checked_sub(new_amount)
-                .ok_or_else(|| anyhow::anyhow!("underflow decreasing new amount from output"))?;
-            let output = Output::from(
-                BasicOutputBuilder::from(basic)
-                    .with_amount(amount)
-                    .finish()?,
-            );
-
-            output.pack(&mut writer)?;
-        } else {
-            output.pack(&mut writer)?;
-        }
-    }
-
-    // Add the solid entry points from the snapshot
-    writer.pack_bytes(parser.solid_entry_points_bytes()?)?;
-
-    Ok(())
-}
-
-/// Takes a full snapshot, empties it and adds outputs compliant with a
-/// timelocked staking in order to test specific and intricate scenarios.
-pub async fn only_snapshot_test_outputs<const VERIFY: bool>(
-    current_path: impl AsRef<Path> + core::fmt::Debug,
-    new_path: impl AsRef<Path> + core::fmt::Debug,
-    delegator: Ed25519Address,
-) -> anyhow::Result<()> {
-    let current_file = File::open(current_path)?;
-    let new_file = File::create(new_path)?;
-
-    let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let mut parser = HornetSnapshotParser::new::<VERIFY>(current_file)?;
-    let mut new_header = parser.header.clone();
-    let mut vested_index = u32::MAX;
+    let mut output_count = new_header.output_count;
 
     let mut new_outputs = [
         alias_ownership::outputs().await?,
@@ -173,59 +122,92 @@ pub async fn only_snapshot_test_outputs<const VERIFY: bool>(
     .concat();
 
     // Delegator
-    // Add gas coins to delegator
-    for _ in 0..DELEGATOR_GAS_COIN_NUM {
-        new_outputs.push(new_simple_basic_output(
-            DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT,
-            delegator,
-        )?);
+    let mut create_with_only_test_outputs = false;
+    if let Some(delegator) = delegator {
+        create_with_only_test_outputs = true;
+        // Add gas coins to delegator
+        for _ in 0..DELEGATOR_GAS_COIN_NUM {
+            new_outputs.push(new_simple_basic_output(
+                DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT,
+                delegator,
+            )?);
+        }
+
+        // Add timelocks to delegator
+        let mut transaction_id = [0; 32];
+        transaction_id[0..28]
+            .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
+        for _ in 0..DELEGATOR_TIMELOCKS_NUM {
+            new_outputs.push(new_vested_output(
+                &mut transaction_id,
+                &mut vested_index,
+                DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT,
+                delegator,
+                Some(MERGE_TIMESTAMP_SECS + TIMELOCK_MAX_ENDING_TIME),
+            )?);
+        }
+
+        // Samples
+        // Writes previous outputs.
+        let mut flag = [NUM_OF_SAMPLES_TO_KEEP; 5];
+        for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
+            let flag_index = (output.kind() - 2) as usize;
+            if flag[flag_index] > 0 {
+                flag[flag_index] -= 1;
+                new_outputs.push((output_header, output));
+            }
+        }
+
+        output_count = 0;
     }
 
-    // Add timelocks to delegator
-    let mut transaction_id = [0; 32];
-    transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
-    for _ in 0..DELEGATOR_TIMELOCKS_NUM {
-        new_outputs.push(new_vested_output(
-            &mut transaction_id,
-            &mut vested_index,
-            DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT,
-            delegator,
-            Some(MERGE_TIMESTAMP_SECS + 125_798_400),
-        )?);
-    }
+    // Compute the IOTA tokens amounk used by test outputs
+    let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
 
-    // Samples
-    // Writes previous outputs.
-    let mut flag = [NUM_OF_SAMPLES_TO_KEEP; 5];
-    for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
-        let flag_index = (output.kind() - 2) as usize;
-        if flag[flag_index] > 0 {
-            flag[flag_index] -= 1;
-            new_outputs.push((output_header, output));
+    if create_with_only_test_outputs {
+        // Add all the remainder tokens to the zero address
+        let zero_address = Ed25519Address::new([0; 32]);
+        let remainder = (TOTAL_SUPPLY_IOTA * TO_MICROS)
+            .checked_sub(new_amount)
+            .expect("new amount should not be higher than total supply");
+        let remainder_per_output = remainder / 4;
+        let difference = remainder % 4;
+        for _ in 0..4 {
+            new_outputs.push(new_simple_basic_output(remainder_per_output, zero_address)?);
+        }
+        if difference > 0 {
+            new_outputs.push(new_simple_basic_output(difference, zero_address)?);
         }
     }
 
-    // Add all the remainder tokens to the zero address
-    let zero_address = Ed25519Address::new([0; 32]);
-    let new_amount_from_test_objects = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
-    let remainder = (TOTAL_SUPPLY_IOTA * 1_000_000)
-        .checked_sub(new_amount_from_test_objects)
-        .expect("new amount should not be higher than total supply");
-    let remainder_per_output = remainder / 4;
-    let difference = remainder % 4;
-    for _ in 0..4 {
-        new_outputs.push(new_simple_basic_output(remainder_per_output, zero_address)?);
-    }
-    if difference > 0 {
-        new_outputs.push(new_simple_basic_output(difference, zero_address)?);
-    }
-
-    // Set the output count to the newly generated outputs.
-    new_header.output_count = new_outputs.len() as u64;
+    // Adjust the output count according to newly generated outputs.
+    new_header.output_count = output_count + new_outputs.len() as u64;
 
     // Writes the new header.
     new_header.pack(&mut writer)?;
+
+    if !create_with_only_test_outputs {
+        // Writes previous outputs.
+        for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
+            output_header.pack(&mut writer)?;
+
+            if output_header.output_id() == output_to_decrease_amount_from {
+                let basic = output.as_basic();
+                let amount = basic.amount().checked_sub(new_amount).ok_or_else(|| {
+                    anyhow::anyhow!("underflow decreasing new amount from output")
+                })?;
+                let output = Output::from(
+                    BasicOutputBuilder::from(basic)
+                        .with_amount(amount)
+                        .finish()?,
+                );
+
+                output.pack(&mut writer)?;
+            } else {
+                output.pack(&mut writer)?;
+            }
+        }
+    }
 
     // Writes only the new outputs.
     for (output_header, output) in new_outputs {
