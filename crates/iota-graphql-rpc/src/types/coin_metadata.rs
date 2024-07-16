@@ -5,7 +5,6 @@
 use async_graphql::{connection::Connection, *};
 use iota_types::{
     coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
-    gas_coin::{GAS, TOTAL_SUPPLY_IOTA},
     TypeTag,
 };
 
@@ -371,27 +370,23 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
-            TOTAL_SUPPLY_IOTA
-        } else {
-            let cap_type = TreasuryCap::type_(*coin_struct).into();
-            let Some(object) = Object::query_singleton(db, cap_type).await? else {
-                return Ok(None);
-            };
+        let cap_type = TreasuryCap::type_(*coin_struct).into();
+        let Some(object) = Object::query_singleton(db, cap_type).await? else {
+            return Ok(None);
+        };
 
-            let Some(native) = object.native_impl() else {
-                return Ok(None);
-            };
+        let Some(native) = object.native_impl() else {
+            return Ok(None);
+        };
 
-            let treasury_cap = TreasuryCap::try_from(native.clone()).map_err(|e| {
-                Error::Internal(format!(
-                    "Error while deserializing treasury cap {}: {e}",
-                    object.address,
-                ))
-            })?;
+        let treasury_cap = TreasuryCap::try_from(native.clone()).map_err(|e| {
+            Error::Internal(format!(
+                "Error while deserializing treasury cap {}: {e}",
+                object.address,
+            ))
+        })?;
 
-            treasury_cap.total_supply.value
-        }))
+        Ok(Some(treasury_cap.total_supply.value))
     }
 }
 

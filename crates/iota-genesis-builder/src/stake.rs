@@ -7,7 +7,7 @@ use iota_config::genesis::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    gas_coin::TOTAL_SUPPLY_NANOS,
+    gas_coin::STARDUST_TOTAL_SUPPLY_NANOS,
     object::Object,
     stardust::coin_kind::get_gas_balance_maybe,
 };
@@ -96,7 +96,7 @@ impl GenesisStake {
 
     /// Calculates the part of the IOTA supply that is pre-minted.
     fn calculate_pre_minted_supply(&self) -> u64 {
-        TOTAL_SUPPLY_NANOS - self.sum_token_allocation()
+        STARDUST_TOTAL_SUPPLY_NANOS - self.sum_token_allocation()
     }
 }
 

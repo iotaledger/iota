@@ -16,7 +16,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
-    gas_coin::{GAS, TOTAL_SUPPLY_NANOS},
+    gas_coin::GAS,
     object::Object,
     parse_iota_struct_tag,
 };
@@ -217,24 +217,16 @@ impl CoinReadApiServer for CoinReadApi {
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
         with_tracing!(async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
-            Ok(if GAS::is_gas(&coin_struct) {
-                Supply {
-                    value: TOTAL_SUPPLY_NANOS,
-                }
-            } else {
-                let treasury_cap_object = self
-                    .internal
-                    .find_package_object(
-                        &coin_struct.address.into(),
-                        TreasuryCap::type_(coin_struct),
-                    )
-                    .await?;
-                let treasury_cap = TreasuryCap::from_bcs_bytes(
-                    treasury_cap_object.data.try_as_move().unwrap().contents(),
-                )
-                .map_err(Error::from)?;
-                treasury_cap.total_supply
-            })
+
+            let treasury_cap_object = self
+                .internal
+                .find_package_object(&coin_struct.address.into(), TreasuryCap::type_(coin_struct))
+                .await?;
+            let treasury_cap = TreasuryCap::from_bcs_bytes(
+                treasury_cap_object.data.try_as_move().unwrap().contents(),
+            )
+            .map_err(Error::from)?;
+            Ok(treasury_cap.total_supply)
         })
     }
 }
@@ -1287,27 +1279,13 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_types::{gas_coin::TOTAL_SUPPLY_NANOS, id::UID};
+        use iota_types::id::UID;
         use mockall::predicate;
 
         use super::{super::*, *};
 
         #[tokio::test]
-        async fn test_success_response_for_gas_coin() {
-            let coin_type = "0x2::iota::IOTA";
-            let mock_internal = MockCoinReadInternal::new();
-            let coin_read_api = CoinReadApi {
-                internal: Box::new(mock_internal),
-            };
-
-            let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
-
-            let supply = response.unwrap();
-            assert_eq!(supply.value, TOTAL_SUPPLY_NANOS);
-        }
-
-        #[tokio::test]
-        async fn test_success_response_for_other_coin() {
+        async fn test_success_response_for_coin() {
             let package_id = get_test_package_id();
             let (coin_name, _, treasury_cap_struct, _, treasury_cap_object) =
                 get_test_treasury_cap_peripherals(package_id);

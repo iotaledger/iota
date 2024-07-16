@@ -8,7 +8,7 @@ use std::{fs::File, path::Path};
 use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser, test_outputs::add_snapshot_test_outputs,
 };
-use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
+use iota_types::gas_coin::STARDUST_TOTAL_SUPPLY_IOTA;
 
 fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<()> {
     let file = File::open(path)?;
@@ -21,7 +21,7 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
     })?;
 
     // Total supply is in IOTA, snapshot supply is Nanos
-    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA * 1_000_000);
+    assert_eq!(total_supply, STARDUST_TOTAL_SUPPLY_IOTA * 1_000_000);
 
     println!("Total supply: {total_supply}");
 

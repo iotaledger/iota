@@ -16,7 +16,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::{Balance, Supply},
+    balance::Balance,
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
@@ -28,13 +28,13 @@ use crate::{
 /// The number of Nanos per Iota token
 pub const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
-/// Total supply denominated in Iota
-pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
+/// Total Stardust supply denominated in Iota
+pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 
 // Note: cannot use checked arithmetic here since `const unwrap` is still
 // unstable.
-/// Total supply denominated in Nanos
-pub const TOTAL_SUPPLY_NANOS: u64 = TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
+/// Total Stardust supply denominated in Nanos
+pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
 pub const GAS_MODULE_NAME: &IdentStr = ident_str!("iota");
 pub const GAS_STRUCT_NAME: &IdentStr = ident_str!("IOTA");
@@ -187,9 +187,9 @@ mod checked {
             }
         }
 
-        /// Returns the total `Supply` of `Coin<IOTA>`.
-        pub fn total_supply(&self) -> &Supply {
-            &self.inner.total_supply
+        /// Returns the total supply of `Coin<IOTA>`.
+        pub fn total_supply(&self) -> u64 {
+            self.inner.total_supply.value
         }
     }
 }
