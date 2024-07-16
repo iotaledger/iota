@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ListItem } from '@/components';
+import { Seed } from '@iota/ui-icons';
 import type { Meta, StoryObj } from '@storybook/react';
 
 const meta = {
@@ -10,7 +11,12 @@ const meta = {
     render: (props) => {
         return (
             <div className="flex flex-col items-start gap-2">
-                <ListItem {...props} />
+                <ListItem {...props}>
+                    <div className="flex flex-grow flex-row items-center gap-2 pl-sm">
+                        <Seed />
+                        <div>Item 1</div>
+                    </div>
+                </ListItem>
             </div>
         );
     },
@@ -21,9 +27,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-    args: {},
     argTypes: {
         showRightIcon: {
+            control: 'boolean',
+        },
+        disabled: {
             control: 'boolean',
         },
     },
