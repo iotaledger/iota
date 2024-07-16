@@ -1426,6 +1426,16 @@ pub enum SnapshotUrl {
     Test(Url),
 }
 
+impl std::fmt::Display for SnapshotUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SnapshotUrl::Iota => "iota".fmt(f),
+            SnapshotUrl::Shimmer => "smr".fmt(f),
+            SnapshotUrl::Test(url) => url.as_str().fmt(f),
+        }
+    }
+}
+
 impl FromStr for SnapshotUrl {
     type Err = anyhow::Error;
 

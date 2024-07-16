@@ -12,7 +12,7 @@ use iota_config::{
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
     IOTA_GENESIS_FILENAME,
 };
-use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
+use iota_genesis_builder::{Builder, SnapshotSource, SnapshotUrl, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
@@ -106,7 +106,23 @@ pub enum CeremonyCommand {
     /// List the current validators in the Genesis builder.
     ListValidators,
     /// Build the Genesis checkpoint.
-    BuildUnsignedCheckpoint,
+    BuildUnsignedCheckpoint {
+        #[clap(
+            long,
+            help = "Define paths to local migration snapshots.",
+            name = "path"
+        )]
+        #[arg(num_args(0..))]
+        local_migration_snapshots: Vec<PathBuf>,
+        #[clap(
+            long,
+            name = "iota|smr|<full-url>",
+            help = "Remote migration snapshots.",
+            default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+        )]
+        #[arg(num_args(0..))]
+        remote_migration_snapshots: Vec<SnapshotUrl>,
+    },
     /// Examine the details of the built Genesis checkpoint.
     ExamineGenesisCheckpoint,
     /// Verify and sign the built Genesis checkpoint.
@@ -243,8 +259,21 @@ pub fn run(cmd: Ceremony) -> Result<()> {
             }
         }
 
-        CeremonyCommand::BuildUnsignedCheckpoint => {
-            let mut builder = Builder::load(&dir)?.with_migrated_state()?;
+        CeremonyCommand::BuildUnsignedCheckpoint {
+            local_migration_snapshots,
+            remote_migration_snapshots,
+        } => {
+            let local_snapshots = local_migration_snapshots
+                .into_iter()
+                .map(SnapshotSource::Local);
+            let remote_snapshots = remote_migration_snapshots
+                .into_iter()
+                .map(SnapshotSource::S3);
+
+            let mut builder = Builder::load(&dir)?;
+            for source in local_snapshots.chain(remote_snapshots) {
+                builder = builder.add_migration_objects(source.to_reader()?)?;
+            }
             let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
             println!(
                 "Successfully built unsigned checkpoint: {}",
