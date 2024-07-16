@@ -31,6 +31,7 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
 const REDIRECT_TO_ACCOUNTS_FINDER: AccountsFormType[] = [
     AccountsFormType.ImportMnemonic,
     AccountsFormType.ImportSeed,
+    AccountsFormType.ImportLedger,
 ];
 
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];

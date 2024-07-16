@@ -95,7 +95,7 @@ export function useAccountsFinder({
                     const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
                     return {
                         address: publicKey.toIotaAddress(),
-                        publicKey: publicKey.toString(),
+                        publicKey: publicKey.toBase64(),
                         derivationPath,
                     };
                 }),

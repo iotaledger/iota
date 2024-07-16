@@ -5,7 +5,7 @@ import { Search24 } from '@iota/icons';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { type AllowedAccountTypes } from '_src/ui/app/accounts-finder';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
@@ -15,6 +15,10 @@ import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPassw
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
 import { AccountType } from '_src/background/accounts/Account';
+import { ConnectLedgerModal } from '_src/ui/app/components/ledger/ConnectLedgerModal';
+import toast from 'react-hot-toast';
+import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
+import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
 
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
@@ -36,19 +40,26 @@ export function AccountsFinderView(): JSX.Element {
                       sourceID: accountSourceId!,
                   },
     });
+    const ledgerIotaClinet = useIotaLedgerClient();
     const { data: accountSources } = useAccountSources();
     const unlockAccountSourceMutation = useUnlockMutation();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
 
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
 
     function findMore() {
-        if (accountSource?.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
-            setSearched(true);
-            find();
+
+        if (accountSourceId === AccountType.LedgerDerived && !ledgerIotaClinet){
+            return setConnectLedgerModalOpen(true);
         }
+        
+        if (accountSource?.isLocked || accountSourceId === AccountType.LedgerDerived) {
+            return setPasswordModalVisible(true);
+        } 
+
+        setSearched(true);
+        find();
     }
 
     return (
@@ -95,6 +106,22 @@ export function AccountsFinderView(): JSX.Element {
                     onClose={() => setPasswordModalVisible(false)}
                 />
             ) : null}
+            {isConnectLedgerModalOpen && (
+                <ConnectLedgerModal
+                    onClose={() => {
+                        setConnectLedgerModalOpen(false);
+                    }}
+                    onError={(error) => {
+                        setConnectLedgerModalOpen(false);
+                        toast.error(
+                            getLedgerConnectionErrorMessage(error) || 'Something went wrong.',
+                        );
+                    }}
+                    onConfirm={() => {
+                        setConnectLedgerModalOpen(false);
+                    }}
+                />
+            )}
         </>
     );
 }
