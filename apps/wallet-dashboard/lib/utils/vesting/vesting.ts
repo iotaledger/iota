@@ -7,7 +7,7 @@ import {
     SUPPLY_INCREASE_STARTING_VESTING_YEAR,
     SUPPLY_INCREASE_VESTING_LABEL,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
-    SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE,
+    SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS,
 } from '../../constants';
 
 import {
@@ -102,7 +102,8 @@ export function buildSupplyIncreaseVestingSchedule(
     return Array.from({ length: payoutsCount }).map((_, i) => ({
         amount: referencePayout.amount,
         expirationTimestampMs:
-            referencePayout.expirationTimestampMs - SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE * i,
+            referencePayout.expirationTimestampMs -
+            SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
     }));
 }
 
