@@ -38,6 +38,8 @@ const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * 1_000_000;
 const DELEGATOR_TIMELOCKS_NUM: u8 = 100;
 const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * 1_000_000;
 
+const NUM_OF_SAMPLES_TO_KEEP: u8 = 100;
+
 pub(crate) fn new_simple_basic_output(
     amount: u64,
     address: Ed25519Address,
@@ -157,7 +159,7 @@ pub async fn only_snapshot_test_outputs<const VERIFY: bool>(
     let new_file = File::create(new_path)?;
 
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let parser = HornetSnapshotParser::new::<VERIFY>(current_file)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(current_file)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
@@ -191,6 +193,17 @@ pub async fn only_snapshot_test_outputs<const VERIFY: bool>(
             delegator,
             Some(MERGE_TIMESTAMP_SECS + 125_798_400),
         )?);
+    }
+
+    // Samples
+    // Writes previous outputs.
+    let mut flag = [NUM_OF_SAMPLES_TO_KEEP; 5];
+    for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
+        let flag_index = (output.kind() - 2) as usize;
+        if flag[flag_index] > 0 {
+            flag[flag_index] -= 1;
+            new_outputs.push((output_header, output));
+        }
     }
 
     // Add all the remainder tokens to the zero address
