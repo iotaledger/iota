@@ -49,6 +49,10 @@ impl Balance {
         }
     }
 
+    pub fn type_tag(inner_type_param: TypeTag) -> TypeTag {
+        TypeTag::Struct(Box::new(Self::type_(inner_type_param)))
+    }
+
     pub fn is_balance(s: &StructTag) -> bool {
         s.address == IOTA_FRAMEWORK_ADDRESS
             && s.module.as_ident_str() == BALANCE_MODULE_NAME

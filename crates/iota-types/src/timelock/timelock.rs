@@ -19,7 +19,7 @@ use crate::{
     error::ExecutionError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    TIMELOCK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 
 #[cfg(test)]
@@ -172,7 +172,7 @@ impl<T> TimeLock<T> {
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: TIMELOCK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: TIMELOCK_MODULE_NAME.to_owned(),
             name: TIMELOCK_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -217,7 +217,7 @@ where
 
 /// Is this other StructTag representing a TimeLock?
 pub fn is_timelock(other: &StructTag) -> bool {
-    other.address == TIMELOCK_ADDRESS
+    other.address == IOTA_FRAMEWORK_ADDRESS
         && other.module.as_ident_str() == TIMELOCK_MODULE_NAME
         && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
 }

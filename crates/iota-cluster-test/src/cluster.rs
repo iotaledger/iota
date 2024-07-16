@@ -5,7 +5,11 @@
 use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
-use iota_config::{Config, PersistedConfig, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG};
+use iota_config::{
+    genesis::Genesis, Config, PersistedConfig, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
+    IOTA_NETWORK_CONFIG,
+};
+use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
@@ -16,7 +20,10 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_swarm::memory::Swarm;
-use iota_swarm_config::{genesis_config::GenesisConfig, network_config::NetworkConfig};
+use iota_swarm_config::{
+    genesis_config::GenesisConfig,
+    network_config::{NetworkConfig, NetworkConfigLight},
+};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{get_key_pair, AccountKeyPair, IotaKeyPair, KeypairTraits},
@@ -185,19 +192,43 @@ impl Cluster for LocalNewCluster {
             assert!(options.epoch_duration_ms.is_none());
             // Load the config of the Iota authority.
             let network_config_path = config_dir.join(IOTA_NETWORK_CONFIG);
-            let network_config: NetworkConfig = PersistedConfig::read(&network_config_path)
-                .map_err(|err| {
-                    err.context(format!(
-                        "Cannot open Iota network config file at {:?}",
-                        network_config_path
-                    ))
-                })?;
+            let NetworkConfigLight {
+                validator_configs,
+                account_keys,
+                committee_with_network: _,
+            } = PersistedConfig::read(&network_config_path).map_err(|err| {
+                err.context(format!(
+                    "Cannot open Iota network config file at {:?}",
+                    network_config_path
+                ))
+            })?;
 
+            // Add genesis objects
+            let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
+            let genesis = Genesis::load(genesis_path)?;
+            let network_config = NetworkConfig {
+                validator_configs,
+                account_keys,
+                genesis,
+            };
             cluster_builder = cluster_builder.set_network_config(network_config);
+
             cluster_builder = cluster_builder.with_config_dir(config_dir);
         } else {
             // Let the faucet account hold 1000 gas objects on genesis
-            let genesis_config = GenesisConfig::custom_genesis(1, 100);
+            let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
+            // Add any migration sources
+            let local_snapshots = options
+                .local_migration_snapshots
+                .iter()
+                .cloned()
+                .map(SnapshotSource::Local);
+            let remote_snapshots = options
+                .remote_migration_snapshots
+                .iter()
+                .cloned()
+                .map(SnapshotSource::S3);
+            genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
             // Custom genesis should be build here where we add the extra accounts
             cluster_builder = cluster_builder.set_genesis_config(genesis_config);
 
