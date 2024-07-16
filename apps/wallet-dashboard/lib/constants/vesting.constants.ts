@@ -16,7 +16,7 @@ export const SUPPLY_INCREASE_INVESTOR_VESTING_DURATION = 4; // Years
 
 // https://github.com/iotaledger/iota/blob/1ec56b585905d7b96fb059a9f47135df6a82cd89/crates/iota-types/src/timelock/stardust_upgrade_label.rs#L12
 export const VESTING_LABEL =
-    '00000000000000000000000000000000000000000000000000000000000010cf::stardust_upgrade_label::STARDUST_UPGRADE_LABEL';
+    '000000000000000000000000000000000000000000000000000000000000107a::stardust_upgrade_label::STARDUST_UPGRADE_LABEL';
 
 export const MOCKED_VESTING_TIMELOCKED_OBJECTS: Timelocked[] = [
     {
