@@ -10,7 +10,7 @@ export const TEXT_SIZE = {
 };
 
 export const SUPPORTING_TEXT_SIZE = {
-    [LabelTextSize.Small]: 'text-label-sm',
+    [LabelTextSize.Small]: 'text-label-md',
     [LabelTextSize.Medium]: 'text-label-md',
     [LabelTextSize.Large]: 'text-label-lg',
 };
