@@ -106,7 +106,7 @@ export function buildVestingSchedule(
 }
 
 // Get number of payouts to construct vesting schedule
-function getVestingPayoutsCount(userType: SupplyIncreaseUserType): number {
+export function getVestingPayoutsCount(userType: SupplyIncreaseUserType): number {
     const vestingDuration =
         userType === SupplyIncreaseUserType.Staker
             ? SUPPLY_INCREASE_STAKER_VESTING_DURATION

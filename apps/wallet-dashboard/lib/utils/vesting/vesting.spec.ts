@@ -5,8 +5,6 @@ import {
     MOCKED_VESTING_TIMELOCKED_AND_TIMELOCK_STAKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
-    SUPPLY_INCREASE_STAKER_VESTING_DURATION,
-    SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
 } from '../../constants';
 
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
@@ -14,6 +12,7 @@ import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../inter
 import {
     buildVestingSchedule as buildVestingPortfolio,
     getLastVestingPayout,
+    getVestingPayoutsCount,
     getVestingUserType,
 } from './vesting';
 
@@ -52,8 +51,8 @@ describe('get user type', () => {
     });
 });
 
-describe('build vesting portfolio', () => {
-    it('should build propery with mocked timelocked objects', () => {
+describe('build staker vesting portfolio', () => {
+    it('should build with mocked timelocked objects', () => {
         const timelockedObjects = MOCKED_VESTING_TIMELOCKED_OBJECTS;
 
         const lastPayout = getLastVestingPayout(timelockedObjects);
@@ -65,7 +64,7 @@ describe('build vesting portfolio', () => {
         expect(vestingPortfolio.length).toEqual(52);
     });
 
-    it('should build propery with mocked timelocked staked objects', () => {
+    it('should build properly with mocked timelocked staked objects', () => {
         const timelockedStakedObjects = MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS;
 
         const lastPayout = getLastVestingPayout(timelockedStakedObjects);
@@ -75,11 +74,11 @@ describe('build vesting portfolio', () => {
         const vestingPortfolio = buildVestingPortfolio(lastPayout!);
 
         expect(vestingPortfolio.length).toEqual(
-            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * SUPPLY_INCREASE_STAKER_VESTING_DURATION,
+            getVestingPayoutsCount(SupplyIncreaseUserType.Staker),
         );
     });
 
-    it('should build propery with mix of mocked timelocked and timelocked staked objects', () => {
+    it('should build properly with mix of mocked timelocked and timelocked staked objects', () => {
         const mixedObjects = MOCKED_VESTING_TIMELOCKED_AND_TIMELOCK_STAKED_OBJECTS;
 
         const lastPayout = getLastVestingPayout(mixedObjects);
@@ -89,7 +88,7 @@ describe('build vesting portfolio', () => {
         const vestingPortfolio = buildVestingPortfolio(lastPayout!);
 
         expect(vestingPortfolio.length).toEqual(
-            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * SUPPLY_INCREASE_STAKER_VESTING_DURATION,
+            getVestingPayoutsCount(SupplyIncreaseUserType.Staker),
         );
     });
 });
