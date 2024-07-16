@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { indexGenerator } from '@/lib/utils';
 import { create } from 'zustand';
-
-import { indexGenerator } from '@/utils/indexGenerator';
 
 const indexGen = indexGenerator(200);
 
