@@ -37,7 +37,7 @@ const meta = {
                             />
                         </DialogHeader>
                         <DialogDescription>
-                            <div className="flex flex-col items-center px-lg">
+                            <div className="flex flex-col items-center gap-2">
                                 <div className="mt-4.5">Logo</div>
                                 <div className="mt-4.5 break-words text-center">
                                     Connect your ledger to your computer, unlock it, and launch the
@@ -47,7 +47,7 @@ const meta = {
                             </div>
                         </DialogDescription>
                         <DialogFooter>
-                            <div className="flex w-full flex-row justify-center gap-2 p-md">
+                            <div className="flex w-full flex-row justify-center gap-2 px-md pb-md">
                                 <Button
                                     size={ButtonSize.Small}
                                     type={ButtonType.Outlined}
