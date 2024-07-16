@@ -1,12 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Bip44Path, type AccountFromFinder } from '_src/shared/accounts';
+import type { Bip44Path, AccountFromFinder } from '_src/shared/accounts';
 import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
-import { IotaClient } from '@iota/iota.js/client';
+import type { IotaClient } from '@iota/iota.js/client';
 import { AccountType } from '../../../background/accounts/Account'; // TODO: FIX THIS IMPORT
 import { getEmptyBalance } from './helpers';
-import { FindBalance } from './types';
+import type { FindBalance } from './types';
 
 // Note: we exclude private keys for the account finder because more addresses cant be derived from them
 export type AllowedAccountTypes = Exclude<AccountType, AccountType.PrivateKeyDerived>;

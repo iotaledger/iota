@@ -53,7 +53,7 @@ import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
 import { isDeriveBipPathAccountsFinder, isPersistAccountsFinder } from '_payloads/accounts-finder';
-import { SerializedAccount } from '../accounts/Account';
+import type { SerializedAccount } from '../accounts/Account';
 import { LedgerAccount } from '../accounts/LedgerAccount';
 
 export class UiConnection extends Connection {

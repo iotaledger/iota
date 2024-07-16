@@ -1,4 +1,7 @@
-import { MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import type { MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 
 export type SourceStrategyToFind =
     | {

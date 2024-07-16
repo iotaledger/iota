@@ -8,7 +8,7 @@ import { AccountsFinder, type AllowedAccountTypes } from '_src/ui/app/accounts-f
 import { useIotaClient } from '@iota/dapp-kit';
 import { useIotaLedgerClient } from '../components/ledger/IotaLedgerClientProvider';
 import { useMemo } from 'react';
-import {
+import type {
     SourceStrategyToFind,
     SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
