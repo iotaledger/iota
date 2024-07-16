@@ -1,0 +1,32 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { isBasePayload } from '_payloads';
+import type { BasePayload, Payload } from '_payloads';
+import { MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import { type AccountFinderConfigParams } from '_src/ui/app/accounts-finder';
+
+export interface DeriveBipPathAccountsFinder extends BasePayload {
+    type: 'derive-bip-path-accounts-finder';
+    sourceID: string,
+    derivationOptions: MakeDerivationOptions
+}
+
+export type DeriveBipPathAccountsFinderPayload = DeriveBipPathAccountsFinder;
+
+export function isDeriveBipPathAccountsFinder(
+    payload: Payload,
+): payload is DeriveBipPathAccountsFinderPayload {
+    return isBasePayload(payload) && payload.type === 'derive-bip-path-accounts-finder';
+}
+
+export interface DeriveBipPathAccountsFindeResponsePayload extends BasePayload {
+    address: string
+}
+
+export function isDeriveBipPathAccountsFinderResponse(
+    payload: Payload,
+): payload is DeriveBipPathAccountsFindeResponsePayload {
+    return isBasePayload(payload) && payload.type === 'derive-bip-path-accounts-finder-response';
+}
+

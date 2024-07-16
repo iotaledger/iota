@@ -78,9 +78,7 @@ export function ProtectAccountPage() {
                         },
                     });
                 } else if (
-                    REDIRECT_TO_ACCOUNTS_FINDER.includes(type) &&
-                    (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
-                        isSeedSerializedUiAccount(createdAccounts[0]))
+                    REDIRECT_TO_ACCOUNTS_FINDER.includes(type)
                 ) {
                     const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
                     navigate(path, {

@@ -38,7 +38,7 @@ import {
 } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
-import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts';
+import { accountsHandleUIMessage, addNewAccounts, getAccountsByAddress, getAllSerializedUIAccounts } from '../accounts';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
 import { backupDB, getDB, SETTINGS_KEYS } from '../db';
@@ -47,8 +47,9 @@ import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
-import { isInitAccountsFinder, isSearchAccountsFinder } from '_payloads/accounts-finder';
-import AccountsFinder from '../accounts-finder/AccountsFinder';
+import { isDeriveBipPathAccountsFinder, isPersistAccountsFinder } from '_payloads/accounts-finder';
+import { SerializedAccount } from '../accounts/Account';
+import { LedgerAccount } from '../accounts/LedgerAccount';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
@@ -258,20 +259,63 @@ export class UiConnection extends Connection {
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
                 this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isInitAccountsFinder(payload)) {
-                AccountsFinder.reset();
+            }  else if (isDeriveBipPathAccountsFinder(payload)) {
+                const accountSource = await getAccountSourceByID(payload.sourceID);
+
+                if (!accountSource) {
+                    throw new Error('Could not find account source');
+                }
+            
+                const pubKey = await accountSource.derivePubKey(payload.derivationOptions);
+                
+                this.send(createMessage({ type: 'derive-bip-path-accounts-finder-response', address: pubKey?.toIotaAddress() }, msg.id));
+            }  else if (isPersistAccountsFinder(payload)) {
+                let derivedAccounts: Omit<SerializedAccount, 'id'>[] = []
+
+                switch (payload.sourceStrategy.type){
+                    case 'software':
+                        const accountSource = await getAccountSourceByID(payload.sourceStrategy.sourceID);
+            
+                        if (!accountSource) {
+                            throw new Error('Could not find account source');
+                        }
+            
+                        derivedAccounts =  await Promise.all(
+                            payload.sourceStrategy.bipPaths.map((addressBipPath) => accountSource.deriveAccount(addressBipPath)),
+                        );
+                        break;
+                    case 'ledger':
+                        for(const address of payload.sourceStrategy.addresses){
+                            LedgerAccount.createNew({
+                                password: payload.sourceStrategy.password,
+                                ...address
+                            })
+                        }
+                }
+                
+            
+                // Filter those accounts that already exist so they are not duplicated
+                const derivedAccountsNonExistent: Omit<SerializedAccount, 'id'>[] = (
+                    await Promise.all(
+                        derivedAccounts.map(async (account) => {
+                            const foundAccounts = await getAccountsByAddress(account.address);
+                            for (const foundAccount of foundAccounts) {
+                                if (foundAccount.type === account.type) {
+                                    // Do not persist accounts with the same address and type
+                                    return undefined;
+                                }
+                            }
+            
+                            return account;
+                        }),
+                    )
+                ).filter(Boolean) as Omit<SerializedAccount, 'id'>[];
+            
+                // Actually persist the accounts
+                await addNewAccounts(derivedAccountsNonExistent);
+                
                 this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isSearchAccountsFinder(payload)) {
-                await AccountsFinder.find({
-                    accountType: payload.accountType,
-                    bip44CoinType: payload.bip44CoinType,
-                    coinType: payload.coinType,
-                    sourceID: payload.sourceID,
-                    accountGapLimit: payload.accountGapLimit,
-                    addressGapLimit: payload.addressGapLimit,
-                });
-                this.send(createMessage({ type: 'done' }, msg.id));
-            } else {
+            }  else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(
                         'error' in payload ? `${payload.code}-${payload.message}` : payload.type,

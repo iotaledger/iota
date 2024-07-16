@@ -7,13 +7,14 @@ import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalan
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
 import { useParams } from 'react-router-dom';
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
-import { type AllowedAccountTypes } from '_src/background/accounts-finder';
+import { type AllowedAccountTypes } from '_src/ui/app/accounts-finder';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { getKey } from '_src/ui/app/helpers/accounts';
 import { useState } from 'react';
 import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
+import { AccountType } from '_src/background/accounts/Account';
 
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
@@ -21,22 +22,29 @@ export function AccountsFinderView(): JSX.Element {
     const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
     const currentAccount = useActiveAccount();
     const [searched, setSearched] = useState(false);
-
-    const { search, reset } = useAccountsFinder({
+    const [password, setPassword] = useState('');
+    const { find } = useAccountsFinder({
         accountType: currentAccount?.type as AllowedAccountTypes,
-        sourceID: accountSourceId || '',
+        sourceStrategy: accountSourceId == AccountType.LedgerDerived ? {
+            type: 'ledger',
+            password
+        } : {
+            type: 'software',
+            sourceID: accountSourceId!
+        }
     });
     const { data: accountSources } = useAccountSources();
     const unlockAccountSourceMutation = useUnlockMutation();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
 
-    function searchMore() {
+    function findMore() {
         if (accountSource?.isLocked) {
             setPasswordModalVisible(true);
         } else {
             setSearched(true);
-            search();
+            find();
         }
     }
 
@@ -49,13 +57,12 @@ export function AccountsFinderView(): JSX.Element {
                     })}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <Button variant="outline" size="tall" text={'Start again'} onClick={reset} />
                     <Button
                         variant="outline"
                         size="tall"
                         text={searched ? 'Search again' : 'Search'}
                         after={<Search24 />}
-                        onClick={searchMore}
+                        onClick={findMore}
                     />
 
                     <div className="flex flex-row gap-2">
@@ -64,16 +71,23 @@ export function AccountsFinderView(): JSX.Element {
                     </div>
                 </div>
             </div>
-            {isPasswordModalVisible && accountSourceId ? (
+            {isPasswordModalVisible ? (
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
-                        await unlockAccountSourceMutation.mutateAsync({
-                            id: accountSourceId,
-                            password,
-                        });
+                        if(accountSourceId){
+                            // unlock software account sources
+                            await unlockAccountSourceMutation.mutateAsync({
+                                id: accountSourceId,
+                                password,
+                            });
+                        } else {
+                            // for ledger
+                            setPassword(password);
+                        }
+
                         setPasswordModalVisible(false);
-                        search();
+                        find();
                     }}
                     onClose={() => setPasswordModalVisible(false)}
                 />

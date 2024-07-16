@@ -3,7 +3,7 @@
 
 import { recoverAccounts, mergeAccounts } from './accounts-finder';
 import { assert, test } from 'vitest';
-import { FindBalance } from '_src/background/accounts-finder/types';
+import { FindBalance } from './types';
 
 const findBalanceFactory = (
     accountIndexesWithBalance: number[],

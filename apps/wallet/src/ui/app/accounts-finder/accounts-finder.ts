@@ -7,7 +7,7 @@ import {
     type AccountFromFinder,
     type AddressFromFinder,
 } from '_src/shared/accounts';
-import type { FindBalance } from '_src/background/accounts-finder/types';
+import { FindBalance } from './types';
 
 /**
  * Recover accounts function and all related interfaces
