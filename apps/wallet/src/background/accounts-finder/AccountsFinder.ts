@@ -6,7 +6,7 @@ import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './account
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { AccountType } from '../accounts/Account';
-import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import {
     persistAddressesToSource,
     getEmptyBalance,
@@ -93,7 +93,7 @@ class AccountsFinder {
 
     private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
     private bip44CoinType: AllowedBip44CoinTypes = AllowedBip44CoinTypes.IOTA; // 4218 for IOTA or 4219 for Shimmer
-    private coinType: string = GAS_TYPE_ARG;
+    private coinType: string = IOTA_TYPE_ARG;
     private sourceID: string = '';
     public client: IotaClient | null = null;
 
@@ -209,7 +209,7 @@ class AccountsFinder {
 
         const publicKeyHash = await getPublicKey({
             sourceID: this.sourceID,
-            coinType: this.bip44CoinType,
+            bip44CoinType: this.bip44CoinType,
             accountIndex: params.accountIndex,
             addressIndex: params.addressIndex,
             changeIndex: params.changeIndex,
