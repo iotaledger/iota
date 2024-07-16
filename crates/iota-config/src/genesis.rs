@@ -100,6 +100,10 @@ impl Genesis {
         }
     }
 
+    pub fn into_objects(self) -> Vec<Object> {
+        self.objects
+    }
+
     pub fn objects(&self) -> &[Object] {
         &self.objects
     }
