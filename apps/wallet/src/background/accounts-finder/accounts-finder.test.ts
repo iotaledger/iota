@@ -21,7 +21,7 @@ const findBalanceFactory = (
                 balance: {
                     totalBalance: '100',
                     coinObjectCount: 2,
-                    coinType: '4218',
+                    coinType: '0x2::iota::IOTA',
                     lockedBalance: {},
                 },
             });
@@ -32,7 +32,7 @@ const findBalanceFactory = (
             balance: {
                 totalBalance: '0',
                 coinObjectCount: 0,
-                coinType: '4218',
+                coinType: '0x2::iota::IOTA',
                 lockedBalance: {},
             },
         });
