@@ -63,7 +63,9 @@ describe('build supply increase staker vesting portfolio', () => {
 
         const vestingPortfolio = buildVestingPortfolio(lastPayout!);
 
-        expect(vestingPortfolio.length).toEqual(52);
+        expect(vestingPortfolio.length).toEqual(
+            getSupplyIncreaseVestingPayoutsCount(SupplyIncreaseUserType.Staker),
+        );
     });
 
     it('should build properly with mocked timelocked staked objects', () => {
