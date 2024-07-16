@@ -118,7 +118,7 @@ export function getVestingOverview(
             totalVested: 0,
             totalUnlocked: 0,
             totalLocked: 0,
-            totalStacked: 0,
+            totalStaked: 0,
             availableClaiming: 0,
             availableStaking: 0,
         };
@@ -157,7 +157,7 @@ export function getVestingOverview(
         totalVested: totalVestedAmount,
         totalUnlocked: totalUnlockedVestedAmount,
         totalLocked: totalLockedAmount,
-        totalStacked: totalStaked,
+        totalStaked: totalStaked,
         availableClaiming: totalAvailableClaimingAmount,
         availableStaking: totalAvailableStakingAmount,
     };
