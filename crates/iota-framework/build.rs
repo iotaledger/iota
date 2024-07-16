@@ -257,7 +257,9 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             new_path.push(path.components().skip(1).collect::<PathBuf>());
             new_path.to_string_lossy().to_string()
         };
-        output.entry(file_name).or_insert_with(|| {
+
+        // Store all files in a map to deduplicate and change extension to mdx
+        output.entry(format!("{}x", file_name)).or_insert_with(|| {
             re.replace_all(
                 &file_content
                     .replace("../../dependencies/", "../")
