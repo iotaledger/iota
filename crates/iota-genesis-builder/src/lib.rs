@@ -4,9 +4,10 @@
 
 use std::{
     collections::{BTreeMap, HashSet},
-    fs,
-    io::{prelude::Read, BufReader},
-    path::Path,
+    fs::{self, File},
+    io::{prelude::Read, BufReader, BufWriter},
+    path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -21,10 +22,12 @@ use iota_config::genesis::{
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::Url;
+use iota_sdk::{types::block::address::Address, Url};
 use iota_types::{
+    balance::Balance,
     base_types::{
-        ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
+        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        TxContext,
     },
     committee::Committee,
     crypto::{
@@ -36,7 +39,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
-    gas_coin::GasCoin,
+    gas_coin::{GasCoin, GAS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -46,19 +49,33 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::stardust_to_iota_address,
+    timelock::{
+        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
+        timelocked_staked_iota::TimelockedStakedIota,
+    },
     transaction::{
-        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
+        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
+        Transaction,
     },
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
+use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
+use stake::{delegate_genesis_stake, GenesisStake};
+use stardust::migration::MigrationObjects;
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
+mod stake;
 pub mod stardust;
 pub mod validator_info;
+
+// TODO: Lazy static `stardust_to_iota_address`
+const IF_STARDUST_ADDRESS: &str =
+    "iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr";
 
 const GENESIS_BUILDER_COMMITTEE_DIR: &str = "committee";
 const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
@@ -84,6 +101,8 @@ pub struct Builder {
     // Validator signatures over checkpoint
     signatures: BTreeMap<AuthorityPublicKeyBytes, AuthoritySignInfo>,
     built_genesis: Option<UnsignedGenesis>,
+    migration_objects: MigrationObjects,
+    genesis_stake: GenesisStake,
 }
 
 impl Default for Builder {
@@ -101,7 +120,22 @@ impl Builder {
             validators: Default::default(),
             signatures: Default::default(),
             built_genesis: None,
+            migration_objects: Default::default(),
+            genesis_stake: Default::default(),
         }
+    }
+
+    /// Add stardust and shimmer objects into genesis.
+    pub fn with_migrated_state(self) -> anyhow::Result<Self> {
+        tracing::info!("Adding migrated state...");
+        self.add_migration_objects(SnapshotUrl::Iota.to_reader()?)?
+            .add_migration_objects(SnapshotUrl::Shimmer.to_reader()?)
+    }
+
+    /// Checks if the genesis to be built is vanilla or if it includes Stardust
+    /// migration stakes
+    pub fn is_vanilla(&self) -> bool {
+        self.genesis_stake.is_empty()
     }
 
     pub fn with_parameters(mut self, parameters: GenesisCeremonyParameters) -> Self {
@@ -154,13 +188,14 @@ impl Builder {
     }
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
-        let UnsignedGenesis { checkpoint, .. } = self.build_unsigned_genesis_checkpoint();
-
         let name = keypair.public().into();
         assert!(
             self.validators.contains_key(&name),
             "provided keypair does not correspond to a validator in the validator set"
         );
+
+        let UnsignedGenesis { checkpoint, .. } = self.get_or_build_unsigned_genesis();
+
         let checkpoint_signature = {
             let intent_msg = IntentMessage::new(
                 Intent::iota_app(IntentScope::CheckpointSummary),
@@ -179,51 +214,99 @@ impl Builder {
         self
     }
 
-    pub fn add_migration_objects(self, reader: impl Read) -> anyhow::Result<Self> {
-        Ok(self.add_objects(bcs::from_reader(reader)?))
-    }
-
-    /// Reads a gzip compressed object snapshot from the S3.
-    pub fn read_snapshot_from_s3(url: SnapshotUrl) -> anyhow::Result<impl Read> {
-        Ok(GzDecoder::new(BufReader::new(reqwest::blocking::get(
-            url.to_url(),
-        )?)))
+    pub fn add_migration_objects(mut self, reader: impl Read) -> anyhow::Result<Self> {
+        self.migration_objects
+            .extend(bcs::from_reader::<Vec<_>>(reader)?);
+        Ok(self)
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
         self.built_genesis.clone()
     }
 
-    pub fn build_unsigned_genesis_checkpoint(&mut self) -> UnsignedGenesis {
-        if let Some(built_genesis) = &self.built_genesis {
-            return built_genesis.clone();
-        }
-
+    fn build_and_cache_unsigned_genesis(&mut self) {
         // Verify that all input data is valid
-        self.validate().unwrap();
-
-        let objects = self.objects.clone().into_values().collect::<Vec<_>>();
+        self.validate_inputs().unwrap();
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
 
-        let token_distribution_schedule =
+        // If not vanilla then create genesis_stake
+        if !self.migration_objects.is_empty() {
+            let delegator =
+                stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
+                    .unwrap();
+            // TODO: check whether we need to start with
+            // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
+            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
+            self.genesis_stake = delegate_genesis_stake(
+                &validators,
+                delegator,
+                &self.migration_objects,
+                minimum_stake,
+            )
+            .unwrap();
+        }
+
+        // Verify that token distribution schedule is valid
+        self.validate_token_distribution_schedule().unwrap();
+        // Get the vanilla token distribution schedule or merge it with genesis stake
+        let token_distribution_schedule = if self.is_vanilla() {
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
                 token_distribution_schedule.clone()
             } else {
                 TokenDistributionSchedule::new_for_validators_with_default_allocation(
                     validators.iter().map(|v| v.info.iota_address()),
                 )
-            };
+            }
+        } else if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
+            self.genesis_stake
+                .extend_vanilla_token_distribution_schedule(token_distribution_schedule.clone())
+        } else {
+            self.genesis_stake.to_token_distribution_schedule()
+        };
 
+        // If the genesis stake was created, then burn gas objects that were added to
+        // the token distribution schedule, because they will be created on the
+        // Move side during genesis. That means we need to prevent from being
+        // part of the initial genesis objects by evicting them here.
+        self.migration_objects.evict(
+            self.genesis_stake
+                .take_gas_coins_to_burn()
+                .into_iter()
+                .map(|(id, _, _)| id),
+        );
+        let mut objects = self.migration_objects.take_objects();
+        objects.extend(self.objects.values().cloned());
+
+        // Use stake_subsidy_start_epoch to mimic the burn of newly minted IOTA coins
+        if !self.is_vanilla() {
+            // Because we set the `stake_subsidy_fund` as non-zero
+            // we need to effectively disable subsidy rewards
+            // to avoid the respective inflation effects.
+            //
+            // TODO: Handle properly during new tokenomics
+            // implementation.
+            self.parameters.stake_subsidy_start_epoch = u64::MAX;
+        }
+
+        // Finally build the genesis data
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
             &validators,
-            &objects,
+            objects,
+            &mut self.genesis_stake,
         ));
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
+    }
 
-        self.built_genesis.clone().unwrap()
+    pub fn get_or_build_unsigned_genesis(&mut self) -> &UnsignedGenesis {
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis();
+        }
+        self.built_genesis
+            .as_ref()
+            .expect("genesis should have been built and cached")
     }
 
     fn committee(objects: &[Object]) -> Committee {
@@ -237,6 +320,13 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Genesis {
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis();
+        }
+
+        // Verify that all on-chain state was properly created
+        self.validate().unwrap();
+
         let UnsignedGenesis {
             checkpoint,
             checkpoint_contents,
@@ -244,7 +334,10 @@ impl Builder {
             effects,
             events,
             objects,
-        } = self.build_unsigned_genesis_checkpoint();
+        } = self
+            .built_genesis
+            .take()
+            .expect("genesis should have been built");
 
         let committee = Self::committee(&objects);
 
@@ -254,25 +347,21 @@ impl Builder {
             CertifiedCheckpointSummary::new(checkpoint, signatures, &committee).unwrap()
         };
 
-        let genesis = Genesis::new(
+        Genesis::new(
             checkpoint,
             checkpoint_contents,
             transaction,
             effects,
             events,
             objects,
-        );
-
-        // Verify that all on-chain state was properly created
-        self.validate().unwrap();
-
-        genesis
+        )
     }
 
     /// Validates the entire state of the build, no matter what the internal
     /// state is (input collection phase or output phase)
     pub fn validate(&self) -> anyhow::Result<(), anyhow::Error> {
         self.validate_inputs()?;
+        self.validate_token_distribution_schedule()?;
         self.validate_output();
         Ok(())
     }
@@ -293,6 +382,11 @@ impl Builder {
             })?;
         }
 
+        Ok(())
+    }
+
+    /// Runs through validation checks on the input token distribution schedule
+    fn validate_token_distribution_schedule(&self) -> anyhow::Result<(), anyhow::Error> {
         if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
             token_distribution_schedule.validate();
             token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
@@ -490,33 +584,72 @@ impl Builder {
             .iter()
             .filter_map(|o| StakedIota::try_from(o).ok().map(|s| (o.id(), (o, s))))
             .collect();
+        let mut timelock_staked_iota_objects: BTreeMap<ObjectID, (&Object, TimelockedStakedIota)> =
+            unsigned_genesis
+                .objects()
+                .iter()
+                .filter_map(|o| {
+                    TimelockedStakedIota::try_from(o)
+                        .ok()
+                        .map(|s| (o.id(), (o, s)))
+                })
+                .collect();
 
         for allocation in token_distribution_schedule.allocations {
             if let Some(staked_with_validator) = allocation.staked_with_validator {
                 let staking_pool_id = *address_to_pool_id
                     .get(&staked_with_validator)
                     .expect("staking pool should exist");
-                let staked_iota_object_id = staked_iota_objects
-                    .iter()
-                    .find(|(_k, (o, s))| {
-                        let Owner::AddressOwner(owner) = &o.owner else {
-                            panic!("gas object owner must be address owner");
-                        };
-                        *owner == allocation.recipient_address
-                            && s.principal() == allocation.amount_nanos
-                            && s.pool_id() == staking_pool_id
-                    })
-                    .map(|(k, _)| *k)
-                    .expect("all allocations should be present");
-                let staked_iota_object =
-                    staked_iota_objects.remove(&staked_iota_object_id).unwrap();
-                assert_eq!(
-                    staked_iota_object.0.owner,
-                    Owner::AddressOwner(allocation.recipient_address)
-                );
-                assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
-                assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
-                assert_eq!(staked_iota_object.1.activation_epoch(), 0);
+                if let Some(expiration) = allocation.staked_with_timelock_expiration {
+                    let timelock_staked_iota_object_id = timelock_staked_iota_objects
+                        .iter()
+                        .find(|(_k, (o, s))| {
+                            let Owner::AddressOwner(owner) = &o.owner else {
+                                panic!("gas object owner must be address owner");
+                            };
+                            *owner == allocation.recipient_address
+                                && s.principal() == allocation.amount_nanos
+                                && s.pool_id() == staking_pool_id
+                                && s.expiration_timestamp_ms() == expiration
+                        })
+                        .map(|(k, _)| *k)
+                        .expect("all allocations should be present");
+                    let timelock_staked_iota_object = timelock_staked_iota_objects
+                        .remove(&timelock_staked_iota_object_id)
+                        .unwrap();
+                    assert_eq!(
+                        timelock_staked_iota_object.0.owner,
+                        Owner::AddressOwner(allocation.recipient_address)
+                    );
+                    assert_eq!(
+                        timelock_staked_iota_object.1.principal(),
+                        allocation.amount_nanos
+                    );
+                    assert_eq!(timelock_staked_iota_object.1.pool_id(), staking_pool_id);
+                    assert_eq!(timelock_staked_iota_object.1.activation_epoch(), 0);
+                } else {
+                    let staked_iota_object_id = staked_iota_objects
+                        .iter()
+                        .find(|(_k, (o, s))| {
+                            let Owner::AddressOwner(owner) = &o.owner else {
+                                panic!("gas object owner must be address owner");
+                            };
+                            *owner == allocation.recipient_address
+                                && s.principal() == allocation.amount_nanos
+                                && s.pool_id() == staking_pool_id
+                        })
+                        .map(|(k, _)| *k)
+                        .expect("all allocations should be present");
+                    let staked_iota_object =
+                        staked_iota_objects.remove(&staked_iota_object_id).unwrap();
+                    assert_eq!(
+                        staked_iota_object.0.owner,
+                        Owner::AddressOwner(allocation.recipient_address)
+                    );
+                    assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
+                    assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
+                    assert_eq!(staked_iota_object.1.activation_epoch(), 0);
+                }
             } else {
                 let gas_object_id = gas_objects
                     .iter()
@@ -596,10 +729,8 @@ impl Builder {
             }
 
             let path = entry.path();
-            let validator_info_bytes = fs::read(path)?;
-            let validator_info: GenesisValidatorInfo =
-                serde_yaml::from_slice(&validator_info_bytes)
-                    .with_context(|| format!("unable to load validator info for {path}"))?;
+            let validator_info: GenesisValidatorInfo = serde_yaml::from_slice(&fs::read(path)?)
+                .with_context(|| format!("unable to load validator info for {path}"))?;
             committee.insert(validator_info.info.protocol_key(), validator_info);
         }
 
@@ -612,8 +743,7 @@ impl Builder {
             }
 
             let path = entry.path();
-            let signature_bytes = fs::read(path)?;
-            let sigs: AuthoritySignInfo = bcs::from_bytes(&signature_bytes)
+            let sigs: AuthoritySignInfo = bcs::from_bytes(&fs::read(path)?)
                 .with_context(|| format!("unable to load validator signatrue for {path}"))?;
             signatures.insert(sigs.authority, sigs);
         }
@@ -625,12 +755,14 @@ impl Builder {
             validators: committee,
             signatures,
             built_genesis: None, // Leave this as none, will build and compare below
+            migration_objects: Default::default(),
+            genesis_stake: Default::default(),
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
         if unsigned_genesis_file.exists() {
-            let unsigned_genesis_bytes = fs::read(unsigned_genesis_file)?;
-            let loaded_genesis: UnsignedGenesis = bcs::from_bytes(&unsigned_genesis_bytes)?;
+            let loaded_genesis: UnsignedGenesis =
+                bcs::from_reader(BufReader::new(File::open(unsigned_genesis_file)?))?;
 
             // If we have a built genesis, then we must have a token_distribution_schedule
             // present as well.
@@ -640,10 +772,10 @@ impl Builder {
             );
 
             // Verify loaded genesis matches one build from the constituent parts
-            let built = builder.build_unsigned_genesis_checkpoint();
+            let built = builder.get_or_build_unsigned_genesis();
             loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
-            assert_eq!(
-                built, loaded_genesis,
+            assert!(
+                *built == loaded_genesis,
                 "loaded genesis does not match built genesis"
             );
 
@@ -674,9 +806,8 @@ impl Builder {
         let signature_dir = path.join(GENESIS_BUILDER_SIGNATURE_DIR);
         std::fs::create_dir_all(&signature_dir)?;
         for (pubkey, sigs) in self.signatures {
-            let sig_bytes = bcs::to_bytes(&sigs)?;
             let name = self.validators.get(&pubkey).unwrap().info.name();
-            fs::write(signature_dir.join(name), sig_bytes)?;
+            fs::write(signature_dir.join(name), &bcs::to_bytes(&sigs)?)?;
         }
 
         // Write validator infos
@@ -684,19 +815,17 @@ impl Builder {
         fs::create_dir_all(&committee_dir)?;
 
         for (_pubkey, validator) in self.validators {
-            let validator_info_bytes = serde_yaml::to_string(&validator)?;
             fs::write(
                 committee_dir.join(validator.info.name()),
-                validator_info_bytes,
+                &serde_yaml::to_string(&validator)?,
             )?;
         }
 
         if let Some(genesis) = &self.built_genesis {
-            let genesis_bytes = bcs::to_bytes(&genesis)?;
-            fs::write(
+            let mut write = BufWriter::new(File::create(
                 path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE),
-                genesis_bytes,
-            )?;
+            )?);
+            bcs::serialize_into(&mut write, &genesis)?;
         }
 
         Ok(())
@@ -746,7 +875,8 @@ fn build_unsigned_genesis_data(
     parameters: &GenesisCeremonyParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
     validators: &[GenesisValidatorInfo],
-    objects: &[Object],
+    objects: Vec<Object>,
+    genesis_stake: &mut GenesisStake,
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
         panic!(
@@ -793,6 +923,7 @@ fn build_unsigned_genesis_data(
         &genesis_validators,
         &genesis_chain_parameters,
         token_distribution_schedule,
+        genesis_stake,
         system_packages,
         metrics.clone(),
     );
@@ -925,10 +1056,11 @@ fn create_genesis_transaction(
 
 fn create_genesis_objects(
     genesis_ctx: &mut TxContext,
-    input_objects: &[Object],
+    input_objects: Vec<Object>,
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
+    genesis_stake: &mut GenesisStake,
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
@@ -955,13 +1087,23 @@ fn create_genesis_objects(
             &protocol_config,
             metrics.clone(),
         )
-        .unwrap();
+        .expect("Processing a package should not fail here");
     }
 
-    {
-        for object in input_objects {
-            store.insert_object(object.to_owned());
-        }
+    for object in input_objects {
+        store.insert_object(object);
+    }
+
+    if !genesis_stake.is_empty() {
+        split_timelocks(
+            &mut store,
+            executor.as_ref(),
+            genesis_ctx,
+            parameters,
+            &genesis_stake.take_timelocks_to_split(),
+            metrics.clone(),
+        )
+        .expect("Splitting timelocks should not fail here");
     }
 
     generate_genesis_system_object(
@@ -973,9 +1115,14 @@ fn create_genesis_objects(
         token_distribution_schedule,
         metrics,
     )
-    .unwrap();
+    .expect("Genesis creation should not fail here");
 
-    store.into_inner().into_values().collect()
+    let mut intermediate_store = store.into_inner();
+    // The equivalent of migration_objects evict for timelocks
+    for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
+        intermediate_store.remove(&id);
+    }
+    intermediate_store.into_values().collect()
 }
 
 pub(crate) fn process_package(
@@ -1121,7 +1268,16 @@ pub fn generate_genesis_system_object(
             vec![],
         );
 
-        // Step 5: Run genesis.
+        // Step 5: Create System Timelock Cap.
+        let system_timelock_cap = builder.programmable_move_call(
+            IOTA_FRAMEWORK_ADDRESS.into(),
+            ident_str!("timelock").to_owned(),
+            ident_str!("new_system_timelock_cap").to_owned(),
+            vec![],
+            vec![],
+        );
+
+        // Step 6: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
         // one is the IOTA supply we got from step 3.
         let mut arguments = vec![iota_system_state_uid, iota_supply];
@@ -1129,11 +1285,13 @@ pub fn generate_genesis_system_object(
             CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
             CallArg::Pure(bcs::to_bytes(&genesis_validators).unwrap()),
             CallArg::Pure(bcs::to_bytes(&token_distribution_schedule).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&Some(STARDUST_UPGRADE_LABEL_VALUE)).unwrap()),
         ]
         .into_iter()
         .map(|a| builder.input(a))
         .collect::<anyhow::Result<_, _>>()?;
         arguments.append(&mut call_arg_arguments);
+        arguments.push(system_timelock_cap);
         builder.programmable_move_call(
             IOTA_SYSTEM_ADDRESS.into(),
             ident_str!("genesis").to_owned(),
@@ -1141,6 +1299,7 @@ pub fn generate_genesis_system_object(
             vec![],
             arguments,
         );
+
         builder.finish()
     };
 
@@ -1168,11 +1327,103 @@ pub fn generate_genesis_system_object(
     Ok(())
 }
 
+pub fn split_timelocks(
+    store: &mut InMemoryStorage,
+    executor: &dyn Executor,
+    genesis_ctx: &mut TxContext,
+    genesis_chain_parameters: &GenesisChainParameters,
+    timelocks_to_split: &[(ObjectRef, u64, IotaAddress)],
+    metrics: Arc<LimitsMetrics>,
+) -> anyhow::Result<()> {
+    let protocol_config = ProtocolConfig::get_for_version(
+        ProtocolVersion::new(genesis_chain_parameters.protocol_version),
+        ChainIdentifier::default().chain(),
+    );
+
+    // Timelock split
+    let mut timelock_split_input_objects: Vec<ObjectReadResult> = vec![];
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for (timelock, surplus_amount, recipient) in timelocks_to_split {
+            timelock_split_input_objects.push(ObjectReadResult::new(
+                InputObjectKind::ImmOrOwnedMoveObject(*timelock),
+                store.get_object(&timelock.0).unwrap().clone().into(),
+            ));
+            let arguments = vec![
+                builder.obj(ObjectArg::ImmOrOwnedObject(*timelock))?,
+                builder.pure(surplus_amount)?,
+            ];
+            let surplus_timelock = builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("timelock").to_owned(),
+                ident_str!("split").to_owned(),
+                vec![GAS::type_tag()],
+                arguments,
+            );
+            let arguments = vec![surplus_timelock, builder.pure(*recipient)?];
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("timelock").to_owned(),
+                ident_str!("transfer").to_owned(),
+                vec![Balance::type_tag(GAS::type_tag())],
+                arguments,
+            );
+        }
+        builder.finish()
+    };
+
+    let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
+        &*store,
+        &protocol_config,
+        metrics,
+        genesis_ctx,
+        CheckedInputObjects::new_for_genesis(timelock_split_input_objects),
+        pt,
+    )?;
+
+    store.finish(written);
+
+    Ok(())
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum SnapshotSource {
+    Local(PathBuf),
+    S3(SnapshotUrl),
+}
+
+impl SnapshotSource {
+    /// Convert to a reader.
+    pub fn to_reader(&self) -> anyhow::Result<Box<dyn Read>> {
+        Ok(match self {
+            SnapshotSource::Local(path) => Box::new(BufReader::new(File::open(path)?)),
+            SnapshotSource::S3(snapshot_url) => Box::new(snapshot_url.to_reader()?),
+        })
+    }
+}
+
 /// The URLs to download Iota or Shimmer object snapshots.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum SnapshotUrl {
     Iota,
     Shimmer,
+    /// Custom migration snapshot for testing purposes.
+    Test(Url),
+}
+
+impl FromStr for SnapshotUrl {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(url) = reqwest::Url::from_str(s) {
+            return Ok(Self::Test(url));
+        }
+        Ok(match s.to_lowercase().as_str() {
+            "iota" => Self::Iota,
+            "smr" | "shimmer" => Self::Shimmer,
+            e => bail!("unsupported snapshot url: {e}"),
+        })
+    }
 }
 
 impl SnapshotUrl {
@@ -1181,7 +1432,15 @@ impl SnapshotUrl {
         match self {
             Self::Iota => Url::parse(IOTA_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
             Self::Shimmer => Url::parse(SHIMMER_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
+            Self::Test(url) => url.clone(),
         }
+    }
+
+    /// Convert a gzip decoder to read the compressed object snapshot from S3.
+    pub fn to_reader(&self) -> anyhow::Result<impl Read> {
+        Ok(GzDecoder::new(BufReader::new(reqwest::blocking::get(
+            self.to_url(),
+        )?)))
     }
 }
 
@@ -1248,7 +1507,7 @@ mod test {
         let pop = generate_proof_of_possession(&key, account_key.public().into());
         let mut builder = Builder::new().add_validator(validator, pop);
 
-        let genesis = builder.build_unsigned_genesis_checkpoint();
+        let genesis = builder.get_or_build_unsigned_genesis();
         for object in genesis.objects() {
             println!("ObjectID: {} Type: {:?}", object.id(), object.type_());
         }

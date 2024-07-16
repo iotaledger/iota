@@ -614,11 +614,35 @@ importers:
         specifier: ^5.3.3
         version: 5.3.3
 
+  apps/ui-icons:
+    devDependencies:
+      '@svgr/cli':
+        specifier: ^7.0.0
+        version: 7.0.0
+      '@svgr/core':
+        specifier: ^7.0.0
+        version: 7.0.0
+      '@types/react':
+        specifier: ^18.2.15
+        version: 18.3.3
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      rimraf:
+        specifier: ^5.0.1
+        version: 5.0.1
+      typescript:
+        specifier: ^5.3.3
+        version: 5.4.5
+
   apps/ui-kit:
     dependencies:
       '@fontsource/inter':
         specifier: ^5.0.17
         version: 5.0.18
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       classnames:
         specifier: ^2.5.1
         version: 2.5.1
@@ -15302,6 +15326,7 @@ packages:
 
   rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
+    deprecated: Rimraf versions prior to v4 are no longer supported
     hasBin: true
 
   rimraf@4.4.1:

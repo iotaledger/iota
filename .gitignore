@@ -72,7 +72,7 @@ yarn-error.log*
 .env
 checkpoints_dir/*
 light_client.yaml
-# docs/content/references/iota-api/iota-graphql/* # TODO: Temporary disabled, re-comment once repo is no longer private
+docs/content/references/iota-api/iota-graphql/*
 docs/content/references/framework/**
 
 lcov.info
