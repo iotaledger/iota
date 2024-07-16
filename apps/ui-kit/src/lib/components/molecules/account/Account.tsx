@@ -50,6 +50,14 @@ interface AccountProps {
      * Handler for the onOpen event in Address component.
      */
     onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    /**
+     * Has copy icon (optional).
+     */
+    isCopyable?: boolean;
+    /**
+     * Has open icon  (optional).
+     */
+    isExternal?: boolean;
 }
 
 export function Account({
@@ -63,6 +71,8 @@ export function Account({
     onUnlockAccountClick,
     onCopy,
     onOpen,
+    isCopyable,
+    isExternal,
 }: AccountProps): React.JSX.Element {
     const backgroundBadgeClasses = accountType ? BACKGROUND_BADGE_COLORS[accountType] : '';
     const textClasses = accountType ? TEXT_COLORS[accountType] : '';
@@ -90,7 +100,13 @@ export function Account({
                             </div>
                         )}
                     </div>
-                    <Address text={subtitle} onCopy={onCopy} onOpen={onOpen} />
+                    <Address
+                        text={subtitle}
+                        onCopy={onCopy}
+                        onOpen={onOpen}
+                        isCopyable={isCopyable}
+                        isExternal={isExternal}
+                    />
                 </div>
             </div>
             <div
