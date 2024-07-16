@@ -30,7 +30,7 @@ export function useAccountsFinder({
     addressGapLimit,
     accountGapLimit,
     sourceStrategy,
-    accountSourceType: accountType,
+    accountSourceType,
 }: UseAccountFinderOptions) {
     const backgroundClient = useBackgroundClient();
     const ledgerIotaClient = useIotaLedgerClient();
@@ -39,7 +39,7 @@ export function useAccountsFinder({
     const accountFinder = useMemo(() => {
         return new AccountsFinder({
             client,
-            accountSourceType: accountType,
+            accountSourceType,
             bip44CoinType,
             coinType,
             accountGapLimit,
@@ -68,7 +68,7 @@ export function useAccountsFinder({
     }, [
         client,
         backgroundClient,
-        accountType,
+        accountSourceType,
         coinType,
         bip44CoinType,
         accountGapLimit,
