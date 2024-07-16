@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use axum::{
@@ -17,6 +17,7 @@ use iota_cluster_test::{
     cluster::{Cluster, LocalNewCluster},
     config::{ClusterTestOpt, Env},
     faucet::{FaucetClient, FaucetClientFactory},
+    MigrationSnapshotUrl,
 };
 use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, FaucetError, FaucetRequest, FaucetResponse,
@@ -95,6 +96,16 @@ struct Args {
     /// if we should run indexer
     #[clap(long)]
     pub with_indexer: bool,
+
+    /// Locations for local migration snapshots.
+    #[clap(long, name = "path")]
+    #[arg(num_args(0..))]
+    pub local_migration_snapshots: Vec<PathBuf>,
+
+    /// Remote migration snapshots.
+    #[clap(long, name = "iota|smr|<full-url>")]
+    #[arg(num_args(0..))]
+    pub remote_migration_snapshots: Vec<MigrationSnapshotUrl>,
 }
 
 #[tokio::main]
@@ -120,6 +131,8 @@ async fn main() -> Result<()> {
         faucet_host,
         faucet_port,
         with_indexer,
+        local_migration_snapshots,
+        remote_migration_snapshots,
     } = args;
 
     // We don't pass epoch duration if we have a genesis config.
@@ -148,6 +161,8 @@ async fn main() -> Result<()> {
         epoch_duration_ms,
         config_dir,
         graphql_address: graphql_port.map(|p| format!("{}:{}", graphql_host, p)),
+        local_migration_snapshots,
+        remote_migration_snapshots,
     };
 
     println!("Starting Iota validator with config: {:#?}", cluster_config);
