@@ -10,6 +10,7 @@ use crate::{errors::IndexerError, schema::epochs, types::IndexedEpochInfo};
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
 #[diesel(table_name = epochs)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct StoredEpochInfo {
     pub epoch: i64,
     pub first_checkpoint_id: i64,
@@ -26,8 +27,6 @@ pub struct StoredEpochInfo {
     pub storage_fund_reinvestment: Option<i64>,
     pub storage_charge: Option<i64>,
     pub storage_rebate: Option<i64>,
-    // TODO: remove(obsolete)
-    pub stake_subsidy_amount: Option<i64>,
     pub total_gas_fees: Option<i64>,
     pub total_stake_rewards_distributed: Option<i64>,
     pub burnt_leftover_amount: Option<i64>,
@@ -38,6 +37,7 @@ pub struct StoredEpochInfo {
 
 #[derive(Queryable, Selectable, Clone)]
 #[diesel(table_name = epochs)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct QueryableEpochInfo {
     pub epoch: i64,
     pub first_checkpoint_id: i64,
@@ -53,8 +53,6 @@ pub struct QueryableEpochInfo {
     pub storage_fund_reinvestment: Option<i64>,
     pub storage_charge: Option<i64>,
     pub storage_rebate: Option<i64>,
-    // TODO: remove(obsolete)
-    pub stake_subsidy_amount: Option<i64>,
     pub total_gas_fees: Option<i64>,
     pub total_stake_rewards_distributed: Option<i64>,
     pub burnt_leftover_amount: Option<i64>,
@@ -93,7 +91,6 @@ impl StoredEpochInfo {
             storage_fund_reinvestment: e.storage_fund_reinvestment.map(|v| v as i64),
             storage_charge: e.storage_charge.map(|v| v as i64),
             storage_rebate: e.storage_rebate.map(|v| v as i64),
-            stake_subsidy_amount: e.stake_subsidy_amount.map(|v| v as i64),
             total_gas_fees: e.total_gas_fees.map(|v| v as i64),
             total_stake_rewards_distributed: e.total_stake_rewards_distributed.map(|v| v as i64),
             burnt_leftover_amount: e.burnt_leftover_amount.map(|v| v as i64),
@@ -130,7 +127,6 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
             storage_fund_reinvestment: info.storage_fund_reinvestment.map(|v| v as u64)?,
             storage_charge: info.storage_charge.map(|v| v as u64)?,
             storage_rebate: info.storage_rebate.map(|v| v as u64)?,
-            stake_subsidy_amount: info.stake_subsidy_amount.map(|v| v as u64)?,
             total_gas_fees: info.total_gas_fees.map(|v| v as u64)?,
             total_stake_rewards_distributed: info
                 .total_stake_rewards_distributed

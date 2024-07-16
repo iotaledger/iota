@@ -725,7 +725,6 @@ impl PgIndexerStore {
                                 .eq(excluded(epochs::storage_fund_reinvestment)),
                             epochs::storage_charge.eq(excluded(epochs::storage_charge)),
                             epochs::storage_rebate.eq(excluded(epochs::storage_rebate)),
-                            epochs::stake_subsidy_amount.eq(excluded(epochs::stake_subsidy_amount)),
                             epochs::total_gas_fees.eq(excluded(epochs::total_gas_fees)),
                             epochs::total_stake_rewards_distributed
                                 .eq(excluded(epochs::total_stake_rewards_distributed)),

@@ -102,8 +102,6 @@ pub struct IndexedEpochInfo {
     pub storage_fund_reinvestment: Option<u64>,
     pub storage_charge: Option<u64>,
     pub storage_rebate: Option<u64>,
-    // TODO: remove(obsolete)
-    pub stake_subsidy_amount: Option<u64>,
     pub total_gas_fees: Option<u64>,
     pub total_stake_rewards_distributed: Option<u64>,
     pub burnt_leftover_amount: Option<u64>,
@@ -111,7 +109,6 @@ pub struct IndexedEpochInfo {
     pub burnt_tokens_amount: Option<u64>,
     pub minted_tokens_amount: Option<u64>,
 }
-
 
 impl IndexedEpochInfo {
     pub fn from_new_system_state_summary(
@@ -153,7 +150,6 @@ impl IndexedEpochInfo {
             storage_charge: Some(event.storage_charge),
             storage_rebate: Some(event.storage_rebate),
             burnt_leftover_amount: Some(event.burnt_leftover_amount),
-            stake_subsidy_amount: Some(event.stake_subsidy_amount),
             total_gas_fees: Some(event.total_gas_fees),
             total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
             epoch_commitments: last_checkpoint_summary

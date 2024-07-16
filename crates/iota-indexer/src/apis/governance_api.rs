@@ -51,12 +51,10 @@ impl GovernanceReadApi {
         let system_state_summary: IotaSystemStateSummary =
             self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
-        let stake_subsidy_start_epoch = system_state_summary.stake_subsidy_start_epoch;
 
         let exchange_rate_table = exchange_rates(self, system_state_summary).await?;
 
         let apys = iota_json_rpc::governance_api::calculate_apys(
-            stake_subsidy_start_epoch,
             exchange_rate_table,
         );
 
