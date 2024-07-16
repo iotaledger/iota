@@ -5,6 +5,7 @@
 use std::{fmt, path::PathBuf};
 
 use clap::*;
+use iota_genesis_builder::SnapshotUrl;
 use regex::Regex;
 
 #[derive(Parser, Clone, ValueEnum, Debug)]
@@ -42,6 +43,14 @@ pub struct ClusterTestOpt {
     /// URL for the indexer RPC server
     #[clap(long)]
     pub graphql_address: Option<String>,
+    /// Locations for local migration snapshots.
+    #[clap(long, name = "path")]
+    #[arg(num_args(0..))]
+    pub local_migration_snapshots: Vec<PathBuf>,
+    /// Remote migration snapshots.
+    #[clap(long, name = "iota|smr|<full-url>")]
+    #[arg(num_args(0..))]
+    pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }
 
 fn obfuscated_pg_address(val: &Option<String>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -70,6 +79,8 @@ impl ClusterTestOpt {
             pg_address: None,
             config_dir: None,
             graphql_address: None,
+            local_migration_snapshots: Default::default(),
+            remote_migration_snapshots: Default::default(),
         }
     }
 }
