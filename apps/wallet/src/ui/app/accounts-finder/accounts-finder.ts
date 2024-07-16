@@ -177,7 +177,6 @@ export function hasBalance(balance: CoinBalance): boolean {
 // }
 function transformToBipMap(accounts: AccountFromFinder[]) {
     const bipMap: Record<string, AddressFromFinder> = {};
-
     accounts.forEach((account) => {
         account.addresses.forEach((address) => {
             address.forEach((changeIndexObj) => {
@@ -192,7 +191,7 @@ function transformToBipMap(accounts: AccountFromFinder[]) {
 
 // Transform bipMap to list of accounts back.
 function transformFromBipMap(bipMap: Record<string, AddressFromFinder>) {
-    const accounts: AccountFromFinder[] = [];
+    let accounts: AccountFromFinder[] = [];
 
     Object.entries(bipMap).forEach(([key, address]) => {
         const [accountIndex, addressIndex, changeIndex] = key.split('-').map(Number);
@@ -213,6 +212,7 @@ function transformFromBipMap(bipMap: Record<string, AddressFromFinder>) {
         accounts[accountIndex].addresses[addressIndex][changeIndex] = address;
     });
 
+    accounts = accounts.filter((account) => !!account); // empty accounts possible when accountIndex is custom. => [empty x 100, {index: 101...}]
     return accounts;
 }
 

@@ -5,7 +5,6 @@ import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_STARTING_VESTING_YEAR,
-    SUPPLY_INCREASE_VESTING_LABEL,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
     SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS,
 } from '../../constants';
@@ -16,13 +15,14 @@ import {
     SupplyIncreaseVestingPortfolio,
     Timelocked,
     TimelockedStakedIota,
+    VestingOverview,
 } from '../../interfaces';
-import { isTimelocked, isTimelockedStakedIota } from '../timelock';
+import { isTimelocked, isTimelockedStakedIota, isVesting } from '../timelock';
 
 export function getLastSupplyIncreaseVestingPayout(
     objects: (Timelocked | TimelockedStakedIota)[],
 ): SupplyIncreaseVestingPayout | undefined {
-    const vestingObjects = objects.filter((obj) => obj.label === SUPPLY_INCREASE_VESTING_LABEL);
+    const vestingObjects = objects.filter(isVesting);
 
     if (vestingObjects.length === 0) {
         return undefined;
@@ -105,6 +105,62 @@ export function buildSupplyIncreaseVestingSchedule(
             referencePayout.expirationTimestampMs -
             SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
     }));
+}
+
+export function getVestingOverview(
+    objects: (Timelocked | TimelockedStakedIota)[],
+): VestingOverview {
+    const vestingObjects = objects.filter(isVesting);
+    const latestPayout = getLastSupplyIncreaseVestingPayout(vestingObjects);
+
+    if (vestingObjects.length === 0 || !latestPayout) {
+        return {
+            totalVested: 0,
+            totalUnlocked: 0,
+            totalLocked: 0,
+            totalStaked: 0,
+            availableClaiming: 0,
+            availableStaking: 0,
+        };
+    }
+
+    const userType = getSupplyIncreaseVestingUserType([latestPayout]);
+    const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
+    const totalVestedAmount = vestingPayoutsCount * latestPayout.amount;
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout);
+    const totalLockedAmount = vestingPortfolio.reduce(
+        (acc, current) => (current.expirationTimestampMs > Date.now() ? acc + current.amount : acc),
+        0,
+    );
+    const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
+
+    const timelockedStakedObjects = vestingObjects.filter(isTimelockedStakedIota);
+    const totalStaked = timelockedStakedObjects.reduce(
+        (acc, current) => acc + current.stakedIota.principal.value,
+        0,
+    );
+
+    const timelockedObjects = vestingObjects.filter(isTimelocked);
+
+    const totalAvailableClaimingAmount = timelockedObjects.reduce(
+        (acc, current) =>
+            current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
+        0,
+    );
+    const totalAvailableStakingAmount = timelockedObjects.reduce(
+        (acc, current) =>
+            current.expirationTimestampMs > Date.now() ? acc + current.locked.value : acc,
+        0,
+    );
+
+    return {
+        totalVested: totalVestedAmount,
+        totalUnlocked: totalUnlockedVestedAmount,
+        totalLocked: totalLockedAmount,
+        totalStaked: totalStaked,
+        availableClaiming: totalAvailableClaimingAmount,
+        availableStaking: totalAvailableStakingAmount,
+    };
 }
 
 // Get number of payouts to construct vesting schedule
