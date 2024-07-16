@@ -179,5 +179,4 @@ pub struct SystemEpochInfoEvent {
     pub burnt_leftover_amount: u64,
     pub burnt_tokens_amount: u64,
     pub minted_tokens_amount: u64,
-
 }

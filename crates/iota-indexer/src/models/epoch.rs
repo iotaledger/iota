@@ -109,8 +109,8 @@ impl StoredEpochInfo {
             protocol_version: 0,
             total_stake: 0,
             storage_fund_balance: 0,
-            burnt_tokens_amount:  e.burnt_tokens_amount.map(|v| v as i64),
-            minted_tokens_amount:  e.minted_tokens_amount.map(|v| v as i64),
+            burnt_tokens_amount: e.burnt_tokens_amount.map(|v| v as i64),
+            minted_tokens_amount: e.minted_tokens_amount.map(|v| v as i64),
         }
     }
 }

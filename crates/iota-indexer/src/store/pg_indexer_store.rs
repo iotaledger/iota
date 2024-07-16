@@ -731,10 +731,8 @@ impl PgIndexerStore {
                             epochs::burnt_leftover_amount
                                 .eq(excluded(epochs::burnt_leftover_amount)),
                             epochs::epoch_commitments.eq(excluded(epochs::epoch_commitments)),
-                            epochs::burnt_tokens_amount
-                            .eq(excluded(epochs::burnt_tokens_amount)),
-                            epochs::minted_tokens_amount
-                            .eq(excluded(epochs::minted_tokens_amount)),
+                            epochs::burnt_tokens_amount.eq(excluded(epochs::burnt_tokens_amount)),
+                            epochs::minted_tokens_amount.eq(excluded(epochs::minted_tokens_amount)),
                         ))
                         .execute(conn)?;
                 }

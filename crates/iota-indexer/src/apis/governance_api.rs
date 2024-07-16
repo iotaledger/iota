@@ -54,9 +54,7 @@ impl GovernanceReadApi {
 
         let exchange_rate_table = exchange_rates(self, system_state_summary).await?;
 
-        let apys = iota_json_rpc::governance_api::calculate_apys(
-            exchange_rate_table,
-        );
+        let apys = iota_json_rpc::governance_api::calculate_apys(exchange_rate_table);
 
         Ok(ValidatorApys { apys, epoch })
     }
