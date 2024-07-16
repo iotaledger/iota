@@ -17,6 +17,9 @@ jobs:
       contents: read
       pull-requests: write
     runs-on: [self-hosted-rust]
+    env:
+      DEFAULT_NETWORK: ${{ secrets.EXPLORER_PREVIEW_DEPLOY_DEFAULT_NETWORK }}
+      IOTA_NETWORKS: ${{ secrets.EXPLORER_PREVIEW_DEPLOY_IOTA_NETWORKS }}
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
