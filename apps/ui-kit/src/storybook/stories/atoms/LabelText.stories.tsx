@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         value: '12,000.00',
-        text: 'Label',
+        label: 'Label',
         size: LabelTextSize.Medium,
         showSupportingLabel: true,
         supportingLabel: 'IOTA',
@@ -31,7 +31,7 @@ export const Default: Story = {
             control: 'select',
             options: Object.values(LabelTextSize),
         },
-        text: {
+        label: {
             control: 'text',
         },
         isCentered: {

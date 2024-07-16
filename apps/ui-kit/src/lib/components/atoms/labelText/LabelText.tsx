@@ -22,7 +22,7 @@ interface LabelTextProps {
     /**
      * The text of the LabelText.
      */
-    text: string;
+    label: string;
     /**
      * Show the supporting label.
      */
@@ -37,7 +37,7 @@ export function LabelText({
     size,
     isCentered,
     supportingLabel,
-    text,
+    label: text,
     showSupportingLabel,
     value,
 }: LabelTextProps): React.JSX.Element {
@@ -45,16 +45,22 @@ export function LabelText({
     const supportingLabelClasses = SUPPORTING_TEXT_SIZE[size];
     const labelTextClasses = LABEL_TEXT_SIZE[size];
     const centeredClasses = isCentered ? 'items-center' : 'items-start';
+    const gapClass = size === LabelTextSize.Small ? 'gap-0.5' : 'gap-1';
     return (
-        <div className={cx('flex flex-col gap-0.5', centeredClasses)}>
-            <div className="flex flex-row items-center space-x-0.5">
-                <span className={cx('text-neutral-10 dark:text-neutral-92', valueTextClasses)}>
+        <div className={cx('flex flex-col', centeredClasses, gapClass)}>
+            <div className="flex flex-row items-center gap-0.5">
+                <span
+                    className={cx(
+                        'font-inter text-neutral-10 dark:text-neutral-92',
+                        valueTextClasses,
+                    )}
+                >
                     {value}
                 </span>
                 {showSupportingLabel && supportingLabel && (
                     <span
                         className={cx(
-                            'pb-xxxs text-neutral-60 dark:text-neutral-40',
+                            'pb-xxxs font-inter text-neutral-60 dark:text-neutral-40',
                             supportingLabelClasses,
                         )}
                     >
@@ -62,7 +68,9 @@ export function LabelText({
                     </span>
                 )}
             </div>
-            <span className={cx('text-neutral-60 dark:text-neutral-40', labelTextClasses)}>
+            <span
+                className={cx('font-inter text-neutral-60 dark:text-neutral-40', labelTextClasses)}
+            >
                 {text}
             </span>
         </div>
