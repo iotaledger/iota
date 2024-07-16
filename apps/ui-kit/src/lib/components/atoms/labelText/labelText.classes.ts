@@ -3,7 +3,7 @@
 
 import { LabelTextSize } from './labelText.enums';
 
-export const VALUE_TEXT_SIZE = {
+export const TEXT_SIZE = {
     [LabelTextSize.Small]: 'text-title-sm',
     [LabelTextSize.Medium]: 'text-title-md',
     [LabelTextSize.Large]: 'text-title-lg',

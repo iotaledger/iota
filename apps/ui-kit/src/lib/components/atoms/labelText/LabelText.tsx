@@ -4,7 +4,7 @@
 import React from 'react';
 import cx from 'classnames';
 import { LabelTextSize } from './labelText.enums';
-import { LABEL_TEXT_SIZE, SUPPORTING_TEXT_SIZE, VALUE_TEXT_SIZE } from './labelText.classes';
+import { LABEL_TEXT_SIZE, SUPPORTING_TEXT_SIZE, TEXT_SIZE } from './labelText.classes';
 
 interface LabelTextProps {
     /**
@@ -28,20 +28,20 @@ interface LabelTextProps {
      */
     showSupportingLabel: boolean;
     /**
-     * The value of the LabelText.
+     * The text of the LabelText.
      */
-    value: string;
+    text: string;
 }
 
 export function LabelText({
     size,
     isCentered,
     supportingLabel,
-    label: text,
+    label,
     showSupportingLabel,
-    value,
+    text,
 }: LabelTextProps): React.JSX.Element {
-    const valueTextClasses = VALUE_TEXT_SIZE[size];
+    const textClasses = TEXT_SIZE[size];
     const supportingLabelClasses = SUPPORTING_TEXT_SIZE[size];
     const labelTextClasses = LABEL_TEXT_SIZE[size];
     const centeredClasses = isCentered ? 'items-center' : 'items-start';
@@ -50,17 +50,14 @@ export function LabelText({
         <div className={cx('flex flex-col', centeredClasses, gapClass)}>
             <div className="flex flex-row items-center gap-0.5">
                 <span
-                    className={cx(
-                        'font-inter text-neutral-10 dark:text-neutral-92',
-                        valueTextClasses,
-                    )}
+                    className={cx('font-inter text-neutral-10 dark:text-neutral-92', textClasses)}
                 >
-                    {value}
+                    {text}
                 </span>
                 {showSupportingLabel && supportingLabel && (
                     <span
                         className={cx(
-                            'pb-xxxs font-inter text-neutral-60 dark:text-neutral-40',
+                            'font-inter text-neutral-60 dark:text-neutral-40',
                             supportingLabelClasses,
                         )}
                     >
@@ -71,7 +68,7 @@ export function LabelText({
             <span
                 className={cx('font-inter text-neutral-60 dark:text-neutral-40', labelTextClasses)}
             >
-                {text}
+                {label}
             </span>
         </div>
     );

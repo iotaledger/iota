@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        value: '12,000.00',
+        text: '12,000.00',
         label: 'Label',
         size: LabelTextSize.Medium,
         showSupportingLabel: true,
@@ -43,7 +43,7 @@ export const Default: Story = {
         showSupportingLabel: {
             control: 'boolean',
         },
-        value: {
+        text: {
             control: 'text',
         },
     },
