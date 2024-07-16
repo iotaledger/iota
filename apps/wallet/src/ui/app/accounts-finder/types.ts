@@ -11,4 +11,3 @@ export type FindBalance = (params: {
     publicKeyHash: string;
     balance: CoinBalance;
 }>;
-

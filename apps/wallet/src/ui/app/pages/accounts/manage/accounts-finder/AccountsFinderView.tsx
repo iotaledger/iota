@@ -25,18 +25,21 @@ export function AccountsFinderView(): JSX.Element {
     const [password, setPassword] = useState('');
     const { find } = useAccountsFinder({
         accountType: currentAccount?.type as AllowedAccountTypes,
-        sourceStrategy: accountSourceId == AccountType.LedgerDerived ? {
-            type: 'ledger',
-            password
-        } : {
-            type: 'software',
-            sourceID: accountSourceId!
-        }
+        sourceStrategy:
+            accountSourceId == AccountType.LedgerDerived
+                ? {
+                      type: 'ledger',
+                      password,
+                  }
+                : {
+                      type: 'software',
+                      sourceID: accountSourceId!,
+                  },
     });
     const { data: accountSources } = useAccountSources();
     const unlockAccountSourceMutation = useUnlockMutation();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
-    
+
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
 
     function findMore() {
@@ -75,7 +78,7 @@ export function AccountsFinderView(): JSX.Element {
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
-                        if(accountSourceId){
+                        if (accountSourceId) {
                             // unlock software account sources
                             await unlockAccountSourceMutation.mutateAsync({
                                 id: accountSourceId,

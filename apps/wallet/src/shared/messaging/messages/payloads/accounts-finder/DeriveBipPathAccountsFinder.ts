@@ -8,8 +8,8 @@ import { type AccountFinderConfigParams } from '_src/ui/app/accounts-finder';
 
 export interface DeriveBipPathAccountsFinder extends BasePayload {
     type: 'derive-bip-path-accounts-finder';
-    sourceID: string,
-    derivationOptions: MakeDerivationOptions
+    sourceID: string;
+    derivationOptions: MakeDerivationOptions;
 }
 
 export type DeriveBipPathAccountsFinderPayload = DeriveBipPathAccountsFinder;
@@ -21,7 +21,7 @@ export function isDeriveBipPathAccountsFinder(
 }
 
 export interface DeriveBipPathAccountsFindeResponsePayload extends BasePayload {
-    address: string
+    address: string;
 }
 
 export function isDeriveBipPathAccountsFinderResponse(
@@ -29,4 +29,3 @@ export function isDeriveBipPathAccountsFinderResponse(
 ): payload is DeriveBipPathAccountsFindeResponsePayload {
     return isBasePayload(payload) && payload.type === 'derive-bip-path-accounts-finder-response';
 }
-

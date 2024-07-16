@@ -27,8 +27,8 @@ export interface AccountFinderConfigParams {
         accountIndex: number;
         addressIndex: number;
         changeIndex: number;
-    }) => Promise<string>,
-    client: IotaClient,
+    }) => Promise<string>;
+    client: IotaClient;
     bip44CoinType: AllowedBip44CoinTypes;
     accountType: AllowedAccountTypes;
     algorithm?: SearchAlgorithm;
@@ -97,7 +97,7 @@ export class AccountsFinder {
     private client: IotaClient;
     private accounts: AccountFromFinder[] = []; // Found accounts with balances.
 
-    constructor(config: AccountFinderConfigParams){
+    constructor(config: AccountFinderConfigParams) {
         this.getPublicKey = config.getPublicKey;
         this.client = config.client;
         this.bip44CoinType = config.bip44CoinType;
@@ -127,8 +127,7 @@ export class AccountsFinder {
             case SearchAlgorithm.DEPTH:
                 return await this.runDepthSearch();
             case SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST:
-                return [...await this.runBreadthSearch(),
-                    ...await this.runDepthSearch()]
+                return [...(await this.runBreadthSearch()), ...(await this.runDepthSearch())];
             default:
                 throw new Error(`Unsupported search algorithm: ${this.algorithm}`);
         }
@@ -143,7 +142,7 @@ export class AccountsFinder {
 
         this.accounts = mergedAccounts;
 
-        return newAddressesBipPaths
+        return newAddressesBipPaths;
     }
 
     async runDepthSearch() {
@@ -159,7 +158,7 @@ export class AccountsFinder {
             }
         }
 
-        let processedAccounts: Bip44Path[] = []
+        let processedAccounts: Bip44Path[] = [];
 
         // depth search is done by searching for more addresses for each account in isolation
         for (const account of depthAccounts) {
@@ -173,10 +172,13 @@ export class AccountsFinder {
                 findBalance: this.findBalance,
             });
 
-            processedAccounts = [...processedAccounts, ...await this.processAccounts({ foundAccounts })];
+            processedAccounts = [
+                ...processedAccounts,
+                ...(await this.processAccounts({ foundAccounts })),
+            ];
         }
 
-        return processedAccounts
+        return processedAccounts;
     }
 
     async runBreadthSearch() {
@@ -215,4 +217,3 @@ export class AccountsFinder {
         };
     };
 }
-

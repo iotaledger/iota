@@ -8,7 +8,7 @@ import { SourceStrategyToPersist } from './types';
 
 export interface PersistAccountsFinder extends BasePayload {
     type: 'persist-accounts-finder';
-    sourceStrategy: SourceStrategyToPersist
+    sourceStrategy: SourceStrategyToPersist;
 }
 
 export type PersistAccountsFinderPayload = PersistAccountsFinder & AccountFinderConfigParams;

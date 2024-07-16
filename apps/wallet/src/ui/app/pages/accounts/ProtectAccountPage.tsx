@@ -77,9 +77,7 @@ export function ProtectAccountPage() {
                             onboarding: true,
                         },
                     });
-                } else if (
-                    REDIRECT_TO_ACCOUNTS_FINDER.includes(type)
-                ) {
+                } else if (REDIRECT_TO_ACCOUNTS_FINDER.includes(type)) {
                     const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
                     navigate(path, {
                         replace: true,

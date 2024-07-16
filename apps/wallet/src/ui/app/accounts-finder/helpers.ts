@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CoinBalance, IotaClient } from '@iota/iota.js/client';
-import { makeDerivationPath, type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import {
+    makeDerivationPath,
+    type MakeDerivationOptions,
+} from '_src/background/account-sources/bip44Path';
 import { getAccountSourceByID } from '_src/background/account-sources';
 import { addNewAccounts, getAccountsByAddress } from '../../../background/accounts';
 import { type SerializedAccount } from '../../../background/accounts/Account';
@@ -14,7 +17,6 @@ export const getEmptyBalance = (coinType: string): CoinBalance => ({
     totalBalance: '0',
     lockedBalance: {},
 });
-
 
 // // Derive all the accounts given the addresses bip paths
 // // and they get persisted under the account source ID that is passed.
@@ -49,9 +51,8 @@ export const getEmptyBalance = (coinType: string): CoinBalance => ({
 //                     address
 //                 })
 //             }));
-            
+
 //     }
-    
 
 //     // Filter those accounts that already exist so they are not duplicated
 //     const derivedAccountsNonExistent: Omit<SerializedAccount, 'id'>[] = (

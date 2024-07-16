@@ -545,7 +545,7 @@ export class BackgroundClient {
                 createMessage<DeriveBipPathAccountsFinder>({
                     type: 'derive-bip-path-accounts-finder',
                     sourceID,
-                    derivationOptions
+                    derivationOptions,
                 }),
             ).pipe(
                 take(1),
@@ -564,7 +564,7 @@ export class BackgroundClient {
             this.sendMessage(
                 createMessage<PersistAccountsFinder>({
                     type: 'persist-accounts-finder',
-                    sourceStrategy
+                    sourceStrategy,
                 }),
             ).pipe(take(1)),
         );

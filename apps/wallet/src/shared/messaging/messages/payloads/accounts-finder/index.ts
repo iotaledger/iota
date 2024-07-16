@@ -3,4 +3,4 @@
 
 export * from './DeriveBipPathAccountsFinder';
 export * from './PersistAccountsFinder';
-export * from './types'
+export * from './types';
