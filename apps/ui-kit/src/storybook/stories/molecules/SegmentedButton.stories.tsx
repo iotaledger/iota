@@ -33,11 +33,8 @@ const meta = {
                     {elements.map((element, index) => (
                         <ButtonSegment
                             key={element.label}
-                            label={element.label}
-                            icon={element.icon}
-                            selected={element.selected}
-                            disabled={element.disabled}
                             onClick={() => handleElementClick(index)}
+                            {...element}
                         />
                     ))}
                 </SegmentedButton>
