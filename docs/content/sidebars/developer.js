@@ -325,22 +325,6 @@ const developer = [
 					},
 					'developer/standards/kiosk',
 					'developer/standards/kiosk-apps',
-					{
-						type: 'category',
-						label: 'DeepBook',
-						link: {
-							type: 'doc',
-							id: 'developer/standards/deepbook',
-						},
-						items: [
-							'developer/standards/deepbook/design',
-							'developer/standards/deepbook/orders',
-							'developer/standards/deepbook/pools',
-							'developer/standards/deepbook/query-the-pool',
-							'developer/standards/deepbook/routing-a-swap',
-							'developer/standards/deepbook/trade-and-swap',
-						],
-					},
 					'developer/standards/display',
 					'developer/standards/wallet-standard',
 				]
