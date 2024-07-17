@@ -12,28 +12,33 @@ interface ListItemProps {
      */
     showRightIcon?: boolean;
     /**
-     * On right icon click handler (optional).
+     * On click handler (optional).
      */
-    onRightIconClick?: () => void;
+    onClick?: () => void;
     /**
      * The list item is disabled or not.
      */
-    disabled?: boolean;
+    isDisabled?: boolean;
 }
 
 export function ListItem({
     showRightIcon,
-    onRightIconClick,
-    disabled,
+    onClick,
+    isDisabled,
     children,
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
     return (
-        <div className="w-full border-b border-shader-neutral-light-8 pb-xs dark:border-shader-neutral-dark-8">
+        <div
+            onClick={onClick}
+            className={cx(
+                'w-full border-b border-shader-neutral-light-8 pb-xs dark:border-shader-neutral-dark-8',
+                { 'opacity-40': isDisabled },
+            )}
+        >
             <div
                 className={cx(
-                    'justif-between relative flex min-h-[48px] flex-row items-center text-neutral-10 dark:text-neutral-92',
-                    { 'state-layer': !disabled },
-                    { 'opacity-40': disabled },
+                    'relative flex min-h-[48px] flex-row items-center justify-between text-neutral-10 dark:text-neutral-92',
+                    { 'state-layer': !isDisabled },
                 )}
             >
                 {children}
@@ -41,8 +46,7 @@ export function ListItem({
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
-                        disabled={disabled}
-                        onClick={onRightIconClick}
+                        disabled={isDisabled}
                         icon={<ArrowRight />}
                     />
                 )}

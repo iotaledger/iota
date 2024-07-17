@@ -10,9 +10,9 @@ const meta = {
     tags: ['autodocs'],
     render: (props) => {
         return (
-            <div className="flex flex-col items-start gap-2">
+            <div className="flex flex-col">
                 <ListItem {...props}>
-                    <div className="flex flex-grow flex-row items-center gap-2 pl-sm">
+                    <div className="flex flex-row items-center gap-2 pl-sm">
                         <Seed />
                         <div>Item 1</div>
                     </div>
@@ -31,7 +31,7 @@ export const Default: Story = {
         showRightIcon: {
             control: 'boolean',
         },
-        disabled: {
+        isDisabled: {
             control: 'boolean',
         },
     },
