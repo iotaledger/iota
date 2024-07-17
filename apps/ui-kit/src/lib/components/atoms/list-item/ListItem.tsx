@@ -12,6 +12,10 @@ interface ListItemProps {
      */
     showRightIcon?: boolean;
     /**
+     * Has bottom border (optional).
+     */
+    showBottomBorder?: boolean;
+    /**
      * On click handler (optional).
      */
     onClick?: () => void;
@@ -23,6 +27,7 @@ interface ListItemProps {
 
 export function ListItem({
     showRightIcon,
+    showBottomBorder = true,
     onClick,
     isDisabled,
     children,
@@ -31,7 +36,11 @@ export function ListItem({
         <div
             onClick={onClick}
             className={cx(
-                'w-full border-b border-shader-neutral-light-8 pb-xs dark:border-shader-neutral-dark-8',
+                'w-full pb-xs',
+                {
+                    'border-b border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+                        showBottomBorder,
+                },
                 { 'opacity-40': isDisabled },
             )}
         >

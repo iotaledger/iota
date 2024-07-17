@@ -34,5 +34,8 @@ export const Default: Story = {
         isDisabled: {
             control: 'boolean',
         },
+        showBottomBorder: {
+            control: 'boolean',
+        },
     },
 };
