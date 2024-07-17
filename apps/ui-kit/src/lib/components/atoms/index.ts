@@ -8,6 +8,7 @@ export * from './button';
 export * from './checkbox';
 export * from './chip';
 export * from './divider';
-export * from './keyValueInfo';
+export * from './key-value-info';
+export * from './list-item';
 export * from './header';
 export * from './labelText';
