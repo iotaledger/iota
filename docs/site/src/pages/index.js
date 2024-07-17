@@ -63,10 +63,10 @@ export default function Home() {
                 style={{ fontSize: "16px" }}
               >
                 Discover the power of IOTA through examples, guides, and
-                concepts
+                explanations/
               </h2>
               <Link
-                to="/guides#get-started-developing-on-iota"
+                to="/developer/getting-started"
                 className="button-cta"
               >
                 Get started
@@ -77,29 +77,29 @@ export default function Home() {
 
         <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
           <HomeCard title="About IOTA" heroCardBg={heroCardBg}>
-            <Link className={styles.cardLink} to="./concepts/tokenomics">
+            <Link className={styles.cardLink} to="./about-iota/tokenomics">
               Tokenomics
             </Link>
-            <Link className={styles.cardLink} to="./concepts/cryptography">
+            <Link className={styles.cardLink} to="./developer/cryptography/explanations/cryptography">
               Cryptography
             </Link>
-            <Link className={styles.cardLink} to="standards">
+            <Link className={styles.cardLink} to="./developer/standards">
               Standards
             </Link>
           </HomeCard>
           <HomeCard title="Developers" heroCardBg={heroCardBg1}>
             <Link
               className={styles.cardLink}
-              to="./guides/developer/getting-started"
+              to="./developer/getting-started"
             >
               Getting started
             </Link>
-            <Link className={styles.cardLink} to="./guides/developer/iota-101">
+            <Link className={styles.cardLink} to="./developer/iota-101">
               IOTA Developer Basics
             </Link>
             <Link
               className={styles.cardLink}
-              to="./concepts/iota-move-concepts"
+              to="./developer/iota-101/iota-move-concepts"
             >
               Move
             </Link>
@@ -110,13 +110,13 @@ export default function Home() {
           >
             <Link
               className={styles.cardLink}
-              to="./guides/operator/validator-config"
+              to="./operator/validator-config"
             >
               Validator configuration
             </Link>
             <Link
               className={styles.cardLink}
-              to="./guides/operator/iota-full-node"
+              to="./operator/iota-full-node"
             >
               Run a IOTA Full node
               <span className="block bg-auto bg-[url(../static/img/index/right-arrow.svg)]"></span>
@@ -157,7 +157,7 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="guides/developer/dev-cheat-sheet"
+              to="developer/dev-cheat-sheet"
             >
               IOTA dev cheat sheet
             </Link>
@@ -165,7 +165,7 @@ export default function Home() {
           <HomeCardCTA>
             <Link
               className={styles.cardCTALink}
-              to="/guides/developer/first-app"
+              to="/developer/getting-started/first-app"
             >
               <span>Build your dApp on IOTA</span>
               <svg
