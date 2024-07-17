@@ -48,6 +48,12 @@ After IOTA defines the deterministic way to derive the master key from a seed, B
 
 For deriving a 32-byte IOTA address, IOTA hashes the signature scheme flag 1-byte concatenated with public key bytes using the [BLAKE2b](https://www.blake2.net/) (256 bits output) hashing function. IOTA address currently supports pure Ed25519, Secp256k1, Secp256r1, and MultiSig with corresponding flag bytes of 0x00, 0x01, 0x02, and 0x03, respectively.
 
+:::warning Ed25519 hashing exception
+
+The exception to this is the Ed25519 scheme, which is the default. The BLAKE2b hash for Ed25519 public keys does not have a flag prepended before hashing unlike the other siging schemes.
+
+:::
+
 ## Example
 
 IOTA Wallet and SDKs provide a flexible interface to sign transactions with various signing schemes.
@@ -57,7 +63,7 @@ IOTA Wallet and SDKs provide a flexible interface to sign transactions with vari
 
 ```typescript
 const keypair = Ed25519Keypair.deriveKeypair(TEST_MNEMONIC, `m/44'/4218'/0'/0'/0'`);
-const address = keypair.getPublicKey().toIOTAAddress();
+const address = keypair.getPublicKey().toIotaAddress();
 ```
 
 </TabItem>

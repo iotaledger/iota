@@ -224,15 +224,6 @@ const developer = [
 									'developer/cryptography/explanations/transaction-auth/intent-signing',
 								],
 							},
-							{
-								type: 'category',
-								label: 'zkLogin',
-								link: {
-									type: 'doc',
-									id: 'developer/cryptography/explanations/zklogin',
-								},
-								items: ['developer/cryptography/explanations/zklogin/zklogin-example'],
-							},
 							'developer/cryptography/explanations/system/checkpoint-verification',
 						],
 					},
