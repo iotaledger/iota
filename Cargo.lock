@@ -3757,7 +3757,7 @@ checksum = "a48e5d537b8a30c0b023116d981b16334be1485af7ca68db3a2b7024cbc957fd"
 dependencies = [
  "der 0.7.5",
  "digest 0.10.7",
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
  "rfc6979 0.4.0",
  "serdect",
  "signature 2.0.0",
@@ -3873,9 +3873,9 @@ dependencies = [
 
 [[package]]
 name = "elliptic-curve"
-version = "0.13.4"
+version = "0.13.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75c71eaa367f2e5d556414a8eea812bc62985c879748d6403edabd9cb03f16e7"
+checksum = "b5e6043086bf7973472e0c7dff2142ea0b680d30e18d9cc40f267efbf222bd47"
 dependencies = [
  "base16ct 0.2.0",
  "crypto-bigint 0.5.1",
@@ -4190,7 +4190,7 @@ dependencies = [
  "cargo_metadata 0.15.4",
  "chrono",
  "convert_case 0.6.0",
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
  "ethabi",
  "generic-array",
  "getrandom 0.2.9",
@@ -4300,7 +4300,7 @@ dependencies = [
  "async-trait",
  "coins-bip32",
  "coins-bip39",
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
  "eth-keystore",
  "ethers-core",
  "hex",
@@ -4387,7 +4387,7 @@ dependencies = [
  "digest 0.10.7",
  "ecdsa 0.16.6",
  "ed25519-consensus",
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
  "eyre",
  "fastcrypto-derive",
  "generic-array",
@@ -8482,7 +8482,7 @@ checksum = "cadb76004ed8e97623117f3df85b17aaa6626ab0b0831e6573f104df16cd1bcc"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.6",
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
  "once_cell",
  "serdect",
  "sha2 0.10.6",
@@ -10976,7 +10976,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
  "ecdsa 0.16.6",
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
  "primeorder",
  "sha2 0.10.6",
 ]
@@ -11649,7 +11649,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7613fdcc0831c10060fa69833ea8fa2caa94b6456f51e25356a885b530a2e3d0"
 dependencies = [
- "elliptic-curve 0.13.4",
+ "elliptic-curve 0.13.8",
 ]
 
 [[package]]
