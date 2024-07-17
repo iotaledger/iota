@@ -27,11 +27,5 @@ export const Default: Story = {
                 options: Object.values(BadgeType),
             },
         },
-        disabled: {
-            control: 'boolean',
-        },
-        icon: {
-            control: 'text',
-        },
     },
 };
