@@ -3,4 +3,4 @@
 
 export * from './segmented-button';
 export * from './title';
-export * from './navbarItem';
+export * from './navbar-item';

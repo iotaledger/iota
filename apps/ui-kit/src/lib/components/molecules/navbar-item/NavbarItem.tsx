@@ -72,7 +72,7 @@ export function NavbarItem({
                     </div>
                 )}
             </div>
-            {text && <span className={cx('text-label-md', textClasses)}>{text}</span>}
+            {text && <span className={cx('text-center text-label-md', textClasses)}>{text}</span>}
         </div>
     );
 }
