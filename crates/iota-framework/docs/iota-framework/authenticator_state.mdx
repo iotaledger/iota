@@ -27,13 +27,13 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../move-stdlib/string.md#0x1_string">0x1::string</Link>;
-<b>use</b> <Link href="../iota-framework/dynamic_field.md#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="../iota-framework/math.md#0x2_math">0x2::math</Link>;
-<b>use</b> <Link href="../iota-framework/object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../move-stdlib/string#0x1_string">0x1::string</Link>;
+<b>use</b> <Link href="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link href="../iota-framework/math#0x2_math">0x2::math</Link>;
+<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -48,7 +48,7 @@ future versions of the authenticator state.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link> <b>has</b> key
+<b>struct</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link> <b>has</b> key
 </code></pre>
 
 
@@ -60,7 +60,7 @@ future versions of the authenticator state.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -84,7 +84,7 @@ version: u64</code>
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> <b>has</b> store
+<b>struct</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> <b>has</b> store
 </code></pre>
 
 
@@ -103,7 +103,7 @@ version: u64</code>
 </dd>
 <dt>
 <code>
-active_jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;</code>
+active_jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;</code>
 </dt>
 <dd>
  List of currently active JWKs.
@@ -121,7 +121,7 @@ Must match the JWK struct in fastcrypto-zkp
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">JWK</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">JWK</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -133,28 +133,28 @@ Must match the JWK struct in fastcrypto-zkp
 <dl>
 <dt>
 <code>
-kty: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+kty: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-e: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+e: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-n: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+n: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-alg: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+alg: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
 
@@ -172,7 +172,7 @@ Must match the JwkId struct in fastcrypto-zkp
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">JwkId</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">JwkId</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -184,14 +184,14 @@ Must match the JwkId struct in fastcrypto-zkp
 <dl>
 <dt>
 <code>
-iss: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+iss: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-kid: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+kid: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
 
@@ -208,7 +208,7 @@ kid: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Lin
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -220,14 +220,14 @@ kid: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Lin
 <dl>
 <dt>
 <code>
-jwk_id: <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">authenticator_state::JwkId</Link></code>
+jwk_id: <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">authenticator_state::JwkId</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-jwk: <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">authenticator_state::JWK</Link></code>
+jwk: <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">authenticator_state::JWK</Link></code>
 </dt>
 <dd>
 
@@ -255,7 +255,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 0;
 </code></pre>
 
 
@@ -265,7 +265,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>: u64 = 1;
+<b>const</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>: u64 = 1;
 </code></pre>
 
 
@@ -275,7 +275,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EJwksNotSorted">EJwksNotSorted</Link>: u64 = 2;
+<b>const</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EJwksNotSorted">EJwksNotSorted</Link>: u64 = 2;
 </code></pre>
 
 
@@ -285,7 +285,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>: u64 = 1;
+<b>const</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>: u64 = 1;
 </code></pre>
 
 
@@ -297,7 +297,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_active_jwk_equal">active_jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>): bool
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_active_jwk_equal">active_jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>): bool
 </code></pre>
 
 
@@ -307,9 +307,9 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_active_jwk_equal">active_jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>): bool \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_active_jwk_equal">active_jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>): bool \{
     // note: epoch is ignored
-    <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_equal">jwk_equal</Link>(&a.jwk, &b.jwk) && <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(&a.jwk_id, &b.jwk_id)
+    <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_equal">jwk_equal</Link>(&a.jwk, &b.jwk) && <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(&a.jwk_id, &b.jwk_id)
 }
 </code></pre>
 
@@ -324,7 +324,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_equal">jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">authenticator_state::JWK</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">authenticator_state::JWK</Link>): bool
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_equal">jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">authenticator_state::JWK</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">authenticator_state::JWK</Link>): bool
 </code></pre>
 
 
@@ -334,7 +334,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_equal">jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">JWK</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">JWK</Link>): bool \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_equal">jwk_equal</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">JWK</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">JWK</Link>): bool \{
     (&a.kty == &b.kty) &&
        (&a.e == &b.e) &&
        (&a.n == &b.n) &&
@@ -353,7 +353,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">authenticator_state::JwkId</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">authenticator_state::JwkId</Link>): bool
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">authenticator_state::JwkId</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">authenticator_state::JwkId</Link>): bool
 </code></pre>
 
 
@@ -363,7 +363,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">JwkId</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">JwkId</Link>): bool \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">JwkId</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">JwkId</Link>): bool \{
     (&a.iss == &b.iss) && (&a.kid == &b.kid)
 }
 </code></pre>
@@ -379,7 +379,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(a: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, b: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): bool
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(a: &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, b: &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>): bool
 </code></pre>
 
 
@@ -389,7 +389,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(a: &String, b: &String): bool \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(a: &String, b: &String): bool \{
     <b>let</b> a_bytes = a.bytes();
     <b>let</b> b_bytes = b.bytes();
 
@@ -426,7 +426,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>): bool
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>): bool
 </code></pre>
 
 
@@ -436,24 +436,24 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(a: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>): bool \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(a: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>, b: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>): bool \{
     // note: epoch is ignored
     <b>if</b> (&a.jwk_id.iss != &b.jwk_id.iss) \{
-        <b>return</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk_id.iss, &b.jwk_id.iss)
+        <b>return</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk_id.iss, &b.jwk_id.iss)
     };
     <b>if</b> (&a.jwk_id.kid != &b.jwk_id.kid) \{
-        <b>return</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk_id.kid, &b.jwk_id.kid)
+        <b>return</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk_id.kid, &b.jwk_id.kid)
     };
     <b>if</b> (&a.jwk.kty != &b.jwk.kty) \{
-        <b>return</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.kty, &b.jwk.kty)
+        <b>return</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.kty, &b.jwk.kty)
     };
     <b>if</b> (&a.jwk.e != &b.jwk.e) \{
-        <b>return</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.e, &b.jwk.e)
+        <b>return</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.e, &b.jwk.e)
     };
     <b>if</b> (&a.jwk.n != &b.jwk.n) \{
-        <b>return</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.n, &b.jwk.n)
+        <b>return</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.n, &b.jwk.n)
     };
-    <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.alg, &b.jwk.alg)
+    <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_string_bytes_lt">string_bytes_lt</Link>(&a.jwk.alg, &b.jwk.alg)
 }
 </code></pre>
 
@@ -471,7 +471,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_create">create</Link>(ctx: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_create">create</Link>(ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -481,23 +481,23 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_create">create</Link>(ctx: &TxContext) \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_create">create</Link>(ctx: &TxContext) \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
 
-    <b>let</b> version = <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>;
+    <b>let</b> version = <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>;
 
-    <b>let</b> inner = <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> \{
+    <b>let</b> inner = <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> \{
         version,
-        active_jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[],
+        active_jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[],
     };
 
-    <b>let</b> <b>mut</b> self = <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link> \{
-        id: <Link href="../iota-framework/object.md#0x2_object_authenticator_state">object::authenticator_state</Link>(),
+    <b>let</b> <b>mut</b> self = <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link> \{
+        id: <Link href="../iota-framework/object#0x2_object_authenticator_state">object::authenticator_state</Link>(),
         version,
     };
 
-    <Link href="../iota-framework/dynamic_field.md#0x2_dynamic_field_add">dynamic_field::add</Link>(&<b>mut</b> self.id, version, inner);
-    <Link href="../iota-framework/transfer.md#0x2_transfer_share_object">transfer::share_object</Link>(self);
+    <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_add">dynamic_field::add</Link>(&<b>mut</b> self.id, version, inner);
+    <Link href="../iota-framework/transfer#0x2_transfer_share_object">transfer::share_object</Link>(self);
 }
 </code></pre>
 
@@ -512,7 +512,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(self: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>): &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">authenticator_state::AuthenticatorStateInner</Link>
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(self: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>): &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">authenticator_state::AuthenticatorStateInner</Link>
 </code></pre>
 
 
@@ -522,17 +522,17 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(
-    self: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
-): &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(
+    self: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
+): &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> \{
     <b>let</b> version = self.version;
 
-    // replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link href="../iota-framework/object.md#0x2_object">object</Link>.
-    <b>assert</b>!(version == <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    // replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link href="../iota-framework/object#0x2_object">object</Link>.
+    <b>assert</b>!(version == <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
 
-    <b>let</b> inner: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> = <Link href="../iota-framework/dynamic_field.md#0x2_dynamic_field_borrow_mut">dynamic_field::borrow_mut</Link>(&<b>mut</b> self.id, self.version);
+    <b>let</b> inner: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> = <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_borrow_mut">dynamic_field::borrow_mut</Link>(&<b>mut</b> self.id, self.version);
 
-    <b>assert</b>!(inner.version == version, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    <b>assert</b>!(inner.version == version, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
     inner
 }
 </code></pre>
@@ -548,7 +548,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner">load_inner</Link>(self: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>): &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">authenticator_state::AuthenticatorStateInner</Link>
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner">load_inner</Link>(self: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>): &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">authenticator_state::AuthenticatorStateInner</Link>
 </code></pre>
 
 
@@ -558,17 +558,17 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner">load_inner</Link>(
-    self: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
-): &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner">load_inner</Link>(
+    self: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
+): &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> \{
     <b>let</b> version = self.version;
 
-    // replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link href="../iota-framework/object.md#0x2_object">object</Link>.
-    <b>assert</b>!(version == <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    // replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link href="../iota-framework/object#0x2_object">object</Link>.
+    <b>assert</b>!(version == <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_CurrentVersion">CurrentVersion</Link>, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
 
-    <b>let</b> inner: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> = <Link href="../iota-framework/dynamic_field.md#0x2_dynamic_field_borrow">dynamic_field::borrow</Link>(&self.id, self.version);
+    <b>let</b> inner: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorStateInner">AuthenticatorStateInner</Link> = <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_borrow">dynamic_field::borrow</Link>(&self.id, self.version);
 
-    <b>assert</b>!(inner.version == version, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    <b>assert</b>!(inner.version == version, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EWrongInnerVersion">EWrongInnerVersion</Link>);
     inner
 }
 </code></pre>
@@ -584,7 +584,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_check_sorted">check_sorted</Link>(new_active_jwks: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;)
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_check_sorted">check_sorted</Link>(new_active_jwks: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;)
 </code></pre>
 
 
@@ -594,12 +594,12 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_check_sorted">check_sorted</Link>(new_active_jwks: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt;) \{
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_check_sorted">check_sorted</Link>(new_active_jwks: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt;) \{
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; new_active_jwks.length() - 1) \{
         <b>let</b> a = &new_active_jwks[i];
         <b>let</b> b = &new_active_jwks[i + 1];
-        <b>assert</b>!(<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(a, b), <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_EJwksNotSorted">EJwksNotSorted</Link>);
+        <b>assert</b>!(<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(a, b), <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_EJwksNotSorted">EJwksNotSorted</Link>);
         i = i + 1;
     };
 }
@@ -620,7 +620,7 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_update_authenticator_state">update_authenticator_state</Link>(self: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>, new_active_jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;, ctx: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_update_authenticator_state">update_authenticator_state</Link>(self: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>, new_active_jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -630,20 +630,20 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_update_authenticator_state">update_authenticator_state</Link>(
-    self: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
-    new_active_jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt;,
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_update_authenticator_state">update_authenticator_state</Link>(
+    self: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
+    new_active_jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt;,
     ctx: &TxContext,
 ) \{
     // Validator will make a special system call <b>with</b> sender set <b>as</b> 0x0.
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
+    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
 
-    <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_check_sorted">check_sorted</Link>(&new_active_jwks);
-    <b>let</b> new_active_jwks = <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_deduplicate">deduplicate</Link>(new_active_jwks);
+    <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_check_sorted">check_sorted</Link>(&new_active_jwks);
+    <b>let</b> new_active_jwks = <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_deduplicate">deduplicate</Link>(new_active_jwks);
 
-    <b>let</b> inner = self.<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>();
+    <b>let</b> inner = self.<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>();
 
-    <b>let</b> <b>mut</b> res = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
+    <b>let</b> <b>mut</b> res = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> <b>mut</b> j = 0;
     <b>let</b> active_jwks_len = inner.active_jwks.length();
@@ -654,20 +654,20 @@ indicate that the JWK has been validated in the current epoch and should not be 
         <b>let</b> new_jwk = &new_active_jwks[j];
 
         // when they are equal, push only one, but <b>use</b> the max epoch of the two
-        <b>if</b> (<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_active_jwk_equal">active_jwk_equal</Link>(old_jwk, new_jwk)) \{
+        <b>if</b> (<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_active_jwk_equal">active_jwk_equal</Link>(old_jwk, new_jwk)) \{
             <b>let</b> <b>mut</b> jwk = *old_jwk;
-            jwk.epoch = <Link href="../iota-framework/math.md#0x2_math_max">math::max</Link>(old_jwk.epoch, new_jwk.epoch);
+            jwk.epoch = <Link href="../iota-framework/math#0x2_math_max">math::max</Link>(old_jwk.epoch, new_jwk.epoch);
             res.push_back(jwk);
             i = i + 1;
             j = j + 1;
-        } <b>else</b> <b>if</b> (<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(&old_jwk.jwk_id, &new_jwk.jwk_id)) \{
+        } <b>else</b> <b>if</b> (<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(&old_jwk.jwk_id, &new_jwk.jwk_id)) \{
             // <b>if</b> only jwk_id is equal, then the key <b>has</b> changed. Providers should not send
-            // JWKs like this, but <b>if</b> they do, we must ignore the new <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JWK">JWK</Link> <b>to</b> avoid having a
+            // JWKs like this, but <b>if</b> they do, we must ignore the new <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JWK">JWK</Link> <b>to</b> avoid having a
             // liveness / forking issues
             res.push_back(*old_jwk);
             i = i + 1;
             j = j + 1;
-        } <b>else</b> <b>if</b> (<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(old_jwk, new_jwk)) \{
+        } <b>else</b> <b>if</b> (<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_lt">jwk_lt</Link>(old_jwk, new_jwk)) \{
             res.push_back(*old_jwk);
             i = i + 1;
         } <b>else</b> \{
@@ -700,7 +700,7 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_deduplicate">deduplicate</Link>(jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_deduplicate">deduplicate</Link>(jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;
 </code></pre>
 
 
@@ -710,15 +710,15 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_deduplicate">deduplicate</Link>(jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt; \{
-    <b>let</b> <b>mut</b> res = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_deduplicate">deduplicate</Link>(jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt; \{
+    <b>let</b> <b>mut</b> res = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
-    <b>let</b> <b>mut</b> prev: Option&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_JwkId">JwkId</Link>&gt; = <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>();
+    <b>let</b> <b>mut</b> prev: Option&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_JwkId">JwkId</Link>&gt; = <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>();
     <b>while</b> (i &lt; jwks.length()) \{
         <b>let</b> jwk = &jwks[i];
         <b>if</b> (prev.is_none()) \{
             prev.fill(jwk.jwk_id);
-        } <b>else</b> <b>if</b> (<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(prev.borrow(), &jwk.jwk_id)) \{
+        } <b>else</b> <b>if</b> (<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_jwk_id_equal">jwk_id_equal</Link>(prev.borrow(), &jwk.jwk_id)) \{
             // skip duplicate jwks in input
             i = i + 1;
             <b>continue</b>
@@ -743,7 +743,7 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_expire_jwks">expire_jwks</Link>(self: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>, min_epoch: u64, ctx: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_expire_jwks">expire_jwks</Link>(self: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>, min_epoch: u64, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -753,23 +753,23 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_expire_jwks">expire_jwks</Link>(
-    self: &<b>mut</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_expire_jwks">expire_jwks</Link>(
+    self: &<b>mut</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
     // any jwk below this epoch is not retained
     min_epoch: u64,
     ctx: &TxContext) \{
     // This will only be called by iota_system::advance_epoch
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
+    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
 
-    <b>let</b> inner = <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(self);
+    <b>let</b> inner = <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(self);
 
     <b>let</b> len = inner.active_jwks.length();
 
     // first we count how many jwks from each issuer are above the min_epoch
-    // and store the counts in a <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link> that parallels the (sorted) active_jwks <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>
-    <b>let</b> <b>mut</b> issuer_max_epochs = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
+    // and store the counts in a <Link href="../move-stdlib/vector#0x1_vector">vector</Link> that parallels the (sorted) active_jwks <Link href="../move-stdlib/vector#0x1_vector">vector</Link>
+    <b>let</b> <b>mut</b> issuer_max_epochs = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
-    <b>let</b> <b>mut</b> prev_issuer: Option&lt;String&gt; = <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>();
+    <b>let</b> <b>mut</b> prev_issuer: Option&lt;String&gt; = <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>();
 
     <b>while</b> (i &lt; len) \{
         <b>let</b> cur = &inner.active_jwks[i];
@@ -781,7 +781,7 @@ indicate that the JWK has been validated in the current epoch and should not be 
             <b>if</b> (cur_iss == prev_issuer.borrow()) \{
                 <b>let</b> back = issuer_max_epochs.length() - 1;
                 <b>let</b> prev_max_epoch = &<b>mut</b> issuer_max_epochs[back];
-                *prev_max_epoch = <Link href="../iota-framework/math.md#0x2_math_max">math::max</Link>(*prev_max_epoch, cur.epoch);
+                *prev_max_epoch = <Link href="../iota-framework/math#0x2_math_max">math::max</Link>(*prev_max_epoch, cur.epoch);
             } <b>else</b> \{
                 *prev_issuer.borrow_mut() = *cur_iss;
                 issuer_max_epochs.push_back(cur.epoch);
@@ -792,8 +792,8 @@ indicate that the JWK has been validated in the current epoch and should not be 
 
     // Now, filter out any JWKs that are below the min_epoch, unless that issuer <b>has</b> no
     // JWKs &gt;= the min_epoch, in which case we keep all of them.
-    <b>let</b> <b>mut</b> new_active_jwks: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt; = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
-    <b>let</b> <b>mut</b> prev_issuer: Option&lt;String&gt; = <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>();
+    <b>let</b> <b>mut</b> new_active_jwks: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt; = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
+    <b>let</b> <b>mut</b> prev_issuer: Option&lt;String&gt; = <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>();
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> <b>mut</b> j = 0;
     <b>while</b> (i &lt; len) \{
@@ -833,7 +833,7 @@ JWK state from the chain.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_get_active_jwks">get_active_jwks</Link>(self: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>, ctx: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_get_active_jwks">get_active_jwks</Link>(self: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">authenticator_state::AuthenticatorState</Link>, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">authenticator_state::ActiveJwk</Link>&gt;
 </code></pre>
 
 
@@ -843,12 +843,12 @@ JWK state from the chain.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_get_active_jwks">get_active_jwks</Link>(
-    self: &<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
+<b>fun</b> <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_get_active_jwks">get_active_jwks</Link>(
+    self: &<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_AuthenticatorState">AuthenticatorState</Link>,
     ctx: &TxContext,
-): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt; \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
-    self.<Link href="../iota-framework/authenticator_state.md#0x2_authenticator_state_load_inner">load_inner</Link>().active_jwks
+): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ActiveJwk">ActiveJwk</Link>&gt; \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/authenticator_state#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
+    self.<Link href="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner">load_inner</Link>().active_jwks
 }
 </code></pre>
 

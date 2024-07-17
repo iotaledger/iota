@@ -30,8 +30,8 @@ Generic Move and native functions for group operations.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/vector.md#0x1_vector">0x1::vector</Link>;
-<b>use</b> <Link href="bcs.md#0x2_bcs">0x2::bcs</Link>;
+<b>use</b> <Link href="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
+<b>use</b> <Link href="bcs#0x2_bcs">0x2::bcs</Link>;
 </code></pre>
 
 
@@ -43,7 +43,7 @@ Generic Move and native functions for group operations.
 
 
 <pre><code>
-<b>struct</b> <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -55,7 +55,7 @@ Generic Move and native functions for group operations.
 <dl>
 <dt>
 <code>
-bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;</code>
+bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -75,7 +75,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>const</b> <Link href="group_ops.md#0x2_group_ops_EInputTooLong">EInputTooLong</Link>: u64 = 2;
+<b>const</b> <Link href="group_ops#0x2_group_ops_EInputTooLong">EInputTooLong</Link>: u64 = 2;
 </code></pre>
 
 
@@ -85,7 +85,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>const</b> <Link href="group_ops.md#0x2_group_ops_EInvalidBufferLength">EInvalidBufferLength</Link>: u64 = 3;
+<b>const</b> <Link href="group_ops#0x2_group_ops_EInvalidBufferLength">EInvalidBufferLength</Link>: u64 = 3;
 </code></pre>
 
 
@@ -95,7 +95,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>const</b> <Link href="group_ops.md#0x2_group_ops_EInvalidInput">EInvalidInput</Link>: u64 = 1;
+<b>const</b> <Link href="group_ops#0x2_group_ops_EInvalidInput">EInvalidInput</Link>: u64 = 1;
 </code></pre>
 
 
@@ -105,7 +105,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>const</b> <Link href="group_ops.md#0x2_group_ops_ENotSupported">ENotSupported</Link>: u64 = 0;
+<b>const</b> <Link href="group_ops#0x2_group_ops_ENotSupported">ENotSupported</Link>: u64 = 0;
 </code></pre>
 
 
@@ -117,7 +117,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_bytes">bytes</Link>&lt;G&gt;(e: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_bytes">bytes</Link>&lt;G&gt;(e: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -127,7 +127,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_bytes">bytes</Link>&lt;G&gt;(e: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; \{
+<b>public</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_bytes">bytes</Link>&lt;G&gt;(e: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     &e.bytes
 }
 </code></pre>
@@ -143,7 +143,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_equal">equal</Link>&lt;G&gt;(e1: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): bool
+<b>public</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_equal">equal</Link>&lt;G&gt;(e1: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): bool
 </code></pre>
 
 
@@ -153,7 +153,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_equal">equal</Link>&lt;G&gt;(e1: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;): bool \{
+<b>public</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_equal">equal</Link>&lt;G&gt;(e1: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;): bool \{
     &e1.bytes == &e2.bytes
 }
 </code></pre>
@@ -169,7 +169,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_from_bytes">from_bytes</Link>&lt;G&gt;(type_: u8, bytes: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, is_trusted: bool): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_from_bytes">from_bytes</Link>&lt;G&gt;(type_: u8, bytes: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, is_trusted: bool): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -179,9 +179,9 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_from_bytes">from_bytes</Link>&lt;G&gt;(type_: u8, bytes: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, is_trusted: bool): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <b>assert</b>!(is_trusted || <Link href="group_ops.md#0x2_group_ops_internal_validate">internal_validate</Link>(type_, bytes), <Link href="group_ops.md#0x2_group_ops_EInvalidInput">EInvalidInput</Link>);
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: *bytes }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_from_bytes">from_bytes</Link>&lt;G&gt;(type_: u8, bytes: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, is_trusted: bool): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <b>assert</b>!(is_trusted || <Link href="group_ops#0x2_group_ops_internal_validate">internal_validate</Link>(type_, bytes), <Link href="group_ops#0x2_group_ops_EInvalidInput">EInvalidInput</Link>);
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: *bytes }
 }
 </code></pre>
 
@@ -196,7 +196,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_add">add</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_add">add</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -206,8 +206,8 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_add">add</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_add">internal_add</Link>(type_, &e1.bytes, &e2.bytes) }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_add">add</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_add">internal_add</Link>(type_, &e1.bytes, &e2.bytes) }
 }
 </code></pre>
 
@@ -222,7 +222,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_sub">sub</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_sub">sub</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -232,8 +232,8 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_sub">sub</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_sub">internal_sub</Link>(type_, &e1.bytes, &e2.bytes) }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_sub">sub</Link>&lt;G&gt;(type_: u8, e1: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_sub">internal_sub</Link>(type_, &e1.bytes, &e2.bytes) }
 }
 </code></pre>
 
@@ -248,7 +248,7 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_mul">mul</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;S&gt;, e: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_mul">mul</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;S&gt;, e: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -258,8 +258,8 @@ bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;<
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_mul">mul</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;S&gt;, e: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_mul">internal_mul</Link>(type_, &scalar.bytes, &e.bytes) }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_mul">mul</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;S&gt;, e: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_mul">internal_mul</Link>(type_, &scalar.bytes, &e.bytes) }
 }
 </code></pre>
 
@@ -275,7 +275,7 @@ Fails if scalar = 0. Else returns 1/scalar * e.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_div">div</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;S&gt;, e: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_div">div</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;S&gt;, e: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -285,8 +285,8 @@ Fails if scalar = 0. Else returns 1/scalar * e.
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_div">div</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;S&gt;, e: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_div">internal_div</Link>(type_, &scalar.bytes, &e.bytes) }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_div">div</Link>&lt;S, G&gt;(type_: u8, scalar: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;S&gt;, e: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_div">internal_div</Link>(type_, &scalar.bytes, &e.bytes) }
 }
 </code></pre>
 
@@ -301,7 +301,7 @@ Fails if scalar = 0. Else returns 1/scalar * e.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_hash_to">hash_to</Link>&lt;G&gt;(type_: u8, m: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_hash_to">hash_to</Link>&lt;G&gt;(type_: u8, m: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -311,8 +311,8 @@ Fails if scalar = 0. Else returns 1/scalar * e.
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_hash_to">hash_to</Link>&lt;G&gt;(type_: u8, m: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_hash_to">internal_hash_to</Link>(type_, m) }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_hash_to">hash_to</Link>&lt;G&gt;(type_: u8, m: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_hash_to">internal_hash_to</Link>(type_, m) }
 }
 </code></pre>
 
@@ -325,11 +325,11 @@ Fails if scalar = 0. Else returns 1/scalar * e.
 ## Function `multi_scalar_multiplication`
 
 Aborts with <code>
-<Link href="group_ops.md#0x2_group_ops_EInputTooLong">EInputTooLong</Link></code> if the vectors are too long.
+<Link href="group_ops#0x2_group_ops_EInputTooLong">EInputTooLong</Link></code> if the vectors are too long.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_multi_scalar_multiplication">multi_scalar_multiplication</Link>&lt;S, G&gt;(type_: u8, scalars: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;S&gt;&gt;, elements: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_multi_scalar_multiplication">multi_scalar_multiplication</Link>&lt;S, G&gt;(type_: u8, scalars: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;S&gt;&gt;, elements: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G&gt;
 </code></pre>
 
 
@@ -339,12 +339,12 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_multi_scalar_multiplication">multi_scalar_multiplication</Link>&lt;S, G&gt;(type_: u8, scalars: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;S&gt;&gt;, elements: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt;&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
-    <b>assert</b>!(scalars.length() &gt; 0, <Link href="group_ops.md#0x2_group_ops_EInvalidInput">EInvalidInput</Link>);
-    <b>assert</b>!(scalars.length() == elements.length(), <Link href="group_ops.md#0x2_group_ops_EInvalidInput">EInvalidInput</Link>);
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_multi_scalar_multiplication">multi_scalar_multiplication</Link>&lt;S, G&gt;(type_: u8, scalars: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;S&gt;&gt;, elements: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt;&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{
+    <b>assert</b>!(scalars.length() &gt; 0, <Link href="group_ops#0x2_group_ops_EInvalidInput">EInvalidInput</Link>);
+    <b>assert</b>!(scalars.length() == elements.length(), <Link href="group_ops#0x2_group_ops_EInvalidInput">EInvalidInput</Link>);
 
-    <b>let</b> <b>mut</b> scalars_bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
-    <b>let</b> <b>mut</b> elements_bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;  = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
+    <b>let</b> <b>mut</b> scalars_bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
+    <b>let</b> <b>mut</b> elements_bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;  = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; scalars.length()) \{
         <b>let</b> scalar_vec = scalars[i];
@@ -353,7 +353,7 @@ Aborts with <code>
         elements_bytes.append(element_vec.bytes);
         i = i + 1;
     };
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_multi_scalar_mul">internal_multi_scalar_mul</Link>(type_, &scalars_bytes, &elements_bytes) }
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_multi_scalar_mul">internal_multi_scalar_mul</Link>(type_, &scalars_bytes, &elements_bytes) }
 }
 </code></pre>
 
@@ -368,7 +368,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_pairing">pairing</Link>&lt;G1, G2, G3&gt;(type_: u8, e1: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G1&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G2&gt;): <Link href="group_ops.md#0x2_group_ops_Element">group_ops::Element</Link>&lt;G3&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_pairing">pairing</Link>&lt;G1, G2, G3&gt;(type_: u8, e1: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G1&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G2&gt;): <Link href="group_ops#0x2_group_ops_Element">group_ops::Element</Link>&lt;G3&gt;
 </code></pre>
 
 
@@ -378,8 +378,8 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_pairing">pairing</Link>&lt;G1, G2, G3&gt;(type_: u8, e1: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G1&gt;, e2: &<Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G2&gt;): <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G3&gt; \{
-    <Link href="group_ops.md#0x2_group_ops_Element">Element</Link>&lt;G3&gt; \{ bytes: <Link href="group_ops.md#0x2_group_ops_internal_pairing">internal_pairing</Link>(type_, &e1.bytes, &e2.bytes) }
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_pairing">pairing</Link>&lt;G1, G2, G3&gt;(type_: u8, e1: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G1&gt;, e2: &<Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G2&gt;): <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G3&gt; \{
+    <Link href="group_ops#0x2_group_ops_Element">Element</Link>&lt;G3&gt; \{ bytes: <Link href="group_ops#0x2_group_ops_internal_pairing">internal_pairing</Link>(type_, &e1.bytes, &e2.bytes) }
 }
 </code></pre>
 
@@ -394,7 +394,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_validate">internal_validate</Link>(type_: u8, bytes: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): bool
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_validate">internal_validate</Link>(type_: u8, bytes: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool
 </code></pre>
 
 
@@ -404,7 +404,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_validate">internal_validate</Link>(type_: u8, bytes: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): bool;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_validate">internal_validate</Link>(type_: u8, bytes: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool;
 </code></pre>
 
 
@@ -418,7 +418,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_add">internal_add</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_add">internal_add</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -428,7 +428,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_add">internal_add</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_add">internal_add</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -442,7 +442,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_sub">internal_sub</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_sub">internal_sub</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -452,7 +452,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_sub">internal_sub</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_sub">internal_sub</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -466,7 +466,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_mul">internal_mul</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_mul">internal_mul</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -476,7 +476,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_mul">internal_mul</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_mul">internal_mul</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -490,7 +490,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_div">internal_div</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_div">internal_div</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -500,7 +500,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_div">internal_div</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_div">internal_div</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -514,7 +514,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_hash_to">internal_hash_to</Link>(type_: u8, m: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_hash_to">internal_hash_to</Link>(type_: u8, m: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -524,7 +524,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_hash_to">internal_hash_to</Link>(type_: u8, m: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_hash_to">internal_hash_to</Link>(type_: u8, m: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -538,7 +538,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_multi_scalar_mul">internal_multi_scalar_mul</Link>(type_: u8, scalars: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, elements: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_multi_scalar_mul">internal_multi_scalar_mul</Link>(type_: u8, scalars: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, elements: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -548,7 +548,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_multi_scalar_mul">internal_multi_scalar_mul</Link>(type_: u8, scalars: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, elements: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_multi_scalar_mul">internal_multi_scalar_mul</Link>(type_: u8, scalars: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, elements: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -562,7 +562,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_pairing">internal_pairing</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link href="group_ops#0x2_group_ops_internal_pairing">internal_pairing</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -572,7 +572,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="group_ops.md#0x2_group_ops_internal_pairing">internal_pairing</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="group_ops#0x2_group_ops_internal_pairing">internal_pairing</Link>(type_: u8, e1: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, e2: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -586,7 +586,7 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_set_as_prefix">set_as_prefix</Link>(x: u64, big_endian: bool, buffer: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="group_ops#0x2_group_ops_set_as_prefix">set_as_prefix</Link>(x: u64, big_endian: bool, buffer: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;)
 </code></pre>
 
 
@@ -596,10 +596,10 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b>(<Link href="package.md#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops.md#0x2_group_ops_set_as_prefix">set_as_prefix</Link>(x: u64, big_endian: bool, buffer: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;) \{
+<b>public</b>(<Link href="package#0x2_package">package</Link>) <b>fun</b> <Link href="group_ops#0x2_group_ops_set_as_prefix">set_as_prefix</Link>(x: u64, big_endian: bool, buffer: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;) \{
     <b>let</b> buffer_len = buffer.length();
-    <b>assert</b>!(buffer_len &gt; 7, <Link href="group_ops.md#0x2_group_ops_EInvalidBufferLength">EInvalidBufferLength</Link>);
-    <b>let</b> x_as_bytes = <Link href="../move-stdlib/bcs.md#0x1_bcs_to_bytes">bcs::to_bytes</Link>(&x); // little endian
+    <b>assert</b>!(buffer_len &gt; 7, <Link href="group_ops#0x2_group_ops_EInvalidBufferLength">EInvalidBufferLength</Link>);
+    <b>let</b> x_as_bytes = <Link href="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link>(&x); // little endian
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; 8) \{
         <b>let</b> position = <b>if</b> (big_endian) \{ buffer_len - i - 1 } <b>else</b> \{ i };

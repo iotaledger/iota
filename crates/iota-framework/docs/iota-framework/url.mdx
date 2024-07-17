@@ -14,7 +14,7 @@ URL: standard Uniform Resource Locator string
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</Link>;
+<b>use</b> <Link href="../move-stdlib/ascii#0x1_ascii">0x1::ascii</Link>;
 </code></pre>
 
 
@@ -27,7 +27,7 @@ Standard Uniform Resource Locator (URL) string.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/url.md#0x2_url_Url">Url</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="../iota-framework/url#0x2_url_Url">Url</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -39,7 +39,7 @@ Standard Uniform Resource Locator (URL) string.
 <dl>
 <dt>
 <code>
-<Link href="../iota-framework/url.md#0x2_url">url</Link>: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link></code>
+<Link href="../iota-framework/url#0x2_url">url</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
 
@@ -54,11 +54,11 @@ Standard Uniform Resource Locator (URL) string.
 ## Function `new_unsafe`
 
 Create a <code>
-<Link href="../iota-framework/url.md#0x2_url_Url">Url</Link></code>, with no validation
+<Link href="../iota-framework/url#0x2_url_Url">Url</Link></code>, with no validation
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/url.md#0x2_url_new_unsafe">new_unsafe</Link>(<Link href="../iota-framework/url.md#0x2_url">url</Link>: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>): <Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/url#0x2_url_new_unsafe">new_unsafe</Link>(<Link href="../iota-framework/url#0x2_url">url</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): <Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>
 </code></pre>
 
 
@@ -68,8 +68,8 @@ Create a <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/url.md#0x2_url_new_unsafe">new_unsafe</Link>(<Link href="../iota-framework/url.md#0x2_url">url</Link>: String): <Link href="../iota-framework/url.md#0x2_url_Url">Url</Link> \{
-    <Link href="../iota-framework/url.md#0x2_url_Url">Url</Link> \{ <Link href="../iota-framework/url.md#0x2_url">url</Link> }
+<b>public</b> <b>fun</b> <Link href="../iota-framework/url#0x2_url_new_unsafe">new_unsafe</Link>(<Link href="../iota-framework/url#0x2_url">url</Link>: String): <Link href="../iota-framework/url#0x2_url_Url">Url</Link> \{
+    <Link href="../iota-framework/url#0x2_url_Url">Url</Link> \{ <Link href="../iota-framework/url#0x2_url">url</Link> }
 }
 </code></pre>
 
@@ -82,13 +82,13 @@ Create a <code>
 ## Function `new_unsafe_from_bytes`
 
 Create a <code>
-<Link href="../iota-framework/url.md#0x2_url_Url">Url</Link></code> with no validation from bytes
+<Link href="../iota-framework/url#0x2_url_Url">Url</Link></code> with no validation from bytes
 Note: this will abort if <code>
 bytes</code> is not valid ASCII
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">new_unsafe_from_bytes</Link>(bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/url#0x2_url_new_unsafe_from_bytes">new_unsafe_from_bytes</Link>(bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>
 </code></pre>
 
 
@@ -98,9 +98,9 @@ bytes</code> is not valid ASCII
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">new_unsafe_from_bytes</Link>(bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../iota-framework/url.md#0x2_url_Url">Url</Link> \{
-    <b>let</b> <Link href="../iota-framework/url.md#0x2_url">url</Link> = bytes.to_ascii_string();
-    <Link href="../iota-framework/url.md#0x2_url_Url">Url</Link> \{ <Link href="../iota-framework/url.md#0x2_url">url</Link> }
+<b>public</b> <b>fun</b> <Link href="../iota-framework/url#0x2_url_new_unsafe_from_bytes">new_unsafe_from_bytes</Link>(bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../iota-framework/url#0x2_url_Url">Url</Link> \{
+    <b>let</b> <Link href="../iota-framework/url#0x2_url">url</Link> = bytes.to_ascii_string();
+    <Link href="../iota-framework/url#0x2_url_Url">Url</Link> \{ <Link href="../iota-framework/url#0x2_url">url</Link> }
 }
 </code></pre>
 
@@ -116,7 +116,7 @@ Get inner URL
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/url.md#0x2_url_inner_url">inner_url</Link>(self: &<Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>): <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/url#0x2_url_inner_url">inner_url</Link>(self: &<Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>): <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </code></pre>
 
 
@@ -126,8 +126,8 @@ Get inner URL
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/url.md#0x2_url_inner_url">inner_url</Link>(self: &<Link href="../iota-framework/url.md#0x2_url_Url">Url</Link>): String\{
-    self.<Link href="../iota-framework/url.md#0x2_url">url</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/url#0x2_url_inner_url">inner_url</Link>(self: &<Link href="../iota-framework/url#0x2_url_Url">Url</Link>): String\{
+    self.<Link href="../iota-framework/url#0x2_url">url</Link>
 }
 </code></pre>
 
@@ -143,7 +143,7 @@ Update the inner URL
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <b>update</b>(self: &<b>mut</b> <Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>, <Link href="../iota-framework/url.md#0x2_url">url</Link>: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>)
+<b>public</b> <b>fun</b> <b>update</b>(self: &<b>mut</b> <Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>, <Link href="../iota-framework/url#0x2_url">url</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>)
 </code></pre>
 
 
@@ -153,8 +153,8 @@ Update the inner URL
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <b>update</b>(self: &<b>mut</b> <Link href="../iota-framework/url.md#0x2_url_Url">Url</Link>, <Link href="../iota-framework/url.md#0x2_url">url</Link>: String) \{
-    self.<Link href="../iota-framework/url.md#0x2_url">url</Link> = <Link href="../iota-framework/url.md#0x2_url">url</Link>;
+<b>public</b> <b>fun</b> <b>update</b>(self: &<b>mut</b> <Link href="../iota-framework/url#0x2_url_Url">Url</Link>, <Link href="../iota-framework/url#0x2_url">url</Link>: String) \{
+    self.<Link href="../iota-framework/url#0x2_url">url</Link> = <Link href="../iota-framework/url#0x2_url">url</Link>;
 }
 </code></pre>
 

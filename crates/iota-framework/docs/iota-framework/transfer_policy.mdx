@@ -4,8 +4,8 @@ title: Module `0x2::transfer_policy`
 import Link from '@docusaurus/Link';
 
 Defines the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> type and the logic to approve <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>s.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> type and the logic to approve <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>s.
 
 - TransferPolicy - is a highly customizable primitive, which provides an
 interface for the type owner to set custom transfer rules for every
@@ -13,24 +13,24 @@ deal performed in the <code>
 Kiosk</code> or a similar system that integrates with TP.
 
 - Once a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;</code> is created for and shared (or frozen), the
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;</code> is created for and shared (or frozen), the
 type <code>
 T</code> becomes tradable in <code>
 Kiosk</code>s. On every purchase operation, a
 <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> is created and needs to be confirmed by the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> is created and needs to be confirmed by the <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>
 hot potato or transaction will fail.
 
 - Type owner (creator) can set any Rules as long as the ecosystem supports
 them. All of the Rules need to be resolved within a single transaction (eg
 pay royalty and pay fixed commission). Once required actions are performed,
 the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> can be "confirmed" via <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> can be "confirmed" via <code>
 confirm_request</code> call.
 
 - <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> aims to be the main interface for creators to control trades
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> aims to be the main interface for creators to control trades
 of their types and collect profits if a fee is required on sales. Custom
 policies can be removed at any moment, and the change will affect all instances
 of the type at once.
@@ -64,18 +64,18 @@ of the type at once.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</Link>;
-<b>use</b> <Link href="balance.md#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="coin.md#0x2_coin">0x2::coin</Link>;
-<b>use</b> <Link href="dynamic_field.md#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="event.md#0x2_event">0x2::event</Link>;
-<b>use</b> <Link href="iota.md#0x2_iota">0x2::iota</Link>;
-<b>use</b> <Link href="object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="package.md#0x2_package">0x2::package</Link>;
-<b>use</b> <Link href="transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="vec_set.md#0x2_vec_set">0x2::vec_set</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
+<b>use</b> <Link href="balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="coin#0x2_coin">0x2::coin</Link>;
+<b>use</b> <Link href="dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link href="event#0x2_event">0x2::event</Link>;
+<b>use</b> <Link href="iota#0x2_iota">0x2::iota</Link>;
+<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="package#0x2_package">0x2::package</Link>;
+<b>use</b> <Link href="transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="vec_set#0x2_vec_set">0x2::vec_set</Link>;
 </code></pre>
 
 
@@ -90,7 +90,7 @@ T</code>) owner on purchase attempt.
 
 
 <pre><code>
-<b>struct</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;
+<b>struct</b> <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -102,7 +102,7 @@ T</code>) owner on purchase attempt.
 <dl>
 <dt>
 <code>
-item: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+item: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  The ID of the transferred item. Although the <code>
@@ -120,7 +120,7 @@ paid: u64</code>
 </dd>
 <dt>
 <code>
-from: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+from: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  The ID of the Kiosk / Safe the object is being sold from.
@@ -128,12 +128,12 @@ from: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
 </dd>
 <dt>
 <code>
-receipts: <Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
+receipts: <Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
 </dt>
 <dd>
  Collected Receipts. Used to verify that all of the rules
  were followed and <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> can be confirmed.
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> can be confirmed.
 </dd>
 </dl>
 
@@ -151,11 +151,11 @@ Publisher</code> object. Although
 there's no limitation to how many policies can be created, for most
 of the cases there's no need to create more than one since any of the
 policies can be used to confirm the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
 
 
 <pre><code>
-<b>struct</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -167,18 +167,18 @@ policies can be used to confirm the <code>
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-<Link href="balance.md#0x2_balance">balance</Link>: <Link href="balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+<Link href="balance#0x2_balance">balance</Link>: <Link href="balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
  The Balance of the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> which collects <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> which collects <code>
 IOTA</code>.
  By default, transfer policy does not collect anything , and it's
  a matter of an implementation of a specific rule - whether to add
@@ -186,13 +186,13 @@ IOTA</code>.
 </dd>
 <dt>
 <code>
-rules: <Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
+rules: <Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
 </dt>
 <dd>
  Set of types of attached rules - used to verify <code>
 receipts</code> when
  a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> is received in <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> is received in <code>
 confirm_request</code> function.
 
  Additionally provides a way to look up currently attached Rules.
@@ -210,11 +210,11 @@ A Capability granting the owner permission to add/remove rules as well
 as to <code>
 withdraw</code> and <code>
 destroy_and_withdraw</code> the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>struct</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -226,14 +226,14 @@ destroy_and_withdraw</code> the <code>
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-policy_id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+policy_id: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -248,12 +248,12 @@ policy_id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
 ## Struct `TransferPolicyCreated`
 
 Event that is emitted when a publisher creates a new <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code>
 making the discoverability and tracking the supported types easier.
 
 
 <pre><code>
-<b>struct</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCreated">TransferPolicyCreated</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
+<b>struct</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCreated">TransferPolicyCreated</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -265,7 +265,7 @@ making the discoverability and tracking the supported types easier.
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+id: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -280,12 +280,12 @@ id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
 ## Struct `TransferPolicyDestroyed`
 
 Event that is emitted when a publisher destroys a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code>.
 Allows for tracking supported policies.
 
 
 <pre><code>
-<b>struct</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyDestroyed">TransferPolicyDestroyed</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
+<b>struct</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyDestroyed">TransferPolicyDestroyed</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -297,7 +297,7 @@ Allows for tracking supported policies.
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+id: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -312,11 +312,11 @@ id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
 ## Struct `RuleKey`
 
 Key to store "Rule" configuration for a specific <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>struct</b> <Link href="transfer_policy.md#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;T: drop&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="transfer_policy#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;T: drop&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -350,7 +350,7 @@ withdraw</code> more than there is.
 
 
 <pre><code>
-<b>const</b> <Link href="transfer_policy.md#0x2_transfer_policy_ENotEnough">ENotEnough</Link>: u64 = 5;
+<b>const</b> <Link href="transfer_policy#0x2_transfer_policy_ENotEnough">ENotEnough</Link>: u64 = 5;
 </code></pre>
 
 
@@ -363,7 +363,7 @@ close_and_withdraw</code> with a wrong Cap.
 
 
 <pre><code>
-<b>const</b> <Link href="transfer_policy.md#0x2_transfer_policy_ENotOwner">ENotOwner</Link>: u64 = 4;
+<b>const</b> <Link href="transfer_policy#0x2_transfer_policy_ENotOwner">ENotOwner</Link>: u64 = 4;
 </code></pre>
 
 
@@ -371,11 +371,11 @@ close_and_withdraw</code> with a wrong Cap.
 <Link id="0x2_transfer_policy_EIllegalRule"></Link>
 
 A completed rule is not set in the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>const</b> <Link href="transfer_policy.md#0x2_transfer_policy_EIllegalRule">EIllegalRule</Link>: u64 = 1;
+<b>const</b> <Link href="transfer_policy#0x2_transfer_policy_EIllegalRule">EIllegalRule</Link>: u64 = 1;
 </code></pre>
 
 
@@ -383,11 +383,11 @@ A completed rule is not set in the <code>
 <Link id="0x2_transfer_policy_EPolicyNotSatisfied"></Link>
 
 The number of receipts does not match the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> requirement.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> requirement.
 
 
 <pre><code>
-<b>const</b> <Link href="transfer_policy.md#0x2_transfer_policy_EPolicyNotSatisfied">EPolicyNotSatisfied</Link>: u64 = 0;
+<b>const</b> <Link href="transfer_policy#0x2_transfer_policy_EPolicyNotSatisfied">EPolicyNotSatisfied</Link>: u64 = 0;
 </code></pre>
 
 
@@ -398,7 +398,7 @@ Attempting to create a Rule that is already set.
 
 
 <pre><code>
-<b>const</b> <Link href="transfer_policy.md#0x2_transfer_policy_ERuleAlreadySet">ERuleAlreadySet</Link>: u64 = 3;
+<b>const</b> <Link href="transfer_policy#0x2_transfer_policy_ERuleAlreadySet">ERuleAlreadySet</Link>: u64 = 3;
 </code></pre>
 
 
@@ -409,7 +409,7 @@ A Rule is not set.
 
 
 <pre><code>
-<b>const</b> <Link href="transfer_policy.md#0x2_transfer_policy_EUnknownRequrement">EUnknownRequrement</Link>: u64 = 2;
+<b>const</b> <Link href="transfer_policy#0x2_transfer_policy_EUnknownRequrement">EUnknownRequrement</Link>: u64 = 2;
 </code></pre>
 
 
@@ -419,7 +419,7 @@ A Rule is not set.
 ## Function `new_request`
 
 Construct a new <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> hot potato which requires an
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> hot potato which requires an
 approving action from the creator to be destroyed / resolved. Once
 created, it must be confirmed in the <code>
 confirm_request</code> call otherwise
@@ -427,7 +427,7 @@ the transaction will fail.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_new_request">new_request</Link>&lt;T&gt;(item: <Link href="object.md#0x2_object_ID">object::ID</Link>, paid: u64, from: <Link href="object.md#0x2_object_ID">object::ID</Link>): <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_new_request">new_request</Link>&lt;T&gt;(item: <Link href="object#0x2_object_ID">object::ID</Link>, paid: u64, from: <Link href="object#0x2_object_ID">object::ID</Link>): <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -437,10 +437,10 @@ the transaction will fail.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_new_request">new_request</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_new_request">new_request</Link>&lt;T&gt;(
     item: ID, paid: u64, from: ID
-): <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt; \{
-    <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link> \{ item, paid, from, receipts: <Link href="vec_set.md#0x2_vec_set_empty">vec_set::empty</Link>() }
+): <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt; \{
+    <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link> \{ item, paid, from, receipts: <Link href="vec_set#0x2_vec_set_empty">vec_set::empty</Link>() }
 }
 </code></pre>
 
@@ -453,18 +453,18 @@ the transaction will fail.
 ## Function `new`
 
 Register a type in the Kiosk system and receive a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> and
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> and
 a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code> for the type. The <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> is required to
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code> for the type. The <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> is required to
 confirm kiosk deals for the <code>
 T</code>. If there's no <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>
 available for use, the type can not be traded in kiosks.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_new">new</Link>&lt;T&gt;(pub: &<Link href="package.md#0x2_package_Publisher">package::Publisher</Link>, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_new">new</Link>&lt;T&gt;(pub: &<Link href="package#0x2_package_Publisher">package::Publisher</Link>, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -474,18 +474,18 @@ available for use, the type can not be traded in kiosks.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_new">new</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_new">new</Link>&lt;T&gt;(
     pub: &Publisher, ctx: &<b>mut</b> TxContext
-): (<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;) \{
-    <b>assert</b>!(<Link href="package.md#0x2_package_from_package">package::from_package</Link>&lt;T&gt;(pub), 0);
-    <b>let</b> id = <Link href="object.md#0x2_object_new">object::new</Link>(ctx);
+): (<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;) \{
+    <b>assert</b>!(<Link href="package#0x2_package_from_package">package::from_package</Link>&lt;T&gt;(pub), 0);
+    <b>let</b> id = <Link href="object#0x2_object_new">object::new</Link>(ctx);
     <b>let</b> policy_id = id.to_inner();
 
-    <Link href="event.md#0x2_event_emit">event::emit</Link>(<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCreated">TransferPolicyCreated</Link>&lt;T&gt; \{ id: policy_id });
+    <Link href="event#0x2_event_emit">event::emit</Link>(<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCreated">TransferPolicyCreated</Link>&lt;T&gt; \{ id: policy_id });
 
     (
-        <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link> \{ id, rules: <Link href="vec_set.md#0x2_vec_set_empty">vec_set::empty</Link>(), <Link href="balance.md#0x2_balance">balance</Link>: <Link href="balance.md#0x2_balance_zero">balance::zero</Link>() },
-        <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link> \{ id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx), policy_id }
+        <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link> \{ id, rules: <Link href="vec_set#0x2_vec_set_empty">vec_set::empty</Link>(), <Link href="balance#0x2_balance">balance</Link>: <Link href="balance#0x2_balance_zero">balance::zero</Link>() },
+        <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link> \{ id: <Link href="object#0x2_object_new">object::new</Link>(ctx), policy_id }
     )
 }
 </code></pre>
@@ -500,13 +500,13 @@ available for use, the type can not be traded in kiosks.
 
 Initialize the Transfer Policy in the default scenario: Create and share
 the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>, transfer <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code> to the transaction
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>, transfer <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link></code> to the transaction
 sender.
 
 
 <pre><code>
-entry <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_default">default</Link>&lt;T&gt;(pub: &<Link href="package.md#0x2_package_Publisher">package::Publisher</Link>, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+entry <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_default">default</Link>&lt;T&gt;(pub: &<Link href="package#0x2_package_Publisher">package::Publisher</Link>, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -516,8 +516,8 @@ entry <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_default">def
 
 
 <pre><code>
-entry <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_default">default</Link>&lt;T&gt;(pub: &Publisher, ctx: &<b>mut</b> TxContext) \{
-    <b>let</b> (policy, cap) = <Link href="transfer_policy.md#0x2_transfer_policy_new">new</Link>&lt;T&gt;(pub, ctx);
+entry <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_default">default</Link>&lt;T&gt;(pub: &Publisher, ctx: &<b>mut</b> TxContext) \{
+    <b>let</b> (policy, cap) = <Link href="transfer_policy#0x2_transfer_policy_new">new</Link>&lt;T&gt;(pub, ctx);
     iota::transfer::share_object(policy);
     iota::transfer::transfer(cap, ctx.sender());
 }
@@ -532,12 +532,12 @@ entry <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_default">def
 ## Function `withdraw`
 
 Withdraw some amount of profits from the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>. If amount
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>. If amount
 is not specified, all profits are withdrawn.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_withdraw">withdraw</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;, amount: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_withdraw">withdraw</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;, amount: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -547,23 +547,23 @@ is not specified, all profits are withdrawn.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_withdraw">withdraw</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_withdraw">withdraw</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;,
     amount: Option&lt;u64&gt;,
     ctx: &<b>mut</b> TxContext
 ): Coin&lt;IOTA&gt; \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.policy_id, <Link href="transfer_policy.md#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.policy_id, <Link href="transfer_policy#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
 
     <b>let</b> amount = <b>if</b> (amount.is_some()) \{
         <b>let</b> amt = amount.destroy_some();
-        <b>assert</b>!(amt &lt;= self.<Link href="balance.md#0x2_balance">balance</Link>.value(), <Link href="transfer_policy.md#0x2_transfer_policy_ENotEnough">ENotEnough</Link>);
+        <b>assert</b>!(amt &lt;= self.<Link href="balance#0x2_balance">balance</Link>.value(), <Link href="transfer_policy#0x2_transfer_policy_ENotEnough">ENotEnough</Link>);
         amt
     } <b>else</b> \{
-        self.<Link href="balance.md#0x2_balance">balance</Link>.value()
+        self.<Link href="balance#0x2_balance">balance</Link>.value()
     };
 
-    <Link href="coin.md#0x2_coin_take">coin::take</Link>(&<b>mut</b> self.<Link href="balance.md#0x2_balance">balance</Link>, amount, ctx)
+    <Link href="coin#0x2_coin_take">coin::take</Link>(&<b>mut</b> self.<Link href="balance#0x2_balance">balance</Link>, amount, ctx)
 }
 </code></pre>
 
@@ -580,7 +580,7 @@ Can be performed by any party as long as they own it.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_destroy_and_withdraw">destroy_and_withdraw</Link>&lt;T&gt;(self: <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_destroy_and_withdraw">destroy_and_withdraw</Link>&lt;T&gt;(self: <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -590,18 +590,18 @@ Can be performed by any party as long as they own it.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_destroy_and_withdraw">destroy_and_withdraw</Link>&lt;T&gt;(
-    self: <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_destroy_and_withdraw">destroy_and_withdraw</Link>&lt;T&gt;(
+    self: <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext
 ): Coin&lt;IOTA&gt; \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(&self) == cap.policy_id, <Link href="transfer_policy.md#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(&self) == cap.policy_id, <Link href="transfer_policy#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
 
-    <b>let</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link> \{ id: cap_id, policy_id } = cap;
-    <b>let</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link> \{ id, rules: _, <Link href="balance.md#0x2_balance">balance</Link> } = self;
+    <b>let</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link> \{ id: cap_id, policy_id } = cap;
+    <b>let</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link> \{ id, rules: _, <Link href="balance#0x2_balance">balance</Link> } = self;
 
     id.delete();
     cap_id.delete();
-    <Link href="event.md#0x2_event_emit">event::emit</Link>(<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyDestroyed">TransferPolicyDestroyed</Link>&lt;T&gt; \{ id: policy_id });
-    <Link href="balance.md#0x2_balance">balance</Link>.into_coin(ctx)
+    <Link href="event#0x2_event_emit">event::emit</Link>(<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyDestroyed">TransferPolicyDestroyed</Link>&lt;T&gt; \{ id: policy_id });
+    <Link href="balance#0x2_balance">balance</Link>.into_coin(ctx)
 }
 </code></pre>
 
@@ -614,12 +614,12 @@ Can be performed by any party as long as they own it.
 ## Function `confirm_request`
 
 Allow a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> for the type <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> for the type <code>
 T</code>. The call is protected
 by the type constraint, as only the publisher of the <code>
 T</code> can get
 <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;</code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;</code>.
 
 Note: unless there's a policy for <code>
 T</code> to allow transfers,
@@ -627,7 +627,7 @@ Kiosk trades will not be possible.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_confirm_request">confirm_request</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, request: <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): (<Link href="object.md#0x2_object_ID">object::ID</Link>, u64, <Link href="object.md#0x2_object_ID">object::ID</Link>)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_confirm_request">confirm_request</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, request: <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): (<Link href="object#0x2_object_ID">object::ID</Link>, u64, <Link href="object#0x2_object_ID">object::ID</Link>)
 </code></pre>
 
 
@@ -637,18 +637,18 @@ Kiosk trades will not be possible.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_confirm_request">confirm_request</Link>&lt;T&gt;(
-    self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, request: <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_confirm_request">confirm_request</Link>&lt;T&gt;(
+    self: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, request: <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;
 ): (ID, u64, ID) \{
-    <b>let</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link> \{ item, paid, from, receipts } = request;
+    <b>let</b> <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link> \{ item, paid, from, receipts } = request;
     <b>let</b> <b>mut</b> completed = receipts.into_keys();
     <b>let</b> <b>mut</b> total = completed.length();
 
-    <b>assert</b>!(total == self.rules.size(), <Link href="transfer_policy.md#0x2_transfer_policy_EPolicyNotSatisfied">EPolicyNotSatisfied</Link>);
+    <b>assert</b>!(total == self.rules.size(), <Link href="transfer_policy#0x2_transfer_policy_EPolicyNotSatisfied">EPolicyNotSatisfied</Link>);
 
     <b>while</b> (total &gt; 0) \{
         <b>let</b> rule_type = completed.pop_back();
-        <b>assert</b>!(self.rules.contains(&rule_type), <Link href="transfer_policy.md#0x2_transfer_policy_EIllegalRule">EIllegalRule</Link>);
+        <b>assert</b>!(self.rules.contains(&rule_type), <Link href="transfer_policy#0x2_transfer_policy_EIllegalRule">EIllegalRule</Link>);
         total = total - 1;
     };
 
@@ -665,8 +665,8 @@ Kiosk trades will not be possible.
 ## Function `add_rule`
 
 Add a custom Rule to the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>. Once set, <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> must
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>. Once set, <code>
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code> must
 receive a confirmation of the rule executed so the hot potato can be unpacked.
 
 - T: the type to which `TransferPolicy<T>` is applied.
@@ -679,7 +679,7 @@ even if graceful unpacking has not been implemented in a "rule module".
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_add_rule">add_rule</Link>&lt;T, Rule: drop, Config: drop, store&gt;(_: Rule, policy: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;, cfg: Config)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_add_rule">add_rule</Link>&lt;T, Rule: drop, Config: drop, store&gt;(_: Rule, policy: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;, cfg: Config)
 </code></pre>
 
 
@@ -689,13 +689,13 @@ even if graceful unpacking has not been implemented in a "rule module".
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_add_rule">add_rule</Link>&lt;T, Rule: drop, Config: store + drop&gt;(
-    _: Rule, policy: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;, cfg: Config
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_add_rule">add_rule</Link>&lt;T, Rule: drop, Config: store + drop&gt;(
+    _: Rule, policy: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;, cfg: Config
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(policy) == cap.policy_id, <Link href="transfer_policy.md#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
-    <b>assert</b>!(!<Link href="transfer_policy.md#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule&gt;(policy), <Link href="transfer_policy.md#0x2_transfer_policy_ERuleAlreadySet">ERuleAlreadySet</Link>);
-    df::add(&<b>mut</b> policy.id, <Link href="transfer_policy.md#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{}, cfg);
-    policy.rules.insert(<Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(policy) == cap.policy_id, <Link href="transfer_policy#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(!<Link href="transfer_policy#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule&gt;(policy), <Link href="transfer_policy#0x2_transfer_policy_ERuleAlreadySet">ERuleAlreadySet</Link>);
+    df::add(&<b>mut</b> policy.id, <Link href="transfer_policy#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{}, cfg);
+    policy.rules.insert(<Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -711,7 +711,7 @@ Get the custom Config for the Rule (can be only one per "Rule" type).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_get_rule">get_rule</Link>&lt;T, Rule: drop, Config: drop, store&gt;(_: Rule, policy: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): &Config
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_get_rule">get_rule</Link>&lt;T, Rule: drop, Config: drop, store&gt;(_: Rule, policy: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): &Config
 </code></pre>
 
 
@@ -721,10 +721,10 @@ Get the custom Config for the Rule (can be only one per "Rule" type).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_get_rule">get_rule</Link>&lt;T, Rule: drop, Config: store + drop&gt;(
-    _: Rule, policy: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_get_rule">get_rule</Link>&lt;T, Rule: drop, Config: store + drop&gt;(
+    _: Rule, policy: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;)
 : &Config \{
-    df::borrow(&policy.id, <Link href="transfer_policy.md#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{})
+    df::borrow(&policy.id, <Link href="transfer_policy#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{})
 }
 </code></pre>
 
@@ -738,11 +738,11 @@ Get the custom Config for the Rule (can be only one per "Rule" type).
 
 Add some <code>
 IOTA</code> to the balance of a <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_add_to_balance">add_to_balance</Link>&lt;T, Rule: drop&gt;(_: Rule, policy: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, <Link href="coin.md#0x2_coin">coin</Link>: <Link href="coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_add_to_balance">add_to_balance</Link>&lt;T, Rule: drop&gt;(_: Rule, policy: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, <Link href="coin#0x2_coin">coin</Link>: <Link href="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;)
 </code></pre>
 
 
@@ -752,11 +752,11 @@ IOTA</code> to the balance of a <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_add_to_balance">add_to_balance</Link>&lt;T, Rule: drop&gt;(
-    _: Rule, policy: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, <Link href="coin.md#0x2_coin">coin</Link>: Coin&lt;IOTA&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_add_to_balance">add_to_balance</Link>&lt;T, Rule: drop&gt;(
+    _: Rule, policy: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, <Link href="coin#0x2_coin">coin</Link>: Coin&lt;IOTA&gt;
 ) \{
-    <b>assert</b>!(<Link href="transfer_policy.md#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule&gt;(policy), <Link href="transfer_policy.md#0x2_transfer_policy_EUnknownRequrement">EUnknownRequrement</Link>);
-    <Link href="coin.md#0x2_coin_put">coin::put</Link>(&<b>mut</b> policy.<Link href="balance.md#0x2_balance">balance</Link>, <Link href="coin.md#0x2_coin">coin</Link>)
+    <b>assert</b>!(<Link href="transfer_policy#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule&gt;(policy), <Link href="transfer_policy#0x2_transfer_policy_EUnknownRequrement">EUnknownRequrement</Link>);
+    <Link href="coin#0x2_coin_put">coin::put</Link>(&<b>mut</b> policy.<Link href="balance#0x2_balance">balance</Link>, <Link href="coin#0x2_coin">coin</Link>)
 }
 </code></pre>
 
@@ -770,12 +770,12 @@ IOTA</code> to the balance of a <code>
 
 Adds a <code>
 Receipt</code> to the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>, unblocking the request and
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>, unblocking the request and
 confirming that the policy requirements are satisfied.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_add_receipt">add_receipt</Link>&lt;T, Rule: drop&gt;(_: Rule, request: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_add_receipt">add_receipt</Link>&lt;T, Rule: drop&gt;(_: Rule, request: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -785,10 +785,10 @@ confirming that the policy requirements are satisfied.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_add_receipt">add_receipt</Link>&lt;T, Rule: drop&gt;(
-    _: Rule, request: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_add_receipt">add_receipt</Link>&lt;T, Rule: drop&gt;(
+    _: Rule, request: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;
 ) \{
-    request.receipts.insert(<Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
+    request.receipts.insert(<Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -801,11 +801,11 @@ confirming that the policy requirements are satisfied.
 ## Function `has_rule`
 
 Check whether a custom rule has been added to the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule: drop&gt;(policy: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): bool
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule: drop&gt;(policy: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): bool
 </code></pre>
 
 
@@ -815,8 +815,8 @@ Check whether a custom rule has been added to the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule: drop&gt;(policy: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;): bool \{
-    df::exists_(&policy.id, <Link href="transfer_policy.md#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{})
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_has_rule">has_rule</Link>&lt;T, Rule: drop&gt;(policy: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;): bool \{
+    df::exists_(&policy.id, <Link href="transfer_policy#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{})
 }
 </code></pre>
 
@@ -829,11 +829,11 @@ Check whether a custom rule has been added to the <code>
 ## Function `remove_rule`
 
 Remove the Rule from the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_remove_rule">remove_rule</Link>&lt;T, Rule: drop, Config: drop, store&gt;(policy: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_remove_rule">remove_rule</Link>&lt;T, Rule: drop, Config: drop, store&gt;(policy: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -843,12 +843,12 @@ Remove the Rule from the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_remove_rule">remove_rule</Link>&lt;T, Rule: drop, Config: store + drop&gt;(
-    policy: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_remove_rule">remove_rule</Link>&lt;T, Rule: drop, Config: store + drop&gt;(
+    policy: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(policy) == cap.policy_id, <Link href="transfer_policy.md#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
-    <b>let</b> _: Config = df::remove(&<b>mut</b> policy.id, <Link href="transfer_policy.md#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{});
-    policy.rules.remove(&<Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;());
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(policy) == cap.policy_id, <Link href="transfer_policy#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
+    <b>let</b> _: Config = df::remove(&<b>mut</b> policy.id, <Link href="transfer_policy#0x2_transfer_policy_RuleKey">RuleKey</Link>&lt;Rule&gt; \{});
+    policy.rules.remove(&<Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;());
 }
 </code></pre>
 
@@ -861,11 +861,11 @@ Remove the Rule from the <code>
 ## Function `uid`
 
 Allows reading custom attachments to the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> if there are any.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code> if there are any.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_uid">uid</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): &<Link href="object.md#0x2_object_UID">object::UID</Link>
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_uid">uid</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): &<Link href="object#0x2_object_UID">object::UID</Link>
 </code></pre>
 
 
@@ -875,7 +875,7 @@ Allows reading custom attachments to the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_uid">uid</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;): &UID \{ &self.id }
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_uid">uid</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;): &UID \{ &self.id }
 </code></pre>
 
 
@@ -889,11 +889,11 @@ Allows reading custom attachments to the <code>
 Get a mutable reference to the <code>
 self.id</code> to enable custom attachments
 to the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_uid_mut_as_owner">uid_mut_as_owner</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;): &<b>mut</b> <Link href="object.md#0x2_object_UID">object::UID</Link>
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_uid_mut_as_owner">uid_mut_as_owner</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">transfer_policy::TransferPolicyCap</Link>&lt;T&gt;): &<b>mut</b> <Link href="object#0x2_object_UID">object::UID</Link>
 </code></pre>
 
 
@@ -903,10 +903,10 @@ to the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_uid_mut_as_owner">uid_mut_as_owner</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_uid_mut_as_owner">uid_mut_as_owner</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;, cap: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</Link>&lt;T&gt;,
 ): &<b>mut</b> UID \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.policy_id, <Link href="transfer_policy.md#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.policy_id, <Link href="transfer_policy#0x2_transfer_policy_ENotOwner">ENotOwner</Link>);
     &<b>mut</b> self.id
 }
 </code></pre>
@@ -921,11 +921,11 @@ to the <code>
 
 Read the <code>
 rules</code> field from the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_rules">rules</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): &<Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_rules">rules</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;): &<Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
 </code></pre>
 
 
@@ -935,7 +935,7 @@ rules</code> field from the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_rules">rules</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;): &VecSet&lt;TypeName&gt; \{
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_rules">rules</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">TransferPolicy</Link>&lt;T&gt;): &VecSet&lt;TypeName&gt; \{
     &self.rules
 }
 </code></pre>
@@ -950,11 +950,11 @@ rules</code> field from the <code>
 
 Get the <code>
 item</code> field of the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_item">item</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): <Link href="object.md#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_item">item</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): <Link href="object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -964,7 +964,7 @@ item</code> field of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_item">item</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;): ID \{ self.item }
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_item">item</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;): ID \{ self.item }
 </code></pre>
 
 
@@ -977,11 +977,11 @@ item</code> field of the <code>
 
 Get the <code>
 paid</code> field of the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_paid">paid</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_paid">paid</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -991,7 +991,7 @@ paid</code> field of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_paid">paid</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;): u64 \{ self.paid }
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_paid">paid</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;): u64 \{ self.paid }
 </code></pre>
 
 
@@ -1004,11 +1004,11 @@ paid</code> field of the <code>
 
 Get the <code>
 from</code> field of the <code>
-<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
+<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_from">from</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): <Link href="object.md#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_from">from</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;): <Link href="object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -1018,7 +1018,7 @@ from</code> field of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer_policy.md#0x2_transfer_policy_from">from</Link>&lt;T&gt;(self: &<Link href="transfer_policy.md#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;): ID \{ self.from }
+<b>public</b> <b>fun</b> <Link href="transfer_policy#0x2_transfer_policy_from">from</Link>&lt;T&gt;(self: &<Link href="transfer_policy#0x2_transfer_policy_TransferRequest">TransferRequest</Link>&lt;T&gt;): ID \{ self.from }
 </code></pre>
 
 

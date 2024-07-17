@@ -7,7 +7,7 @@ A simple library that enables hot-potato-locked borrow mechanics.
 
 With Programmable transactions, it is possible to borrow a value within
 a transaction, use it and put back in the end. Hot-potato <code>
-<Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link></code> makes
+<Link href="borrow#0x2_borrow_Borrow">Borrow</Link></code> makes
 sure the object is returned and was not swapped for another one.
 
 
@@ -21,9 +21,9 @@ sure the object is returned and was not swapped for another one.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -37,7 +37,7 @@ T</code> and providing the borrow API.
 
 
 <pre><code>
-<b>struct</b> <Link href="borrow.md#0x2_borrow_Referent">Referent</Link>&lt;T: store, key&gt; <b>has</b> store
+<b>struct</b> <Link href="borrow#0x2_borrow_Referent">Referent</Link>&lt;T: store, key&gt; <b>has</b> store
 </code></pre>
 
 
@@ -56,7 +56,7 @@ id: <b>address</b></code>
 </dd>
 <dt>
 <code>
-value: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;T&gt;</code>
+value: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
@@ -74,7 +74,7 @@ A hot potato making sure the object is put back once borrowed.
 
 
 <pre><code>
-<b>struct</b> <Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link>
+<b>struct</b> <Link href="borrow#0x2_borrow_Borrow">Borrow</Link>
 </code></pre>
 
 
@@ -93,7 +93,7 @@ ref: <b>address</b></code>
 </dd>
 <dt>
 <code>
-obj: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+obj: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -111,12 +111,12 @@ obj: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
 <Link id="0x2_borrow_EWrongBorrow"></Link>
 
 The <code>
-<Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link></code> does not match the <code>
-<Link href="borrow.md#0x2_borrow_Referent">Referent</Link></code>.
+<Link href="borrow#0x2_borrow_Borrow">Borrow</Link></code> does not match the <code>
+<Link href="borrow#0x2_borrow_Referent">Referent</Link></code>.
 
 
 <pre><code>
-<b>const</b> <Link href="borrow.md#0x2_borrow_EWrongBorrow">EWrongBorrow</Link>: u64 = 0;
+<b>const</b> <Link href="borrow#0x2_borrow_EWrongBorrow">EWrongBorrow</Link>: u64 = 0;
 </code></pre>
 
 
@@ -124,11 +124,11 @@ The <code>
 <Link id="0x2_borrow_EWrongValue"></Link>
 
 An attempt to swap the <code>
-<Link href="borrow.md#0x2_borrow_Referent">Referent</Link>.value</code> with another object of the same type.
+<Link href="borrow#0x2_borrow_Referent">Referent</Link>.value</code> with another object of the same type.
 
 
 <pre><code>
-<b>const</b> <Link href="borrow.md#0x2_borrow_EWrongValue">EWrongValue</Link>: u64 = 1;
+<b>const</b> <Link href="borrow#0x2_borrow_EWrongValue">EWrongValue</Link>: u64 = 1;
 </code></pre>
 
 
@@ -138,11 +138,11 @@ An attempt to swap the <code>
 ## Function `new`
 
 Create a new <code>
-<Link href="borrow.md#0x2_borrow_Referent">Referent</Link></code> struct
+<Link href="borrow#0x2_borrow_Referent">Referent</Link></code> struct
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow_new">new</Link>&lt;T: store, key&gt;(value: T, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="borrow.md#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow_new">new</Link>&lt;T: store, key&gt;(value: T, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="borrow#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -152,10 +152,10 @@ Create a new <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow_new">new</Link>&lt;T: key + store&gt;(value: T, ctx: &<b>mut</b> TxContext): <Link href="borrow.md#0x2_borrow_Referent">Referent</Link>&lt;T&gt; \{
-    <Link href="borrow.md#0x2_borrow_Referent">Referent</Link> \{
-        id: <Link href="tx_context.md#0x2_tx_context_fresh_object_address">tx_context::fresh_object_address</Link>(ctx),
-        value: <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(value)
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow_new">new</Link>&lt;T: key + store&gt;(value: T, ctx: &<b>mut</b> TxContext): <Link href="borrow#0x2_borrow_Referent">Referent</Link>&lt;T&gt; \{
+    <Link href="borrow#0x2_borrow_Referent">Referent</Link> \{
+        id: <Link href="tx_context#0x2_tx_context_fresh_object_address">tx_context::fresh_object_address</Link>(ctx),
+        value: <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(value)
     }
 }
 </code></pre>
@@ -170,14 +170,14 @@ Create a new <code>
 
 Borrow the <code>
 T</code> from the <code>
-<Link href="borrow.md#0x2_borrow_Referent">Referent</Link></code> receiving the <code>
+<Link href="borrow#0x2_borrow_Referent">Referent</Link></code> receiving the <code>
 T</code> and a <code>
-<Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link></code>
+<Link href="borrow#0x2_borrow_Borrow">Borrow</Link></code>
 hot potato.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow">borrow</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link href="borrow.md#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;): (T, <Link href="borrow.md#0x2_borrow_Borrow">borrow::Borrow</Link>)
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow">borrow</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link href="borrow#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;): (T, <Link href="borrow#0x2_borrow_Borrow">borrow::Borrow</Link>)
 </code></pre>
 
 
@@ -187,11 +187,11 @@ hot potato.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow">borrow</Link>&lt;T: key + store&gt;(self: &<b>mut</b> <Link href="borrow.md#0x2_borrow_Referent">Referent</Link>&lt;T&gt;): (T, <Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link>) \{
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow">borrow</Link>&lt;T: key + store&gt;(self: &<b>mut</b> <Link href="borrow#0x2_borrow_Referent">Referent</Link>&lt;T&gt;): (T, <Link href="borrow#0x2_borrow_Borrow">Borrow</Link>) \{
     <b>let</b> value = self.value.extract();
-    <b>let</b> id = <Link href="object.md#0x2_object_id">object::id</Link>(&value);
+    <b>let</b> id = <Link href="object#0x2_object_id">object::id</Link>(&value);
 
-    (value, <Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link> \{
+    (value, <Link href="borrow#0x2_borrow_Borrow">Borrow</Link> \{
         ref: self.id,
         obj: id
     })
@@ -207,11 +207,11 @@ hot potato.
 ## Function `put_back`
 
 Put an object and the <code>
-<Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link></code> hot potato back.
+<Link href="borrow#0x2_borrow_Borrow">Borrow</Link></code> hot potato back.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow_put_back">put_back</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link href="borrow.md#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;, value: T, <Link href="borrow.md#0x2_borrow">borrow</Link>: <Link href="borrow.md#0x2_borrow_Borrow">borrow::Borrow</Link>)
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow_put_back">put_back</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link href="borrow#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;, value: T, <Link href="borrow#0x2_borrow">borrow</Link>: <Link href="borrow#0x2_borrow_Borrow">borrow::Borrow</Link>)
 </code></pre>
 
 
@@ -221,11 +221,11 @@ Put an object and the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow_put_back">put_back</Link>&lt;T: key + store&gt;(self: &<b>mut</b> <Link href="borrow.md#0x2_borrow_Referent">Referent</Link>&lt;T&gt;, value: T, <Link href="borrow.md#0x2_borrow">borrow</Link>: <Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link>) \{
-    <b>let</b> <Link href="borrow.md#0x2_borrow_Borrow">Borrow</Link> \{ ref, obj } = <Link href="borrow.md#0x2_borrow">borrow</Link>;
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow_put_back">put_back</Link>&lt;T: key + store&gt;(self: &<b>mut</b> <Link href="borrow#0x2_borrow_Referent">Referent</Link>&lt;T&gt;, value: T, <Link href="borrow#0x2_borrow">borrow</Link>: <Link href="borrow#0x2_borrow_Borrow">Borrow</Link>) \{
+    <b>let</b> <Link href="borrow#0x2_borrow_Borrow">Borrow</Link> \{ ref, obj } = <Link href="borrow#0x2_borrow">borrow</Link>;
 
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(&value) == obj, <Link href="borrow.md#0x2_borrow_EWrongValue">EWrongValue</Link>);
-    <b>assert</b>!(self.id == ref, <Link href="borrow.md#0x2_borrow_EWrongBorrow">EWrongBorrow</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(&value) == obj, <Link href="borrow#0x2_borrow_EWrongValue">EWrongValue</Link>);
+    <b>assert</b>!(self.id == ref, <Link href="borrow#0x2_borrow_EWrongBorrow">EWrongBorrow</Link>);
     self.value.fill(value);
 }
 </code></pre>
@@ -239,11 +239,11 @@ Put an object and the <code>
 ## Function `destroy`
 
 Unpack the <code>
-<Link href="borrow.md#0x2_borrow_Referent">Referent</Link></code> struct and return the value.
+<Link href="borrow#0x2_borrow_Referent">Referent</Link></code> struct and return the value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow_destroy">destroy</Link>&lt;T: store, key&gt;(self: <Link href="borrow.md#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;): T
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow_destroy">destroy</Link>&lt;T: store, key&gt;(self: <Link href="borrow#0x2_borrow_Referent">borrow::Referent</Link>&lt;T&gt;): T
 </code></pre>
 
 
@@ -253,8 +253,8 @@ Unpack the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow_destroy">destroy</Link>&lt;T: key + store&gt;(self: <Link href="borrow.md#0x2_borrow_Referent">Referent</Link>&lt;T&gt;): T \{
-    <b>let</b> <Link href="borrow.md#0x2_borrow_Referent">Referent</Link> \{ id: _, value } = self;
+<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow_destroy">destroy</Link>&lt;T: key + store&gt;(self: <Link href="borrow#0x2_borrow_Referent">Referent</Link>&lt;T&gt;): T \{
+    <b>let</b> <Link href="borrow#0x2_borrow_Referent">Referent</Link> \{ id: _, value } = self;
     value.destroy_some()
 }
 </code></pre>

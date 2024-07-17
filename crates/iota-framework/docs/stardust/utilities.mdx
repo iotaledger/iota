@@ -12,13 +12,13 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</Link>;
-<b>use</b> <Link href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</Link>;
-<b>use</b> <Link href="../iota-framework/bag.md#0x2_bag">0x2::bag</Link>;
-<b>use</b> <Link href="../iota-framework/balance.md#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/coin.md#0x2_coin">0x2::coin</Link>;
-<b>use</b> <Link href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../move-stdlib/ascii#0x1_ascii">0x1::ascii</Link>;
+<b>use</b> <Link href="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
+<b>use</b> <Link href="../iota-framework/bag#0x2_bag">0x2::bag</Link>;
+<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
+<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -36,7 +36,7 @@ Bag</code> and the balance is zero.
 
 
 <pre><code>
-<b>const</b> <Link href="utilities.md#0x107a_utilities_EZeroNativeTokenBalance">EZeroNativeTokenBalance</Link>: u64 = 0;
+<b>const</b> <Link href="utilities#0x107a_utilities_EZeroNativeTokenBalance">EZeroNativeTokenBalance</Link>: u64 = 0;
 </code></pre>
 
 
@@ -54,7 +54,7 @@ Bag</code> by value so the function can be called repeatedly in a PTB.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="utilities.md#0x107a_utilities_extract_and_send_to">extract_and_send_to</Link>&lt;T&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, <b>to</b>: <b>address</b>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>
+<b>public</b> <b>fun</b> <Link href="utilities#0x107a_utilities_extract_and_send_to">extract_and_send_to</Link>&lt;T&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, <b>to</b>: <b>address</b>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </code></pre>
 
 
@@ -64,10 +64,10 @@ Bag</code> by value so the function can be called repeatedly in a PTB.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="utilities.md#0x107a_utilities_extract_and_send_to">extract_and_send_to</Link>&lt;T&gt;(<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: Bag, <b>to</b>: <b>address</b>, ctx: &<b>mut</b> TxContext): Bag \{
-    <b>let</b> <Link href="../iota-framework/coin.md#0x2_coin">coin</Link> = <Link href="../iota-framework/coin.md#0x2_coin_from_balance">coin::from_balance</Link>(<Link href="utilities.md#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(&<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>), ctx);
-    <Link href="../iota-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</Link>(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>, <b>to</b>);
-    <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>
+<b>public</b> <b>fun</b> <Link href="utilities#0x107a_utilities_extract_and_send_to">extract_and_send_to</Link>&lt;T&gt;(<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>: Bag, <b>to</b>: <b>address</b>, ctx: &<b>mut</b> TxContext): Bag \{
+    <b>let</b> <Link href="../iota-framework/coin#0x2_coin">coin</Link> = <Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(<Link href="utilities#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(&<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>), ctx);
+    <Link href="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(<Link href="../iota-framework/coin#0x2_coin">coin</Link>, <b>to</b>);
+    <Link href="../iota-framework/bag#0x2_bag">bag</Link>
 }
 </code></pre>
 
@@ -87,7 +87,7 @@ Bag</code> by value so the function can be called repeatedly in a PTB.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="utilities.md#0x107a_utilities_extract">extract</Link>&lt;T&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>): (<Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="utilities#0x107a_utilities_extract">extract</Link>&lt;T&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>): (<Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -97,9 +97,9 @@ Bag</code> by value so the function can be called repeatedly in a PTB.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="utilities.md#0x107a_utilities_extract">extract</Link>&lt;T&gt;(<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: Bag): (Bag, Balance&lt;T&gt;) \{
-    <b>let</b> <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> = <Link href="utilities.md#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(&<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>);
-    (<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>, <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>)
+<b>public</b> <b>fun</b> <Link href="utilities#0x107a_utilities_extract">extract</Link>&lt;T&gt;(<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>: Bag): (Bag, Balance&lt;T&gt;) \{
+    <b>let</b> <Link href="../iota-framework/balance#0x2_balance">balance</Link> = <Link href="utilities#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(&<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>);
+    (<Link href="../iota-framework/bag#0x2_bag">bag</Link>, <Link href="../iota-framework/balance#0x2_balance">balance</Link>)
 }
 </code></pre>
 
@@ -119,7 +119,7 @@ T</code>.
 
 
 <pre><code>
-<b>fun</b> <Link href="utilities.md#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>): <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>fun</b> <Link href="utilities#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -129,15 +129,15 @@ T</code>.
 
 
 <pre><code>
-<b>fun</b> <Link href="utilities.md#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> Bag): Balance&lt;T&gt; \{
-    <b>let</b> key = <Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;T&gt;().into_string();
+<b>fun</b> <Link href="utilities#0x107a_utilities_extract_">extract_</Link>&lt;T&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> Bag): Balance&lt;T&gt; \{
+    <b>let</b> key = <Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;T&gt;().into_string();
 
     // This call aborts <b>if</b> the key doesn't exist.
-    <b>let</b> <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> : Balance&lt;T&gt; = <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.remove(key);
+    <b>let</b> <Link href="../iota-framework/balance#0x2_balance">balance</Link> : Balance&lt;T&gt; = <Link href="../iota-framework/bag#0x2_bag">bag</Link>.remove(key);
 
-    <b>assert</b>!(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.value() != 0, <Link href="utilities.md#0x107a_utilities_EZeroNativeTokenBalance">EZeroNativeTokenBalance</Link>);
+    <b>assert</b>!(<Link href="../iota-framework/balance#0x2_balance">balance</Link>.value() != 0, <Link href="utilities#0x107a_utilities_EZeroNativeTokenBalance">EZeroNativeTokenBalance</Link>);
 
-    <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>
+    <Link href="../iota-framework/balance#0x2_balance">balance</Link>
 }
 </code></pre>
 

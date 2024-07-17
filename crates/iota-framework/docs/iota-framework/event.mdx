@@ -53,11 +53,11 @@ activity in a way that iotats a specific application the most.
 The type <code>
 T</code> is the main way to index the event, and can contain
 phantom parameters, eg <code>
-<Link href="../iota-framework/event.md#0x2_event_emit">emit</Link>(MyEvent&lt;<b>phantom</b> T&gt;)</code>.
+<Link href="../iota-framework/event#0x2_event_emit">emit</Link>(MyEvent&lt;<b>phantom</b> T&gt;)</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/event.md#0x2_event_emit">emit</Link>&lt;T: <b>copy</b>, drop&gt;(<Link href="../iota-framework/event.md#0x2_event">event</Link>: T)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/event#0x2_event_emit">emit</Link>&lt;T: <b>copy</b>, drop&gt;(<Link href="../iota-framework/event#0x2_event">event</Link>: T)
 </code></pre>
 
 
@@ -67,7 +67,7 @@ phantom parameters, eg <code>
 
 
 <pre><code>
-<b>public</b> <b>native</b> <b>fun</b> <Link href="../iota-framework/event.md#0x2_event_emit">emit</Link>&lt;T: <b>copy</b> + drop&gt;(<Link href="../iota-framework/event.md#0x2_event">event</Link>: T);
+<b>public</b> <b>native</b> <b>fun</b> <Link href="../iota-framework/event#0x2_event_emit">emit</Link>&lt;T: <b>copy</b> + drop&gt;(<Link href="../iota-framework/event#0x2_event">event</Link>: T);
 </code></pre>
 
 

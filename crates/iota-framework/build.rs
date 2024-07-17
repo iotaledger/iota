@@ -275,19 +275,20 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             format!("<code>\n{}</code>", code_content.replace("{", "\\{"))
         });
 
-        // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as React components otherwise
-        let content = type_regex.replace_all(
-            &content,
-            r#"`$1<$2>`"#,
-        );
+        // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as
+        // React components otherwise
+        let content = type_regex.replace_all(&content, r#"`$1<$2>`"#);
+
+        let content = content
+            .replace("../../dependencies/", "../")
+            .replace("dependencies/", "../")
+            .replace(".md", "");
 
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {
             title_regex
                 .replace_all(
-                    &content
-                        .replace("../../dependencies/", "../")
-                        .replace("dependencies/", "../"),
+                    &content,
                     "---\ntitle: $1\n---\nimport Link from '@docusaurus/Link';\n",
                 )
                 .to_string()

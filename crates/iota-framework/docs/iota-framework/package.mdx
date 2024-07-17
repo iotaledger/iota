@@ -40,12 +40,12 @@ Functions for operating on Move packages from within Move:
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</Link>;
-<b>use</b> <Link href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</Link>;
-<b>use</b> <Link href="object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="types.md#0x2_types">0x2::types</Link>;
+<b>use</b> <Link href="../move-stdlib/ascii#0x1_ascii">0x1::ascii</Link>;
+<b>use</b> <Link href="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
+<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="types#0x2_types">0x2::types</Link>;
 </code></pre>
 
 
@@ -61,7 +61,7 @@ a type originated from.
 
 
 <pre><code>
-<b>struct</b> <Link href="package.md#0x2_package_Publisher">Publisher</Link> <b>has</b> store, key
+<b>struct</b> <Link href="package#0x2_package_Publisher">Publisher</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -73,21 +73,21 @@ a type originated from.
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-<Link href="package.md#0x2_package">package</Link>: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link></code>
+<Link href="package#0x2_package">package</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-module_name: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link></code>
+module_name: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
 
@@ -105,7 +105,7 @@ Capability controlling the ability to upgrade a package.
 
 
 <pre><code>
-<b>struct</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link> <b>has</b> store, key
+<b>struct</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -117,14 +117,14 @@ Capability controlling the ability to upgrade a package.
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-<Link href="package.md#0x2_package">package</Link>: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+<Link href="package#0x2_package">package</Link>: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Mutable) ID of the package that can be upgraded.
@@ -158,14 +158,14 @@ the package, bytecode to upgrade with and transitive dependencies to
 depend against).
 
 An <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> can only issue one ticket at a time, to prevent races
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> can only issue one ticket at a time, to prevent races
 between concurrent updates or a change in its upgrade policy after
 isiotang a ticket, so the ticket is a "Hot Potato" to preserve forward
 progress.
 
 
 <pre><code>
-<b>struct</b> <Link href="package.md#0x2_package_UpgradeTicket">UpgradeTicket</Link>
+<b>struct</b> <Link href="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>
 </code></pre>
 
 
@@ -177,15 +177,15 @@ progress.
 <dl>
 <dt>
 <code>
-cap: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+cap: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Immutable) ID of the <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
 </dd>
 <dt>
 <code>
-<Link href="package.md#0x2_package">package</Link>: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+<Link href="package#0x2_package">package</Link>: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Immutable) ID of the package that can be upgraded.
@@ -200,7 +200,7 @@ policy: u8</code>
 </dd>
 <dt>
 <code>
-digest: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;</code>
+digest: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
  (Immutable) SHA256 digest of the bytecode and transitive
@@ -217,14 +217,14 @@ digest: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
 
 Issued as a result of a successful upgrade, containing the
 information to be used to update the <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code>.  This is a "Hot
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>.  This is a "Hot
 Potato" to ensure that it is used to update its <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> before
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> before
 the end of the transaction that performed the upgrade.
 
 
 <pre><code>
-<b>struct</b> <Link href="package.md#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>
+<b>struct</b> <Link href="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>
 </code></pre>
 
 
@@ -236,15 +236,15 @@ the end of the transaction that performed the upgrade.
 <dl>
 <dt>
 <code>
-cap: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+cap: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Immutable) ID of the <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
 </dd>
 <dt>
 <code>
-<Link href="package.md#0x2_package">package</Link>: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+<Link href="package#0x2_package">package</Link>: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Immutable) ID of the package after it was upgraded.
@@ -266,7 +266,7 @@ functions can't change.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_ADDITIVE">ADDITIVE</Link>: u8 = 128;
+<b>const</b> <Link href="package#0x2_package_ADDITIVE">ADDITIVE</Link>: u8 = 128;
 </code></pre>
 
 
@@ -278,7 +278,7 @@ functions or types, change dependencies)
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_COMPATIBLE">COMPATIBLE</Link>: u8 = 0;
+<b>const</b> <Link href="package#0x2_package_COMPATIBLE">COMPATIBLE</Link>: u8 = 0;
 </code></pre>
 
 
@@ -289,7 +289,7 @@ Only be able to change dependencies.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_DEP_ONLY">DEP_ONLY</Link>: u8 = 192;
+<b>const</b> <Link href="package#0x2_package_DEP_ONLY">DEP_ONLY</Link>: u8 = 192;
 </code></pre>
 
 
@@ -297,11 +297,11 @@ Only be able to change dependencies.
 <Link id="0x2_package_EAlreadyAuthorized"></Link>
 
 This <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> has already authorized a pending upgrade.
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> has already authorized a pending upgrade.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_EAlreadyAuthorized">EAlreadyAuthorized</Link>: u64 = 2;
+<b>const</b> <Link href="package#0x2_package_EAlreadyAuthorized">EAlreadyAuthorized</Link>: u64 = 2;
 </code></pre>
 
 
@@ -309,11 +309,11 @@ This <code>
 <Link id="0x2_package_ENotAuthorized"></Link>
 
 This <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> has not authorized an upgrade.
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> has not authorized an upgrade.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_ENotAuthorized">ENotAuthorized</Link>: u64 = 3;
+<b>const</b> <Link href="package#0x2_package_ENotAuthorized">ENotAuthorized</Link>: u64 = 3;
 </code></pre>
 
 
@@ -321,12 +321,12 @@ This <code>
 <Link id="0x2_package_ENotOneTimeWitness"></Link>
 
 Tried to create a <code>
-<Link href="package.md#0x2_package_Publisher">Publisher</Link></code> using a type that isn't a
+<Link href="package#0x2_package_Publisher">Publisher</Link></code> using a type that isn't a
 one-time witness.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_ENotOneTimeWitness">ENotOneTimeWitness</Link>: u64 = 0;
+<b>const</b> <Link href="package#0x2_package_ENotOneTimeWitness">ENotOneTimeWitness</Link>: u64 = 0;
 </code></pre>
 
 
@@ -337,7 +337,7 @@ Tried to set a less restrictive policy than currently in place.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_ETooPermissive">ETooPermissive</Link>: u64 = 1;
+<b>const</b> <Link href="package#0x2_package_ETooPermissive">ETooPermissive</Link>: u64 = 1;
 </code></pre>
 
 
@@ -345,11 +345,11 @@ Tried to set a less restrictive policy than currently in place.
 <Link id="0x2_package_EWrongUpgradeCap"></Link>
 
 Trying to commit an upgrade to the wrong <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code>.
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>.
 
 
 <pre><code>
-<b>const</b> <Link href="package.md#0x2_package_EWrongUpgradeCap">EWrongUpgradeCap</Link>: u64 = 4;
+<b>const</b> <Link href="package#0x2_package_EWrongUpgradeCap">EWrongUpgradeCap</Link>: u64 = 4;
 </code></pre>
 
 
@@ -365,7 +365,7 @@ but multiple per package (!).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_claim">claim</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="package.md#0x2_package_Publisher">package::Publisher</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_claim">claim</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="package#0x2_package_Publisher">package::Publisher</Link>
 </code></pre>
 
 
@@ -375,14 +375,14 @@ but multiple per package (!).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_claim">claim</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> TxContext): <Link href="package.md#0x2_package_Publisher">Publisher</Link> \{
-    <b>assert</b>!(<Link href="types.md#0x2_types_is_one_time_witness">types::is_one_time_witness</Link>(&otw), <Link href="package.md#0x2_package_ENotOneTimeWitness">ENotOneTimeWitness</Link>);
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_claim">claim</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> TxContext): <Link href="package#0x2_package_Publisher">Publisher</Link> \{
+    <b>assert</b>!(<Link href="types#0x2_types_is_one_time_witness">types::is_one_time_witness</Link>(&otw), <Link href="package#0x2_package_ENotOneTimeWitness">ENotOneTimeWitness</Link>);
 
-    <b>let</b> tyname = <Link href="../move-stdlib/type_name.md#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;OTW&gt;();
+    <b>let</b> tyname = <Link href="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;OTW&gt;();
 
-    <Link href="package.md#0x2_package_Publisher">Publisher</Link> \{
-        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
-        <Link href="package.md#0x2_package">package</Link>: tyname.get_address(),
+    <Link href="package#0x2_package_Publisher">Publisher</Link> \{
+        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+        <Link href="package#0x2_package">package</Link>: tyname.get_address(),
         module_name: tyname.get_module(),
     }
 }
@@ -402,7 +402,7 @@ the sender is the publisher.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_claim_and_keep">claim_and_keep</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_claim_and_keep">claim_and_keep</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -412,8 +412,8 @@ the sender is the publisher.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_claim_and_keep">claim_and_keep</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> TxContext) \{
-    iota::transfer::public_transfer(<Link href="package.md#0x2_package_claim">claim</Link>(otw, ctx), ctx.sender())
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_claim_and_keep">claim_and_keep</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> TxContext) \{
+    iota::transfer::public_transfer(<Link href="package#0x2_package_claim">claim</Link>(otw, ctx), ctx.sender())
 }
 </code></pre>
 
@@ -430,7 +430,7 @@ associated with it.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_burn_publisher">burn_publisher</Link>(self: <Link href="package.md#0x2_package_Publisher">package::Publisher</Link>)
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_burn_publisher">burn_publisher</Link>(self: <Link href="package#0x2_package_Publisher">package::Publisher</Link>)
 </code></pre>
 
 
@@ -440,8 +440,8 @@ associated with it.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_burn_publisher">burn_publisher</Link>(self: <Link href="package.md#0x2_package_Publisher">Publisher</Link>) \{
-    <b>let</b> <Link href="package.md#0x2_package_Publisher">Publisher</Link> \{ id, <Link href="package.md#0x2_package">package</Link>: _, module_name: _ } = self;
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_burn_publisher">burn_publisher</Link>(self: <Link href="package#0x2_package_Publisher">Publisher</Link>) \{
+    <b>let</b> <Link href="package#0x2_package_Publisher">Publisher</Link> \{ id, <Link href="package#0x2_package">package</Link>: _, module_name: _ } = self;
     id.delete();
 }
 </code></pre>
@@ -458,7 +458,7 @@ Check whether type belongs to the same package as the publisher object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_from_package">from_package</Link>&lt;T&gt;(self: &<Link href="package.md#0x2_package_Publisher">package::Publisher</Link>): bool
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_from_package">from_package</Link>&lt;T&gt;(self: &<Link href="package#0x2_package_Publisher">package::Publisher</Link>): bool
 </code></pre>
 
 
@@ -468,8 +468,8 @@ Check whether type belongs to the same package as the publisher object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_from_package">from_package</Link>&lt;T&gt;(self: &<Link href="package.md#0x2_package_Publisher">Publisher</Link>): bool \{
-    <Link href="../move-stdlib/type_name.md#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;().get_address() == self.<Link href="package.md#0x2_package">package</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_from_package">from_package</Link>&lt;T&gt;(self: &<Link href="package#0x2_package_Publisher">Publisher</Link>): bool \{
+    <Link href="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;().get_address() == self.<Link href="package#0x2_package">package</Link>
 }
 </code></pre>
 
@@ -485,7 +485,7 @@ Check whether a type belongs to the same module as the publisher object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_from_module">from_module</Link>&lt;T&gt;(self: &<Link href="package.md#0x2_package_Publisher">package::Publisher</Link>): bool
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_from_module">from_module</Link>&lt;T&gt;(self: &<Link href="package#0x2_package_Publisher">package::Publisher</Link>): bool
 </code></pre>
 
 
@@ -495,10 +495,10 @@ Check whether a type belongs to the same module as the publisher object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_from_module">from_module</Link>&lt;T&gt;(self: &<Link href="package.md#0x2_package_Publisher">Publisher</Link>): bool \{
-    <b>let</b> tyname = <Link href="../move-stdlib/type_name.md#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;();
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_from_module">from_module</Link>&lt;T&gt;(self: &<Link href="package#0x2_package_Publisher">Publisher</Link>): bool \{
+    <b>let</b> tyname = <Link href="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;();
 
-    (tyname.get_address() == self.<Link href="package.md#0x2_package">package</Link>) && (tyname.get_module() == self.module_name)
+    (tyname.get_address() == self.<Link href="package#0x2_package">package</Link>) && (tyname.get_module() == self.module_name)
 }
 </code></pre>
 
@@ -514,7 +514,7 @@ Read the name of the module.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_published_module">published_module</Link>(self: &<Link href="package.md#0x2_package_Publisher">package::Publisher</Link>): &<Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_published_module">published_module</Link>(self: &<Link href="package#0x2_package_Publisher">package::Publisher</Link>): &<Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </code></pre>
 
 
@@ -524,7 +524,7 @@ Read the name of the module.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_published_module">published_module</Link>(self: &<Link href="package.md#0x2_package_Publisher">Publisher</Link>): &String \{
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_published_module">published_module</Link>(self: &<Link href="package#0x2_package_Publisher">Publisher</Link>): &String \{
     &self.module_name
 }
 </code></pre>
@@ -541,7 +541,7 @@ Read the package address string.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_published_package">published_package</Link>(self: &<Link href="package.md#0x2_package_Publisher">package::Publisher</Link>): &<Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_published_package">published_package</Link>(self: &<Link href="package#0x2_package_Publisher">package::Publisher</Link>): &<Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </code></pre>
 
 
@@ -551,8 +551,8 @@ Read the package address string.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_published_package">published_package</Link>(self: &<Link href="package.md#0x2_package_Publisher">Publisher</Link>): &String \{
-    &self.<Link href="package.md#0x2_package">package</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_published_package">published_package</Link>(self: &<Link href="package#0x2_package_Publisher">Publisher</Link>): &String \{
+    &self.<Link href="package#0x2_package">package</Link>
 }
 </code></pre>
 
@@ -573,7 +573,7 @@ package.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_upgrade_package">upgrade_package</Link>(cap: &<Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>): <Link href="object.md#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_upgrade_package">upgrade_package</Link>(cap: &<Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>): <Link href="object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -583,8 +583,8 @@ package.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_upgrade_package">upgrade_package</Link>(cap: &<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>): ID \{
-    cap.<Link href="package.md#0x2_package">package</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_upgrade_package">upgrade_package</Link>(cap: &<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>): ID \{
+    cap.<Link href="package#0x2_package">package</Link>
 }
 </code></pre>
 
@@ -601,7 +601,7 @@ successfully applied upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_version">version</Link>(cap: &<Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>): u64
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_version">version</Link>(cap: &<Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>): u64
 </code></pre>
 
 
@@ -611,7 +611,7 @@ successfully applied upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_version">version</Link>(cap: &<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_version">version</Link>(cap: &<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>): u64 \{
     cap.version
 }
 </code></pre>
@@ -630,7 +630,7 @@ cap</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_upgrade_policy">upgrade_policy</Link>(cap: &<Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>): u8
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_upgrade_policy">upgrade_policy</Link>(cap: &<Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>): u8
 </code></pre>
 
 
@@ -640,7 +640,7 @@ cap</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_upgrade_policy">upgrade_policy</Link>(cap: &<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>): u8 \{
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_upgrade_policy">upgrade_policy</Link>(cap: &<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>): u8 \{
     cap.policy
 }
 </code></pre>
@@ -657,7 +657,7 @@ The package that this ticket is authorized to upgrade
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_ticket_package">ticket_package</Link>(ticket: &<Link href="package.md#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): <Link href="object.md#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_ticket_package">ticket_package</Link>(ticket: &<Link href="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): <Link href="object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -667,8 +667,8 @@ The package that this ticket is authorized to upgrade
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_ticket_package">ticket_package</Link>(ticket: &<Link href="package.md#0x2_package_UpgradeTicket">UpgradeTicket</Link>): ID \{
-    ticket.<Link href="package.md#0x2_package">package</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_ticket_package">ticket_package</Link>(ticket: &<Link href="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>): ID \{
+    ticket.<Link href="package#0x2_package">package</Link>
 }
 </code></pre>
 
@@ -684,7 +684,7 @@ The kind of upgrade that this ticket authorizes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_ticket_policy">ticket_policy</Link>(ticket: &<Link href="package.md#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): u8
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_ticket_policy">ticket_policy</Link>(ticket: &<Link href="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): u8
 </code></pre>
 
 
@@ -694,7 +694,7 @@ The kind of upgrade that this ticket authorizes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_ticket_policy">ticket_policy</Link>(ticket: &<Link href="package.md#0x2_package_UpgradeTicket">UpgradeTicket</Link>): u8 \{
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_ticket_policy">ticket_policy</Link>(ticket: &<Link href="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>): u8 \{
     ticket.policy
 }
 </code></pre>
@@ -708,13 +708,13 @@ The kind of upgrade that this ticket authorizes.
 ## Function `receipt_cap`
 
 ID of the <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> that this <code>
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> that this <code>
 receipt</code> should be used to
 update.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_receipt_cap">receipt_cap</Link>(receipt: &<Link href="package.md#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>): <Link href="object.md#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_receipt_cap">receipt_cap</Link>(receipt: &<Link href="package#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>): <Link href="object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -724,7 +724,7 @@ update.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_receipt_cap">receipt_cap</Link>(receipt: &<Link href="package.md#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>): ID \{
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_receipt_cap">receipt_cap</Link>(receipt: &<Link href="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>): ID \{
     receipt.cap
 }
 </code></pre>
@@ -743,7 +743,7 @@ receipt</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_receipt_package">receipt_package</Link>(receipt: &<Link href="package.md#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>): <Link href="object.md#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_receipt_package">receipt_package</Link>(receipt: &<Link href="package#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>): <Link href="object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -753,8 +753,8 @@ receipt</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_receipt_package">receipt_package</Link>(receipt: &<Link href="package.md#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>): ID \{
-    receipt.<Link href="package.md#0x2_package">package</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_receipt_package">receipt_package</Link>(receipt: &<Link href="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>): ID \{
+    receipt.<Link href="package#0x2_package">package</Link>
 }
 </code></pre>
 
@@ -781,7 +781,7 @@ sha3_256(sort(modules ++ deps))
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_ticket_digest">ticket_digest</Link>(ticket: &<Link href="package.md#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_ticket_digest">ticket_digest</Link>(ticket: &<Link href="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -791,7 +791,7 @@ sha3_256(sort(modules ++ deps))
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_ticket_digest">ticket_digest</Link>(ticket: &<Link href="package.md#0x2_package_UpgradeTicket">UpgradeTicket</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; \{
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_ticket_digest">ticket_digest</Link>(ticket: &<Link href="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     &ticket.digest
 }
 </code></pre>
@@ -808,7 +808,7 @@ Expose the constants representing various upgrade policies
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_compatible_policy">compatible_policy</Link>(): u8
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_compatible_policy">compatible_policy</Link>(): u8
 </code></pre>
 
 
@@ -818,7 +818,7 @@ Expose the constants representing various upgrade policies
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_compatible_policy">compatible_policy</Link>(): u8 \{ <Link href="package.md#0x2_package_COMPATIBLE">COMPATIBLE</Link> }
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_compatible_policy">compatible_policy</Link>(): u8 \{ <Link href="package#0x2_package_COMPATIBLE">COMPATIBLE</Link> }
 </code></pre>
 
 
@@ -832,7 +832,7 @@ Expose the constants representing various upgrade policies
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_additive_policy">additive_policy</Link>(): u8
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_additive_policy">additive_policy</Link>(): u8
 </code></pre>
 
 
@@ -842,7 +842,7 @@ Expose the constants representing various upgrade policies
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_additive_policy">additive_policy</Link>(): u8 \{ <Link href="package.md#0x2_package_ADDITIVE">ADDITIVE</Link> }
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_additive_policy">additive_policy</Link>(): u8 \{ <Link href="package#0x2_package_ADDITIVE">ADDITIVE</Link> }
 </code></pre>
 
 
@@ -856,7 +856,7 @@ Expose the constants representing various upgrade policies
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_dep_only_policy">dep_only_policy</Link>(): u8
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_dep_only_policy">dep_only_policy</Link>(): u8
 </code></pre>
 
 
@@ -866,7 +866,7 @@ Expose the constants representing various upgrade policies
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_dep_only_policy">dep_only_policy</Link>(): u8 \{ <Link href="package.md#0x2_package_DEP_ONLY">DEP_ONLY</Link> }
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_dep_only_policy">dep_only_policy</Link>(): u8 \{ <Link href="package#0x2_package_DEP_ONLY">DEP_ONLY</Link> }
 </code></pre>
 
 
@@ -883,7 +883,7 @@ change dependencies.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="package.md#0x2_package_only_additive_upgrades">only_additive_upgrades</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
+<b>public</b> entry <b>fun</b> <Link href="package#0x2_package_only_additive_upgrades">only_additive_upgrades</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
 </code></pre>
 
 
@@ -893,8 +893,8 @@ change dependencies.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="package.md#0x2_package_only_additive_upgrades">only_additive_upgrades</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
-    cap.<Link href="package.md#0x2_package_restrict">restrict</Link>(<Link href="package.md#0x2_package_ADDITIVE">ADDITIVE</Link>)
+<b>public</b> entry <b>fun</b> <Link href="package#0x2_package_only_additive_upgrades">only_additive_upgrades</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
+    cap.<Link href="package#0x2_package_restrict">restrict</Link>(<Link href="package#0x2_package_ADDITIVE">ADDITIVE</Link>)
 }
 </code></pre>
 
@@ -912,7 +912,7 @@ dependencies.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="package.md#0x2_package_only_dep_upgrades">only_dep_upgrades</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
+<b>public</b> entry <b>fun</b> <Link href="package#0x2_package_only_dep_upgrades">only_dep_upgrades</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
 </code></pre>
 
 
@@ -922,8 +922,8 @@ dependencies.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="package.md#0x2_package_only_dep_upgrades">only_dep_upgrades</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
-    cap.<Link href="package.md#0x2_package_restrict">restrict</Link>(<Link href="package.md#0x2_package_DEP_ONLY">DEP_ONLY</Link>)
+<b>public</b> entry <b>fun</b> <Link href="package#0x2_package_only_dep_upgrades">only_dep_upgrades</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
+    cap.<Link href="package#0x2_package_restrict">restrict</Link>(<Link href="package#0x2_package_DEP_ONLY">DEP_ONLY</Link>)
 }
 </code></pre>
 
@@ -936,11 +936,11 @@ dependencies.
 ## Function `make_immutable`
 
 Discard the <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code> to make a package immutable.
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> to make a package immutable.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="package.md#0x2_package_make_immutable">make_immutable</Link>(cap: <Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
+<b>public</b> entry <b>fun</b> <Link href="package#0x2_package_make_immutable">make_immutable</Link>(cap: <Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
 </code></pre>
 
 
@@ -950,8 +950,8 @@ Discard the <code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="package.md#0x2_package_make_immutable">make_immutable</Link>(cap: <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
-    <b>let</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link> \{ id, <Link href="package.md#0x2_package">package</Link>: _, version: _, policy: _ } = cap;
+<b>public</b> entry <b>fun</b> <Link href="package#0x2_package_make_immutable">make_immutable</Link>(cap: <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
+    <b>let</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link> \{ id, <Link href="package#0x2_package">package</Link>: _, version: _, policy: _ } = cap;
     id.delete();
 }
 </code></pre>
@@ -981,7 +981,7 @@ for the upgrade to succeed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_authorize_upgrade">authorize_upgrade</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>, policy: u8, digest: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="package.md#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_authorize_upgrade">authorize_upgrade</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>, policy: u8, digest: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>
 </code></pre>
 
 
@@ -991,21 +991,21 @@ for the upgrade to succeed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_authorize_upgrade">authorize_upgrade</Link>(
-    cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>,
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_authorize_upgrade">authorize_upgrade</Link>(
+    cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>,
     policy: u8,
-    digest: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
-): <Link href="package.md#0x2_package_UpgradeTicket">UpgradeTicket</Link> \{
+    digest: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+): <Link href="package#0x2_package_UpgradeTicket">UpgradeTicket</Link> \{
     <b>let</b> id_zero = @0x0.to_id();
-    <b>assert</b>!(cap.<Link href="package.md#0x2_package">package</Link> != id_zero, <Link href="package.md#0x2_package_EAlreadyAuthorized">EAlreadyAuthorized</Link>);
-    <b>assert</b>!(policy &gt;= cap.policy, <Link href="package.md#0x2_package_ETooPermissive">ETooPermissive</Link>);
+    <b>assert</b>!(cap.<Link href="package#0x2_package">package</Link> != id_zero, <Link href="package#0x2_package_EAlreadyAuthorized">EAlreadyAuthorized</Link>);
+    <b>assert</b>!(policy &gt;= cap.policy, <Link href="package#0x2_package_ETooPermissive">ETooPermissive</Link>);
 
-    <b>let</b> <Link href="package.md#0x2_package">package</Link> = cap.<Link href="package.md#0x2_package">package</Link>;
-    cap.<Link href="package.md#0x2_package">package</Link> = id_zero;
+    <b>let</b> <Link href="package#0x2_package">package</Link> = cap.<Link href="package#0x2_package">package</Link>;
+    cap.<Link href="package#0x2_package">package</Link> = id_zero;
 
-    <Link href="package.md#0x2_package_UpgradeTicket">UpgradeTicket</Link> \{
-        cap: <Link href="object.md#0x2_object_id">object::id</Link>(cap),
-        <Link href="package.md#0x2_package">package</Link>,
+    <Link href="package#0x2_package_UpgradeTicket">UpgradeTicket</Link> \{
+        cap: <Link href="object#0x2_object_id">object::id</Link>(cap),
+        <Link href="package#0x2_package">package</Link>,
         policy,
         digest,
     }
@@ -1021,13 +1021,13 @@ for the upgrade to succeed.
 ## Function `commit_upgrade`
 
 Consume an <code>
-<Link href="package.md#0x2_package_UpgradeReceipt">UpgradeReceipt</Link></code> to update its <code>
-<Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link></code>, finalizing
+<Link href="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link></code> to update its <code>
+<Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>, finalizing
 the upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_commit_upgrade">commit_upgrade</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>, receipt: <Link href="package.md#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>)
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_commit_upgrade">commit_upgrade</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>, receipt: <Link href="package#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>)
 </code></pre>
 
 
@@ -1037,16 +1037,16 @@ the upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="package.md#0x2_package_commit_upgrade">commit_upgrade</Link>(
-    cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>,
-    receipt: <Link href="package.md#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>,
+<b>public</b> <b>fun</b> <Link href="package#0x2_package_commit_upgrade">commit_upgrade</Link>(
+    cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>,
+    receipt: <Link href="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>,
 ) \{
-    <b>let</b> <Link href="package.md#0x2_package_UpgradeReceipt">UpgradeReceipt</Link> \{ cap: cap_id, <Link href="package.md#0x2_package">package</Link> } = receipt;
+    <b>let</b> <Link href="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link> \{ cap: cap_id, <Link href="package#0x2_package">package</Link> } = receipt;
 
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(cap) == cap_id, <Link href="package.md#0x2_package_EWrongUpgradeCap">EWrongUpgradeCap</Link>);
-    <b>assert</b>!(cap.<Link href="package.md#0x2_package">package</Link>.to_address() == @0x0, <Link href="package.md#0x2_package_ENotAuthorized">ENotAuthorized</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(cap) == cap_id, <Link href="package#0x2_package_EWrongUpgradeCap">EWrongUpgradeCap</Link>);
+    <b>assert</b>!(cap.<Link href="package#0x2_package">package</Link>.to_address() == @0x0, <Link href="package#0x2_package_ENotAuthorized">ENotAuthorized</Link>);
 
-    cap.<Link href="package.md#0x2_package">package</Link> = <Link href="package.md#0x2_package">package</Link>;
+    cap.<Link href="package#0x2_package">package</Link> = <Link href="package#0x2_package">package</Link>;
     cap.version = cap.version + 1;
 }
 </code></pre>
@@ -1062,7 +1062,7 @@ the upgrade.
 
 
 <pre><code>
-<b>fun</b> <Link href="package.md#0x2_package_restrict">restrict</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">package::UpgradeCap</Link>, policy: u8)
+<b>fun</b> <Link href="package#0x2_package_restrict">restrict</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>, policy: u8)
 </code></pre>
 
 
@@ -1072,8 +1072,8 @@ the upgrade.
 
 
 <pre><code>
-<b>fun</b> <Link href="package.md#0x2_package_restrict">restrict</Link>(cap: &<b>mut</b> <Link href="package.md#0x2_package_UpgradeCap">UpgradeCap</Link>, policy: u8) \{
-    <b>assert</b>!(cap.policy &lt;= policy, <Link href="package.md#0x2_package_ETooPermissive">ETooPermissive</Link>);
+<b>fun</b> <Link href="package#0x2_package_restrict">restrict</Link>(cap: &<b>mut</b> <Link href="package#0x2_package_UpgradeCap">UpgradeCap</Link>, policy: u8) \{
+    <b>assert</b>!(cap.policy &lt;= policy, <Link href="package#0x2_package_ETooPermissive">ETooPermissive</Link>);
     cap.policy = policy;
 }
 </code></pre>

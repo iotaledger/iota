@@ -6,12 +6,12 @@ import Link from '@docusaurus/Link';
 A bag is a heterogeneous map-like collection. The collection is similar to <code>
 iota::table</code> in that
 its keys and values are not stored within the <code>
-<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code> value, but instead are stored using Iota's
+<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> value, but instead are stored using Iota's
 object system. The <code>
-<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code> struct acts only as a handle into the object system to retrieve those
+<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> struct acts only as a handle into the object system to retrieve those
 keys and values.
 Note that this means that <code>
-<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code> values with exactly the same key-value mapping will not be
+<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> values with exactly the same key-value mapping will not be
 equal, with <code>
 ==</code>, at runtime. For example
 ```
@@ -49,9 +49,9 @@ empty to be destroyed.
 
 
 <pre><code>
-<b>use</b> <Link href="../iota-framework/dynamic_field.md#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="../iota-framework/object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -63,7 +63,7 @@ empty to be destroyed.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link> <b>has</b> store, key
+<b>struct</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -75,7 +75,7 @@ empty to be destroyed.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  the ID of this bag
@@ -102,7 +102,7 @@ size: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/bag.md#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/bag#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link>: u64 = 0;
 </code></pre>
 
 
@@ -115,7 +115,7 @@ Creates a new, empty bag
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_new">new</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_new">new</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </code></pre>
 
 
@@ -125,9 +125,9 @@ Creates a new, empty bag
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_new">new</Link>(ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link> \{
-    <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link> \{
-        id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_new">new</Link>(ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link> \{
+    <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link> \{
+        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
         size: 0,
     }
 }
@@ -142,7 +142,7 @@ Creates a new, empty bag
 ## Function `add`
 
 Adds a key-value pair to the bag <code>
-<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code>
+<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>
 Aborts with <code>
 iota::dynamic_field::EFieldAlreadyExists</code> if the bag already has an entry with
 that key <code>
@@ -150,7 +150,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_add">add</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, k: K, v: V)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_add">add</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, k: K, v: V)
 </code></pre>
 
 
@@ -160,9 +160,9 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_add">add</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>, k: K, v: V) \{
-    field::add(&<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.id, k, v);
-    <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.size = <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.size + 1;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_add">add</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>, k: K, v: V) \{
+    field::add(&<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>.id, k, v);
+    <Link href="../iota-framework/bag#0x2_bag">bag</Link>.size = <Link href="../iota-framework/bag#0x2_bag">bag</Link>.size + 1;
 }
 </code></pre>
 
@@ -175,7 +175,7 @@ k: K</code>.
 ## Function `borrow`
 
 Immutable borrows the value associated with the key in the bag <code>
-<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code>.
+<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
 that key <code>
@@ -186,7 +186,7 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, k: K): &V
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, k: K): &V
 </code></pre>
 
 
@@ -196,8 +196,8 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>, k: K): &V \{
-    field::borrow(&<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>, k: K): &V \{
+    field::borrow(&<Link href="../iota-framework/bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -210,7 +210,7 @@ the value does not have the specified type.
 ## Function `borrow_mut`
 
 Mutably borrows the value associated with the key in the bag <code>
-<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code>.
+<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
 that key <code>
@@ -221,7 +221,7 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, k: K): &<b>mut</b> V
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, k: K): &<b>mut</b> V
 </code></pre>
 
 
@@ -231,8 +231,8 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>, k: K): &<b>mut</b> V \{
-    field::borrow_mut(&<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>, k: K): &<b>mut</b> V \{
+    field::borrow_mut(&<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -245,7 +245,7 @@ the value does not have the specified type.
 ## Function `remove`
 
 Mutably borrows the key-value pair in the bag <code>
-<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code> and returns the value.
+<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> and returns the value.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
 that key <code>
@@ -256,7 +256,7 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, k: K): V
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, k: K): V
 </code></pre>
 
 
@@ -266,9 +266,9 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>, k: K): V \{
-    <b>let</b> v = field::remove(&<b>mut</b> <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.id, k);
-    <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.size = <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.size - 1;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>, k: K): V \{
+    <b>let</b> v = field::remove(&<b>mut</b> <Link href="../iota-framework/bag#0x2_bag">bag</Link>.id, k);
+    <Link href="../iota-framework/bag#0x2_bag">bag</Link>.size = <Link href="../iota-framework/bag#0x2_bag">bag</Link>.size - 1;
     v
 }
 </code></pre>
@@ -283,11 +283,11 @@ the value does not have the specified type.
 
 Returns true iff there is an value associated with the key <code>
 k: K</code> in the bag <code>
-<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code>
+<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_contains">contains</Link>&lt;K: <b>copy</b>, drop, store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, k: K): bool
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_contains">contains</Link>&lt;K: <b>copy</b>, drop, store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, k: K): bool
 </code></pre>
 
 
@@ -297,8 +297,8 @@ k: K</code> in the bag <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_contains">contains</Link>&lt;K: <b>copy</b> + drop + store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>, k: K): bool \{
-    field::exists_&lt;K&gt;(&<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_contains">contains</Link>&lt;K: <b>copy</b> + drop + store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>, k: K): bool \{
+    field::exists_&lt;K&gt;(&<Link href="../iota-framework/bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -312,13 +312,13 @@ k: K</code> in the bag <code>
 
 Returns true iff there is an value associated with the key <code>
 k: K</code> in the bag <code>
-<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link></code>
+<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>
 with an assigned value of type <code>
 V</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, k: K): bool
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, k: K): bool
 </code></pre>
 
 
@@ -328,8 +328,8 @@ V</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>, k: K): bool \{
-    field::exists_with_type&lt;K, V&gt;(&<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>, k: K): bool \{
+    field::exists_with_type&lt;K, V&gt;(&<Link href="../iota-framework/bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -345,7 +345,7 @@ Returns the size of the bag, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_length">length</Link>(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>): u64
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_length">length</Link>(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>): u64
 </code></pre>
 
 
@@ -355,8 +355,8 @@ Returns the size of the bag, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_length">length</Link>(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>): u64 \{
-    <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.size
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_length">length</Link>(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>): u64 \{
+    <Link href="../iota-framework/bag#0x2_bag">bag</Link>.size
 }
 </code></pre>
 
@@ -374,7 +374,7 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_is_empty">is_empty</Link>(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>): bool
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_is_empty">is_empty</Link>(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>): bool
 </code></pre>
 
 
@@ -384,8 +384,8 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_is_empty">is_empty</Link>(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>): bool \{
-    <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>.size == 0
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_is_empty">is_empty</Link>(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: &<Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>): bool \{
+    <Link href="../iota-framework/bag#0x2_bag">bag</Link>.size == 0
 }
 </code></pre>
 
@@ -399,11 +399,11 @@ length</code> returns <code>
 
 Destroys an empty bag
 Aborts with <code>
-<Link href="../iota-framework/bag.md#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link></code> if the bag still contains values
+<Link href="../iota-framework/bag#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link></code> if the bag still contains values
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_destroy_empty">destroy_empty</Link>(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_destroy_empty">destroy_empty</Link>(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>)
 </code></pre>
 
 
@@ -413,9 +413,9 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/bag.md#0x2_bag_destroy_empty">destroy_empty</Link>(<Link href="../iota-framework/bag.md#0x2_bag">bag</Link>: <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link>) \{
-    <b>let</b> <Link href="../iota-framework/bag.md#0x2_bag_Bag">Bag</Link> \{ id, size } = <Link href="../iota-framework/bag.md#0x2_bag">bag</Link>;
-    <b>assert</b>!(size == 0, <Link href="../iota-framework/bag.md#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link>);
+<b>public</b> <b>fun</b> <Link href="../iota-framework/bag#0x2_bag_destroy_empty">destroy_empty</Link>(<Link href="../iota-framework/bag#0x2_bag">bag</Link>: <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link>) \{
+    <b>let</b> <Link href="../iota-framework/bag#0x2_bag_Bag">Bag</Link> \{ id, size } = <Link href="../iota-framework/bag#0x2_bag">bag</Link>;
+    <b>assert</b>!(size == 0, <Link href="../iota-framework/bag#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link>);
     id.delete()
 }
 </code></pre>

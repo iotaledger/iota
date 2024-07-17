@@ -14,17 +14,17 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition">0x107a::expiration_unlock_condition</Link>;
-<b>use</b> <Link href="nft.md#0x107a_nft">0x107a::nft</Link>;
-<b>use</b> <Link href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition">0x107a::storage_deposit_return_unlock_condition</Link>;
-<b>use</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition">0x107a::timelock_unlock_condition</Link>;
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../iota-framework/bag.md#0x2_bag">0x2::bag</Link>;
-<b>use</b> <Link href="../iota-framework/balance.md#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/dynamic_object_field.md#0x2_dynamic_object_field">0x2::dynamic_object_field</Link>;
-<b>use</b> <Link href="../iota-framework/object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition">0x107a::expiration_unlock_condition</Link>;
+<b>use</b> <Link href="nft#0x107a_nft">0x107a::nft</Link>;
+<b>use</b> <Link href="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition">0x107a::storage_deposit_return_unlock_condition</Link>;
+<b>use</b> <Link href="timelock_unlock_condition#0x107a_timelock_unlock_condition">0x107a::timelock_unlock_condition</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../iota-framework/bag#0x2_bag">0x2::bag</Link>;
+<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="../iota-framework/dynamic_object_field#0x2_dynamic_object_field">0x2::dynamic_object_field</Link>;
+<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -37,7 +37,7 @@ The Stardust NFT output representation.
 
 
 <pre><code>
-<b>struct</b> <Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt; <b>has</b> key
+<b>struct</b> <Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt; <b>has</b> key
 </code></pre>
 
 
@@ -49,21 +49,21 @@ The Stardust NFT output representation.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  This is a "random" UID, not the NFTID from Stardust.
 </dd>
 <dt>
 <code>
-<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+<Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
  The amount of coins held by the output.
 </dd>
 <dt>
 <code>
-native_tokens: <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link></code>
+native_tokens: <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  The <code>
@@ -72,21 +72,21 @@ Bag</code> holds native tokens, key-ed by the stringified type of the asset.
 </dd>
 <dt>
 <code>
-storage_deposit_return_uc: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;</code>
+storage_deposit_return_uc: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The storage deposit return unlock condition.
 </dd>
 <dt>
 <code>
-timelock_uc: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;</code>
+timelock_uc: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The timelock unlock condition.
 </dd>
 <dt>
 <code>
-expiration_uc: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;</code>
+expiration_uc: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The expiration unlock condition.
@@ -107,7 +107,7 @@ The NFT dynamic field name.
 
 
 <pre><code>
-<b>const</b> <Link href="nft_output.md#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; = [110, 102, 116];
+<b>const</b> <Link href="nft_output#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = [110, 102, 116];
 </code></pre>
 
 
@@ -120,7 +120,7 @@ The function extracts assets from a legacy NFT output.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="nft_output.md#0x107a_nft_output_extract_assets">extract_assets</Link>&lt;T&gt;(output: <Link href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link>, <Link href="nft.md#0x107a_nft_Nft">nft::Nft</Link>)
+<b>public</b> <b>fun</b> <Link href="nft_output#0x107a_nft_output_extract_assets">extract_assets</Link>&lt;T&gt;(output: <Link href="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, <Link href="nft#0x107a_nft_Nft">nft::Nft</Link>)
 </code></pre>
 
 
@@ -130,14 +130,14 @@ The function extracts assets from a legacy NFT output.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="nft_output.md#0x107a_nft_output_extract_assets">extract_assets</Link>&lt;T&gt;(<b>mut</b> output: <Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext): (Balance&lt;T&gt;, Bag, Nft) \{
-    // Load the related Nft <Link href="../iota-framework/object.md#0x2_object">object</Link>.
-    <b>let</b> <Link href="nft.md#0x107a_nft">nft</Link> = <Link href="nft_output.md#0x107a_nft_output_load_nft">load_nft</Link>(&<b>mut</b> output);
+<b>public</b> <b>fun</b> <Link href="nft_output#0x107a_nft_output_extract_assets">extract_assets</Link>&lt;T&gt;(<b>mut</b> output: <Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext): (Balance&lt;T&gt;, Bag, Nft) \{
+    // Load the related Nft <Link href="../iota-framework/object#0x2_object">object</Link>.
+    <b>let</b> <Link href="nft#0x107a_nft">nft</Link> = <Link href="nft_output#0x107a_nft_output_load_nft">load_nft</Link>(&<b>mut</b> output);
 
     // Unpuck the output.
-    <b>let</b> <Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link> \{
+    <b>let</b> <Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link> \{
         id,
-        <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <b>mut</b> <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>,
+        <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <b>mut</b> <Link href="../iota-framework/balance#0x2_balance">balance</Link>,
         native_tokens,
         storage_deposit_return_uc: <b>mut</b> storage_deposit_return_uc,
         timelock_uc: <b>mut</b> timelock_uc,
@@ -156,17 +156,17 @@ The function extracts assets from a legacy NFT output.
 
     // If the output <b>has</b> a storage deposit <b>return</b> unlock condition, then we need <b>to</b> <b>return</b> the deposit.
     <b>if</b> (storage_deposit_return_uc.is_some()) \{
-        storage_deposit_return_uc.extract().unlock(&<b>mut</b> <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>, ctx);
+        storage_deposit_return_uc.extract().unlock(&<b>mut</b> <Link href="../iota-framework/balance#0x2_balance">balance</Link>, ctx);
     };
 
     // Destroy the output.
-    <Link href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</Link>(timelock_uc);
-    <Link href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</Link>(expiration_uc);
-    <Link href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</Link>(storage_deposit_return_uc);
+    <Link href="../move-stdlib/option#0x1_option_destroy_none">option::destroy_none</Link>(timelock_uc);
+    <Link href="../move-stdlib/option#0x1_option_destroy_none">option::destroy_none</Link>(expiration_uc);
+    <Link href="../move-stdlib/option#0x1_option_destroy_none">option::destroy_none</Link>(storage_deposit_return_uc);
 
-    <Link href="../iota-framework/object.md#0x2_object_delete">object::delete</Link>(id);
+    <Link href="../iota-framework/object#0x2_object_delete">object::delete</Link>(id);
 
-    <b>return</b> (<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>, native_tokens, <Link href="nft.md#0x107a_nft">nft</Link>)
+    <b>return</b> (<Link href="../iota-framework/balance#0x2_balance">balance</Link>, native_tokens, <Link href="nft#0x107a_nft">nft</Link>)
 }
 </code></pre>
 
@@ -183,7 +183,7 @@ Nft</code> object.
 
 
 <pre><code>
-<b>fun</b> <Link href="nft_output.md#0x107a_nft_output_load_nft">load_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;): <Link href="nft.md#0x107a_nft_Nft">nft::Nft</Link>
+<b>fun</b> <Link href="nft_output#0x107a_nft_output_load_nft">load_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;): <Link href="nft#0x107a_nft_Nft">nft::Nft</Link>
 </code></pre>
 
 
@@ -193,8 +193,8 @@ Nft</code> object.
 
 
 <pre><code>
-<b>fun</b> <Link href="nft_output.md#0x107a_nft_output_load_nft">load_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;): Nft \{
-    <Link href="../iota-framework/dynamic_object_field.md#0x2_dynamic_object_field_remove">dynamic_object_field::remove</Link>(&<b>mut</b> output.id, <Link href="nft_output.md#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>)
+<b>fun</b> <Link href="nft_output#0x107a_nft_output_load_nft">load_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;): Nft \{
+    <Link href="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_remove">dynamic_object_field::remove</Link>(&<b>mut</b> output.id, <Link href="nft_output#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>)
 }
 </code></pre>
 
@@ -212,7 +212,7 @@ AliasOutput</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="nft_output.md#0x107a_nft_output_attach_nft">attach_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;, <Link href="nft.md#0x107a_nft">nft</Link>: <Link href="nft.md#0x107a_nft_Nft">nft::Nft</Link>)
+<b>public</b> <b>fun</b> <Link href="nft_output#0x107a_nft_output_attach_nft">attach_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;, <Link href="nft#0x107a_nft">nft</Link>: <Link href="nft#0x107a_nft_Nft">nft::Nft</Link>)
 </code></pre>
 
 
@@ -222,8 +222,8 @@ AliasOutput</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="nft_output.md#0x107a_nft_output_attach_nft">attach_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;, <Link href="nft.md#0x107a_nft">nft</Link>: Nft) \{
-    <Link href="../iota-framework/dynamic_object_field.md#0x2_dynamic_object_field_add">dynamic_object_field::add</Link>(&<b>mut</b> output.id, <Link href="nft_output.md#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>, <Link href="nft.md#0x107a_nft">nft</Link>)
+<b>public</b> <b>fun</b> <Link href="nft_output#0x107a_nft_output_attach_nft">attach_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;, <Link href="nft#0x107a_nft">nft</Link>: Nft) \{
+    <Link href="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_add">dynamic_object_field::add</Link>(&<b>mut</b> output.id, <Link href="nft_output#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>, <Link href="nft#0x107a_nft">nft</Link>)
 }
 </code></pre>
 
@@ -236,13 +236,13 @@ AliasOutput</code>.
 ## Function `receive`
 
 Utility function to receive an <code>
-<Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link></code> in other Stardust modules.
+<Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link></code> in other Stardust modules.
 Other modules in the stardust package can call this function to receive an <code>
-<Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link></code> (alias).
+<Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link></code> (alias).
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="nft_output.md#0x107a_nft_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link>, <Link href="nft.md#0x107a_nft">nft</Link>: <Link href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</Link>&lt;<Link href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;&gt;): <Link href="nft_output.md#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="nft_output#0x107a_nft_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link>, <Link href="nft#0x107a_nft">nft</Link>: <Link href="../iota-framework/transfer#0x2_transfer_Receiving">transfer::Receiving</Link>&lt;<Link href="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;&gt;): <Link href="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -252,8 +252,8 @@ Other modules in the stardust package can call this function to receive an <code
 
 
 <pre><code>
-<b>public</b>(<Link href="../iota-framework/package.md#0x2_package">package</Link>) <b>fun</b> <Link href="nft_output.md#0x107a_nft_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> UID, <Link href="nft.md#0x107a_nft">nft</Link>: Receiving&lt;<Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;&gt;) : <Link href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/transfer.md#0x2_transfer_receive">transfer::receive</Link>(parent, <Link href="nft.md#0x107a_nft">nft</Link>)
+<b>public</b>(<Link href="../iota-framework/package#0x2_package">package</Link>) <b>fun</b> <Link href="nft_output#0x107a_nft_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> UID, <Link href="nft#0x107a_nft">nft</Link>: Receiving&lt;<Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;&gt;) : <Link href="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/transfer#0x2_transfer_receive">transfer::receive</Link>(parent, <Link href="nft#0x107a_nft">nft</Link>)
 }
 </code></pre>
 

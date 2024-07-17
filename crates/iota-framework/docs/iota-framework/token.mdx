@@ -10,7 +10,7 @@ an action to be performed on the token.
 The module is designed to be used with a <code>
 TreasuryCap</code> to allow for minting
 and burning of the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>s. And can act as a replacement / extension or a
+<Link href="token#0x2_token_Token">Token</Link></code>s. And can act as a replacement / extension or a
 companion to existing open-loop (<code>
 Coin</code>) systems.
 
@@ -81,18 +81,18 @@ control over the currency which a simple open-loop system can't provide.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../move-stdlib/string.md#0x1_string">0x1::string</Link>;
-<b>use</b> <Link href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</Link>;
-<b>use</b> <Link href="balance.md#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="coin.md#0x2_coin">0x2::coin</Link>;
-<b>use</b> <Link href="dynamic_field.md#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="event.md#0x2_event">0x2::event</Link>;
-<b>use</b> <Link href="object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="vec_map.md#0x2_vec_map">0x2::vec_map</Link>;
-<b>use</b> <Link href="vec_set.md#0x2_vec_set">0x2::vec_set</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../move-stdlib/string#0x1_string">0x1::string</Link>;
+<b>use</b> <Link href="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
+<b>use</b> <Link href="balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="coin#0x2_coin">0x2::coin</Link>;
+<b>use</b> <Link href="dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link href="event#0x2_event">0x2::event</Link>;
+<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="vec_map#0x2_vec_map">0x2::vec_map</Link>;
+<b>use</b> <Link href="vec_set#0x2_vec_set">0x2::vec_set</Link>;
 </code></pre>
 
 
@@ -102,14 +102,14 @@ control over the currency which a simple open-loop system can't provide.
 ## Resource `Token`
 
 A single <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> with <code>
+<Link href="token#0x2_token_Token">Token</Link></code> with <code>
 Balance</code> inside. Can only be owned by an address,
 and actions performed on it must be confirmed in a matching <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>struct</b> <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt; <b>has</b> key
+<b>struct</b> <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt; <b>has</b> key
 </code></pre>
 
 
@@ -121,18 +121,18 @@ and actions performed on it must be confirmed in a matching <code>
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-<Link href="balance.md#0x2_balance">balance</Link>: <Link href="balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+<Link href="balance#0x2_balance">balance</Link>: <Link href="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
  The Balance of the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>.
+<Link href="token#0x2_token_Token">Token</Link></code>.
 </dd>
 </dl>
 
@@ -144,15 +144,15 @@ id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
 ## Resource `TokenPolicyCap`
 
 A Capability that manages a single <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> specified in the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> specified in the <code>
 for</code>
 field. Created together with <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> in the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> in the <code>
 new</code> function.
 
 
 <pre><code>
-<b>struct</b> <Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -164,14 +164,14 @@ new</code> function.
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-for: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+for: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -186,28 +186,28 @@ for: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
 ## Resource `TokenPolicy`
 
 <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> represents a set of rules that define what actions can be
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> represents a set of rules that define what actions can be
 performed on a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> and which <code>
+<Link href="token#0x2_token_Token">Token</Link></code> and which <code>
 Rules</code> must be satisfied for the
 action to succeed.
 
 - For the sake of availability, <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> is a <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is a <code>
 key</code>-only object.
 - Each <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> is managed by a matching <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is managed by a matching <code>
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code>.
 - For an action to become available, there needs to be a record in the
 <code>
 rules</code> VecMap. To allow an action to be performed freely, there's an
 <code>
 allow</code> function that can be called by the <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> owner.
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> owner.
 
 
 <pre><code>
-<b>struct</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt; <b>has</b> key
+<b>struct</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt; <b>has</b> key
 </code></pre>
 
 
@@ -219,14 +219,14 @@ allow</code> function that can be called by the <code>
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-spent_balance: <Link href="balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+spent_balance: <Link href="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
  The balance that is effectively spent by the user on the "spend"
@@ -241,13 +241,13 @@ TreasuryCap</code> owner.
 </dd>
 <dt>
 <code>
-rules: <Link href="vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, <Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;&gt;</code>
+rules: <Link href="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;&gt;</code>
 </dt>
 <dd>
  The set of rules that define what actions can be performed on the
  token. For each "action" there's a set of Rules that must be
  satisfied for the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> to be confirmed.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> to be confirmed.
 </dd>
 </dl>
 
@@ -266,7 +266,7 @@ confirm_request_mut</code> functions when the Rules are satisfied.
 
 
 <pre><code>
-<b>struct</b> <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;
+<b>struct</b> <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -278,12 +278,12 @@ confirm_request_mut</code> functions when the Rules are satisfied.
 <dl>
 <dt>
 <code>
-name: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+name: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  Name of the Action to look up in the Policy. Name can be one of the
  default actions: <code>
-<Link href="transfer.md#0x2_transfer">transfer</Link></code>, <code>
+<Link href="transfer#0x2_transfer">transfer</Link></code>, <code>
 spend</code>, <code>
 to_coin</code>, <code>
 from_coin</code> or a
@@ -305,31 +305,31 @@ sender: <b>address</b></code>
 </dd>
 <dt>
 <code>
-recipient: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
+recipient: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  Recipient is only available in <code>
-<Link href="transfer.md#0x2_transfer">transfer</Link></code> action.
+<Link href="transfer#0x2_transfer">transfer</Link></code> action.
 </dd>
 <dt>
 <code>
-spent_balance: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;&gt;</code>
+spent_balance: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;&gt;</code>
 </dt>
 <dd>
  The balance to be "spent" in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>, only available
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>, only available
  in the <code>
 spend</code> action.
 </dd>
 <dt>
 <code>
-approvals: <Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
+approvals: <Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
 </dt>
 <dd>
  Collected approvals (stamps) from completed <code>
 Rules</code>. They're matched
  against <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code> to determine if the request can be
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code> to determine if the request can be
  confirmed.
 </dd>
 </dl>
@@ -342,17 +342,17 @@ Rules</code>. They're matched
 ## Struct `RuleKey`
 
 Dynamic field key for the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> to store the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> to store the <code>
 Config</code> for a
 specific action <code>
 Rule</code>. There can be only one configuration per
 <code>
 Rule</code> per <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>struct</b> <Link href="token.md#0x2_token_RuleKey">RuleKey</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="token#0x2_token_RuleKey">RuleKey</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -379,15 +379,15 @@ is_protected: bool</code>
 ## Struct `TokenPolicyCreated`
 
 An event emitted when a <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> is created and shared. Because
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is created and shared. Because
 <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> can only be shared (and potentially frozen in the future),
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> can only be shared (and potentially frozen in the future),
 we emit this event in the <code>
 share_policy</code> function and mark it as mutable.
 
 
 <pre><code>
-<b>struct</b> <Link href="token.md#0x2_token_TokenPolicyCreated">TokenPolicyCreated</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
+<b>struct</b> <Link href="token#0x2_token_TokenPolicyCreated">TokenPolicyCreated</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -399,11 +399,11 @@ share_policy</code> function and mark it as mutable.
 <dl>
 <dt>
 <code>
-id: <Link href="object.md#0x2_object_ID">object::ID</Link></code>
+id: <Link href="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  ID of the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> that was created.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> that was created.
 </dd>
 <dt>
 <code>
@@ -411,7 +411,7 @@ is_mutable: bool</code>
 </dt>
 <dd>
  Whether the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> is "shared" (mutable) or "frozen"
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is "shared" (mutable) or "frozen"
  (immutable) - TBD.
 </dd>
 </dl>
@@ -430,7 +430,7 @@ Trying to perform an admin action with a wrong cap.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>: u64 = 2;
+<b>const</b> <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>: u64 = 2;
 </code></pre>
 
 
@@ -441,7 +441,7 @@ The balance is too low to perform the action.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_EBalanceTooLow">EBalanceTooLow</Link>: u64 = 3;
+<b>const</b> <Link href="token#0x2_token_EBalanceTooLow">EBalanceTooLow</Link>: u64 = 3;
 </code></pre>
 
 
@@ -453,7 +453,7 @@ TransferPolicyCap</code>.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_ECantConsumeBalance">ECantConsumeBalance</Link>: u64 = 5;
+<b>const</b> <Link href="token#0x2_token_ECantConsumeBalance">ECantConsumeBalance</Link>: u64 = 5;
 </code></pre>
 
 
@@ -464,7 +464,7 @@ Rule is trying to access a missing config (with type).
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_ENoConfig">ENoConfig</Link>: u64 = 6;
+<b>const</b> <Link href="token#0x2_token_ENoConfig">ENoConfig</Link>: u64 = 6;
 </code></pre>
 
 
@@ -475,7 +475,7 @@ The rule was not approved.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_ENotApproved">ENotApproved</Link>: u64 = 1;
+<b>const</b> <Link href="token#0x2_token_ENotApproved">ENotApproved</Link>: u64 = 1;
 </code></pre>
 
 
@@ -486,7 +486,7 @@ The balance is not zero.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_ENotZero">ENotZero</Link>: u64 = 4;
+<b>const</b> <Link href="token#0x2_token_ENotZero">ENotZero</Link>: u64 = 4;
 </code></pre>
 
 
@@ -497,7 +497,7 @@ The action is not allowed (defined) in the policy.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_EUnknownAction">EUnknownAction</Link>: u64 = 0;
+<b>const</b> <Link href="token#0x2_token_EUnknownAction">EUnknownAction</Link>: u64 = 0;
 </code></pre>
 
 
@@ -511,7 +511,7 @@ of the function must be used instead.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_EUseImmutableConfirm">EUseImmutableConfirm</Link>: u64 = 7;
+<b>const</b> <Link href="token#0x2_token_EUseImmutableConfirm">EUseImmutableConfirm</Link>: u64 = 7;
 </code></pre>
 
 
@@ -523,7 +523,7 @@ from_coin</code> action.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_FROM_COIN">FROM_COIN</Link>: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; = [102, 114, 111, 109, 95, 99, 111, 105, 110];
+<b>const</b> <Link href="token#0x2_token_FROM_COIN">FROM_COIN</Link>: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = [102, 114, 111, 109, 95, 99, 111, 105, 110];
 </code></pre>
 
 
@@ -535,7 +535,7 @@ spend</code> action.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_SPEND">SPEND</Link>: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; = [115, 112, 101, 110, 100];
+<b>const</b> <Link href="token#0x2_token_SPEND">SPEND</Link>: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = [115, 112, 101, 110, 100];
 </code></pre>
 
 
@@ -547,7 +547,7 @@ to_coin</code> action.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_TO_COIN">TO_COIN</Link>: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; = [116, 111, 95, 99, 111, 105, 110];
+<b>const</b> <Link href="token#0x2_token_TO_COIN">TO_COIN</Link>: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = [116, 111, 95, 99, 111, 105, 110];
 </code></pre>
 
 
@@ -555,11 +555,11 @@ to_coin</code> action.
 <Link id="0x2_token_TRANSFER"></Link>
 
 A Tag for the <code>
-<Link href="transfer.md#0x2_transfer">transfer</Link></code> action.
+<Link href="transfer#0x2_transfer">transfer</Link></code> action.
 
 
 <pre><code>
-<b>const</b> <Link href="token.md#0x2_token_TRANSFER">TRANSFER</Link>: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; = [116, 114, 97, 110, 115, 102, 101, 114];
+<b>const</b> <Link href="token#0x2_token_TRANSFER">TRANSFER</Link>: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = [116, 114, 97, 110, 115, 102, 101, 114];
 </code></pre>
 
 
@@ -569,10 +569,10 @@ A Tag for the <code>
 ## Function `new_policy`
 
 Create a new <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> and a matching <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and a matching <code>
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code>.
 The <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> must then be shared using the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> must then be shared using the <code>
 share_policy</code> method.
 
 <code>
@@ -581,7 +581,7 @@ hence it is safe to use it for authorization.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_new_policy">new_policy</Link>&lt;T&gt;(_treasury_cap: &<Link href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, <Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_new_policy">new_policy</Link>&lt;T&gt;(_treasury_cap: &<Link href="coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, <Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -591,18 +591,18 @@ hence it is safe to use it for authorization.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_new_policy">new_policy</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_new_policy">new_policy</Link>&lt;T&gt;(
     _treasury_cap: &TreasuryCap&lt;T&gt;, ctx: &<b>mut</b> TxContext
-): (<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, <Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;) \{
-    <b>let</b> policy = <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link> \{
-        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
-        spent_balance: <Link href="balance.md#0x2_balance_zero">balance::zero</Link>(),
-        rules: <Link href="vec_map.md#0x2_vec_map_empty">vec_map::empty</Link>()
+): (<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, <Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;) \{
+    <b>let</b> policy = <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link> \{
+        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+        spent_balance: <Link href="balance#0x2_balance_zero">balance::zero</Link>(),
+        rules: <Link href="vec_map#0x2_vec_map_empty">vec_map::empty</Link>()
     };
 
-    <b>let</b> cap = <Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> \{
-        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
-        `for`: <Link href="object.md#0x2_object_id">object::id</Link>(&policy)
+    <b>let</b> cap = <Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> \{
+        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+        `for`: <Link href="object#0x2_object_id">object::id</Link>(&policy)
     };
 
     (policy, cap)
@@ -618,13 +618,13 @@ hence it is safe to use it for authorization.
 ## Function `share_policy`
 
 Share the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Due to <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Due to <code>
 key</code>-only restriction, it must be
 shared after initialization.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_share_policy">share_policy</Link>&lt;T&gt;(policy: <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_share_policy">share_policy</Link>&lt;T&gt;(policy: <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -634,13 +634,13 @@ shared after initialization.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_share_policy">share_policy</Link>&lt;T&gt;(policy: <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;) \{
-    <Link href="event.md#0x2_event_emit">event::emit</Link>(<Link href="token.md#0x2_token_TokenPolicyCreated">TokenPolicyCreated</Link>&lt;T&gt; \{
-        id: <Link href="object.md#0x2_object_id">object::id</Link>(&policy),
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_share_policy">share_policy</Link>&lt;T&gt;(policy: <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;) \{
+    <Link href="event#0x2_event_emit">event::emit</Link>(<Link href="token#0x2_token_TokenPolicyCreated">TokenPolicyCreated</Link>&lt;T&gt; \{
+        id: <Link href="object#0x2_object_id">object::id</Link>(&policy),
         is_mutable: <b>true</b>,
     });
 
-    <Link href="transfer.md#0x2_transfer_share_object">transfer::share_object</Link>(policy)
+    <Link href="transfer#0x2_transfer_share_object">transfer::share_object</Link>(policy)
 }
 </code></pre>
 
@@ -653,17 +653,17 @@ shared after initialization.
 ## Function `transfer`
 
 Transfer a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> to a <code>
+<Link href="token#0x2_token_Token">Token</Link></code> to a <code>
 recipient</code>. Creates an <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> for the
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> for the
 "transfer" action. The <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> contains the <code>
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> contains the <code>
 recipient</code> field
 to be used in verification.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer.md#0x2_transfer">transfer</Link>&lt;T&gt;(t: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, recipient: <b>address</b>, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="transfer#0x2_transfer">transfer</Link>&lt;T&gt;(t: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, recipient: <b>address</b>, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -673,17 +673,17 @@ to be used in verification.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="transfer.md#0x2_transfer">transfer</Link>&lt;T&gt;(
-    t: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, recipient: <b>address</b>, ctx: &<b>mut</b> TxContext
-): <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt; \{
-    <b>let</b> amount = t.<Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_value">value</Link>();
-    <Link href="transfer.md#0x2_transfer_transfer">transfer::transfer</Link>(t, recipient);
+<b>public</b> <b>fun</b> <Link href="transfer#0x2_transfer">transfer</Link>&lt;T&gt;(
+    t: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, recipient: <b>address</b>, ctx: &<b>mut</b> TxContext
+): <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt; \{
+    <b>let</b> amount = t.<Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_value">value</Link>();
+    <Link href="transfer#0x2_transfer_transfer">transfer::transfer</Link>(t, recipient);
 
-    <Link href="token.md#0x2_token_new_request">new_request</Link>(
-        <Link href="token.md#0x2_token_transfer_action">transfer_action</Link>(),
+    <Link href="token#0x2_token_new_request">new_request</Link>(
+        <Link href="token#0x2_token_transfer_action">transfer_action</Link>(),
         amount,
-        <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(recipient),
-        <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>(),
+        <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(recipient),
+        <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
         ctx
     )
 }
@@ -698,22 +698,22 @@ to be used in verification.
 ## Function `spend`
 
 Spend a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> by unwrapping it and storing the <code>
+<Link href="token#0x2_token_Token">Token</Link></code> by unwrapping it and storing the <code>
 Balance</code> in the
 <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> for the "spend" action. The <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> contains
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> for the "spend" action. The <code>
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> contains
 the <code>
 spent_balance</code> field to be used in verification.
 
 Spend action requires <code>
 confirm_request_mut</code> to be called to confirm the
 request and join the spent balance with the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance</code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spend">spend</Link>&lt;T&gt;(t: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spend">spend</Link>&lt;T&gt;(t: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -723,15 +723,15 @@ request and join the spent balance with the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spend">spend</Link>&lt;T&gt;(t: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext): <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt; \{
-    <b>let</b> <Link href="token.md#0x2_token_Token">Token</Link> \{ id, <Link href="balance.md#0x2_balance">balance</Link> } = t;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spend">spend</Link>&lt;T&gt;(t: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext): <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt; \{
+    <b>let</b> <Link href="token#0x2_token_Token">Token</Link> \{ id, <Link href="balance#0x2_balance">balance</Link> } = t;
     id.delete();
 
-    <Link href="token.md#0x2_token_new_request">new_request</Link>(
-        <Link href="token.md#0x2_token_spend_action">spend_action</Link>(),
-        <Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_value">value</Link>(),
-        <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>(),
-        <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(<Link href="balance.md#0x2_balance">balance</Link>),
+    <Link href="token#0x2_token_new_request">new_request</Link>(
+        <Link href="token#0x2_token_spend_action">spend_action</Link>(),
+        <Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_value">value</Link>(),
+        <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+        <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link href="balance#0x2_balance">balance</Link>),
         ctx
     )
 }
@@ -746,14 +746,14 @@ request and join the spent balance with the <code>
 ## Function `to_coin`
 
 Convert <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> into an open <code>
+<Link href="token#0x2_token_Token">Token</Link></code> into an open <code>
 Coin</code>. Creates an <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> for the
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> for the
 "to_coin" action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_to_coin">to_coin</Link>&lt;T&gt;(t: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_to_coin">to_coin</Link>&lt;T&gt;(t: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -763,20 +763,20 @@ Coin</code>. Creates an <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_to_coin">to_coin</Link>&lt;T&gt;(
-    t: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext
-): (Coin&lt;T&gt;, <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;) \{
-    <b>let</b> <Link href="token.md#0x2_token_Token">Token</Link> \{ id, <Link href="balance.md#0x2_balance">balance</Link> } = t;
-    <b>let</b> amount = <Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_value">value</Link>();
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_to_coin">to_coin</Link>&lt;T&gt;(
+    t: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext
+): (Coin&lt;T&gt;, <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;) \{
+    <b>let</b> <Link href="token#0x2_token_Token">Token</Link> \{ id, <Link href="balance#0x2_balance">balance</Link> } = t;
+    <b>let</b> amount = <Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_value">value</Link>();
     id.delete();
 
     (
-        <Link href="balance.md#0x2_balance">balance</Link>.into_coin(ctx),
-        <Link href="token.md#0x2_token_new_request">new_request</Link>(
-            <Link href="token.md#0x2_token_to_coin_action">to_coin_action</Link>(),
+        <Link href="balance#0x2_balance">balance</Link>.into_coin(ctx),
+        <Link href="token#0x2_token_new_request">new_request</Link>(
+            <Link href="token#0x2_token_to_coin_action">to_coin_action</Link>(),
             amount,
-            <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>(),
-            <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>(),
+            <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+            <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
             ctx
         )
     )
@@ -793,13 +793,13 @@ Coin</code>. Creates an <code>
 
 Convert an open <code>
 Coin</code> into a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>. Creates an <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> for
+<Link href="token#0x2_token_Token">Token</Link></code>. Creates an <code>
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> for
 the "from_coin" action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_from_coin">from_coin</Link>&lt;T&gt;(<Link href="coin.md#0x2_coin">coin</Link>: <Link href="coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_from_coin">from_coin</Link>&lt;T&gt;(<Link href="coin#0x2_coin">coin</Link>: <Link href="coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -809,22 +809,22 @@ the "from_coin" action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_from_coin">from_coin</Link>&lt;T&gt;(
-    <Link href="coin.md#0x2_coin">coin</Link>: Coin&lt;T&gt;, ctx: &<b>mut</b> TxContext
-): (<Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;) \{
-    <b>let</b> amount = <Link href="coin.md#0x2_coin">coin</Link>.<Link href="token.md#0x2_token_value">value</Link>();
-    <b>let</b> <Link href="token.md#0x2_token">token</Link> = <Link href="token.md#0x2_token_Token">Token</Link> \{
-        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
-        <Link href="balance.md#0x2_balance">balance</Link>: <Link href="coin.md#0x2_coin">coin</Link>.into_balance()
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_from_coin">from_coin</Link>&lt;T&gt;(
+    <Link href="coin#0x2_coin">coin</Link>: Coin&lt;T&gt;, ctx: &<b>mut</b> TxContext
+): (<Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;) \{
+    <b>let</b> amount = <Link href="coin#0x2_coin">coin</Link>.<Link href="token#0x2_token_value">value</Link>();
+    <b>let</b> <Link href="token#0x2_token">token</Link> = <Link href="token#0x2_token_Token">Token</Link> \{
+        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+        <Link href="balance#0x2_balance">balance</Link>: <Link href="coin#0x2_coin">coin</Link>.into_balance()
     };
 
     (
-        <Link href="token.md#0x2_token">token</Link>,
-        <Link href="token.md#0x2_token_new_request">new_request</Link>(
-            <Link href="token.md#0x2_token_from_coin_action">from_coin_action</Link>(),
+        <Link href="token#0x2_token">token</Link>,
+        <Link href="token#0x2_token_new_request">new_request</Link>(
+            <Link href="token#0x2_token_from_coin_action">from_coin_action</Link>(),
             amount,
-            <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>(),
-            <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>(),
+            <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+            <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
             ctx
         )
     )
@@ -840,11 +840,11 @@ the "from_coin" action.
 ## Function `join`
 
 Join two <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>s into one, always available.
+<Link href="token#0x2_token_Token">Token</Link></code>s into one, always available.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_join">join</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: &<b>mut</b> <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, another: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_join">join</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: &<b>mut</b> <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, another: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -854,9 +854,9 @@ Join two <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_join">join</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: &<b>mut</b> <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, another: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;) \{
-    <b>let</b> <Link href="token.md#0x2_token_Token">Token</Link> \{ id, <Link href="balance.md#0x2_balance">balance</Link> } = another;
-    <Link href="token.md#0x2_token">token</Link>.<Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_join">join</Link>(<Link href="balance.md#0x2_balance">balance</Link>);
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_join">join</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: &<b>mut</b> <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, another: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;) \{
+    <b>let</b> <Link href="token#0x2_token_Token">Token</Link> \{ id, <Link href="balance#0x2_balance">balance</Link> } = another;
+    <Link href="token#0x2_token">token</Link>.<Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_join">join</Link>(<Link href="balance#0x2_balance">balance</Link>);
     id.delete();
 }
 </code></pre>
@@ -870,15 +870,15 @@ Join two <code>
 ## Function `split`
 
 Split a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> with <code>
+<Link href="token#0x2_token_Token">Token</Link></code> with <code>
 amount</code>.
 Aborts if the <code>
-<Link href="token.md#0x2_token_Token">Token</Link>.<Link href="balance.md#0x2_balance">balance</Link></code> is lower than <code>
+<Link href="token#0x2_token_Token">Token</Link>.<Link href="balance#0x2_balance">balance</Link></code> is lower than <code>
 amount</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_split">split</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: &<b>mut</b> <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, amount: u64, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_split">split</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: &<b>mut</b> <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, amount: u64, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -888,13 +888,13 @@ amount</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_split">split</Link>&lt;T&gt;(
-    <Link href="token.md#0x2_token">token</Link>: &<b>mut</b> <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, amount: u64, ctx: &<b>mut</b> TxContext
-): <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt; \{
-    <b>assert</b>!(<Link href="token.md#0x2_token">token</Link>.<Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_value">value</Link>() &gt;= amount, <Link href="token.md#0x2_token_EBalanceTooLow">EBalanceTooLow</Link>);
-    <Link href="token.md#0x2_token_Token">Token</Link> \{
-        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
-        <Link href="balance.md#0x2_balance">balance</Link>: <Link href="token.md#0x2_token">token</Link>.<Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_split">split</Link>(amount),
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_split">split</Link>&lt;T&gt;(
+    <Link href="token#0x2_token">token</Link>: &<b>mut</b> <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, amount: u64, ctx: &<b>mut</b> TxContext
+): <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt; \{
+    <b>assert</b>!(<Link href="token#0x2_token">token</Link>.<Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_value">value</Link>() &gt;= amount, <Link href="token#0x2_token_EBalanceTooLow">EBalanceTooLow</Link>);
+    <Link href="token#0x2_token_Token">Token</Link> \{
+        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+        <Link href="balance#0x2_balance">balance</Link>: <Link href="token#0x2_token">token</Link>.<Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_split">split</Link>(amount),
     }
 }
 </code></pre>
@@ -908,11 +908,11 @@ amount</code>.
 ## Function `zero`
 
 Create a zero <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>.
+<Link href="token#0x2_token_Token">Token</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -922,10 +922,10 @@ Create a zero <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> TxContext): <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt; \{
-    <Link href="token.md#0x2_token_Token">Token</Link> \{
-        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
-        <Link href="balance.md#0x2_balance">balance</Link>: <Link href="balance.md#0x2_balance_zero">balance::zero</Link>(),
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> TxContext): <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt; \{
+    <Link href="token#0x2_token_Token">Token</Link> \{
+        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+        <Link href="balance#0x2_balance">balance</Link>: <Link href="balance#0x2_balance_zero">balance::zero</Link>(),
     }
 }
 </code></pre>
@@ -939,13 +939,13 @@ Create a zero <code>
 ## Function `destroy_zero`
 
 Destroy an empty <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>, fails if the balance is non-zero.
+<Link href="token#0x2_token_Token">Token</Link></code>, fails if the balance is non-zero.
 Aborts if the <code>
-<Link href="token.md#0x2_token_Token">Token</Link>.<Link href="balance.md#0x2_balance">balance</Link></code> is not zero.
+<Link href="token#0x2_token_Token">Token</Link>.<Link href="balance#0x2_balance">balance</Link></code> is not zero.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -955,10 +955,10 @@ Aborts if the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;) \{
-    <b>let</b> <Link href="token.md#0x2_token_Token">Token</Link> \{ id, <Link href="balance.md#0x2_balance">balance</Link> } = <Link href="token.md#0x2_token">token</Link>;
-    <b>assert</b>!(<Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_value">value</Link>() == 0, <Link href="token.md#0x2_token_ENotZero">ENotZero</Link>);
-    <Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_destroy_zero">destroy_zero</Link>();
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;) \{
+    <b>let</b> <Link href="token#0x2_token_Token">Token</Link> \{ id, <Link href="balance#0x2_balance">balance</Link> } = <Link href="token#0x2_token">token</Link>;
+    <b>assert</b>!(<Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_value">value</Link>() == 0, <Link href="token#0x2_token_ENotZero">ENotZero</Link>);
+    <Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_destroy_zero">destroy_zero</Link>();
     id.delete();
 }
 </code></pre>
@@ -972,11 +972,11 @@ Aborts if the <code>
 ## Function `keep`
 
 Transfer the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> to the transaction sender.
+<Link href="token#0x2_token_Token">Token</Link></code> to the transaction sender.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_keep">keep</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_keep">keep</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -986,8 +986,8 @@ Transfer the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_keep">keep</Link>&lt;T&gt;(<Link href="token.md#0x2_token">token</Link>: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext) \{
-    <Link href="transfer.md#0x2_transfer_transfer">transfer::transfer</Link>(<Link href="token.md#0x2_token">token</Link>, ctx.<Link href="token.md#0x2_token_sender">sender</Link>())
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_keep">keep</Link>&lt;T&gt;(<Link href="token#0x2_token">token</Link>: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext) \{
+    <Link href="transfer#0x2_transfer_transfer">transfer::transfer</Link>(<Link href="token#0x2_token">token</Link>, ctx.<Link href="token#0x2_token_sender">sender</Link>())
 }
 </code></pre>
 
@@ -1000,12 +1000,12 @@ Transfer the <code>
 ## Function `new_request`
 
 Create a new <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 Publicly available method to allow for custom actions.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_new_request">new_request</Link>&lt;T&gt;(name: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, amount: u64, recipient: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;, spent_balance: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;&gt;, ctx: &<Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_new_request">new_request</Link>&lt;T&gt;(name: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, amount: u64, recipient: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;, spent_balance: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;&gt;, ctx: &<Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -1015,20 +1015,20 @@ Publicly available method to allow for custom actions.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_new_request">new_request</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_new_request">new_request</Link>&lt;T&gt;(
     name: String,
     amount: u64,
     recipient: Option&lt;<b>address</b>&gt;,
     spent_balance: Option&lt;Balance&lt;T&gt;&gt;,
     ctx: &TxContext
-): <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt; \{
-    <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link> \{
+): <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt; \{
+    <Link href="token#0x2_token_ActionRequest">ActionRequest</Link> \{
         name,
         amount,
         recipient,
         spent_balance,
-        sender: ctx.<Link href="token.md#0x2_token_sender">sender</Link>(),
-        approvals: <Link href="vec_set.md#0x2_vec_set_empty">vec_set::empty</Link>(),
+        sender: ctx.<Link href="token#0x2_token_sender">sender</Link>(),
+        approvals: <Link href="vec_set#0x2_vec_set_empty">vec_set::empty</Link>(),
     }
 }
 </code></pre>
@@ -1042,14 +1042,14 @@ Publicly available method to allow for custom actions.
 ## Function `confirm_request`
 
 Confirm the request against the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> and return the parameters
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and return the parameters
 of the request: (Name, Amount, Sender, Recipient).
 
 Cannot be used for <code>
 spend</code> and similar actions that deliver <code>
 spent_balance</code>
 to the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>. For those actions use <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. For those actions use <code>
 confirm_request_mut</code>.
 
 Aborts if:
@@ -1059,12 +1059,12 @@ rules</code>)
 spent_balance</code> (use <code>
 confirm_request_mut</code>)
 - the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> does not meet the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> rules for the action
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> does not meet the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> rules for the action
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_request">confirm_request</Link>&lt;T&gt;(policy: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, request: <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_request">confirm_request</Link>&lt;T&gt;(policy: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, request: <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
 </code></pre>
 
 
@@ -1074,15 +1074,15 @@ confirm_request_mut</code>)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_request">confirm_request</Link>&lt;T&gt;(
-    policy: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    request: <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_request">confirm_request</Link>&lt;T&gt;(
+    policy: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    request: <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
     _ctx: &<b>mut</b> TxContext
 ): (String, u64, <b>address</b>, Option&lt;<b>address</b>&gt;) \{
-    <b>assert</b>!(request.spent_balance.is_none(), <Link href="token.md#0x2_token_ECantConsumeBalance">ECantConsumeBalance</Link>);
-    <b>assert</b>!(policy.rules.contains(&request.name), <Link href="token.md#0x2_token_EUnknownAction">EUnknownAction</Link>);
+    <b>assert</b>!(request.spent_balance.is_none(), <Link href="token#0x2_token_ECantConsumeBalance">ECantConsumeBalance</Link>);
+    <b>assert</b>!(policy.rules.contains(&request.name), <Link href="token#0x2_token_EUnknownAction">EUnknownAction</Link>);
 
-    <b>let</b> <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link> \{
+    <b>let</b> <Link href="token#0x2_token_ActionRequest">ActionRequest</Link> \{
         name, approvals,
         spent_balance,
         amount, sender, recipient,
@@ -1096,7 +1096,7 @@ confirm_request_mut</code>)
 
     <b>while</b> (i &lt; rules_len) \{
         <b>let</b> rule = &rules[i];
-        <b>assert</b>!(approvals.contains(rule), <Link href="token.md#0x2_token_ENotApproved">ENotApproved</Link>);
+        <b>assert</b>!(approvals.contains(rule), <Link href="token#0x2_token_ENotApproved">ENotApproved</Link>);
         i = i + 1;
     };
 
@@ -1113,13 +1113,13 @@ confirm_request_mut</code>)
 ## Function `confirm_request_mut`
 
 Confirm the request against the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> and return the parameters
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and return the parameters
 of the request: (Name, Amount, Sender, Recipient).
 
 Unlike <code>
 confirm_request</code> this function requires mutable access to the
 <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> and must be used on <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and must be used on <code>
 spend</code> action. After dealing with the
 spent balance it calls <code>
 confirm_request</code> internally.
@@ -1129,7 +1129,7 @@ confirm_request</code> for the list of abort conditions.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_request_mut">confirm_request_mut</Link>&lt;T&gt;(policy: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, request: <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_request_mut">confirm_request_mut</Link>&lt;T&gt;(policy: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, request: <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
 </code></pre>
 
 
@@ -1139,17 +1139,17 @@ confirm_request</code> for the list of abort conditions.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_request_mut">confirm_request_mut</Link>&lt;T&gt;(
-    policy: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    <b>mut</b> request: <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_request_mut">confirm_request_mut</Link>&lt;T&gt;(
+    policy: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    <b>mut</b> request: <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
     ctx: &<b>mut</b> TxContext
 ): (String, u64, <b>address</b>, Option&lt;<b>address</b>&gt;) \{
-    <b>assert</b>!(policy.rules.contains(&request.name), <Link href="token.md#0x2_token_EUnknownAction">EUnknownAction</Link>);
-    <b>assert</b>!(request.spent_balance.is_some(), <Link href="token.md#0x2_token_EUseImmutableConfirm">EUseImmutableConfirm</Link>);
+    <b>assert</b>!(policy.rules.contains(&request.name), <Link href="token#0x2_token_EUnknownAction">EUnknownAction</Link>);
+    <b>assert</b>!(request.spent_balance.is_some(), <Link href="token#0x2_token_EUseImmutableConfirm">EUseImmutableConfirm</Link>);
 
-    policy.spent_balance.<Link href="token.md#0x2_token_join">join</Link>(request.spent_balance.extract());
+    policy.spent_balance.<Link href="token#0x2_token_join">join</Link>(request.spent_balance.extract());
 
-    <Link href="token.md#0x2_token_confirm_request">confirm_request</Link>(policy, request, ctx)
+    <Link href="token#0x2_token_confirm_request">confirm_request</Link>(policy, request, ctx)
 }
 </code></pre>
 
@@ -1162,24 +1162,24 @@ confirm_request</code> for the list of abort conditions.
 ## Function `confirm_with_policy_cap`
 
 Confirm an <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> as the <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> owner. This function
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> as the <code>
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> owner. This function
 allows <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner to perform Capability-gated actions ignoring
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner to perform Capability-gated actions ignoring
 the ruleset specified in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 Aborts if request contains <code>
 spent_balance</code> due to inability of the
 <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> to decrease supply. For scenarios like this a
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> to decrease supply. For scenarios like this a
 <code>
 TreasuryCap</code> is required (see <code>
 confirm_with_treasury_cap</code>).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_with_policy_cap">confirm_with_policy_cap</Link>&lt;T&gt;(_policy_cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, request: <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_with_policy_cap">confirm_with_policy_cap</Link>&lt;T&gt;(_policy_cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, request: <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
 </code></pre>
 
 
@@ -1189,14 +1189,14 @@ confirm_with_treasury_cap</code>).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_with_policy_cap">confirm_with_policy_cap</Link>&lt;T&gt;(
-    _policy_cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
-    request: <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_with_policy_cap">confirm_with_policy_cap</Link>&lt;T&gt;(
+    _policy_cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+    request: <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
     _ctx: &<b>mut</b> TxContext
 ): (String, u64, <b>address</b>, Option&lt;<b>address</b>&gt;) \{
-    <b>assert</b>!(request.spent_balance.is_none(), <Link href="token.md#0x2_token_ECantConsumeBalance">ECantConsumeBalance</Link>);
+    <b>assert</b>!(request.spent_balance.is_none(), <Link href="token#0x2_token_ECantConsumeBalance">ECantConsumeBalance</Link>);
 
-    <b>let</b> <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link> \{
+    <b>let</b> <Link href="token#0x2_token_ActionRequest">ActionRequest</Link> \{
         name, amount, sender, recipient, approvals: _, spent_balance
     } = request;
 
@@ -1215,23 +1215,23 @@ confirm_with_treasury_cap</code>).
 ## Function `confirm_with_treasury_cap`
 
 Confirm an <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> as the <code>
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> as the <code>
 TreasuryCap</code> owner. This function
 allows <code>
 TreasuryCap</code> owner to perform Capability-gated actions ignoring
 the ruleset specified in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 Unlike <code>
 confirm_with_policy_cap</code> this function allows <code>
 spent_balance</code>
 to be consumed, decreasing the <code>
 total_supply</code> of the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>.
+<Link href="token#0x2_token_Token">Token</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_with_treasury_cap">confirm_with_treasury_cap</Link>&lt;T&gt;(treasury_cap: &<b>mut</b> <Link href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, request: <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_with_treasury_cap">confirm_with_treasury_cap</Link>&lt;T&gt;(treasury_cap: &<b>mut</b> <Link href="coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, request: <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, u64, <b>address</b>, <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;)
 </code></pre>
 
 
@@ -1241,12 +1241,12 @@ total_supply</code> of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_confirm_with_treasury_cap">confirm_with_treasury_cap</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_confirm_with_treasury_cap">confirm_with_treasury_cap</Link>&lt;T&gt;(
     treasury_cap: &<b>mut</b> TreasuryCap&lt;T&gt;,
-    request: <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
+    request: <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;,
     _ctx: &<b>mut</b> TxContext
 ): (String, u64, <b>address</b>, Option&lt;<b>address</b>&gt;) \{
-    <b>let</b> <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link> \{
+    <b>let</b> <Link href="token#0x2_token_ActionRequest">ActionRequest</Link> \{
         name, amount, sender, recipient, approvals: _,
         spent_balance
     } = request;
@@ -1270,15 +1270,15 @@ total_supply</code> of the <code>
 ## Function `add_approval`
 
 Add an "approval" to the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code> by providing a Witness.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code> by providing a Witness.
 Intended to be used by Rules to add their own approvals, however, can
 be used to add arbitrary approvals to the request (not only the ones
 required by the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>).
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_add_approval">add_approval</Link>&lt;T, W: drop&gt;(_t: W, request: &<b>mut</b> <Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_add_approval">add_approval</Link>&lt;T, W: drop&gt;(_t: W, request: &<b>mut</b> <Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1288,10 +1288,10 @@ required by the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_add_approval">add_approval</Link>&lt;T, W: drop&gt;(
-    _t: W, request: &<b>mut</b> <Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> TxContext
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_add_approval">add_approval</Link>&lt;T, W: drop&gt;(
+    _t: W, request: &<b>mut</b> <Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;, _ctx: &<b>mut</b> TxContext
 ) \{
-    request.approvals.insert(<Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;W&gt;())
+    request.approvals.insert(<Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;W&gt;())
 }
 </code></pre>
 
@@ -1306,9 +1306,9 @@ required by the <code>
 Add a <code>
 Config</code> for a <code>
 Rule</code> in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Rule configuration is
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Rule configuration is
 independent from the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code> and needs to be managed by the
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code> and needs to be managed by the
 Rule itself. Configuration is stored per <code>
 Rule</code> and not per <code>
 Rule</code> per
@@ -1318,14 +1318,14 @@ Action</code> to allow reuse in different actions.
 - Rule witness guarantees that the <code>
 Config</code> is approved by the Rule.
 - <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> guarantees that the <code>
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> guarantees that the <code>
 Config</code> setup is initiated by
 the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_add_rule_config">add_rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(_rule: Rule, self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, config: Config, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_add_rule_config">add_rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(_rule: Rule, self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, config: Config, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1335,15 +1335,15 @@ the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_add_rule_config">add_rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_add_rule_config">add_rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(
     _rule: Rule,
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
     config: Config,
     _ctx: &<b>mut</b> TxContext
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
-    df::add(&<b>mut</b> self.id, <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;(), config)
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    df::add(&<b>mut</b> self.id, <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;(), config)
 }
 </code></pre>
 
@@ -1358,7 +1358,7 @@ the <code>
 Get a <code>
 Config</code> for a <code>
 Rule</code> in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Requires <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Requires <code>
 Rule</code>
 witness, hence can only be read by the <code>
 Rule</code> itself. This requirement
@@ -1371,7 +1371,7 @@ Aborts if the Config is not present.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_rule_config">rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(_rule: Rule, self: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): &Config
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_rule_config">rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(_rule: Rule, self: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): &Config
 </code></pre>
 
 
@@ -1381,11 +1381,11 @@ Aborts if the Config is not present.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_rule_config">rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(
-    _rule: Rule, self: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_rule_config">rule_config</Link>&lt;T, Rule: drop, Config: store&gt;(
+    _rule: Rule, self: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;
 ): &Config \{
-    <b>assert</b>!(<Link href="token.md#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config&gt;(self), <Link href="token.md#0x2_token_ENoConfig">ENoConfig</Link>);
-    df::borrow(&self.id, <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;())
+    <b>assert</b>!(<Link href="token#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config&gt;(self), <Link href="token#0x2_token_ENoConfig">ENoConfig</Link>);
+    df::borrow(&self.id, <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1400,25 +1400,25 @@ Aborts if the Config is not present.
 Get mutable access to the <code>
 Config</code> for a <code>
 Rule</code> in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 Requires <code>
 Rule</code> witness, hence can only be read by the <code>
 Rule</code> itself,
 as well as <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> to guarantee that the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> to guarantee that the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner
 is the one who initiated the <code>
 Config</code> modification.
 
 Aborts if:
 - the Config is not present
 - <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_rule_config_mut">rule_config_mut</Link>&lt;T, Rule: drop, Config: store&gt;(_rule: Rule, self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;): &<b>mut</b> Config
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_rule_config_mut">rule_config_mut</Link>&lt;T, Rule: drop, Config: store&gt;(_rule: Rule, self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;): &<b>mut</b> Config
 </code></pre>
 
 
@@ -1428,12 +1428,12 @@ Aborts if:
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_rule_config_mut">rule_config_mut</Link>&lt;T, Rule: drop, Config: store&gt;(
-    _rule: Rule, self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_rule_config_mut">rule_config_mut</Link>&lt;T, Rule: drop, Config: store&gt;(
+    _rule: Rule, self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;
 ): &<b>mut</b> Config \{
-    <b>assert</b>!(<Link href="token.md#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config&gt;(self), <Link href="token.md#0x2_token_ENoConfig">ENoConfig</Link>);
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
-    df::borrow_mut(&<b>mut</b> self.id, <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;())
+    <b>assert</b>!(<Link href="token#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config&gt;(self), <Link href="token#0x2_token_ENoConfig">ENoConfig</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    df::borrow_mut(&<b>mut</b> self.id, <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1448,27 +1448,27 @@ Aborts if:
 Remove a <code>
 Config</code> for a <code>
 Rule</code> in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 Unlike the <code>
 add_rule_config</code>, this function does not require a <code>
 Rule</code>
 witness, hence can be performed by the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner on their own.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner on their own.
 
 Rules need to make sure that the <code>
 Config</code> is present when performing
 verification of the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 Aborts if:
 - the Config is not present
 - <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_remove_rule_config">remove_rule_config</Link>&lt;T, Rule, Config: store&gt;(self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): Config
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_remove_rule_config">remove_rule_config</Link>&lt;T, Rule, Config: store&gt;(self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): Config
 </code></pre>
 
 
@@ -1478,14 +1478,14 @@ Aborts if:
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_remove_rule_config">remove_rule_config</Link>&lt;T, Rule, Config: store&gt;(
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_remove_rule_config">remove_rule_config</Link>&lt;T, Rule, Config: store&gt;(
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
     _ctx: &<b>mut</b> TxContext
 ): Config \{
-    <b>assert</b>!(<Link href="token.md#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config&gt;(self), <Link href="token.md#0x2_token_ENoConfig">ENoConfig</Link>);
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
-    df::remove(&<b>mut</b> self.id, <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;())
+    <b>assert</b>!(<Link href="token#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config&gt;(self), <Link href="token#0x2_token_ENoConfig">ENoConfig</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    df::remove(&<b>mut</b> self.id, <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1499,13 +1499,13 @@ Aborts if:
 
 Check if a config for a <code>
 Rule</code> is set in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> without
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> without
 checking the type of the <code>
 Config</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_has_rule_config">has_rule_config</Link>&lt;T, Rule&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): bool
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_has_rule_config">has_rule_config</Link>&lt;T, Rule&gt;(self: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): bool
 </code></pre>
 
 
@@ -1515,8 +1515,8 @@ Config</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_has_rule_config">has_rule_config</Link>&lt;T, Rule&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;): bool \{
-    df::exists_&lt;<Link href="token.md#0x2_token_RuleKey">RuleKey</Link>&lt;Rule&gt;&gt;(&self.id, <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;())
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_has_rule_config">has_rule_config</Link>&lt;T, Rule&gt;(self: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;): bool \{
+    df::exists_&lt;<Link href="token#0x2_token_RuleKey">RuleKey</Link>&lt;Rule&gt;&gt;(&self.id, <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1531,12 +1531,12 @@ Config</code>.
 Check if a <code>
 Config</code> for a <code>
 Rule</code> is set in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code> and that
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and that
 it matches the type provided.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config: store&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): bool
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config: store&gt;(self: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): bool
 </code></pre>
 
 
@@ -1546,10 +1546,10 @@ it matches the type provided.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config: store&gt;(
-    self: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_has_rule_config_with_type">has_rule_config_with_type</Link>&lt;T, Rule, Config: store&gt;(
+    self: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;
 ): bool \{
-    df::exists_with_type&lt;<Link href="token.md#0x2_token_RuleKey">RuleKey</Link>&lt;Rule&gt;, Config&gt;(&self.id, <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;())
+    df::exists_with_type&lt;<Link href="token#0x2_token_RuleKey">RuleKey</Link>&lt;Rule&gt;, Config&gt;(&self.id, <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1563,18 +1563,18 @@ it matches the type provided.
 
 Allows an <code>
 action</code> to be performed on the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> freely by adding an
+<Link href="token#0x2_token_Token">Token</Link></code> freely by adding an
 empty set of <code>
 Rules</code> for the <code>
 action</code>.
 
 Aborts if the <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_allow">allow</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_allow">allow</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1584,14 +1584,14 @@ Aborts if the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_allow">allow</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_allow">allow</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
     action: String,
     _ctx: &<b>mut</b> TxContext
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
-    self.rules.insert(action, <Link href="vec_set.md#0x2_vec_set_empty">vec_set::empty</Link>());
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    self.rules.insert(action, <Link href="vec_set#0x2_vec_set_empty">vec_set::empty</Link>());
 }
 </code></pre>
 
@@ -1605,17 +1605,17 @@ Aborts if the <code>
 
 Completely disallows an <code>
 action</code> on the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> by removing the record
+<Link href="token#0x2_token_Token">Token</Link></code> by removing the record
 from the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code>.
 
 Aborts if the <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_disallow">disallow</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_disallow">disallow</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1625,13 +1625,13 @@ Aborts if the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_disallow">disallow</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_disallow">disallow</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
     action: String,
     _ctx: &<b>mut</b> TxContext
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
     self.rules.remove(&action);
 }
 </code></pre>
@@ -1646,15 +1646,15 @@ Aborts if the <code>
 
 Adds a Rule for an action with <code>
 name</code> in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 Aborts if the <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_add_rule_for_action">add_rule_for_action</Link>&lt;T, Rule: drop&gt;(self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_add_rule_for_action">add_rule_for_action</Link>&lt;T, Rule: drop&gt;(self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1664,18 +1664,18 @@ Aborts if the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_add_rule_for_action">add_rule_for_action</Link>&lt;T, Rule: drop&gt;(
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_add_rule_for_action">add_rule_for_action</Link>&lt;T, Rule: drop&gt;(
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
     action: String,
     ctx: &<b>mut</b> TxContext
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
     <b>if</b> (!self.rules.contains(&action)) \{
-        <Link href="token.md#0x2_token_allow">allow</Link>(self, cap, action, ctx);
+        <Link href="token#0x2_token_allow">allow</Link>(self, cap, action, ctx);
     };
 
-    self.rules.get_mut(&action).insert(<Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
+    self.rules.get_mut(&action).insert(<Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1689,16 +1689,16 @@ Aborts if the <code>
 
 Removes a rule for an action with <code>
 name</code> in the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Returns
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Returns
 the config object to be handled by the sender (or a Rule itself).
 
 Aborts if the <code>
-<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_remove_rule_for_action">remove_rule_for_action</Link>&lt;T, Rule: drop&gt;(self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token.md#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_remove_rule_for_action">remove_rule_for_action</Link>&lt;T, Rule: drop&gt;(self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<Link href="token#0x2_token_TokenPolicyCap">token::TokenPolicyCap</Link>&lt;T&gt;, action: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1708,15 +1708,15 @@ Aborts if the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_remove_rule_for_action">remove_rule_for_action</Link>&lt;T, Rule: drop&gt;(
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
-    cap: &<Link href="token.md#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_remove_rule_for_action">remove_rule_for_action</Link>&lt;T, Rule: drop&gt;(
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+    cap: &<Link href="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>&lt;T&gt;,
     action: String,
     _ctx: &<b>mut</b> TxContext
 ) \{
-    <b>assert</b>!(<Link href="object.md#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token.md#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
+    <b>assert</b>!(<Link href="object#0x2_object_id">object::id</Link>(self) == cap.`for`, <Link href="token#0x2_token_ENotAuthorized">ENotAuthorized</Link>);
 
-    self.rules.get_mut(&action).remove(&<Link href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
+    self.rules.get_mut(&action).remove(&<Link href="../move-stdlib/type_name#0x1_type_name_get">type_name::get</Link>&lt;Rule&gt;())
 }
 </code></pre>
 
@@ -1729,13 +1729,13 @@ Aborts if the <code>
 ## Function `mint`
 
 Mint a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> with a given <code>
+<Link href="token#0x2_token_Token">Token</Link></code> with a given <code>
 amount</code> using the <code>
 TreasuryCap</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_mint">mint</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, amount: u64, ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_mint">mint</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, amount: u64, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -1745,11 +1745,11 @@ TreasuryCap</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_mint">mint</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_mint">mint</Link>&lt;T&gt;(
     cap: &<b>mut</b> TreasuryCap&lt;T&gt;, amount: u64, ctx: &<b>mut</b> TxContext
-): <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt; \{
-    <b>let</b> <Link href="balance.md#0x2_balance">balance</Link> = cap.supply_mut().increase_supply(amount);
-    <Link href="token.md#0x2_token_Token">Token</Link> \{ id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx), <Link href="balance.md#0x2_balance">balance</Link> }
+): <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt; \{
+    <b>let</b> <Link href="balance#0x2_balance">balance</Link> = cap.supply_mut().increase_supply(amount);
+    <Link href="token#0x2_token_Token">Token</Link> \{ id: <Link href="object#0x2_object_new">object::new</Link>(ctx), <Link href="balance#0x2_balance">balance</Link> }
 }
 </code></pre>
 
@@ -1762,12 +1762,12 @@ TreasuryCap</code>.
 ## Function `burn`
 
 Burn a <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code> using the <code>
+<Link href="token#0x2_token_Token">Token</Link></code> using the <code>
 TreasuryCap</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, <Link href="token.md#0x2_token">token</Link>: <Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, <Link href="token#0x2_token">token</Link>: <Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -1777,9 +1777,9 @@ TreasuryCap</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> TreasuryCap&lt;T&gt;, <Link href="token.md#0x2_token">token</Link>: <Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;) \{
-    <b>let</b> <Link href="token.md#0x2_token_Token">Token</Link> \{ id, <Link href="balance.md#0x2_balance">balance</Link> } = <Link href="token.md#0x2_token">token</Link>;
-    cap.supply_mut().decrease_supply(<Link href="balance.md#0x2_balance">balance</Link>);
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> TreasuryCap&lt;T&gt;, <Link href="token#0x2_token">token</Link>: <Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;) \{
+    <b>let</b> <Link href="token#0x2_token_Token">Token</Link> \{ id, <Link href="balance#0x2_balance">balance</Link> } = <Link href="token#0x2_token">token</Link>;
+    cap.supply_mut().decrease_supply(<Link href="balance#0x2_balance">balance</Link>);
     id.delete();
 }
 </code></pre>
@@ -1793,14 +1793,14 @@ TreasuryCap</code>.
 ## Function `flush`
 
 Flush the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance</code> into the <code>
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance</code> into the <code>
 TreasuryCap</code>. This
 action is only available to the <code>
 TreasuryCap</code> owner.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_flush">flush</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<b>mut</b> <Link href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_flush">flush</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, cap: &<b>mut</b> <Link href="coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, _ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
 </code></pre>
 
 
@@ -1810,14 +1810,14 @@ TreasuryCap</code> owner.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_flush">flush</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_flush">flush</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;,
     cap: &<b>mut</b> TreasuryCap&lt;T&gt;,
     _ctx: &<b>mut</b> TxContext
 ): u64 \{
-    <b>let</b> amount = self.spent_balance.<Link href="token.md#0x2_token_value">value</Link>();
-    <b>let</b> <Link href="balance.md#0x2_balance">balance</Link> = self.spent_balance.<Link href="token.md#0x2_token_split">split</Link>(amount);
-    cap.supply_mut().decrease_supply(<Link href="balance.md#0x2_balance">balance</Link>)
+    <b>let</b> amount = self.spent_balance.<Link href="token#0x2_token_value">value</Link>();
+    <b>let</b> <Link href="balance#0x2_balance">balance</Link> = self.spent_balance.<Link href="token#0x2_token_split">split</Link>(amount);
+    cap.supply_mut().decrease_supply(<Link href="balance#0x2_balance">balance</Link>)
 }
 </code></pre>
 
@@ -1833,7 +1833,7 @@ Check whether an action is present in the rules VecMap.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_is_allowed">is_allowed</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, action: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): bool
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_is_allowed">is_allowed</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, action: &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>): bool
 </code></pre>
 
 
@@ -1843,7 +1843,7 @@ Check whether an action is present in the rules VecMap.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_is_allowed">is_allowed</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, action: &String): bool \{
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_is_allowed">is_allowed</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, action: &String): bool \{
     self.rules.contains(action)
 }
 </code></pre>
@@ -1860,7 +1860,7 @@ Returns the rules required for a specific action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_rules">rules</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, action: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): <Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_rules">rules</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;, action: &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>): <Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
 </code></pre>
 
 
@@ -1870,8 +1870,8 @@ Returns the rules required for a specific action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_rules">rules</Link>&lt;T&gt;(
-    self: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, action: &String
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_rules">rules</Link>&lt;T&gt;(
+    self: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;, action: &String
 ): VecSet&lt;TypeName&gt; \{
     *self.rules.get(action)
 }
@@ -1887,11 +1887,11 @@ Returns the rules required for a specific action.
 
 Returns the <code>
 spent_balance</code> of the <code>
-<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spent_balance">spent_balance</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spent_balance">spent_balance</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_TokenPolicy">token::TokenPolicy</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -1901,8 +1901,8 @@ spent_balance</code> of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spent_balance">spent_balance</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;): u64 \{
-    self.spent_balance.<Link href="token.md#0x2_token_value">value</Link>()
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spent_balance">spent_balance</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_TokenPolicy">TokenPolicy</Link>&lt;T&gt;): u64 \{
+    self.spent_balance.<Link href="token#0x2_token_value">value</Link>()
 }
 </code></pre>
 
@@ -1915,12 +1915,12 @@ spent_balance</code> of the <code>
 ## Function `value`
 
 Returns the <code>
-<Link href="balance.md#0x2_balance">balance</Link></code> of the <code>
-<Link href="token.md#0x2_token_Token">Token</Link></code>.
+<Link href="balance#0x2_balance">balance</Link></code> of the <code>
+<Link href="token#0x2_token_Token">Token</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_value">value</Link>&lt;T&gt;(t: &<Link href="token.md#0x2_token_Token">token::Token</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_value">value</Link>&lt;T&gt;(t: &<Link href="token#0x2_token_Token">token::Token</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -1930,8 +1930,8 @@ Returns the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_value">value</Link>&lt;T&gt;(t: &<Link href="token.md#0x2_token_Token">Token</Link>&lt;T&gt;): u64 \{
-    t.<Link href="balance.md#0x2_balance">balance</Link>.<Link href="token.md#0x2_token_value">value</Link>()
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_value">value</Link>&lt;T&gt;(t: &<Link href="token#0x2_token_Token">Token</Link>&lt;T&gt;): u64 \{
+    t.<Link href="balance#0x2_balance">balance</Link>.<Link href="token#0x2_token_value">value</Link>()
 }
 </code></pre>
 
@@ -1947,7 +1947,7 @@ Name of the Transfer action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_transfer_action">transfer_action</Link>(): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_transfer_action">transfer_action</Link>(): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -1957,8 +1957,8 @@ Name of the Transfer action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_transfer_action">transfer_action</Link>(): String \{
-    <b>let</b> transfer_str = <Link href="token.md#0x2_token_TRANSFER">TRANSFER</Link>;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_transfer_action">transfer_action</Link>(): String \{
+    <b>let</b> transfer_str = <Link href="token#0x2_token_TRANSFER">TRANSFER</Link>;
     transfer_str.to_string()
 }
 </code></pre>
@@ -1976,7 +1976,7 @@ Spend</code> action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spend_action">spend_action</Link>(): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spend_action">spend_action</Link>(): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -1986,8 +1986,8 @@ Spend</code> action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spend_action">spend_action</Link>(): String \{
-    <b>let</b> spend_str = <Link href="token.md#0x2_token_SPEND">SPEND</Link>;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spend_action">spend_action</Link>(): String \{
+    <b>let</b> spend_str = <Link href="token#0x2_token_SPEND">SPEND</Link>;
     spend_str.to_string()
 }
 </code></pre>
@@ -2005,7 +2005,7 @@ ToCoin</code> action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_to_coin_action">to_coin_action</Link>(): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_to_coin_action">to_coin_action</Link>(): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -2015,8 +2015,8 @@ ToCoin</code> action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_to_coin_action">to_coin_action</Link>(): String \{
-    <b>let</b> to_coin_str = <Link href="token.md#0x2_token_TO_COIN">TO_COIN</Link>;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_to_coin_action">to_coin_action</Link>(): String \{
+    <b>let</b> to_coin_str = <Link href="token#0x2_token_TO_COIN">TO_COIN</Link>;
     to_coin_str.to_string()
 }
 </code></pre>
@@ -2034,7 +2034,7 @@ FromCoin</code> action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_from_coin_action">from_coin_action</Link>(): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_from_coin_action">from_coin_action</Link>(): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -2044,8 +2044,8 @@ FromCoin</code> action.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_from_coin_action">from_coin_action</Link>(): String \{
-    <b>let</b> from_coin_str = <Link href="token.md#0x2_token_FROM_COIN">FROM_COIN</Link>;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_from_coin_action">from_coin_action</Link>(): String \{
+    <b>let</b> from_coin_str = <Link href="token#0x2_token_FROM_COIN">FROM_COIN</Link>;
     from_coin_str.to_string()
 }
 </code></pre>
@@ -2059,11 +2059,11 @@ FromCoin</code> action.
 ## Function `action`
 
 The Action in the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_action">action</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_action">action</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -2073,7 +2073,7 @@ The Action in the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_action">action</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): String \{ self.name }
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_action">action</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): String \{ self.name }
 </code></pre>
 
 
@@ -2085,11 +2085,11 @@ The Action in the <code>
 ## Function `amount`
 
 Amount of the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_amount">amount</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_amount">amount</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -2099,7 +2099,7 @@ Amount of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_amount">amount</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): u64 \{ self.amount }
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_amount">amount</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): u64 \{ self.amount }
 </code></pre>
 
 
@@ -2111,11 +2111,11 @@ Amount of the <code>
 ## Function `sender`
 
 Sender of the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_sender">sender</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <b>address</b>
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_sender">sender</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <b>address</b>
 </code></pre>
 
 
@@ -2125,7 +2125,7 @@ Sender of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_sender">sender</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): <b>address</b> \{ self.sender }
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_sender">sender</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): <b>address</b> \{ self.sender }
 </code></pre>
 
 
@@ -2137,11 +2137,11 @@ Sender of the <code>
 ## Function `recipient`
 
 Recipient of the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_recipient">recipient</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_recipient">recipient</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
 </code></pre>
 
 
@@ -2151,7 +2151,7 @@ Recipient of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_recipient">recipient</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): Option&lt;<b>address</b>&gt; \{
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_recipient">recipient</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): Option&lt;<b>address</b>&gt; \{
     self.recipient
 }
 </code></pre>
@@ -2165,11 +2165,11 @@ Recipient of the <code>
 ## Function `approvals`
 
 Approvals of the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_approvals">approvals</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_approvals">approvals</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
 </code></pre>
 
 
@@ -2179,7 +2179,7 @@ Approvals of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_approvals">approvals</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): VecSet&lt;TypeName&gt; \{
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_approvals">approvals</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): VecSet&lt;TypeName&gt; \{
     self.approvals
 }
 </code></pre>
@@ -2193,11 +2193,11 @@ Approvals of the <code>
 ## Function `spent`
 
 Burned balance of the <code>
-<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link></code>.
+<Link href="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spent">spent</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spent">spent</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">token::ActionRequest</Link>&lt;T&gt;): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
 </code></pre>
 
 
@@ -2207,11 +2207,11 @@ Burned balance of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="token.md#0x2_token_spent">spent</Link>&lt;T&gt;(self: &<Link href="token.md#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): Option&lt;u64&gt; \{
+<b>public</b> <b>fun</b> <Link href="token#0x2_token_spent">spent</Link>&lt;T&gt;(self: &<Link href="token#0x2_token_ActionRequest">ActionRequest</Link>&lt;T&gt;): Option&lt;u64&gt; \{
     <b>if</b> (self.spent_balance.is_some()) \{
-        <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(self.spent_balance.<Link href="borrow.md#0x2_borrow">borrow</Link>().<Link href="token.md#0x2_token_value">value</Link>())
+        <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(self.spent_balance.<Link href="borrow#0x2_borrow">borrow</Link>().<Link href="token#0x2_token_value">value</Link>())
     } <b>else</b> \{
-        <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>()
+        <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
 </code></pre>
@@ -2225,7 +2225,7 @@ Burned balance of the <code>
 ## Function `key`
 
 Create a new <code>
-<Link href="token.md#0x2_token_RuleKey">RuleKey</Link></code> for a <code>
+<Link href="token#0x2_token_RuleKey">RuleKey</Link></code> for a <code>
 Rule</code>. The <code>
 is_protected</code> field is kept
 for potential future use, if Rules were to have a freely modifiable
@@ -2238,7 +2238,7 @@ version of their configuration and mutate state on user action.
 
 
 <pre><code>
-<b>fun</b> <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;(): <Link href="token.md#0x2_token_RuleKey">token::RuleKey</Link>&lt;Rule&gt;
+<b>fun</b> <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;(): <Link href="token#0x2_token_RuleKey">token::RuleKey</Link>&lt;Rule&gt;
 </code></pre>
 
 
@@ -2248,7 +2248,7 @@ version of their configuration and mutate state on user action.
 
 
 <pre><code>
-<b>fun</b> <Link href="token.md#0x2_token_key">key</Link>&lt;Rule&gt;(): <Link href="token.md#0x2_token_RuleKey">RuleKey</Link>&lt;Rule&gt; \{ <Link href="token.md#0x2_token_RuleKey">RuleKey</Link> \{ is_protected: <b>true</b> } }
+<b>fun</b> <Link href="token#0x2_token_key">key</Link>&lt;Rule&gt;(): <Link href="token#0x2_token_RuleKey">RuleKey</Link>&lt;Rule&gt; \{ <Link href="token#0x2_token_RuleKey">RuleKey</Link> \{ is_protected: <b>true</b> } }
 </code></pre>
 
 

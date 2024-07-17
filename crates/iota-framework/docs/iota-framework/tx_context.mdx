@@ -27,11 +27,11 @@ import Link from '@docusaurus/Link';
 Information about the transaction currently being executed.
 This cannot be constructed by a transaction--it is a privileged object created by
 the VM and passed in to the entrypoint of the transaction as <code>
-&<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link></code>.
+&<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link></code>.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link> <b>has</b> drop
+<b>struct</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -50,7 +50,7 @@ sender: <b>address</b></code>
 </dd>
 <dt>
 <code>
-tx_hash: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;</code>
+tx_hash: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
  Hash of the current transaction
@@ -91,7 +91,7 @@ transaction
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_sender">sender</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_sender">sender</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
 </code></pre>
 
 
@@ -101,7 +101,7 @@ transaction
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_sender">sender</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link>): <b>address</b> \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_sender">sender</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>): <b>address</b> \{
     self.sender
 }
 </code></pre>
@@ -119,7 +119,7 @@ Please do not use as a source of randomness.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_digest">digest</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_digest">digest</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -129,7 +129,7 @@ Please do not use as a source of randomness.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_digest">digest</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_digest">digest</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     &self.tx_hash
 }
 </code></pre>
@@ -146,7 +146,7 @@ Return the current epoch
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_epoch">epoch</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_epoch">epoch</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
 </code></pre>
 
 
@@ -156,7 +156,7 @@ Return the current epoch
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_epoch">epoch</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_epoch">epoch</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>): u64 \{
     self.epoch
 }
 </code></pre>
@@ -173,7 +173,7 @@ Return the epoch start time as a unix timestamp in milliseconds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_epoch_timestamp_ms">epoch_timestamp_ms</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_epoch_timestamp_ms">epoch_timestamp_ms</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
 </code></pre>
 
 
@@ -183,7 +183,7 @@ Return the epoch start time as a unix timestamp in milliseconds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_epoch_timestamp_ms">epoch_timestamp_ms</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_epoch_timestamp_ms">epoch_timestamp_ms</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>): u64 \{
    self.epoch_timestamp_ms
 }
 </code></pre>
@@ -203,7 +203,7 @@ In other words, the generated address is a globally unique object ID.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_fresh_object_address">fresh_object_address</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_fresh_object_address">fresh_object_address</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
 </code></pre>
 
 
@@ -213,9 +213,9 @@ In other words, the generated address is a globally unique object ID.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_fresh_object_address">fresh_object_address</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link>): <b>address</b> \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_fresh_object_address">fresh_object_address</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>): <b>address</b> \{
     <b>let</b> ids_created = ctx.ids_created;
-    <b>let</b> id = <Link href="../iota-framework/tx_context.md#0x2_tx_context_derive_id">derive_id</Link>(*&ctx.tx_hash, ids_created);
+    <b>let</b> id = <Link href="../iota-framework/tx_context#0x2_tx_context_derive_id">derive_id</Link>(*&ctx.tx_hash, ids_created);
     ctx.ids_created = ids_created + 1;
     id
 }
@@ -234,7 +234,7 @@ Hidden for now, but may expose later
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_ids_created">ids_created</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
+<b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_ids_created">ids_created</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
 </code></pre>
 
 
@@ -244,7 +244,7 @@ Hidden for now, but may expose later
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_ids_created">ids_created</Link>(self: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">TxContext</Link>): u64 \{
+<b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_ids_created">ids_created</Link>(self: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>): u64 \{
     self.ids_created
 }
 </code></pre>
@@ -261,7 +261,7 @@ Native function for deriving an ID via hash(tx_hash || ids_created)
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_derive_id">derive_id</Link>(tx_hash: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, ids_created: u64): <b>address</b>
+<b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_derive_id">derive_id</Link>(tx_hash: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, ids_created: u64): <b>address</b>
 </code></pre>
 
 
@@ -271,7 +271,7 @@ Native function for deriving an ID via hash(tx_hash || ids_created)
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_derive_id">derive_id</Link>(tx_hash: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, ids_created: u64): <b>address</b>;
+<b>native</b> <b>fun</b> <Link href="../iota-framework/tx_context#0x2_tx_context_derive_id">derive_id</Link>(tx_hash: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, ids_created: u64): <b>address</b>;
 </code></pre>
 
 

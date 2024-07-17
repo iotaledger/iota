@@ -4,9 +4,9 @@ title: Module `0x2::coin`
 import Link from '@docusaurus/Link';
 
 Defines the <code>
-<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link></code> type - platform wide representation of fungible
+<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link></code> type - platform wide representation of fungible
 tokens and coins. <code>
-<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link></code> can be described as a secure wrapper around
+<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link></code> can be described as a secure wrapper around
 <code>
 Balance</code> type.
 
@@ -56,17 +56,17 @@ Balance</code> type.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</Link>;
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../move-stdlib/string.md#0x1_string">0x1::string</Link>;
-<b>use</b> <Link href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</Link>;
-<b>use</b> <Link href="../iota-framework/balance.md#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/deny_list.md#0x2_deny_list">0x2::deny_list</Link>;
-<b>use</b> <Link href="../iota-framework/object.md#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="../iota-framework/types.md#0x2_types">0x2::types</Link>;
-<b>use</b> <Link href="../iota-framework/url.md#0x2_url">0x2::url</Link>;
+<b>use</b> <Link href="../move-stdlib/ascii#0x1_ascii">0x1::ascii</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../move-stdlib/string#0x1_string">0x1::string</Link>;
+<b>use</b> <Link href="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
+<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="../iota-framework/deny_list#0x2_deny_list">0x2::deny_list</Link>;
+<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../iota-framework/types#0x2_types">0x2::types</Link>;
+<b>use</b> <Link href="../iota-framework/url#0x2_url">0x2::url</Link>;
 </code></pre>
 
 
@@ -81,7 +81,7 @@ value</code>. Transferable and storable
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -93,14 +93,14 @@ value</code>. Transferable and storable
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+<Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
@@ -120,7 +120,7 @@ unique instance of `CoinMetadata<T>` that stores the metadata for this coin type
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -132,7 +132,7 @@ unique instance of `CoinMetadata<T>` that stores the metadata for this coin type
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -152,28 +152,28 @@ value</code> 7002 and decimals 3 should be displayed as 7.002
 </dd>
 <dt>
 <code>
-name: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+name: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  Name for the token
 </dd>
 <dt>
 <code>
-symbol: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link></code>
+symbol: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
  Symbol for the token
 </dd>
 <dt>
 <code>
-description: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link></code>
+description: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  Description of the token
 </dd>
 <dt>
 <code>
-icon_url: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>&gt;</code>
+icon_url: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>&gt;</code>
 </dt>
 <dd>
  URL for the token logo
@@ -192,7 +192,7 @@ This object is always immutable.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/coin.md#0x2_coin_RegulatedCoinMetadata">RegulatedCoinMetadata</Link>&lt;T&gt; <b>has</b> key
+<b>struct</b> <Link href="../iota-framework/coin#0x2_coin_RegulatedCoinMetadata">RegulatedCoinMetadata</Link>&lt;T&gt; <b>has</b> key
 </code></pre>
 
 
@@ -204,21 +204,21 @@ This object is always immutable.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-coin_metadata_object: <Link href="../iota-framework/object.md#0x2_object_ID">object::ID</Link></code>
+coin_metadata_object: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  The ID of the coin's CoinMetadata object.
 </dd>
 <dt>
 <code>
-deny_cap_object: <Link href="../iota-framework/object.md#0x2_object_ID">object::ID</Link></code>
+deny_cap_object: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  The ID of the coin's DenyCap object.
@@ -238,7 +238,7 @@ T</code>. Transferable
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -250,14 +250,14 @@ T</code>. Transferable
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-total_supply: <Link href="../iota-framework/balance.md#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;</code>
+total_supply: <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
@@ -276,7 +276,7 @@ interacting with the coin as an input to a transaction.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt; <b>has</b> store, key
+<b>struct</b> <Link href="../iota-framework/coin#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -288,7 +288,7 @@ interacting with the coin as an input to a transaction.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
+id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -305,7 +305,7 @@ id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/coin.md#0x2_coin_CurrencyCreated">CurrencyCreated</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
+<b>struct</b> <Link href="../iota-framework/coin#0x2_coin_CurrencyCreated">CurrencyCreated</Link>&lt;T&gt; <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -338,7 +338,7 @@ Trying to split a coin more times than its balance allows.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/coin.md#0x2_coin_ENotEnough">ENotEnough</Link>: u64 = 2;
+<b>const</b> <Link href="../iota-framework/coin#0x2_coin_ENotEnough">ENotEnough</Link>: u64 = 2;
 </code></pre>
 
 
@@ -350,7 +350,7 @@ iota::coin::Coin</code> type.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/coin.md#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/coin#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>: u64 = 0;
 </code></pre>
 
 
@@ -361,7 +361,7 @@ A type passed to create_supply is not a one-time witness.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/coin.md#0x2_coin_EBadWitness">EBadWitness</Link>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/coin#0x2_coin_EBadWitness">EBadWitness</Link>: u64 = 0;
 </code></pre>
 
 
@@ -372,7 +372,7 @@ Invalid arguments are passed to a function.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/coin.md#0x2_coin_EInvalidArg">EInvalidArg</Link>: u64 = 1;
+<b>const</b> <Link href="../iota-framework/coin#0x2_coin_EInvalidArg">EInvalidArg</Link>: u64 = 1;
 </code></pre>
 
 
@@ -386,7 +386,7 @@ T</code>'s in circulation.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_total_supply">total_supply</Link>&lt;T&gt;(cap: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_total_supply">total_supply</Link>&lt;T&gt;(cap: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -396,8 +396,8 @@ T</code>'s in circulation.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_total_supply">total_supply</Link>&lt;T&gt;(cap: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): u64 \{
-    <Link href="../iota-framework/balance.md#0x2_balance_supply_value">balance::supply_value</Link>(&cap.total_supply)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_total_supply">total_supply</Link>&lt;T&gt;(cap: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): u64 \{
+    <Link href="../iota-framework/balance#0x2_balance_supply_value">balance::supply_value</Link>(&cap.total_supply)
 }
 </code></pre>
 
@@ -410,16 +410,16 @@ T</code>'s in circulation.
 ## Function `treasury_into_supply`
 
 Unwrap <code>
-<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link></code> getting the <code>
+<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link></code> getting the <code>
 Supply</code>.
 
 Operation is irreversible. Supply cannot be converted into a <code>
-<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link></code> due
+<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link></code> due
 to different security guarantees (TreasuryCap can be created only once for a type)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_treasury_into_supply">treasury_into_supply</Link>&lt;T&gt;(treasury: <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): <Link href="../iota-framework/balance.md#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_treasury_into_supply">treasury_into_supply</Link>&lt;T&gt;(treasury: <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -429,8 +429,8 @@ to different security guarantees (TreasuryCap can be created only once for a typ
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_treasury_into_supply">treasury_into_supply</Link>&lt;T&gt;(treasury: <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): Supply&lt;T&gt; \{
-    <b>let</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link> \{ id, total_supply } = treasury;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_treasury_into_supply">treasury_into_supply</Link>&lt;T&gt;(treasury: <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): Supply&lt;T&gt; \{
+    <b>let</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link> \{ id, total_supply } = treasury;
     id.delete();
     total_supply
 }
@@ -449,7 +449,7 @@ Supply</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_supply_immut">supply_immut</Link>&lt;T&gt;(treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): &<Link href="../iota-framework/balance.md#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_supply_immut">supply_immut</Link>&lt;T&gt;(treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): &<Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -459,7 +459,7 @@ Supply</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_supply_immut">supply_immut</Link>&lt;T&gt;(treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): &Supply&lt;T&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_supply_immut">supply_immut</Link>&lt;T&gt;(treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): &Supply&lt;T&gt; \{
     &treasury.total_supply
 }
 </code></pre>
@@ -477,7 +477,7 @@ Supply</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_supply_mut">supply_mut</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): &<b>mut</b> <Link href="../iota-framework/balance.md#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_supply_mut">supply_mut</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -487,7 +487,7 @@ Supply</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_supply_mut">supply_mut</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): &<b>mut</b> Supply&lt;T&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_supply_mut">supply_mut</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): &<b>mut</b> Supply&lt;T&gt; \{
     &<b>mut</b> treasury.total_supply
 }
 </code></pre>
@@ -504,7 +504,7 @@ Public getter for the coin's value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_value">value</Link>&lt;T&gt;(self: &<Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_value">value</Link>&lt;T&gt;(self: &<Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -514,8 +514,8 @@ Public getter for the coin's value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_value">value</Link>&lt;T&gt;(self: &<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;): u64 \{
-    self.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.<Link href="../iota-framework/coin.md#0x2_coin_value">value</Link>()
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_value">value</Link>&lt;T&gt;(self: &<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;): u64 \{
+    self.<Link href="../iota-framework/balance#0x2_balance">balance</Link>.<Link href="../iota-framework/coin#0x2_coin_value">value</Link>()
 }
 </code></pre>
 
@@ -531,7 +531,7 @@ Get immutable reference to the balance of a coin.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: &<Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): &<Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance">balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin#0x2_coin">coin</Link>: &<Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): &<Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -541,8 +541,8 @@ Get immutable reference to the balance of a coin.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: &<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;): &Balance&lt;T&gt; \{
-    &<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance">balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin#0x2_coin">coin</Link>: &<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;): &Balance&lt;T&gt; \{
+    &<Link href="../iota-framework/coin#0x2_coin">coin</Link>.<Link href="../iota-framework/balance#0x2_balance">balance</Link>
 }
 </code></pre>
 
@@ -558,7 +558,7 @@ Get a mutable reference to the balance of a coin.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_balance_mut">balance_mut</Link>&lt;T&gt;(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): &<b>mut</b> <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_balance_mut">balance_mut</Link>&lt;T&gt;(<Link href="../iota-framework/coin#0x2_coin">coin</Link>: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -568,8 +568,8 @@ Get a mutable reference to the balance of a coin.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_balance_mut">balance_mut</Link>&lt;T&gt;(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;): &<b>mut</b> Balance&lt;T&gt; \{
-    &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin">coin</Link>.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_balance_mut">balance_mut</Link>&lt;T&gt;(<Link href="../iota-framework/coin#0x2_coin">coin</Link>: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;): &<b>mut</b> Balance&lt;T&gt; \{
+    &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin">coin</Link>.<Link href="../iota-framework/balance#0x2_balance">balance</Link>
 }
 </code></pre>
 
@@ -585,7 +585,7 @@ Wrap a balance into a Coin to make it transferable.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_from_balance">from_balance</Link>&lt;T&gt;(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_from_balance">from_balance</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -595,8 +595,8 @@ Wrap a balance into a Coin to make it transferable.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_from_balance">from_balance</Link>&lt;T&gt;(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: Balance&lt;T&gt;, ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{ id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx), <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> }
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_from_balance">from_balance</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: Balance&lt;T&gt;, ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{ id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx), <Link href="../iota-framework/balance#0x2_balance">balance</Link> }
 }
 </code></pre>
 
@@ -612,7 +612,7 @@ Destruct a Coin wrapper and keep the balance.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_into_balance">into_balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_into_balance">into_balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin#0x2_coin">coin</Link>: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -622,10 +622,10 @@ Destruct a Coin wrapper and keep the balance.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_into_balance">into_balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;): Balance&lt;T&gt; \{
-    <b>let</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> } = <Link href="../iota-framework/coin.md#0x2_coin">coin</Link>;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_into_balance">into_balance</Link>&lt;T&gt;(<Link href="../iota-framework/coin#0x2_coin">coin</Link>: <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;): Balance&lt;T&gt; \{
+    <b>let</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance#0x2_balance">balance</Link> } = <Link href="../iota-framework/coin#0x2_coin">coin</Link>;
     id.delete();
-    <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>
+    <Link href="../iota-framework/balance#0x2_balance">balance</Link>
 }
 </code></pre>
 
@@ -638,15 +638,15 @@ Destruct a Coin wrapper and keep the balance.
 ## Function `take`
 
 Take a <code>
-<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link></code> worth of <code>
+<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link></code> worth of <code>
 value</code> from <code>
 Balance</code>.
 Aborts if <code>
-value &gt; <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.value</code>
+value &gt; <Link href="../iota-framework/balance#0x2_balance">balance</Link>.value</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_take">take</Link>&lt;T&gt;(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: &<b>mut</b> <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, value: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_take">take</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, value: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -656,12 +656,12 @@ value &gt; <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_take">take</Link>&lt;T&gt;(
-    <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: &<b>mut</b> Balance&lt;T&gt;, value: u64, ctx: &<b>mut</b> TxContext,
-): <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{
-        id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
-        <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.<Link href="../iota-framework/coin.md#0x2_coin_split">split</Link>(value)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_take">take</Link>&lt;T&gt;(
+    <Link href="../iota-framework/balance#0x2_balance">balance</Link>: &<b>mut</b> Balance&lt;T&gt;, value: u64, ctx: &<b>mut</b> TxContext,
+): <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{
+        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+        <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance">balance</Link>.<Link href="../iota-framework/coin#0x2_coin_split">split</Link>(value)
     }
 }
 </code></pre>
@@ -675,12 +675,12 @@ value &gt; <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.
 ## Function `put`
 
 Put a <code>
-<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;</code> to the <code>
+<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;</code> to the <code>
 Balance&lt;T&gt;</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_put">put</Link>&lt;T&gt;(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: &<b>mut</b> <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_put">put</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin">coin</Link>: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -690,8 +690,8 @@ Balance&lt;T&gt;</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_put">put</Link>&lt;T&gt;(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: &<b>mut</b> Balance&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin">coin</Link>: <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;) \{
-    <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.<Link href="../iota-framework/coin.md#0x2_coin_join">join</Link>(<Link href="../iota-framework/coin.md#0x2_coin_into_balance">into_balance</Link>(<Link href="../iota-framework/coin.md#0x2_coin">coin</Link>));
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_put">put</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: &<b>mut</b> Balance&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin">coin</Link>: <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;) \{
+    <Link href="../iota-framework/balance#0x2_balance">balance</Link>.<Link href="../iota-framework/coin#0x2_coin_join">join</Link>(<Link href="../iota-framework/coin#0x2_coin_into_balance">into_balance</Link>(<Link href="../iota-framework/coin#0x2_coin">coin</Link>));
 }
 </code></pre>
 
@@ -711,7 +711,7 @@ c.value + self.value &gt; U64_MAX</code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -721,10 +721,10 @@ c.value + self.value &gt; U64_MAX</code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;) \{
-    <b>let</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> } = c;
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;) \{
+    <b>let</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance#0x2_balance">balance</Link> } = c;
     id.delete();
-    self.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.<Link href="../iota-framework/coin.md#0x2_coin_join">join</Link>(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>);
+    self.<Link href="../iota-framework/balance#0x2_balance">balance</Link>.<Link href="../iota-framework/coin#0x2_coin_join">join</Link>(<Link href="../iota-framework/balance#0x2_balance">balance</Link>);
 }
 </code></pre>
 
@@ -744,7 +744,7 @@ self</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_split">split</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, split_amount: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_split">split</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, split_amount: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -754,10 +754,10 @@ self</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_split">split</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;, split_amount: u64, ctx: &<b>mut</b> TxContext
-): <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/coin.md#0x2_coin_take">take</Link>(&<b>mut</b> self.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>, split_amount, ctx)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_split">split</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;, split_amount: u64, ctx: &<b>mut</b> TxContext
+): <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/coin#0x2_coin_take">take</Link>(&<b>mut</b> self.<Link href="../iota-framework/balance#0x2_balance">balance</Link>, split_amount, ctx)
 }
 </code></pre>
 
@@ -777,7 +777,7 @@ self</code>. Return newly created coins.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_divide_into_n">divide_into_n</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, n: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_divide_into_n">divide_into_n</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;, n: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;&gt;
 </code></pre>
 
 
@@ -787,17 +787,17 @@ self</code>. Return newly created coins.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_divide_into_n">divide_into_n</Link>&lt;T&gt;(
-    self: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;, n: u64, ctx: &<b>mut</b> TxContext
-): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;&gt; \{
-    <b>assert</b>!(n &gt; 0, <Link href="../iota-framework/coin.md#0x2_coin_EInvalidArg">EInvalidArg</Link>);
-    <b>assert</b>!(n &lt;= <Link href="../iota-framework/coin.md#0x2_coin_value">value</Link>(self), <Link href="../iota-framework/coin.md#0x2_coin_ENotEnough">ENotEnough</Link>);
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_divide_into_n">divide_into_n</Link>&lt;T&gt;(
+    self: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;, n: u64, ctx: &<b>mut</b> TxContext
+): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;&gt; \{
+    <b>assert</b>!(n &gt; 0, <Link href="../iota-framework/coin#0x2_coin_EInvalidArg">EInvalidArg</Link>);
+    <b>assert</b>!(n &lt;= <Link href="../iota-framework/coin#0x2_coin_value">value</Link>(self), <Link href="../iota-framework/coin#0x2_coin_ENotEnough">ENotEnough</Link>);
 
-    <b>let</b> <b>mut</b> vec = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
+    <b>let</b> <b>mut</b> vec = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
-    <b>let</b> split_amount = <Link href="../iota-framework/coin.md#0x2_coin_value">value</Link>(self) / n;
+    <b>let</b> split_amount = <Link href="../iota-framework/coin#0x2_coin_value">value</Link>(self) / n;
     <b>while</b> (i &lt; n - 1) \{
-        vec.push_back(self.<Link href="../iota-framework/coin.md#0x2_coin_split">split</Link>(split_amount, ctx));
+        vec.push_back(self.<Link href="../iota-framework/coin#0x2_coin_split">split</Link>(split_amount, ctx));
         i = i + 1;
     };
     vec
@@ -817,7 +817,7 @@ bids/payments or preemptively making empty balances.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -827,8 +827,8 @@ bids/payments or preemptively making empty balances.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{ id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx), <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</Link>() }
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_zero">zero</Link>&lt;T&gt;(ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{ id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx), <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>() }
 }
 </code></pre>
 
@@ -844,7 +844,7 @@ Destroy a coin with value zero
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_destroy_zero">destroy_zero</Link>&lt;T&gt;(c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_destroy_zero">destroy_zero</Link>&lt;T&gt;(c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -854,10 +854,10 @@ Destroy a coin with value zero
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_destroy_zero">destroy_zero</Link>&lt;T&gt;(c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;) \{
-    <b>let</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> } = c;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_destroy_zero">destroy_zero</Link>&lt;T&gt;(c: <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;) \{
+    <b>let</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance#0x2_balance">balance</Link> } = c;
     id.delete();
-    <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.<Link href="../iota-framework/coin.md#0x2_coin_destroy_zero">destroy_zero</Link>()
+    <Link href="../iota-framework/balance#0x2_balance">balance</Link>.<Link href="../iota-framework/coin#0x2_coin_destroy_zero">destroy_zero</Link>()
 }
 </code></pre>
 
@@ -871,17 +871,17 @@ Destroy a coin with value zero
 
 Create a new currency type <code>
 T</code> as and return the <code>
-<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link></code> for
+<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link></code> for
 <code>
 T</code> to the caller. Can only be called with a <code>
 one-time-witness</code>
 type, ensuring that there's only one <code>
-<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link></code> per <code>
+<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link></code> per <code>
 T</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_create_currency">create_currency</Link>&lt;T: drop&gt;(witness: T, decimals: u8, symbol: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, name: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, description: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, icon_url: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_create_currency">create_currency</Link>&lt;T: drop&gt;(witness: T, decimals: u8, symbol: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, name: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, description: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, icon_url: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -891,29 +891,29 @@ T</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_create_currency">create_currency</Link>&lt;T: drop&gt;(
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_create_currency">create_currency</Link>&lt;T: drop&gt;(
     witness: T,
     decimals: u8,
-    symbol: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;,
-    name: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;,
-    description: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;,
+    symbol: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
+    name: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
+    description: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
     icon_url: Option&lt;Url&gt;,
     ctx: &<b>mut</b> TxContext
-): (<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;) \{
+): (<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;) \{
     // Make sure there's only one instance of the type T
-    <b>assert</b>!(iota::types::is_one_time_witness(&witness), <Link href="../iota-framework/coin.md#0x2_coin_EBadWitness">EBadWitness</Link>);
+    <b>assert</b>!(iota::types::is_one_time_witness(&witness), <Link href="../iota-framework/coin#0x2_coin_EBadWitness">EBadWitness</Link>);
 
     (
-        <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link> \{
-            id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
-            total_supply: <Link href="../iota-framework/balance.md#0x2_balance_create_supply">balance::create_supply</Link>(witness)
+        <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link> \{
+            id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+            total_supply: <Link href="../iota-framework/balance#0x2_balance_create_supply">balance::create_supply</Link>(witness)
         },
-        <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link> \{
-            id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
+        <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link> \{
+            id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
             decimals,
-            name: <Link href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</Link>(name),
-            symbol: <Link href="../move-stdlib/ascii.md#0x1_ascii_string">ascii::string</Link>(symbol),
-            description: <Link href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</Link>(description),
+            name: <Link href="../move-stdlib/string#0x1_string_utf8">string::utf8</Link>(name),
+            symbol: <Link href="../move-stdlib/ascii#0x1_ascii_string">ascii::string</Link>(symbol),
+            description: <Link href="../move-stdlib/string#0x1_string_utf8">string::utf8</Link>(description),
             icon_url
         }
     )
@@ -935,7 +935,7 @@ with the coin as input objects.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_create_regulated_currency">create_regulated_currency</Link>&lt;T: drop&gt;(witness: T, decimals: u8, symbol: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, name: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, description: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, icon_url: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">coin::DenyCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_create_regulated_currency">create_regulated_currency</Link>&lt;T: drop&gt;(witness: T, decimals: u8, symbol: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, name: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, description: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, icon_url: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin_DenyCap">coin::DenyCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -945,16 +945,16 @@ with the coin as input objects.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_create_regulated_currency">create_regulated_currency</Link>&lt;T: drop&gt;(
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_create_regulated_currency">create_regulated_currency</Link>&lt;T: drop&gt;(
     witness: T,
     decimals: u8,
-    symbol: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;,
-    name: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;,
-    description: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;,
+    symbol: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
+    name: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
+    description: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
     icon_url: Option&lt;Url&gt;,
     ctx: &<b>mut</b> TxContext
-): (<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;) \{
-    <b>let</b> (treasury_cap, metadata) = <Link href="../iota-framework/coin.md#0x2_coin_create_currency">create_currency</Link>(
+): (<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt;, <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;) \{
+    <b>let</b> (treasury_cap, metadata) = <Link href="../iota-framework/coin#0x2_coin_create_currency">create_currency</Link>(
         witness,
         decimals,
         symbol,
@@ -963,13 +963,13 @@ with the coin as input objects.
         icon_url,
         ctx
     );
-    <b>let</b> deny_cap = <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">DenyCap</Link> \{
-        id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
+    <b>let</b> deny_cap = <Link href="../iota-framework/coin#0x2_coin_DenyCap">DenyCap</Link> \{
+        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
     };
-    <Link href="../iota-framework/transfer.md#0x2_transfer_freeze_object">transfer::freeze_object</Link>(<Link href="../iota-framework/coin.md#0x2_coin_RegulatedCoinMetadata">RegulatedCoinMetadata</Link>&lt;T&gt; \{
-        id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
-        coin_metadata_object: <Link href="../iota-framework/object.md#0x2_object_id">object::id</Link>(&metadata),
-        deny_cap_object: <Link href="../iota-framework/object.md#0x2_object_id">object::id</Link>(&deny_cap),
+    <Link href="../iota-framework/transfer#0x2_transfer_freeze_object">transfer::freeze_object</Link>(<Link href="../iota-framework/coin#0x2_coin_RegulatedCoinMetadata">RegulatedCoinMetadata</Link>&lt;T&gt; \{
+        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+        coin_metadata_object: <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(&metadata),
+        deny_cap_object: <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(&deny_cap),
     });
     (treasury_cap, deny_cap, metadata)
 }
@@ -990,7 +990,7 @@ cap</code> accordingly.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_mint">mint</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, value: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_mint">mint</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, value: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -1000,12 +1000,12 @@ cap</code> accordingly.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_mint">mint</Link>&lt;T&gt;(
-    cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, value: u64, ctx: &<b>mut</b> TxContext,
-): <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{
-        id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
-        <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: cap.total_supply.increase_supply(value)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_mint">mint</Link>&lt;T&gt;(
+    cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, value: u64, ctx: &<b>mut</b> TxContext,
+): <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{
+        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+        <Link href="../iota-framework/balance#0x2_balance">balance</Link>: cap.total_supply.increase_supply(value)
     }
 }
 </code></pre>
@@ -1028,7 +1028,7 @@ cap.total_supply</code> >= U64_MAX
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_mint_balance">mint_balance</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, value: u64): <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_mint_balance">mint_balance</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, value: u64): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -1038,8 +1038,8 @@ cap.total_supply</code> >= U64_MAX
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_mint_balance">mint_balance</Link>&lt;T&gt;(
-    cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, value: u64
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_mint_balance">mint_balance</Link>&lt;T&gt;(
+    cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, value: u64
 ): Balance&lt;T&gt; \{
     cap.total_supply.increase_supply(value)
 }
@@ -1060,7 +1060,7 @@ accordingly.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): u64
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -1070,10 +1070,10 @@ accordingly.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link>&lt;T&gt;): u64 \{
-    <b>let</b> <Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> } = c;
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_burn">burn</Link>&lt;T&gt;(cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, c: <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link>&lt;T&gt;): u64 \{
+    <b>let</b> <Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link> \{ id, <Link href="../iota-framework/balance#0x2_balance">balance</Link> } = c;
     id.delete();
-    cap.total_supply.decrease_supply(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>)
+    cap.total_supply.decrease_supply(<Link href="../iota-framework/balance#0x2_balance">balance</Link>)
 }
 </code></pre>
 
@@ -1090,7 +1090,7 @@ from interacting with the specified coin type as an input to a transaction.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_deny_list_add">deny_list_add</Link>&lt;T&gt;(<Link href="../iota-framework/deny_list.md#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link href="../iota-framework/deny_list.md#0x2_deny_list_DenyList">deny_list::DenyList</Link>, _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">coin::DenyCap</Link>&lt;T&gt;, addr: <b>address</b>, _ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_deny_list_add">deny_list_add</Link>&lt;T&gt;(<Link href="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link href="../iota-framework/deny_list#0x2_deny_list_DenyList">deny_list::DenyList</Link>, _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_DenyCap">coin::DenyCap</Link>&lt;T&gt;, addr: <b>address</b>, _ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1100,17 +1100,17 @@ from interacting with the specified coin type as an input to a transaction.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_deny_list_add">deny_list_add</Link>&lt;T&gt;(
-   <Link href="../iota-framework/deny_list.md#0x2_deny_list">deny_list</Link>: &<b>mut</b> DenyList,
-   _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_deny_list_add">deny_list_add</Link>&lt;T&gt;(
+   <Link href="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> DenyList,
+   _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt;,
    addr: <b>address</b>,
    _ctx: &<b>mut</b> TxContext
 ) \{
     <b>let</b> `type` =
-        <Link href="../move-stdlib/type_name.md#0x1_type_name_into_string">type_name::into_string</Link>(<Link href="../move-stdlib/type_name.md#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;()).into_bytes();
-    <Link href="../iota-framework/deny_list.md#0x2_deny_list_add">deny_list::add</Link>(
-        <Link href="../iota-framework/deny_list.md#0x2_deny_list">deny_list</Link>,
-        <Link href="../iota-framework/coin.md#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>,
+        <Link href="../move-stdlib/type_name#0x1_type_name_into_string">type_name::into_string</Link>(<Link href="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;()).into_bytes();
+    <Link href="../iota-framework/deny_list#0x2_deny_list_add">deny_list::add</Link>(
+        <Link href="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>,
+        <Link href="../iota-framework/coin#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>,
         `type`,
         addr,
     )
@@ -1131,7 +1131,7 @@ ENotFrozen</code> if the address is not already in the list.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_deny_list_remove">deny_list_remove</Link>&lt;T&gt;(<Link href="../iota-framework/deny_list.md#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link href="../iota-framework/deny_list.md#0x2_deny_list_DenyList">deny_list::DenyList</Link>, _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">coin::DenyCap</Link>&lt;T&gt;, addr: <b>address</b>, _ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_deny_list_remove">deny_list_remove</Link>&lt;T&gt;(<Link href="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link href="../iota-framework/deny_list#0x2_deny_list_DenyList">deny_list::DenyList</Link>, _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_DenyCap">coin::DenyCap</Link>&lt;T&gt;, addr: <b>address</b>, _ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1141,17 +1141,17 @@ ENotFrozen</code> if the address is not already in the list.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_deny_list_remove">deny_list_remove</Link>&lt;T&gt;(
-   <Link href="../iota-framework/deny_list.md#0x2_deny_list">deny_list</Link>: &<b>mut</b> DenyList,
-   _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt;,
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_deny_list_remove">deny_list_remove</Link>&lt;T&gt;(
+   <Link href="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> DenyList,
+   _deny_cap: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_DenyCap">DenyCap</Link>&lt;T&gt;,
    addr: <b>address</b>,
    _ctx: &<b>mut</b> TxContext
 ) \{
     <b>let</b> `type` =
-        <Link href="../move-stdlib/type_name.md#0x1_type_name_into_string">type_name::into_string</Link>(<Link href="../move-stdlib/type_name.md#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;()).into_bytes();
-    <Link href="../iota-framework/deny_list.md#0x2_deny_list_remove">deny_list::remove</Link>(
-        <Link href="../iota-framework/deny_list.md#0x2_deny_list">deny_list</Link>,
-        <Link href="../iota-framework/coin.md#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>,
+        <Link href="../move-stdlib/type_name#0x1_type_name_into_string">type_name::into_string</Link>(<Link href="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;()).into_bytes();
+    <Link href="../iota-framework/deny_list#0x2_deny_list_remove">deny_list::remove</Link>(
+        <Link href="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>,
+        <Link href="../iota-framework/coin#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>,
         `type`,
         addr,
     )
@@ -1171,7 +1171,7 @@ return false if given a non-coin type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_deny_list_contains">deny_list_contains</Link>&lt;T&gt;(freezer: &<Link href="../iota-framework/deny_list.md#0x2_deny_list_DenyList">deny_list::DenyList</Link>, addr: <b>address</b>): bool
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_deny_list_contains">deny_list_contains</Link>&lt;T&gt;(freezer: &<Link href="../iota-framework/deny_list#0x2_deny_list_DenyList">deny_list::DenyList</Link>, addr: <b>address</b>): bool
 </code></pre>
 
 
@@ -1181,15 +1181,15 @@ return false if given a non-coin type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_deny_list_contains">deny_list_contains</Link>&lt;T&gt;(
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_deny_list_contains">deny_list_contains</Link>&lt;T&gt;(
    freezer: &DenyList,
    addr: <b>address</b>,
 ): bool \{
-    <b>let</b> name = <Link href="../move-stdlib/type_name.md#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;();
-    <b>if</b> (<Link href="../move-stdlib/type_name.md#0x1_type_name_is_primitive">type_name::is_primitive</Link>(&name)) <b>return</b> <b>false</b>;
+    <b>let</b> name = <Link href="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;();
+    <b>if</b> (<Link href="../move-stdlib/type_name#0x1_type_name_is_primitive">type_name::is_primitive</Link>(&name)) <b>return</b> <b>false</b>;
 
-    <b>let</b> `type` = <Link href="../move-stdlib/type_name.md#0x1_type_name_into_string">type_name::into_string</Link>(name).into_bytes();
-    freezer.contains(<Link href="../iota-framework/coin.md#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>, `type`, addr)
+    <b>let</b> `type` = <Link href="../move-stdlib/type_name#0x1_type_name_into_string">type_name::into_string</Link>(name).into_bytes();
+    freezer.contains(<Link href="../iota-framework/coin#0x2_coin_DENY_LIST_COIN_INDEX">DENY_LIST_COIN_INDEX</Link>, `type`, addr)
 }
 </code></pre>
 
@@ -1203,13 +1203,13 @@ return false if given a non-coin type.
 
 Mint <code>
 amount</code> of <code>
-<Link href="../iota-framework/coin.md#0x2_coin_Coin">Coin</Link></code> and send it to <code>
+<Link href="../iota-framework/coin#0x2_coin_Coin">Coin</Link></code> and send it to <code>
 recipient</code>. Invokes <code>
-<Link href="../iota-framework/coin.md#0x2_coin_mint">mint</Link>()</code>.
+<Link href="../iota-framework/coin#0x2_coin_mint">mint</Link>()</code>.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_mint_and_transfer">mint_and_transfer</Link>&lt;T&gt;(c: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, amount: u64, recipient: <b>address</b>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_mint_and_transfer">mint_and_transfer</Link>&lt;T&gt;(c: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, amount: u64, recipient: <b>address</b>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1219,10 +1219,10 @@ recipient</code>. Invokes <code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_mint_and_transfer">mint_and_transfer</Link>&lt;T&gt;(
-    c: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, amount: u64, recipient: <b>address</b>, ctx: &<b>mut</b> TxContext
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_mint_and_transfer">mint_and_transfer</Link>&lt;T&gt;(
+    c: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, amount: u64, recipient: <b>address</b>, ctx: &<b>mut</b> TxContext
 ) \{
-    <Link href="../iota-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</Link>(<Link href="../iota-framework/coin.md#0x2_coin_mint">mint</Link>(c, amount, ctx), recipient)
+    <Link href="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(<Link href="../iota-framework/coin#0x2_coin_mint">mint</Link>(c, amount, ctx), recipient)
 }
 </code></pre>
 
@@ -1235,11 +1235,11 @@ recipient</code>. Invokes <code>
 ## Function `update_name`
 
 Update name of the coin in <code>
-<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
+<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_name">update_name</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, name: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_name">update_name</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, name: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>)
 </code></pre>
 
 
@@ -1249,8 +1249,8 @@ Update name of the coin in <code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_name">update_name</Link>&lt;T&gt;(
-    _treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, name: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_name">update_name</Link>&lt;T&gt;(
+    _treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, name: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 ) \{
     metadata.name = name;
 }
@@ -1265,11 +1265,11 @@ Update name of the coin in <code>
 ## Function `update_symbol`
 
 Update the symbol of the coin in <code>
-<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
+<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_symbol">update_symbol</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, symbol: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_symbol">update_symbol</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, symbol: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>)
 </code></pre>
 
 
@@ -1279,8 +1279,8 @@ Update the symbol of the coin in <code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_symbol">update_symbol</Link>&lt;T&gt;(
-    _treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, symbol: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_symbol">update_symbol</Link>&lt;T&gt;(
+    _treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, symbol: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 ) \{
     metadata.symbol = symbol;
 }
@@ -1295,11 +1295,11 @@ Update the symbol of the coin in <code>
 ## Function `update_description`
 
 Update the description of the coin in <code>
-<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
+<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_description">update_description</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, description: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_description">update_description</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, description: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>)
 </code></pre>
 
 
@@ -1309,8 +1309,8 @@ Update the description of the coin in <code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_description">update_description</Link>&lt;T&gt;(
-    _treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, description: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_description">update_description</Link>&lt;T&gt;(
+    _treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, description: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 ) \{
     metadata.description = description;
 }
@@ -1325,11 +1325,11 @@ Update the description of the coin in <code>
 ## Function `update_icon_url`
 
 Update the url of the coin in <code>
-<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
+<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link></code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_icon_url">update_icon_url</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, <Link href="../iota-framework/url.md#0x2_url">url</Link>: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_icon_url">update_icon_url</Link>&lt;T&gt;(_treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;, <Link href="../iota-framework/url#0x2_url">url</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>)
 </code></pre>
 
 
@@ -1339,10 +1339,10 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_update_icon_url">update_icon_url</Link>&lt;T&gt;(
-    _treasury: &<Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, <Link href="../iota-framework/url.md#0x2_url">url</Link>: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_update_icon_url">update_icon_url</Link>&lt;T&gt;(
+    _treasury: &<Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;, metadata: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;, <Link href="../iota-framework/url#0x2_url">url</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 ) \{
-    metadata.icon_url = <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(<Link href="../iota-framework/url.md#0x2_url_new_unsafe">url::new_unsafe</Link>(<Link href="../iota-framework/url.md#0x2_url">url</Link>));
+    metadata.icon_url = <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link href="../iota-framework/url#0x2_url_new_unsafe">url::new_unsafe</Link>(<Link href="../iota-framework/url#0x2_url">url</Link>));
 }
 </code></pre>
 
@@ -1357,7 +1357,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_decimals">get_decimals</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): u8
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_decimals">get_decimals</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): u8
 </code></pre>
 
 
@@ -1367,7 +1367,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_decimals">get_decimals</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): u8 \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_decimals">get_decimals</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): u8 \{
     metadata.decimals
 }
 </code></pre>
@@ -1383,7 +1383,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_name">get_name</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_name">get_name</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -1393,7 +1393,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_name">get_name</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link> \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_name">get_name</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link> \{
     metadata.name
 }
 </code></pre>
@@ -1409,7 +1409,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_symbol">get_symbol</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_symbol">get_symbol</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </code></pre>
 
 
@@ -1419,7 +1419,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_symbol">get_symbol</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link> \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_symbol">get_symbol</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link> \{
     metadata.symbol
 }
 </code></pre>
@@ -1435,7 +1435,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_description">get_description</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_description">get_description</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -1445,7 +1445,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_description">get_description</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link> \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_description">get_description</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/string#0x1_string_String">string::String</Link> \{
     metadata.description
 }
 </code></pre>
@@ -1461,7 +1461,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_icon_url">get_icon_url</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url.md#0x2_url_Url">url::Url</Link>&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_icon_url">get_icon_url</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">coin::CoinMetadata</Link>&lt;T&gt;): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>&gt;
 </code></pre>
 
 
@@ -1471,7 +1471,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_get_icon_url">get_icon_url</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin.md#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): Option&lt;Url&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_get_icon_url">get_icon_url</Link>&lt;T&gt;(metadata: &<Link href="../iota-framework/coin#0x2_coin_CoinMetadata">CoinMetadata</Link>&lt;T&gt;): Option&lt;Url&gt; \{
     metadata.icon_url
 }
 </code></pre>
@@ -1487,7 +1487,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_supply">supply</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): &<Link href="../iota-framework/balance.md#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_supply">supply</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;T&gt;): &<Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -1497,7 +1497,7 @@ Update the url of the coin in <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/coin.md#0x2_coin_supply">supply</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin.md#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): &Supply&lt;T&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/coin#0x2_coin_supply">supply</Link>&lt;T&gt;(treasury: &<b>mut</b> <Link href="../iota-framework/coin#0x2_coin_TreasuryCap">TreasuryCap</Link>&lt;T&gt;): &Supply&lt;T&gt; \{
     &treasury.total_supply
 }
 </code></pre>

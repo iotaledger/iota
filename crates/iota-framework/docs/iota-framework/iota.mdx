@@ -14,12 +14,12 @@ It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../iota-framework/balance.md#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/coin.md#0x2_coin">0x2::coin</Link>;
-<b>use</b> <Link href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="../iota-framework/url.md#0x2_url">0x2::url</Link>;
+<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
+<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../iota-framework/url#0x2_url">0x2::url</Link>;
 </code></pre>
 
 
@@ -32,7 +32,7 @@ Name of the coin
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link> <b>has</b> drop
+<b>struct</b> <Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -65,7 +65,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/iota.md#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 1;
+<b>const</b> <Link href="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 1;
 </code></pre>
 
 
@@ -75,7 +75,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/iota.md#0x2_iota_EAlreadyMinted">EAlreadyMinted</Link>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/iota#0x2_iota_EAlreadyMinted">EAlreadyMinted</Link>: u64 = 0;
 </code></pre>
 
 
@@ -87,7 +87,7 @@ The amount of Nanos per IOTA token based on the fact that nano is
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/iota.md#0x2_iota_NANO_PER_IOTA">NANO_PER_IOTA</Link>: u64 = 1000000000;
+<b>const</b> <Link href="../iota-framework/iota#0x2_iota_NANO_PER_IOTA">NANO_PER_IOTA</Link>: u64 = 1000000000;
 </code></pre>
 
 
@@ -98,7 +98,7 @@ The total supply of IOTA denominated in Nano (4.6 Billion * 10^9)
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</Link>: u64 = 4600000000000000000;
+<b>const</b> <Link href="../iota-framework/iota#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</Link>: u64 = 4600000000000000000;
 </code></pre>
 
 
@@ -108,13 +108,13 @@ The total supply of IOTA denominated in Nano (4.6 Billion * 10^9)
 ## Function `new`
 
 Register the <code>
-<Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link></code> Coin to acquire its <code>
+<Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link></code> Coin to acquire its <code>
 Supply</code>.
 This should be called only once during genesis creation.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/iota.md#0x2_iota_new">new</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>fun</b> <Link href="../iota-framework/iota#0x2_iota_new">new</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -124,22 +124,22 @@ This should be called only once during genesis creation.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/iota.md#0x2_iota_new">new</Link>(ctx: &<b>mut</b> TxContext): Balance&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link>&gt; \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/iota.md#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
-    <b>assert</b>!(ctx.epoch() == 0, <Link href="../iota-framework/iota.md#0x2_iota_EAlreadyMinted">EAlreadyMinted</Link>);
+<b>fun</b> <Link href="../iota-framework/iota#0x2_iota_new">new</Link>(ctx: &<b>mut</b> TxContext): Balance&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt; \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
+    <b>assert</b>!(ctx.epoch() == 0, <Link href="../iota-framework/iota#0x2_iota_EAlreadyMinted">EAlreadyMinted</Link>);
 
-    <b>let</b> (treasury, metadata) = <Link href="../iota-framework/coin.md#0x2_coin_create_currency">coin::create_currency</Link>(
-        <Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link> \{},
+    <b>let</b> (treasury, metadata) = <Link href="../iota-framework/coin#0x2_coin_create_currency">coin::create_currency</Link>(
+        <Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link> \{},
         9,
-        b"<Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link>",
-        b"<Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link>",
-        b"The main (gas)token of the <Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link> Network.",
-        <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(<Link href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</Link>(b"https://<Link href="../iota-framework/iota.md#0x2_iota">iota</Link>.org/logo.png")),
+        b"<Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>",
+        b"<Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>",
+        b"The main (gas)token of the <Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link> Network.",
+        <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link href="../iota-framework/url#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</Link>(b"https://<Link href="../iota-framework/iota#0x2_iota">iota</Link>.org/logo.png")),
         ctx
     );
-    <Link href="../iota-framework/transfer.md#0x2_transfer_public_freeze_object">transfer::public_freeze_object</Link>(metadata);
+    <Link href="../iota-framework/transfer#0x2_transfer_public_freeze_object">transfer::public_freeze_object</Link>(metadata);
     <b>let</b> <b>mut</b> supply = treasury.treasury_into_supply();
-    <b>let</b> total_iota = supply.increase_supply(<Link href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</Link>);
+    <b>let</b> total_iota = supply.increase_supply(<Link href="../iota-framework/iota#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</Link>);
     supply.destroy_supply();
     total_iota
 }
@@ -156,7 +156,7 @@ This should be called only once during genesis creation.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/transfer.md#0x2_transfer">transfer</Link>(c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;, recipient: <b>address</b>)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, recipient: <b>address</b>)
 </code></pre>
 
 
@@ -166,8 +166,8 @@ This should be called only once during genesis creation.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/transfer.md#0x2_transfer">transfer</Link>(c: <Link href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</Link>&gt;, recipient: <b>address</b>) \{
-    <Link href="../iota-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</Link>(c, recipient)
+<b>public</b> entry <b>fun</b> <Link href="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt;, recipient: <b>address</b>) \{
+    <Link href="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(c, recipient)
 }
 </code></pre>
 

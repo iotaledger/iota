@@ -28,7 +28,7 @@ This module defines the Option type and its methods to represent and handle an o
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/vector.md#0x1_vector">0x1::vector</Link>;
+<b>use</b> <Link href="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
 </code></pre>
 
 
@@ -42,7 +42,7 @@ zero or one because Move bytecode does not have ADTs.
 
 
 <pre><code>
-<b>struct</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -54,7 +54,7 @@ zero or one because Move bytecode does not have ADTs.
 <dl>
 <dt>
 <code>
-vec: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Element&gt;</code>
+vec: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;</code>
 </dt>
 <dd>
 
@@ -72,15 +72,15 @@ vec: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Element&g
 <Link id="0x1_option_EOPTION_IS_SET"></Link>
 
 The <code>
-<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link></code> is in an invalid state for the operation attempted.
+<Link href="../move-stdlib/option#0x1_option_Option">Option</Link></code> is in an invalid state for the operation attempted.
 The <code>
-<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link></code> is <code>
+<Link href="../move-stdlib/option#0x1_option_Option">Option</Link></code> is <code>
 Some</code> while it should be <code>
 None</code>.
 
 
 <pre><code>
-<b>const</b> <Link href="../move-stdlib/option.md#0x1_option_EOPTION_IS_SET">EOPTION_IS_SET</Link>: u64 = 262144;
+<b>const</b> <Link href="../move-stdlib/option#0x1_option_EOPTION_IS_SET">EOPTION_IS_SET</Link>: u64 = 262144;
 </code></pre>
 
 
@@ -88,15 +88,15 @@ None</code>.
 <Link id="0x1_option_EOPTION_NOT_SET"></Link>
 
 The <code>
-<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link></code> is in an invalid state for the operation attempted.
+<Link href="../move-stdlib/option#0x1_option_Option">Option</Link></code> is in an invalid state for the operation attempted.
 The <code>
-<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link></code> is <code>
+<Link href="../move-stdlib/option#0x1_option_Option">Option</Link></code> is <code>
 None</code> while it should be <code>
 Some</code>.
 
 
 <pre><code>
-<b>const</b> <Link href="../move-stdlib/option.md#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>: u64 = 262145;
+<b>const</b> <Link href="../move-stdlib/option#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>: u64 = 262145;
 </code></pre>
 
 
@@ -106,11 +106,11 @@ Some</code>.
 ## Function `none`
 
 Return an empty <code>
-<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link></code>
+<Link href="../move-stdlib/option#0x1_option_Option">Option</Link></code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_none">none</Link>&lt;Element&gt;(): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_none">none</Link>&lt;Element&gt;(): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;
 </code></pre>
 
 
@@ -120,8 +120,8 @@ Return an empty <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_none">none</Link>&lt;Element&gt;(): <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt; \{
-    <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link> \{ vec: <Link href="../move-stdlib/vector.md#0x1_vector_empty">vector::empty</Link>() }
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_none">none</Link>&lt;Element&gt;(): <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt; \{
+    <Link href="../move-stdlib/option#0x1_option_Option">Option</Link> \{ vec: <Link href="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>() }
 }
 </code></pre>
 
@@ -134,12 +134,12 @@ Return an empty <code>
 ## Function `some`
 
 Return an <code>
-<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link></code> containing <code>
+<Link href="../move-stdlib/option#0x1_option_Option">Option</Link></code> containing <code>
 e</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_some">some</Link>&lt;Element&gt;(e: Element): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_some">some</Link>&lt;Element&gt;(e: Element): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;
 </code></pre>
 
 
@@ -149,8 +149,8 @@ e</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_some">some</Link>&lt;Element&gt;(e: Element): <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt; \{
-    <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link> \{ vec: <Link href="../move-stdlib/vector.md#0x1_vector_singleton">vector::singleton</Link>(e) }
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_some">some</Link>&lt;Element&gt;(e: Element): <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt; \{
+    <Link href="../move-stdlib/option#0x1_option_Option">Option</Link> \{ vec: <Link href="../move-stdlib/vector#0x1_vector_singleton">vector::singleton</Link>(e) }
 }
 </code></pre>
 
@@ -167,7 +167,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_is_none">is_none</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): bool
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_is_none">is_none</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): bool
 </code></pre>
 
 
@@ -177,7 +177,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_is_none">is_none</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): bool \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_is_none">is_none</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): bool \{
     t.vec.is_empty()
 }
 </code></pre>
@@ -195,7 +195,7 @@ t</code> holds a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): bool
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): bool
 </code></pre>
 
 
@@ -205,7 +205,7 @@ t</code> holds a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): bool \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): bool \{
     !t.vec.is_empty()
 }
 </code></pre>
@@ -227,7 +227,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_contains">contains</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e_ref: &Element): bool
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_contains">contains</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e_ref: &Element): bool
 </code></pre>
 
 
@@ -237,8 +237,8 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_contains">contains</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;, e_ref: &Element): bool \{
-    t.vec.<Link href="../move-stdlib/option.md#0x1_option_contains">contains</Link>(e_ref)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_contains">contains</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;, e_ref: &Element): bool \{
+    t.vec.<Link href="../move-stdlib/option#0x1_option_contains">contains</Link>(e_ref)
 }
 </code></pre>
 
@@ -257,7 +257,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_borrow">borrow</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): &Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_borrow">borrow</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): &Element
 </code></pre>
 
 
@@ -267,8 +267,8 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_borrow">borrow</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): &Element \{
-    <b>assert</b>!(t.<Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option.md#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_borrow">borrow</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): &Element \{
+    <b>assert</b>!(t.<Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
     &t.vec[0]
 }
 </code></pre>
@@ -289,7 +289,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_borrow_with_default">borrow_with_default</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, default_ref: &Element): &Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_borrow_with_default">borrow_with_default</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, default_ref: &Element): &Element
 </code></pre>
 
 
@@ -299,7 +299,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_borrow_with_default">borrow_with_default</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;, default_ref: &Element): &Element \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_borrow_with_default">borrow_with_default</Link>&lt;Element&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;, default_ref: &Element): &Element \{
     <b>let</b> vec_ref = &t.vec;
     <b>if</b> (vec_ref.is_empty()) default_ref
     <b>else</b> &vec_ref[0]
@@ -322,7 +322,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_get_with_default">get_with_default</Link>&lt;Element: <b>copy</b>, drop&gt;(t: &<Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, default: Element): Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_get_with_default">get_with_default</Link>&lt;Element: <b>copy</b>, drop&gt;(t: &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, default: Element): Element
 </code></pre>
 
 
@@ -332,8 +332,8 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_get_with_default">get_with_default</Link>&lt;Element: <b>copy</b> + drop&gt;(
-    t: &<Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;,
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_get_with_default">get_with_default</Link>&lt;Element: <b>copy</b> + drop&gt;(
+    t: &<Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;,
     default: Element,
 ): Element \{
     <b>let</b> vec_ref = &t.vec;
@@ -358,7 +358,7 @@ t</code> already holds a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_fill">fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e: Element)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_fill">fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e: Element)
 </code></pre>
 
 
@@ -368,10 +368,10 @@ t</code> already holds a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_fill">fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;, e: Element) \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_fill">fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;, e: Element) \{
     <b>let</b> vec_ref = &<b>mut</b> t.vec;
     <b>if</b> (vec_ref.is_empty()) vec_ref.push_back(e)
-    <b>else</b> <b>abort</b> <Link href="../move-stdlib/option.md#0x1_option_EOPTION_IS_SET">EOPTION_IS_SET</Link>
+    <b>else</b> <b>abort</b> <Link href="../move-stdlib/option#0x1_option_EOPTION_IS_SET">EOPTION_IS_SET</Link>
 }
 </code></pre>
 
@@ -392,7 +392,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_extract">extract</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_extract">extract</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): Element
 </code></pre>
 
 
@@ -402,8 +402,8 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_extract">extract</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): Element \{
-    <b>assert</b>!(t.<Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option.md#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_extract">extract</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): Element \{
+    <b>assert</b>!(t.<Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
     t.vec.pop_back()
 }
 </code></pre>
@@ -423,7 +423,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_borrow_mut">borrow_mut</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): &<b>mut</b> Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_borrow_mut">borrow_mut</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): &<b>mut</b> Element
 </code></pre>
 
 
@@ -433,8 +433,8 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_borrow_mut">borrow_mut</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): &<b>mut</b> Element \{
-    <b>assert</b>!(t.<Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option.md#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_borrow_mut">borrow_mut</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): &<b>mut</b> Element \{
+    <b>assert</b>!(t.<Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
     &<b>mut</b> t.vec[0]
 }
 </code></pre>
@@ -455,7 +455,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_swap">swap</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e: Element): Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_swap">swap</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e: Element): Element
 </code></pre>
 
 
@@ -465,8 +465,8 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_swap">swap</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;, e: Element): Element \{
-    <b>assert</b>!(t.<Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option.md#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_swap">swap</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;, e: Element): Element \{
+    <b>assert</b>!(t.<Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
     <b>let</b> vec_ref = &<b>mut</b> t.vec;
     <b>let</b> old_value = vec_ref.pop_back();
     vec_ref.push_back(e);
@@ -492,7 +492,7 @@ t</code> not holding a value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_swap_or_fill">swap_or_fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e: Element): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_swap_or_fill">swap_or_fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, e: Element): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;
 </code></pre>
 
 
@@ -502,10 +502,10 @@ t</code> not holding a value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_swap_or_fill">swap_or_fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;, e: Element): <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt; \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_swap_or_fill">swap_or_fill</Link>&lt;Element&gt;(t: &<b>mut</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;, e: Element): <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt; \{
     <b>let</b> vec_ref = &<b>mut</b> t.vec;
-    <b>let</b> old_value = <b>if</b> (vec_ref.is_empty()) <Link href="../move-stdlib/option.md#0x1_option_none">none</Link>()
-        <b>else</b> <Link href="../move-stdlib/option.md#0x1_option_some">some</Link>(vec_ref.pop_back());
+    <b>let</b> old_value = <b>if</b> (vec_ref.is_empty()) <Link href="../move-stdlib/option#0x1_option_none">none</Link>()
+        <b>else</b> <Link href="../move-stdlib/option#0x1_option_some">some</Link>(vec_ref.pop_back());
     vec_ref.push_back(e);
     old_value
 }
@@ -526,7 +526,7 @@ default</code> otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_destroy_with_default">destroy_with_default</Link>&lt;Element: drop&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;, default: Element): Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_destroy_with_default">destroy_with_default</Link>&lt;Element: drop&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;, default: Element): Element
 </code></pre>
 
 
@@ -536,8 +536,8 @@ default</code> otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_destroy_with_default">destroy_with_default</Link>&lt;Element: drop&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;, default: Element): Element \{
-    <b>let</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link> \{ <b>mut</b> vec } = t;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_destroy_with_default">destroy_with_default</Link>&lt;Element: drop&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;, default: Element): Element \{
+    <b>let</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link> \{ <b>mut</b> vec } = t;
     <b>if</b> (vec.is_empty()) default
     <b>else</b> vec.pop_back()
 }
@@ -558,7 +558,7 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_destroy_some">destroy_some</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): Element
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_destroy_some">destroy_some</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): Element
 </code></pre>
 
 
@@ -568,9 +568,9 @@ t</code> does not hold a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_destroy_some">destroy_some</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): Element \{
-    <b>assert</b>!(t.<Link href="../move-stdlib/option.md#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option.md#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
-    <b>let</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link> \{ <b>mut</b> vec } = t;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_destroy_some">destroy_some</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): Element \{
+    <b>assert</b>!(t.<Link href="../move-stdlib/option#0x1_option_is_some">is_some</Link>(), <Link href="../move-stdlib/option#0x1_option_EOPTION_NOT_SET">EOPTION_NOT_SET</Link>);
+    <b>let</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link> \{ <b>mut</b> vec } = t;
     <b>let</b> elem = vec.pop_back();
     vec.destroy_empty();
     elem
@@ -592,7 +592,7 @@ t</code> holds a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_destroy_none">destroy_none</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_destroy_none">destroy_none</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;)
 </code></pre>
 
 
@@ -602,9 +602,9 @@ t</code> holds a value
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_destroy_none">destroy_none</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;) \{
-    <b>assert</b>!(t.<Link href="../move-stdlib/option.md#0x1_option_is_none">is_none</Link>(), <Link href="../move-stdlib/option.md#0x1_option_EOPTION_IS_SET">EOPTION_IS_SET</Link>);
-    <b>let</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link> \{ vec } = t;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_destroy_none">destroy_none</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;) \{
+    <b>assert</b>!(t.<Link href="../move-stdlib/option#0x1_option_is_none">is_none</Link>(), <Link href="../move-stdlib/option#0x1_option_EOPTION_IS_SET">EOPTION_IS_SET</Link>);
+    <b>let</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link> \{ vec } = t;
     vec.destroy_empty()
 }
 </code></pre>
@@ -624,7 +624,7 @@ and an empty vector otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_to_vec">to_vec</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;Element&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Element&gt;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_to_vec">to_vec</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;Element&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
 </code></pre>
 
 
@@ -634,8 +634,8 @@ and an empty vector otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/option.md#0x1_option_to_vec">to_vec</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link>&lt;Element&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Element&gt; \{
-    <b>let</b> <Link href="../move-stdlib/option.md#0x1_option_Option">Option</Link> \{ vec } = t;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/option#0x1_option_to_vec">to_vec</Link>&lt;Element&gt;(t: <Link href="../move-stdlib/option#0x1_option_Option">Option</Link>&lt;Element&gt;): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt; \{
+    <b>let</b> <Link href="../move-stdlib/option#0x1_option_Option">Option</Link> \{ vec } = t;
     vec
 }
 </code></pre>
