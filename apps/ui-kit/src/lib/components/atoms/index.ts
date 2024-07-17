@@ -6,5 +6,4 @@ export * from './badge';
 export * from './button';
 export * from './chip';
 export * from './divider';
-export * from './navbarItem';
 export * from './header';

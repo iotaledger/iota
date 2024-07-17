@@ -14,6 +14,7 @@ import {
     UNSELECTED_ICON,
     UNSELECTED_TEXT,
 } from './navbarItem.classes';
+import { Badge, BadgeType } from '../../atoms';
 
 interface NavbarItemProps {
     /**
@@ -66,12 +67,9 @@ export function NavbarItem({
                     className: cx('w-6 h-6', fillClasses),
                 })}
                 {hasBadge && (
-                    <span
-                        className={cx(
-                            'absolute h-1.5 w-1.5 rounded-full bg-error-50',
-                            badgePositionClasses,
-                        )}
-                    ></span>
+                    <div className={cx('absolute', badgePositionClasses)}>
+                        <Badge type={BadgeType.PrimarySolid} />
+                    </div>
                 )}
             </div>
             {text && <span className={cx('text-label-md', textClasses)}>{text}</span>}
