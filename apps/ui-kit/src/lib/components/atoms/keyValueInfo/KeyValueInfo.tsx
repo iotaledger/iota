@@ -62,10 +62,10 @@ export function KeyValueInfo({
                 ) : (
                     <>
                         <span
-                            className={cx('text-neutral-10 dark:text-neutral-92', {
-                                'text-body-md': size !== ValueSize.Medium,
-                                'text-body-lg': size === ValueSize.Medium,
-                            })}
+                            className={cx(
+                                'text-neutral-10 dark:text-neutral-92',
+                                size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
+                            )}
                         >
                             {valueText}
                         </span>
