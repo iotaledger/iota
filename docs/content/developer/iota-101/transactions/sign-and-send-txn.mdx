@@ -8,9 +8,9 @@ Inputs can either be an object reference (either to an owned object, an immutabl
 
 The signature is provided with the private key owned by the wallet, and its public key must be consistent with the transaction sender's IOTA address.
 
-IOTA uses a `IOTAKeyPair` to produce the signature, which commits to the Blake2b hash digest of the intent message (`intent || bcs bytes of tx_data`). The signature schemes currently supported are `Ed25519 Pure`, `ECDSA Secp256k1`, `ECDSA Secp256r1`, and `Multisig`.
+IOTA uses a `IOTAKeyPair` to produce the signature, which commits to the Blake2b hash digest of the intent message (`intent || bcs bytes of tx_data`). The signature schemes currently supported are `Ed25519 Pure`, `ECDSA Secp256k1`, `ECDSA Secp256r1` and `Multisig`.
 
-You can instantiate `Ed25519 Pure`, `ECDSA Secp256k1`, and `ECDSA Secp256r1` using `IOTAKeyPair` and use it to sign transactions. Note that this guide does not apply to `Multisig`, please refer to their to the [Multisig](../../cryptography/explanations/transaction-auth/multisig.mdx) documentation for instructions.
+You can instantiate `Ed25519 Pure`, `ECDSA Secp256k1`, and `ECDSA Secp256r1` using `IOTAKeyPair` and use it to sign transactions. Note that this guide does not apply to `Multisig`, please refer to it's [own page](../../cryptography/explanations/transaction-auth/multisig.mdx) for instructions.
 
 With a signature and the transaction bytes, a transaction can be submitted to be executed.
 

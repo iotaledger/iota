@@ -10,7 +10,7 @@ These restrictions prevent third parties using the scriptable nature of programm
 
 ## `public` vs `entry` functions
 
-The `public` modifier also allows a function to be called from a programmable transaction block.  It additionally allows the function to be called from other modules, and does not impose the same restrictions on where the function's parameters can come from and what it can return, so in many cases `public` is the right way to expose your function to the outside world. `entry` is useful if:
+The `public` modifier also allows a function to be called from a programmable transaction block. It additionally allows the function to be called from other modules, and does not impose the same restrictions on where the function's parameters can come from and what it can return, so in many cases `public` is the right way to expose your function to the outside world. `entry` is useful if:
 
 - You want strong guarantees that your function is not being combined with third-party module functions, in programmable transaction blocks.  The canonical example of this is a swap protocol that does not want to interact with a flash loan provider: If the swap protocol exposes only `entry` functions to perform swaps, it will not be possible to pass in a flash loaned `Coin`, because that coin will be the output of some previous transaction.
 - You do not want the function's signature to appear in your module's ABI.  `public` function signatures must be maintained by upgrades while `entry` function signatures do not.
@@ -25,7 +25,7 @@ module entry_functions::example {
     use iota::transfer;
     use iota::tx_context::{Self, TxContext};
 
-    struct Foo has key {
+    public struct Foo has key {
         id: UID,
         bar: u64,
     }

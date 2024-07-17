@@ -8,11 +8,11 @@ Protecting the ability to upgrade a package on chain using a single key can pose
 
 <UpgradeSingleKeyRisk />
 
-To address the security risk of single-key upgrade ownership poses while still providing the opportunity to [upgrade live packages](upgrade.mdx), IOTA offers _custom upgrade policies_. These policies protect `UpgradeCap` access and issue `UpgradeTicket` objects that authorize upgrades on a case-by-case basis.
+To address the security risk of single-key upgrade ownership poses while still providing the opportunity to [upgrade live packages](./upgrade.mdx), Iota offers _custom upgrade policies_. These policies protect `UpgradeCap` access and issue `UpgradeTicket` objects that authorize upgrades on a case-by-case basis.
 
 ## Compatibility {#compatibility}
 
-IOTA comes with a set of built-in package compatibility policies, listed here from most to least strict:
+Iota comes with a set of built-in package compatibility policies, listed here from most to least strict:
 
 | Policy          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -40,7 +40,7 @@ Package upgrades must occur end-to-end in a single transaction block and are com
 1. **Commit:** Update the `UpgradeCap` with information about the
    newly created package.
 
-While step 2 is a built-in command, steps 1 and 3 are implemented as Move functions. The IOTA framework provides their most basic implementation:
+While step 2 is a built-in command, steps 1 and 3 are implemented as Move functions. The Iota framework provides their most basic implementation:
 
 ```move
 module iota::package {
@@ -70,7 +70,7 @@ The `UpgradeCap` is the central type responsible for coordinating package upgrad
 
 ```move
 module iota::package {
-    struct UpgradeCap has key, store {
+    public struct UpgradeCap has key, store {
         id: UID,
         package: ID,
         version: u64,
@@ -96,7 +96,7 @@ And its API guarantees the following properties:
 
 ```move
 module iota::package {
-    struct UpgradeTicket {
+    public struct UpgradeTicket {
         cap: ID,
         package: ID,
         policy: u8,
@@ -119,7 +119,7 @@ After creating an `UpgradeTicket`, you must use it within that transaction block
 
 The `UpgradeTicket` `digest` field comes from the `digest` parameter to `authorize_upgrade`, which the caller must supply. While
 `authorize_upgrade` does not process the `digest`, custom policies can use it to authorize only upgrades that it has seen the
-bytecode or source code for ahead of time. IOTA calculates the digest as follows:
+bytecode or source code for ahead of time. Iota calculates the digest as follows:
 
 - Take the bytecode for each module, represented as an array of bytes.
 - Append the list of the package's transitive dependencies, each represented as an array of bytes.
@@ -142,18 +142,18 @@ BUILDING test
 
 ```move
 module iota::package {
-    struct UpgradeReceipt {
+    public struct UpgradeReceipt {
         cap: ID,
         package: ID,
     }
 }
 ```
 
-The `UpgradeReceipt` is proof that the `Upgrade` command ran successfully, and IOTA added the new package to the set of created
+The `UpgradeReceipt` is proof that the `Upgrade` command ran successfully, and Iota added the new package to the set of created
 objects for the transaction. It is used to update its `UpgradeCap` (identified by `cap: ID`) with the ID of the latest package in its
 family (`package: ID`).
 
-After IOTA creates an `UpgradeReceipt`, you must use it to update its `UpgradeCap` within the same transaction block (you cannot store it for later, drop it, or burn it), or the transaction fails.
+After Iota creates an `UpgradeReceipt`, you must use it to update its `UpgradeCap` within the same transaction block (you cannot store it for later, drop it, or burn it), or the transaction fails.
 
 ## Isolating policies {#isolating-policies}
 
@@ -188,7 +188,7 @@ module policy::day_of_week {
     use iota::package;
     use iota::tx_context::TxContext;
 
-    struct UpgradeCap has key, store {
+    public struct UpgradeCap has key, store {
         id: UID,
         cap: package::UpgradeCap,
         day: u8,
@@ -275,7 +275,7 @@ module policy::day_of_week {
     use iota::package;
     use iota::tx_context::TxContext;
 
-    struct UpgradeCap has key, store {
+    public struct UpgradeCap has key, store {
         id: UID,
         cap: package::UpgradeCap,
         day: u8,
@@ -512,7 +512,7 @@ In the `example/sources` directory, create an `example.move` file with the follo
 
 ```move
 module example::example {
-    struct Event has copy, drop { x: u64 }
+    public struct Event has copy, drop { x: u64 }
     entry fun nudge() {
         iota::event::emit(Event { x: 41 })
     }
@@ -530,7 +530,7 @@ Create a new directory to store a Node.js project. You can use the `npm init` fu
 
 ```
 
-Open a terminal or console to the root of your Node.js project. Run the following command to add the IOTA TypeScript SDK as a dependency:
+Open a terminal or console to the root of your Node.js project. Run the following command to add the Iota TypeScript SDK as a dependency:
 
 ```bash
 npm install @iota/iota.js
@@ -548,7 +548,7 @@ const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
 ```
 
-Next, add boilerplate code to get the signer key pair for the currently active address in the IOTA Client CLI:
+Next, add boilerplate code to get the signer key pair for the currently active address in the Iota Client CLI:
 
 ```js
 import { execSync } from 'child_process';
@@ -1063,7 +1063,7 @@ BUILDING example
 </details>
 
 
-Use the IOTA Client CLI to test the upgraded package (the package ID is **different** from the original version of your example package):
+Use the Iota Client CLI to test the upgraded package (the package ID is **different** from the original version of your example package):
 
 ```bash
 iota client call --gas-budget 10000000 \
