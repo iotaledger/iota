@@ -49,7 +49,7 @@ export function KeyValueInfo({
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
                 {showInfoIcon && <Info className="pl-xxxs text-neutral-60" />}
             </div>
-            <div className="flex w-full flex-row items-center justify-end gap-1">
+            <div className="flex w-full flex-row items-baseline justify-end gap-1">
                 {valueLink ? (
                     <a
                         href={valueLink}
@@ -72,7 +72,7 @@ export function KeyValueInfo({
                         {supportingLabel && (
                             <span
                                 className={cx(
-                                    'pt-xxs text-neutral-60 dark:text-neutral-40',
+                                    'text-neutral-60 dark:text-neutral-40',
                                     supportingLabelClasses,
                                 )}
                             >
