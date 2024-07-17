@@ -40,6 +40,9 @@ fn generate_random_gas_data(
                                   * obj-owned too */
     owned_by_sender: bool, // whether to set owned gas coins to be owned by the sender
 ) -> GasDataWithObjects {
+    // This value is nested from the STARDUST_TOTAL_SUPPLY_NANOS constant that had
+    // been used as the maximum gas balance here before the inflation mechanism
+    // was implemented.
     const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
 
     let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
