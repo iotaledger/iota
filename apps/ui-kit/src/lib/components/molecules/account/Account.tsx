@@ -85,7 +85,7 @@ export function Account({
                 <Avatar isLocked={isLocked} />
                 <div className="flex flex-col items-start py-xs">
                     <div className="flex items-center space-x-2">
-                        <span className="pt-xxxs text-title-md text-neutral-10 dark:text-neutral-92">
+                        <span className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                             {title}
                         </span>
                         {badgeType && badgeText && <Badge type={badgeType} label={badgeText} />}
