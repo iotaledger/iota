@@ -17,9 +17,6 @@ jobs:
       contents: read
       pull-requests: write
     runs-on: [self-hosted-rust]
-    env:
-      DEFAULT_NETWORK: ${{ secrets.EXPLORER_PREVIEW_DEPLOY_DEFAULT_NETWORK }}
-      IOTA_NETWORKS: ${{ secrets.EXPLORER_PREVIEW_DEPLOY_IOTA_NETWORKS }}
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
@@ -40,12 +37,12 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
-      - name: Build Explorer
-        run: pnpm explorer build
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
-      - name: Pull Vercel Environment Information
+      - name: Pull Vercel Env variables (network configs)
         run: vercel pull ./apps/explorer --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build Explorer
+        run: pnpm explorer build
       - name: Build Project Artifacts
         run: vercel build --cwd ./apps/explorer --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
