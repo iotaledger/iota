@@ -32,8 +32,8 @@ use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{iota_client_config::IotaClientConfig, wallet_context::WalletContext};
 use iota_swarm_config::{
-    genesis_config::{AccountConfig, GenesisConfig},
-    network_config::NetworkConfig,
+    genesis_config::{AccountConfig, GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES},
+    network_config::NetworkConfigLight,
 };
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
@@ -81,6 +81,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
+        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        local_migration_snapshots: vec![],
+        remote_migration_snapshots: vec![],
     }
     .execute()
     .await?;
@@ -100,7 +103,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
 
     // Check network config
     let network_conf =
-        PersistedConfig::<NetworkConfig>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
+        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
     assert_eq!(4, network_conf.validator_configs().len());
 
     // Check wallet config
@@ -120,6 +123,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
+        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        local_migration_snapshots: vec![],
+        remote_migration_snapshots: vec![],
     }
     .execute()
     .await;

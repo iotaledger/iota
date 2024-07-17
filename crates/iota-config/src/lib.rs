@@ -4,6 +4,7 @@
 
 use std::{
     fs,
+    io::BufWriter,
     path::{Path, PathBuf},
 };
 
@@ -93,8 +94,8 @@ where
     fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
         trace!("Writing config to {}", path.display());
-        let config = serde_yaml::to_string(&self)?;
-        fs::write(path, config)
+        let mut write = BufWriter::new(fs::File::create(path)?);
+        serde_yaml::to_writer(&mut write, &self)
             .with_context(|| format!("Unable to save config to {}", path.display()))?;
         Ok(())
     }
