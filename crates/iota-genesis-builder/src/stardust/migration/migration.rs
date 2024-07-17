@@ -258,9 +258,9 @@ impl Migration {
 
 /// All the objects created during the migration.
 ///
-/// Internally it maintains indexes of [`TimeLock`] and [`iota_types::gas_coin::GasCoin`]
-/// objects groupped by their owners to accommodate queries of this
-/// sort.
+/// Internally it maintains indexes of [`TimeLock`] and
+/// [`iota_types::gas_coin::GasCoin`] objects groupped by their owners to
+/// accommodate queries of this sort.
 #[derive(Debug, Clone, Default)]
 pub struct MigrationObjects {
     inner: Vec<Object>,
@@ -364,7 +364,8 @@ impl MigrationObjects {
         )
     }
 
-    /// Get [`iota_types::gas_coin::GasCoin`] objects created during the migration.
+    /// Get [`iota_types::gas_coin::GasCoin`] objects created during the
+    /// migration.
     ///
     /// The query is filtered by the object owner.
     pub fn get_gas_coins_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
