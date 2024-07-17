@@ -17,7 +17,7 @@ const references = [
 			id: 'references/iota-api',
 		},
 		items: [
-			{
+			/*{
 				type: 'category',
 				label: 'GraphQL',
 				link: {
@@ -30,7 +30,7 @@ const references = [
 						dirName: 'references/iota-api/iota-graphql/reference',
 					},
 				],
-			},
+			},*/
 			{
 				type: 'link',
 				label: 'JSON-RPC',
