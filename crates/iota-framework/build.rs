@@ -244,7 +244,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     // +title: Module `0x2::display`
     // +---
     //```
-    let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
+    let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)`(\S*?)`\n").unwrap();
     let link_from_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
     let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
@@ -286,12 +286,12 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
 
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {
-            title_regex
-                .replace_all(
-                    &content,
-                    "---\ntitle: $1\n---\nimport Link from '@docusaurus/Link';\n",
-                )
-                .to_string()
+            title_regex.replace_all(&content, |caps: &regex::Captures| {
+                    let title_type = caps.get(1).unwrap().as_str();
+                    let name = caps.get(2).unwrap().as_str();
+                    let anchor = name.replace("::", "_");
+                    format!("---\ntitle: {}`{}`\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, anchor)
+        }).to_string()
         });
     }
 }
