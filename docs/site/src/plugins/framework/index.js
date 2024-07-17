@@ -22,6 +22,10 @@ const IOTASYS_PATH = path.join(
   __dirname,
   "../../../../../crates/iota-framework/docs/iota-system",
 );
+const DEEPBOOK_PATH = path.join(
+    __dirname,
+    "../../../../../crates/iota-framework/docs/deepbook",
+);
 const STARDUST_PATH = path.join(
     __dirname,
     "../../../../../crates/iota-framework/docs/stardust",
