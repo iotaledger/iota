@@ -13,7 +13,7 @@ export type CardImageProps = {
     iconName?: string;
 };
 
-export function CardImage({ type, variant, url, iconName }: CardImageProps) {
+export function CardImage({ type, variant = ImageVariant.Rounded, url, iconName }: CardImageProps) {
     if (!variant) {
         return null;
     }

@@ -5,150 +5,88 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import {
     Card,
-    CardAction,
+    CardProps,
     CardImage,
+    CardImageProps,
+    CardAction,
     CardText,
     CardActionVariant,
-    CardVariant,
     ImageType,
     ImageVariant,
+    CardVariant,
+    CardTextProps,
+    CardActionProps,
 } from '@/components/molecules/card';
 
-const meta = {
-    component: Card,
-    subcomponents: { CardImage, CardText, CardAction },
-    tags: ['autodocs'],
-    render: (props) => {
-        return (
-            <div className={'flex gap-3'}>
-                <div>
-                    <Card
-                        cardVariant={props.cardVariant}
-                        disabled={props.disabled}
-                        text={{
-                            title: props?.text?.title,
-                            subtitle: props?.text?.subtitle,
-                        }}
-                        image={{
-                            type: ImageType.Placeholder,
-                            variant: ImageVariant.Rounded,
-                        }}
-                        action={{
-                            title: 'Action',
-                            variant: CardActionVariant.Link,
-                            onClick: () => alert('Action Clicked'),
-                        }}
-                    />
-                </div>
+type CardCustomProps = CardProps & {
+    test: string;
+    imageType: CardImageProps['type'];
+    imageUrl: CardImageProps['url'];
+    imageVariant: CardImageProps['variant'];
+    imageIconName: CardImageProps['iconName'];
+    textTitle: CardTextProps['title'];
+    textSubtitle: CardTextProps['subtitle'];
+    actionTitle: CardActionProps['title'];
+    actionSubtitle: CardActionProps['subtitle'];
+    actionVariant: CardActionProps['variant'];
+};
 
-                <div>
-                    <Card
-                        onClick={() => alert('Card Clicked')}
-                        cardVariant={props.cardVariant}
-                        disabled={props.disabled}
-                    >
-                        <CardImage {...props.image} />
-                        <CardText {...props.text} />
-                        <CardAction {...props.action} />
-                    </Card>
-                </div>
-            </div>
-        );
-    },
-} satisfies Meta<typeof Card>;
+const meta: Meta<CardCustomProps> = {
+    component: Card,
+};
 
 export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// export const Default: Story = {
-//     args: {
-//         cardVariant: CardVariant.Default,
-//         text: {
-//             title: 'Title',
-//             subtitle: 'Subtitle',
-//         },
-//     },
-//     argTypes: {
-//         cardVariant: {
-//             control: {
-//                 type: 'select',
-//                 options: [CardVariant.Default, CardVariant.Outlined, CardVariant.Filled],
-//             },
-//         },
-//         // text: {
-//         //
-//         // }
-//         text: {
-//             title: {
-//                 control: 'text',
-//             },
-//             subtitle: {
-//                 control: 'text',
-//             },
-//         },
-//
-//         image: {
-//             type: {
-//                 control: 'select',
-//                 options: [ImageType.Placeholder, ImageType.Img, ImageType.Icon, ImageType.IconOnly],
-//             },
-//         },
-//     },
-// };
-
 export const Default: Story = {
     args: {
-        cardVariant: CardVariant.Default,
-        text: {
-            title: 'Title',
-            subtitle: 'Subtitle',
-        },
-        image: {
-            type: ImageType.Placeholder,
-            variant: ImageVariant.Rounded,
-        },
-        action: {
-            title: 'Click Me!',
-            variant: CardActionVariant.Link,
-        },
+        imageType: ImageType.Img,
+        imageUrl: 'https://via.placeholder.com/150.png',
+        imageVariant: ImageVariant.Rounded,
+        imageIconName: '',
+        disabled: false,
+        variant: CardVariant.Default,
+        textTitle: 'Card Title',
+        textSubtitle: 'Card Subtitle',
+        actionTitle: 'Action title',
+        actionSubtitle: 'Action subtitle',
+        actionVariant: CardActionVariant.Link,
     },
     argTypes: {
-        cardVariant: {
-            control: {
-                type: 'select',
-                options: [CardVariant.Default, CardVariant.Outlined, CardVariant.Filled],
-            },
+        imageType: {
+            control: 'select',
+            options: Object.values(ImageType),
         },
-        text: {
-            title: {
-                control: 'text',
-            },
-            subtitle: {
-                control: 'text',
-            },
+        imageVariant: {
+            control: 'select',
+            options: Object.values(ImageVariant),
         },
-        image: {
-            type: {
-                control: 'select',
-                options: [ImageType.Placeholder, ImageType.Img, ImageType.Icon, ImageType.IconOnly],
-            },
-            variant: {
-                control: 'select',
-                options: Object.values(ImageVariant), // Assuming ImageVariant is an enum or object
-            },
+        actionVariant: {
+            control: 'select',
+            options: Object.values(CardActionVariant),
         },
-        action: {
-            title: {
-                control: 'text',
-            },
-            variant: {
-                control: 'select',
-                options: Object.values(CardActionVariant), // Assuming CardActionVariant is an enum or object
-            },
-            onClick: {
-                action: 'clicked',
-            },
+        onClick: {
+            action: 'clicked',
         },
+    },
+    render: (args) => {
+        return (
+            <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
+                <CardImage
+                    type={args.imageType}
+                    variant={args.imageVariant}
+                    url={args.imageUrl}
+                    iconName={args.imageIconName}
+                />
+                <CardText title={args.textTitle} subtitle={args.textSubtitle} />
+                <CardAction
+                    title={args.actionTitle}
+                    subtitle={args.actionSubtitle}
+                    variant={args.actionVariant}
+                    onClick={args.onClick}
+                />
+            </Card>
+        );
     },
 };
