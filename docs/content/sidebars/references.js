@@ -109,7 +109,6 @@ const references = [
 							},
 							'references/ts-sdk/typescript/utils',
 							'references/ts-sdk/typescript/bcs',
-							'references/ts-sdk/typescript/zklogin',
 							{
 								type: 'category',
 								label: 'Owned Object Pool',
