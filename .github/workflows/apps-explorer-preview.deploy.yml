@@ -42,7 +42,7 @@ jobs:
       - name: Pull Vercel Env variables (network configs)
         run: vercel pull ./apps/explorer --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - name: Copy the .env file
-        run: cp ./.vercel/.env.preview.local ./sdk/.env
+        run: cp ./apps/explorer/.vercel/.env.preview.local ./sdk/.env
       - name: Build Explorer
         run: pnpm explorer build
       - name: Build Project Artifacts
