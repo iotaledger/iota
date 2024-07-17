@@ -75,7 +75,7 @@ module iota_system::governance_test_utils {
         let mut iota_treasury_cap = iota::create_for_testing(ctx);
 
         // We mint the given amount so the system appears to have a total supply of iota_supply_amount,
-        // but we don't put it in the subsidy fund.
+        // but we burn it since we cannot put it anywhere.
         let iota_total_supply_balance = iota_treasury_cap.mint_balance(
             iota_supply_amount * MICROS_PER_IOTA,
             ctx,
