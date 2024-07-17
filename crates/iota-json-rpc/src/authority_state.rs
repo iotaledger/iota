@@ -36,9 +36,7 @@ use iota_types::{
     event::EventID,
     governance::StakedIota,
     iota_serde::BigInt,
-    iota_system_state::{
-        iota_system_state_summary::IotaSystemStateSummary, IotaSystemState, IotaSystemStateTrait,
-    },
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
@@ -178,7 +176,6 @@ pub trait StateRead: Send + Sync {
         owner: IotaAddress,
     ) -> StateReadResult<Vec<TimelockedStakedIota>>;
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
-    fn get_system_state_summary(&self) -> StateReadResult<IotaSystemStateSummary>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
 
     // coin_api
@@ -452,12 +449,6 @@ impl StateRead for AuthorityState {
         Ok(self
             .get_cache_reader()
             .get_iota_system_state_object_unsafe()?)
-    }
-    fn get_system_state_summary(&self) -> StateReadResult<IotaSystemStateSummary> {
-        Ok(self
-            .get_cache_reader()
-            .get_iota_system_state_object_unsafe()?
-            .into_iota_system_state_summary())
     }
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
         Ok(self
