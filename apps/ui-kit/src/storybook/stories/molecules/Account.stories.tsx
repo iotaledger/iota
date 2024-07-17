@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { Account, AccountType } from '@/components';
+import { Account, BadgeType } from '@/components';
 import cx from 'classnames';
 
 const meta = {
@@ -44,15 +44,15 @@ export const Default: Story = {
         avatarContent: Avatar,
     },
     argTypes: {
-        accountType: {
+        badgeType: {
             control: 'select',
-            options: Object.values(AccountType),
+            options: Object.values(BadgeType),
         },
         isLocked: {
             control: 'boolean',
         },
         onOptionsClick: {
-            action: 'onThreeDotsClick',
+            action: 'onOptionsClick',
             control: 'none',
         },
         onLockAccountClick: {
@@ -61,6 +61,9 @@ export const Default: Story = {
         },
         avatarContent: {
             control: 'none',
+        },
+        badgeText: {
+            control: 'text',
         },
     },
 };

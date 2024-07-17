@@ -3,10 +3,8 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { AccountType } from './account.enums';
-import { BACKGROUND_BADGE_COLORS, TEXT_COLORS, BADGE_TEXT_CLASS } from './account.classes';
 import { Button, ButtonSize, ButtonType } from '../../atoms/button';
-import { Address } from '../../atoms';
+import { Address, Badge, BadgeType } from '../../atoms';
 import { LockLocked, LockUnlocked, MoreHoriz } from '@iota/ui-icons';
 
 interface AccountProps {
@@ -19,15 +17,11 @@ interface AccountProps {
      */
     subtitle: string;
     /**
-     * The type of the account.
-     */
-    accountType?: AccountType | null;
-    /**
      * Whether the account is unlocked.
      */
     isLocked?: boolean;
     /**
-     * Handler for the three dots icon click.
+     * Handler for more options click.
      */
     onOptionsClick: () => void;
     /**
@@ -43,13 +37,13 @@ interface AccountProps {
      */
     avatarContent: ({ isLocked }: { isLocked?: boolean }) => React.JSX.Element;
     /**
-     * Handler for the onCopy event in Address component.
+     * The onCopy event of the Address  (optional).
      */
-    onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onCopy?: (e: React.MouseEvent<SVGElement>) => void;
     /**
-     * Handler for the onOpen event in Address component.
+     * The onOpen event of the Address  (optional).
      */
-    onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onOpen?: (e: React.MouseEvent<SVGElement>) => void;
     /**
      * Has copy icon (optional).
      */
@@ -58,12 +52,21 @@ interface AccountProps {
      * Has open icon  (optional).
      */
     isExternal?: boolean;
+    /**
+     * The type of the badge.
+     */
+    badgeType?: BadgeType;
+    /**
+     * The text of the badge.
+     */
+    badgeText?: string;
 }
 
 export function Account({
     title,
     subtitle,
-    accountType,
+    badgeType,
+    badgeText,
     isLocked,
     avatarContent,
     onOptionsClick,
@@ -74,8 +77,6 @@ export function Account({
     isCopyable,
     isExternal,
 }: AccountProps): React.JSX.Element {
-    const backgroundBadgeClasses = accountType ? BACKGROUND_BADGE_COLORS[accountType] : '';
-    const textClasses = accountType ? TEXT_COLORS[accountType] : '';
     const Avatar = avatarContent;
 
     return (
@@ -84,21 +85,10 @@ export function Account({
                 <Avatar isLocked={isLocked} />
                 <div className="flex flex-col items-start py-xs">
                     <div className="flex items-center space-x-2">
-                        <span className="text-title-md text-neutral-10 dark:text-neutral-92">
+                        <span className="pt-xxxs text-title-md text-neutral-10 dark:text-neutral-92">
                             {title}
                         </span>
-                        {accountType && (
-                            <div
-                                className={cx(
-                                    'flex items-center rounded-full px-xs py-xxxs',
-                                    backgroundBadgeClasses,
-                                )}
-                            >
-                                <div className={cx(BADGE_TEXT_CLASS, textClasses)}>
-                                    {accountType}
-                                </div>
-                            </div>
-                        )}
+                        {badgeType && badgeText && <Badge type={badgeType} label={badgeText} />}
                     </div>
                     <Address
                         text={subtitle}
