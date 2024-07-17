@@ -41,11 +41,6 @@ module iota_system::genesis {
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
 
-        stake_subsidy_start_epoch: u64,
-        stake_subsidy_initial_distribution_amount: u64,
-        stake_subsidy_period_length: u64,
-        stake_subsidy_decrease_rate: u16,
-
         max_validator_count: u64,
         min_validator_joining_stake: u64,
         validator_low_stake_threshold: u64,
