@@ -51,8 +51,12 @@ export function Checkbox({
     const CheckmarkIcon = isIndeterminate ? Dash : Checkmark;
 
     return (
-        <label className={cx('group flex flex-row gap-x-2', { disabled: isDisabled })}>
-            {isLabelFirst && <Label label={label} />}
+        <label
+            className={cx('group flex gap-x-2', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
+                disabled: isDisabled,
+            })}
+        >
+            <LabelText label={label} />
             <div className="relative h-5 w-5">
                 <input
                     type="checkbox"
@@ -66,12 +70,11 @@ export function Checkbox({
                     <CheckmarkIcon width={16} height={16} />
                 </span>
             </div>
-            {!isLabelFirst && <Label label={label} />}
         </label>
     );
 }
 
-function Label({ label }: Pick<CheckboxProps, 'label'>) {
+function LabelText({ label }: Pick<CheckboxProps, 'label'>) {
     return (
         <span className="text-label-lg text-neutral-40 group-[.disabled]:text-opacity-40 dark:text-neutral-60 group-[.disabled]:dark:text-opacity-40">
             {label}
