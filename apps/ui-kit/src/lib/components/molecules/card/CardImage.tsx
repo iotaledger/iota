@@ -1,72 +1,50 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ImagePlaceholder } from '@/components/atoms/image-placeholder';
 import cx from 'classnames';
-
-export enum ImageType {
-    None = 'none',
-    Placeholder = 'placeholder',
-    Img = 'img',
-    Icon = 'icon',
-    IconOnly = 'icon-only',
-}
-
-export enum ImageVariant {
-    Rounded = 'rounded',
-    SquareRounded = 'square-rounded',
-}
+import { ImagePlaceholder } from '@/components/atoms/image-placeholder';
+import { ImageVariant, ImageType } from './card.enums';
+import { IMAGE } from './card.classes';
 
 export type CardImageProps = {
-    imageType?: ImageType;
-    imageVariant?: ImageVariant;
-    imageUrl?: string;
+    type?: ImageType;
+    variant?: ImageVariant;
+    url?: string;
     iconName?: string;
 };
 
-export function CardImage({ imageType, imageVariant, imageUrl, iconName }: CardImageProps) {
-    const IMAGE_SIZE = 'h-[40px] w-[40px]';
-
-    const IMAGE: { [key in ImageVariant]: string } = {
-        [ImageVariant.SquareRounded]: `${IMAGE_SIZE} rounded-md`,
-        [ImageVariant.Rounded]: `${IMAGE_SIZE} rounded-full`,
-    };
-
-    if (!imageVariant) {
+export function CardImage({ type, variant, url, iconName }: CardImageProps) {
+    if (!variant) {
         return null;
     }
 
-    if (imageType === ImageType.Placeholder) {
+    if (type === ImageType.Placeholder) {
         return (
             <div>
-                <ImagePlaceholder variant={imageVariant} />
+                <ImagePlaceholder variant={variant} />
             </div>
         );
     }
 
-    if (imageType === ImageType.Img && imageUrl) {
+    if (type === ImageType.Img && url) {
         return (
-            <div className={cx(IMAGE[imageVariant], 'overflow-hidden')}>
-                <img
-                    src={imageUrl}
-                    className={cx(IMAGE[imageVariant], 'object-cover')}
-                    alt="Card Image"
-                />
+            <div className={cx(IMAGE[variant], 'overflow-hidden')}>
+                <img src={url} className={cx(IMAGE[variant], 'object-cover')} alt="Card Image" />
             </div>
         );
     }
 
-    if (imageType === ImageType.Icon && iconName) {
+    if (type === ImageType.Icon && iconName) {
         return (
-            <div className={cx(IMAGE[imageVariant], 'overflow-hidden bg-neutral-96')}>
+            <div className={cx(IMAGE[variant], 'overflow-hidden bg-neutral-96')}>
                 {/* TODO put icon dynamic */}
             </div>
         );
     }
 
-    if (imageType === ImageType.IconOnly && iconName) {
+    if (type === ImageType.IconOnly && iconName) {
         return (
-            <div className={cx(IMAGE[imageVariant], 'overflow-hidden')}>
+            <div className={cx(IMAGE[variant], 'overflow-hidden')}>
                 {/* TODO put icon dynamic */}
             </div>
         );

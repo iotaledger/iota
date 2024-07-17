@@ -2,30 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
-
-export enum CardActionVariant {
-    None = 'none',
-    Link = 'link',
-    SupportingText = 'supporting-text',
-    Button = 'button',
-}
+import { CardActionVariant } from './card.enums';
 
 export type CardActionProps = {
-    actionTitle?: string;
-    actionSubtitle?: string;
-    actionVariant?: CardActionVariant;
-    actionOnClick?: () => void;
+    title?: string;
+    subtitle?: string;
+    variant?: CardActionVariant;
+    onClick?: () => void;
 };
 
-export function CardAction({
-    actionVariant,
-    actionOnClick,
-    actionSubtitle,
-    actionTitle,
-}: CardActionProps) {
-    if (actionVariant === CardActionVariant.Link) {
+export function CardAction({ variant, onClick, subtitle, title }: CardActionProps) {
+    if (variant === CardActionVariant.Link) {
         return (
-            <div onClick={actionOnClick}>
+            <div onClick={onClick}>
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="24"
@@ -42,28 +31,24 @@ export function CardAction({
         );
     }
 
-    if (actionVariant === CardActionVariant.SupportingText) {
+    if (variant === CardActionVariant.SupportingText) {
         return (
             <div className={'text-right'}>
-                {actionTitle && (
-                    <div className={'font-inter text-label-md text-neutral-10'}>{actionTitle}</div>
-                )}
-                {actionSubtitle && (
-                    <div className={'font-inter text-label-sm text-neutral-40'}>
-                        {actionSubtitle}
-                    </div>
+                {title && <div className={'font-inter text-label-md text-neutral-10'}>{title}</div>}
+                {subtitle && (
+                    <div className={'font-inter text-label-sm text-neutral-40'}>{subtitle}</div>
                 )}
             </div>
         );
     }
-    if (actionVariant === CardActionVariant.Button) {
+    if (variant === CardActionVariant.Button) {
         return (
             <div>
                 <Button
                     type={ButtonType.Outlined}
                     size={ButtonSize.Small}
-                    text={actionTitle}
-                    onClick={actionOnClick}
+                    text={title}
+                    onClick={onClick}
                 />
             </div>
         );
