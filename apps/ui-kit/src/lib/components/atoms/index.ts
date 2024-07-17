@@ -3,9 +3,9 @@
 
 export * from './address';
 export * from './badge';
-export * from './button';
 export * from './button-segment';
-export * from './header';
+export * from './button';
+export * from './checkbox';
 export * from './chip';
 export * from './divider';
 export * from './label-text';
