@@ -20,7 +20,7 @@ Priority queue implemented using a max heap.
 
 
 <pre><code>
-<b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
+<b>use</b> <Link href="../move-stdlib/vector.md#0x1_vector">0x1::vector</Link>;
 </code></pre>
 
 
@@ -38,7 +38,7 @@ that the parent node's priority is always higher than its child nodes' prioritie
 
 
 <pre><code>
-<b>struct</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</a>&lt;T: drop&gt; <b>has</b> drop, store
+<b>struct</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</Link>&lt;T: drop&gt; <b>has</b> drop, store
 </code></pre>
 
 
@@ -50,7 +50,7 @@ that the parent node's priority is always higher than its child nodes' prioritie
 <dl>
 <dt>
 <code>
-entries: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</a>&lt;T&gt;&gt;</code>
+entries: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</Link>&lt;T&gt;&gt;</code>
 </dt>
 <dd>
 
@@ -67,7 +67,7 @@ entries: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="..
 
 
 <pre><code>
-<b>struct</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a>&lt;T: drop&gt; <b>has</b> drop, store
+<b>struct</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link>&lt;T: drop&gt; <b>has</b> drop, store
 </code></pre>
 
 
@@ -107,7 +107,7 @@ For when heap is empty and there's no data to pop.
 
 
 <pre><code>
-<b>const</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_EPopFromEmptyHeap">EPopFromEmptyHeap</a>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_EPopFromEmptyHeap">EPopFromEmptyHeap</Link>: u64 = 0;
 </code></pre>
 
 
@@ -120,7 +120,7 @@ Create a new priority queue from the input entry vectors.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_new">new</a>&lt;T: drop&gt;(entries: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</a>&lt;T&gt;&gt;): <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</a>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_new">new</Link>&lt;T: drop&gt;(entries: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</Link>&lt;T&gt;&gt;): <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -130,15 +130,15 @@ Create a new priority queue from the input entry vectors.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_new">new</a>&lt;T: drop&gt;(<b>mut</b> entries: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a>&lt;T&gt;&gt;) : <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</a>&lt;T&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_new">new</Link>&lt;T: drop&gt;(<b>mut</b> entries: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link>&lt;T&gt;&gt;) : <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</Link>&lt;T&gt; \{
     <b>let</b> len = entries.length();
     <b>let</b> <b>mut</b> i = len / 2;
     // Max heapify from the first node that is a parent (node at len / 2).
     <b>while</b> (i &gt; 0) \{
         i = i - 1;
-        <a href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</a>(&<b>mut</b> entries, len, i);
+        <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</Link>(&<b>mut</b> entries, len, i);
     };
-    <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</a> \{ entries }
+    <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</Link> \{ entries }
 }
 </code></pre>
 
@@ -154,7 +154,7 @@ Pop the entry with the highest priority value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_pop_max">pop_max</a>&lt;T: drop&gt;(pq: &<b>mut</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</a>&lt;T&gt;): (u64, T)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_pop_max">pop_max</Link>&lt;T: drop&gt;(pq: &<b>mut</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</Link>&lt;T&gt;): (u64, T)
 </code></pre>
 
 
@@ -164,14 +164,14 @@ Pop the entry with the highest priority value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_pop_max">pop_max</a>&lt;T: drop&gt;(pq: &<b>mut</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</a>&lt;T&gt;) : (u64, T) \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_pop_max">pop_max</Link>&lt;T: drop&gt;(pq: &<b>mut</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</Link>&lt;T&gt;) : (u64, T) \{
     <b>let</b> len = pq.entries.length();
-    <b>assert</b>!(len &gt; 0, <a href="../iota-framework/priority_queue.md#0x2_priority_queue_EPopFromEmptyHeap">EPopFromEmptyHeap</a>);
+    <b>assert</b>!(len &gt; 0, <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_EPopFromEmptyHeap">EPopFromEmptyHeap</Link>);
     // Swap the max element <b>with</b> the last element in the entries and remove the max element.
-    <b>let</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a> \{ priority, value } = pq.entries.swap_remove(0);
+    <b>let</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link> \{ priority, value } = pq.entries.swap_remove(0);
     // Now the max heap property <b>has</b> been violated at the root node, but nowhere <b>else</b>
     // so we call max heapify on the root node.
-    <a href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</a>(&<b>mut</b> pq.entries, len - 1, 0);
+    <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</Link>(&<b>mut</b> pq.entries, len - 1, 0);
     (priority, value)
 }
 </code></pre>
@@ -188,7 +188,7 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_insert">insert</a>&lt;T: drop&gt;(pq: &<b>mut</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</a>&lt;T&gt;, priority: u64, value: T)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_insert">insert</Link>&lt;T: drop&gt;(pq: &<b>mut</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</Link>&lt;T&gt;, priority: u64, value: T)
 </code></pre>
 
 
@@ -198,10 +198,10 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_insert">insert</a>&lt;T: drop&gt;(pq: &<b>mut</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</a>&lt;T&gt;, priority: u64, value: T) \{
-    pq.entries.push_back(<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a> \{ priority, value});
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_insert">insert</Link>&lt;T: drop&gt;(pq: &<b>mut</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</Link>&lt;T&gt;, priority: u64, value: T) \{
+    pq.entries.push_back(<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link> \{ priority, value});
     <b>let</b> index = pq.entries.length() - 1;
-    <a href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</a>(&<b>mut</b> pq.entries, index);
+    <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</Link>(&<b>mut</b> pq.entries, index);
 }
 </code></pre>
 
@@ -216,7 +216,7 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_new_entry">new_entry</a>&lt;T: drop&gt;(priority: u64, value: T): <a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</a>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_new_entry">new_entry</Link>&lt;T: drop&gt;(priority: u64, value: T): <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -226,8 +226,8 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_new_entry">new_entry</a>&lt;T: drop&gt;(priority: u64, value: T): <a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a>&lt;T&gt; \{
-    <a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a> \{ priority, value }
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_new_entry">new_entry</Link>&lt;T: drop&gt;(priority: u64, value: T): <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link>&lt;T&gt; \{
+    <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link> \{ priority, value }
 }
 </code></pre>
 
@@ -242,7 +242,7 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_create_entries">create_entries</a>&lt;T: drop&gt;(p: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, v: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;T&gt;): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</a>&lt;T&gt;&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_create_entries">create_entries</Link>&lt;T: drop&gt;(p: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u64&gt;, v: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;T&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</Link>&lt;T&gt;&gt;
 </code></pre>
 
 
@@ -252,15 +252,15 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_create_entries">create_entries</a>&lt;T: drop&gt;(<b>mut</b> p: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, <b>mut</b> v: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;T&gt;): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a>&lt;T&gt;&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_create_entries">create_entries</Link>&lt;T: drop&gt;(<b>mut</b> p: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u64&gt;, <b>mut</b> v: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;T&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link>&lt;T&gt;&gt; \{
     <b>let</b> len = p.length();
     <b>assert</b>!(v.length() == len, 0);
-    <b>let</b> <b>mut</b> res = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
+    <b>let</b> <b>mut</b> res = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; len) \{
         <b>let</b> priority = p.remove(0);
         <b>let</b> value = v.remove(0);
-        res.push_back(<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a> \{ priority, value });
+        res.push_back(<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link> \{ priority, value });
         i = i + 1;
     };
     res
@@ -278,7 +278,7 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</a>&lt;T: drop&gt;(v: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</a>&lt;T&gt;&gt;, i: u64)
+<b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</Link>&lt;T: drop&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</Link>&lt;T&gt;&gt;, i: u64)
 </code></pre>
 
 
@@ -288,7 +288,7 @@ Insert a new entry into the queue.
 
 
 <pre><code>
-<b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</a>&lt;T: drop&gt;(v: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a>&lt;T&gt;&gt;, i: u64) \{
+<b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</Link>&lt;T: drop&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link>&lt;T&gt;&gt;, i: u64) \{
     <b>if</b> (i == 0) \{
         <b>return</b>
     };
@@ -298,7 +298,7 @@ Insert a new entry into the queue.
     // do the restoration upwards.
     <b>if</b> (*&v[i].priority &gt; *&v[parent].priority) \{
         v.swap(i, parent);
-        <a href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</a>(v, parent);
+        <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_restore_heap_recursive">restore_heap_recursive</Link>(v, parent);
     }
 }
 </code></pre>
@@ -320,7 +320,7 @@ do satisfy the max heap property.
 
 
 <pre><code>
-<b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</a>&lt;T: drop&gt;(v: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</a>&lt;T&gt;&gt;, len: u64, i: u64)
+<b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</Link>&lt;T: drop&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">priority_queue::Entry</Link>&lt;T&gt;&gt;, len: u64, i: u64)
 </code></pre>
 
 
@@ -330,7 +330,7 @@ do satisfy the max heap property.
 
 
 <pre><code>
-<b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</a>&lt;T: drop&gt;(v: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</a>&lt;T&gt;&gt;, len: u64, i: u64) \{
+<b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</Link>&lt;T: drop&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_Entry">Entry</Link>&lt;T&gt;&gt;, len: u64, i: u64) \{
     <b>if</b> (len == 0) \{
         <b>return</b>
     };
@@ -352,7 +352,7 @@ do satisfy the max heap property.
         // After the swap, we have restored the property at node `i` but now the max heap property
         // may be violated at node `max` since this node now <b>has</b> a new value. So we need <b>to</b> now
         // max heapify the subtree rooted at node `max`.
-        <a href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</a>(v, len, max);
+        <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_max_heapify_recursive">max_heapify_recursive</Link>(v, len, max);
     }
 }
 </code></pre>
@@ -368,7 +368,7 @@ do satisfy the max heap property.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_priorities">priorities</a>&lt;T: drop&gt;(pq: &<a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</a>&lt;T&gt;): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_priorities">priorities</Link>&lt;T: drop&gt;(pq: &<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">priority_queue::PriorityQueue</Link>&lt;T&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u64&gt;
 </code></pre>
 
 
@@ -378,8 +378,8 @@ do satisfy the max heap property.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/priority_queue.md#0x2_priority_queue_priorities">priorities</a>&lt;T: drop&gt;(pq: &<a href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</a>&lt;T&gt;): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt; \{
-    <b>let</b> <b>mut</b> res = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
+<b>public</b> <b>fun</b> <Link href="../iota-framework/priority_queue.md#0x2_priority_queue_priorities">priorities</Link>&lt;T: drop&gt;(pq: &<Link href="../iota-framework/priority_queue.md#0x2_priority_queue_PriorityQueue">PriorityQueue</Link>&lt;T&gt;): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u64&gt; \{
+    <b>let</b> <b>mut</b> res = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; pq.entries.length()) \{
         res.push_back(pq.entries[i].priority);

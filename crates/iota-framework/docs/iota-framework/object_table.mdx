@@ -5,7 +5,7 @@ import Link from '@docusaurus/Link';
 
 Similar to <code>
 iota::table</code>, an <code>
-<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;</code> is a map-like collection. But unlike
+<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;</code> is a map-like collection. But unlike
 <code>
 iota::table</code>, the values bound to these dynamic fields _must_ be objects themselves. This allows
 for the objects to still exist within in storage, which may be important for external tools.
@@ -27,10 +27,10 @@ The difference is otherwise not observable from within Move.
 
 
 <pre><code>
-<b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
-<b>use</b> <a href="dynamic_object_field.md#0x2_dynamic_object_field">0x2::dynamic_object_field</a>;
-<b>use</b> <a href="object.md#0x2_object">0x2::object</a>;
-<b>use</b> <a href="tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="dynamic_object_field.md#0x2_dynamic_object_field">0x2::dynamic_object_field</Link>;
+<b>use</b> <Link href="object.md#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -42,7 +42,7 @@ The difference is otherwise not observable from within Move.
 
 
 <pre><code>
-<b>struct</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt; <b>has</b> store, key
+<b>struct</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -54,7 +54,7 @@ The difference is otherwise not observable from within Move.
 <dl>
 <dt>
 <code>
-id: <a href="object.md#0x2_object_UID">object::UID</a></code>
+id: <Link href="object.md#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  the ID of this table
@@ -81,7 +81,7 @@ size: u64</code>
 
 
 <pre><code>
-<b>const</b> <a href="object_table.md#0x2_object_table_ETableNotEmpty">ETableNotEmpty</a>: u64 = 0;
+<b>const</b> <Link href="object_table.md#0x2_object_table_ETableNotEmpty">ETableNotEmpty</Link>: u64 = 0;
 </code></pre>
 
 
@@ -94,7 +94,7 @@ Creates a new, empty table
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_new">new</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_new">new</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(ctx: &<b>mut</b> <Link href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;
 </code></pre>
 
 
@@ -104,9 +104,9 @@ Creates a new, empty table
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_new">new</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(ctx: &<b>mut</b> TxContext): <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt; \{
-    <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a> \{
-        id: <a href="object.md#0x2_object_new">object::new</a>(ctx),
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_new">new</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(ctx: &<b>mut</b> TxContext): <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt; \{
+    <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link> \{
+        id: <Link href="object.md#0x2_object_new">object::new</Link>(ctx),
         size: 0,
     }
 }
@@ -121,7 +121,7 @@ Creates a new, empty table
 ## Function `add`
 
 Adds a key-value pair to the table <code>
-<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;</code>
+<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;</code>
 Aborts with <code>
 iota::dynamic_field::EFieldAlreadyExists</code> if the table already has an entry with
 that key <code>
@@ -129,7 +129,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_add">add</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;, k: K, v: V)
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_add">add</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;, k: K, v: V)
 </code></pre>
 
 
@@ -139,9 +139,9 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_add">add</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;, k: K, v: V) \{
-    ofield::add(&<b>mut</b> <a href="table.md#0x2_table">table</a>.id, k, v);
-    <a href="table.md#0x2_table">table</a>.size = <a href="table.md#0x2_table">table</a>.size + 1;
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_add">add</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;, k: K, v: V) \{
+    ofield::add(&<b>mut</b> <Link href="table.md#0x2_table">table</Link>.id, k, v);
+    <Link href="table.md#0x2_table">table</Link>.size = <Link href="table.md#0x2_table">table</Link>.size + 1;
 }
 </code></pre>
 
@@ -154,7 +154,7 @@ k: K</code>.
 ## Function `borrow`
 
 Immutable borrows the value associated with the key in the table <code>
-<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;</code>.
+<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;</code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -162,7 +162,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="borrow.md#0x2_borrow">borrow</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;, k: K): &V
+<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;, k: K): &V
 </code></pre>
 
 
@@ -172,8 +172,8 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="borrow.md#0x2_borrow">borrow</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;, k: K): &V \{
-    ofield::borrow(&<a href="table.md#0x2_table">table</a>.id, k)
+<b>public</b> <b>fun</b> <Link href="borrow.md#0x2_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;, k: K): &V \{
+    ofield::borrow(&<Link href="table.md#0x2_table">table</Link>.id, k)
 }
 </code></pre>
 
@@ -186,7 +186,7 @@ k: K</code>.
 ## Function `borrow_mut`
 
 Mutably borrows the value associated with the key in the table <code>
-<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;</code>.
+<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;</code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -194,7 +194,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_borrow_mut">borrow_mut</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;, k: K): &<b>mut</b> V
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;, k: K): &<b>mut</b> V
 </code></pre>
 
 
@@ -204,11 +204,11 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_borrow_mut">borrow_mut</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(
-    <a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;,
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(
+    <Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;,
     k: K,
 ): &<b>mut</b> V \{
-    ofield::borrow_mut(&<b>mut</b> <a href="table.md#0x2_table">table</a>.id, k)
+    ofield::borrow_mut(&<b>mut</b> <Link href="table.md#0x2_table">table</Link>.id, k)
 }
 </code></pre>
 
@@ -221,7 +221,7 @@ k: K</code>.
 ## Function `remove`
 
 Removes the key-value pair in the table <code>
-<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;</code> and returns the value.
+<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;</code> and returns the value.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -229,7 +229,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_remove">remove</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;, k: K): V
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;, k: K): V
 </code></pre>
 
 
@@ -239,9 +239,9 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_remove">remove</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: &<b>mut</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;, k: K): V \{
-    <b>let</b> v = ofield::remove(&<b>mut</b> <a href="table.md#0x2_table">table</a>.id, k);
-    <a href="table.md#0x2_table">table</a>.size = <a href="table.md#0x2_table">table</a>.size - 1;
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: &<b>mut</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;, k: K): V \{
+    <b>let</b> v = ofield::remove(&<b>mut</b> <Link href="table.md#0x2_table">table</Link>.id, k);
+    <Link href="table.md#0x2_table">table</Link>.size = <Link href="table.md#0x2_table">table</Link>.size - 1;
     v
 }
 </code></pre>
@@ -257,11 +257,11 @@ k: K</code>.
 Returns true iff there is a value associated with the key <code>
 k: K</code> in table
 <code>
-<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;</code>
+<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_contains">contains</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;, k: K): bool
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_contains">contains</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;, k: K): bool
 </code></pre>
 
 
@@ -271,8 +271,8 @@ k: K</code> in table
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_contains">contains</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;, k: K): bool \{
-    ofield::exists_&lt;K&gt;(&<a href="table.md#0x2_table">table</a>.id, k)
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_contains">contains</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;, k: K): bool \{
+    ofield::exists_&lt;K&gt;(&<Link href="table.md#0x2_table">table</Link>.id, k)
 }
 </code></pre>
 
@@ -288,7 +288,7 @@ Returns the size of the table, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_length">length</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;): u64
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_length">length</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;): u64
 </code></pre>
 
 
@@ -298,8 +298,8 @@ Returns the size of the table, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_length">length</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;): u64 \{
-    <a href="table.md#0x2_table">table</a>.size
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_length">length</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;): u64 \{
+    <Link href="table.md#0x2_table">table</Link>.size
 }
 </code></pre>
 
@@ -317,7 +317,7 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_is_empty">is_empty</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;): bool
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_is_empty">is_empty</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;): bool
 </code></pre>
 
 
@@ -327,8 +327,8 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_is_empty">is_empty</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;): bool \{
-    <a href="table.md#0x2_table">table</a>.size == 0
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_is_empty">is_empty</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;): bool \{
+    <Link href="table.md#0x2_table">table</Link>.size == 0
 }
 </code></pre>
 
@@ -342,11 +342,11 @@ length</code> returns <code>
 
 Destroys an empty table
 Aborts with <code>
-<a href="object_table.md#0x2_object_table_ETableNotEmpty">ETableNotEmpty</a></code> if the table still contains values
+<Link href="object_table.md#0x2_object_table_ETableNotEmpty">ETableNotEmpty</Link></code> if the table still contains values
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_destroy_empty">destroy_empty</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: <a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;)
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: <Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;)
 </code></pre>
 
 
@@ -356,9 +356,9 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_destroy_empty">destroy_empty</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<a href="table.md#0x2_table">table</a>: <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;) \{
-    <b>let</b> <a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a> \{ id, size } = <a href="table.md#0x2_table">table</a>;
-    <b>assert</b>!(size == 0, <a href="object_table.md#0x2_object_table_ETableNotEmpty">ETableNotEmpty</a>);
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="table.md#0x2_table">table</Link>: <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;) \{
+    <b>let</b> <Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link> \{ id, size } = <Link href="table.md#0x2_table">table</Link>;
+    <b>assert</b>!(size == 0, <Link href="object_table.md#0x2_object_table_ETableNotEmpty">ETableNotEmpty</Link>);
     id.delete()
 }
 </code></pre>
@@ -377,7 +377,7 @@ Returns none otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_value_id">value_id</a>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</a>&lt;K, V&gt;, k: K): <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="object.md#0x2_object_ID">object::ID</a>&gt;
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_value_id">value_id</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">object_table::ObjectTable</Link>&lt;K, V&gt;, k: K): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="object.md#0x2_object_ID">object::ID</Link>&gt;
 </code></pre>
 
 
@@ -387,11 +387,11 @@ Returns none otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="object_table.md#0x2_object_table_value_id">value_id</a>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(
-    <a href="table.md#0x2_table">table</a>: &<a href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</a>&lt;K, V&gt;,
+<b>public</b> <b>fun</b> <Link href="object_table.md#0x2_object_table_value_id">value_id</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(
+    <Link href="table.md#0x2_table">table</Link>: &<Link href="object_table.md#0x2_object_table_ObjectTable">ObjectTable</Link>&lt;K, V&gt;,
     k: K,
 ): Option&lt;ID&gt; \{
-    ofield::id(&<a href="table.md#0x2_table">table</a>.id, k)
+    ofield::id(&<Link href="table.md#0x2_table">table</Link>.id, k)
 }
 </code></pre>
 

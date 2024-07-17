@@ -31,7 +31,7 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>const</b> <a href="math.md#0xdee9_math_EUnderflow">EUnderflow</a>: u64 = 1;
+<b>const</b> <Link href="math.md#0xdee9_math_EUnderflow">EUnderflow</Link>: u64 = 1;
 </code></pre>
 
 
@@ -42,7 +42,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>const</b> <a href="math.md#0xdee9_math_FLOAT_SCALING">FLOAT_SCALING</a>: u64 = 1000000000;
+<b>const</b> <Link href="math.md#0xdee9_math_FLOAT_SCALING">FLOAT_SCALING</Link>: u64 = 1000000000;
 </code></pre>
 
 
@@ -52,7 +52,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>const</b> <a href="math.md#0xdee9_math_FLOAT_SCALING_U128">FLOAT_SCALING_U128</a>: u128 = 1000000000;
+<b>const</b> <Link href="math.md#0xdee9_math_FLOAT_SCALING_U128">FLOAT_SCALING_U128</Link>: u128 = 1000000000;
 </code></pre>
 
 
@@ -64,7 +64,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_mul">unsafe_mul</a>(x: u64, y: u64): u64
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_mul">unsafe_mul</Link>(x: u64, y: u64): u64
 </code></pre>
 
 
@@ -74,8 +74,8 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_mul">unsafe_mul</a>(x: u64, y: u64): u64 \{
-    <b>let</b> (_, result) = <a href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</a>(x, y);
+<b>public</b>(package) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_mul">unsafe_mul</Link>(x: u64, y: u64): u64 \{
+    <b>let</b> (_, result) = <Link href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</Link>(x, y);
     result
 }
 </code></pre>
@@ -91,7 +91,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</a>(x: u64, y: u64): (bool, u64)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</Link>(x: u64, y: u64): (bool, u64)
 </code></pre>
 
 
@@ -101,12 +101,12 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</a>(x: u64, y: u64): (bool, u64) \{
+<b>public</b>(package) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</Link>(x: u64, y: u64): (bool, u64) \{
     <b>let</b> x = x <b>as</b> u128;
     <b>let</b> y = y <b>as</b> u128;
     <b>let</b> <b>mut</b> is_round_down = <b>true</b>;
-    <b>if</b> ((x * y) % <a href="math.md#0xdee9_math_FLOAT_SCALING_U128">FLOAT_SCALING_U128</a> == 0) is_round_down = <b>false</b>;
-    (is_round_down, (x * y / <a href="math.md#0xdee9_math_FLOAT_SCALING_U128">FLOAT_SCALING_U128</a>) <b>as</b> u64)
+    <b>if</b> ((x * y) % <Link href="math.md#0xdee9_math_FLOAT_SCALING_U128">FLOAT_SCALING_U128</Link> == 0) is_round_down = <b>false</b>;
+    (is_round_down, (x * y / <Link href="math.md#0xdee9_math_FLOAT_SCALING_U128">FLOAT_SCALING_U128</Link>) <b>as</b> u64)
 }
 </code></pre>
 
@@ -121,7 +121,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="math.md#0xdee9_math_mul">mul</a>(x: u64, y: u64): u64
+<b>public</b> <b>fun</b> <Link href="math.md#0xdee9_math_mul">mul</Link>(x: u64, y: u64): u64
 </code></pre>
 
 
@@ -131,9 +131,9 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="math.md#0xdee9_math_mul">mul</a>(x: u64, y: u64): u64 \{
-    <b>let</b> (_, result) = <a href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</a>(x, y);
-    <b>assert</b>!(result &gt; 0, <a href="math.md#0xdee9_math_EUnderflow">EUnderflow</a>);
+<b>public</b> <b>fun</b> <Link href="math.md#0xdee9_math_mul">mul</Link>(x: u64, y: u64): u64 \{
+    <b>let</b> (_, result) = <Link href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</Link>(x, y);
+    <b>assert</b>!(result &gt; 0, <Link href="math.md#0xdee9_math_EUnderflow">EUnderflow</Link>);
     result
 }
 </code></pre>
@@ -149,7 +149,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="math.md#0xdee9_math_mul_round">mul_round</a>(x: u64, y: u64): (bool, u64)
+<b>public</b> <b>fun</b> <Link href="math.md#0xdee9_math_mul_round">mul_round</Link>(x: u64, y: u64): (bool, u64)
 </code></pre>
 
 
@@ -159,9 +159,9 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="math.md#0xdee9_math_mul_round">mul_round</a>(x: u64, y: u64): (bool, u64) \{
-    <b>let</b> (is_round_down, result) = <a href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</a>(x, y);
-    <b>assert</b>!(result &gt; 0, <a href="math.md#0xdee9_math_EUnderflow">EUnderflow</a>);
+<b>public</b> <b>fun</b> <Link href="math.md#0xdee9_math_mul_round">mul_round</Link>(x: u64, y: u64): (bool, u64) \{
+    <b>let</b> (is_round_down, result) = <Link href="math.md#0xdee9_math_unsafe_mul_round">unsafe_mul_round</Link>(x, y);
+    <b>assert</b>!(result &gt; 0, <Link href="math.md#0xdee9_math_EUnderflow">EUnderflow</Link>);
     (is_round_down, result)
 }
 </code></pre>
@@ -177,7 +177,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_div">unsafe_div</a>(x: u64, y: u64): u64
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_div">unsafe_div</Link>(x: u64, y: u64): u64
 </code></pre>
 
 
@@ -187,8 +187,8 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_div">unsafe_div</a>(x: u64, y: u64): u64 \{
-    <b>let</b> (_, result) = <a href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</a>(x, y);
+<b>public</b>(package) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_div">unsafe_div</Link>(x: u64, y: u64): u64 \{
+    <b>let</b> (_, result) = <Link href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</Link>(x, y);
     result
 }
 </code></pre>
@@ -204,7 +204,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</a>(x: u64, y: u64): (bool, u64)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</Link>(x: u64, y: u64): (bool, u64)
 </code></pre>
 
 
@@ -214,12 +214,12 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</a>(x: u64, y: u64): (bool, u64) \{
+<b>public</b>(package) <b>fun</b> <Link href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</Link>(x: u64, y: u64): (bool, u64) \{
     <b>let</b> x = x <b>as</b> u128;
     <b>let</b> y = y <b>as</b> u128;
     <b>let</b> <b>mut</b> is_round_down = <b>true</b>;
-    <b>if</b> ((x * (<a href="math.md#0xdee9_math_FLOAT_SCALING">FLOAT_SCALING</a> <b>as</b> u128) % y) == 0) is_round_down = <b>false</b>;
-    (is_round_down, (x * (<a href="math.md#0xdee9_math_FLOAT_SCALING">FLOAT_SCALING</a> <b>as</b> u128) / y) <b>as</b> u64)
+    <b>if</b> ((x * (<Link href="math.md#0xdee9_math_FLOAT_SCALING">FLOAT_SCALING</Link> <b>as</b> u128) % y) == 0) is_round_down = <b>false</b>;
+    (is_round_down, (x * (<Link href="math.md#0xdee9_math_FLOAT_SCALING">FLOAT_SCALING</Link> <b>as</b> u128) / y) <b>as</b> u64)
 }
 </code></pre>
 
@@ -234,7 +234,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="math.md#0xdee9_math_div_round">div_round</a>(x: u64, y: u64): (bool, u64)
+<b>public</b> <b>fun</b> <Link href="math.md#0xdee9_math_div_round">div_round</Link>(x: u64, y: u64): (bool, u64)
 </code></pre>
 
 
@@ -244,9 +244,9 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="math.md#0xdee9_math_div_round">div_round</a>(x: u64, y: u64): (bool, u64) \{
-    <b>let</b> (is_round_down, result) = <a href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</a>(x, y);
-    <b>assert</b>!(result &gt; 0, <a href="math.md#0xdee9_math_EUnderflow">EUnderflow</a>);
+<b>public</b> <b>fun</b> <Link href="math.md#0xdee9_math_div_round">div_round</Link>(x: u64, y: u64): (bool, u64) \{
+    <b>let</b> (is_round_down, result) = <Link href="math.md#0xdee9_math_unsafe_div_round">unsafe_div_round</Link>(x, y);
+    <b>assert</b>!(result &gt; 0, <Link href="math.md#0xdee9_math_EUnderflow">EUnderflow</Link>);
     (is_round_down, result)
 }
 </code></pre>
@@ -262,7 +262,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="math.md#0xdee9_math_count_leading_zeros">count_leading_zeros</a>(x: u128): u8
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="math.md#0xdee9_math_count_leading_zeros">count_leading_zeros</Link>(x: u128): u8
 </code></pre>
 
 
@@ -272,7 +272,7 @@ scaling setting for float
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="math.md#0xdee9_math_count_leading_zeros">count_leading_zeros</a>(<b>mut</b> x: u128): u8 \{
+<b>public</b>(package) <b>fun</b> <Link href="math.md#0xdee9_math_count_leading_zeros">count_leading_zeros</Link>(<b>mut</b> x: u128): u8 \{
     <b>if</b> (x == 0) \{
         128
     } <b>else</b> \{

@@ -13,11 +13,11 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
-<b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
-<b>use</b> <a href="../iota-framework/math.md#0x2_math">0x2::math</a>;
-<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <Link href="../iota-framework/bag.md#0x2_bag">0x2::bag</Link>;
+<b>use</b> <Link href="../iota-framework/balance.md#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link href="../iota-framework/iota.md#0x2_iota">0x2::iota</Link>;
+<b>use</b> <Link href="../iota-framework/math.md#0x2_math">0x2::math</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -29,7 +29,7 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>struct</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a> <b>has</b> store
+<b>struct</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</Link> <b>has</b> store
 </code></pre>
 
 
@@ -41,7 +41,7 @@ import Link from '@docusaurus/Link';
 <dl>
 <dt>
 <code>
-<a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
  Balance of IOTA set aside for stake subsidies that will be drawn down over time.
@@ -78,7 +78,7 @@ stake_subsidy_decrease_rate: u16</code>
 </dd>
 <dt>
 <code>
-extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
+extra_fields: <Link href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -98,7 +98,7 @@ extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 
 
 <pre><code>
-<b>const</b> <a href="stake_subsidy.md#0x3_stake_subsidy_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a>: u128 = 10000;
+<b>const</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</Link>: u128 = 10000;
 </code></pre>
 
 
@@ -108,7 +108,7 @@ extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 
 
 <pre><code>
-<b>const</b> <a href="stake_subsidy.md#0x3_stake_subsidy_ESubsidyDecreaseRateTooLarge">ESubsidyDecreaseRateTooLarge</a>: u64 = 0;
+<b>const</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_ESubsidyDecreaseRateTooLarge">ESubsidyDecreaseRateTooLarge</Link>: u64 = 0;
 </code></pre>
 
 
@@ -120,7 +120,7 @@ extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_create">create</a>(<a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, initial_distribution_amount: u64, stake_subsidy_period_length: u64, stake_subsidy_decrease_rate: u16, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_create">create</Link>(<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;, initial_distribution_amount: u64, stake_subsidy_period_length: u64, stake_subsidy_decrease_rate: u16, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>
 </code></pre>
 
 
@@ -130,26 +130,26 @@ extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_create">create</a>(
-    <a href="../iota-framework/balance.md#0x2_balance">balance</a>: Balance&lt;IOTA&gt;,
+<b>public</b>(package) <b>fun</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_create">create</Link>(
+    <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>: Balance&lt;IOTA&gt;,
     initial_distribution_amount: u64,
     stake_subsidy_period_length: u64,
     stake_subsidy_decrease_rate: u16,
     ctx: &<b>mut</b> TxContext,
-): <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a> \{
+): <Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</Link> \{
     // Rate can't be higher than 100%.
     <b>assert</b>!(
-        stake_subsidy_decrease_rate &lt;= <a href="stake_subsidy.md#0x3_stake_subsidy_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a> <b>as</b> u16,
-        <a href="stake_subsidy.md#0x3_stake_subsidy_ESubsidyDecreaseRateTooLarge">ESubsidyDecreaseRateTooLarge</a>,
+        stake_subsidy_decrease_rate &lt;= <Link href="stake_subsidy.md#0x3_stake_subsidy_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</Link> <b>as</b> u16,
+        <Link href="stake_subsidy.md#0x3_stake_subsidy_ESubsidyDecreaseRateTooLarge">ESubsidyDecreaseRateTooLarge</Link>,
     );
 
-    <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a> \{
-        <a href="../iota-framework/balance.md#0x2_balance">balance</a>,
+    <Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</Link> \{
+        <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>,
         distribution_counter: 0,
         current_distribution_amount: initial_distribution_amount,
         stake_subsidy_period_length,
         stake_subsidy_decrease_rate,
-        extra_fields: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
+        extra_fields: <Link href="../iota-framework/bag.md#0x2_bag_new">bag::new</Link>(ctx),
     }
 }
 </code></pre>
@@ -166,7 +166,7 @@ Advance the epoch counter and draw down the subsidy for the epoch.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</Link>(self: &<b>mut</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>): <Link href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -176,25 +176,25 @@ Advance the epoch counter and draw down the subsidy for the epoch.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a>): Balance&lt;IOTA&gt; \{
-    // Take the minimum of the reward amount and the remaining <a href="../iota-framework/balance.md#0x2_balance">balance</a> in
+<b>public</b>(package) <b>fun</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</Link>(self: &<b>mut</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</Link>): Balance&lt;IOTA&gt; \{
+    // Take the minimum of the reward amount and the remaining <Link href="../iota-framework/balance.md#0x2_balance">balance</Link> in
     // order <b>to</b> ensure we don't overdraft the remaining stake subsidy
-    // <a href="../iota-framework/balance.md#0x2_balance">balance</a>
-    <b>let</b> to_withdraw = <a href="../iota-framework/math.md#0x2_math_min">math::min</a>(self.current_distribution_amount, self.<a href="../iota-framework/balance.md#0x2_balance">balance</a>.value());
+    // <Link href="../iota-framework/balance.md#0x2_balance">balance</Link>
+    <b>let</b> to_withdraw = <Link href="../iota-framework/math.md#0x2_math_min">math::min</Link>(self.current_distribution_amount, self.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.value());
 
     // Drawn down the subsidy for this epoch.
-    <b>let</b> <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a> = self.<a href="../iota-framework/balance.md#0x2_balance">balance</a>.split(to_withdraw);
+    <b>let</b> <Link href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</Link> = self.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.split(to_withdraw);
 
     self.distribution_counter = self.distribution_counter + 1;
 
     // Decrease the subsidy amount only when the current period ends.
     <b>if</b> (self.distribution_counter % self.stake_subsidy_period_length == 0) \{
         <b>let</b> decrease_amount = self.current_distribution_amount <b>as</b> u128
-            * (self.stake_subsidy_decrease_rate <b>as</b> u128) / <a href="stake_subsidy.md#0x3_stake_subsidy_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a>;
+            * (self.stake_subsidy_decrease_rate <b>as</b> u128) / <Link href="stake_subsidy.md#0x3_stake_subsidy_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</Link>;
         self.current_distribution_amount = self.current_distribution_amount - (decrease_amount <b>as</b> u64)
     };
 
-    <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>
+    <Link href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</Link>
 }
 </code></pre>
 
@@ -210,7 +210,7 @@ Returns the amount of stake subsidy to be added at the end of the current epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_current_epoch_subsidy_amount">current_epoch_subsidy_amount</a>(self: &<a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>): u64
+<b>public</b> <b>fun</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_current_epoch_subsidy_amount">current_epoch_subsidy_amount</Link>(self: &<Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>): u64
 </code></pre>
 
 
@@ -220,8 +220,8 @@ Returns the amount of stake subsidy to be added at the end of the current epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_current_epoch_subsidy_amount">current_epoch_subsidy_amount</a>(self: &<a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a>): u64 \{
-    <a href="../iota-framework/math.md#0x2_math_min">math::min</a>(self.current_distribution_amount, self.<a href="../iota-framework/balance.md#0x2_balance">balance</a>.value())
+<b>public</b> <b>fun</b> <Link href="stake_subsidy.md#0x3_stake_subsidy_current_epoch_subsidy_amount">current_epoch_subsidy_amount</Link>(self: &<Link href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</Link>): u64 \{
+    <Link href="../iota-framework/math.md#0x2_math_min">math::min</Link>(self.current_distribution_amount, self.<Link href="../iota-framework/balance.md#0x2_balance">balance</Link>.value())
 }
 </code></pre>
 

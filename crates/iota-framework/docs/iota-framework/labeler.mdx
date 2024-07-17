@@ -12,9 +12,9 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
-<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
-<b>use</b> <a href="../iota-framework/types.md#0x2_types">0x2::types</a>;
+<b>use</b> <Link href="../iota-framework/object.md#0x2_object">0x2::object</Link>;
+<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../iota-framework/types.md#0x2_types">0x2::types</Link>;
 </code></pre>
 
 
@@ -24,13 +24,13 @@ import Link from '@docusaurus/Link';
 ## Resource `LabelerCap`
 
 <code>
-<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a></code> allows to create labels of the specific type <code>
+<Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link></code> allows to create labels of the specific type <code>
 L</code>.
 Can be publicly transferred like any other object.
 
 
 <pre><code>
-<b>struct</b> <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt; <b>has</b> store, key
+<b>struct</b> <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -42,7 +42,7 @@ Can be publicly transferred like any other object.
 <dl>
 <dt>
 <code>
-id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
+id: <Link href="../iota-framework/object.md#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -64,7 +64,7 @@ create_labeler_cap</code> function is not a one-time witness.
 
 
 <pre><code>
-<b>const</b> <a href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</a>: u64 = 0;
+<b>const</b> <Link href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</Link>: u64 = 0;
 </code></pre>
 
 
@@ -74,12 +74,12 @@ create_labeler_cap</code> function is not a one-time witness.
 ## Function `create_labeler_cap`
 
 Create a <code>
-<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a></code> instance.
+<Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link></code> instance.
 Can be created only by consuming a one time witness.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/labeler.md#0x2_labeler_create_labeler_cap">create_labeler_cap</a>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;
+<b>public</b> <b>fun</b> <Link href="../iota-framework/labeler.md#0x2_labeler_create_labeler_cap">create_labeler_cap</Link>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</Link>&lt;L&gt;
 </code></pre>
 
 
@@ -89,11 +89,11 @@ Can be created only by consuming a one time witness.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/labeler.md#0x2_labeler_create_labeler_cap">create_labeler_cap</a>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> TxContext): <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt; \{
-    <b>assert</b>!(iota::types::is_one_time_witness(&witness), <a href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</a>);
+<b>public</b> <b>fun</b> <Link href="../iota-framework/labeler.md#0x2_labeler_create_labeler_cap">create_labeler_cap</Link>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; \{
+    <b>assert</b>!(iota::types::is_one_time_witness(&witness), <Link href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</Link>);
 
-    <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt; \{
-        id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
+    <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; \{
+        id: <Link href="../iota-framework/object.md#0x2_object_new">object::new</Link>(ctx),
     }
 }
 </code></pre>
@@ -107,12 +107,12 @@ Can be created only by consuming a one time witness.
 ## Function `destroy_labeler_cap`
 
 Delete a <code>
-<a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a></code> instance.
+<Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link></code> instance.
 If a capability is destroyed, it is impossible to add the related labels.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/labeler.md#0x2_labeler_destroy_labeler_cap">destroy_labeler_cap</a>&lt;L&gt;(cap: <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;)
+<b>public</b> <b>fun</b> <Link href="../iota-framework/labeler.md#0x2_labeler_destroy_labeler_cap">destroy_labeler_cap</Link>&lt;L&gt;(cap: <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">labeler::LabelerCap</Link>&lt;L&gt;)
 </code></pre>
 
 
@@ -122,12 +122,12 @@ If a capability is destroyed, it is impossible to add the related labels.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../iota-framework/labeler.md#0x2_labeler_destroy_labeler_cap">destroy_labeler_cap</a>&lt;L&gt;(cap: <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt;) \{
-    <b>let</b> <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt; \{
+<b>public</b> <b>fun</b> <Link href="../iota-framework/labeler.md#0x2_labeler_destroy_labeler_cap">destroy_labeler_cap</Link>&lt;L&gt;(cap: <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt;) \{
+    <b>let</b> <Link href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; \{
         id,
     } = cap;
 
-    <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
+    <Link href="../iota-framework/object.md#0x2_object_delete">object::delete</Link>(id);
 }
 </code></pre>
 

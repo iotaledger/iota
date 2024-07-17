@@ -19,10 +19,10 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
-<b>use</b> <a href="../iota-framework/linked_table.md#0x2_linked_table">0x2::linked_table</a>;
-<b>use</b> <a href="clob_v2.md#0xdee9_clob_v2">0xdee9::clob_v2</a>;
-<b>use</b> <a href="critbit.md#0xdee9_critbit">0xdee9::critbit</a>;
+<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../iota-framework/linked_table.md#0x2_linked_table">0x2::linked_table</Link>;
+<b>use</b> <Link href="clob_v2.md#0xdee9_clob_v2">0xdee9::clob_v2</Link>;
+<b>use</b> <Link href="critbit.md#0xdee9_critbit">0xdee9::critbit</Link>;
 </code></pre>
 
 
@@ -34,7 +34,7 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>struct</b> <a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a> <b>has</b> drop
+<b>struct</b> <Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -46,7 +46,7 @@ import Link from '@docusaurus/Link';
 <dl>
 <dt>
 <code>
-orders: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</a>&gt;</code>
+orders: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;</code>
 </dt>
 <dd>
 
@@ -60,14 +60,14 @@ has_next_page: bool</code>
 </dd>
 <dt>
 <code>
-next_tick_level: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;</code>
+next_tick_level: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;</code>
+next_order_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
 
@@ -87,7 +87,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>const</b> <a href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</a>: u64 = 100;
+<b>const</b> <Link href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</Link>: u64 = 100;
 </code></pre>
 
 
@@ -99,7 +99,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_iter_bids">iter_bids</a>&lt;T1, T2&gt;(pool: &<a href="clob_v2.md#0xdee9_clob_v2_Pool">clob_v2::Pool</a>&lt;T1, T2&gt;, start_tick_level: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, start_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, min_expire_timestamp: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, max_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, ascending: bool): <a href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</a>
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_iter_bids">iter_bids</Link>&lt;T1, T2&gt;(pool: &<Link href="clob_v2.md#0xdee9_clob_v2_Pool">clob_v2::Pool</Link>&lt;T1, T2&gt;, start_tick_level: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, start_order_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, min_expire_timestamp: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, max_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ascending: bool): <Link href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>
 </code></pre>
 
 
@@ -109,7 +109,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_iter_bids">iter_bids</a>&lt;T1, T2&gt;(
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_iter_bids">iter_bids</Link>&lt;T1, T2&gt;(
     pool: &Pool&lt;T1, T2&gt;,
     // tick level <b>to</b> start from
     start_tick_level: Option&lt;u64&gt;,
@@ -123,9 +123,9 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
     max_id: Option&lt;u64&gt;,
     // <b>if</b> <b>true</b>, the orders are returned in ascending tick level.
     ascending: bool,
-): <a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a> \{
-    <b>let</b> bids = <a href="clob_v2.md#0xdee9_clob_v2_bids">clob_v2::bids</a>(pool);
-    <b>let</b> <b>mut</b> orders = <a href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</a>(
+): <Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link> \{
+    <b>let</b> bids = <Link href="clob_v2.md#0xdee9_clob_v2_bids">clob_v2::bids</Link>(pool);
+    <b>let</b> <b>mut</b> orders = <Link href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</Link>(
         bids,
         start_tick_level,
         start_order_id,
@@ -133,14 +133,14 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
         max_id,
         ascending
     );
-    <b>let</b> (orders, has_next_page, next_tick_level, next_order_id) = <b>if</b> (<a href="../move-stdlib/vector.md#0x1_vector_length">vector::length</a>(&orders) &gt; <a href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</a>) \{
-        <b>let</b> last_order = <a href="../move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</a>(&<b>mut</b> orders);
-        (orders, <b>true</b>, some(<a href="clob_v2.md#0xdee9_clob_v2_tick_level">clob_v2::tick_level</a>(&last_order)), some(<a href="clob_v2.md#0xdee9_clob_v2_order_id">clob_v2::order_id</a>(&last_order)))
+    <b>let</b> (orders, has_next_page, next_tick_level, next_order_id) = <b>if</b> (<Link href="../move-stdlib/vector.md#0x1_vector_length">vector::length</Link>(&orders) &gt; <Link href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</Link>) \{
+        <b>let</b> last_order = <Link href="../move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</Link>(&<b>mut</b> orders);
+        (orders, <b>true</b>, some(<Link href="clob_v2.md#0xdee9_clob_v2_tick_level">clob_v2::tick_level</Link>(&last_order)), some(<Link href="clob_v2.md#0xdee9_clob_v2_order_id">clob_v2::order_id</Link>(&last_order)))
     } <b>else</b> \{
         (orders, <b>false</b>, none(), none())
     };
 
-    <a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a> \{
+    <Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link> \{
         orders,
         has_next_page,
         next_tick_level,
@@ -160,7 +160,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_iter_asks">iter_asks</a>&lt;T1, T2&gt;(pool: &<a href="clob_v2.md#0xdee9_clob_v2_Pool">clob_v2::Pool</a>&lt;T1, T2&gt;, start_tick_level: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, start_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, min_expire_timestamp: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, max_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, ascending: bool): <a href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</a>
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_iter_asks">iter_asks</Link>&lt;T1, T2&gt;(pool: &<Link href="clob_v2.md#0xdee9_clob_v2_Pool">clob_v2::Pool</Link>&lt;T1, T2&gt;, start_tick_level: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, start_order_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, min_expire_timestamp: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, max_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ascending: bool): <Link href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>
 </code></pre>
 
 
@@ -170,7 +170,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_iter_asks">iter_asks</a>&lt;T1, T2&gt;(
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_iter_asks">iter_asks</Link>&lt;T1, T2&gt;(
     pool: &Pool&lt;T1, T2&gt;,
     // tick level <b>to</b> start from
     start_tick_level: Option&lt;u64&gt;,
@@ -184,9 +184,9 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
     max_id: Option&lt;u64&gt;,
     // <b>if</b> <b>true</b>, the orders are returned in ascending tick level.
     ascending: bool,
-): <a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a> \{
-    <b>let</b> asks = <a href="clob_v2.md#0xdee9_clob_v2_asks">clob_v2::asks</a>(pool);
-    <b>let</b> <b>mut</b> orders = <a href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</a>(
+): <Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link> \{
+    <b>let</b> asks = <Link href="clob_v2.md#0xdee9_clob_v2_asks">clob_v2::asks</Link>(pool);
+    <b>let</b> <b>mut</b> orders = <Link href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</Link>(
         asks,
         start_tick_level,
         start_order_id,
@@ -194,14 +194,14 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
         max_id,
         ascending
     );
-    <b>let</b> (orders, has_next_page, next_tick_level, next_order_id) = <b>if</b> (<a href="../move-stdlib/vector.md#0x1_vector_length">vector::length</a>(&orders) &gt; <a href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</a>) \{
-        <b>let</b> last_order = <a href="../move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</a>(&<b>mut</b> orders);
-        (orders, <b>true</b>, some(<a href="clob_v2.md#0xdee9_clob_v2_tick_level">clob_v2::tick_level</a>(&last_order)), some(<a href="clob_v2.md#0xdee9_clob_v2_order_id">clob_v2::order_id</a>(&last_order)))
+    <b>let</b> (orders, has_next_page, next_tick_level, next_order_id) = <b>if</b> (<Link href="../move-stdlib/vector.md#0x1_vector_length">vector::length</Link>(&orders) &gt; <Link href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</Link>) \{
+        <b>let</b> last_order = <Link href="../move-stdlib/vector.md#0x1_vector_pop_back">vector::pop_back</Link>(&<b>mut</b> orders);
+        (orders, <b>true</b>, some(<Link href="clob_v2.md#0xdee9_clob_v2_tick_level">clob_v2::tick_level</Link>(&last_order)), some(<Link href="clob_v2.md#0xdee9_clob_v2_order_id">clob_v2::order_id</Link>(&last_order)))
     } <b>else</b> \{
         (orders, <b>false</b>, none(), none())
     };
 
-    <a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a> \{
+    <Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link> \{
         orders,
         has_next_page,
         next_tick_level,
@@ -221,7 +221,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>fun</b> <a href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</a>(ticks: &<a href="critbit.md#0xdee9_critbit_CritbitTree">critbit::CritbitTree</a>&lt;<a href="clob_v2.md#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</a>&gt;, start_tick_level: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, start_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, min_expire_timestamp: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, max_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;, ascending: bool): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</a>&gt;
+<b>fun</b> <Link href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</Link>(ticks: &<Link href="critbit.md#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link href="clob_v2.md#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</Link>&gt;, start_tick_level: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, start_order_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, min_expire_timestamp: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, max_id: <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ascending: bool): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;
 </code></pre>
 
 
@@ -231,7 +231,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>fun</b> <a href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</a>(
+<b>fun</b> <Link href="order_query.md#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</Link>(
     ticks: &CritbitTree&lt;TickLevel&gt;,
     // tick level <b>to</b> start from
     start_tick_level: Option&lt;u64&gt;,
@@ -245,62 +245,62 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
     max_id: Option&lt;u64&gt;,
     // <b>if</b> <b>true</b>, the orders are returned in ascending tick level.
     ascending: bool,
-): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Order&gt; \{
-    <b>let</b> <b>mut</b> tick_level_key = <b>if</b> (<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&start_tick_level)) \{
-        <a href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</a>(start_tick_level)
+): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Order&gt; \{
+    <b>let</b> <b>mut</b> tick_level_key = <b>if</b> (<Link href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</Link>(&start_tick_level)) \{
+        <Link href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</Link>(start_tick_level)
     } <b>else</b> \{
         <b>let</b> (key, _) = <b>if</b> (ascending) \{
-            <a href="critbit.md#0xdee9_critbit_min_leaf">critbit::min_leaf</a>(ticks)
+            <Link href="critbit.md#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(ticks)
         }<b>else</b> \{
-            <a href="critbit.md#0xdee9_critbit_max_leaf">critbit::max_leaf</a>(ticks)
+            <Link href="critbit.md#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(ticks)
         };
         key
     };
 
-    <b>let</b> <b>mut</b> orders = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
+    <b>let</b> <b>mut</b> orders = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
 
-    <b>while</b> (tick_level_key != 0 && <a href="../move-stdlib/vector.md#0x1_vector_length">vector::length</a>(&orders) &lt; <a href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</a> + 1) \{
-        <b>let</b> tick_level = <a href="critbit.md#0xdee9_critbit_borrow_leaf_by_key">critbit::borrow_leaf_by_key</a>(ticks, tick_level_key);
-        <b>let</b> open_orders = <a href="clob_v2.md#0xdee9_clob_v2_open_orders">clob_v2::open_orders</a>(tick_level);
+    <b>while</b> (tick_level_key != 0 && <Link href="../move-stdlib/vector.md#0x1_vector_length">vector::length</Link>(&orders) &lt; <Link href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</Link> + 1) \{
+        <b>let</b> tick_level = <Link href="critbit.md#0xdee9_critbit_borrow_leaf_by_key">critbit::borrow_leaf_by_key</Link>(ticks, tick_level_key);
+        <b>let</b> open_orders = <Link href="clob_v2.md#0xdee9_clob_v2_open_orders">clob_v2::open_orders</Link>(tick_level);
 
-        <b>let</b> <b>mut</b> next_order_key = <b>if</b> (<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&start_order_id)) \{
-            <b>let</b> key = <a href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</a>(start_order_id);
-            <b>if</b> (!<a href="../iota-framework/linked_table.md#0x2_linked_table_contains">linked_table::contains</a>(open_orders, key)) \{
+        <b>let</b> <b>mut</b> next_order_key = <b>if</b> (<Link href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</Link>(&start_order_id)) \{
+            <b>let</b> key = <Link href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</Link>(start_order_id);
+            <b>if</b> (!<Link href="../iota-framework/linked_table.md#0x2_linked_table_contains">linked_table::contains</Link>(open_orders, key)) \{
                 <b>let</b> (next_leaf, _) = <b>if</b> (ascending) \{
-                    <a href="critbit.md#0xdee9_critbit_next_leaf">critbit::next_leaf</a>(ticks, tick_level_key)
+                    <Link href="critbit.md#0xdee9_critbit_next_leaf">critbit::next_leaf</Link>(ticks, tick_level_key)
                 }<b>else</b> \{
-                    <a href="critbit.md#0xdee9_critbit_previous_leaf">critbit::previous_leaf</a>(ticks, tick_level_key)
+                    <Link href="critbit.md#0xdee9_critbit_previous_leaf">critbit::previous_leaf</Link>(ticks, tick_level_key)
                 };
                 tick_level_key = next_leaf;
                 <b>continue</b>
             };
-            start_order_id = <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>();
+            start_order_id = <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>();
             some(key)
         }<b>else</b> \{
-            *<a href="../iota-framework/linked_table.md#0x2_linked_table_front">linked_table::front</a>(open_orders)
+            *<Link href="../iota-framework/linked_table.md#0x2_linked_table_front">linked_table::front</Link>(open_orders)
         };
 
-        <b>while</b> (<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&next_order_key) && <a href="../move-stdlib/vector.md#0x1_vector_length">vector::length</a>(&orders) &lt; <a href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</a> + 1) \{
-            <b>let</b> key = <a href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</a>(next_order_key);
-            <b>let</b> order = <a href="../iota-framework/linked_table.md#0x2_linked_table_borrow">linked_table::borrow</a>(open_orders, key);
+        <b>while</b> (<Link href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</Link>(&next_order_key) && <Link href="../move-stdlib/vector.md#0x1_vector_length">vector::length</Link>(&orders) &lt; <Link href="order_query.md#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</Link> + 1) \{
+            <b>let</b> key = <Link href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</Link>(next_order_key);
+            <b>let</b> order = <Link href="../iota-framework/linked_table.md#0x2_linked_table_borrow">linked_table::borrow</Link>(open_orders, key);
 
             // <b>if</b> the order id is greater than max_id, we end the iteration for this tick level.
-            <b>if</b> (<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&max_id) && key &gt; <a href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</a>(max_id)) \{
+            <b>if</b> (<Link href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</Link>(&max_id) && key &gt; <Link href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</Link>(max_id)) \{
                 <b>break</b>
             };
 
-            next_order_key = *<a href="../iota-framework/linked_table.md#0x2_linked_table_next">linked_table::next</a>(open_orders, key);
+            next_order_key = *<Link href="../iota-framework/linked_table.md#0x2_linked_table_next">linked_table::next</Link>(open_orders, key);
 
             // <b>if</b> expire timestamp is set, and <b>if</b> the order is expired, we skip it.
-            <b>if</b> (<a href="../move-stdlib/option.md#0x1_option_is_none">option::is_none</a>(&min_expire_timestamp) ||
-                <a href="clob_v2.md#0xdee9_clob_v2_expire_timestamp">clob_v2::expire_timestamp</a>(order) &gt; <a href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</a>(min_expire_timestamp)) \{
-                <a href="../move-stdlib/vector.md#0x1_vector_push_back">vector::push_back</a>(&<b>mut</b> orders, <a href="clob_v2.md#0xdee9_clob_v2_clone_order">clob_v2::clone_order</a>(order));
+            <b>if</b> (<Link href="../move-stdlib/option.md#0x1_option_is_none">option::is_none</Link>(&min_expire_timestamp) ||
+                <Link href="clob_v2.md#0xdee9_clob_v2_expire_timestamp">clob_v2::expire_timestamp</Link>(order) &gt; <Link href="../move-stdlib/option.md#0x1_option_destroy_some">option::destroy_some</Link>(min_expire_timestamp)) \{
+                <Link href="../move-stdlib/vector.md#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> orders, <Link href="clob_v2.md#0xdee9_clob_v2_clone_order">clob_v2::clone_order</Link>(order));
             };
         };
         <b>let</b> (next_leaf, _) = <b>if</b> (ascending) \{
-            <a href="critbit.md#0xdee9_critbit_next_leaf">critbit::next_leaf</a>(ticks, tick_level_key)
+            <Link href="critbit.md#0xdee9_critbit_next_leaf">critbit::next_leaf</Link>(ticks, tick_level_key)
         }<b>else</b> \{
-            <a href="critbit.md#0xdee9_critbit_previous_leaf">critbit::previous_leaf</a>(ticks, tick_level_key)
+            <Link href="critbit.md#0xdee9_critbit_previous_leaf">critbit::previous_leaf</Link>(ticks, tick_level_key)
         };
         tick_level_key = next_leaf;
     };
@@ -319,7 +319,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_orders">orders</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</a>): &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</a>&gt;
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_orders">orders</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;
 </code></pre>
 
 
@@ -329,7 +329,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_orders">orders</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a>): &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Order&gt; \{
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_orders">orders</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Order&gt; \{
     &page.orders
 }
 </code></pre>
@@ -345,7 +345,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_has_next_page">has_next_page</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</a>): bool
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_has_next_page">has_next_page</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): bool
 </code></pre>
 
 
@@ -355,7 +355,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_has_next_page">has_next_page</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a>): bool \{
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_has_next_page">has_next_page</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link>): bool \{
     page.has_next_page
 }
 </code></pre>
@@ -371,7 +371,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_next_tick_level">next_tick_level</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</a>): <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_next_tick_level">next_tick_level</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;
 </code></pre>
 
 
@@ -381,7 +381,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_next_tick_level">next_tick_level</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a>): Option&lt;u64&gt; \{
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_next_tick_level">next_tick_level</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link>): Option&lt;u64&gt; \{
     page.next_tick_level
 }
 </code></pre>
@@ -397,7 +397,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_next_order_id">next_order_id</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</a>): <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_next_order_id">next_order_id</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;u64&gt;
 </code></pre>
 
 
@@ -407,7 +407,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_next_order_id">next_order_id</a>(page: &<a href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</a>): Option&lt;u64&gt; \{
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_next_order_id">next_order_id</Link>(page: &<Link href="order_query.md#0xdee9_order_query_OrderPage">OrderPage</Link>): Option&lt;u64&gt; \{
     page.next_order_id
 }
 </code></pre>
@@ -423,7 +423,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_order_id">order_id</a>(order: &<a href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</a>): u64
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_order_id">order_id</Link>(order: &<Link href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</Link>): u64
 </code></pre>
 
 
@@ -433,8 +433,8 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_order_id">order_id</a>(order: &Order): u64 \{
-    <a href="clob_v2.md#0xdee9_clob_v2_order_id">clob_v2::order_id</a>(order)
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_order_id">order_id</Link>(order: &Order): u64 \{
+    <Link href="clob_v2.md#0xdee9_clob_v2_order_id">clob_v2::order_id</Link>(order)
 }
 </code></pre>
 
@@ -449,7 +449,7 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_tick_level">tick_level</a>(order: &<a href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</a>): u64
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_tick_level">tick_level</Link>(order: &<Link href="clob_v2.md#0xdee9_clob_v2_Order">clob_v2::Order</Link>): u64
 </code></pre>
 
 
@@ -459,8 +459,8 @@ next_order_id: <a href="../move-stdlib/option.md#0x1_option_Option">option::Opti
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="order_query.md#0xdee9_order_query_tick_level">tick_level</a>(order: &Order): u64 \{
-    <a href="clob_v2.md#0xdee9_clob_v2_tick_level">clob_v2::tick_level</a>(order)
+<b>public</b> <b>fun</b> <Link href="order_query.md#0xdee9_order_query_tick_level">tick_level</Link>(order: &Order): u64 \{
+    <Link href="clob_v2.md#0xdee9_clob_v2_tick_level">clob_v2::tick_level</Link>(order)
 }
 </code></pre>
 

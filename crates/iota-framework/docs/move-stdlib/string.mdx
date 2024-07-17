@@ -4,8 +4,8 @@ title: Module `0x1::string`
 import Link from '@docusaurus/Link';
 
 The <code>
-<a href="../move-stdlib/string.md#0x1_string">string</a></code> module defines the <code>
-<a href="../move-stdlib/string.md#0x1_string_String">String</a></code> type which represents UTF8 encoded strings.
+<Link href="../move-stdlib/string.md#0x1_string">string</Link></code> module defines the <code>
+<Link href="../move-stdlib/string.md#0x1_string_String">String</Link></code> type which represents UTF8 encoded strings.
 
 
 -  [Struct `String`](#0x1_string_String)
@@ -29,9 +29,9 @@ The <code>
 
 
 <pre><code>
-<b>use</b> <a href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</a>;
-<b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
-<b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
+<b>use</b> <Link href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</Link>;
+<b>use</b> <Link href="../move-stdlib/option.md#0x1_option">0x1::option</Link>;
+<b>use</b> <Link href="../move-stdlib/vector.md#0x1_vector">0x1::vector</Link>;
 </code></pre>
 
 
@@ -41,11 +41,11 @@ The <code>
 ## Struct `String`
 
 A <code>
-<a href="../move-stdlib/string.md#0x1_string_String">String</a></code> holds a sequence of bytes which is guaranteed to be in utf8 format.
+<Link href="../move-stdlib/string.md#0x1_string_String">String</Link></code> holds a sequence of bytes which is guaranteed to be in utf8 format.
 
 
 <pre><code>
-<b>struct</b> <a href="../move-stdlib/string.md#0x1_string_String">String</a> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -57,7 +57,7 @@ A <code>
 <dl>
 <dt>
 <code>
-bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;</code>
+bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -78,7 +78,7 @@ Index out of range.
 
 
 <pre><code>
-<b>const</b> <a href="../move-stdlib/string.md#0x1_string_EINVALID_INDEX">EINVALID_INDEX</a>: u64 = 2;
+<b>const</b> <Link href="../move-stdlib/string.md#0x1_string_EINVALID_INDEX">EINVALID_INDEX</Link>: u64 = 2;
 </code></pre>
 
 
@@ -89,7 +89,7 @@ An invalid UTF8 encoding.
 
 
 <pre><code>
-<b>const</b> <a href="../move-stdlib/string.md#0x1_string_EINVALID_UTF8">EINVALID_UTF8</a>: u64 = 1;
+<b>const</b> <Link href="../move-stdlib/string.md#0x1_string_EINVALID_UTF8">EINVALID_UTF8</Link>: u64 = 1;
 </code></pre>
 
 
@@ -102,7 +102,7 @@ Creates a new string from a sequence of bytes. Aborts if the bytes do not repres
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_utf8">utf8</a>(bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_utf8">utf8</Link>(bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -112,9 +112,9 @@ Creates a new string from a sequence of bytes. Aborts if the bytes do not repres
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_utf8">utf8</a>(bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../move-stdlib/string.md#0x1_string_String">String</a> \{
-    <b>assert</b>!(<a href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</a>(&bytes), <a href="../move-stdlib/string.md#0x1_string_EINVALID_UTF8">EINVALID_UTF8</a>);
-    <a href="../move-stdlib/string.md#0x1_string_String">String</a> \{ bytes }
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_utf8">utf8</Link>(bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{
+    <b>assert</b>!(<Link href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</Link>(&bytes), <Link href="../move-stdlib/string.md#0x1_string_EINVALID_UTF8">EINVALID_UTF8</Link>);
+    <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{ bytes }
 }
 </code></pre>
 
@@ -130,7 +130,7 @@ Convert an ASCII string to a UTF8 string
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_from_ascii">from_ascii</a>(s: <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_from_ascii">from_ascii</Link>(s: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -140,8 +140,8 @@ Convert an ASCII string to a UTF8 string
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_from_ascii">from_ascii</a>(s: <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>): <a href="../move-stdlib/string.md#0x1_string_String">String</a> \{
-    <a href="../move-stdlib/string.md#0x1_string_String">String</a> \{ bytes: <a href="../move-stdlib/ascii.md#0x1_ascii_into_bytes">ascii::into_bytes</a>(s) }
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_from_ascii">from_ascii</Link>(s: <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>): <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{
+    <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{ bytes: <Link href="../move-stdlib/ascii.md#0x1_ascii_into_bytes">ascii::into_bytes</Link>(s) }
 }
 </code></pre>
 
@@ -159,7 +159,7 @@ s</code> is not valid ASCII
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_to_ascii">to_ascii</a>(s: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>): <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_to_ascii">to_ascii</Link>(s: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link>
 </code></pre>
 
 
@@ -169,9 +169,9 @@ s</code> is not valid ASCII
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_to_ascii">to_ascii</a>(s: <a href="../move-stdlib/string.md#0x1_string_String">String</a>): <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a> \{
-    <b>let</b> <a href="../move-stdlib/string.md#0x1_string_String">String</a> \{ bytes } = s;
-    <a href="../move-stdlib/ascii.md#0x1_ascii_string">ascii::string</a>(bytes)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_to_ascii">to_ascii</Link>(s: <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>): <Link href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</Link> \{
+    <b>let</b> <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{ bytes } = s;
+    <Link href="../move-stdlib/ascii.md#0x1_ascii_string">ascii::string</Link>(bytes)
 }
 </code></pre>
 
@@ -187,7 +187,7 @@ Tries to create a new string from a sequence of bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_try_utf8">try_utf8</a>(bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_try_utf8">try_utf8</Link>(bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/option.md#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>&gt;
 </code></pre>
 
 
@@ -197,11 +197,11 @@ Tries to create a new string from a sequence of bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_try_utf8">try_utf8</a>(bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): Option&lt;<a href="../move-stdlib/string.md#0x1_string_String">String</a>&gt; \{
-    <b>if</b> (<a href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</a>(&bytes)) \{
-        <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(<a href="../move-stdlib/string.md#0x1_string_String">String</a> \{ bytes })
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_try_utf8">try_utf8</Link>(bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): Option&lt;<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>&gt; \{
+    <b>if</b> (<Link href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</Link>(&bytes)) \{
+        <Link href="../move-stdlib/option.md#0x1_option_some">option::some</Link>(<Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{ bytes })
     } <b>else</b> \{
-        <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>()
+        <Link href="../move-stdlib/option.md#0x1_option_none">option::none</Link>()
     }
 }
 </code></pre>
@@ -218,7 +218,7 @@ Returns a reference to the underlying byte vector.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_bytes">bytes</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>): &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_bytes">bytes</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -228,7 +228,7 @@ Returns a reference to the underlying byte vector.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_bytes">bytes</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">String</a>): &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_bytes">bytes</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>): &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt; \{
     &s.bytes
 }
 </code></pre>
@@ -245,7 +245,7 @@ Checks whether this string is empty.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_is_empty">is_empty</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>): bool
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_is_empty">is_empty</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): bool
 </code></pre>
 
 
@@ -255,8 +255,8 @@ Checks whether this string is empty.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_is_empty">is_empty</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">String</a>): bool \{
-    s.bytes.<a href="../move-stdlib/string.md#0x1_string_is_empty">is_empty</a>()
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_is_empty">is_empty</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>): bool \{
+    s.bytes.<Link href="../move-stdlib/string.md#0x1_string_is_empty">is_empty</Link>()
 }
 </code></pre>
 
@@ -272,7 +272,7 @@ Returns the length of this string, in bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_length">length</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>): u64
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_length">length</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): u64
 </code></pre>
 
 
@@ -282,8 +282,8 @@ Returns the length of this string, in bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_length">length</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">String</a>): u64 \{
-    s.bytes.<a href="../move-stdlib/string.md#0x1_string_length">length</a>()
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_length">length</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>): u64 \{
+    s.bytes.<Link href="../move-stdlib/string.md#0x1_string_length">length</Link>()
 }
 </code></pre>
 
@@ -299,7 +299,7 @@ Appends a string.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_append">append</a>(s: &<b>mut</b> <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, r: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_append">append</Link>(s: &<b>mut</b> <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, r: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>)
 </code></pre>
 
 
@@ -309,8 +309,8 @@ Appends a string.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_append">append</a>(s: &<b>mut</b> <a href="../move-stdlib/string.md#0x1_string_String">String</a>, r: <a href="../move-stdlib/string.md#0x1_string_String">String</a>) \{
-    s.bytes.<a href="../move-stdlib/string.md#0x1_string_append">append</a>(r.bytes)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_append">append</Link>(s: &<b>mut</b> <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>, r: <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>) \{
+    s.bytes.<Link href="../move-stdlib/string.md#0x1_string_append">append</Link>(r.bytes)
 }
 </code></pre>
 
@@ -326,7 +326,7 @@ Appends bytes which must be in valid utf8 format.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_append_utf8">append_utf8</a>(s: &<b>mut</b> <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_append_utf8">append_utf8</Link>(s: &<b>mut</b> <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;)
 </code></pre>
 
 
@@ -336,8 +336,8 @@ Appends bytes which must be in valid utf8 format.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_append_utf8">append_utf8</a>(s: &<b>mut</b> <a href="../move-stdlib/string.md#0x1_string_String">String</a>, bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;) \{
-    s.<a href="../move-stdlib/string.md#0x1_string_append">append</a>(<a href="../move-stdlib/string.md#0x1_string_utf8">utf8</a>(bytes))
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_append_utf8">append_utf8</Link>(s: &<b>mut</b> <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>, bytes: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;) \{
+    s.<Link href="../move-stdlib/string.md#0x1_string_append">append</Link>(<Link href="../move-stdlib/string.md#0x1_string_utf8">utf8</Link>(bytes))
 }
 </code></pre>
 
@@ -354,7 +354,7 @@ boundary.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_insert">insert</a>(s: &<b>mut</b> <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, at: u64, o: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_insert">insert</Link>(s: &<b>mut</b> <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, at: u64, o: <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>)
 </code></pre>
 
 
@@ -364,14 +364,14 @@ boundary.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_insert">insert</a>(s: &<b>mut</b> <a href="../move-stdlib/string.md#0x1_string_String">String</a>, at: u64, o: <a href="../move-stdlib/string.md#0x1_string_String">String</a>) \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_insert">insert</Link>(s: &<b>mut</b> <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>, at: u64, o: <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>) \{
     <b>let</b> bytes = &s.bytes;
-    <b>assert</b>!(at &lt;= bytes.<a href="../move-stdlib/string.md#0x1_string_length">length</a>() && <a href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</a>(bytes, at), <a href="../move-stdlib/string.md#0x1_string_EINVALID_INDEX">EINVALID_INDEX</a>);
-    <b>let</b> l = s.<a href="../move-stdlib/string.md#0x1_string_length">length</a>();
-    <b>let</b> <b>mut</b> front = s.<a href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</a>(0, at);
-    <b>let</b> end = s.<a href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</a>(at, l);
-    front.<a href="../move-stdlib/string.md#0x1_string_append">append</a>(o);
-    front.<a href="../move-stdlib/string.md#0x1_string_append">append</a>(end);
+    <b>assert</b>!(at &lt;= bytes.<Link href="../move-stdlib/string.md#0x1_string_length">length</Link>() && <Link href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</Link>(bytes, at), <Link href="../move-stdlib/string.md#0x1_string_EINVALID_INDEX">EINVALID_INDEX</Link>);
+    <b>let</b> l = s.<Link href="../move-stdlib/string.md#0x1_string_length">length</Link>();
+    <b>let</b> <b>mut</b> front = s.<Link href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</Link>(0, at);
+    <b>let</b> end = s.<Link href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</Link>(at, l);
+    front.<Link href="../move-stdlib/string.md#0x1_string_append">append</Link>(o);
+    front.<Link href="../move-stdlib/string.md#0x1_string_append">append</Link>(end);
     *s = front;
 }
 </code></pre>
@@ -392,7 +392,7 @@ guaranteeing that the result is valid utf8.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, i: u64, j: u64): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, i: u64, j: u64): <Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -402,14 +402,14 @@ guaranteeing that the result is valid utf8.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">String</a>, i: u64, j: u64): <a href="../move-stdlib/string.md#0x1_string_String">String</a> \{
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_sub_string">sub_string</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>, i: u64, j: u64): <Link href="../move-stdlib/string.md#0x1_string_String">String</Link> \{
     <b>let</b> bytes = &s.bytes;
-    <b>let</b> l = bytes.<a href="../move-stdlib/string.md#0x1_string_length">length</a>();
+    <b>let</b> l = bytes.<Link href="../move-stdlib/string.md#0x1_string_length">length</Link>();
     <b>assert</b>!(
-        j &lt;= l && i &lt;= j && <a href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</a>(bytes, i) && <a href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</a>(bytes, j),
-        <a href="../move-stdlib/string.md#0x1_string_EINVALID_INDEX">EINVALID_INDEX</a>
+        j &lt;= l && i &lt;= j && <Link href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</Link>(bytes, i) && <Link href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</Link>(bytes, j),
+        <Link href="../move-stdlib/string.md#0x1_string_EINVALID_INDEX">EINVALID_INDEX</Link>
     );
-    <a href="../move-stdlib/string.md#0x1_string_String">String</a>\{bytes: <a href="../move-stdlib/string.md#0x1_string_internal_sub_string">internal_sub_string</a>(bytes, i, j)}
+    <Link href="../move-stdlib/string.md#0x1_string_String">String</Link>\{bytes: <Link href="../move-stdlib/string.md#0x1_string_internal_sub_string">internal_sub_string</Link>(bytes, i, j)}
 }
 </code></pre>
 
@@ -422,11 +422,11 @@ guaranteeing that the result is valid utf8.
 ## Function `index_of`
 
 Computes the index of the first occurrence of a string. Returns <code>
-<a href="../move-stdlib/string.md#0x1_string_length">length</a>(s)</code> if no occurrence found.
+<Link href="../move-stdlib/string.md#0x1_string_length">length</Link>(s)</code> if no occurrence found.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_index_of">index_of</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, r: &<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>): u64
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_index_of">index_of</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>, r: &<Link href="../move-stdlib/string.md#0x1_string_String">string::String</Link>): u64
 </code></pre>
 
 
@@ -436,8 +436,8 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_index_of">index_of</a>(s: &<a href="../move-stdlib/string.md#0x1_string_String">String</a>, r: &<a href="../move-stdlib/string.md#0x1_string_String">String</a>): u64 \{
-    <a href="../move-stdlib/string.md#0x1_string_internal_index_of">internal_index_of</a>(&s.bytes, &r.bytes)
+<b>public</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_index_of">index_of</Link>(s: &<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>, r: &<Link href="../move-stdlib/string.md#0x1_string_String">String</Link>): u64 \{
+    <Link href="../move-stdlib/string.md#0x1_string_internal_index_of">internal_index_of</Link>(&s.bytes, &r.bytes)
 }
 </code></pre>
 
@@ -452,7 +452,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): bool
+<b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): bool
 </code></pre>
 
 
@@ -462,7 +462,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): bool;
+<b>native</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_check_utf8">internal_check_utf8</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): bool;
 </code></pre>
 
 
@@ -476,7 +476,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, i: u64): bool
+<b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, i: u64): bool
 </code></pre>
 
 
@@ -486,7 +486,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, i: u64): bool;
+<b>native</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_is_char_boundary">internal_is_char_boundary</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, i: u64): bool;
 </code></pre>
 
 
@@ -500,7 +500,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_sub_string">internal_sub_string</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, i: u64, j: u64): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
+<b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_sub_string">internal_sub_string</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, i: u64, j: u64): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -510,7 +510,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_sub_string">internal_sub_string</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, i: u64, j: u64): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;;
+<b>native</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_sub_string">internal_sub_string</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, i: u64, j: u64): <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;;
 </code></pre>
 
 
@@ -524,7 +524,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_index_of">internal_index_of</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, r: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): u64
+<b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_index_of">internal_index_of</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, r: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): u64
 </code></pre>
 
 
@@ -534,7 +534,7 @@ Computes the index of the first occurrence of a string. Returns <code>
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <a href="../move-stdlib/string.md#0x1_string_internal_index_of">internal_index_of</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, r: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;): u64;
+<b>native</b> <b>fun</b> <Link href="../move-stdlib/string.md#0x1_string_internal_index_of">internal_index_of</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;, r: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;u8&gt;): u64;
 </code></pre>
 
 

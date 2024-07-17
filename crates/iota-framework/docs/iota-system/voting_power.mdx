@@ -20,9 +20,9 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
-<b>use</b> <a href="../iota-framework/math.md#0x2_math">0x2::math</a>;
-<b>use</b> <a href="validator.md#0x3_validator">0x3::validator</a>;
+<b>use</b> <Link href="../move-stdlib/vector.md#0x1_vector">0x1::vector</Link>;
+<b>use</b> <Link href="../iota-framework/math.md#0x2_math">0x2::math</Link>;
+<b>use</b> <Link href="validator.md#0x3_validator">0x3::validator</Link>;
 </code></pre>
 
 
@@ -35,7 +35,7 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 
 <pre><code>
-<b>struct</b> <a href="voting_power.md#0x3_voting_power_VotingPowerInfo">VotingPowerInfo</a> <b>has</b> drop
+<b>struct</b> <Link href="voting_power.md#0x3_voting_power_VotingPowerInfo">VotingPowerInfo</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -54,7 +54,7 @@ validator_index: u64</code>
 </dd>
 <dt>
 <code>
-<a href="voting_power.md#0x3_voting_power">voting_power</a>: u64</code>
+<Link href="voting_power.md#0x3_voting_power">voting_power</Link>: u64</code>
 </dt>
 <dd>
 
@@ -71,7 +71,7 @@ validator_index: u64</code>
 
 
 <pre><code>
-<b>struct</b> <a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a> <b>has</b> drop
+<b>struct</b> <Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -90,7 +90,7 @@ validator_index: u64</code>
 </dd>
 <dt>
 <code>
-<a href="voting_power.md#0x3_voting_power">voting_power</a>: u64</code>
+<Link href="voting_power.md#0x3_voting_power">voting_power</Link>: u64</code>
 </dt>
 <dd>
 
@@ -117,7 +117,7 @@ stake: u64</code>
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_EInvalidVotingPower">EInvalidVotingPower</a>: u64 = 4;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_EInvalidVotingPower">EInvalidVotingPower</Link>: u64 = 4;
 </code></pre>
 
 
@@ -127,7 +127,7 @@ stake: u64</code>
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</a>: u64 = 2;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</Link>: u64 = 2;
 </code></pre>
 
 
@@ -137,7 +137,7 @@ stake: u64</code>
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</a>: u64 = 1;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</Link>: u64 = 1;
 </code></pre>
 
 
@@ -147,7 +147,7 @@ stake: u64</code>
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_EVotingPowerOverThreshold">EVotingPowerOverThreshold</a>: u64 = 3;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_EVotingPowerOverThreshold">EVotingPowerOverThreshold</Link>: u64 = 3;
 </code></pre>
 
 
@@ -157,7 +157,7 @@ stake: u64</code>
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</a>: u64 = 1000;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link>: u64 = 1000;
 </code></pre>
 
 
@@ -169,7 +169,7 @@ up to BFT assumptions
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_QUORUM_THRESHOLD">QUORUM_THRESHOLD</a>: u64 = 6667;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_QUORUM_THRESHOLD">QUORUM_THRESHOLD</Link>: u64 = 6667;
 </code></pre>
 
 
@@ -184,7 +184,7 @@ than recomputing these.
 
 
 <pre><code>
-<b>const</b> <a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a>: u64 = 10000;
+<b>const</b> <Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>: u64 = 10000;
 </code></pre>
 
 
@@ -196,12 +196,12 @@ than recomputing these.
 Set the voting power of all validators.
 Each validator's voting power is initialized using their stake. We then attempt to cap their voting power
 at <code>
-<a href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</a></code>. If <code>
-<a href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</a></code> is not a feasible cap, we pick the lowest possible cap.
+<Link href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link></code>. If <code>
+<Link href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link></code> is not a feasible cap, we pick the lowest possible cap.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="voting_power.md#0x3_voting_power_set_voting_power">set_voting_power</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="voting_power.md#0x3_voting_power_set_voting_power">set_voting_power</Link>(validators: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>&gt;)
 </code></pre>
 
 
@@ -211,17 +211,17 @@ at <code>
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="voting_power.md#0x3_voting_power_set_voting_power">set_voting_power</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;) \{
+<b>public</b>(package) <b>fun</b> <Link href="voting_power.md#0x3_voting_power_set_voting_power">set_voting_power</Link>(validators: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Validator&gt;) \{
     // If threshold_pct is too small, it's possible that even when all validators reach the threshold we still don't
     // have 100%. So we bound the threshold_pct <b>to</b> be always enough <b>to</b> find a solution.
-    <b>let</b> threshold = <a href="../iota-framework/math.md#0x2_math_min">math::min</a>(
-        <a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a>,
-        <a href="../iota-framework/math.md#0x2_math_max">math::max</a>(<a href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</a>, divide_and_round_up(<a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a>, validators.length())),
+    <b>let</b> threshold = <Link href="../iota-framework/math.md#0x2_math_min">math::min</Link>(
+        <Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>,
+        <Link href="../iota-framework/math.md#0x2_math_max">math::max</Link>(<Link href="voting_power.md#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link>, divide_and_round_up(<Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>, validators.length())),
     );
-    <b>let</b> (<b>mut</b> info_list, remaining_power) = <a href="voting_power.md#0x3_voting_power_init_voting_power_info">init_voting_power_info</a>(validators, threshold);
-    <a href="voting_power.md#0x3_voting_power_adjust_voting_power">adjust_voting_power</a>(&<b>mut</b> info_list, threshold, remaining_power);
-    <a href="voting_power.md#0x3_voting_power_update_voting_power">update_voting_power</a>(validators, info_list);
-    <a href="voting_power.md#0x3_voting_power_check_invariants">check_invariants</a>(validators);
+    <b>let</b> (<b>mut</b> info_list, remaining_power) = <Link href="voting_power.md#0x3_voting_power_init_voting_power_info">init_voting_power_info</Link>(validators, threshold);
+    <Link href="voting_power.md#0x3_voting_power_adjust_voting_power">adjust_voting_power</Link>(&<b>mut</b> info_list, threshold, remaining_power);
+    <Link href="voting_power.md#0x3_voting_power_update_voting_power">update_voting_power</Link>(validators, info_list);
+    <Link href="voting_power.md#0x3_voting_power_check_invariants">check_invariants</Link>(validators);
 }
 </code></pre>
 
@@ -240,7 +240,7 @@ Anything beyond the threshold is added to the remaining_power, which is also ret
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_init_voting_power_info">init_voting_power_info</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, threshold: u64): (<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</a>&gt;, u64)
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_init_voting_power_info">init_voting_power_info</Link>(validators: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>&gt;, threshold: u64): (<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;, u64)
 </code></pre>
 
 
@@ -250,30 +250,30 @@ Anything beyond the threshold is added to the remaining_power, which is also ret
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_init_voting_power_info">init_voting_power_info</a>(
-    validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_init_voting_power_info">init_voting_power_info</Link>(
+    validators: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Validator&gt;,
     threshold: u64,
-): (<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a>&gt;, u64) \{
-    <b>let</b> total_stake = <a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>(validators);
+): (<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;, u64) \{
+    <b>let</b> total_stake = <Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>(validators);
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = validators.length();
     <b>let</b> <b>mut</b> total_power = 0;
-    <b>let</b> <b>mut</b> result = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
+    <b>let</b> <b>mut</b> result = <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>[];
     <b>while</b> (i &lt; len) \{
-        <b>let</b> <a href="validator.md#0x3_validator">validator</a> = &validators[i];
-        <b>let</b> stake = <a href="validator.md#0x3_validator">validator</a>.<a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>();
-        <b>let</b> adjusted_stake = stake <b>as</b> u128 * (<a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a> <b>as</b> u128) / (total_stake <b>as</b> u128);
-        <b>let</b> <a href="voting_power.md#0x3_voting_power">voting_power</a> = <a href="../iota-framework/math.md#0x2_math_min">math::min</a>(adjusted_stake <b>as</b> u64, threshold);
-        <b>let</b> info = <a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a> \{
+        <b>let</b> <Link href="validator.md#0x3_validator">validator</Link> = &validators[i];
+        <b>let</b> stake = <Link href="validator.md#0x3_validator">validator</Link>.<Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>();
+        <b>let</b> adjusted_stake = stake <b>as</b> u128 * (<Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link> <b>as</b> u128) / (total_stake <b>as</b> u128);
+        <b>let</b> <Link href="voting_power.md#0x3_voting_power">voting_power</Link> = <Link href="../iota-framework/math.md#0x2_math_min">math::min</Link>(adjusted_stake <b>as</b> u64, threshold);
+        <b>let</b> info = <Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link> \{
             validator_index: i,
-            <a href="voting_power.md#0x3_voting_power">voting_power</a>,
+            <Link href="voting_power.md#0x3_voting_power">voting_power</Link>,
             stake,
         };
-        <a href="voting_power.md#0x3_voting_power_insert">insert</a>(&<b>mut</b> result, info);
-        total_power = total_power + <a href="voting_power.md#0x3_voting_power">voting_power</a>;
+        <Link href="voting_power.md#0x3_voting_power_insert">insert</Link>(&<b>mut</b> result, info);
+        total_power = total_power + <Link href="voting_power.md#0x3_voting_power">voting_power</Link>;
         i = i + 1;
     };
-    (result, <a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a> - total_power)
+    (result, <Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link> - total_power)
 }
 </code></pre>
 
@@ -289,7 +289,7 @@ Sum up the total stake of all validators.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;): u64
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>(validators: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>&gt;): u64
 </code></pre>
 
 
@@ -299,12 +299,12 @@ Sum up the total stake of all validators.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;): u64 \{
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>(validators: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Validator&gt;): u64 \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = validators.length();
     <b>let</b> <b>mut</b> total_stake =0 ;
     <b>while</b> (i &lt; len) \{
-        total_stake = total_stake + validators[i].<a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>();
+        total_stake = total_stake + validators[i].<Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>();
         i = i + 1;
     };
     total_stake
@@ -327,7 +327,7 @@ using stake, in descending order.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_insert">insert</a>(info_list: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</a>&gt;, new_info: <a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</a>)
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_insert">insert</Link>(info_list: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;, new_info: <Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>)
 </code></pre>
 
 
@@ -337,13 +337,13 @@ using stake, in descending order.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_insert">insert</a>(info_list: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a>&gt;, new_info: <a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a>) \{
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_insert">insert</Link>(info_list: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;, new_info: <Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>) \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = info_list.length();
     <b>while</b> (i &lt; len && info_list[i].stake &gt; new_info.stake) \{
         i = i + 1;
     };
-    info_list.<a href="voting_power.md#0x3_voting_power_insert">insert</a>(new_info, i);
+    info_list.<Link href="voting_power.md#0x3_voting_power_insert">insert</Link>(new_info, i);
 }
 </code></pre>
 
@@ -359,7 +359,7 @@ Distribute remaining_power to validators that are not capped at threshold.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_adjust_voting_power">adjust_voting_power</a>(info_list: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</a>&gt;, threshold: u64, remaining_power: u64)
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_adjust_voting_power">adjust_voting_power</Link>(info_list: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;, threshold: u64, remaining_power: u64)
 </code></pre>
 
 
@@ -369,23 +369,23 @@ Distribute remaining_power to validators that are not capped at threshold.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_adjust_voting_power">adjust_voting_power</a>(info_list: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a>&gt;, threshold: u64, <b>mut</b> remaining_power: u64) \{
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_adjust_voting_power">adjust_voting_power</Link>(info_list: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;, threshold: u64, <b>mut</b> remaining_power: u64) \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = info_list.length();
     <b>while</b> (i &lt; len && remaining_power &gt; 0) \{
         <b>let</b> v = &<b>mut</b> info_list[i];
-        // planned is the amount of extra power we want <b>to</b> distribute <b>to</b> this <a href="validator.md#0x3_validator">validator</a>.
+        // planned is the amount of extra power we want <b>to</b> distribute <b>to</b> this <Link href="validator.md#0x3_validator">validator</Link>.
         <b>let</b> planned = divide_and_round_up(remaining_power, len - i);
-        // target is the targeting power this <a href="validator.md#0x3_validator">validator</a> will reach, capped by threshold.
-        <b>let</b> target = <a href="../iota-framework/math.md#0x2_math_min">math::min</a>(threshold, v.<a href="voting_power.md#0x3_voting_power">voting_power</a> + planned);
-        // actual is the actual amount of power we will be distributing <b>to</b> this <a href="validator.md#0x3_validator">validator</a>.
-        <b>let</b> actual = <a href="../iota-framework/math.md#0x2_math_min">math::min</a>(remaining_power, target - v.<a href="voting_power.md#0x3_voting_power">voting_power</a>);
-        v.<a href="voting_power.md#0x3_voting_power">voting_power</a> = v.<a href="voting_power.md#0x3_voting_power">voting_power</a> + actual;
-        <b>assert</b>!(v.<a href="voting_power.md#0x3_voting_power">voting_power</a> &lt;= threshold, <a href="voting_power.md#0x3_voting_power_EVotingPowerOverThreshold">EVotingPowerOverThreshold</a>);
+        // target is the targeting power this <Link href="validator.md#0x3_validator">validator</Link> will reach, capped by threshold.
+        <b>let</b> target = <Link href="../iota-framework/math.md#0x2_math_min">math::min</Link>(threshold, v.<Link href="voting_power.md#0x3_voting_power">voting_power</Link> + planned);
+        // actual is the actual amount of power we will be distributing <b>to</b> this <Link href="validator.md#0x3_validator">validator</Link>.
+        <b>let</b> actual = <Link href="../iota-framework/math.md#0x2_math_min">math::min</Link>(remaining_power, target - v.<Link href="voting_power.md#0x3_voting_power">voting_power</Link>);
+        v.<Link href="voting_power.md#0x3_voting_power">voting_power</Link> = v.<Link href="voting_power.md#0x3_voting_power">voting_power</Link> + actual;
+        <b>assert</b>!(v.<Link href="voting_power.md#0x3_voting_power">voting_power</Link> &lt;= threshold, <Link href="voting_power.md#0x3_voting_power_EVotingPowerOverThreshold">EVotingPowerOverThreshold</Link>);
         remaining_power = remaining_power - actual;
         i = i + 1;
     };
-    <b>assert</b>!(remaining_power == 0, <a href="voting_power.md#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</a>);
+    <b>assert</b>!(remaining_power == 0, <Link href="voting_power.md#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</Link>);
 }
 </code></pre>
 
@@ -401,7 +401,7 @@ Update validators with the decided voting power.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_update_voting_power">update_voting_power</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, info_list: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</a>&gt;)
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_update_voting_power">update_voting_power</Link>(validators: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>&gt;, info_list: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;)
 </code></pre>
 
 
@@ -411,15 +411,15 @@ Update validators with the decided voting power.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_update_voting_power">update_voting_power</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;, <b>mut</b> info_list: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a>&gt;) \{
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_update_voting_power">update_voting_power</Link>(validators: &<b>mut</b> <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Validator&gt;, <b>mut</b> info_list: <Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;) \{
     <b>while</b> (!info_list.is_empty()) \{
-        <b>let</b> <a href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</a> \{
+        <b>let</b> <Link href="voting_power.md#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link> \{
             validator_index,
-            <a href="voting_power.md#0x3_voting_power">voting_power</a>,
+            <Link href="voting_power.md#0x3_voting_power">voting_power</Link>,
             stake: _,
         } = info_list.pop_back();
         <b>let</b> v = &<b>mut</b> validators[validator_index];
-        v.<a href="voting_power.md#0x3_voting_power_set_voting_power">set_voting_power</a>(<a href="voting_power.md#0x3_voting_power">voting_power</a>);
+        v.<Link href="voting_power.md#0x3_voting_power_set_voting_power">set_voting_power</Link>(<Link href="voting_power.md#0x3_voting_power">voting_power</Link>);
     };
     info_list.destroy_empty();
 }
@@ -437,7 +437,7 @@ Check a few invariants that must hold after setting the voting power.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_check_invariants">check_invariants</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;)
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_check_invariants">check_invariants</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;<Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>&gt;)
 </code></pre>
 
 
@@ -447,20 +447,20 @@ Check a few invariants that must hold after setting the voting power.
 
 
 <pre><code>
-<b>fun</b> <a href="voting_power.md#0x3_voting_power_check_invariants">check_invariants</a>(v: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;) \{
-    // First check that the total voting power must be <a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a>.
+<b>fun</b> <Link href="voting_power.md#0x3_voting_power_check_invariants">check_invariants</Link>(v: &<Link href="../move-stdlib/vector.md#0x1_vector">vector</Link>&lt;Validator&gt;) \{
+    // First check that the total voting power must be <Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>.
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = v.length();
     <b>let</b> <b>mut</b> total = 0;
     <b>while</b> (i &lt; len) \{
-        <b>let</b> <a href="voting_power.md#0x3_voting_power">voting_power</a> = v[i].<a href="voting_power.md#0x3_voting_power">voting_power</a>();
-        <b>assert</b>!(<a href="voting_power.md#0x3_voting_power">voting_power</a> &gt; 0, <a href="voting_power.md#0x3_voting_power_EInvalidVotingPower">EInvalidVotingPower</a>);
-        total = total + <a href="voting_power.md#0x3_voting_power">voting_power</a>;
+        <b>let</b> <Link href="voting_power.md#0x3_voting_power">voting_power</Link> = v[i].<Link href="voting_power.md#0x3_voting_power">voting_power</Link>();
+        <b>assert</b>!(<Link href="voting_power.md#0x3_voting_power">voting_power</Link> &gt; 0, <Link href="voting_power.md#0x3_voting_power_EInvalidVotingPower">EInvalidVotingPower</Link>);
+        total = total + <Link href="voting_power.md#0x3_voting_power">voting_power</Link>;
         i = i + 1;
     };
-    <b>assert</b>!(total == <a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a>, <a href="voting_power.md#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</a>);
+    <b>assert</b>!(total == <Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>, <Link href="voting_power.md#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</Link>);
 
-    // Second check that <b>if</b> <a href="validator.md#0x3_validator">validator</a> A's stake is larger than B's stake, A's voting power must be no less
+    // Second check that <b>if</b> <Link href="validator.md#0x3_validator">validator</Link> A's stake is larger than B's stake, A's voting power must be no less
     // than B's voting power; similarly, <b>if</b> A's stake is less than B's stake, A's voting power must be no larger
     // than B's voting power.
     <b>let</b> <b>mut</b> a = 0;
@@ -469,15 +469,15 @@ Check a few invariants that must hold after setting the voting power.
         <b>while</b> (b &lt; len) \{
             <b>let</b> validator_a = &v[a];
             <b>let</b> validator_b = &v[b];
-            <b>let</b> stake_a = validator_a.<a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>();
-            <b>let</b> stake_b = validator_b.<a href="voting_power.md#0x3_voting_power_total_stake">total_stake</a>();
-            <b>let</b> power_a = validator_a.<a href="voting_power.md#0x3_voting_power">voting_power</a>();
-            <b>let</b> power_b = validator_b.<a href="voting_power.md#0x3_voting_power">voting_power</a>();
+            <b>let</b> stake_a = validator_a.<Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>();
+            <b>let</b> stake_b = validator_b.<Link href="voting_power.md#0x3_voting_power_total_stake">total_stake</Link>();
+            <b>let</b> power_a = validator_a.<Link href="voting_power.md#0x3_voting_power">voting_power</Link>();
+            <b>let</b> power_b = validator_b.<Link href="voting_power.md#0x3_voting_power">voting_power</Link>();
             <b>if</b> (stake_a &gt; stake_b) \{
-                <b>assert</b>!(power_a &gt;= power_b, <a href="voting_power.md#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</a>);
+                <b>assert</b>!(power_a &gt;= power_b, <Link href="voting_power.md#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</Link>);
             };
             <b>if</b> (stake_a &lt; stake_b) \{
-                <b>assert</b>!(power_a &lt;= power_b, <a href="voting_power.md#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</a>);
+                <b>assert</b>!(power_a &lt;= power_b, <Link href="voting_power.md#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</Link>);
             };
             b = b + 1;
         };
@@ -498,7 +498,7 @@ Return the (constant) total voting power
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="voting_power.md#0x3_voting_power_total_voting_power">total_voting_power</a>(): u64
+<b>public</b> <b>fun</b> <Link href="voting_power.md#0x3_voting_power_total_voting_power">total_voting_power</Link>(): u64
 </code></pre>
 
 
@@ -508,8 +508,8 @@ Return the (constant) total voting power
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="voting_power.md#0x3_voting_power_total_voting_power">total_voting_power</a>(): u64 \{
-    <a href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</a>
+<b>public</b> <b>fun</b> <Link href="voting_power.md#0x3_voting_power_total_voting_power">total_voting_power</Link>(): u64 \{
+    <Link href="voting_power.md#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>
 }
 </code></pre>
 
@@ -525,7 +525,7 @@ Return the (constant) quorum threshold
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="voting_power.md#0x3_voting_power_quorum_threshold">quorum_threshold</a>(): u64
+<b>public</b> <b>fun</b> <Link href="voting_power.md#0x3_voting_power_quorum_threshold">quorum_threshold</Link>(): u64
 </code></pre>
 
 
@@ -535,8 +535,8 @@ Return the (constant) quorum threshold
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="voting_power.md#0x3_voting_power_quorum_threshold">quorum_threshold</a>(): u64 \{
-    <a href="voting_power.md#0x3_voting_power_QUORUM_THRESHOLD">QUORUM_THRESHOLD</a>
+<b>public</b> <b>fun</b> <Link href="voting_power.md#0x3_voting_power_quorum_threshold">quorum_threshold</Link>(): u64 \{
+    <Link href="voting_power.md#0x3_voting_power_QUORUM_THRESHOLD">QUORUM_THRESHOLD</Link>
 }
 </code></pre>
 

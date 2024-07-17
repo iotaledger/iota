@@ -13,7 +13,7 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -26,7 +26,7 @@ The Stardust timelock unlock condition.
 
 
 <pre><code>
-<b>struct</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</a> <b>has</b> store
+<b>struct</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</Link> <b>has</b> store
 </code></pre>
 
 
@@ -59,7 +59,7 @@ The timelock is not expired error.
 
 
 <pre><code>
-<b>const</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_ETimelockNotExpired">ETimelockNotExpired</a>: u64 = 0;
+<b>const</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_ETimelockNotExpired">ETimelockNotExpired</Link>: u64 = 0;
 </code></pre>
 
 
@@ -72,7 +72,7 @@ Check the unlock condition.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unlock">unlock</a>(condition: <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<b>public</b> <b>fun</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unlock">unlock</Link>(condition: <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>, ctx: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -82,10 +82,10 @@ Check the unlock condition.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unlock">unlock</a>(condition: <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</a>, ctx: &TxContext) \{
-    <b>assert</b>!(!<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_is_timelocked">is_timelocked</a>(&condition, ctx), <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_ETimelockNotExpired">ETimelockNotExpired</a>);
+<b>public</b> <b>fun</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unlock">unlock</Link>(condition: <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</Link>, ctx: &TxContext) \{
+    <b>assert</b>!(!<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_is_timelocked">is_timelocked</Link>(&condition, ctx), <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_ETimelockNotExpired">ETimelockNotExpired</Link>);
 
-    <b>let</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</a> \{
+    <b>let</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</Link> \{
         unix_time: _,
     } = condition;
 }
@@ -104,7 +104,7 @@ Timelock</code> condition.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_is_timelocked">is_timelocked</a>(condition: &<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): bool
+<b>public</b> <b>fun</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_is_timelocked">is_timelocked</Link>(condition: &<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>, ctx: &<Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): bool
 </code></pre>
 
 
@@ -114,8 +114,8 @@ Timelock</code> condition.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_is_timelocked">is_timelocked</a>(condition: &<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</a>, ctx: &TxContext): bool \{
-    condition.<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unix_time">unix_time</a>() &gt; ((<a href="../iota-framework/tx_context.md#0x2_tx_context_epoch_timestamp_ms">tx_context::epoch_timestamp_ms</a>(ctx) / 1000) <b>as</b> u32)
+<b>public</b> <b>fun</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_is_timelocked">is_timelocked</Link>(condition: &<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</Link>, ctx: &TxContext): bool \{
+    condition.<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unix_time">unix_time</Link>() &gt; ((<Link href="../iota-framework/tx_context.md#0x2_tx_context_epoch_timestamp_ms">tx_context::epoch_timestamp_ms</Link>(ctx) / 1000) <b>as</b> u32)
 }
 </code></pre>
 
@@ -132,7 +132,7 @@ unix_time</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unix_time">unix_time</a>(condition: &<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</a>): u32
+<b>public</b> <b>fun</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unix_time">unix_time</Link>(condition: &<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>): u32
 </code></pre>
 
 
@@ -142,7 +142,7 @@ unix_time</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unix_time">unix_time</a>(condition: &<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</a>): u32 \{
+<b>public</b> <b>fun</b> <Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_unix_time">unix_time</Link>(condition: &<Link href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">TimelockUnlockCondition</Link>): u32 \{
     condition.unix_time
 }
 </code></pre>

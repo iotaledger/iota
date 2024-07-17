@@ -15,9 +15,9 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
-<b>use</b> <a href="../iota-framework/versioned.md#0x2_versioned">0x2::versioned</a>;
-<b>use</b> <a href="validator.md#0x3_validator">0x3::validator</a>;
+<b>use</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link href="../iota-framework/versioned.md#0x2_versioned">0x2::versioned</Link>;
+<b>use</b> <Link href="validator.md#0x3_validator">0x3::validator</Link>;
 </code></pre>
 
 
@@ -29,7 +29,7 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>struct</b> <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a> <b>has</b> store
+<b>struct</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link> <b>has</b> store
 </code></pre>
 
 
@@ -41,7 +41,7 @@ import Link from '@docusaurus/Link';
 <dl>
 <dt>
 <code>
-inner: <a href="../iota-framework/versioned.md#0x2_versioned_Versioned">versioned::Versioned</a></code>
+inner: <Link href="../iota-framework/versioned.md#0x2_versioned_Versioned">versioned::Versioned</Link></code>
 </dt>
 <dd>
 
@@ -61,7 +61,7 @@ inner: <a href="../iota-framework/versioned.md#0x2_versioned_Versioned">versione
 
 
 <pre><code>
-<b>const</b> <a href="validator_wrapper.md#0x3_validator_wrapper_EInvalidVersion">EInvalidVersion</a>: u64 = 0;
+<b>const</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_EInvalidVersion">EInvalidVersion</Link>: u64 = 0;
 </code></pre>
 
 
@@ -73,7 +73,7 @@ inner: <a href="../iota-framework/versioned.md#0x2_versioned_Versioned">versione
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_create_v1">create_v1</a>(<a href="validator.md#0x3_validator">validator</a>: <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</a>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_create_v1">create_v1</Link>(<Link href="validator.md#0x3_validator">validator</Link>: <Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>
 </code></pre>
 
 
@@ -83,9 +83,9 @@ inner: <a href="../iota-framework/versioned.md#0x2_versioned_Versioned">versione
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_create_v1">create_v1</a>(<a href="validator.md#0x3_validator">validator</a>: Validator, ctx: &<b>mut</b> TxContext): <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a> \{
-    <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a> \{
-        inner: <a href="../iota-framework/versioned.md#0x2_versioned_create">versioned::create</a>(1, <a href="validator.md#0x3_validator">validator</a>, ctx)
+<b>public</b>(package) <b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_create_v1">create_v1</Link>(<Link href="validator.md#0x3_validator">validator</Link>: Validator, ctx: &<b>mut</b> TxContext): <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link> \{
+    <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link> \{
+        inner: <Link href="../iota-framework/versioned.md#0x2_versioned_create">versioned::create</Link>(1, <Link href="validator.md#0x3_validator">validator</Link>, ctx)
     }
 }
 </code></pre>
@@ -103,7 +103,7 @@ If the inner version is old, we upgrade it lazily in-place.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_load_validator_maybe_upgrade">load_validator_maybe_upgrade</a>(self: &<b>mut</b> <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</a>): &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_load_validator_maybe_upgrade">load_validator_maybe_upgrade</Link>(self: &<b>mut</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>): &<b>mut</b> <Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>
 </code></pre>
 
 
@@ -113,9 +113,9 @@ If the inner version is old, we upgrade it lazily in-place.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_load_validator_maybe_upgrade">load_validator_maybe_upgrade</a>(self: &<b>mut</b> <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a>): &<b>mut</b> Validator \{
-    <a href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</a>(self);
-    <a href="../iota-framework/versioned.md#0x2_versioned_load_value_mut">versioned::load_value_mut</a>(&<b>mut</b> self.inner)
+<b>public</b>(package) <b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_load_validator_maybe_upgrade">load_validator_maybe_upgrade</Link>(self: &<b>mut</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link>): &<b>mut</b> Validator \{
+    <Link href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</Link>(self);
+    <Link href="../iota-framework/versioned.md#0x2_versioned_load_value_mut">versioned::load_value_mut</Link>(&<b>mut</b> self.inner)
 }
 </code></pre>
 
@@ -131,7 +131,7 @@ Destroy the wrapper and retrieve the inner validator object.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_destroy">destroy</a>(self: <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</a>): <a href="validator.md#0x3_validator_Validator">validator::Validator</a>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_destroy">destroy</Link>(self: <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>): <Link href="validator.md#0x3_validator_Validator">validator::Validator</Link>
 </code></pre>
 
 
@@ -141,10 +141,10 @@ Destroy the wrapper and retrieve the inner validator object.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_destroy">destroy</a>(self: <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a>): Validator \{
-    <a href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</a>(&self);
-    <b>let</b> <a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a> \{ inner } = self;
-    <a href="../iota-framework/versioned.md#0x2_versioned_destroy">versioned::destroy</a>(inner)
+<b>public</b>(package) <b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_destroy">destroy</Link>(self: <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link>): Validator \{
+    <Link href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</Link>(&self);
+    <b>let</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link> \{ inner } = self;
+    <Link href="../iota-framework/versioned.md#0x2_versioned_destroy">versioned::destroy</Link>(inner)
 }
 </code></pre>
 
@@ -159,7 +159,7 @@ Destroy the wrapper and retrieve the inner validator object.
 
 
 <pre><code>
-<b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</a>(self: &<a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</a>)
+<b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</Link>(self: &<Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>)
 </code></pre>
 
 
@@ -169,10 +169,10 @@ Destroy the wrapper and retrieve the inner validator object.
 
 
 <pre><code>
-<b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</a>(self: &<a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a>) \{
-    <b>let</b> version = <a href="validator_wrapper.md#0x3_validator_wrapper_version">version</a>(self);
+<b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_upgrade_to_latest">upgrade_to_latest</Link>(self: &<Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link>) \{
+    <b>let</b> version = <Link href="validator_wrapper.md#0x3_validator_wrapper_version">version</Link>(self);
     // TODO: When new versions are added, we need <b>to</b> explicitly upgrade here.
-    <b>assert</b>!(version == 1, <a href="validator_wrapper.md#0x3_validator_wrapper_EInvalidVersion">EInvalidVersion</a>);
+    <b>assert</b>!(version == 1, <Link href="validator_wrapper.md#0x3_validator_wrapper_EInvalidVersion">EInvalidVersion</Link>);
 }
 </code></pre>
 
@@ -187,7 +187,7 @@ Destroy the wrapper and retrieve the inner validator object.
 
 
 <pre><code>
-<b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_version">version</a>(self: &<a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</a>): u64
+<b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_version">version</Link>(self: &<Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>): u64
 </code></pre>
 
 
@@ -197,8 +197,8 @@ Destroy the wrapper and retrieve the inner validator object.
 
 
 <pre><code>
-<b>fun</b> <a href="validator_wrapper.md#0x3_validator_wrapper_version">version</a>(self: &<a href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</a>): u64 \{
-    <a href="../iota-framework/versioned.md#0x2_versioned_version">versioned::version</a>(&self.inner)
+<b>fun</b> <Link href="validator_wrapper.md#0x3_validator_wrapper_version">version</Link>(self: &<Link href="validator_wrapper.md#0x3_validator_wrapper_ValidatorWrapper">ValidatorWrapper</Link>): u64 \{
+    <Link href="../iota-framework/versioned.md#0x2_versioned_version">versioned::version</Link>(&self.inner)
 }
 </code></pre>
 

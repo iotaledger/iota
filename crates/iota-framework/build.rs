@@ -245,7 +245,8 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     // +---
     //```
     let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
-    let link_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
+    let link_from_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
+    let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
     let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
 
@@ -263,7 +264,10 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
         };
 
         // Replace a-tags with Link to register anchors in docusaurus
-        let content = link_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
+        let content = link_from_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
+
+        // Replace a-tags with href for Link tags to enable link and anchor checking
+        let content = link_to_regex.replace_all(&content, r#"<Link href="$1">$2</Link>"#);
 
         // Escape `{` in <code> and add new lines
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
