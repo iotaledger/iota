@@ -1,6 +1,6 @@
 ---
 title: Conventions
-description: Recommended Move 2024 best practices for the IOTA blockchain.
+description: Recommended Move 2024 best practices for the Iota blockchain.
 ---
 
 The following recommendations are based on 2024 Move.
@@ -59,10 +59,10 @@ Do not use 'potato' in the name of structs. The lack of abilities define it as a
 ```move
 module conventions::request {
   // ✅ Right
-  struct Request {}
+  public struct Request {}
 
   // ❌ Wrong
-  struct RequestPotato {}
+  public struct RequestPotato {}
 }
 ```
 
@@ -73,7 +73,7 @@ Be mindful of the dot syntax when naming functions. Avoid using the object name 
 ```move
 module conventions::profile {
 
-  struct Profile {
+  public struct Profile {
     age: u64
   }
 
@@ -110,7 +110,7 @@ Name the functions that create data structures as `empty`.
 ```move
 module conventions::collection {
 
-  struct Collection has copy, drop, store {
+  public struct Collection has copy, drop, store {
     bits: vector<u8>
   }
 
@@ -132,7 +132,7 @@ module conventions::object {
   use iota::object::{Self, UID};
   use iota::tx_context::TxContext;
 
-  struct Object has key, store {
+  public struct Object has key, store {
     id: UID
   }
 
@@ -155,7 +155,7 @@ module conventions::profile {
   use iota::tx_context::TxContext;
   use iota::transfer::share_object;
 
-  struct Profile has key {
+  public struct Profile has key {
     id: UID
   }
 
@@ -182,7 +182,7 @@ module conventions::profile {
 
   use iota::object::UID;
 
-  struct Profile has key {
+  public struct Profile has key {
     id: UID,
     name: String,
     age: u8
@@ -209,7 +209,7 @@ module conventions::wallet {
 
   use iota::object::UID;
 
-  struct Wallet has key, store {
+  public struct Wallet has key, store {
     id: UID,
     amount: u64
   }
@@ -219,7 +219,7 @@ module conventions::claw_back_wallet {
 
   use iota::object::UID;
 
-  struct Wallet has key {
+  public struct Wallet has key {
     id: UID,
     amount: u64
   }
@@ -251,7 +251,7 @@ module conventions::profile {
 
   use iota::object::UID;
 
-  struct Profile has key, store {
+  public struct Profile has key, store {
     id: UID,
     /// The age of the user
     age: u8,
@@ -272,7 +272,7 @@ module conventions::wallet {
   use iota::balance::{Self, Balance};
   use iota::iota::IOTA;
 
-  struct Wallet<Value> has key, store {
+  public struct Wallet<Value> has key, store {
     id: UID,
     value: Value
   }
@@ -305,7 +305,7 @@ module conventions::amm {
   use iota::object::UID;
   use iota::tx_context::{Self, TxContext};
 
-  struct Pool has key {
+  public struct Pool has key {
     id: UID
   }
 
@@ -345,7 +345,7 @@ module conventions::amm {
   use iota::coin::Coin;
   use iota::object::UID;
 
-  struct Pool has key {
+  public struct Pool has key {
     id: UID
   }
 
@@ -377,12 +377,12 @@ module conventions::access_control {
   use iota::table::{Self, Table};
   use iota::tx_context::{Self, TxContext};
 
-  struct Account has key, store {
+  public struct Account has key, store {
     id: UID,
     balance: u64
   }
 
-  struct State has key {
+  public struct State has key {
     id: UID,
     accounts: Table<address, u64>,
     balance: Balance<IOTA>
@@ -425,12 +425,12 @@ module conventions::vesting_wallet {
   use iota::balance::Balance;
   use iota::tx_context::TxContext;
 
-  struct OwnedWallet has key {
+  public struct OwnedWallet has key {
     id: UID,
     balance: Balance<IOTA>
   }
 
-  struct SharedWallet has key {
+  public struct SharedWallet has key {
     id: UID,
     balance: Balance<IOTA>,
     accounts: Table<address, u64>
@@ -468,12 +468,12 @@ module conventions::social_network {
 
   use iota::object::UID;
 
-  struct Account has key {
+  public struct Account has key {
     id: UID,
     name: String
   }
 
-  struct Admin has key {
+  public struct Admin has key {
     id: UID,
   }
 
