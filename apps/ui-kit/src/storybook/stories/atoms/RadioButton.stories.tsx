@@ -19,7 +19,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        isChecked: true,
         label: 'Radio Button',
     },
     argTypes: {
