@@ -313,7 +313,7 @@ async fn test_oog_computation_storage_ok_one_coin() -> IotaResult {
                 summary.computation_cost > 0
                     && summary.storage_cost > 0
                     && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
+                    && summary.non_refundable_storage_fee == 0
             );
             assert!(initial_value - gas_used == final_value);
             Ok(())
@@ -341,7 +341,7 @@ async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
                 summary.computation_cost > 0
                     && summary.storage_cost > 0
                     && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
+                    && summary.non_refundable_storage_fee == 0
             );
             assert!(initial_value - gas_used == final_value);
             Ok(())
@@ -404,7 +404,7 @@ async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
                 summary.computation_cost > 0
                     && summary.storage_cost > 0
                     && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
+                    && summary.non_refundable_storage_fee == 0
             );
             assert_eq!(initial_value - gas_used, final_value);
             Ok(())
@@ -436,7 +436,7 @@ async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult 
                 summary.computation_cost > 0
                     && summary.storage_cost > 0
                     && summary.storage_rebate > 0
-                    && summary.non_refundable_storage_fee > 0
+                    && summary.non_refundable_storage_fee == 0
             );
             assert_eq!(initial_value as i64 - gas_used, final_value as i64);
             Ok(())
