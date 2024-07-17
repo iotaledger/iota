@@ -18,10 +18,6 @@ const STDLIB_PATH = path.join(
   __dirname,
   "../../../../../crates/iota-framework/docs/move-stdlib",
 );
-const DEEPBOOK_PATH = path.join(
-  __dirname,
-  "../../../../../crates/iota-framework/docs/deepbook",
-);
 const IOTASYS_PATH = path.join(
   __dirname,
   "../../../../../crates/iota-framework/docs/iota-system",

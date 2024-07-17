@@ -155,7 +155,7 @@ In this example, all three versions of the same package are at different IDs. Th
 
 ### Framework packages
 
-Framework packages (such as the Move standard library at `0x1`,the IOTA Framework at `0x2`, IOTA System at `0x3` and Deepbook at `0xdee9`) are a special-case because their IDs must remain stable across upgrades. The network can upgrade framework packages while preserving their IDs via a system transaction, but can only perform this operation on epoch boundaries because they are considered immutable like other packages. New versions of framework packages retain the same ID as their predecessor, but increment their version by one:
+Framework packages (such as the Move standard library at `0x1`,the IOTA Framework at `0x2`, and IOTA System at `0x3`) are a special-case because their IDs must remain stable across upgrades. The network can upgrade framework packages while preserving their IDs via a system transaction, but can only perform this operation on epoch boundaries because they are considered immutable like other packages. New versions of framework packages retain the same ID as their predecessor, but increment their version by one:
 
 ```
 (0x1, 1) => MoveStdlib v1
