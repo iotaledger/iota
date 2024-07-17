@@ -3,13 +3,15 @@ title: Protocol Upgrades
 description: The Iota protocol, framework, and execution engine are frequently extended to include new functionality and bug fixes. The process to upgrade the network ensures clients use the same source.
 ---
 
+# Protocol upgrades
+
 The Iota protocol, framework, and execution engine are frequently extended to include new functionality and bug fixes. This functionality is added in the form of new code which is released to validator operators as part of our regular software releases. The Iota protocol, however, requires that all Iota validators agree about the results of executing each transaction.
 
 This poses the following challenge: How do we release code that changes transaction execution, given that it is not possible to ensure that all operators upgrade their software at the same instant? Further, how do we ensure that all Iota transaction history can be replayed even after functionality has changed?
 
 To solve this problem, Iota uses a process called protocol upgrades.
 
-# Protocol upgrade process
+## Protocol upgrade process
 
 An outline of the process used for protocol upgrades includes the following steps:
 
@@ -26,7 +28,7 @@ Full nodes follow a similar process, however, they do not participate in voting.
 
 When validators switch to a new protocol version, they do so by recording the new version number in the special end-of-epoch transaction. Full nodes execute this transaction as they are replaying the chain history, and are thus able to switch to the new protocol version at the right time.
 
-# Framework upgrades
+## Framework upgrades
 
 Not all new Iota functionality comes in the form of changes to the validator code. There are also changes to the Iota framework. For instance, Iota developers periodically add new native functions to the framework to expose new functionality to smart contracts. The process for framework updates is similar to protocol upgrades.
 

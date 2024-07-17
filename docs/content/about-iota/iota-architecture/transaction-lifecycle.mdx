@@ -27,8 +27,6 @@ The following steps align with those in the preceding image.
 
 1. Subsequently, Iota forms checkpoints for every consensus commit, which it also uses to drive the reconfiguration protocol.
 
-The complete [Iota Lutris](https://docs.iota.io/paper/iota-lutris.pdf) paper provides additional detail on how the safety and liveness protocols operate, as well as proofs of security for them in the standard distributed systems model with Byzantine participants in partial synchrony. The following sections provide more detail on the various stages in the life of a transaction.
-
 ## Submission
 
 All transactions on Iota begin when they are submitted to the network. For example, imagine you want to transfer an NFT that you own in your wallet to your friend. First, you would create a transaction using a wallet or some other app. The transaction includes your gas payment object and a command to transfer the NFT object to your friend's address. Before the wallet or app submits the transaction to the network, it must also sign it.
