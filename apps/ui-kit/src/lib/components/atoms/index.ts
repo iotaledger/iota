@@ -8,4 +8,5 @@ export * from './button-segment';
 export * from './header';
 export * from './chip';
 export * from './divider';
+export * from './labelText';
 export * from './header';
