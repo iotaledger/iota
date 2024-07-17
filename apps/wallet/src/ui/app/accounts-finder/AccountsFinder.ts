@@ -190,7 +190,7 @@ export class AccountsFinder {
             accountStartIndex: initialAccountIndex, // we start from the last existing account index
             accountGapLimit: this.accountGapLimit, // we search for the full account gap limit
             addressStartIndex: 0, // we start from the first address index
-            addressGapLimit: 0,
+            addressGapLimit: 0,  // we only search for 1 address
             changeIndexes: this.changeIndexes,
             findBalance: this.findBalance,
         });
