@@ -5,6 +5,7 @@
 use async_graphql::{connection::Connection, *};
 use iota_types::{
     coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
+    gas_coin::GAS,
     TypeTag,
 };
 
@@ -25,7 +26,7 @@ use super::{
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };
-use crate::{data::Db, error::Error};
+use crate::{context_data::db_data_provider::PgManager, data::Db, error::Error};
 
 pub(crate) struct CoinMetadata {
     pub super_: MoveObject,
@@ -320,7 +321,7 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let supply = CoinMetadata::query_total_supply(ctx.data_unchecked(), coin_type)
+        let supply = CoinMetadata::query_total_supply(ctx, coin_type)
             .await
             .extend()?;
 
@@ -361,7 +362,7 @@ impl CoinMetadata {
     }
 
     pub(crate) async fn query_total_supply(
-        db: &Db,
+        ctx: &Context<'_>,
         coin_type: TypeTag,
     ) -> Result<Option<u64>, Error> {
         let TypeTag::Struct(coin_struct) = coin_type else {
@@ -370,23 +371,34 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let cap_type = TreasuryCap::type_(*coin_struct).into();
-        let Some(object) = Object::query_singleton(db, cap_type).await? else {
-            return Ok(None);
-        };
+        let db = ctx.data_unchecked();
 
-        let Some(native) = object.native_impl() else {
-            return Ok(None);
-        };
+        Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
+            let state = ctx
+                .data_unchecked::<PgManager>()
+                .fetch_iota_system_state(None)
+                .await?;
 
-        let treasury_cap = TreasuryCap::try_from(native.clone()).map_err(|e| {
-            Error::Internal(format!(
-                "Error while deserializing treasury cap {}: {e}",
-                object.address,
-            ))
-        })?;
+            state.iota_total_supply
+        } else {
+            let cap_type = TreasuryCap::type_(*coin_struct).into();
+            let Some(object) = Object::query_singleton(db, cap_type).await? else {
+                return Ok(None);
+            };
 
-        Ok(Some(treasury_cap.total_supply.value))
+            let Some(native) = object.native_impl() else {
+                return Ok(None);
+            };
+
+            let treasury_cap = TreasuryCap::try_from(native.clone()).map_err(|e| {
+                Error::Internal(format!(
+                    "Error while deserializing treasury cap {}: {e}",
+                    object.address,
+                ))
+            })?;
+
+            treasury_cap.total_supply.value
+        }))
     }
 }
 
