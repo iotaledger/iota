@@ -1273,7 +1273,7 @@ pub fn generate_genesis_system_object(
         );
 
         let pre_minted_supply_amount = builder
-            .pure(&(token_distribution_schedule.pre_minted_supply))
+            .pure(token_distribution_schedule.pre_minted_supply)
             .expect("serialization of u64 should succeed");
         let pre_minted_supply = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
