@@ -31,7 +31,7 @@ y</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_max">max</Link>(x: u64, y: u64): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_max">max</Link>(x: u64, y: u64): u64
 </code></pre>
 
 
@@ -41,7 +41,7 @@ y</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_max">max</Link>(x: u64, y: u64): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_max">max</Link>(x: u64, y: u64): u64 \{
     <b>if</b> (x &gt; y) \{
         x
     } <b>else</b> \{
@@ -95,7 +95,7 @@ Return the absolute value of x - y
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_diff">diff</Link>(x: u64, y: u64): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_diff">diff</Link>(x: u64, y: u64): u64
 </code></pre>
 
 
@@ -105,7 +105,7 @@ Return the absolute value of x - y
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_diff">diff</Link>(x: u64, y: u64): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_diff">diff</Link>(x: u64, y: u64): u64 \{
     <b>if</b> (x &gt; y) \{
         x - y
     } <b>else</b> \{
@@ -126,7 +126,7 @@ Return the value of a base raised to a power
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_pow">pow</Link>(base: u64, exponent: u8): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_pow">pow</Link>(base: u64, exponent: u8): u64
 </code></pre>
 
 
@@ -136,7 +136,7 @@ Return the value of a base raised to a power
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_pow">pow</Link>(<b>mut</b> base: u64, <b>mut</b> exponent: u8): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_pow">pow</Link>(<b>mut</b> base: u64, <b>mut</b> exponent: u8): u64 \{
     <b>let</b> <b>mut</b> res = 1;
     <b>while</b> (exponent &gt;= 1) \{
         <b>if</b> (exponent % 2 == 0) \{
@@ -189,7 +189,7 @@ math::sqrt(8 * 1000000) => 2828; // same as above, 2828 / 1000 (2.828)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_sqrt">sqrt</Link>(x: u64): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_sqrt">sqrt</Link>(x: u64): u64
 </code></pre>
 
 
@@ -199,7 +199,7 @@ math::sqrt(8 * 1000000) => 2828; // same as above, 2828 / 1000 (2.828)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_sqrt">sqrt</Link>(x: u64): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_sqrt">sqrt</Link>(x: u64): u64 \{
     <b>let</b> <b>mut</b> bit = 1u128 &lt;&lt; 64;
     <b>let</b> <b>mut</b> res = 0u128;
     <b>let</b> <b>mut</b> x = x <b>as</b> u128;
@@ -255,7 +255,7 @@ math::sqrt_u128(8 * 1000000) => 2828; // same as above, 2828 / 1000 (2.828)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_sqrt_u128">sqrt_u128</Link>(x: u128): u128
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_sqrt_u128">sqrt_u128</Link>(x: u128): u128
 </code></pre>
 
 
@@ -265,7 +265,7 @@ math::sqrt_u128(8 * 1000000) => 2828; // same as above, 2828 / 1000 (2.828)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_sqrt_u128">sqrt_u128</Link>(x: u128): u128 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_sqrt_u128">sqrt_u128</Link>(x: u128): u128 \{
     <b>let</b> <b>mut</b> bit = 1u256 &lt;&lt; 128;
     <b>let</b> <b>mut</b> res = 0u256;
     <b>let</b> <b>mut</b> x = x <b>as</b> u256;
@@ -296,7 +296,7 @@ Calculate x / y, but round up the result.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_divide_and_round_up">divide_and_round_up</Link>(x: u64, y: u64): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_divide_and_round_up">divide_and_round_up</Link>(x: u64, y: u64): u64
 </code></pre>
 
 
@@ -306,7 +306,7 @@ Calculate x / y, but round up the result.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/math#0x2_math_divide_and_round_up">divide_and_round_up</Link>(x: u64, y: u64): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/math#0x2_math_divide_and_round_up">divide_and_round_up</Link>(x: u64, y: u64): u64 \{
     <b>if</b> (x % y == 0) \{
         x / y
     } <b>else</b> \{

@@ -16,7 +16,7 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -29,7 +29,7 @@ The Stardust expiration unlock condition.
 
 
 <pre><code>
-<b>struct</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link> <b>has</b> store
+<b>struct</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link> <b>has</b> store
 </code></pre>
 
 
@@ -76,7 +76,7 @@ The output can not be unlocked by the sender error.
 
 
 <pre><code>
-<b>const</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</Link>: u64 = 0;
+<b>const</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</Link>: u64 = 0;
 </code></pre>
 
 
@@ -89,7 +89,7 @@ Check the unlock condition.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_unlock">unlock</Link>(condition: <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unlock">unlock</Link>(condition: <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -99,12 +99,12 @@ Check the unlock condition.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_unlock">unlock</Link>(condition: <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>, ctx: &<b>mut</b> TxContext) \{
-    <b>let</b> unlock_address = condition.<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(ctx);
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unlock">unlock</Link>(condition: <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>, ctx: &<b>mut</b> TxContext) \{
+    <b>let</b> unlock_address = condition.<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(ctx);
 
-    <b>assert</b>!(unlock_address == ctx.sender(), <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</Link>);
+    <b>assert</b>!(unlock_address == ctx.sender(), <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</Link>);
 
-    <b>let</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link> \{
+    <b>let</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link> \{
         owner: _,
         return_address: _,
         unix_time: _,
@@ -124,7 +124,7 @@ Return the address that can unlock the related output.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
 </code></pre>
 
 
@@ -134,14 +134,14 @@ Return the address that can unlock the related output.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>, ctx: &TxContext): <b>address</b> \{
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>, ctx: &TxContext): <b>address</b> \{
     // Unix time in seconds.
-    <b>let</b> current_time = ((<Link href="../iota-framework/tx_context#0x2_tx_context_epoch_timestamp_ms">tx_context::epoch_timestamp_ms</Link>(ctx) / 1000) <b>as</b> u32);
+    <b>let</b> current_time = ((<Link to="../iota-framework/tx_context#0x2_tx_context_epoch_timestamp_ms">tx_context::epoch_timestamp_ms</Link>(ctx) / 1000) <b>as</b> u32);
 
-    <b>if</b> (condition.<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>() &lt;= current_time) \{
-        condition.<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>()
+    <b>if</b> (condition.<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>() &lt;= current_time) \{
+        condition.<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>()
     } <b>else</b> \{
-        condition.<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>()
+        condition.<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>()
     }
 }
 </code></pre>
@@ -159,7 +159,7 @@ owner</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): <b>address</b>
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): <b>address</b>
 </code></pre>
 
 
@@ -169,7 +169,7 @@ owner</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): <b>address</b> \{
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): <b>address</b> \{
     condition.owner
 }
 </code></pre>
@@ -187,7 +187,7 @@ return_address</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): <b>address</b>
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): <b>address</b>
 </code></pre>
 
 
@@ -197,7 +197,7 @@ return_address</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): <b>address</b> \{
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): <b>address</b> \{
     condition.return_address
 }
 </code></pre>
@@ -215,7 +215,7 @@ unix_time</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): u32
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): u32
 </code></pre>
 
 
@@ -225,7 +225,7 @@ unix_time</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>(condition: &<Link href="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): u32 \{
+<b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): u32 \{
     condition.unix_time
 }
 </code></pre>

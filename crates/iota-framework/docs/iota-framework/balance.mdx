@@ -8,8 +8,8 @@ A storable handler for Balances in general. Is used in the <code>
 Coin</code>
 module to allow balance operations and can be used to implement
 custom coins with <code>
-<Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link></code> and <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code>s.
+<Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link></code> and <code>
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code>s.
 
 
 -  [Struct `Supply`](#0x2_balance_Supply)
@@ -31,7 +31,7 @@ custom coins with <code>
 
 
 <pre><code>
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -47,7 +47,7 @@ Coin</code> module.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt; <b>has</b> store
+<b>struct</b> <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt; <b>has</b> store
 </code></pre>
 
 
@@ -78,7 +78,7 @@ Can be used to store coins which don't need the key ability.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; <b>has</b> store
+<b>struct</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; <b>has</b> store
 </code></pre>
 
 
@@ -111,7 +111,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/balance#0x2_balance_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 3;
+<b>const</b> <Link to="../iota-framework/balance#0x2_balance_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 3;
 </code></pre>
 
 
@@ -122,7 +122,7 @@ For when trying to destroy a non-zero balance.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/balance#0x2_balance_ENonZero">ENonZero</Link>: u64 = 0;
+<b>const</b> <Link to="../iota-framework/balance#0x2_balance_ENonZero">ENonZero</Link>: u64 = 0;
 </code></pre>
 
 
@@ -133,7 +133,7 @@ For when trying to withdraw more than there is.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/balance#0x2_balance_ENotEnough">ENotEnough</Link>: u64 = 2;
+<b>const</b> <Link to="../iota-framework/balance#0x2_balance_ENotEnough">ENotEnough</Link>: u64 = 2;
 </code></pre>
 
 
@@ -144,7 +144,7 @@ For when an overflow is happening on Supply operations.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/balance#0x2_balance_EOverflow">EOverflow</Link>: u64 = 1;
+<b>const</b> <Link to="../iota-framework/balance#0x2_balance_EOverflow">EOverflow</Link>: u64 = 1;
 </code></pre>
 
 
@@ -154,11 +154,11 @@ For when an overflow is happening on Supply operations.
 ## Function `value`
 
 Get the amount stored in a <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code>.
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_value">value</Link>&lt;T&gt;(self: &<Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_value">value</Link>&lt;T&gt;(self: &<Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -168,7 +168,7 @@ Get the amount stored in a <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_value">value</Link>&lt;T&gt;(self: &<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_value">value</Link>&lt;T&gt;(self: &<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): u64 \{
     self.value
 }
 </code></pre>
@@ -182,11 +182,11 @@ Get the amount stored in a <code>
 ## Function `supply_value`
 
 Get the <code>
-<Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link></code> value.
+<Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link></code> value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_supply_value">supply_value</Link>&lt;T&gt;(supply: &<Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_supply_value">supply_value</Link>&lt;T&gt;(supply: &<Link to="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -196,7 +196,7 @@ Get the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_supply_value">supply_value</Link>&lt;T&gt;(supply: &<Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_supply_value">supply_value</Link>&lt;T&gt;(supply: &<Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;): u64 \{
     supply.value
 }
 </code></pre>
@@ -213,7 +213,7 @@ Create a new supply for type T.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_create_supply">create_supply</Link>&lt;T: drop&gt;(_: T): <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_create_supply">create_supply</Link>&lt;T: drop&gt;(_: T): <Link to="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -223,8 +223,8 @@ Create a new supply for type T.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_create_supply">create_supply</Link>&lt;T: drop&gt;(_: T): <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link> \{ value: 0 }
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_create_supply">create_supply</Link>&lt;T: drop&gt;(_: T): <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt; \{
+    <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link> \{ value: 0 }
 }
 </code></pre>
 
@@ -238,11 +238,11 @@ Create a new supply for type T.
 
 Increase supply by <code>
 value</code> and create a new <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;</code> with this value.
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;</code> with this value.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_increase_supply">increase_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;, value: u64): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_increase_supply">increase_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;, value: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -252,10 +252,10 @@ value</code> and create a new <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_increase_supply">increase_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;, value: u64): <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
-    <b>assert</b>!(<Link href="../iota-framework/balance#0x2_balance_value">value</Link> &lt; (18446744073709551615u64 - self.value), <Link href="../iota-framework/balance#0x2_balance_EOverflow">EOverflow</Link>);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_increase_supply">increase_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;, value: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
+    <b>assert</b>!(<Link to="../iota-framework/balance#0x2_balance_value">value</Link> &lt; (18446744073709551615u64 - self.value), <Link to="../iota-framework/balance#0x2_balance_EOverflow">EOverflow</Link>);
     self.value = self.value + value;
-    <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value }
+    <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value }
 }
 </code></pre>
 
@@ -271,7 +271,7 @@ Burn a `Balance<T>` and decrease `Supply<T>`.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_decrease_supply">decrease_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;, <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_decrease_supply">decrease_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;, <Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -281,9 +281,9 @@ Burn a `Balance<T>` and decrease `Supply<T>`.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_decrease_supply">decrease_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;, <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): u64 \{
-    <b>let</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value } = <Link href="../iota-framework/balance#0x2_balance">balance</Link>;
-    <b>assert</b>!(self.value &gt;= value, <Link href="../iota-framework/balance#0x2_balance_EOverflow">EOverflow</Link>);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_decrease_supply">decrease_supply</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;, <Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): u64 \{
+    <b>let</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value } = <Link to="../iota-framework/balance#0x2_balance">balance</Link>;
+    <b>assert</b>!(self.value &gt;= value, <Link to="../iota-framework/balance#0x2_balance_EOverflow">EOverflow</Link>);
     self.value = self.value - value;
     value
 }
@@ -298,12 +298,12 @@ Burn a `Balance<T>` and decrease `Supply<T>`.
 ## Function `zero`
 
 Create a zero <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> for type <code>
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> for type <code>
 T</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_zero">zero</Link>&lt;T&gt;(): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_zero">zero</Link>&lt;T&gt;(): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -313,8 +313,8 @@ T</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_zero">zero</Link>&lt;T&gt;(): <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
-    <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value: 0 }
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_zero">zero</Link>&lt;T&gt;(): <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
+    <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value: 0 }
 }
 </code></pre>
 
@@ -330,7 +330,7 @@ Join two balances together.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -340,8 +340,8 @@ Join two balances together.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;, <Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): u64 \{
-    <b>let</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value } = <Link href="../iota-framework/balance#0x2_balance">balance</Link>;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_join">join</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;, <Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): u64 \{
+    <b>let</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value } = <Link to="../iota-framework/balance#0x2_balance">balance</Link>;
     self.value = self.value + value;
     self.value
 }
@@ -356,11 +356,11 @@ Join two balances together.
 ## Function `split`
 
 Split a <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> and take a sub balance from it.
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> and take a sub balance from it.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_split">split</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, value: u64): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_split">split</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, value: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -370,10 +370,10 @@ Split a <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_split">split</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;, value: u64): <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
-    <b>assert</b>!(self.value &gt;= value, <Link href="../iota-framework/balance#0x2_balance_ENotEnough">ENotEnough</Link>);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_split">split</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;, value: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
+    <b>assert</b>!(self.value &gt;= value, <Link to="../iota-framework/balance#0x2_balance_ENotEnough">ENotEnough</Link>);
     self.value = self.value - value;
-    <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value }
+    <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value }
 }
 </code></pre>
 
@@ -389,7 +389,7 @@ Withdraw all balance. After this the remaining balance must be 0.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_withdraw_all">withdraw_all</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_withdraw_all">withdraw_all</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -399,9 +399,9 @@ Withdraw all balance. After this the remaining balance must be 0.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_withdraw_all">withdraw_all</Link>&lt;T&gt;(self: &<b>mut</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_withdraw_all">withdraw_all</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;): <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
     <b>let</b> value = self.value;
-    <Link href="../iota-framework/balance#0x2_balance_split">split</Link>(self, value)
+    <Link to="../iota-framework/balance#0x2_balance_split">split</Link>(self, value)
 }
 </code></pre>
 
@@ -414,11 +414,11 @@ Withdraw all balance. After this the remaining balance must be 0.
 ## Function `destroy_zero`
 
 Destroy a zero <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code>.
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -428,9 +428,9 @@ Destroy a zero <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link href="../iota-framework/balance#0x2_balance">balance</Link>: <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;) \{
-    <b>assert</b>!(<Link href="../iota-framework/balance#0x2_balance">balance</Link>.value == 0, <Link href="../iota-framework/balance#0x2_balance_ENonZero">ENonZero</Link>);
-    <b>let</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value: _ } = <Link href="../iota-framework/balance#0x2_balance">balance</Link>;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_destroy_zero">destroy_zero</Link>&lt;T&gt;(<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;) \{
+    <b>assert</b>!(<Link to="../iota-framework/balance#0x2_balance">balance</Link>.value == 0, <Link to="../iota-framework/balance#0x2_balance_ENonZero">ENonZero</Link>);
+    <b>let</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value: _ } = <Link to="../iota-framework/balance#0x2_balance">balance</Link>;
 }
 </code></pre>
 
@@ -443,13 +443,13 @@ Destroy a zero <code>
 ## Function `create_staking_rewards`
 
 CAUTION: this function creates a <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> without increasing the supply.
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> without increasing the supply.
 It should only be called by the epoch change system txn to create staking rewards,
 and nowhere else.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/balance#0x2_balance_create_staking_rewards">create_staking_rewards</Link>&lt;T&gt;(value: u64, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<b>fun</b> <Link to="../iota-framework/balance#0x2_balance_create_staking_rewards">create_staking_rewards</Link>&lt;T&gt;(value: u64, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -459,9 +459,9 @@ and nowhere else.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/balance#0x2_balance_create_staking_rewards">create_staking_rewards</Link>&lt;T&gt;(value: u64, ctx: &TxContext): <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/balance#0x2_balance_ENotSystemAddress">ENotSystemAddress</Link>);
-    <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value }
+<b>fun</b> <Link to="../iota-framework/balance#0x2_balance_create_staking_rewards">create_staking_rewards</Link>&lt;T&gt;(value: u64, ctx: &TxContext): <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt; \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/balance#0x2_balance_ENotSystemAddress">ENotSystemAddress</Link>);
+    <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value }
 }
 </code></pre>
 
@@ -474,13 +474,13 @@ and nowhere else.
 ## Function `destroy_storage_rebates`
 
 CAUTION: this function destroys a <code>
-<Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> without decreasing the supply.
+<Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link></code> without decreasing the supply.
 It should only be called by the epoch change system txn to destroy storage rebates,
 and nowhere else.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/balance#0x2_balance_destroy_storage_rebates">destroy_storage_rebates</Link>&lt;T&gt;(self: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link to="../iota-framework/balance#0x2_balance_destroy_storage_rebates">destroy_storage_rebates</Link>&lt;T&gt;(self: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -490,9 +490,9 @@ and nowhere else.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/balance#0x2_balance_destroy_storage_rebates">destroy_storage_rebates</Link>&lt;T&gt;(self: <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;, ctx: &TxContext) \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/balance#0x2_balance_ENotSystemAddress">ENotSystemAddress</Link>);
-    <b>let</b> <Link href="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value: _ } = self;
+<b>fun</b> <Link to="../iota-framework/balance#0x2_balance_destroy_storage_rebates">destroy_storage_rebates</Link>&lt;T&gt;(self: <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link>&lt;T&gt;, ctx: &TxContext) \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/balance#0x2_balance_ENotSystemAddress">ENotSystemAddress</Link>);
+    <b>let</b> <Link to="../iota-framework/balance#0x2_balance_Balance">Balance</Link> \{ value: _ } = self;
 }
 </code></pre>
 
@@ -505,11 +505,11 @@ and nowhere else.
 ## Function `destroy_supply`
 
 Destroy a <code>
-<Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link></code> preventing any further minting and burning.
+<Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link></code> preventing any further minting and burning.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_destroy_supply">destroy_supply</Link>&lt;T&gt;(self: <Link href="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;): u64
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_destroy_supply">destroy_supply</Link>&lt;T&gt;(self: <Link to="../iota-framework/balance#0x2_balance_Supply">balance::Supply</Link>&lt;T&gt;): u64
 </code></pre>
 
 
@@ -519,8 +519,8 @@ Destroy a <code>
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="../iota-framework/balance#0x2_balance_destroy_supply">destroy_supply</Link>&lt;T&gt;(self: <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;): u64 \{
-    <b>let</b> <Link href="../iota-framework/balance#0x2_balance_Supply">Supply</Link> \{ value } = self;
+<b>public</b>(package) <b>fun</b> <Link to="../iota-framework/balance#0x2_balance_destroy_supply">destroy_supply</Link>&lt;T&gt;(self: <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link>&lt;T&gt;): u64 \{
+    <b>let</b> <Link to="../iota-framework/balance#0x2_balance_Supply">Supply</Link> \{ value } = self;
     value
 }
 </code></pre>

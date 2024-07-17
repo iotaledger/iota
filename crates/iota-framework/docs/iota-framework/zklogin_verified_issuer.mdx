@@ -17,10 +17,10 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/string#0x1_string">0x1::string</Link>;
-<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="transfer#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../move-stdlib/string#0x1_string">0x1::string</Link>;
+<b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -34,7 +34,7 @@ Posession of a VerifiedIssuer proves that the user's address was created using z
 
 
 <pre><code>
-<b>struct</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> <b>has</b> key
+<b>struct</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> <b>has</b> key
 </code></pre>
 
 
@@ -46,7 +46,7 @@ Posession of a VerifiedIssuer proves that the user's address was created using z
 <dl>
 <dt>
 <code>
-id: <Link href="object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  The ID of this VerifiedIssuer
@@ -60,7 +60,7 @@ owner: <b>address</b></code>
 </dd>
 <dt>
 <code>
-issuer: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The issuer
@@ -81,7 +81,7 @@ Error if the proof consisting of the inputs provided to the verification functio
 
 
 <pre><code>
-<b>const</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link>: u64 = 0;
+<b>const</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link>: u64 = 0;
 </code></pre>
 
 
@@ -92,7 +92,7 @@ Error if the proof consisting of the inputs provided to the verification functio
 
 
 <pre><code>
-<b>const</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link>: u64 = 1;
+<b>const</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link>: u64 = 1;
 </code></pre>
 
 
@@ -105,7 +105,7 @@ Returns the address associated with the given VerifiedIssuer
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_owner">owner</Link>(verified_issuer: &<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>): <b>address</b>
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_owner">owner</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>): <b>address</b>
 </code></pre>
 
 
@@ -115,7 +115,7 @@ Returns the address associated with the given VerifiedIssuer
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_owner">owner</Link>(verified_issuer: &<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>): <b>address</b> \{
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_owner">owner</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>): <b>address</b> \{
     verified_issuer.owner
 }
 </code></pre>
@@ -132,7 +132,7 @@ Returns the issuer associated with the given VerifiedIssuer
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_issuer">issuer</Link>(verified_issuer: &<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>): &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_issuer">issuer</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -142,7 +142,7 @@ Returns the issuer associated with the given VerifiedIssuer
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_issuer">issuer</Link>(verified_issuer: &<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>): &String \{
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_issuer">issuer</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>): &String \{
     &verified_issuer.issuer
 }
 </code></pre>
@@ -159,7 +159,7 @@ Delete a VerifiedIssuer
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>(verified_issuer: <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>)
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>(verified_issuer: <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>)
 </code></pre>
 
 
@@ -169,9 +169,9 @@ Delete a VerifiedIssuer
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>(verified_issuer: <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>) \{
-    <b>let</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> \{ id, owner: _, issuer: _ } = verified_issuer;
-    id.<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>();
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>(verified_issuer: <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>) \{
+    <b>let</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> \{ id, owner: _, issuer: _ } = verified_issuer;
+    id.<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>();
 }
 </code></pre>
 
@@ -187,11 +187,11 @@ Verify that the caller's address was created using zklogin with the given issuer
 with the issuers id transfered to the caller.
 
 Aborts with <code>
-<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link></code> if the verification fails.
+<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link></code> if the verification fails.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_verify_zklogin_issuer">verify_zklogin_issuer</Link>(address_seed: u256, issuer: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_verify_zklogin_issuer">verify_zklogin_issuer</Link>(address_seed: u256, issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -201,16 +201,16 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_verify_zklogin_issuer">verify_zklogin_issuer</Link>(
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_verify_zklogin_issuer">verify_zklogin_issuer</Link>(
     address_seed: u256,
     issuer: String,
     ctx: &<b>mut</b> TxContext,
 ) \{
     <b>let</b> sender = ctx.sender();
-    <b>assert</b>!(<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(sender, address_seed, &issuer), <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link>);
-    <Link href="transfer#0x2_transfer_transfer">transfer::transfer</Link>(
-        <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> \{
-            id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+    <b>assert</b>!(<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(sender, address_seed, &issuer), <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link>);
+    <Link to="transfer#0x2_transfer_transfer">transfer::transfer</Link>(
+        <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> \{
+            id: <Link to="object#0x2_object_new">object::new</Link>(ctx),
             owner: sender,
             issuer
         },
@@ -232,7 +232,7 @@ Returns true if <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(<b>address</b>: <b>address</b>, address_seed: u256, issuer: &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>): bool
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(<b>address</b>: <b>address</b>, address_seed: u256, issuer: &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>): bool
 </code></pre>
 
 
@@ -242,12 +242,12 @@ Returns true if <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(
+<b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(
     <b>address</b>: <b>address</b>,
     address_seed: u256,
     issuer: &String,
 ): bool \{
-    <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(<b>address</b>, address_seed, issuer.bytes())
+    <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(<b>address</b>, address_seed, issuer.bytes())
 }
 </code></pre>
 
@@ -263,12 +263,12 @@ Returns true if <code>
 <b>address</b></code> was created using zklogin with the given issuer and address seed.
 
 Aborts with <code>
-<Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link></code> if the <code>
+<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link></code> if the <code>
 iss</code> input is not a valid UTF-8 string.
 
 
 <pre><code>
-<b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(<b>address</b>: <b>address</b>, address_seed: u256, issuer: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool
+<b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(<b>address</b>: <b>address</b>, address_seed: u256, issuer: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool
 </code></pre>
 
 
@@ -278,10 +278,10 @@ iss</code> input is not a valid UTF-8 string.
 
 
 <pre><code>
-<b>native</b> <b>fun</b> <Link href="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(
+<b>native</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(
     <b>address</b>: <b>address</b>,
     address_seed: u256,
-    issuer: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
+    issuer: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
 ): bool;
 </code></pre>
 

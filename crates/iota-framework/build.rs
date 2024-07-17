@@ -267,7 +267,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
         let content = link_from_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
 
         // Replace a-tags with href for Link tags to enable link and anchor checking
-        let content = link_to_regex.replace_all(&content, r#"<Link href="$1">$2</Link>"#);
+        let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
         // Escape `{` in <code> and add new lines
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {

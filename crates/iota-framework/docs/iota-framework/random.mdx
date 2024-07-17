@@ -37,14 +37,14 @@ This module provides functionality for generating secure randomness.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/bcs#0x1_bcs">0x1::bcs</Link>;
-<b>use</b> <Link href="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
-<b>use</b> <Link href="../iota-framework/address#0x2_address">0x2::address</Link>;
-<b>use</b> <Link href="../iota-framework/hmac#0x2_hmac">0x2::hmac</Link>;
-<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="../iota-framework/versioned#0x2_versioned">0x2::versioned</Link>;
+<b>use</b> <Link to="../move-stdlib/bcs#0x1_bcs">0x1::bcs</Link>;
+<b>use</b> <Link to="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
+<b>use</b> <Link to="../iota-framework/address#0x2_address">0x2::address</Link>;
+<b>use</b> <Link to="../iota-framework/hmac#0x2_hmac">0x2::hmac</Link>;
+<b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../iota-framework/versioned#0x2_versioned">0x2::versioned</Link>;
 </code></pre>
 
 
@@ -58,7 +58,7 @@ The actual state is stored in a versioned inner field.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/random#0x2_random_Random">Random</Link> <b>has</b> key
+<b>struct</b> <Link to="../iota-framework/random#0x2_random_Random">Random</Link> <b>has</b> key
 </code></pre>
 
 
@@ -70,14 +70,14 @@ The actual state is stored in a versioned inner field.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-inner: <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link></code>
+inner: <Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link></code>
 </dt>
 <dd>
 
@@ -94,7 +94,7 @@ inner: <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versione
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> <b>has</b> store
+<b>struct</b> <Link to="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> <b>has</b> store
 </code></pre>
 
 
@@ -127,7 +127,7 @@ randomness_round: u64</code>
 </dd>
 <dt>
 <code>
-random_bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+random_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -145,7 +145,7 @@ Unique randomness generator, derived from the global randomness.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link> <b>has</b> drop
+<b>struct</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -157,7 +157,7 @@ Unique randomness generator, derived from the global randomness.
 <dl>
 <dt>
 <code>
-seed: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+seed: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -171,7 +171,7 @@ counter: u16</code>
 </dd>
 <dt>
 <code>
-buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+buffer: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -191,7 +191,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 0;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 0;
 </code></pre>
 
 
@@ -201,7 +201,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>: u64 = 1;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>: u64 = 1;
 </code></pre>
 
 
@@ -211,7 +211,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>: u64 = 1;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>: u64 = 1;
 </code></pre>
 
 
@@ -221,7 +221,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_EInvalidLength">EInvalidLength</Link>: u64 = 4;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_EInvalidLength">EInvalidLength</Link>: u64 = 4;
 </code></pre>
 
 
@@ -231,7 +231,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_EInvalidRandomnessUpdate">EInvalidRandomnessUpdate</Link>: u64 = 2;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_EInvalidRandomnessUpdate">EInvalidRandomnessUpdate</Link>: u64 = 2;
 </code></pre>
 
 
@@ -241,7 +241,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_EInvalidRange">EInvalidRange</Link>: u64 = 3;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_EInvalidRange">EInvalidRange</Link>: u64 = 3;
 </code></pre>
 
 
@@ -251,7 +251,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_RAND_OUTPUT_LEN">RAND_OUTPUT_LEN</Link>: u16 = 32;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_RAND_OUTPUT_LEN">RAND_OUTPUT_LEN</Link>: u16 = 32;
 </code></pre>
 
 
@@ -261,7 +261,7 @@ buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</c
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/random#0x2_random_U16_MAX">U16_MAX</Link>: u64 = 65535;
+<b>const</b> <Link to="../iota-framework/random#0x2_random_U16_MAX">U16_MAX</Link>: u64 = 65535;
 </code></pre>
 
 
@@ -276,7 +276,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_create">create</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_create">create</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -286,23 +286,23 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_create">create</Link>(ctx: &<b>mut</b> TxContext) \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/random#0x2_random_ENotSystemAddress">ENotSystemAddress</Link>);
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_create">create</Link>(ctx: &<b>mut</b> TxContext) \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/random#0x2_random_ENotSystemAddress">ENotSystemAddress</Link>);
 
-    <b>let</b> version = <Link href="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>;
+    <b>let</b> version = <Link to="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>;
 
-    <b>let</b> inner = <Link href="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> \{
+    <b>let</b> inner = <Link to="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> \{
         version,
         epoch: ctx.epoch(),
         randomness_round: 0,
-        random_bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[],
+        random_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[],
     };
 
-    <b>let</b> self = <Link href="../iota-framework/random#0x2_random_Random">Random</Link> \{
-        id: <Link href="../iota-framework/object#0x2_object_randomness_state">object::randomness_state</Link>(),
-        inner: <Link href="../iota-framework/versioned#0x2_versioned_create">versioned::create</Link>(version, inner, ctx),
+    <b>let</b> self = <Link to="../iota-framework/random#0x2_random_Random">Random</Link> \{
+        id: <Link to="../iota-framework/object#0x2_object_randomness_state">object::randomness_state</Link>(),
+        inner: <Link to="../iota-framework/versioned#0x2_versioned_create">versioned::create</Link>(version, inner, ctx),
     };
-    <Link href="../iota-framework/transfer#0x2_transfer_share_object">transfer::share_object</Link>(self);
+    <Link to="../iota-framework/transfer#0x2_transfer_share_object">transfer::share_object</Link>(self);
 }
 </code></pre>
 
@@ -317,7 +317,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_load_inner_mut">load_inner_mut</Link>(self: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_Random">random::Random</Link>): &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomInner">random::RandomInner</Link>
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_load_inner_mut">load_inner_mut</Link>(self: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_Random">random::Random</Link>): &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomInner">random::RandomInner</Link>
 </code></pre>
 
 
@@ -327,15 +327,15 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_load_inner_mut">load_inner_mut</Link>(
-    self: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_Random">Random</Link>,
-): &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> \{
-    <b>let</b> version = <Link href="../iota-framework/versioned#0x2_versioned_version">versioned::version</Link>(&self.inner);
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_load_inner_mut">load_inner_mut</Link>(
+    self: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_Random">Random</Link>,
+): &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> \{
+    <b>let</b> version = <Link to="../iota-framework/versioned#0x2_versioned_version">versioned::version</Link>(&self.inner);
 
-    // Replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link href="../iota-framework/object#0x2_object">object</Link>.
-    <b>assert</b>!(version == <Link href="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>, <Link href="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
-    <b>let</b> inner: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> = <Link href="../iota-framework/versioned#0x2_versioned_load_value_mut">versioned::load_value_mut</Link>(&<b>mut</b> self.inner);
-    <b>assert</b>!(inner.version == version, <Link href="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    // Replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link to="../iota-framework/object#0x2_object">object</Link>.
+    <b>assert</b>!(version == <Link to="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>, <Link to="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    <b>let</b> inner: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> = <Link to="../iota-framework/versioned#0x2_versioned_load_value_mut">versioned::load_value_mut</Link>(&<b>mut</b> self.inner);
+    <b>assert</b>!(inner.version == version, <Link to="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
     inner
 }
 </code></pre>
@@ -351,7 +351,7 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_load_inner">load_inner</Link>(self: &<Link href="../iota-framework/random#0x2_random_Random">random::Random</Link>): &<Link href="../iota-framework/random#0x2_random_RandomInner">random::RandomInner</Link>
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_load_inner">load_inner</Link>(self: &<Link to="../iota-framework/random#0x2_random_Random">random::Random</Link>): &<Link to="../iota-framework/random#0x2_random_RandomInner">random::RandomInner</Link>
 </code></pre>
 
 
@@ -361,15 +361,15 @@ Can only be called by genesis or change_epoch transactions.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_load_inner">load_inner</Link>(
-    self: &<Link href="../iota-framework/random#0x2_random_Random">Random</Link>,
-): &<Link href="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> \{
-    <b>let</b> version = <Link href="../iota-framework/versioned#0x2_versioned_version">versioned::version</Link>(&self.inner);
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_load_inner">load_inner</Link>(
+    self: &<Link to="../iota-framework/random#0x2_random_Random">Random</Link>,
+): &<Link to="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> \{
+    <b>let</b> version = <Link to="../iota-framework/versioned#0x2_versioned_version">versioned::version</Link>(&self.inner);
 
-    // Replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link href="../iota-framework/object#0x2_object">object</Link>.
-    <b>assert</b>!(version == <Link href="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>, <Link href="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
-    <b>let</b> inner: &<Link href="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> = <Link href="../iota-framework/versioned#0x2_versioned_load_value">versioned::load_value</Link>(&self.inner);
-    <b>assert</b>!(inner.version == version, <Link href="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    // Replace this <b>with</b> a lazy <b>update</b> function when we add a new version of the inner <Link to="../iota-framework/object#0x2_object">object</Link>.
+    <b>assert</b>!(version == <Link to="../iota-framework/random#0x2_random_CURRENT_VERSION">CURRENT_VERSION</Link>, <Link to="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
+    <b>let</b> inner: &<Link to="../iota-framework/random#0x2_random_RandomInner">RandomInner</Link> = <Link to="../iota-framework/versioned#0x2_versioned_load_value">versioned::load_value</Link>(&self.inner);
+    <b>assert</b>!(inner.version == version, <Link to="../iota-framework/random#0x2_random_EWrongInnerVersion">EWrongInnerVersion</Link>);
     inner
 }
 </code></pre>
@@ -387,7 +387,7 @@ transaction.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_update_randomness_state">update_randomness_state</Link>(self: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_Random">random::Random</Link>, new_round: u64, new_bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_update_randomness_state">update_randomness_state</Link>(self: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_Random">random::Random</Link>, new_round: u64, new_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -397,21 +397,21 @@ transaction.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_update_randomness_state">update_randomness_state</Link>(
-    self: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_Random">Random</Link>,
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_update_randomness_state">update_randomness_state</Link>(
+    self: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_Random">Random</Link>,
     new_round: u64,
-    new_bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
+    new_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
     ctx: &TxContext,
 ) \{
     // Validator will make a special system call <b>with</b> sender set <b>as</b> 0x0.
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/random#0x2_random_ENotSystemAddress">ENotSystemAddress</Link>);
+    <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/random#0x2_random_ENotSystemAddress">ENotSystemAddress</Link>);
 
     // Randomness should only be incremented.
     <b>let</b> epoch = ctx.epoch();
-    <b>let</b> inner = self.<Link href="../iota-framework/random#0x2_random_load_inner_mut">load_inner_mut</Link>();
+    <b>let</b> inner = self.<Link to="../iota-framework/random#0x2_random_load_inner_mut">load_inner_mut</Link>();
     <b>if</b> (inner.randomness_round == 0 && inner.epoch == 0 && inner.random_bytes.is_empty()) \{
         // First <b>update</b> should be for round zero.
-        <b>assert</b>!(new_round == 0, <Link href="../iota-framework/random#0x2_random_EInvalidRandomnessUpdate">EInvalidRandomnessUpdate</Link>);
+        <b>assert</b>!(new_round == 0, <Link to="../iota-framework/random#0x2_random_EInvalidRandomnessUpdate">EInvalidRandomnessUpdate</Link>);
     } <b>else</b> \{
         // Subsequent updates should either increase epoch or increment randomness_round.
         // Note that epoch may increase by more than 1 <b>if</b> an epoch is completed without
@@ -419,7 +419,7 @@ transaction.
         <b>assert</b>!(
             (epoch &gt; inner.epoch && new_round == 0) ||
                 (new_round == inner.randomness_round + 1),
-            <Link href="../iota-framework/random#0x2_random_EInvalidRandomnessUpdate">EInvalidRandomnessUpdate</Link>
+            <Link to="../iota-framework/random#0x2_random_EInvalidRandomnessUpdate">EInvalidRandomnessUpdate</Link>
         );
     };
 
@@ -441,7 +441,7 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_new_generator">new_generator</Link>(r: &<Link href="../iota-framework/random#0x2_random_Random">random::Random</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_new_generator">new_generator</Link>(r: &<Link to="../iota-framework/random#0x2_random_Random">random::Random</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>
 </code></pre>
 
 
@@ -451,13 +451,13 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_new_generator">new_generator</Link>(r: &<Link href="../iota-framework/random#0x2_random_Random">Random</Link>, ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link> \{
-    <b>let</b> inner = <Link href="../iota-framework/random#0x2_random_load_inner">load_inner</Link>(r);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_new_generator">new_generator</Link>(r: &<Link to="../iota-framework/random#0x2_random_Random">Random</Link>, ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link> \{
+    <b>let</b> inner = <Link to="../iota-framework/random#0x2_random_load_inner">load_inner</Link>(r);
     <b>let</b> seed = hmac_sha3_256(
         &inner.random_bytes,
         &ctx.fresh_object_address().to_bytes()
     );
-    <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link> \{ seed, counter: 0, buffer: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[] }
+    <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link> \{ seed, counter: 0, buffer: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[] }
 }
 </code></pre>
 
@@ -472,7 +472,7 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -482,9 +482,9 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     g.counter = g.counter + 1;
-    hmac_sha3_256(&g.seed, &<Link href="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link>(&g.counter))
+    hmac_sha3_256(&g.seed, &<Link to="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link>(&g.counter))
 }
 </code></pre>
 
@@ -499,7 +499,7 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>)
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>)
 </code></pre>
 
 
@@ -509,9 +509,9 @@ Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>) \{
-    <b>let</b> next_block = <Link href="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g);
-    <Link href="../move-stdlib/vector#0x1_vector_append">vector::append</Link>(&<b>mut</b> g.buffer, next_block);
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>) \{
+    <b>let</b> next_block = <Link to="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g);
+    <Link to="../move-stdlib/vector#0x1_vector_append">vector::append</Link>(&<b>mut</b> g.buffer, next_block);
 }
 </code></pre>
 
@@ -527,7 +527,7 @@ Generate n random bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_bytes">generate_bytes</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, num_of_bytes: u16): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_bytes">generate_bytes</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, num_of_bytes: u16): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -537,22 +537,22 @@ Generate n random bytes.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_bytes">generate_bytes</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, num_of_bytes: u16): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
-    <b>let</b> <b>mut</b> result = <Link href="../move-stdlib/vector#0x1_vector">vector</Link>[];
-    // Append <Link href="../iota-framework/random#0x2_random_RAND_OUTPUT_LEN">RAND_OUTPUT_LEN</Link> size buffers directly without going through the generator's buffer.
-    <b>let</b> <b>mut</b> num_of_blocks = num_of_bytes / <Link href="../iota-framework/random#0x2_random_RAND_OUTPUT_LEN">RAND_OUTPUT_LEN</Link>;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_bytes">generate_bytes</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, num_of_bytes: u16): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
+    <b>let</b> <b>mut</b> result = <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[];
+    // Append <Link to="../iota-framework/random#0x2_random_RAND_OUTPUT_LEN">RAND_OUTPUT_LEN</Link> size buffers directly without going through the generator's buffer.
+    <b>let</b> <b>mut</b> num_of_blocks = num_of_bytes / <Link to="../iota-framework/random#0x2_random_RAND_OUTPUT_LEN">RAND_OUTPUT_LEN</Link>;
     <b>while</b> (num_of_blocks &gt; 0) \{
-        <Link href="../move-stdlib/vector#0x1_vector_append">vector::append</Link>(&<b>mut</b> result, <Link href="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g));
+        <Link to="../move-stdlib/vector#0x1_vector_append">vector::append</Link>(&<b>mut</b> result, <Link to="../iota-framework/random#0x2_random_derive_next_block">derive_next_block</Link>(g));
         num_of_blocks = num_of_blocks - 1;
     };
     // Fill the generator's buffer <b>if</b> needed.
     <b>let</b> num_of_bytes = num_of_bytes <b>as</b> u64;
-    <b>if</b> (<Link href="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&g.buffer) &lt; (num_of_bytes - <Link href="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&result))) \{
-        <Link href="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g);
+    <b>if</b> (<Link to="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&g.buffer) &lt; (num_of_bytes - <Link to="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&result))) \{
+        <Link to="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g);
     };
     // Take remaining bytes from the generator's buffer.
-    <b>while</b> (<Link href="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&result) &lt; num_of_bytes) \{
-        <Link href="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> result, <Link href="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link>(&<b>mut</b> g.buffer));
+    <b>while</b> (<Link to="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&result) &lt; num_of_bytes) \{
+        <Link to="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> result, <Link to="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link>(&<b>mut</b> g.buffer));
     };
     result
 }
@@ -569,7 +569,7 @@ Generate n random bytes.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, num_of_bytes: u8): u256
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, num_of_bytes: u8): u256
 </code></pre>
 
 
@@ -579,14 +579,14 @@ Generate n random bytes.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, num_of_bytes: u8): u256 \{
-    <b>if</b> (<Link href="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&g.buffer) &lt; num_of_bytes <b>as</b> u64) \{
-        <Link href="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g);
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, num_of_bytes: u8): u256 \{
+    <b>if</b> (<Link to="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&g.buffer) &lt; num_of_bytes <b>as</b> u64) \{
+        <Link to="../iota-framework/random#0x2_random_fill_buffer">fill_buffer</Link>(g);
     };
     <b>let</b> <b>mut</b> result: u256 = 0;
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; num_of_bytes) \{
-        <b>let</b> byte = <Link href="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link>(&<b>mut</b> g.buffer);
+        <b>let</b> byte = <Link to="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link>(&<b>mut</b> g.buffer);
         result = (result &lt;&lt; 8) + (byte <b>as</b> u256);
         i = i + 1;
     };
@@ -606,7 +606,7 @@ Generate a u256.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u256">generate_u256</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u256
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u256">generate_u256</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u256
 </code></pre>
 
 
@@ -616,8 +616,8 @@ Generate a u256.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u256">generate_u256</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u256 \{
-    <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 32)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u256">generate_u256</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u256 \{
+    <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 32)
 }
 </code></pre>
 
@@ -633,7 +633,7 @@ Generate a u128.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u128">generate_u128</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u128
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u128">generate_u128</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u128
 </code></pre>
 
 
@@ -643,8 +643,8 @@ Generate a u128.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u128">generate_u128</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u128 \{
-    <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 16) <b>as</b> u128
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u128">generate_u128</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u128 \{
+    <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 16) <b>as</b> u128
 }
 </code></pre>
 
@@ -660,7 +660,7 @@ Generate a u64.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u64">generate_u64</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u64">generate_u64</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u64
 </code></pre>
 
 
@@ -670,8 +670,8 @@ Generate a u64.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u64">generate_u64</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u64 \{
-    <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 8) <b>as</b> u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u64">generate_u64</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u64 \{
+    <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 8) <b>as</b> u64
 }
 </code></pre>
 
@@ -687,7 +687,7 @@ Generate a u32.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u32">generate_u32</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u32
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u32">generate_u32</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u32
 </code></pre>
 
 
@@ -697,8 +697,8 @@ Generate a u32.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u32">generate_u32</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u32 \{
-    <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 4) <b>as</b> u32
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u32">generate_u32</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u32 \{
+    <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 4) <b>as</b> u32
 }
 </code></pre>
 
@@ -714,7 +714,7 @@ Generate a u16.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u16">generate_u16</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u16
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u16">generate_u16</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u16
 </code></pre>
 
 
@@ -724,8 +724,8 @@ Generate a u16.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u16">generate_u16</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u16 \{
-    <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 2) <b>as</b> u16
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u16">generate_u16</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u16 \{
+    <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 2) <b>as</b> u16
 }
 </code></pre>
 
@@ -741,7 +741,7 @@ Generate a u8.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u8">generate_u8</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u8
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u8">generate_u8</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): u8
 </code></pre>
 
 
@@ -751,8 +751,8 @@ Generate a u8.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u8">generate_u8</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u8 \{
-    <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 1) <b>as</b> u8
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u8">generate_u8</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): u8 \{
+    <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 1) <b>as</b> u8
 }
 </code></pre>
 
@@ -768,7 +768,7 @@ Generate a boolean.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_bool">generate_bool</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): bool
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_bool">generate_bool</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>): bool
 </code></pre>
 
 
@@ -778,8 +778,8 @@ Generate a boolean.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_bool">generate_bool</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): bool \{
-    (<Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 1) & 1) == 1
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_bool">generate_bool</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>): bool \{
+    (<Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, 1) & 1) == 1
 }
 </code></pre>
 
@@ -794,7 +794,7 @@ Generate a boolean.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u128, max: u128, num_of_bytes: u8): u128
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u128, max: u128, num_of_bytes: u8): u128
 </code></pre>
 
 
@@ -804,16 +804,16 @@ Generate a boolean.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u128, max: u128, num_of_bytes: u8): u128 \{
-    <b>assert</b>!(<b>min</b> &lt;= max, <Link href="../iota-framework/random#0x2_random_EInvalidRange">EInvalidRange</Link>);
+<b>fun</b> <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u128, max: u128, num_of_bytes: u8): u128 \{
+    <b>assert</b>!(<b>min</b> &lt;= max, <Link to="../iota-framework/random#0x2_random_EInvalidRange">EInvalidRange</Link>);
     <b>if</b> (<b>min</b> == max) \{
         <b>return</b> <b>min</b>
     };
-    // Pick a <Link href="../iota-framework/random#0x2_random">random</Link> number in [0, max - <b>min</b>] by generating a <Link href="../iota-framework/random#0x2_random">random</Link> number that is larger than max-<b>min</b>, and taking
-    // the modulo of the <Link href="../iota-framework/random#0x2_random">random</Link> number by the range size. Then add the <b>min</b> <b>to</b> the result <b>to</b> get a number in
+    // Pick a <Link to="../iota-framework/random#0x2_random">random</Link> number in [0, max - <b>min</b>] by generating a <Link to="../iota-framework/random#0x2_random">random</Link> number that is larger than max-<b>min</b>, and taking
+    // the modulo of the <Link to="../iota-framework/random#0x2_random">random</Link> number by the range size. Then add the <b>min</b> <b>to</b> the result <b>to</b> get a number in
     // [<b>min</b>, max].
     <b>let</b> range_size = (max - <b>min</b>) <b>as</b> u256 + 1;
-    <b>let</b> rand = <Link href="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, num_of_bytes);
+    <b>let</b> rand = <Link to="../iota-framework/random#0x2_random_u256_from_bytes">u256_from_bytes</Link>(g, num_of_bytes);
     <b>min</b> + (rand % range_size <b>as</b> u128)
 }
 </code></pre>
@@ -830,7 +830,7 @@ Generate a random u128 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u128_in_range">generate_u128_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u128, max: u128): u128
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u128_in_range">generate_u128_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u128, max: u128): u128
 </code></pre>
 
 
@@ -840,8 +840,8 @@ Generate a random u128 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u128_in_range">generate_u128_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u128, max: u128): u128 \{
-    <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b>, max, 24)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u128_in_range">generate_u128_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u128, max: u128): u128 \{
+    <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b>, max, 24)
 }
 </code></pre>
 
@@ -856,7 +856,7 @@ Generate a random u128 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u64_in_range">generate_u64_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u64, max: u64): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u64_in_range">generate_u64_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u64, max: u64): u64
 </code></pre>
 
 
@@ -866,8 +866,8 @@ Generate a random u128 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u64_in_range">generate_u64_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u64, max: u64): u64 \{
-    <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 16) <b>as</b> u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u64_in_range">generate_u64_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u64, max: u64): u64 \{
+    <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 16) <b>as</b> u64
 }
 </code></pre>
 
@@ -883,7 +883,7 @@ Generate a random u32 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u32_in_range">generate_u32_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u32, max: u32): u32
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u32_in_range">generate_u32_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u32, max: u32): u32
 </code></pre>
 
 
@@ -893,8 +893,8 @@ Generate a random u32 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u32_in_range">generate_u32_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u32, max: u32): u32 \{
-    <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 12) <b>as</b> u32
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u32_in_range">generate_u32_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u32, max: u32): u32 \{
+    <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 12) <b>as</b> u32
 }
 </code></pre>
 
@@ -910,7 +910,7 @@ Generate a random u16 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u16_in_range">generate_u16_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u16, max: u16): u16
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u16_in_range">generate_u16_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u16, max: u16): u16
 </code></pre>
 
 
@@ -920,8 +920,8 @@ Generate a random u16 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u16_in_range">generate_u16_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u16, max: u16): u16 \{
-    <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 10) <b>as</b> u16
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u16_in_range">generate_u16_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u16, max: u16): u16 \{
+    <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 10) <b>as</b> u16
 }
 </code></pre>
 
@@ -937,7 +937,7 @@ Generate a random u8 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u8_in_range">generate_u8_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u8, max: u8): u8
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u8_in_range">generate_u8_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, <b>min</b>: u8, max: u8): u8
 </code></pre>
 
 
@@ -947,8 +947,8 @@ Generate a random u8 in [min, max] (with a bias of 2^{-64}).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_generate_u8_in_range">generate_u8_in_range</Link>(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u8, max: u8): u8 \{
-    <Link href="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 9) <b>as</b> u8
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_generate_u8_in_range">generate_u8_in_range</Link>(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, <b>min</b>: u8, max: u8): u8 \{
+    <Link to="../iota-framework/random#0x2_random_u128_in_range">u128_in_range</Link>(g, <b>min</b> <b>as</b> u128, max <b>as</b> u128, 9) <b>as</b> u8
 }
 </code></pre>
 
@@ -964,7 +964,7 @@ Shuffle a vector using the random generator (Fisher–Yates/Knuth shuffle).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_shuffle">shuffle</Link>&lt;T&gt;(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_shuffle">shuffle</Link>&lt;T&gt;(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">random::RandomGenerator</Link>, v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -974,18 +974,18 @@ Shuffle a vector using the random generator (Fisher–Yates/Knuth shuffle).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/random#0x2_random_shuffle">shuffle</Link>&lt;T&gt;(g: &<b>mut</b> <Link href="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;T&gt;) \{
-    <b>let</b> n = <Link href="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(v);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/random#0x2_random_shuffle">shuffle</Link>&lt;T&gt;(g: &<b>mut</b> <Link to="../iota-framework/random#0x2_random_RandomGenerator">RandomGenerator</Link>, v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;T&gt;) \{
+    <b>let</b> n = <Link to="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(v);
     <b>if</b> (n == 0) \{
         <b>return</b>
     };
-    <b>assert</b>!(n &lt;= <Link href="../iota-framework/random#0x2_random_U16_MAX">U16_MAX</Link>, <Link href="../iota-framework/random#0x2_random_EInvalidLength">EInvalidLength</Link>);
+    <b>assert</b>!(n &lt;= <Link to="../iota-framework/random#0x2_random_U16_MAX">U16_MAX</Link>, <Link to="../iota-framework/random#0x2_random_EInvalidLength">EInvalidLength</Link>);
     <b>let</b> n = n <b>as</b> u16;
     <b>let</b> <b>mut</b> i: u16 = 0;
     <b>let</b> end = n - 1;
     <b>while</b> (i &lt; end) \{
-        <b>let</b> j = <Link href="../iota-framework/random#0x2_random_generate_u16_in_range">generate_u16_in_range</Link>(g, i, end);
-        <Link href="../move-stdlib/vector#0x1_vector_swap">vector::swap</Link>(v, i <b>as</b> u64, j <b>as</b> u64);
+        <b>let</b> j = <Link to="../iota-framework/random#0x2_random_generate_u16_in_range">generate_u16_in_range</Link>(g, i, end);
+        <Link to="../move-stdlib/vector#0x1_vector_swap">vector::swap</Link>(v, i <b>as</b> u64, j <b>as</b> u64);
         i = i + 1;
     };
 }

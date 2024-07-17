@@ -46,15 +46,15 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../iota-framework/bag#0x2_bag">0x2::bag</Link>;
-<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/iota#0x2_iota">0x2::iota</Link>;
-<b>use</b> <Link href="../iota-framework/math#0x2_math">0x2::math</Link>;
-<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/table#0x2_table">0x2::table</Link>;
-<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="../iota-framework/bag#0x2_bag">0x2::bag</Link>;
+<b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link to="../iota-framework/iota#0x2_iota">0x2::iota</Link>;
+<b>use</b> <Link to="../iota-framework/math#0x2_math">0x2::math</Link>;
+<b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
+<b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -67,7 +67,7 @@ A staking pool embedded in each validator struct in the system state object.
 
 
 <pre><code>
-<b>struct</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link> <b>has</b> store, key
+<b>struct</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -79,14 +79,14 @@ A staking pool embedded in each validator struct in the system state object.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-activation_epoch: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
+activation_epoch: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
  The epoch at which this pool became active.
@@ -96,7 +96,7 @@ Some(&lt;epoch_number&gt;)</code> if active or inactive.
 </dd>
 <dt>
 <code>
-deactivation_epoch: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
+deactivation_epoch: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
  The epoch at which this staking pool ceased to be active. <code>
@@ -112,11 +112,11 @@ iota_balance: u64</code>
 <dd>
  The total number of IOTA tokens in this pool, including the IOTA in the rewards_pool, as well as in all the principal
  in the <code>
-<Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link></code> object, updated at epoch boundaries.
+<Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link></code> object, updated at epoch boundaries.
 </dd>
 <dt>
 <code>
-rewards_pool: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+rewards_pool: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
  The epoch stake rewards will be added here at the end of each epoch.
@@ -130,7 +130,7 @@ pool_token_balance: u64</code>
 </dd>
 <dt>
 <code>
-exchange_rates: <Link href="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>&gt;</code>
+exchange_rates: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>&gt;</code>
 </dt>
 <dd>
  Exchange rate history of previous epochs. Key is the epoch number.
@@ -162,7 +162,7 @@ pending_pool_token_withdraw: u64</code>
 </dd>
 <dt>
 <code>
-extra_fields: <Link href="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -180,7 +180,7 @@ Struct representing the exchange rate of the stake pool token to IOTA.
 
 
 <pre><code>
-<b>struct</b> <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -217,7 +217,7 @@ A self-custodial object holding the staked IOTA tokens.
 
 
 <pre><code>
-<b>struct</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> <b>has</b> store, key
+<b>struct</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -229,14 +229,14 @@ A self-custodial object holding the staked IOTA tokens.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  ID of the staking pool we are staking with.
@@ -250,7 +250,7 @@ stake_activation_epoch: u64</code>
 </dd>
 <dt>
 <code>
-principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+principal: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
  The staked IOTA tokens.
@@ -270,7 +270,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EActivationOfInactivePool">EActivationOfInactivePool</Link>: u64 = 16;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EActivationOfInactivePool">EActivationOfInactivePool</Link>: u64 = 16;
 </code></pre>
 
 
@@ -280,7 +280,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EDeactivationOfInactivePool">EDeactivationOfInactivePool</Link>: u64 = 11;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EDeactivationOfInactivePool">EDeactivationOfInactivePool</Link>: u64 = 11;
 </code></pre>
 
 
@@ -290,7 +290,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EDelegationOfZeroIota">EDelegationOfZeroIota</Link>: u64 = 17;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EDelegationOfZeroIota">EDelegationOfZeroIota</Link>: u64 = 17;
 </code></pre>
 
 
@@ -300,7 +300,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EDelegationToInactivePool">EDelegationToInactivePool</Link>: u64 = 10;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EDelegationToInactivePool">EDelegationToInactivePool</Link>: u64 = 10;
 </code></pre>
 
 
@@ -310,7 +310,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EDestroyNonzeroBalance">EDestroyNonzeroBalance</Link>: u64 = 5;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EDestroyNonzeroBalance">EDestroyNonzeroBalance</Link>: u64 = 5;
 </code></pre>
 
 
@@ -320,7 +320,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EIncompatibleStakedIota">EIncompatibleStakedIota</Link>: u64 = 12;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EIncompatibleStakedIota">EIncompatibleStakedIota</Link>: u64 = 12;
 </code></pre>
 
 
@@ -330,7 +330,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</Link>: u64 = 3;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</Link>: u64 = 3;
 </code></pre>
 
 
@@ -340,7 +340,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EInsufficientPoolTokenBalance">EInsufficientPoolTokenBalance</Link>: u64 = 0;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EInsufficientPoolTokenBalance">EInsufficientPoolTokenBalance</Link>: u64 = 0;
 </code></pre>
 
 
@@ -350,7 +350,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EInsufficientRewardsPoolBalance">EInsufficientRewardsPoolBalance</Link>: u64 = 4;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EInsufficientRewardsPoolBalance">EInsufficientRewardsPoolBalance</Link>: u64 = 4;
 </code></pre>
 
 
@@ -360,7 +360,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EPendingDelegationDoesNotExist">EPendingDelegationDoesNotExist</Link>: u64 = 8;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EPendingDelegationDoesNotExist">EPendingDelegationDoesNotExist</Link>: u64 = 8;
 </code></pre>
 
 
@@ -370,7 +370,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EPoolAlreadyActive">EPoolAlreadyActive</Link>: u64 = 14;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EPoolAlreadyActive">EPoolAlreadyActive</Link>: u64 = 14;
 </code></pre>
 
 
@@ -380,7 +380,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EPoolNotPreactive">EPoolNotPreactive</Link>: u64 = 15;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EPoolNotPreactive">EPoolNotPreactive</Link>: u64 = 15;
 </code></pre>
 
 
@@ -390,7 +390,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</Link>: u64 = 18;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</Link>: u64 = 18;
 </code></pre>
 
 
@@ -400,7 +400,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_ETokenBalancesDoNotMatchExchangeRate">ETokenBalancesDoNotMatchExchangeRate</Link>: u64 = 9;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_ETokenBalancesDoNotMatchExchangeRate">ETokenBalancesDoNotMatchExchangeRate</Link>: u64 = 9;
 </code></pre>
 
 
@@ -410,7 +410,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_ETokenTimeLockIsSome">ETokenTimeLockIsSome</Link>: u64 = 6;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_ETokenTimeLockIsSome">ETokenTimeLockIsSome</Link>: u64 = 6;
 </code></pre>
 
 
@@ -420,7 +420,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EWithdrawAmountCannotBeZero">EWithdrawAmountCannotBeZero</Link>: u64 = 2;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EWithdrawAmountCannotBeZero">EWithdrawAmountCannotBeZero</Link>: u64 = 2;
 </code></pre>
 
 
@@ -430,7 +430,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EWithdrawalInSameEpoch">EWithdrawalInSameEpoch</Link>: u64 = 13;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EWithdrawalInSameEpoch">EWithdrawalInSameEpoch</Link>: u64 = 13;
 </code></pre>
 
 
@@ -440,7 +440,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EWrongDelegation">EWrongDelegation</Link>: u64 = 7;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EWrongDelegation">EWrongDelegation</Link>: u64 = 7;
 </code></pre>
 
 
@@ -450,7 +450,7 @@ principal: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::B
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_EWrongPool">EWrongPool</Link>: u64 = 1;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_EWrongPool">EWrongPool</Link>: u64 = 1;
 </code></pre>
 
 
@@ -461,7 +461,7 @@ StakedIota objects cannot be split to below this amount.
 
 
 <pre><code>
-<b>const</b> <Link href="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>: u64 = 1000000000;
+<b>const</b> <Link to="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>: u64 = 1000000000;
 </code></pre>
 
 
@@ -474,7 +474,7 @@ Create a new, empty staking pool.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_new">new</Link>(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_new">new</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>
 </code></pre>
 
 
@@ -484,20 +484,20 @@ Create a new, empty staking pool.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_new">new</Link>(ctx: &<b>mut</b> TxContext) : <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link> \{
-    <b>let</b> exchange_rates = <Link href="../iota-framework/table#0x2_table_new">table::new</Link>(ctx);
-    <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link> \{
-        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
-        activation_epoch: <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
-        deactivation_epoch: <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_new">new</Link>(ctx: &<b>mut</b> TxContext) : <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link> \{
+    <b>let</b> exchange_rates = <Link to="../iota-framework/table#0x2_table_new">table::new</Link>(ctx);
+    <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link> \{
+        id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+        activation_epoch: <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+        deactivation_epoch: <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>(),
         iota_balance: 0,
-        rewards_pool: <Link href="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>(),
+        rewards_pool: <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>(),
         pool_token_balance: 0,
         exchange_rates,
         pending_stake: 0,
         pending_total_iota_withdraw: 0,
         pending_pool_token_withdraw: 0,
-        extra_fields: <Link href="../iota-framework/bag#0x2_bag_new">bag::new</Link>(ctx),
+        extra_fields: <Link to="../iota-framework/bag#0x2_bag_new">bag::new</Link>(ctx),
     }
 }
 </code></pre>
@@ -514,7 +514,7 @@ Request to stake to a staking pool. The stake starts counting at the beginning o
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_request_add_stake">request_add_stake</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, stake: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, stake_activation_epoch: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_request_add_stake">request_add_stake</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, stake: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, stake_activation_epoch: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>
 </code></pre>
 
 
@@ -524,18 +524,18 @@ Request to stake to a staking pool. The stake starts counting at the beginning o
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_request_add_stake">request_add_stake</Link>(
-    pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_request_add_stake">request_add_stake</Link>(
+    pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
     stake: Balance&lt;IOTA&gt;,
     stake_activation_epoch: u64,
     ctx: &<b>mut</b> TxContext
-) : <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
+) : <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
     <b>let</b> iota_amount = stake.value();
-    <b>assert</b>!(!<Link href="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool), <Link href="staking_pool#0x3_staking_pool_EDelegationToInactivePool">EDelegationToInactivePool</Link>);
-    <b>assert</b>!(iota_amount &gt; 0, <Link href="staking_pool#0x3_staking_pool_EDelegationOfZeroIota">EDelegationOfZeroIota</Link>);
-    <b>let</b> staked_iota = <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
-        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
-        pool_id: <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(pool),
+    <b>assert</b>!(!<Link to="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool), <Link to="staking_pool#0x3_staking_pool_EDelegationToInactivePool">EDelegationToInactivePool</Link>);
+    <b>assert</b>!(iota_amount &gt; 0, <Link to="staking_pool#0x3_staking_pool_EDelegationOfZeroIota">EDelegationOfZeroIota</Link>);
+    <b>let</b> staked_iota = <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
+        id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+        pool_id: <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(pool),
         stake_activation_epoch,
         principal: stake,
     };
@@ -558,7 +558,7 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, staked_iota: <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -568,16 +568,16 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</Link>(
-    pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
-    staked_iota: <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>,
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</Link>(
+    pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
+    staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>,
     ctx: &TxContext
 ) : Balance&lt;IOTA&gt; \{
     <b>let</b> (pool_token_withdraw_amount, <b>mut</b> principal_withdraw) =
-        <Link href="staking_pool#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</Link>(pool, staked_iota);
+        <Link to="staking_pool#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</Link>(pool, staked_iota);
     <b>let</b> principal_withdraw_amount = principal_withdraw.value();
 
-    <b>let</b> rewards_withdraw = <Link href="staking_pool#0x3_staking_pool_withdraw_rewards">withdraw_rewards</Link>(
+    <b>let</b> rewards_withdraw = <Link to="staking_pool#0x3_staking_pool_withdraw_rewards">withdraw_rewards</Link>(
         pool, principal_withdraw_amount, pool_token_withdraw_amount, ctx.epoch()
     );
     <b>let</b> total_iota_withdraw_amount = principal_withdraw_amount + rewards_withdraw.value();
@@ -586,7 +586,7 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
     pool.pending_pool_token_withdraw = pool.pending_pool_token_withdraw + pool_token_withdraw_amount;
 
     // If the pool is inactive, we immediately process the withdrawal.
-    <b>if</b> (<Link href="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool)) <Link href="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool);
+    <b>if</b> (<Link to="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool)) <Link to="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool);
 
     // TODO: implement withdraw bonding period here.
     principal_withdraw.join(rewards_withdraw);
@@ -608,7 +608,7 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, staked_iota: <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): (u64, <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): (u64, <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;)
 </code></pre>
 
 
@@ -618,17 +618,17 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</Link>(
-    pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
-    staked_iota: <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>,
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</Link>(
+    pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
+    staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>,
 ) : (u64, Balance&lt;IOTA&gt;) \{
 
     // Check that the stake information matches the pool.
-    <b>assert</b>!(staked_iota.pool_id == <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(pool), <Link href="staking_pool#0x3_staking_pool_EWrongPool">EWrongPool</Link>);
+    <b>assert</b>!(staked_iota.pool_id == <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(pool), <Link to="staking_pool#0x3_staking_pool_EWrongPool">EWrongPool</Link>);
 
-    <b>let</b> exchange_rate_at_staking_epoch = <Link href="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool, staked_iota.stake_activation_epoch);
-    <b>let</b> principal_withdraw = <Link href="staking_pool#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</Link>(staked_iota);
-    <b>let</b> pool_token_withdraw_amount = <Link href="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(
+    <b>let</b> exchange_rate_at_staking_epoch = <Link to="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool, staked_iota.stake_activation_epoch);
+    <b>let</b> principal_withdraw = <Link to="staking_pool#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</Link>(staked_iota);
+    <b>let</b> pool_token_withdraw_amount = <Link to="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(
 		&exchange_rate_at_staking_epoch,
 		principal_withdraw.value()
 	);
@@ -651,7 +651,7 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</Link>(staked_iota: <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</Link>(staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -661,14 +661,14 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</Link>(staked_iota: <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): Balance&lt;IOTA&gt; \{
-    <b>let</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</Link>(staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): Balance&lt;IOTA&gt; \{
+    <b>let</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
         id,
         pool_id: _,
         stake_activation_epoch: _,
         principal,
     } = staked_iota;
-    <Link href="../iota-framework/object#0x2_object_delete">object::delete</Link>(id);
+    <Link to="../iota-framework/object#0x2_object_delete">object::delete</Link>(id);
     principal
 }
 </code></pre>
@@ -685,7 +685,7 @@ Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_deposit_rewards">deposit_rewards</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, rewards: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_deposit_rewards">deposit_rewards</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, rewards: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;)
 </code></pre>
 
 
@@ -695,7 +695,7 @@ Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_deposit_rewards">deposit_rewards</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, rewards: Balance&lt;IOTA&gt;) \{
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_deposit_rewards">deposit_rewards</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, rewards: Balance&lt;IOTA&gt;) \{
     pool.iota_balance = pool.iota_balance + rewards.value();
     pool.rewards_pool.join(rewards);
 }
@@ -712,7 +712,7 @@ Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, ctx: &<Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -722,15 +722,15 @@ Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, ctx: &TxContext) \{
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, ctx: &TxContext) \{
     <b>let</b> new_epoch = ctx.epoch() + 1;
-    <Link href="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool);
-    <Link href="staking_pool#0x3_staking_pool_process_pending_stake">process_pending_stake</Link>(pool);
+    <Link to="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool);
+    <Link to="staking_pool#0x3_staking_pool_process_pending_stake">process_pending_stake</Link>(pool);
     pool.exchange_rates.add(
         new_epoch,
-        <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{ iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance },
+        <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{ iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance },
     );
-    <Link href="staking_pool#0x3_staking_pool_check_balance_invariants">check_balance_invariants</Link>(pool, new_epoch);
+    <Link to="staking_pool#0x3_staking_pool_check_balance_invariants">check_balance_invariants</Link>(pool, new_epoch);
 }
 </code></pre>
 
@@ -747,7 +747,7 @@ Also called immediately upon withdrawal if the pool is inactive.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>)
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>)
 </code></pre>
 
 
@@ -757,7 +757,7 @@ Also called immediately upon withdrawal if the pool is inactive.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>) \{
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>) \{
     pool.iota_balance = pool.iota_balance - pool.pending_total_iota_withdraw;
     pool.pool_token_balance = pool.pool_token_balance - pool.pending_pool_token_withdraw;
     pool.pending_total_iota_withdraw = 0;
@@ -777,7 +777,7 @@ Called at epoch boundaries to process the pending stake.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_process_pending_stake">process_pending_stake</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_process_pending_stake">process_pending_stake</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>)
 </code></pre>
 
 
@@ -787,12 +787,12 @@ Called at epoch boundaries to process the pending stake.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_process_pending_stake">process_pending_stake</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>) \{
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_process_pending_stake">process_pending_stake</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>) \{
     // Use the most up <b>to</b> date exchange rate <b>with</b> the rewards deposited and withdraws effectuated.
     <b>let</b> latest_exchange_rate =
-        <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{ iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
+        <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{ iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
     pool.iota_balance = pool.iota_balance + pool.pending_stake;
-    pool.pool_token_balance = <Link href="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(&latest_exchange_rate, pool.iota_balance);
+    pool.pool_token_balance = <Link to="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(&latest_exchange_rate, pool.iota_balance);
     pool.pending_stake = 0;
 }
 </code></pre>
@@ -816,7 +816,7 @@ portion because the principal portion was already taken out of the staker's self
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_withdraw_rewards">withdraw_rewards</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, principal_withdraw_amount: u64, pool_token_withdraw_amount: u64, epoch: u64): <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_withdraw_rewards">withdraw_rewards</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, principal_withdraw_amount: u64, pool_token_withdraw_amount: u64, epoch: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -826,23 +826,23 @@ portion because the principal portion was already taken out of the staker's self
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_withdraw_rewards">withdraw_rewards</Link>(
-    pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_withdraw_rewards">withdraw_rewards</Link>(
+    pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>,
     principal_withdraw_amount: u64,
     pool_token_withdraw_amount: u64,
     epoch: u64,
 ) : Balance&lt;IOTA&gt; \{
-    <b>let</b> exchange_rate = <Link href="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool, epoch);
-    <b>let</b> total_iota_withdraw_amount = <Link href="staking_pool#0x3_staking_pool_get_iota_amount">get_iota_amount</Link>(&exchange_rate, pool_token_withdraw_amount);
+    <b>let</b> exchange_rate = <Link to="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool, epoch);
+    <b>let</b> total_iota_withdraw_amount = <Link to="staking_pool#0x3_staking_pool_get_iota_amount">get_iota_amount</Link>(&exchange_rate, pool_token_withdraw_amount);
     <b>let</b> <b>mut</b> reward_withdraw_amount =
         <b>if</b> (total_iota_withdraw_amount &gt;= principal_withdraw_amount)
             total_iota_withdraw_amount - principal_withdraw_amount
         <b>else</b> 0;
     // This may happen when we are withdrawing everything from the pool and
-    // the rewards pool <Link href="../iota-framework/balance#0x2_balance">balance</Link> may be less than reward_withdraw_amount.
+    // the rewards pool <Link to="../iota-framework/balance#0x2_balance">balance</Link> may be less than reward_withdraw_amount.
     // TODO: FIGURE OUT EXACTLY WHY THIS CAN HAPPEN.
-    reward_withdraw_amount = <Link href="../iota-framework/math#0x2_math_min">math::min</Link>(reward_withdraw_amount, pool.rewards_pool.value());
-    pool.rewards_pool.<Link href="staking_pool#0x3_staking_pool_split">split</Link>(reward_withdraw_amount)
+    reward_withdraw_amount = <Link to="../iota-framework/math#0x2_math_min">math::min</Link>(reward_withdraw_amount, pool.rewards_pool.value());
+    pool.rewards_pool.<Link to="staking_pool#0x3_staking_pool_split">split</Link>(reward_withdraw_amount)
 }
 </code></pre>
 
@@ -855,11 +855,11 @@ portion because the principal portion was already taken out of the staker's self
 ## Function `activate_staking_pool`
 
 Called by <code>
-<Link href="validator#0x3_validator">validator</Link></code> module to activate a staking pool.
+<Link to="validator#0x3_validator">validator</Link></code> module to activate a staking pool.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_activate_staking_pool">activate_staking_pool</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, activation_epoch: u64)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_activate_staking_pool">activate_staking_pool</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, activation_epoch: u64)
 </code></pre>
 
 
@@ -869,15 +869,15 @@ Called by <code>
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_activate_staking_pool">activate_staking_pool</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, activation_epoch: u64) \{
-    // Add the initial exchange rate <b>to</b> the <Link href="../iota-framework/table#0x2_table">table</Link>.
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_activate_staking_pool">activate_staking_pool</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, activation_epoch: u64) \{
+    // Add the initial exchange rate <b>to</b> the <Link to="../iota-framework/table#0x2_table">table</Link>.
     pool.exchange_rates.add(
         activation_epoch,
-        <Link href="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>()
+        <Link to="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>()
     );
     // Check that the pool is preactive and not inactive.
-    <b>assert</b>!(<Link href="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool), <Link href="staking_pool#0x3_staking_pool_EPoolAlreadyActive">EPoolAlreadyActive</Link>);
-    <b>assert</b>!(!<Link href="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool), <Link href="staking_pool#0x3_staking_pool_EActivationOfInactivePool">EActivationOfInactivePool</Link>);
+    <b>assert</b>!(<Link to="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool), <Link to="staking_pool#0x3_staking_pool_EPoolAlreadyActive">EPoolAlreadyActive</Link>);
+    <b>assert</b>!(!<Link to="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool), <Link to="staking_pool#0x3_staking_pool_EActivationOfInactivePool">EActivationOfInactivePool</Link>);
     // Fill in the active epoch.
     pool.activation_epoch.fill(activation_epoch);
 }
@@ -898,7 +898,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_deactivate_staking_pool">deactivate_staking_pool</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, deactivation_epoch: u64)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_deactivate_staking_pool">deactivate_staking_pool</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, deactivation_epoch: u64)
 </code></pre>
 
 
@@ -908,10 +908,10 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_deactivate_staking_pool">deactivate_staking_pool</Link>(pool: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, deactivation_epoch: u64) \{
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_deactivate_staking_pool">deactivate_staking_pool</Link>(pool: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, deactivation_epoch: u64) \{
     // We can't deactivate an already deactivated pool.
-    <b>assert</b>!(!<Link href="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool), <Link href="staking_pool#0x3_staking_pool_EDeactivationOfInactivePool">EDeactivationOfInactivePool</Link>);
-    pool.deactivation_epoch = <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(deactivation_epoch);
+    <b>assert</b>!(!<Link to="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool), <Link to="staking_pool#0x3_staking_pool_EDeactivationOfInactivePool">EDeactivationOfInactivePool</Link>);
+    pool.deactivation_epoch = <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(deactivation_epoch);
 }
 </code></pre>
 
@@ -926,7 +926,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_iota_balance">iota_balance</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_iota_balance">iota_balance</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): u64
 </code></pre>
 
 
@@ -936,7 +936,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_iota_balance">iota_balance</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): u64 \{ pool.iota_balance }
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_iota_balance">iota_balance</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): u64 \{ pool.iota_balance }
 </code></pre>
 
 
@@ -950,7 +950,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pool_id">pool_id</Link>(staked_iota: &<Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link>
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pool_id">pool_id</Link>(staked_iota: &<Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </code></pre>
 
 
@@ -960,7 +960,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pool_id">pool_id</Link>(staked_iota: &<Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): ID \{ staked_iota.pool_id }
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pool_id">pool_id</Link>(staked_iota: &<Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): ID \{ staked_iota.pool_id }
 </code></pre>
 
 
@@ -974,7 +974,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_staked_iota_amount">staked_iota_amount</Link>(staked_iota: &<Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_staked_iota_amount">staked_iota_amount</Link>(staked_iota: &<Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): u64
 </code></pre>
 
 
@@ -984,7 +984,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_staked_iota_amount">staked_iota_amount</Link>(staked_iota: &<Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): u64 \{ staked_iota.principal.value() }
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_staked_iota_amount">staked_iota_amount</Link>(staked_iota: &<Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): u64 \{ staked_iota.principal.value() }
 </code></pre>
 
 
@@ -998,7 +998,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</Link>(staked_iota: &<Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</Link>(staked_iota: &<Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): u64
 </code></pre>
 
 
@@ -1008,7 +1008,7 @@ withdraws can be made to the pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</Link>(staked_iota: &<Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</Link>(staked_iota: &<Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): u64 \{
     staked_iota.stake_activation_epoch
 }
 </code></pre>
@@ -1025,7 +1025,7 @@ Returns true if the input staking pool is preactive.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): bool
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): bool
 </code></pre>
 
 
@@ -1035,7 +1035,7 @@ Returns true if the input staking pool is preactive.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): bool\{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): bool\{
     pool.activation_epoch.is_none()
 }
 </code></pre>
@@ -1052,7 +1052,7 @@ Returns true if the input staking pool is inactive.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): bool
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): bool
 </code></pre>
 
 
@@ -1062,7 +1062,7 @@ Returns true if the input staking pool is inactive.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): bool \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_inactive">is_inactive</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): bool \{
     pool.deactivation_epoch.is_some()
 }
 </code></pre>
@@ -1086,7 +1086,7 @@ pool_id</code> remain the same.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_split">split</Link>(self: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_split">split</Link>(self: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>
 </code></pre>
 
 
@@ -1096,18 +1096,18 @@ pool_id</code> remain the same.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_split">split</Link>(self: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> TxContext): <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_split">split</Link>(self: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> TxContext): <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
     <b>let</b> original_amount = self.principal.value();
-    <b>assert</b>!(split_amount &lt;= original_amount, <Link href="staking_pool#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</Link>);
+    <b>assert</b>!(split_amount &lt;= original_amount, <Link to="staking_pool#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</Link>);
     <b>let</b> remaining_amount = original_amount - split_amount;
-    // Both resulting parts should have at least <Link href="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>.
-    <b>assert</b>!(remaining_amount &gt;= <Link href="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>, <Link href="staking_pool#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</Link>);
-    <b>assert</b>!(split_amount &gt;= <Link href="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>, <Link href="staking_pool#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</Link>);
-    <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
-        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+    // Both resulting parts should have at least <Link to="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>.
+    <b>assert</b>!(remaining_amount &gt;= <Link to="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>, <Link to="staking_pool#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</Link>);
+    <b>assert</b>!(split_amount &gt;= <Link to="staking_pool#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>, <Link to="staking_pool#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</Link>);
+    <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
+        id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
         pool_id: self.pool_id,
         stake_activation_epoch: self.stake_activation_epoch,
-        principal: self.principal.<Link href="staking_pool#0x3_staking_pool_split">split</Link>(split_amount),
+        principal: self.principal.<Link to="staking_pool#0x3_staking_pool_split">split</Link>(split_amount),
     }
 }
 </code></pre>
@@ -1126,7 +1126,7 @@ transfer the newly split part to the sender address.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="staking_pool#0x3_staking_pool_split_staked_iota">split_staked_iota</Link>(stake: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> entry <b>fun</b> <Link to="staking_pool#0x3_staking_pool_split_staked_iota">split_staked_iota</Link>(stake: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1136,8 +1136,8 @@ transfer the newly split part to the sender address.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="staking_pool#0x3_staking_pool_split_staked_iota">split_staked_iota</Link>(stake: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> TxContext) \{
-    <Link href="../iota-framework/transfer#0x2_transfer_transfer">transfer::transfer</Link>(<Link href="staking_pool#0x3_staking_pool_split">split</Link>(stake, split_amount, ctx), ctx.sender());
+<b>public</b> entry <b>fun</b> <Link to="staking_pool#0x3_staking_pool_split_staked_iota">split_staked_iota</Link>(stake: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> TxContext) \{
+    <Link to="../iota-framework/transfer#0x2_transfer_transfer">transfer::transfer</Link>(<Link to="staking_pool#0x3_staking_pool_split">split</Link>(stake, split_amount, ctx), ctx.sender());
 }
 </code></pre>
 
@@ -1156,7 +1156,7 @@ Aborts if some of the staking parameters are incompatible (pool id, stake activa
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="staking_pool#0x3_staking_pool_join_staked_iota">join_staked_iota</Link>(self: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, other: <Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>)
+<b>public</b> entry <b>fun</b> <Link to="staking_pool#0x3_staking_pool_join_staked_iota">join_staked_iota</Link>(self: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, other: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>)
 </code></pre>
 
 
@@ -1166,9 +1166,9 @@ Aborts if some of the staking parameters are incompatible (pool id, stake activa
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="staking_pool#0x3_staking_pool_join_staked_iota">join_staked_iota</Link>(self: &<b>mut</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, other: <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>) \{
-    <b>assert</b>!(<Link href="staking_pool#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</Link>(self, &other), <Link href="staking_pool#0x3_staking_pool_EIncompatibleStakedIota">EIncompatibleStakedIota</Link>);
-    <b>let</b> <Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
+<b>public</b> entry <b>fun</b> <Link to="staking_pool#0x3_staking_pool_join_staked_iota">join_staked_iota</Link>(self: &<b>mut</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, other: <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>) \{
+    <b>assert</b>!(<Link to="staking_pool#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</Link>(self, &other), <Link to="staking_pool#0x3_staking_pool_EIncompatibleStakedIota">EIncompatibleStakedIota</Link>);
+    <b>let</b> <Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link> \{
         id,
         pool_id: _,
         stake_activation_epoch: _,
@@ -1192,7 +1192,7 @@ Returns true if all the staking parameters of the staked iota except the princip
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</Link>(self: &<Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, other: &<Link href="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): bool
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</Link>(self: &<Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, other: &<Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>): bool
 </code></pre>
 
 
@@ -1202,7 +1202,7 @@ Returns true if all the staking parameters of the staked iota except the princip
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</Link>(self: &<Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, other: &<Link href="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): bool \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</Link>(self: &<Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>, other: &<Link to="staking_pool#0x3_staking_pool_StakedIota">StakedIota</Link>): bool \{
     (self.pool_id == other.pool_id) &&
     (self.stake_activation_epoch == other.stake_activation_epoch)
 }
@@ -1219,7 +1219,7 @@ Returns true if all the staking parameters of the staked iota except the princip
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, epoch: u64): <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, epoch: u64): <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
 </code></pre>
 
 
@@ -1229,16 +1229,16 @@ Returns true if all the staking parameters of the staked iota except the princip
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, epoch: u64): <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, epoch: u64): <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{
     // If the pool is preactive then the exchange rate is always 1:1.
-    <b>if</b> (<Link href="staking_pool#0x3_staking_pool_is_preactive_at_epoch">is_preactive_at_epoch</Link>(pool, epoch)) \{
-        <b>return</b> <Link href="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>()
+    <b>if</b> (<Link to="staking_pool#0x3_staking_pool_is_preactive_at_epoch">is_preactive_at_epoch</Link>(pool, epoch)) \{
+        <b>return</b> <Link to="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>()
     };
     <b>let</b> clamped_epoch = pool.deactivation_epoch.get_with_default(epoch);
-    <b>let</b> <b>mut</b> epoch = <Link href="../iota-framework/math#0x2_math_min">math::min</Link>(clamped_epoch, epoch);
+    <b>let</b> <b>mut</b> epoch = <Link to="../iota-framework/math#0x2_math_min">math::min</Link>(clamped_epoch, epoch);
     <b>let</b> activation_epoch = *pool.activation_epoch.borrow();
 
-    // Find the latest epoch that's earlier than the given epoch <b>with</b> an entry in the <Link href="../iota-framework/table#0x2_table">table</Link>
+    // Find the latest epoch that's earlier than the given epoch <b>with</b> an entry in the <Link to="../iota-framework/table#0x2_table">table</Link>
     <b>while</b> (epoch &gt;= activation_epoch) \{
         <b>if</b> (pool.exchange_rates.contains(epoch)) \{
             <b>return</b> pool.exchange_rates[epoch]
@@ -1246,7 +1246,7 @@ Returns true if all the staking parameters of the staked iota except the princip
         epoch = epoch - 1;
     };
     // This line really should be unreachable. Do we want an <b>assert</b> <b>false</b> here?
-    <Link href="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>()
+    <Link to="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>()
 }
 </code></pre>
 
@@ -1262,7 +1262,7 @@ Returns the total value of the pending staking requests for this staking pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pending_stake_amount">pending_stake_amount</Link>(<Link href="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pending_stake_amount">pending_stake_amount</Link>(<Link to="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): u64
 </code></pre>
 
 
@@ -1272,8 +1272,8 @@ Returns the total value of the pending staking requests for this staking pool.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pending_stake_amount">pending_stake_amount</Link>(<Link href="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): u64 \{
-    <Link href="staking_pool#0x3_staking_pool">staking_pool</Link>.pending_stake
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pending_stake_amount">pending_stake_amount</Link>(<Link to="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): u64 \{
+    <Link to="staking_pool#0x3_staking_pool">staking_pool</Link>.pending_stake
 }
 </code></pre>
 
@@ -1289,7 +1289,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pending_stake_withdraw_amount">pending_stake_withdraw_amount</Link>(<Link href="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pending_stake_withdraw_amount">pending_stake_withdraw_amount</Link>(<Link to="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): u64
 </code></pre>
 
 
@@ -1299,8 +1299,8 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pending_stake_withdraw_amount">pending_stake_withdraw_amount</Link>(<Link href="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): u64 \{
-    <Link href="staking_pool#0x3_staking_pool">staking_pool</Link>.pending_total_iota_withdraw
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pending_stake_withdraw_amount">pending_stake_withdraw_amount</Link>(<Link to="staking_pool#0x3_staking_pool">staking_pool</Link>: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): u64 \{
+    <Link to="staking_pool#0x3_staking_pool">staking_pool</Link>.pending_total_iota_withdraw
 }
 </code></pre>
 
@@ -1315,7 +1315,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_exchange_rates">exchange_rates</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): &<Link href="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>&gt;
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_exchange_rates">exchange_rates</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>): &<Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>&gt;
 </code></pre>
 
 
@@ -1325,7 +1325,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b>(package) <b>fun</b> <Link href="staking_pool#0x3_staking_pool_exchange_rates">exchange_rates</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): &Table&lt;u64, <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>&gt; \{
+<b>public</b>(package) <b>fun</b> <Link to="staking_pool#0x3_staking_pool_exchange_rates">exchange_rates</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>): &Table&lt;u64, <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>&gt; \{
     &pool.exchange_rates
 }
 </code></pre>
@@ -1341,7 +1341,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_iota_amount">iota_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_iota_amount">iota_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>): u64
 </code></pre>
 
 
@@ -1351,7 +1351,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_iota_amount">iota_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_iota_amount">iota_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>): u64 \{
     exchange_rate.iota_amount
 }
 </code></pre>
@@ -1367,7 +1367,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pool_token_amount">pool_token_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>): u64
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pool_token_amount">pool_token_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>): u64
 </code></pre>
 
 
@@ -1377,7 +1377,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="staking_pool#0x3_staking_pool_pool_token_amount">pool_token_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link to="staking_pool#0x3_staking_pool_pool_token_amount">pool_token_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>): u64 \{
     exchange_rate.pool_token_amount
 }
 </code></pre>
@@ -1394,7 +1394,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_preactive_at_epoch">is_preactive_at_epoch</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, epoch: u64): bool
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_preactive_at_epoch">is_preactive_at_epoch</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, epoch: u64): bool
 </code></pre>
 
 
@@ -1404,9 +1404,9 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_is_preactive_at_epoch">is_preactive_at_epoch</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, epoch: u64): bool\{
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_is_preactive_at_epoch">is_preactive_at_epoch</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, epoch: u64): bool\{
     // Either the pool is currently preactive or the pool's starting epoch is later than the provided epoch.
-    <Link href="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool) || (*pool.activation_epoch.borrow() &gt; epoch)
+    <Link to="staking_pool#0x3_staking_pool_is_preactive">is_preactive</Link>(pool) || (*pool.activation_epoch.borrow() &gt; epoch)
 }
 </code></pre>
 
@@ -1421,7 +1421,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_get_iota_amount">get_iota_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>, token_amount: u64): u64
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_get_iota_amount">get_iota_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>, token_amount: u64): u64
 </code></pre>
 
 
@@ -1431,7 +1431,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_get_iota_amount">get_iota_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>, token_amount: u64): u64 \{
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_get_iota_amount">get_iota_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>, token_amount: u64): u64 \{
     // When either amount is 0, that means we have no stakes <b>with</b> this pool.
     // The other amount might be non-zero when there's dust left in the pool.
     <b>if</b> (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) \{
@@ -1455,7 +1455,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>, iota_amount: u64): u64
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>, iota_amount: u64): u64
 </code></pre>
 
 
@@ -1465,7 +1465,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(exchange_rate: &<Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>, iota_amount: u64): u64 \{
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(exchange_rate: &<Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link>, iota_amount: u64): u64 \{
     // When either amount is 0, that means we have no stakes <b>with</b> this pool.
     // The other amount might be non-zero when there's dust left in the pool.
     <b>if</b> (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) \{
@@ -1489,7 +1489,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>(): <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>(): <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
 </code></pre>
 
 
@@ -1499,8 +1499,8 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>(): <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{
-    <Link href="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{ iota_amount: 0, pool_token_amount: 0 }
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</Link>(): <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{
+    <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</Link> \{ iota_amount: 0, pool_token_amount: 0 }
 }
 </code></pre>
 
@@ -1515,7 +1515,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_check_balance_invariants">check_balance_invariants</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, epoch: u64)
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_check_balance_invariants">check_balance_invariants</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>, epoch: u64)
 </code></pre>
 
 
@@ -1525,12 +1525,12 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code>
-<b>fun</b> <Link href="staking_pool#0x3_staking_pool_check_balance_invariants">check_balance_invariants</Link>(pool: &<Link href="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, epoch: u64) \{
-    <b>let</b> exchange_rate = <Link href="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool, epoch);
-    // check that the pool token <Link href="../iota-framework/balance#0x2_balance">balance</Link> and <Link href="../iota-framework/iota#0x2_iota">iota</Link> <Link href="../iota-framework/balance#0x2_balance">balance</Link> ratio matches the exchange rate stored.
-    <b>let</b> expected = <Link href="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(&exchange_rate, pool.iota_balance);
+<b>fun</b> <Link to="staking_pool#0x3_staking_pool_check_balance_invariants">check_balance_invariants</Link>(pool: &<Link to="staking_pool#0x3_staking_pool_StakingPool">StakingPool</Link>, epoch: u64) \{
+    <b>let</b> exchange_rate = <Link to="staking_pool#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</Link>(pool, epoch);
+    // check that the pool token <Link to="../iota-framework/balance#0x2_balance">balance</Link> and <Link to="../iota-framework/iota#0x2_iota">iota</Link> <Link to="../iota-framework/balance#0x2_balance">balance</Link> ratio matches the exchange rate stored.
+    <b>let</b> expected = <Link to="staking_pool#0x3_staking_pool_get_token_amount">get_token_amount</Link>(&exchange_rate, pool.iota_balance);
     <b>let</b> actual = pool.pool_token_balance;
-    <b>assert</b>!(expected == actual, <Link href="staking_pool#0x3_staking_pool_ETokenBalancesDoNotMatchExchangeRate">ETokenBalancesDoNotMatchExchangeRate</Link>)
+    <b>assert</b>!(expected == actual, <Link to="staking_pool#0x3_staking_pool_ETokenBalancesDoNotMatchExchangeRate">ETokenBalancesDoNotMatchExchangeRate</Link>)
 }
 </code></pre>
 

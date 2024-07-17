@@ -27,7 +27,7 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 </code></pre>
 
 
@@ -37,17 +37,17 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 ## Struct `String`
 
 The <code>
-<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link></code> struct holds a vector of bytes that all represent
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code> struct holds a vector of bytes that all represent
 valid ASCII characters. Note that these ASCII characters may not all
 be printable. To determine if a <code>
-<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link></code> contains only "printable"
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code> contains only "printable"
 characters you should use the <code>
 all_characters_printable</code> predicate
 defined in this module.
 
 
 <pre><code>
-<b>struct</b> <Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -59,7 +59,7 @@ defined in this module.
 <dl>
 <dt>
 <code>
-bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -77,7 +77,7 @@ An ASCII character.
 
 
 <pre><code>
-<b>struct</b> <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -110,7 +110,7 @@ An invalid ASCII character was encountered when creating an ASCII string.
 
 
 <pre><code>
-<b>const</b> <Link href="../move-stdlib/ascii#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</Link>: u64 = 65536;
+<b>const</b> <Link to="../move-stdlib/ascii#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</Link>: u64 = 65536;
 </code></pre>
 
 
@@ -121,11 +121,11 @@ An invalid ASCII character was encountered when creating an ASCII string.
 
 Convert a <code>
 byte</code> into a <code>
-<Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link></code> that is checked to make sure it is valid ASCII.
+<Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link></code> that is checked to make sure it is valid ASCII.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_char">char</Link>(byte: u8): <Link href="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_char">char</Link>(byte: u8): <Link to="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>
 </code></pre>
 
 
@@ -135,9 +135,9 @@ byte</code> into a <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_char">char</Link>(byte: u8): <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{
-    <b>assert</b>!(<Link href="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(byte), <Link href="../move-stdlib/ascii#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</Link>);
-    <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{ byte }
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_char">char</Link>(byte: u8): <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{
+    <b>assert</b>!(<Link to="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(byte), <Link to="../move-stdlib/ascii#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</Link>);
+    <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{ byte }
 }
 </code></pre>
 
@@ -151,13 +151,13 @@ byte</code> into a <code>
 
 Convert a vector of bytes <code>
 bytes</code> into an <code>
-<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>. Aborts if
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>. Aborts if
 <code>
 bytes</code> contains non-ASCII characters.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/string#0x1_string">string</Link>(bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/string#0x1_string">string</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </code></pre>
 
 
@@ -167,9 +167,9 @@ bytes</code> contains non-ASCII characters.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/string#0x1_string">string</Link>(bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link> \{
-   <b>let</b> x = <Link href="../move-stdlib/ascii#0x1_ascii_try_string">try_string</Link>(bytes);
-   <b>assert</b>!(x.is_some(), <Link href="../move-stdlib/ascii#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</Link>);
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/string#0x1_string">string</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link> \{
+   <b>let</b> x = <Link to="../move-stdlib/ascii#0x1_ascii_try_string">try_string</Link>(bytes);
+   <b>assert</b>!(x.is_some(), <Link to="../move-stdlib/ascii#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</Link>);
    x.destroy_some()
 }
 </code></pre>
@@ -184,7 +184,7 @@ bytes</code> contains non-ASCII characters.
 
 Convert a vector of bytes <code>
 bytes</code> into an <code>
-<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>. Returns
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>. Returns
 <code>
 Some(&lt;ascii_string&gt;)</code> if the <code>
 bytes</code> contains all valid ASCII
@@ -193,7 +193,7 @@ None</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_try_string">try_string</Link>(bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_try_string">try_string</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>&gt;
 </code></pre>
 
 
@@ -203,15 +203,15 @@ None</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_try_string">try_string</Link>(bytes: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): Option&lt;<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>&gt; \{
-    <b>let</b> len = bytes.<Link href="../move-stdlib/ascii#0x1_ascii_length">length</Link>();
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_try_string">try_string</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): Option&lt;<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>&gt; \{
+    <b>let</b> len = bytes.<Link to="../move-stdlib/ascii#0x1_ascii_length">length</Link>();
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; len) \{
         <b>let</b> possible_byte = bytes[i];
-        <b>if</b> (!<Link href="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(possible_byte)) <b>return</b> <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>();
+        <b>if</b> (!<Link to="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(possible_byte)) <b>return</b> <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>();
         i = i + 1;
     };
-    <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link> \{ bytes })
+    <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link> \{ bytes })
 }
 </code></pre>
 
@@ -225,14 +225,14 @@ None</code>.
 
 Returns <code>
 <b>true</b></code> if all characters in <code>
-<Link href="../move-stdlib/string#0x1_string">string</Link></code> are printable characters
+<Link to="../move-stdlib/string#0x1_string">string</Link></code> are printable characters
 Returns <code>
 <b>false</b></code> otherwise. Not all <code>
-<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>s are printable strings.
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>s are printable strings.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_all_characters_printable">all_characters_printable</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): bool
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_all_characters_printable">all_characters_printable</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): bool
 </code></pre>
 
 
@@ -242,12 +242,12 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_all_characters_printable">all_characters_printable</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>): bool \{
-    <b>let</b> len = <Link href="../move-stdlib/string#0x1_string">string</Link>.bytes.<Link href="../move-stdlib/ascii#0x1_ascii_length">length</Link>();
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_all_characters_printable">all_characters_printable</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>): bool \{
+    <b>let</b> len = <Link to="../move-stdlib/string#0x1_string">string</Link>.bytes.<Link to="../move-stdlib/ascii#0x1_ascii_length">length</Link>();
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; len) \{
-        <b>let</b> byte = <Link href="../move-stdlib/string#0x1_string">string</Link>.bytes[i];
-        <b>if</b> (!<Link href="../move-stdlib/ascii#0x1_ascii_is_printable_char">is_printable_char</Link>(byte)) <b>return</b> <b>false</b>;
+        <b>let</b> byte = <Link to="../move-stdlib/string#0x1_string">string</Link>.bytes[i];
+        <b>if</b> (!<Link to="../move-stdlib/ascii#0x1_ascii_is_printable_char">is_printable_char</Link>(byte)) <b>return</b> <b>false</b>;
         i = i + 1;
     };
     <b>true</b>
@@ -265,7 +265,7 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_push_char">push_char</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>, char: <Link href="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_push_char">push_char</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>, char: <Link to="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>)
 </code></pre>
 
 
@@ -275,8 +275,8 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_push_char">push_char</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>, char: <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link>) \{
-    <Link href="../move-stdlib/string#0x1_string">string</Link>.bytes.push_back(char.byte);
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_push_char">push_char</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>, char: <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link>) \{
+    <Link to="../move-stdlib/string#0x1_string">string</Link>.bytes.push_back(char.byte);
 }
 </code></pre>
 
@@ -291,7 +291,7 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_pop_char">pop_char</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): <Link href="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_pop_char">pop_char</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): <Link to="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>
 </code></pre>
 
 
@@ -301,8 +301,8 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_pop_char">pop_char</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>): <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{
-    <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{ byte: <Link href="../move-stdlib/string#0x1_string">string</Link>.bytes.pop_back() }
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_pop_char">pop_char</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<b>mut</b> <Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>): <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{
+    <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{ byte: <Link to="../move-stdlib/string#0x1_string">string</Link>.bytes.pop_back() }
 }
 </code></pre>
 
@@ -317,7 +317,7 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_length">length</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): u64
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_length">length</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): u64
 </code></pre>
 
 
@@ -327,8 +327,8 @@ Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_length">length</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>): u64 \{
-    <Link href="../move-stdlib/string#0x1_string">string</Link>.<Link href="../move-stdlib/ascii#0x1_ascii_as_bytes">as_bytes</Link>().<Link href="../move-stdlib/ascii#0x1_ascii_length">length</Link>()
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_length">length</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>): u64 \{
+    <Link to="../move-stdlib/string#0x1_string">string</Link>.<Link to="../move-stdlib/ascii#0x1_ascii_as_bytes">as_bytes</Link>().<Link to="../move-stdlib/ascii#0x1_ascii_length">length</Link>()
 }
 </code></pre>
 
@@ -341,11 +341,11 @@ Returns <code>
 ## Function `as_bytes`
 
 Get the inner bytes of the <code>
-<Link href="../move-stdlib/string#0x1_string">string</Link></code> as a reference
+<Link to="../move-stdlib/string#0x1_string">string</Link></code> as a reference
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_as_bytes">as_bytes</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_as_bytes">as_bytes</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -355,8 +355,8 @@ Get the inner bytes of the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_as_bytes">as_bytes</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: &<Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>): &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
-   &<Link href="../move-stdlib/string#0x1_string">string</Link>.bytes
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_as_bytes">as_bytes</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: &<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
+   &<Link to="../move-stdlib/string#0x1_string">string</Link>.bytes
 }
 </code></pre>
 
@@ -369,11 +369,11 @@ Get the inner bytes of the <code>
 ## Function `into_bytes`
 
 Unpack the <code>
-<Link href="../move-stdlib/string#0x1_string">string</Link></code> to get its backing bytes
+<Link to="../move-stdlib/string#0x1_string">string</Link></code> to get its backing bytes
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_into_bytes">into_bytes</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_into_bytes">into_bytes</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </code></pre>
 
 
@@ -383,8 +383,8 @@ Unpack the <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_into_bytes">into_bytes</Link>(<Link href="../move-stdlib/string#0x1_string">string</Link>: <Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
-   <b>let</b> <Link href="../move-stdlib/ascii#0x1_ascii_String">String</Link> \{ bytes } = <Link href="../move-stdlib/string#0x1_string">string</Link>;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_into_bytes">into_bytes</Link>(<Link to="../move-stdlib/string#0x1_string">string</Link>: <Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
+   <b>let</b> <Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link> \{ bytes } = <Link to="../move-stdlib/string#0x1_string">string</Link>;
    bytes
 }
 </code></pre>
@@ -402,7 +402,7 @@ char</code> into its underlying byte.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_byte">byte</Link>(char: <Link href="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>): u8
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_byte">byte</Link>(char: <Link to="../move-stdlib/ascii#0x1_ascii_Char">ascii::Char</Link>): u8
 </code></pre>
 
 
@@ -412,8 +412,8 @@ char</code> into its underlying byte.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_byte">byte</Link>(char: <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link>): u8 \{
-   <b>let</b> <Link href="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{ byte } = char;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_byte">byte</Link>(char: <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link>): u8 \{
+   <b>let</b> <Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> \{ byte } = char;
    byte
 }
 </code></pre>
@@ -433,7 +433,7 @@ b</code> is a valid ASCII character. Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(b: u8): bool
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(b: u8): bool
 </code></pre>
 
 
@@ -443,7 +443,7 @@ b</code> is a valid ASCII character. Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(b: u8): bool \{
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_is_valid_char">is_valid_char</Link>(b: u8): bool \{
    b &lt;= 0x7F
 }
 </code></pre>
@@ -463,7 +463,7 @@ byte</code> is an printable ASCII character. Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_is_printable_char">is_printable_char</Link>(byte: u8): bool
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_is_printable_char">is_printable_char</Link>(byte: u8): bool
 </code></pre>
 
 
@@ -473,9 +473,9 @@ byte</code> is an printable ASCII character. Returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/ascii#0x1_ascii_is_printable_char">is_printable_char</Link>(byte: u8): bool \{
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/ascii#0x1_ascii_is_printable_char">is_printable_char</Link>(byte: u8): bool \{
    byte &gt;= 0x20 && // Disallow metacharacters
-   <Link href="../move-stdlib/ascii#0x1_ascii_byte">byte</Link> &lt;= 0x7E // Don't allow DEL metacharacter
+   <Link to="../move-stdlib/ascii#0x1_ascii_byte">byte</Link> &lt;= 0x7E // Don't allow DEL metacharacter
 }
 </code></pre>
 

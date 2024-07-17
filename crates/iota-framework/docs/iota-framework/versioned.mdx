@@ -19,9 +19,9 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -39,7 +39,7 @@ to use mutable reference even if it's a read-only API.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> <b>has</b> store, key
+<b>struct</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -51,7 +51,7 @@ to use mutable reference even if it's a read-only API.
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -77,7 +77,7 @@ This is to make sure that we always put a new value back.
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link>
+<b>struct</b> <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link>
 </code></pre>
 
 
@@ -89,7 +89,7 @@ This is to make sure that we always put a new value back.
 <dl>
 <dt>
 <code>
-versioned_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+versioned_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -117,7 +117,7 @@ Failed to upgrade the inner object due to invalid capability or new version.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/versioned#0x2_versioned_EInvalidUpgrade">EInvalidUpgrade</Link>: u64 = 0;
+<b>const</b> <Link to="../iota-framework/versioned#0x2_versioned_EInvalidUpgrade">EInvalidUpgrade</Link>: u64 = 0;
 </code></pre>
 
 
@@ -131,7 +131,7 @@ T</code> with an initial version.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_create">create</Link>&lt;T: store&gt;(init_version: u64, init_value: T, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_create">create</Link>&lt;T: store&gt;(init_version: u64, init_value: T, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>
 </code></pre>
 
 
@@ -141,12 +141,12 @@ T</code> with an initial version.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_create">create</Link>&lt;T: store&gt;(init_version: u64, init_value: T, ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> \{
-    <b>let</b> <b>mut</b> self = <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> \{
-        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_create">create</Link>&lt;T: store&gt;(init_version: u64, init_value: T, ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> \{
+    <b>let</b> <b>mut</b> self = <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> \{
+        id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
         version: init_version,
     };
-    <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_add">dynamic_field::add</Link>(&<b>mut</b> self.id, init_version, init_value);
+    <Link to="../iota-framework/dynamic_field#0x2_dynamic_field_add">dynamic_field::add</Link>(&<b>mut</b> self.id, init_version, init_value);
     self
 }
 </code></pre>
@@ -163,7 +163,7 @@ Get the current version of the inner type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_version">version</Link>(self: &<Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_version">version</Link>(self: &<Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): u64
 </code></pre>
 
 
@@ -173,7 +173,7 @@ Get the current version of the inner type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_version">version</Link>(self: &<Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): u64 \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_version">version</Link>(self: &<Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): u64 \{
     self.version
 }
 </code></pre>
@@ -191,7 +191,7 @@ If the type mismatch, the load will fail.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_load_value">load_value</Link>&lt;T: store&gt;(self: &<Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): &T
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_load_value">load_value</Link>&lt;T: store&gt;(self: &<Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): &T
 </code></pre>
 
 
@@ -201,8 +201,8 @@ If the type mismatch, the load will fail.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_load_value">load_value</Link>&lt;T: store&gt;(self: &<Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): &T \{
-    <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_borrow">dynamic_field::borrow</Link>(&self.id, self.version)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_load_value">load_value</Link>&lt;T: store&gt;(self: &<Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): &T \{
+    <Link to="../iota-framework/dynamic_field#0x2_dynamic_field_borrow">dynamic_field::borrow</Link>(&self.id, self.version)
 }
 </code></pre>
 
@@ -218,7 +218,7 @@ Similar to load_value, but return a mutable reference.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_load_value_mut">load_value_mut</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): &<b>mut</b> T
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_load_value_mut">load_value_mut</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): &<b>mut</b> T
 </code></pre>
 
 
@@ -228,8 +228,8 @@ Similar to load_value, but return a mutable reference.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_load_value_mut">load_value_mut</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): &<b>mut</b> T \{
-    <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_borrow_mut">dynamic_field::borrow_mut</Link>(&<b>mut</b> self.id, self.version)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_load_value_mut">load_value_mut</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): &<b>mut</b> T \{
+    <Link to="../iota-framework/dynamic_field#0x2_dynamic_field_borrow_mut">dynamic_field::borrow_mut</Link>(&<b>mut</b> self.id, self.version)
 }
 </code></pre>
 
@@ -246,7 +246,7 @@ and must be used when we upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_remove_value_for_upgrade">remove_value_for_upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): (T, <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">versioned::VersionChangeCap</Link>)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_remove_value_for_upgrade">remove_value_for_upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): (T, <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">versioned::VersionChangeCap</Link>)
 </code></pre>
 
 
@@ -256,11 +256,11 @@ and must be used when we upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_remove_value_for_upgrade">remove_value_for_upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): (T, <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link>) \{
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_remove_value_for_upgrade">remove_value_for_upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): (T, <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link>) \{
     (
-        <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_remove">dynamic_field::remove</Link>(&<b>mut</b> self.id, self.version),
-        <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link> \{
-            versioned_id: <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(self),
+        <Link to="../iota-framework/dynamic_field#0x2_dynamic_field_remove">dynamic_field::remove</Link>(&<b>mut</b> self.id, self.version),
+        <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link> \{
+            versioned_id: <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(self),
             old_version: self.version,
         }
     )
@@ -280,7 +280,7 @@ by calling remove_value_for_upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_upgrade">upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>, new_version: u64, new_value: T, cap: <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">versioned::VersionChangeCap</Link>)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_upgrade">upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>, new_version: u64, new_value: T, cap: <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">versioned::VersionChangeCap</Link>)
 </code></pre>
 
 
@@ -290,11 +290,11 @@ by calling remove_value_for_upgrade.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_upgrade">upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>, new_version: u64, new_value: T, cap: <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link>) \{
-    <b>let</b> <Link href="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link> \{ versioned_id, old_version } = cap;
-    <b>assert</b>!(versioned_id == <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(self), <Link href="../iota-framework/versioned#0x2_versioned_EInvalidUpgrade">EInvalidUpgrade</Link>);
-    <b>assert</b>!(old_version &lt; new_version, <Link href="../iota-framework/versioned#0x2_versioned_EInvalidUpgrade">EInvalidUpgrade</Link>);
-    <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_add">dynamic_field::add</Link>(&<b>mut</b> self.id, new_version, new_value);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_upgrade">upgrade</Link>&lt;T: store&gt;(self: &<b>mut</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>, new_version: u64, new_value: T, cap: <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link>) \{
+    <b>let</b> <Link to="../iota-framework/versioned#0x2_versioned_VersionChangeCap">VersionChangeCap</Link> \{ versioned_id, old_version } = cap;
+    <b>assert</b>!(versioned_id == <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(self), <Link to="../iota-framework/versioned#0x2_versioned_EInvalidUpgrade">EInvalidUpgrade</Link>);
+    <b>assert</b>!(old_version &lt; new_version, <Link to="../iota-framework/versioned#0x2_versioned_EInvalidUpgrade">EInvalidUpgrade</Link>);
+    <Link to="../iota-framework/dynamic_field#0x2_dynamic_field_add">dynamic_field::add</Link>(&<b>mut</b> self.id, new_version, new_value);
     self.version = new_version;
 }
 </code></pre>
@@ -311,7 +311,7 @@ Destroy this Versioned container, and return the inner object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_destroy">destroy</Link>&lt;T: store&gt;(self: <Link href="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): T
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_destroy">destroy</Link>&lt;T: store&gt;(self: <Link to="../iota-framework/versioned#0x2_versioned_Versioned">versioned::Versioned</Link>): T
 </code></pre>
 
 
@@ -321,9 +321,9 @@ Destroy this Versioned container, and return the inner object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/versioned#0x2_versioned_destroy">destroy</Link>&lt;T: store&gt;(self: <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): T \{
-    <b>let</b> <Link href="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> \{ <b>mut</b> id, version } = self;
-    <b>let</b> ret = <Link href="../iota-framework/dynamic_field#0x2_dynamic_field_remove">dynamic_field::remove</Link>(&<b>mut</b> id, version);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/versioned#0x2_versioned_destroy">destroy</Link>&lt;T: store&gt;(self: <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link>): T \{
+    <b>let</b> <Link to="../iota-framework/versioned#0x2_versioned_Versioned">Versioned</Link> \{ <b>mut</b> id, version } = self;
+    <b>let</b> ret = <Link to="../iota-framework/dynamic_field#0x2_dynamic_field_remove">dynamic_field::remove</Link>(&<b>mut</b> id, version);
     id.delete();
     ret
 }

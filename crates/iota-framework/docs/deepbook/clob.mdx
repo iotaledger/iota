@@ -48,20 +48,20 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
-<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/clock#0x2_clock">0x2::clock</Link>;
-<b>use</b> <Link href="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
-<b>use</b> <Link href="../iota-framework/event#0x2_event">0x2::event</Link>;
-<b>use</b> <Link href="../iota-framework/iota#0x2_iota">0x2::iota</Link>;
-<b>use</b> <Link href="../iota-framework/linked_table#0x2_linked_table">0x2::linked_table</Link>;
-<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/table#0x2_table">0x2::table</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="critbit#0xdee9_critbit">0xdee9::critbit</Link>;
-<b>use</b> <Link href="custodian#0xdee9_custodian">0xdee9::custodian</Link>;
-<b>use</b> <Link href="math#0xdee9_math">0xdee9::math</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
+<b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link to="../iota-framework/clock#0x2_clock">0x2::clock</Link>;
+<b>use</b> <Link to="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
+<b>use</b> <Link to="../iota-framework/event#0x2_event">0x2::event</Link>;
+<b>use</b> <Link to="../iota-framework/iota#0x2_iota">0x2::iota</Link>;
+<b>use</b> <Link to="../iota-framework/linked_table#0x2_linked_table">0x2::linked_table</Link>;
+<b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="critbit#0xdee9_critbit">0xdee9::critbit</Link>;
+<b>use</b> <Link to="custodian#0xdee9_custodian">0xdee9::custodian</Link>;
+<b>use</b> <Link to="math#0xdee9_math">0xdee9::math</Link>;
 </code></pre>
 
 
@@ -74,7 +74,7 @@ Emitted when a new pool is created
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_PoolCreated">PoolCreated</Link> <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_PoolCreated">PoolCreated</Link> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -86,21 +86,21 @@ Emitted when a new pool is created
 <dl>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the newly created pool
 </dd>
 <dt>
 <code>
-base_asset: <Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
+base_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-quote_asset: <Link href="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
+quote_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
 </dt>
 <dd>
 
@@ -146,7 +146,7 @@ Emitted when a maker order is injected into the order book.
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -158,7 +158,7 @@ Emitted when a maker order is injected into the order book.
 <dl>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the pool the order was placed on
@@ -179,7 +179,7 @@ is_bid: bool</code>
 </dd>
 <dt>
 <code>
-owner: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the <code>
@@ -219,7 +219,7 @@ Emitted when a maker order is canceled.
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_OrderCanceled">OrderCanceled</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_OrderCanceled">OrderCanceled</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -231,7 +231,7 @@ Emitted when a maker order is canceled.
 <dl>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the pool the order was placed on
@@ -252,7 +252,7 @@ is_bid: bool</code>
 </dd>
 <dt>
 <code>
-owner: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the <code>
@@ -285,7 +285,7 @@ Emitted only when a maker order is filled.
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -297,7 +297,7 @@ Emitted only when a maker order is filled.
 <dl>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the pool the order was placed on
@@ -318,7 +318,7 @@ is_bid: bool</code>
 </dd>
 <dt>
 <code>
-owner: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the <code>
@@ -378,7 +378,7 @@ maker_rebates: u64</code>
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_Order">Order</Link> <b>has</b> drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_Order">Order</Link> <b>has</b> drop, store
 </code></pre>
 
 
@@ -418,7 +418,7 @@ is_bid: bool</code>
 </dd>
 <dt>
 <code>
-owner: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -442,7 +442,7 @@ expire_timestamp: u64</code>
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link> <b>has</b> store
+<b>struct</b> <Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link> <b>has</b> store
 </code></pre>
 
 
@@ -461,7 +461,7 @@ price: u64</code>
 </dd>
 <dt>
 <code>
-open_orders: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, <Link href="clob#0xdee9_clob_Order">clob::Order</Link>&gt;</code>
+open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, <Link to="clob#0xdee9_clob_Order">clob::Order</Link>&gt;</code>
 </dt>
 <dd>
 
@@ -478,7 +478,7 @@ open_orders: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedT
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> key
+<b>struct</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> key
 </code></pre>
 
 
@@ -490,21 +490,21 @@ open_orders: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedT
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-bids: <Link href="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link href="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;</code>
+bids: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-asks: <Link href="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link href="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;</code>
+asks: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;</code>
 </dt>
 <dd>
 
@@ -525,7 +525,7 @@ next_ask_order_id: u64</code>
 </dd>
 <dt>
 <code>
-usr_open_orders: <Link href="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link href="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;&gt;</code>
+usr_open_orders: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;&gt;</code>
 </dt>
 <dd>
 
@@ -560,35 +560,35 @@ lot_size: u64</code>
 </dd>
 <dt>
 <code>
-base_custodian: <Link href="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;BaseAsset&gt;</code>
+base_custodian: <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;BaseAsset&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-quote_custodian: <Link href="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;QuoteAsset&gt;</code>
+quote_custodian: <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;QuoteAsset&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-creation_fee: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+creation_fee: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-base_asset_trading_fees: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;</code>
+base_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
 <code>
-quote_asset_trading_fees: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;</code>
+quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;</code>
 </dt>
 <dd>
 
@@ -603,11 +603,11 @@ quote_asset_trading_fees: <Link href="../iota-framework/balance#0x2_balance_Bala
 ## Struct `OrderPlaced`
 
 Deprecated since v1.0.0, use <code>
-<Link href="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link></code> instead.
+<Link to="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link></code> instead.
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_OrderPlaced">OrderPlaced</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_OrderPlaced">OrderPlaced</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -619,7 +619,7 @@ Deprecated since v1.0.0, use <code>
 <dl>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the pool the order was placed on
@@ -640,7 +640,7 @@ is_bid: bool</code>
 </dd>
 <dt>
 <code>
-owner: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the <code>
@@ -670,11 +670,11 @@ price: u64</code>
 ## Struct `OrderFilled`
 
 Deprecated since v1.0.0, use <code>
-<Link href="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link></code> instead.
+<Link to="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link></code> instead.
 
 
 <pre><code>
-<b>struct</b> <Link href="clob#0xdee9_clob_OrderFilled">OrderFilled</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="clob#0xdee9_clob_OrderFilled">OrderFilled</Link>&lt;BaseAsset, QuoteAsset&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -686,7 +686,7 @@ Deprecated since v1.0.0, use <code>
 <dl>
 <dt>
 <code>
-pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the pool the order was placed on
@@ -707,7 +707,7 @@ is_bid: bool</code>
 </dd>
 <dt>
 <code>
-owner: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  object ID of the <code>
@@ -756,7 +756,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_FLOAT_SCALING">FLOAT_SCALING</Link>: u64 = 1000000000;
+<b>const</b> <Link to="clob#0xdee9_clob_FLOAT_SCALING">FLOAT_SCALING</Link>: u64 = 1000000000;
 </code></pre>
 
 
@@ -766,7 +766,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_DEPRECATED">DEPRECATED</Link>: u64 = 0;
+<b>const</b> <Link to="clob#0xdee9_clob_DEPRECATED">DEPRECATED</Link>: u64 = 0;
 </code></pre>
 
 
@@ -776,7 +776,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>: u64 = 7;
+<b>const</b> <Link to="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>: u64 = 7;
 </code></pre>
 
 
@@ -786,7 +786,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInsufficientQuoteCoin">EInsufficientQuoteCoin</Link>: u64 = 8;
+<b>const</b> <Link to="clob#0xdee9_clob_EInsufficientQuoteCoin">EInsufficientQuoteCoin</Link>: u64 = 8;
 </code></pre>
 
 
@@ -796,7 +796,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidExpireTimestamp">EInvalidExpireTimestamp</Link>: u64 = 19;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidExpireTimestamp">EInvalidExpireTimestamp</Link>: u64 = 19;
 </code></pre>
 
 
@@ -806,7 +806,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>: u64 = 3;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>: u64 = 3;
 </code></pre>
 
 
@@ -816,7 +816,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidPrice">EInvalidPrice</Link>: u64 = 5;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidPrice">EInvalidPrice</Link>: u64 = 5;
 </code></pre>
 
 
@@ -826,7 +826,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>: u64 = 6;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>: u64 = 6;
 </code></pre>
 
 
@@ -836,7 +836,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidRestriction">EInvalidRestriction</Link>: u64 = 14;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidRestriction">EInvalidRestriction</Link>: u64 = 14;
 </code></pre>
 
 
@@ -846,7 +846,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidTickPrice">EInvalidTickPrice</Link>: u64 = 11;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidTickPrice">EInvalidTickPrice</Link>: u64 = 11;
 </code></pre>
 
 
@@ -856,7 +856,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>: u64 = 12;
+<b>const</b> <Link to="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>: u64 = 12;
 </code></pre>
 
 
@@ -866,7 +866,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EOrderCannotBeFullyFilled">EOrderCannotBeFullyFilled</Link>: u64 = 9;
+<b>const</b> <Link to="clob#0xdee9_clob_EOrderCannotBeFullyFilled">EOrderCannotBeFullyFilled</Link>: u64 = 9;
 </code></pre>
 
 
@@ -876,7 +876,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EOrderCannotBeFullyPassive">EOrderCannotBeFullyPassive</Link>: u64 = 10;
+<b>const</b> <Link to="clob#0xdee9_clob_EOrderCannotBeFullyPassive">EOrderCannotBeFullyPassive</Link>: u64 = 10;
 </code></pre>
 
 
@@ -886,7 +886,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_EUnauthorizedCancel">EUnauthorizedCancel</Link>: u64 = 4;
+<b>const</b> <Link to="clob#0xdee9_clob_EUnauthorizedCancel">EUnauthorizedCancel</Link>: u64 = 4;
 </code></pre>
 
 
@@ -896,7 +896,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_FILL_OR_KILL">FILL_OR_KILL</Link>: u8 = 2;
+<b>const</b> <Link to="clob#0xdee9_clob_FILL_OR_KILL">FILL_OR_KILL</Link>: u8 = 2;
 </code></pre>
 
 
@@ -906,7 +906,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_IMMEDIATE_OR_CANCEL">IMMEDIATE_OR_CANCEL</Link>: u8 = 1;
+<b>const</b> <Link to="clob#0xdee9_clob_IMMEDIATE_OR_CANCEL">IMMEDIATE_OR_CANCEL</Link>: u8 = 1;
 </code></pre>
 
 
@@ -916,7 +916,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_MAX_PRICE">MAX_PRICE</Link>: u64 = 9223372036854775808;
+<b>const</b> <Link to="clob#0xdee9_clob_MAX_PRICE">MAX_PRICE</Link>: u64 = 9223372036854775808;
 </code></pre>
 
 
@@ -926,7 +926,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_MIN_ASK_ORDER_ID">MIN_ASK_ORDER_ID</Link>: u64 = 9223372036854775808;
+<b>const</b> <Link to="clob#0xdee9_clob_MIN_ASK_ORDER_ID">MIN_ASK_ORDER_ID</Link>: u64 = 9223372036854775808;
 </code></pre>
 
 
@@ -936,7 +936,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_MIN_PRICE">MIN_PRICE</Link>: u64 = 0;
+<b>const</b> <Link to="clob#0xdee9_clob_MIN_PRICE">MIN_PRICE</Link>: u64 = 0;
 </code></pre>
 
 
@@ -946,7 +946,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_NO_RESTRICTION">NO_RESTRICTION</Link>: u8 = 0;
+<b>const</b> <Link to="clob#0xdee9_clob_NO_RESTRICTION">NO_RESTRICTION</Link>: u8 = 0;
 </code></pre>
 
 
@@ -956,7 +956,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="clob#0xdee9_clob_POST_OR_ABORT">POST_OR_ABORT</Link>: u8 = 3;
+<b>const</b> <Link to="clob#0xdee9_clob_POST_OR_ABORT">POST_OR_ABORT</Link>: u8 = 3;
 </code></pre>
 
 
@@ -968,7 +968,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(level: <Link href="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>)
+<b>fun</b> <Link to="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(level: <Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>)
 </code></pre>
 
 
@@ -978,13 +978,13 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(level: <Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>) \{
-    <b>let</b> <Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link> \{
+<b>fun</b> <Link to="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(level: <Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>) \{
+    <b>let</b> <Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link> \{
         price: _,
         open_orders: orders,
     } = level;
 
-    <Link href="../iota-framework/linked_table#0x2_linked_table_destroy_empty">linked_table::destroy_empty</Link>(orders);
+    <Link to="../iota-framework/linked_table#0x2_linked_table_destroy_empty">linked_table::destroy_empty</Link>(orders);
 }
 </code></pre>
 
@@ -999,7 +999,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_create_account">create_account</Link>(_ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_create_account">create_account</Link>(_ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>
 </code></pre>
 
 
@@ -1009,8 +1009,8 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_create_account">create_account</Link>(_ctx: &<b>mut</b> TxContext): AccountCap \{
-    <b>abort</b> <Link href="clob#0xdee9_clob_DEPRECATED">DEPRECATED</Link>
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_create_account">create_account</Link>(_ctx: &<b>mut</b> TxContext): AccountCap \{
+    <b>abort</b> <Link to="clob#0xdee9_clob_DEPRECATED">DEPRECATED</Link>
 }
 </code></pre>
 
@@ -1025,7 +1025,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_create_pool">create_pool</Link>&lt;BaseAsset, QuoteAsset&gt;(_tick_size: u64, _lot_size: u64, _creation_fee: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, _ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_create_pool">create_pool</Link>&lt;BaseAsset, QuoteAsset&gt;(_tick_size: u64, _lot_size: u64, _creation_fee: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, _ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -1035,13 +1035,13 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_create_pool">create_pool</Link>&lt;BaseAsset, QuoteAsset&gt;(
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_create_pool">create_pool</Link>&lt;BaseAsset, QuoteAsset&gt;(
     _tick_size: u64,
     _lot_size: u64,
     _creation_fee: Coin&lt;IOTA&gt;,
     _ctx: &<b>mut</b> TxContext,
 ) \{
-    <b>abort</b> <Link href="clob#0xdee9_clob_DEPRECATED">DEPRECATED</Link>
+    <b>abort</b> <Link to="clob#0xdee9_clob_DEPRECATED">DEPRECATED</Link>
 }
 </code></pre>
 
@@ -1056,7 +1056,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_deposit_base">deposit_base</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, <Link href="../iota-framework/coin#0x2_coin">coin</Link>: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_deposit_base">deposit_base</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, <Link to="../iota-framework/coin#0x2_coin">coin</Link>: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
 </code></pre>
 
 
@@ -1066,16 +1066,16 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_deposit_base">deposit_base</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
-    <Link href="../iota-framework/coin#0x2_coin">coin</Link>: Coin&lt;BaseAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_deposit_base">deposit_base</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+    <Link to="../iota-framework/coin#0x2_coin">coin</Link>: Coin&lt;BaseAsset&gt;,
     account_cap: &AccountCap
 ) \{
-    <b>assert</b>!(<Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&<Link href="../iota-framework/coin#0x2_coin">coin</Link>) != 0, <Link href="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>);
-    <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>(
+    <b>assert</b>!(<Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&<Link to="../iota-framework/coin#0x2_coin">coin</Link>) != 0, <Link to="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>);
+    <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>(
         &<b>mut</b> pool.base_custodian,
-        <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap),
-        <Link href="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(<Link href="../iota-framework/coin#0x2_coin">coin</Link>)
+        <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap),
+        <Link to="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(<Link to="../iota-framework/coin#0x2_coin">coin</Link>)
     )
 }
 </code></pre>
@@ -1091,7 +1091,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_deposit_quote">deposit_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, <Link href="../iota-framework/coin#0x2_coin">coin</Link>: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_deposit_quote">deposit_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, <Link to="../iota-framework/coin#0x2_coin">coin</Link>: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
 </code></pre>
 
 
@@ -1101,16 +1101,16 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_deposit_quote">deposit_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
-    <Link href="../iota-framework/coin#0x2_coin">coin</Link>: Coin&lt;QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_deposit_quote">deposit_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+    <Link to="../iota-framework/coin#0x2_coin">coin</Link>: Coin&lt;QuoteAsset&gt;,
     account_cap: &AccountCap
 ) \{
-    <b>assert</b>!(<Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&<Link href="../iota-framework/coin#0x2_coin">coin</Link>) != 0, <Link href="clob#0xdee9_clob_EInsufficientQuoteCoin">EInsufficientQuoteCoin</Link>);
-    <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>(
+    <b>assert</b>!(<Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&<Link to="../iota-framework/coin#0x2_coin">coin</Link>) != 0, <Link to="clob#0xdee9_clob_EInsufficientQuoteCoin">EInsufficientQuoteCoin</Link>);
+    <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>(
         &<b>mut</b> pool.quote_custodian,
-        <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap),
-        <Link href="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(<Link href="../iota-framework/coin#0x2_coin">coin</Link>)
+        <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap),
+        <Link to="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(<Link to="../iota-framework/coin#0x2_coin">coin</Link>)
     )
 }
 </code></pre>
@@ -1126,7 +1126,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_withdraw_base">withdraw_base</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_withdraw_base">withdraw_base</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;
 </code></pre>
 
 
@@ -1136,14 +1136,14 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_withdraw_base">withdraw_base</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_withdraw_base">withdraw_base</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
     account_cap: &AccountCap,
     ctx: &<b>mut</b> TxContext
 ): Coin&lt;BaseAsset&gt; \{
-    <b>assert</b>!(quantity &gt; 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <Link href="custodian#0xdee9_custodian_withdraw_asset">custodian::withdraw_asset</Link>(&<b>mut</b> pool.base_custodian, quantity, account_cap, ctx)
+    <b>assert</b>!(quantity &gt; 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <Link to="custodian#0xdee9_custodian_withdraw_asset">custodian::withdraw_asset</Link>(&<b>mut</b> pool.base_custodian, quantity, account_cap, ctx)
 }
 </code></pre>
 
@@ -1158,7 +1158,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_withdraw_quote">withdraw_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_withdraw_quote">withdraw_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;
 </code></pre>
 
 
@@ -1168,14 +1168,14 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_withdraw_quote">withdraw_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_withdraw_quote">withdraw_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
     account_cap: &AccountCap,
     ctx: &<b>mut</b> TxContext
 ): Coin&lt;QuoteAsset&gt; \{
-    <b>assert</b>!(quantity &gt; 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <Link href="custodian#0xdee9_custodian_withdraw_asset">custodian::withdraw_asset</Link>(&<b>mut</b> pool.quote_custodian, quantity, account_cap, ctx)
+    <b>assert</b>!(quantity &gt; 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <Link to="custodian#0xdee9_custodian_withdraw_asset">custodian::withdraw_asset</Link>(&<b>mut</b> pool.quote_custodian, quantity, account_cap, ctx)
 }
 </code></pre>
 
@@ -1190,7 +1190,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_swap_exact_base_for_quote">swap_exact_base_for_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, base_coin: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, quote_coin: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &<Link href="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, u64)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_swap_exact_base_for_quote">swap_exact_base_for_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, base_coin: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, quote_coin: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, u64)
 </code></pre>
 
 
@@ -1200,27 +1200,27 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_swap_exact_base_for_quote">swap_exact_base_for_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_swap_exact_base_for_quote">swap_exact_base_for_quote</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
     base_coin: Coin&lt;BaseAsset&gt;,
     quote_coin: Coin&lt;QuoteAsset&gt;,
-    <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
+    <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
     ctx: &<b>mut</b> TxContext,
 ): (Coin&lt;BaseAsset&gt;, Coin&lt;QuoteAsset&gt;, u64) \{
-    <b>assert</b>!(quantity &gt; 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <b>assert</b>!(<Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&base_coin) &gt;= quantity, <Link href="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>);
-    <b>let</b> original_val = <Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&quote_coin);
-    <b>let</b> (ret_base_coin, ret_quote_coin) = <Link href="clob#0xdee9_clob_place_market_order">place_market_order</Link>(
+    <b>assert</b>!(quantity &gt; 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <b>assert</b>!(<Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&base_coin) &gt;= quantity, <Link to="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>);
+    <b>let</b> original_val = <Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&quote_coin);
+    <b>let</b> (ret_base_coin, ret_quote_coin) = <Link to="clob#0xdee9_clob_place_market_order">place_market_order</Link>(
         pool,
         quantity,
         <b>false</b>,
         base_coin,
         quote_coin,
-        <Link href="../iota-framework/clock#0x2_clock">clock</Link>,
+        <Link to="../iota-framework/clock#0x2_clock">clock</Link>,
         ctx
     );
-    <b>let</b> ret_val = <Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&ret_quote_coin);
+    <b>let</b> ret_val = <Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&ret_quote_coin);
     (ret_base_coin, ret_quote_coin, ret_val - original_val)
 }
 </code></pre>
@@ -1236,7 +1236,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_swap_exact_quote_for_base">swap_exact_quote_for_base</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &<Link href="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, quote_coin: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, u64)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_swap_exact_quote_for_base">swap_exact_quote_for_base</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, quote_coin: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, u64)
 </code></pre>
 
 
@@ -1246,24 +1246,24 @@ price: u64</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_swap_exact_quote_for_base">swap_exact_quote_for_base</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_swap_exact_quote_for_base">swap_exact_quote_for_base</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
-    <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
+    <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
     quote_coin: Coin&lt;QuoteAsset&gt;,
     ctx: &<b>mut</b> TxContext,
 ): (Coin&lt;BaseAsset&gt;, Coin&lt;QuoteAsset&gt;, u64) \{
-    <b>assert</b>!(quantity &gt; 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <b>assert</b>!(<Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&quote_coin) &gt;= quantity, <Link href="clob#0xdee9_clob_EInsufficientQuoteCoin">EInsufficientQuoteCoin</Link>);
-    <b>let</b> (base_asset_balance, quote_asset_balance) = <Link href="clob#0xdee9_clob_match_bid_with_quote_quantity">match_bid_with_quote_quantity</Link>(
+    <b>assert</b>!(quantity &gt; 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <b>assert</b>!(<Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&quote_coin) &gt;= quantity, <Link to="clob#0xdee9_clob_EInsufficientQuoteCoin">EInsufficientQuoteCoin</Link>);
+    <b>let</b> (base_asset_balance, quote_asset_balance) = <Link to="clob#0xdee9_clob_match_bid_with_quote_quantity">match_bid_with_quote_quantity</Link>(
         pool,
         quantity,
-        <Link href="clob#0xdee9_clob_MAX_PRICE">MAX_PRICE</Link>,
-        <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>),
-        <Link href="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(quote_coin)
+        <Link to="clob#0xdee9_clob_MAX_PRICE">MAX_PRICE</Link>,
+        <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>),
+        <Link to="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(quote_coin)
     );
-    <b>let</b> val = <Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_asset_balance);
-    (<Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(base_asset_balance, ctx), <Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(quote_asset_balance, ctx), val)
+    <b>let</b> val = <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_asset_balance);
+    (<Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(base_asset_balance, ctx), <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(quote_asset_balance, ctx), val)
 }
 </code></pre>
 
@@ -1278,7 +1278,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_match_bid_with_quote_quantity">match_bid_with_quote_quantity</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, price_limit: u64, current_timestamp: u64, quote_balance: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;): (<Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;, <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;)
+<b>fun</b> <Link to="clob#0xdee9_clob_match_bid_with_quote_quantity">match_bid_with_quote_quantity</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, price_limit: u64, current_timestamp: u64, quote_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;): (<Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;, <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;)
 </code></pre>
 
 
@@ -1288,39 +1288,39 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_match_bid_with_quote_quantity">match_bid_with_quote_quantity</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>fun</b> <Link to="clob#0xdee9_clob_match_bid_with_quote_quantity">match_bid_with_quote_quantity</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
     price_limit: u64,
     current_timestamp: u64,
     quote_balance: Balance&lt;QuoteAsset&gt;,
 ): (Balance&lt;BaseAsset&gt;, Balance&lt;QuoteAsset&gt;) \{
-    // Base <Link href="../iota-framework/balance#0x2_balance">balance</Link> received by taker, taking into account of taker commission.
+    // Base <Link to="../iota-framework/balance#0x2_balance">balance</Link> received by taker, taking into account of taker commission.
     // Need <b>to</b> individually keep track of the remaining base quantity <b>to</b> be filled <b>to</b> avoid infinite <b>loop</b>.
-    <b>let</b> pool_id = *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
+    <b>let</b> pool_id = *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
     <b>let</b> <b>mut</b> taker_quote_quantity_remaining = quantity;
-    <b>let</b> <b>mut</b> base_balance_filled = <Link href="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>&lt;BaseAsset&gt;();
+    <b>let</b> <b>mut</b> base_balance_filled = <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>&lt;BaseAsset&gt;();
     <b>let</b> <b>mut</b> quote_balance_left = quote_balance;
     <b>let</b> all_open_orders = &<b>mut</b> pool.asks;
-    <b>if</b> (<Link href="critbit#0xdee9_critbit_is_empty">critbit::is_empty</Link>(all_open_orders)) \{
+    <b>if</b> (<Link to="critbit#0xdee9_critbit_is_empty">critbit::is_empty</Link>(all_open_orders)) \{
         <b>return</b> (base_balance_filled, quote_balance_left)
     };
     <b>let</b> (<b>mut</b> tick_price, <b>mut</b> tick_index) = min_leaf(all_open_orders);
     <b>let</b> <b>mut</b> terminate_loop = <b>false</b>;
 
-    <b>while</b> (!is_empty&lt;<Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;(all_open_orders) && tick_price &lt;= price_limit) \{
+    <b>while</b> (!is_empty&lt;<Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;(all_open_orders) && tick_price &lt;= price_limit) \{
         <b>let</b> tick_level = borrow_mut_leaf_by_index(all_open_orders, tick_index);
-        <b>let</b> <b>mut</b> order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link href="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(&tick_level.open_orders));
+        <b>let</b> <b>mut</b> order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link to="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(&tick_level.open_orders));
 
-        <b>while</b> (!<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
-            <b>let</b> maker_order = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, order_id);
+        <b>while</b> (!<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
+            <b>let</b> maker_order = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, order_id);
             <b>let</b> <b>mut</b> maker_base_quantity = maker_order.quantity;
             <b>let</b> <b>mut</b> skip_order = <b>false</b>;
 
             <b>if</b> (maker_order.expire_timestamp &lt;= current_timestamp) \{
                 skip_order = <b>true</b>;
-                <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, maker_order.owner, maker_order.quantity);
-                <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, maker_order);
+                <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, maker_order.owner, maker_order.quantity);
+                <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, maker_order);
             } <b>else</b> \{
                 // Calculate how much quote asset (maker_quote_quantity) is required, including the commission, <b>to</b> fill the maker order.
                 <b>let</b> maker_quote_quantity_without_commission = clob_math::mul(
@@ -1340,7 +1340,7 @@ price: u64</code>
                 // Total quote quantity filled, excluding commission and rebate.
                 <b>let</b> <b>mut</b> filled_quote_quantity: u64;
                 // Total quote quantity paid by taker.
-                // filled_quote_quantity_without_commission * (<Link href="clob#0xdee9_clob_FLOAT_SCALING">FLOAT_SCALING</Link> + taker_fee_rate) = filled_quote_quantity
+                // filled_quote_quantity_without_commission * (<Link to="clob#0xdee9_clob_FLOAT_SCALING">FLOAT_SCALING</Link> + taker_fee_rate) = filled_quote_quantity
                 <b>let</b> <b>mut</b> filled_quote_quantity_without_commission: u64;
                 <b>if</b> (taker_quote_quantity_remaining &gt; maker_quote_quantity) \{
                     filled_quote_quantity = maker_quote_quantity;
@@ -1351,7 +1351,7 @@ price: u64</code>
                     // <b>if</b> not enough quote quantity <b>to</b> pay for taker commission, then no quantity will be filled
                     filled_quote_quantity_without_commission = clob_math::unsafe_div(
                         taker_quote_quantity_remaining,
-                        <Link href="clob#0xdee9_clob_FLOAT_SCALING">FLOAT_SCALING</Link> + pool.taker_fee_rate
+                        <Link to="clob#0xdee9_clob_FLOAT_SCALING">FLOAT_SCALING</Link> + pool.taker_fee_rate
                     );
                     // filled_base_quantity = 0 is permitted since filled_quote_quantity_without_commission can be 0
                     filled_base_quantity = clob_math::unsafe_div(
@@ -1384,32 +1384,32 @@ price: u64</code>
 
                 // maker in ask side, decrease maker's locked base asset, increase maker's available quote asset
                 taker_quote_quantity_remaining = taker_quote_quantity_remaining - filled_quote_quantity;
-                <b>let</b> locked_base_balance = <Link href="custodian#0xdee9_custodian_decrease_user_locked_balance">custodian::decrease_user_locked_balance</Link>&lt;BaseAsset&gt;(
+                <b>let</b> locked_base_balance = <Link to="custodian#0xdee9_custodian_decrease_user_locked_balance">custodian::decrease_user_locked_balance</Link>&lt;BaseAsset&gt;(
                     &<b>mut</b> pool.base_custodian,
                     maker_order.owner,
                     filled_base_quantity
                 );
 
-                <b>let</b> <b>mut</b> quote_balance_filled = <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                <b>let</b> <b>mut</b> quote_balance_filled = <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                     &<b>mut</b> quote_balance_left,
                     filled_quote_quantity,
                 );
                 // Send quote asset including rebate <b>to</b> maker.
-                <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
+                <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
                     &<b>mut</b> pool.quote_custodian,
                     maker_order.owner,
-                    <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                    <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                         &<b>mut</b> quote_balance_filled,
                         maker_rebate + filled_quote_quantity_without_commission,
                     ),
                 );
                 // Send remaining of commission - rebate <b>to</b> the protocol.
                 // commission - rebate = filled_quote_quantity_without_commission - filled_quote_quantity - maker_rebate
-                <Link href="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> pool.quote_asset_trading_fees, quote_balance_filled);
-                <Link href="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> base_balance_filled, locked_base_balance);
+                <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> pool.quote_asset_trading_fees, quote_balance_filled);
+                <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> base_balance_filled, locked_base_balance);
 
-                <Link href="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
-                    *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
+                <Link to="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
+                    *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
                     maker_order,
                     filled_base_quantity,
                     // taker_commission = filled_quote_quantity - filled_quote_quantity_without_commission
@@ -1422,16 +1422,16 @@ price: u64</code>
             <b>if</b> (skip_order || maker_base_quantity == 0) \{
                 // Remove the maker order.
                 <b>let</b> old_order_id = order_id;
-                <b>let</b> maybe_order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(&tick_level.open_orders, order_id);
-                <b>if</b> (!<Link href="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(maybe_order_id)) \{
-                    order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(maybe_order_id);
+                <b>let</b> maybe_order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(&tick_level.open_orders, order_id);
+                <b>if</b> (!<Link to="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(maybe_order_id)) \{
+                    order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(maybe_order_id);
                 };
-                <b>let</b> usr_open_order_ids = <Link href="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, maker_order.owner);
-                <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_order_ids, old_order_id);
-                <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> tick_level.open_orders, old_order_id);
+                <b>let</b> usr_open_order_ids = <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, maker_order.owner);
+                <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_order_ids, old_order_id);
+                <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> tick_level.open_orders, old_order_id);
             } <b>else</b> \{
                 // Update the maker order.
-                <b>let</b> maker_order_mut = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow_mut">linked_table::borrow_mut</Link>(
+                <b>let</b> maker_order_mut = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow_mut">linked_table::borrow_mut</Link>(
                     &<b>mut</b> tick_level.open_orders,
                     order_id);
                 maker_order_mut.quantity = maker_base_quantity;
@@ -1440,9 +1440,9 @@ price: u64</code>
                 <b>break</b>
             };
         };
-        <b>if</b> (<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
+        <b>if</b> (<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
             (tick_price, _) = next_leaf(all_open_orders, tick_price);
-            <Link href="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(all_open_orders, tick_index));
+            <Link to="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(all_open_orders, tick_index));
             (_, tick_index) = find_leaf(all_open_orders, tick_price);
         };
         <b>if</b> (terminate_loop) \{
@@ -1464,7 +1464,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_match_bid">match_bid</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, price_limit: u64, current_timestamp: u64, quote_balance: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;): (<Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;, <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;)
+<b>fun</b> <Link to="clob#0xdee9_clob_match_bid">match_bid</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, price_limit: u64, current_timestamp: u64, quote_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;): (<Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;, <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;)
 </code></pre>
 
 
@@ -1474,38 +1474,38 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_match_bid">match_bid</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>fun</b> <Link to="clob#0xdee9_clob_match_bid">match_bid</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
     price_limit: u64,
     current_timestamp: u64,
     quote_balance: Balance&lt;QuoteAsset&gt;,
 ): (Balance&lt;BaseAsset&gt;, Balance&lt;QuoteAsset&gt;) \{
-    <b>let</b> pool_id = *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
-    // Base <Link href="../iota-framework/balance#0x2_balance">balance</Link> received by taker.
+    <b>let</b> pool_id = *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
+    // Base <Link to="../iota-framework/balance#0x2_balance">balance</Link> received by taker.
     // Need <b>to</b> individually keep track of the remaining base quantity <b>to</b> be filled <b>to</b> avoid infinite <b>loop</b>.
     <b>let</b> <b>mut</b> taker_base_quantity_remaining = quantity;
-    <b>let</b> <b>mut</b> base_balance_filled = <Link href="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>&lt;BaseAsset&gt;();
+    <b>let</b> <b>mut</b> base_balance_filled = <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>&lt;BaseAsset&gt;();
     <b>let</b> <b>mut</b> quote_balance_left = quote_balance;
     <b>let</b> all_open_orders = &<b>mut</b> pool.asks;
-    <b>if</b> (<Link href="critbit#0xdee9_critbit_is_empty">critbit::is_empty</Link>(all_open_orders)) \{
+    <b>if</b> (<Link to="critbit#0xdee9_critbit_is_empty">critbit::is_empty</Link>(all_open_orders)) \{
         <b>return</b> (base_balance_filled, quote_balance_left)
     };
     <b>let</b> (<b>mut</b> tick_price, <b>mut</b> tick_index) = min_leaf(all_open_orders);
 
-    <b>while</b> (!is_empty&lt;<Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;(all_open_orders) && tick_price &lt;= price_limit) \{
+    <b>while</b> (!is_empty&lt;<Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;(all_open_orders) && tick_price &lt;= price_limit) \{
         <b>let</b> tick_level = borrow_mut_leaf_by_index(all_open_orders, tick_index);
-        <b>let</b> <b>mut</b> order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link href="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(&tick_level.open_orders));
+        <b>let</b> <b>mut</b> order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link to="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(&tick_level.open_orders));
 
-        <b>while</b> (!<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
-            <b>let</b> maker_order = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, order_id);
+        <b>while</b> (!<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
+            <b>let</b> maker_order = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, order_id);
             <b>let</b> <b>mut</b> maker_base_quantity = maker_order.quantity;
             <b>let</b> <b>mut</b> skip_order = <b>false</b>;
 
             <b>if</b> (maker_order.expire_timestamp &lt;= current_timestamp) \{
                 skip_order = <b>true</b>;
-                <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, maker_order.owner, maker_order.quantity);
-                <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, maker_order);
+                <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, maker_order.owner, maker_order.quantity);
+                <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, maker_order);
             } <b>else</b> \{
                 <b>let</b> filled_base_quantity =
                     <b>if</b> (taker_base_quantity_remaining &gt; maker_base_quantity) \{ maker_base_quantity }
@@ -1526,37 +1526,37 @@ price: u64</code>
 
                 // maker in ask side, decrease maker's locked base asset, increase maker's available quote asset
                 taker_base_quantity_remaining = taker_base_quantity_remaining - filled_base_quantity;
-                <b>let</b> locked_base_balance = <Link href="custodian#0xdee9_custodian_decrease_user_locked_balance">custodian::decrease_user_locked_balance</Link>&lt;BaseAsset&gt;(
+                <b>let</b> locked_base_balance = <Link to="custodian#0xdee9_custodian_decrease_user_locked_balance">custodian::decrease_user_locked_balance</Link>&lt;BaseAsset&gt;(
                     &<b>mut</b> pool.base_custodian,
                     maker_order.owner,
                     filled_base_quantity
                 );
-                <b>let</b> <b>mut</b> taker_commission_balance = <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                <b>let</b> <b>mut</b> taker_commission_balance = <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                     &<b>mut</b> quote_balance_left,
                     taker_commission,
                 );
-                <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
+                <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
                     &<b>mut</b> pool.quote_custodian,
                     maker_order.owner,
-                    <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                    <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                         &<b>mut</b> taker_commission_balance,
                         maker_rebate,
                     ),
                 );
-                <Link href="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> pool.quote_asset_trading_fees, taker_commission_balance);
-                <Link href="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> base_balance_filled, locked_base_balance);
+                <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> pool.quote_asset_trading_fees, taker_commission_balance);
+                <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> base_balance_filled, locked_base_balance);
 
-                <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
+                <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
                     &<b>mut</b> pool.quote_custodian,
                     maker_order.owner,
-                    <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                    <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                         &<b>mut</b> quote_balance_left,
                         filled_quote_quantity,
                     ),
                 );
 
-                <Link href="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
-                    *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
+                <Link to="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
+                    *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
                     maker_order,
                     filled_base_quantity,
                     taker_commission,
@@ -1567,16 +1567,16 @@ price: u64</code>
             <b>if</b> (skip_order || maker_base_quantity == 0) \{
                 // Remove the maker order.
                 <b>let</b> old_order_id = order_id;
-                <b>let</b> maybe_order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(&tick_level.open_orders, order_id);
-                <b>if</b> (!<Link href="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(maybe_order_id)) \{
-                    order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(maybe_order_id);
+                <b>let</b> maybe_order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(&tick_level.open_orders, order_id);
+                <b>if</b> (!<Link to="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(maybe_order_id)) \{
+                    order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(maybe_order_id);
                 };
-                <b>let</b> usr_open_order_ids = <Link href="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, maker_order.owner);
-                <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_order_ids, old_order_id);
-                <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> tick_level.open_orders, old_order_id);
+                <b>let</b> usr_open_order_ids = <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, maker_order.owner);
+                <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_order_ids, old_order_id);
+                <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> tick_level.open_orders, old_order_id);
             } <b>else</b> \{
                 // Update the maker order.
-                <b>let</b> maker_order_mut = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow_mut">linked_table::borrow_mut</Link>(
+                <b>let</b> maker_order_mut = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow_mut">linked_table::borrow_mut</Link>(
                     &<b>mut</b> tick_level.open_orders,
                     order_id);
                 maker_order_mut.quantity = maker_base_quantity;
@@ -1585,9 +1585,9 @@ price: u64</code>
                 <b>break</b>
             };
         };
-        <b>if</b> (<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
+        <b>if</b> (<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
             (tick_price, _) = next_leaf(all_open_orders, tick_price);
-            <Link href="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(all_open_orders, tick_index));
+            <Link to="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(all_open_orders, tick_index));
             (_, tick_index) = find_leaf(all_open_orders, tick_price);
         };
         <b>if</b> (taker_base_quantity_remaining == 0) \{
@@ -1609,7 +1609,7 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_match_ask">match_ask</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price_limit: u64, current_timestamp: u64, base_balance: <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;): (<Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;, <Link href="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;)
+<b>fun</b> <Link to="clob#0xdee9_clob_match_ask">match_ask</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price_limit: u64, current_timestamp: u64, base_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;): (<Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;, <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;)
 </code></pre>
 
 
@@ -1619,36 +1619,36 @@ price: u64</code>
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_match_ask">match_ask</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>fun</b> <Link to="clob#0xdee9_clob_match_ask">match_ask</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     price_limit: u64,
     current_timestamp: u64,
     base_balance: Balance&lt;BaseAsset&gt;,
 ): (Balance&lt;BaseAsset&gt;, Balance&lt;QuoteAsset&gt;) \{
-    <b>let</b> pool_id = *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
+    <b>let</b> pool_id = *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
     <b>let</b> <b>mut</b> base_balance_left = base_balance;
-    // Base <Link href="../iota-framework/balance#0x2_balance">balance</Link> received by taker, taking into account of taker commission.
-    <b>let</b> <b>mut</b> quote_balance_filled = <Link href="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>&lt;QuoteAsset&gt;();
+    // Base <Link to="../iota-framework/balance#0x2_balance">balance</Link> received by taker, taking into account of taker commission.
+    <b>let</b> <b>mut</b> quote_balance_filled = <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>&lt;QuoteAsset&gt;();
     <b>let</b> all_open_orders = &<b>mut</b> pool.bids;
-    <b>if</b> (<Link href="critbit#0xdee9_critbit_is_empty">critbit::is_empty</Link>(all_open_orders)) \{
+    <b>if</b> (<Link to="critbit#0xdee9_critbit_is_empty">critbit::is_empty</Link>(all_open_orders)) \{
         <b>return</b> (base_balance_left, quote_balance_filled)
     };
     <b>let</b> (<b>mut</b> tick_price, <b>mut</b> tick_index) = max_leaf(all_open_orders);
-    <b>while</b> (!is_empty&lt;<Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;(all_open_orders) && tick_price &gt;= price_limit) \{
+    <b>while</b> (!is_empty&lt;<Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;(all_open_orders) && tick_price &gt;= price_limit) \{
         <b>let</b> tick_level = borrow_mut_leaf_by_index(all_open_orders, tick_index);
-        <b>let</b> <b>mut</b> order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link href="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(&tick_level.open_orders));
-        <b>while</b> (!<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
-            <b>let</b> maker_order = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, order_id);
+        <b>let</b> <b>mut</b> order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link to="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(&tick_level.open_orders));
+        <b>while</b> (!<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
+            <b>let</b> maker_order = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, order_id);
             <b>let</b> <b>mut</b> maker_base_quantity = maker_order.quantity;
             <b>let</b> <b>mut</b> skip_order = <b>false</b>;
 
             <b>if</b> (maker_order.expire_timestamp &lt;= current_timestamp) \{
                 skip_order = <b>true</b>;
                 <b>let</b> maker_quote_quantity = clob_math::mul(maker_order.quantity, maker_order.price);
-                <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, maker_order.owner, maker_quote_quantity);
-                <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, maker_order);
+                <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, maker_order.owner, maker_quote_quantity);
+                <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, maker_order);
             } <b>else</b> \{
-                <b>let</b> taker_base_quantity_remaining = <Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left);
+                <b>let</b> taker_base_quantity_remaining = <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left);
                 <b>let</b> filled_base_quantity =
                     <b>if</b> (taker_base_quantity_remaining &gt;= maker_base_quantity) \{ maker_base_quantity }
                     <b>else</b> \{ taker_base_quantity_remaining };
@@ -1666,37 +1666,37 @@ price: u64</code>
 
                 maker_base_quantity = maker_base_quantity - filled_base_quantity;
                 // maker in bid side, decrease maker's locked quote asset, increase maker's available base asset
-                <b>let</b> <b>mut</b> locked_quote_balance = <Link href="custodian#0xdee9_custodian_decrease_user_locked_balance">custodian::decrease_user_locked_balance</Link>&lt;QuoteAsset&gt;(
+                <b>let</b> <b>mut</b> locked_quote_balance = <Link to="custodian#0xdee9_custodian_decrease_user_locked_balance">custodian::decrease_user_locked_balance</Link>&lt;QuoteAsset&gt;(
                     &<b>mut</b> pool.quote_custodian,
                     maker_order.owner,
                     filled_quote_quantity
                 );
-                <b>let</b> <b>mut</b> taker_commission_balance = <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                <b>let</b> <b>mut</b> taker_commission_balance = <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                     &<b>mut</b> locked_quote_balance,
                     taker_commission,
                 );
-                <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
+                <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
                     &<b>mut</b> pool.quote_custodian,
                     maker_order.owner,
-                    <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                    <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                         &<b>mut</b> taker_commission_balance,
                         maker_rebate,
                     ),
                 );
-                <Link href="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> pool.quote_asset_trading_fees, taker_commission_balance);
-                <Link href="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> quote_balance_filled, locked_quote_balance);
+                <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> pool.quote_asset_trading_fees, taker_commission_balance);
+                <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> quote_balance_filled, locked_quote_balance);
 
-                <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;BaseAsset&gt;(
+                <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;BaseAsset&gt;(
                     &<b>mut</b> pool.base_custodian,
                     maker_order.owner,
-                    <Link href="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
+                    <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(
                         &<b>mut</b> base_balance_left,
                         filled_base_quantity,
                     ),
                 );
 
-                <Link href="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
-                    *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
+                <Link to="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
+                    *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
                     maker_order,
                     filled_base_quantity,
                     taker_commission,
@@ -1707,30 +1707,30 @@ price: u64</code>
             <b>if</b> (skip_order || maker_base_quantity == 0) \{
                 // Remove the maker order.
                 <b>let</b> old_order_id = order_id;
-                <b>let</b> maybe_order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(&tick_level.open_orders, order_id);
-                <b>if</b> (!<Link href="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(maybe_order_id)) \{
-                    order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(maybe_order_id);
+                <b>let</b> maybe_order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(&tick_level.open_orders, order_id);
+                <b>if</b> (!<Link to="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(maybe_order_id)) \{
+                    order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(maybe_order_id);
                 };
-                <b>let</b> usr_open_order_ids = <Link href="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, maker_order.owner);
-                <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_order_ids, old_order_id);
-                <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> tick_level.open_orders, old_order_id);
+                <b>let</b> usr_open_order_ids = <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, maker_order.owner);
+                <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_order_ids, old_order_id);
+                <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> tick_level.open_orders, old_order_id);
             } <b>else</b> \{
                 // Update the maker order.
-                <b>let</b> maker_order_mut = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow_mut">linked_table::borrow_mut</Link>(
+                <b>let</b> maker_order_mut = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow_mut">linked_table::borrow_mut</Link>(
                     &<b>mut</b> tick_level.open_orders,
                     order_id);
                 maker_order_mut.quantity = maker_base_quantity;
             };
-            <b>if</b> (<Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left) == 0) \{
+            <b>if</b> (<Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left) == 0) \{
                 <b>break</b>
             };
         };
-        <b>if</b> (<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
+        <b>if</b> (<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&tick_level.open_orders)) \{
             (tick_price, _) = previous_leaf(all_open_orders, tick_price);
-            <Link href="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(all_open_orders, tick_index));
+            <Link to="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(all_open_orders, tick_index));
             (_, tick_index) = find_leaf(all_open_orders, tick_price);
         };
-        <b>if</b> (<Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left) == 0) \{
+        <b>if</b> (<Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left) == 0) \{
             <b>break</b>
         };
     };
@@ -1750,7 +1750,7 @@ Place a market order to the order book.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_place_market_order">place_market_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, is_bid: bool, base_coin: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, quote_coin: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &<Link href="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_place_market_order">place_market_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, quantity: u64, is_bid: bool, base_coin: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, quote_coin: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;, <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;BaseAsset&gt;, <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;QuoteAsset&gt;)
 </code></pre>
 
 
@@ -1760,13 +1760,13 @@ Place a market order to the order book.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_place_market_order">place_market_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_place_market_order">place_market_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     quantity: u64,
     is_bid: bool,
     <b>mut</b> base_coin: Coin&lt;BaseAsset&gt;,
     <b>mut</b> quote_coin: Coin&lt;QuoteAsset&gt;,
-    <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
+    <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
     ctx: &<b>mut</b> TxContext,
 ): (Coin&lt;BaseAsset&gt;, Coin&lt;QuoteAsset&gt;) \{
     // If market bid order, match against the open ask orders. Otherwise, match against the open bid orders.
@@ -1785,33 +1785,33 @@ Place a market order to the order book.
     // We start <b>with</b> the bid PriceLeve <b>with</b> the highest price by calling max_leaf on the bids Critbit Tree.
     // The inner <b>loop</b> for iterating over the open orders in ascending orders of order id is the same <b>as</b> above.
     // Then iterate over the price levels in descending order until the market order is completely filled.
-    <b>assert</b>!(quantity % pool.lot_size == 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <b>assert</b>!(quantity != 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <b>assert</b>!(quantity % pool.lot_size == 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <b>assert</b>!(quantity != 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
     <b>if</b> (is_bid) \{
-        <b>let</b> (base_balance_filled, quote_balance_left) = <Link href="clob#0xdee9_clob_match_bid">match_bid</Link>(
+        <b>let</b> (base_balance_filled, quote_balance_left) = <Link to="clob#0xdee9_clob_match_bid">match_bid</Link>(
             pool,
             quantity,
-            <Link href="clob#0xdee9_clob_MAX_PRICE">MAX_PRICE</Link>,
-            <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>),
-            <Link href="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(quote_coin),
+            <Link to="clob#0xdee9_clob_MAX_PRICE">MAX_PRICE</Link>,
+            <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>),
+            <Link to="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(quote_coin),
         );
         join(
             &<b>mut</b> base_coin,
-            <Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(base_balance_filled, ctx),
+            <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(base_balance_filled, ctx),
         );
-        quote_coin = <Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(quote_balance_left, ctx);
+        quote_coin = <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(quote_balance_left, ctx);
     } <b>else</b> \{
-        <b>assert</b>!(quantity &lt;= <Link href="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&base_coin), <Link href="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>);
-        <b>let</b> (base_balance_left, quote_balance_filled) = <Link href="clob#0xdee9_clob_match_ask">match_ask</Link>(
+        <b>assert</b>!(quantity &lt;= <Link to="../iota-framework/coin#0x2_coin_value">coin::value</Link>(&base_coin), <Link to="clob#0xdee9_clob_EInsufficientBaseCoin">EInsufficientBaseCoin</Link>);
+        <b>let</b> (base_balance_left, quote_balance_filled) = <Link to="clob#0xdee9_clob_match_ask">match_ask</Link>(
             pool,
-            <Link href="clob#0xdee9_clob_MIN_PRICE">MIN_PRICE</Link>,
-            <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>),
-            <Link href="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(base_coin),
+            <Link to="clob#0xdee9_clob_MIN_PRICE">MIN_PRICE</Link>,
+            <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>),
+            <Link to="../iota-framework/coin#0x2_coin_into_balance">coin::into_balance</Link>(base_coin),
         );
-        base_coin = <Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(base_balance_left, ctx);
+        base_coin = <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(base_balance_left, ctx);
         join(
             &<b>mut</b> quote_coin,
-            <Link href="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(quote_balance_filled, ctx),
+            <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(quote_balance_filled, ctx),
         );
     };
     (base_coin, quote_coin)
@@ -1831,7 +1831,7 @@ Returns the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price: u64, quantity: u64, is_bid: bool, expire_timestamp: u64, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
+<b>fun</b> <Link to="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price: u64, quantity: u64, is_bid: bool, expire_timestamp: u64, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
 </code></pre>
 
 
@@ -1841,8 +1841,8 @@ Returns the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>fun</b> <Link to="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     price: u64,
     quantity: u64,
     is_bid: bool,
@@ -1850,22 +1850,22 @@ Returns the order id.
     account_cap: &AccountCap,
     ctx: &<b>mut</b> TxContext
 ): u64 \{
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
     <b>let</b> order_id: u64;
-    <b>let</b> open_orders: &<b>mut</b> CritbitTree&lt;<Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;;
+    <b>let</b> open_orders: &<b>mut</b> CritbitTree&lt;<Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;;
     <b>if</b> (is_bid) \{
         <b>let</b> quote_quantity = clob_math::mul(quantity, price);
-        <Link href="custodian#0xdee9_custodian_lock_balance">custodian::lock_balance</Link>&lt;QuoteAsset&gt;(&<b>mut</b> pool.quote_custodian, account_cap, quote_quantity);
+        <Link to="custodian#0xdee9_custodian_lock_balance">custodian::lock_balance</Link>&lt;QuoteAsset&gt;(&<b>mut</b> pool.quote_custodian, account_cap, quote_quantity);
         order_id = pool.next_bid_order_id;
         pool.next_bid_order_id = pool.next_bid_order_id + 1;
         open_orders = &<b>mut</b> pool.bids;
     } <b>else</b> \{
-        <Link href="custodian#0xdee9_custodian_lock_balance">custodian::lock_balance</Link>&lt;BaseAsset&gt;(&<b>mut</b> pool.base_custodian, account_cap, quantity);
+        <Link to="custodian#0xdee9_custodian_lock_balance">custodian::lock_balance</Link>&lt;BaseAsset&gt;(&<b>mut</b> pool.base_custodian, account_cap, quantity);
         order_id = pool.next_ask_order_id;
         pool.next_ask_order_id = pool.next_ask_order_id + 1;
         open_orders = &<b>mut</b> pool.asks;
     };
-    <b>let</b> order = <Link href="clob#0xdee9_clob_Order">Order</Link> \{
+    <b>let</b> order = <Link to="clob#0xdee9_clob_Order">Order</Link> \{
         order_id,
         price,
         quantity,
@@ -1878,16 +1878,16 @@ Returns the order id.
         tick_index = insert_leaf(
             open_orders,
             price,
-            <Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link> \{
+            <Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link> \{
                 price,
-                open_orders: <Link href="../iota-framework/linked_table#0x2_linked_table_new">linked_table::new</Link>(ctx),
+                open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_new">linked_table::new</Link>(ctx),
             });
     };
 
     <b>let</b> tick_level = borrow_mut_leaf_by_index(open_orders, tick_index);
-    <Link href="../iota-framework/linked_table#0x2_linked_table_push_back">linked_table::push_back</Link>(&<b>mut</b> tick_level.open_orders, order_id, order);
-    <Link href="../iota-framework/event#0x2_event_emit">event::emit</Link>(<Link href="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link>&lt;BaseAsset, QuoteAsset&gt; \{
-        pool_id: *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
+    <Link to="../iota-framework/linked_table#0x2_linked_table_push_back">linked_table::push_back</Link>(&<b>mut</b> tick_level.open_orders, order_id, order);
+    <Link to="../iota-framework/event#0x2_event_emit">event::emit</Link>(<Link to="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link>&lt;BaseAsset, QuoteAsset&gt; \{
+        pool_id: *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id),
         order_id,
         is_bid,
         owner: user,
@@ -1896,9 +1896,9 @@ Returns the order id.
         expire_timestamp
     });
     <b>if</b> (!contains(&pool.usr_open_orders, user)) \{
-        add(&<b>mut</b> pool.usr_open_orders, user, <Link href="../iota-framework/linked_table#0x2_linked_table_new">linked_table::new</Link>(ctx));
+        add(&<b>mut</b> pool.usr_open_orders, user, <Link to="../iota-framework/linked_table#0x2_linked_table_new">linked_table::new</Link>(ctx));
     };
-    <Link href="../iota-framework/linked_table#0x2_linked_table_push_back">linked_table::push_back</Link>(borrow_mut(&<b>mut</b> pool.usr_open_orders, user), order_id, price);
+    <Link to="../iota-framework/linked_table#0x2_linked_table_push_back">linked_table::push_back</Link>(borrow_mut(&<b>mut</b> pool.usr_open_orders, user), order_id, price);
 
     <b>return</b> order_id
 }
@@ -1920,7 +1920,7 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_place_limit_order">place_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price: u64, quantity: u64, is_bid: bool, expire_timestamp: u64, restriction: u8, <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &<Link href="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (u64, u64, bool, u64)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_place_limit_order">place_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price: u64, quantity: u64, is_bid: bool, expire_timestamp: u64, restriction: u8, <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (u64, u64, bool, u64)
 </code></pre>
 
 
@@ -1930,14 +1930,14 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_place_limit_order">place_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_place_limit_order">place_limit_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     price: u64,
     quantity: u64,
     is_bid: bool,
     expire_timestamp: u64, // Expiration timestamp in ms in absolute value inclusive.
     restriction: u8,
-    <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
+    <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &Clock,
     account_cap: &AccountCap,
     ctx: &<b>mut</b> TxContext
 ): (u64, u64, bool, u64) \{
@@ -1948,67 +1948,67 @@ So please check that boolean value first before using the order id.
     // Match the bid order against the asks Critbit Tree in the same way <b>as</b> a market order but up until the price level found in the previous step.
     // If the bid order is not completely filled, inject the remaining quantity <b>to</b> the bids Critbit Tree according <b>to</b> the input price and order id.
     // If limit ask order, vice versa.
-    <b>assert</b>!(quantity &gt; 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <b>assert</b>!(price &gt; 0, <Link href="clob#0xdee9_clob_EInvalidPrice">EInvalidPrice</Link>);
-    <b>assert</b>!(price % pool.tick_size == 0, <Link href="clob#0xdee9_clob_EInvalidPrice">EInvalidPrice</Link>);
-    <b>assert</b>!(quantity % pool.lot_size == 0, <Link href="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
-    <b>assert</b>!(expire_timestamp &gt; <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>), <Link href="clob#0xdee9_clob_EInvalidExpireTimestamp">EInvalidExpireTimestamp</Link>);
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>assert</b>!(quantity &gt; 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <b>assert</b>!(price &gt; 0, <Link to="clob#0xdee9_clob_EInvalidPrice">EInvalidPrice</Link>);
+    <b>assert</b>!(price % pool.tick_size == 0, <Link to="clob#0xdee9_clob_EInvalidPrice">EInvalidPrice</Link>);
+    <b>assert</b>!(quantity % pool.lot_size == 0, <Link to="clob#0xdee9_clob_EInvalidQuantity">EInvalidQuantity</Link>);
+    <b>assert</b>!(expire_timestamp &gt; <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>), <Link to="clob#0xdee9_clob_EInvalidExpireTimestamp">EInvalidExpireTimestamp</Link>);
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
     <b>let</b> base_quantity_filled;
     <b>let</b> quote_quantity_filled;
 
     <b>if</b> (is_bid) \{
-        <b>let</b> quote_quantity_original = <Link href="custodian#0xdee9_custodian_account_available_balance">custodian::account_available_balance</Link>&lt;QuoteAsset&gt;(
+        <b>let</b> quote_quantity_original = <Link to="custodian#0xdee9_custodian_account_available_balance">custodian::account_available_balance</Link>&lt;QuoteAsset&gt;(
             &pool.quote_custodian,
             user,
         );
-        <b>let</b> quote_balance = <Link href="custodian#0xdee9_custodian_decrease_user_available_balance">custodian::decrease_user_available_balance</Link>&lt;QuoteAsset&gt;(
+        <b>let</b> quote_balance = <Link to="custodian#0xdee9_custodian_decrease_user_available_balance">custodian::decrease_user_available_balance</Link>&lt;QuoteAsset&gt;(
             &<b>mut</b> pool.quote_custodian,
             account_cap,
             quote_quantity_original,
         );
-        <b>let</b> (base_balance_filled, quote_balance_left) = <Link href="clob#0xdee9_clob_match_bid">match_bid</Link>(
+        <b>let</b> (base_balance_filled, quote_balance_left) = <Link to="clob#0xdee9_clob_match_bid">match_bid</Link>(
             pool,
             quantity,
             price,
-            <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>),
+            <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>),
             quote_balance,
         );
-        base_quantity_filled = <Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_filled);
-        quote_quantity_filled = quote_quantity_original - <Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&quote_balance_left);
+        base_quantity_filled = <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_filled);
+        quote_quantity_filled = quote_quantity_original - <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&quote_balance_left);
 
-        <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;BaseAsset&gt;(
+        <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;BaseAsset&gt;(
             &<b>mut</b> pool.base_custodian,
             user,
             base_balance_filled,
         );
-        <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
+        <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
             &<b>mut</b> pool.quote_custodian,
             user,
             quote_balance_left,
         );
     } <b>else</b> \{
-        <b>let</b> base_balance = <Link href="custodian#0xdee9_custodian_decrease_user_available_balance">custodian::decrease_user_available_balance</Link>&lt;BaseAsset&gt;(
+        <b>let</b> base_balance = <Link to="custodian#0xdee9_custodian_decrease_user_available_balance">custodian::decrease_user_available_balance</Link>&lt;BaseAsset&gt;(
             &<b>mut</b> pool.base_custodian,
             account_cap,
             quantity,
         );
-        <b>let</b> (base_balance_left, quote_balance_filled) = <Link href="clob#0xdee9_clob_match_ask">match_ask</Link>(
+        <b>let</b> (base_balance_left, quote_balance_filled) = <Link to="clob#0xdee9_clob_match_ask">match_ask</Link>(
             pool,
             price,
-            <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>),
+            <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>),
             base_balance,
         );
 
-        base_quantity_filled = quantity - <Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left);
-        quote_quantity_filled = <Link href="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&quote_balance_filled);
+        base_quantity_filled = quantity - <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&base_balance_left);
+        quote_quantity_filled = <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&quote_balance_filled);
 
-        <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;BaseAsset&gt;(
+        <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;BaseAsset&gt;(
             &<b>mut</b> pool.base_custodian,
             user,
             base_balance_left,
         );
-        <Link href="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
+        <Link to="custodian#0xdee9_custodian_increase_user_available_balance">custodian::increase_user_available_balance</Link>&lt;QuoteAsset&gt;(
             &<b>mut</b> pool.quote_custodian,
             user,
             quote_balance_filled,
@@ -2016,21 +2016,21 @@ So please check that boolean value first before using the order id.
     };
 
     <b>let</b> order_id;
-    <b>if</b> (restriction == <Link href="clob#0xdee9_clob_IMMEDIATE_OR_CANCEL">IMMEDIATE_OR_CANCEL</Link>) \{
+    <b>if</b> (restriction == <Link to="clob#0xdee9_clob_IMMEDIATE_OR_CANCEL">IMMEDIATE_OR_CANCEL</Link>) \{
         <b>return</b> (base_quantity_filled, quote_quantity_filled, <b>false</b>, 0)
     };
-    <b>if</b> (restriction == <Link href="clob#0xdee9_clob_FILL_OR_KILL">FILL_OR_KILL</Link>) \{
-        <b>assert</b>!(base_quantity_filled == quantity, <Link href="clob#0xdee9_clob_EOrderCannotBeFullyFilled">EOrderCannotBeFullyFilled</Link>);
+    <b>if</b> (restriction == <Link to="clob#0xdee9_clob_FILL_OR_KILL">FILL_OR_KILL</Link>) \{
+        <b>assert</b>!(base_quantity_filled == quantity, <Link to="clob#0xdee9_clob_EOrderCannotBeFullyFilled">EOrderCannotBeFullyFilled</Link>);
         <b>return</b> (base_quantity_filled, quote_quantity_filled, <b>false</b>, 0)
     };
-    <b>if</b> (restriction == <Link href="clob#0xdee9_clob_POST_OR_ABORT">POST_OR_ABORT</Link>) \{
-        <b>assert</b>!(base_quantity_filled == 0, <Link href="clob#0xdee9_clob_EOrderCannotBeFullyPassive">EOrderCannotBeFullyPassive</Link>);
-        order_id = <Link href="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>(pool, price, quantity, is_bid, expire_timestamp, account_cap, ctx);
+    <b>if</b> (restriction == <Link to="clob#0xdee9_clob_POST_OR_ABORT">POST_OR_ABORT</Link>) \{
+        <b>assert</b>!(base_quantity_filled == 0, <Link to="clob#0xdee9_clob_EOrderCannotBeFullyPassive">EOrderCannotBeFullyPassive</Link>);
+        order_id = <Link to="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>(pool, price, quantity, is_bid, expire_timestamp, account_cap, ctx);
         <b>return</b> (base_quantity_filled, quote_quantity_filled, <b>true</b>, order_id)
     } <b>else</b> \{
-        <b>assert</b>!(restriction == <Link href="clob#0xdee9_clob_NO_RESTRICTION">NO_RESTRICTION</Link>, <Link href="clob#0xdee9_clob_EInvalidRestriction">EInvalidRestriction</Link>);
+        <b>assert</b>!(restriction == <Link to="clob#0xdee9_clob_NO_RESTRICTION">NO_RESTRICTION</Link>, <Link to="clob#0xdee9_clob_EInvalidRestriction">EInvalidRestriction</Link>);
         <b>if</b> (quantity &gt; base_quantity_filled) \{
-            order_id = <Link href="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>(
+            order_id = <Link to="clob#0xdee9_clob_inject_limit_order">inject_limit_order</Link>(
                 pool,
                 price,
                 quantity - base_quantity_filled,
@@ -2057,7 +2057,7 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id: u64): bool
+<b>fun</b> <Link to="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id: u64): bool
 </code></pre>
 
 
@@ -2067,8 +2067,8 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id: u64): bool \{
-    <b>return</b> order_id &lt; <Link href="clob#0xdee9_clob_MIN_ASK_ORDER_ID">MIN_ASK_ORDER_ID</Link>
+<b>fun</b> <Link to="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id: u64): bool \{
+    <b>return</b> order_id &lt; <Link to="clob#0xdee9_clob_MIN_ASK_ORDER_ID">MIN_ASK_ORDER_ID</Link>
 }
 </code></pre>
 
@@ -2083,7 +2083,7 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link>, order: &<Link href="clob#0xdee9_clob_Order">clob::Order</Link>)
+<b>fun</b> <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, order: &<Link to="clob#0xdee9_clob_Order">clob::Order</Link>)
 </code></pre>
 
 
@@ -2093,11 +2093,11 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(
+<b>fun</b> <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(
     pool_id: ID,
-    order: &<Link href="clob#0xdee9_clob_Order">Order</Link>
+    order: &<Link to="clob#0xdee9_clob_Order">Order</Link>
 ) \{
-    <Link href="../iota-framework/event#0x2_event_emit">event::emit</Link>(<Link href="clob#0xdee9_clob_OrderCanceled">OrderCanceled</Link>&lt;BaseAsset, QuoteAsset&gt; \{
+    <Link to="../iota-framework/event#0x2_event_emit">event::emit</Link>(<Link to="clob#0xdee9_clob_OrderCanceled">OrderCanceled</Link>&lt;BaseAsset, QuoteAsset&gt; \{
         pool_id,
         order_id: order.order_id,
         is_bid: order.is_bid,
@@ -2119,7 +2119,7 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link>, order: &<Link href="clob#0xdee9_clob_Order">clob::Order</Link>, base_asset_quantity_filled: u64, taker_commission: u64, maker_rebates: u64)
+<b>fun</b> <Link to="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, order: &<Link to="clob#0xdee9_clob_Order">clob::Order</Link>, base_asset_quantity_filled: u64, taker_commission: u64, maker_rebates: u64)
 </code></pre>
 
 
@@ -2129,14 +2129,14 @@ So please check that boolean value first before using the order id.
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
+<b>fun</b> <Link to="clob#0xdee9_clob_emit_order_filled">emit_order_filled</Link>&lt;BaseAsset, QuoteAsset&gt;(
     pool_id: ID,
-    order: &<Link href="clob#0xdee9_clob_Order">Order</Link>,
+    order: &<Link to="clob#0xdee9_clob_Order">Order</Link>,
     base_asset_quantity_filled: u64,
     taker_commission: u64,
     maker_rebates: u64
 ) \{
-    <Link href="../iota-framework/event#0x2_event_emit">event::emit</Link>(<Link href="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link>&lt;BaseAsset, QuoteAsset&gt; \{
+    <Link to="../iota-framework/event#0x2_event_emit">event::emit</Link>(<Link to="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link>&lt;BaseAsset, QuoteAsset&gt; \{
         pool_id,
         order_id: order.order_id,
         is_bid: order.is_bid,
@@ -2166,7 +2166,7 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_cancel_order">cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, order_id: u64, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_cancel_order">cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, order_id: u64, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
 </code></pre>
 
 
@@ -2176,8 +2176,8 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_cancel_order">cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_cancel_order">cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     order_id: u64,
     account_cap: &AccountCap
 ) \{
@@ -2185,17 +2185,17 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
     // Then retrieve the price using the order id.
     // Using the price <b>to</b> retrieve the corresponding PriceLevel from the bids / asks Critbit Tree.
     // Retrieve and remove the order from open orders of the PriceLevel.
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
-    <b>assert</b>!(contains(&pool.usr_open_orders, user), <Link href="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>);
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>assert</b>!(contains(&pool.usr_open_orders, user), <Link to="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>);
     <b>let</b> usr_open_orders = borrow_mut(&<b>mut</b> pool.usr_open_orders, user);
-    <b>assert</b>!(<Link href="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(usr_open_orders, order_id), <Link href="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
-    <b>let</b> tick_price = *<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_orders, order_id);
-    <b>let</b> is_bid = <Link href="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id);
+    <b>assert</b>!(<Link to="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(usr_open_orders, order_id), <Link to="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
+    <b>let</b> tick_price = *<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_orders, order_id);
+    <b>let</b> is_bid = <Link to="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id);
     <b>let</b> (tick_exists, tick_index) = find_leaf(
         <b>if</b> (is_bid) \{ &pool.bids } <b>else</b> \{ &pool.asks },
         tick_price);
-    <b>assert</b>!(tick_exists, <Link href="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
-    <b>let</b> order = <Link href="clob#0xdee9_clob_remove_order">remove_order</Link>(
+    <b>assert</b>!(tick_exists, <Link to="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
+    <b>let</b> order = <Link to="clob#0xdee9_clob_remove_order">remove_order</Link>(
         <b>if</b> (is_bid) \{ &<b>mut</b> pool.bids } <b>else</b> \{ &<b>mut</b> pool.asks },
         usr_open_orders,
         tick_index,
@@ -2204,11 +2204,11 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
     );
     <b>if</b> (is_bid) \{
         <b>let</b> balance_locked = clob_math::mul(order.quantity, order.price);
-        <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, user, balance_locked);
+        <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, user, balance_locked);
     } <b>else</b> \{
-        <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, user, order.quantity);
+        <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, user, order.quantity);
     };
-    <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(*<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id), &order);
+    <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(*<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id), &order);
 }
 </code></pre>
 
@@ -2223,7 +2223,7 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_remove_order">remove_order</Link>(open_orders: &<b>mut</b> <Link href="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link href="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;, usr_open_orders: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;, tick_index: u64, order_id: u64, user: <Link href="../iota-framework/object#0x2_object_ID">object::ID</Link>): <Link href="clob#0xdee9_clob_Order">clob::Order</Link>
+<b>fun</b> <Link to="clob#0xdee9_clob_remove_order">remove_order</Link>(open_orders: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;, usr_open_orders: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;, tick_index: u64, order_id: u64, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): <Link to="clob#0xdee9_clob_Order">clob::Order</Link>
 </code></pre>
 
 
@@ -2233,21 +2233,21 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_remove_order">remove_order</Link>(
-    open_orders: &<b>mut</b> CritbitTree&lt;<Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;,
+<b>fun</b> <Link to="clob#0xdee9_clob_remove_order">remove_order</Link>(
+    open_orders: &<b>mut</b> CritbitTree&lt;<Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;,
     usr_open_orders: &<b>mut</b> LinkedTable&lt;u64, u64&gt;,
     tick_index: u64,
     order_id: u64,
     user: ID,
-): <Link href="clob#0xdee9_clob_Order">Order</Link> \{
-    <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_orders, order_id);
+): <Link to="clob#0xdee9_clob_Order">Order</Link> \{
+    <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(usr_open_orders, order_id);
     <b>let</b> tick_level = borrow_leaf_by_index(open_orders, tick_index);
-    <b>assert</b>!(<Link href="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(&tick_level.open_orders, order_id), <Link href="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
+    <b>assert</b>!(<Link to="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(&tick_level.open_orders, order_id), <Link to="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
     <b>let</b> mut_tick_level = borrow_mut_leaf_by_index(open_orders, tick_index);
-    <b>let</b> order = <Link href="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> mut_tick_level.open_orders, order_id);
-    <b>assert</b>!(order.owner == user, <Link href="clob#0xdee9_clob_EUnauthorizedCancel">EUnauthorizedCancel</Link>);
-    <b>if</b> (<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&mut_tick_level.open_orders)) \{
-        <Link href="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(open_orders, tick_index));
+    <b>let</b> order = <Link to="../iota-framework/linked_table#0x2_linked_table_remove">linked_table::remove</Link>(&<b>mut</b> mut_tick_level.open_orders, order_id);
+    <b>assert</b>!(order.owner == user, <Link to="clob#0xdee9_clob_EUnauthorizedCancel">EUnauthorizedCancel</Link>);
+    <b>if</b> (<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(&mut_tick_level.open_orders)) \{
+        <Link to="clob#0xdee9_clob_destroy_empty_level">destroy_empty_level</Link>(remove_leaf_by_index(open_orders, tick_index));
     };
     order
 }
@@ -2264,7 +2264,7 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_cancel_all_orders">cancel_all_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_cancel_all_orders">cancel_all_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
 </code></pre>
 
 
@@ -2274,23 +2274,23 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_cancel_all_orders">cancel_all_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_cancel_all_orders">cancel_all_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     account_cap: &AccountCap
 ) \{
-    <b>let</b> pool_id = *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
-    <b>assert</b>!(contains(&pool.usr_open_orders, user), <Link href="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>);
-    <b>let</b> usr_open_order_ids = <Link href="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, user);
-    <b>while</b> (!<Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(usr_open_order_ids)) \{
-        <b>let</b> order_id = *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link href="../iota-framework/linked_table#0x2_linked_table_back">linked_table::back</Link>(usr_open_order_ids));
-        <b>let</b> order_price = *<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_order_ids, order_id);
-        <b>let</b> is_bid = <Link href="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id);
+    <b>let</b> pool_id = *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>assert</b>!(contains(&pool.usr_open_orders, user), <Link to="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>);
+    <b>let</b> usr_open_order_ids = <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> pool.usr_open_orders, user);
+    <b>while</b> (!<Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">linked_table::is_empty</Link>(usr_open_order_ids)) \{
+        <b>let</b> order_id = *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(<Link to="../iota-framework/linked_table#0x2_linked_table_back">linked_table::back</Link>(usr_open_order_ids));
+        <b>let</b> order_price = *<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_order_ids, order_id);
+        <b>let</b> is_bid = <Link to="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id);
         <b>let</b> open_orders =
             <b>if</b> (is_bid) \{ &<b>mut</b> pool.bids }
             <b>else</b> \{ &<b>mut</b> pool.asks };
-        <b>let</b> (_, tick_index) = <Link href="critbit#0xdee9_critbit_find_leaf">critbit::find_leaf</Link>(open_orders, order_price);
-        <b>let</b> order = <Link href="clob#0xdee9_clob_remove_order">remove_order</Link>(
+        <b>let</b> (_, tick_index) = <Link to="critbit#0xdee9_critbit_find_leaf">critbit::find_leaf</Link>(open_orders, order_price);
+        <b>let</b> order = <Link to="clob#0xdee9_clob_remove_order">remove_order</Link>(
             open_orders,
             usr_open_order_ids,
             tick_index,
@@ -2299,11 +2299,11 @@ Abort if order_id is invalid or if the order is not submitted by the transaction
         );
         <b>if</b> (is_bid) \{
             <b>let</b> balance_locked = clob_math::mul(order.quantity, order.price);
-            <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, user, balance_locked);
+            <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, user, balance_locked);
         } <b>else</b> \{
-            <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, user, order.quantity);
+            <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, user, order.quantity);
         };
-        <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, &order);
+        <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, &order);
     };
 }
 </code></pre>
@@ -2326,7 +2326,7 @@ Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_batch_cancel_order">batch_cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, order_ids: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_batch_cancel_order">batch_cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, order_ids: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>)
 </code></pre>
 
 
@@ -2336,39 +2336,39 @@ Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_batch_cancel_order">batch_cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<b>mut</b> <Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
-    order_ids: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_batch_cancel_order">batch_cancel_order</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<b>mut</b> <Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+    order_ids: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;,
     account_cap: &AccountCap
 ) \{
-    <b>let</b> pool_id = *<Link href="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
+    <b>let</b> pool_id = *<Link to="../iota-framework/object#0x2_object_uid_as_inner">object::uid_as_inner</Link>(&pool.id);
     // First group the order ids according <b>to</b> price level,
     // so that we don't have <b>to</b> retrieve the PriceLevel multiple times <b>if</b> there are orders at the same price level.
     // Iterate over each price level, retrieve the corresponding PriceLevel.
     // Iterate over the order ids that need <b>to</b> be canceled at that price level,
     // retrieve and remove the order from open orders of the PriceLevel.
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
     <b>assert</b>!(contains(&pool.usr_open_orders, user), 0);
     <b>let</b> <b>mut</b> tick_index: u64 = 0;
     <b>let</b> <b>mut</b> tick_price: u64 = 0;
-    <b>let</b> n_order = <Link href="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&order_ids);
+    <b>let</b> n_order = <Link to="../move-stdlib/vector#0x1_vector_length">vector::length</Link>(&order_ids);
     <b>let</b> <b>mut</b> i_order = 0;
     <b>let</b> usr_open_orders = borrow_mut(&<b>mut</b> pool.usr_open_orders, user);
     <b>while</b> (i_order &lt; n_order) \{
-        <b>let</b> order_id = *<Link href="../move-stdlib/vector#0x1_vector_borrow">vector::borrow</Link>(&order_ids, i_order);
-        <b>assert</b>!(<Link href="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(usr_open_orders, order_id), <Link href="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
-        <b>let</b> new_tick_price = *<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_orders, order_id);
-        <b>let</b> is_bid = <Link href="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id);
+        <b>let</b> order_id = *<Link to="../move-stdlib/vector#0x1_vector_borrow">vector::borrow</Link>(&order_ids, i_order);
+        <b>assert</b>!(<Link to="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(usr_open_orders, order_id), <Link to="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
+        <b>let</b> new_tick_price = *<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_orders, order_id);
+        <b>let</b> is_bid = <Link to="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(order_id);
         <b>if</b> (new_tick_price != tick_price) \{
             tick_price = new_tick_price;
             <b>let</b> (tick_exists, new_tick_index) = find_leaf(
                 <b>if</b> (is_bid) \{ &pool.bids } <b>else</b> \{ &pool.asks },
                 tick_price
             );
-            <b>assert</b>!(tick_exists, <Link href="clob#0xdee9_clob_EInvalidTickPrice">EInvalidTickPrice</Link>);
+            <b>assert</b>!(tick_exists, <Link to="clob#0xdee9_clob_EInvalidTickPrice">EInvalidTickPrice</Link>);
             tick_index = new_tick_index;
         };
-        <b>let</b> order = <Link href="clob#0xdee9_clob_remove_order">remove_order</Link>(
+        <b>let</b> order = <Link to="clob#0xdee9_clob_remove_order">remove_order</Link>(
             <b>if</b> (is_bid) \{ &<b>mut</b> pool.bids } <b>else</b> \{ &<b>mut</b> pool.asks },
             usr_open_orders,
             tick_index,
@@ -2377,11 +2377,11 @@ Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
         );
         <b>if</b> (is_bid) \{
             <b>let</b> balance_locked = clob_math::mul(order.quantity, order.price);
-            <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, user, balance_locked);
+            <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.quote_custodian, user, balance_locked);
         } <b>else</b> \{
-            <Link href="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, user, order.quantity);
+            <Link to="custodian#0xdee9_custodian_unlock_balance">custodian::unlock_balance</Link>(&<b>mut</b> pool.base_custodian, user, order.quantity);
         };
-        <Link href="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, &order);
+        <Link to="clob#0xdee9_clob_emit_order_canceled">emit_order_canceled</Link>&lt;BaseAsset, QuoteAsset&gt;(pool_id, &order);
         i_order = i_order + 1;
     }
 }
@@ -2398,7 +2398,7 @@ Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_list_open_orders">list_open_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="clob#0xdee9_clob_Order">clob::Order</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_list_open_orders">list_open_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob#0xdee9_clob_Order">clob::Order</Link>&gt;
 </code></pre>
 
 
@@ -2408,21 +2408,21 @@ Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_list_open_orders">list_open_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_list_open_orders">list_open_orders</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     account_cap: &AccountCap
-): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link href="clob#0xdee9_clob_Order">Order</Link>&gt; \{
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
-    <b>let</b> usr_open_order_ids = <Link href="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&pool.usr_open_orders, user);
-    <b>let</b> <b>mut</b> open_orders = <Link href="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;<Link href="clob#0xdee9_clob_Order">Order</Link>&gt;();
-    <b>let</b> <b>mut</b> order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(usr_open_order_ids);
-    <b>while</b> (!<Link href="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(order_id)) \{
-        <b>let</b> order_price = *<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_order_ids, *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
+): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob#0xdee9_clob_Order">Order</Link>&gt; \{
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>let</b> usr_open_order_ids = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&pool.usr_open_orders, user);
+    <b>let</b> <b>mut</b> open_orders = <Link to="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;<Link to="clob#0xdee9_clob_Order">Order</Link>&gt;();
+    <b>let</b> <b>mut</b> order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(usr_open_order_ids);
+    <b>while</b> (!<Link to="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(order_id)) \{
+        <b>let</b> order_price = *<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_order_ids, *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
         <b>let</b> tick_level =
-            <b>if</b> (<Link href="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(*<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id))) borrow_leaf_by_key(&pool.bids, order_price)
+            <b>if</b> (<Link to="clob#0xdee9_clob_order_is_bid">order_is_bid</Link>(*<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id))) borrow_leaf_by_key(&pool.bids, order_price)
             <b>else</b> borrow_leaf_by_key(&pool.asks, order_price);
-        <b>let</b> order = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
-        <Link href="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> open_orders, <Link href="clob#0xdee9_clob_Order">Order</Link> \{
+        <b>let</b> order = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(&tick_level.open_orders, *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
+        <Link to="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> open_orders, <Link to="clob#0xdee9_clob_Order">Order</Link> \{
             order_id: order.order_id,
             price: order.price,
             quantity: order.quantity,
@@ -2430,7 +2430,7 @@ Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
             owner: order.owner,
             expire_timestamp: order.expire_timestamp
         });
-        order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(usr_open_order_ids, *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
+        order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(usr_open_order_ids, *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
     };
     open_orders
 }
@@ -2448,7 +2448,7 @@ query user balance inside custodian
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_account_balance">account_balance</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>): (u64, u64, u64, u64)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_account_balance">account_balance</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>): (u64, u64, u64, u64)
 </code></pre>
 
 
@@ -2458,13 +2458,13 @@ query user balance inside custodian
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_account_balance">account_balance</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_account_balance">account_balance</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     account_cap: &AccountCap
 ): (u64, u64, u64, u64) \{
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
-    <b>let</b> (base_avail, base_locked) = <Link href="custodian#0xdee9_custodian_account_balance">custodian::account_balance</Link>(&pool.base_custodian, user);
-    <b>let</b> (quote_avail, quote_locked) = <Link href="custodian#0xdee9_custodian_account_balance">custodian::account_balance</Link>(&pool.quote_custodian, user);
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>let</b> (base_avail, base_locked) = <Link to="custodian#0xdee9_custodian_account_balance">custodian::account_balance</Link>(&pool.base_custodian, user);
+    <b>let</b> (quote_avail, quote_locked) = <Link to="custodian#0xdee9_custodian_account_balance">custodian::account_balance</Link>(&pool.quote_custodian, user);
     (base_avail, base_locked, quote_avail, quote_locked)
 }
 </code></pre>
@@ -2482,7 +2482,7 @@ returns (best_bid_price, best_ask_price)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_market_price">get_market_price</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;): (u64, u64)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_market_price">get_market_price</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;): (u64, u64)
 </code></pre>
 
 
@@ -2492,11 +2492,11 @@ returns (best_bid_price, best_ask_price)
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_market_price">get_market_price</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_market_price">get_market_price</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;
 ): (u64, u64)\{
-    <b>let</b> (bid_price, _) = <Link href="critbit#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(&pool.bids);
-    <b>let</b> (ask_price, _) = <Link href="critbit#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(&pool.asks);
+    <b>let</b> (bid_price, _) = <Link to="critbit#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(&pool.bids);
+    <b>let</b> (ask_price, _) = <Link to="critbit#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(&pool.asks);
     <b>return</b> (bid_price, ask_price)
 }
 </code></pre>
@@ -2516,7 +2516,7 @@ The latter is the corresponding depth list
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_level2_book_status_bid_side">get_level2_book_status_bid_side</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price_low: u64, price_high: u64, <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &<Link href="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>): (<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_level2_book_status_bid_side">get_level2_book_status_bid_side</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price_low: u64, price_high: u64, <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;)
 </code></pre>
 
 
@@ -2526,30 +2526,30 @@ The latter is the corresponding depth list
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_level2_book_status_bid_side">get_level2_book_status_bid_side</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_level2_book_status_bid_side">get_level2_book_status_bid_side</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     <b>mut</b> price_low: u64,
     <b>mut</b> price_high: u64,
-    <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &Clock
-): (<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;) \{
-    <b>let</b> (price_low_, _) = <Link href="critbit#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(&pool.bids);
+    <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &Clock
+): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;) \{
+    <b>let</b> (price_low_, _) = <Link to="critbit#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(&pool.bids);
     <b>if</b> (price_low &lt; price_low_) price_low = price_low_;
-    <b>let</b> (price_high_, _) = <Link href="critbit#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(&pool.bids);
+    <b>let</b> (price_high_, _) = <Link to="critbit#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(&pool.bids);
     <b>if</b> (price_high &gt; price_high_) price_high = price_high_;
-    price_low = <Link href="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.bids, price_low);
-    price_high = <Link href="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.bids, price_high);
-    <b>let</b> <b>mut</b> price_vec = <Link href="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
-    <b>let</b> <b>mut</b> depth_vec = <Link href="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
+    price_low = <Link to="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.bids, price_low);
+    price_high = <Link to="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.bids, price_high);
+    <b>let</b> <b>mut</b> price_vec = <Link to="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
+    <b>let</b> <b>mut</b> depth_vec = <Link to="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
     <b>if</b> (price_low == 0) \{ <b>return</b> (price_vec, depth_vec) };
     <b>while</b> (price_low &lt;= price_high) \{
-        <b>let</b> depth = <Link href="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(
+        <b>let</b> depth = <Link to="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(
             &pool.bids,
             price_low,
-            <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>)
+            <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>)
         );
-        <Link href="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> price_vec, price_low);
-        <Link href="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> depth_vec, depth);
-        <b>let</b> (next_price, _) = <Link href="critbit#0xdee9_critbit_next_leaf">critbit::next_leaf</Link>(&pool.bids, price_low);
+        <Link to="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> price_vec, price_low);
+        <Link to="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> depth_vec, depth);
+        <b>let</b> (next_price, _) = <Link to="critbit#0xdee9_critbit_next_leaf">critbit::next_leaf</Link>(&pool.bids, price_low);
         <b>if</b> (next_price == 0) \{ <b>break</b> }
         <b>else</b> \{ price_low = next_price };
     };
@@ -2572,7 +2572,7 @@ The latter is the corresponding depth list
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_level2_book_status_ask_side">get_level2_book_status_ask_side</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price_low: u64, price_high: u64, <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &<Link href="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>): (<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;)
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_level2_book_status_ask_side">get_level2_book_status_ask_side</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, price_low: u64, price_high: u64, <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;)
 </code></pre>
 
 
@@ -2582,30 +2582,30 @@ The latter is the corresponding depth list
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_level2_book_status_ask_side">get_level2_book_status_ask_side</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_level2_book_status_ask_side">get_level2_book_status_ask_side</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     <b>mut</b> price_low: u64,
     <b>mut</b> price_high: u64,
-    <Link href="../iota-framework/clock#0x2_clock">clock</Link>: &Clock
-): (<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;) \{
-    <b>let</b> (price_low_, _) = <Link href="critbit#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(&pool.asks);
+    <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &Clock
+): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;) \{
+    <b>let</b> (price_low_, _) = <Link to="critbit#0xdee9_critbit_min_leaf">critbit::min_leaf</Link>(&pool.asks);
     <b>if</b> (price_low &lt; price_low_) price_low = price_low_;
-    <b>let</b> (price_high_, _) = <Link href="critbit#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(&pool.asks);
+    <b>let</b> (price_high_, _) = <Link to="critbit#0xdee9_critbit_max_leaf">critbit::max_leaf</Link>(&pool.asks);
     <b>if</b> (price_high &gt; price_high_) price_high = price_high_;
-    price_low = <Link href="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.asks, price_low);
-    price_high = <Link href="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.asks, price_high);
-    <b>let</b> <b>mut</b> price_vec = <Link href="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
-    <b>let</b> <b>mut</b> depth_vec = <Link href="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
+    price_low = <Link to="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.asks, price_low);
+    price_high = <Link to="critbit#0xdee9_critbit_find_closest_key">critbit::find_closest_key</Link>(&pool.asks, price_high);
+    <b>let</b> <b>mut</b> price_vec = <Link to="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
+    <b>let</b> <b>mut</b> depth_vec = <Link to="../move-stdlib/vector#0x1_vector_empty">vector::empty</Link>&lt;u64&gt;();
     <b>if</b> (price_low == 0) \{ <b>return</b> (price_vec, depth_vec) };
     <b>while</b> (price_low &lt;= price_high) \{
-        <b>let</b> depth = <Link href="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(
+        <b>let</b> depth = <Link to="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(
             &pool.asks,
             price_low,
-            <Link href="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link href="../iota-framework/clock#0x2_clock">clock</Link>)
+            <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">clock::timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>)
         );
-        <Link href="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> price_vec, price_low);
-        <Link href="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> depth_vec, depth);
-        <b>let</b> (next_price, _) = <Link href="critbit#0xdee9_critbit_next_leaf">critbit::next_leaf</Link>(&pool.asks, price_low);
+        <Link to="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> price_vec, price_low);
+        <Link to="../move-stdlib/vector#0x1_vector_push_back">vector::push_back</Link>(&<b>mut</b> depth_vec, depth);
+        <b>let</b> (next_price, _) = <Link to="critbit#0xdee9_critbit_next_leaf">critbit::next_leaf</Link>(&pool.asks, price_low);
         <b>if</b> (next_price == 0) \{ <b>break</b> }
         <b>else</b> \{ price_low = next_price };
     };
@@ -2625,7 +2625,7 @@ internal func to retrieve single depth of a tick price
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(open_orders: &<Link href="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link href="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;, price: u64, time_stamp: u64): u64
+<b>fun</b> <Link to="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(open_orders: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;, price: u64, time_stamp: u64): u64
 </code></pre>
 
 
@@ -2635,20 +2635,20 @@ internal func to retrieve single depth of a tick price
 
 
 <pre><code>
-<b>fun</b> <Link href="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(
-    open_orders: &CritbitTree&lt;<Link href="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;,
+<b>fun</b> <Link to="clob#0xdee9_clob_get_level2_book_status">get_level2_book_status</Link>(
+    open_orders: &CritbitTree&lt;<Link to="clob#0xdee9_clob_TickLevel">TickLevel</Link>&gt;,
     price: u64,
     time_stamp: u64
 ): u64 \{
-    <b>let</b> tick_level = <Link href="critbit#0xdee9_critbit_borrow_leaf_by_key">critbit::borrow_leaf_by_key</Link>(open_orders, price);
+    <b>let</b> tick_level = <Link to="critbit#0xdee9_critbit_borrow_leaf_by_key">critbit::borrow_leaf_by_key</Link>(open_orders, price);
     <b>let</b> tick_open_orders = &tick_level.open_orders;
     <b>let</b> <b>mut</b> depth = 0;
-    <b>let</b> <b>mut</b> order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(tick_open_orders);
-    <b>let</b> <b>mut</b> order: &<Link href="clob#0xdee9_clob_Order">Order</Link>;
-    <b>while</b> (!<Link href="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(order_id)) \{
-        order = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(tick_open_orders, *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
+    <b>let</b> <b>mut</b> order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_front">linked_table::front</Link>(tick_open_orders);
+    <b>let</b> <b>mut</b> order: &<Link to="clob#0xdee9_clob_Order">Order</Link>;
+    <b>while</b> (!<Link to="../move-stdlib/option#0x1_option_is_none">option::is_none</Link>(order_id)) \{
+        order = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(tick_open_orders, *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
         <b>if</b> (order.expire_timestamp &gt; time_stamp) depth = depth + order.quantity;
-        order_id = <Link href="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(tick_open_orders, *<Link href="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
+        order_id = <Link to="../iota-framework/linked_table#0x2_linked_table_next">linked_table::next</Link>(tick_open_orders, *<Link to="../move-stdlib/option#0x1_option_borrow">option::borrow</Link>(order_id));
     };
     depth
 }
@@ -2665,7 +2665,7 @@ internal func to retrieve single depth of a tick price
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_order_status">get_order_status</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link href="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, order_id: u64, account_cap: &<Link href="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>): &<Link href="clob#0xdee9_clob_Order">clob::Order</Link>
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_order_status">get_order_status</Link>&lt;BaseAsset, QuoteAsset&gt;(pool: &<Link to="clob#0xdee9_clob_Pool">clob::Pool</Link>&lt;BaseAsset, QuoteAsset&gt;, order_id: u64, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>): &<Link to="clob#0xdee9_clob_Order">clob::Order</Link>
 </code></pre>
 
 
@@ -2675,22 +2675,22 @@ internal func to retrieve single depth of a tick price
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="clob#0xdee9_clob_get_order_status">get_order_status</Link>&lt;BaseAsset, QuoteAsset&gt;(
-    pool: &<Link href="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
+<b>public</b> <b>fun</b> <Link to="clob#0xdee9_clob_get_order_status">get_order_status</Link>&lt;BaseAsset, QuoteAsset&gt;(
+    pool: &<Link to="clob#0xdee9_clob_Pool">Pool</Link>&lt;BaseAsset, QuoteAsset&gt;,
     order_id: u64,
     account_cap: &AccountCap
-): &<Link href="clob#0xdee9_clob_Order">Order</Link> \{
-    <b>let</b> user = <Link href="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
-    <b>assert</b>!(<Link href="../iota-framework/table#0x2_table_contains">table::contains</Link>(&pool.usr_open_orders, user), <Link href="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>);
-    <b>let</b> usr_open_order_ids = <Link href="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&pool.usr_open_orders, user);
-    <b>assert</b>!(<Link href="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(usr_open_order_ids, order_id), <Link href="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
-    <b>let</b> order_price = *<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_order_ids, order_id);
+): &<Link to="clob#0xdee9_clob_Order">Order</Link> \{
+    <b>let</b> user = <Link to="../iota-framework/object#0x2_object_id">object::id</Link>(account_cap);
+    <b>assert</b>!(<Link to="../iota-framework/table#0x2_table_contains">table::contains</Link>(&pool.usr_open_orders, user), <Link to="clob#0xdee9_clob_EInvalidUser">EInvalidUser</Link>);
+    <b>let</b> usr_open_order_ids = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&pool.usr_open_orders, user);
+    <b>assert</b>!(<Link to="../iota-framework/linked_table#0x2_linked_table_contains">linked_table::contains</Link>(usr_open_order_ids, order_id), <Link to="clob#0xdee9_clob_EInvalidOrderId">EInvalidOrderId</Link>);
+    <b>let</b> order_price = *<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(usr_open_order_ids, order_id);
     <b>let</b> open_orders =
-        <b>if</b> (order_id &lt; <Link href="clob#0xdee9_clob_MIN_ASK_ORDER_ID">MIN_ASK_ORDER_ID</Link>) \{ &pool.bids }
+        <b>if</b> (order_id &lt; <Link to="clob#0xdee9_clob_MIN_ASK_ORDER_ID">MIN_ASK_ORDER_ID</Link>) \{ &pool.bids }
         <b>else</b> \{ &pool.asks };
-    <b>let</b> tick_level = <Link href="critbit#0xdee9_critbit_borrow_leaf_by_key">critbit::borrow_leaf_by_key</Link>(open_orders, order_price);
+    <b>let</b> tick_level = <Link to="critbit#0xdee9_critbit_borrow_leaf_by_key">critbit::borrow_leaf_by_key</Link>(open_orders, order_price);
     <b>let</b> tick_open_orders = &tick_level.open_orders;
-    <b>let</b> order = <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(tick_open_orders, order_id);
+    <b>let</b> order = <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">linked_table::borrow</Link>(tick_open_orders, order_id);
     order
 }
 </code></pre>

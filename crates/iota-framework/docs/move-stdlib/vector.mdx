@@ -44,7 +44,7 @@ The index into the vector is out of bounds
 
 
 <pre><code>
-<b>const</b> <Link href="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>: u64 = 131072;
+<b>const</b> <Link to="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>: u64 = 131072;
 </code></pre>
 
 
@@ -57,7 +57,7 @@ Create an empty vector.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_empty">empty</Link>&lt;Element&gt;(): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_empty">empty</Link>&lt;Element&gt;(): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
 </code></pre>
 
 
@@ -67,7 +67,7 @@ Create an empty vector.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_empty">empty</Link>&lt;Element&gt;(): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;;
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_empty">empty</Link>&lt;Element&gt;(): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;;
 </code></pre>
 
 
@@ -82,7 +82,7 @@ Return the length of the vector.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_length">length</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): u64
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_length">length</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): u64
 </code></pre>
 
 
@@ -92,7 +92,7 @@ Return the length of the vector.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_length">length</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): u64;
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_length">length</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): u64;
 </code></pre>
 
 
@@ -111,7 +111,7 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_borrow">borrow</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &Element
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow">borrow</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &Element
 </code></pre>
 
 
@@ -121,7 +121,7 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_borrow">borrow</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &Element;
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow">borrow</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &Element;
 </code></pre>
 
 
@@ -138,7 +138,7 @@ v</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element)
 </code></pre>
 
 
@@ -148,7 +148,7 @@ v</code>.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element);
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element);
 </code></pre>
 
 
@@ -167,7 +167,7 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_borrow_mut">borrow_mut</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow_mut">borrow_mut</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element
 </code></pre>
 
 
@@ -177,7 +177,7 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_borrow_mut">borrow_mut</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element;
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow_mut">borrow_mut</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element;
 </code></pre>
 
 
@@ -195,7 +195,7 @@ v</code> is empty.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): Element
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): Element
 </code></pre>
 
 
@@ -205,7 +205,7 @@ v</code> is empty.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): Element;
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): Element;
 </code></pre>
 
 
@@ -223,7 +223,7 @@ v</code> is not empty.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>&lt;Element&gt;(v: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>&lt;Element&gt;(v: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
 </code></pre>
 
 
@@ -233,7 +233,7 @@ v</code> is not empty.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>&lt;Element&gt;(v: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;);
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>&lt;Element&gt;(v: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;);
 </code></pre>
 
 
@@ -254,7 +254,7 @@ j</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_swap">swap</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64, j: u64)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64, j: u64)
 </code></pre>
 
 
@@ -264,7 +264,7 @@ j</code> is out of bounds.
 
 
 <pre><code>
-<b>native</b> <b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_swap">swap</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64, j: u64);
+<b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64, j: u64);
 </code></pre>
 
 
@@ -280,7 +280,7 @@ e</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_singleton">singleton</Link>&lt;Element&gt;(e: Element): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_singleton">singleton</Link>&lt;Element&gt;(e: Element): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
 </code></pre>
 
 
@@ -290,9 +290,9 @@ e</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_singleton">singleton</Link>&lt;Element&gt;(e: Element): <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt; \{
-    <b>let</b> <b>mut</b> v = <Link href="../move-stdlib/vector#0x1_vector_empty">empty</Link>();
-    v.<Link href="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(e);
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_singleton">singleton</Link>&lt;Element&gt;(e: Element): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt; \{
+    <b>let</b> <b>mut</b> v = <Link to="../move-stdlib/vector#0x1_vector_empty">empty</Link>();
+    v.<Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(e);
     v
 }
 </code></pre>
@@ -310,7 +310,7 @@ v</code> in place.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
 </code></pre>
 
 
@@ -320,14 +320,14 @@ v</code> in place.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;) \{
-    <b>let</b> len = v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>();
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;) \{
+    <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     <b>if</b> (len == 0) <b>return</b> ();
 
     <b>let</b> <b>mut</b> front_index = 0;
     <b>let</b> <b>mut</b> back_index = len -1;
     <b>while</b> (front_index &lt; back_index) \{
-        v.<Link href="../move-stdlib/vector#0x1_vector_swap">swap</Link>(front_index, back_index);
+        v.<Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>(front_index, back_index);
         front_index = front_index + 1;
         back_index = back_index - 1;
     }
@@ -348,7 +348,7 @@ lhs</code> vector.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_append">append</Link>&lt;Element&gt;(lhs: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, other: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_append">append</Link>&lt;Element&gt;(lhs: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, other: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
 </code></pre>
 
 
@@ -358,10 +358,10 @@ lhs</code> vector.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_append">append</Link>&lt;Element&gt;(lhs: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, <b>mut</b> other: <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;) \{
-    other.<Link href="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>();
-    <b>while</b> (!other.<Link href="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>()) lhs.<Link href="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(other.<Link href="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>());
-    other.<Link href="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>();
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_append">append</Link>&lt;Element&gt;(lhs: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, <b>mut</b> other: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;) \{
+    other.<Link to="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>();
+    <b>while</b> (!other.<Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>()) lhs.<Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(other.<Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>());
+    other.<Link to="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>();
 }
 </code></pre>
 
@@ -380,7 +380,7 @@ v</code> has no elements and <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): bool
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): bool
 </code></pre>
 
 
@@ -390,8 +390,8 @@ v</code> has no elements and <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): bool \{
-    v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>() == 0
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): bool \{
+    v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>() == 0
 }
 </code></pre>
 
@@ -410,7 +410,7 @@ Otherwise, returns false.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_contains">contains</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): bool
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_contains">contains</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): bool
 </code></pre>
 
 
@@ -420,9 +420,9 @@ Otherwise, returns false.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_contains">contains</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): bool \{
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_contains">contains</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): bool \{
     <b>let</b> <b>mut</b> i = 0;
-    <b>let</b> len = v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>();
+    <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     <b>while</b> (i &lt; len) \{
         <b>if</b> (&v[i] == e) <b>return</b> <b>true</b>;
         i = i + 1;
@@ -449,7 +449,7 @@ Otherwise, returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_index_of">index_of</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): (bool, u64)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_index_of">index_of</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): (bool, u64)
 </code></pre>
 
 
@@ -459,9 +459,9 @@ Otherwise, returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_index_of">index_of</Link>&lt;Element&gt;(v: &<Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): (bool, u64) \{
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_index_of">index_of</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): (bool, u64) \{
     <b>let</b> <b>mut</b> i = 0;
-    <b>let</b> len = v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>();
+    <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     <b>while</b> (i &lt; len) \{
         <b>if</b> (&v[i] == e) <b>return</b> (<b>true</b>, i);
         i = i + 1;
@@ -487,7 +487,7 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_remove">remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_remove">remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element
 </code></pre>
 
 
@@ -497,14 +497,14 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_remove">remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, <b>mut</b> i: u64): Element \{
-    <b>let</b> <b>mut</b> len = v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>();
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_remove">remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, <b>mut</b> i: u64): Element \{
+    <b>let</b> <b>mut</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     // i out of bounds; <b>abort</b>
-    <b>if</b> (i &gt;= len) <b>abort</b> <Link href="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>;
+    <b>if</b> (i &gt;= len) <b>abort</b> <Link to="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>;
 
     len = len - 1;
-    <b>while</b> (i &lt; len) v.<Link href="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, \{ i = i + 1; i });
-    v.<Link href="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>()
+    <b>while</b> (i &lt; len) v.<Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, \{ i = i + 1; i });
+    v.<Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>()
 }
 </code></pre>
 
@@ -524,15 +524,15 @@ If <code>
 i</code> is in bounds, this shifts the old <code>
 v[i]</code> and all subsequent elements to the right.
 If <code>
-i == v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>()</code>, this adds <code>
+i == v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()</code>, this adds <code>
 e</code> to the end of the vector.
 This is O(n) and preserves ordering of elements in the vector.
 Aborts if <code>
-i &gt; v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>()</code>
+i &gt; v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_insert">insert</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element, i: u64)
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_insert">insert</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element, i: u64)
 </code></pre>
 
 
@@ -542,14 +542,14 @@ i &gt; v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>()</c
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_insert">insert</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element, <b>mut</b> i: u64) \{
-    <b>let</b> len = v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>();
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_insert">insert</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element, <b>mut</b> i: u64) \{
+    <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     // i too big <b>abort</b>
-    <b>if</b> (i &gt; len) <b>abort</b> <Link href="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>;
+    <b>if</b> (i &gt; len) <b>abort</b> <Link to="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>;
 
-    v.<Link href="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(e);
+    v.<Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(e);
     <b>while</b> (i &lt; len) \{
-        v.<Link href="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, len);
+        v.<Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, len);
         i = i + 1
     }
 }
@@ -572,7 +572,7 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_swap_remove">swap_remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap_remove">swap_remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element
 </code></pre>
 
 
@@ -582,11 +582,11 @@ i</code> is out of bounds.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../move-stdlib/vector#0x1_vector_swap_remove">swap_remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link href="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element \{
-    <b>assert</b>!(!v.<Link href="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>(), <Link href="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>);
-    <b>let</b> last_idx = v.<Link href="../move-stdlib/vector#0x1_vector_length">length</Link>() - 1;
-    v.<Link href="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, last_idx);
-    v.<Link href="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>()
+<b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap_remove">swap_remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element \{
+    <b>assert</b>!(!v.<Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>(), <Link to="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>);
+    <b>let</b> last_idx = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>() - 1;
+    v.<Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, last_idx);
+    v.<Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>()
 }
 </code></pre>
 

@@ -15,12 +15,12 @@ It has 6 decimals, and the smallest unit (10^-6) is called "glow".
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
-<b>use</b> <Link href="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
-<b>use</b> <Link href="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-<b>use</b> <Link href="../iota-framework/url#0x2_url">0x2::url</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
+<b>use</b> <Link to="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
+<b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../iota-framework/url#0x2_url">0x2::url</Link>;
 </code></pre>
 
 
@@ -33,7 +33,7 @@ Name of the coin
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/smr#0x2_smr_SMR">SMR</Link> <b>has</b> drop
+<b>struct</b> <Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link> <b>has</b> drop
 </code></pre>
 
 
@@ -66,7 +66,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/smr#0x2_smr_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 1;
+<b>const</b> <Link to="../iota-framework/smr#0x2_smr_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 1;
 </code></pre>
 
 
@@ -76,7 +76,7 @@ Sender is not @0x0 the system address.
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/smr#0x2_smr_EAlreadyMinted">EAlreadyMinted</Link>: u64 = 0;
+<b>const</b> <Link to="../iota-framework/smr#0x2_smr_EAlreadyMinted">EAlreadyMinted</Link>: u64 = 0;
 </code></pre>
 
 
@@ -88,7 +88,7 @@ The amount of Glows per Shimmer token based on the fact that micros is
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/smr#0x2_smr_GLOW_PER_SMR">GLOW_PER_SMR</Link>: u64 = 1000000;
+<b>const</b> <Link to="../iota-framework/smr#0x2_smr_GLOW_PER_SMR">GLOW_PER_SMR</Link>: u64 = 1000000;
 </code></pre>
 
 
@@ -99,7 +99,7 @@ The total supply of Shimmer denominated in Glows
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/smr#0x2_smr_TOTAL_SUPPLY_GLOWS">TOTAL_SUPPLY_GLOWS</Link>: u64 = 1813620509061365;
+<b>const</b> <Link to="../iota-framework/smr#0x2_smr_TOTAL_SUPPLY_GLOWS">TOTAL_SUPPLY_GLOWS</Link>: u64 = 1813620509061365;
 </code></pre>
 
 
@@ -113,7 +113,7 @@ SHIMMER</code> coin.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/smr#0x2_smr_init">init</Link>(witness: <Link href="../iota-framework/smr#0x2_smr_SMR">smr::SMR</Link>, ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>fun</b> <Link to="../iota-framework/smr#0x2_smr_init">init</Link>(witness: <Link to="../iota-framework/smr#0x2_smr_SMR">smr::SMR</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -123,20 +123,20 @@ SHIMMER</code> coin.
 
 
 <pre><code>
-<b>fun</b> <Link href="../iota-framework/smr#0x2_smr_init">init</Link>(witness: <Link href="../iota-framework/smr#0x2_smr_SMR">SMR</Link>, ctx: &<b>mut</b> TxContext) \{
-    <b>assert</b>!(ctx.sender() == @0x0, <Link href="../iota-framework/smr#0x2_smr_ENotSystemAddress">ENotSystemAddress</Link>);
-    <b>assert</b>!(ctx.epoch() == 0, <Link href="../iota-framework/smr#0x2_smr_EAlreadyMinted">EAlreadyMinted</Link>);
+<b>fun</b> <Link to="../iota-framework/smr#0x2_smr_init">init</Link>(witness: <Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link>, ctx: &<b>mut</b> TxContext) \{
+    <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/smr#0x2_smr_ENotSystemAddress">ENotSystemAddress</Link>);
+    <b>assert</b>!(ctx.epoch() == 0, <Link to="../iota-framework/smr#0x2_smr_EAlreadyMinted">EAlreadyMinted</Link>);
 
-    <b>let</b> (treasury, metadata) = <Link href="../iota-framework/coin#0x2_coin_create_currency">coin::create_currency</Link>(
+    <b>let</b> (treasury, metadata) = <Link to="../iota-framework/coin#0x2_coin_create_currency">coin::create_currency</Link>(
             witness,
             6,
             b"Shimmer",
-            b"<Link href="../iota-framework/smr#0x2_smr_SMR">SMR</Link>",
-            b"The original Shimmer (<Link href="../iota-framework/smr#0x2_smr_SMR">SMR</Link>) token <b>as</b> inherited from the Shimmer Network.",
-            <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link href="../iota-framework/url#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</Link>(b"https://<Link href="../iota-framework/iota#0x2_iota">iota</Link>.org/<Link href="../iota-framework/smr#0x2_smr">smr</Link>-logo.png")),
+            b"<Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link>",
+            b"The original Shimmer (<Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link>) token <b>as</b> inherited from the Shimmer Network.",
+            <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../iota-framework/url#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</Link>(b"https://<Link to="../iota-framework/iota#0x2_iota">iota</Link>.org/<Link to="../iota-framework/smr#0x2_smr">smr</Link>-logo.png")),
             ctx
         );
-    <Link href="../iota-framework/transfer#0x2_transfer_public_freeze_object">transfer::public_freeze_object</Link>(metadata);
+    <Link to="../iota-framework/transfer#0x2_transfer_public_freeze_object">transfer::public_freeze_object</Link>(metadata);
     <b>let</b> supply = treasury.treasury_into_supply();
     supply.destroy_supply();
 }
@@ -153,7 +153,7 @@ SHIMMER</code> coin.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/smr#0x2_smr_SMR">smr::SMR</Link>&gt;, recipient: <b>address</b>)
+<b>public</b> entry <b>fun</b> <Link to="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/smr#0x2_smr_SMR">smr::SMR</Link>&gt;, recipient: <b>address</b>)
 </code></pre>
 
 
@@ -163,8 +163,8 @@ SHIMMER</code> coin.
 
 
 <pre><code>
-<b>public</b> entry <b>fun</b> <Link href="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link href="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link href="../iota-framework/smr#0x2_smr_SMR">SMR</Link>&gt;, recipient: <b>address</b>) \{
-    <Link href="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(c, recipient)
+<b>public</b> entry <b>fun</b> <Link to="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link>&gt;, recipient: <b>address</b>) \{
+    <Link to="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(c, recipient)
 }
 </code></pre>
 

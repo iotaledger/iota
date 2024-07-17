@@ -6,7 +6,7 @@ import Link from '@docusaurus/Link';
 <Link id="0x2_object_bag"/>
 Similar to <code>
 iota::bag</code>, an <code>
-<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code> is a heterogeneous map-like collection. But unlike
+<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code> is a heterogeneous map-like collection. But unlike
 <code>
 iota::bag</code>, the values bound to these dynamic fields _must_ be objects themselves. This allows
 for the objects to still exist in storage, which may be important for external tools.
@@ -29,10 +29,10 @@ The difference is otherwise not observable from within Move.
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="dynamic_object_field#0x2_dynamic_object_field">0x2::dynamic_object_field</Link>;
-<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="dynamic_object_field#0x2_dynamic_object_field">0x2::dynamic_object_field</Link>;
+<b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -44,7 +44,7 @@ The difference is otherwise not observable from within Move.
 
 
 <pre><code>
-<b>struct</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> <b>has</b> store, key
+<b>struct</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> <b>has</b> store, key
 </code></pre>
 
 
@@ -56,7 +56,7 @@ The difference is otherwise not observable from within Move.
 <dl>
 <dt>
 <code>
-id: <Link href="object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  the ID of this bag
@@ -83,7 +83,7 @@ size: u64</code>
 
 
 <pre><code>
-<b>const</b> <Link href="object_bag#0x2_object_bag_EBagNotEmpty">EBagNotEmpty</Link>: u64 = 0;
+<b>const</b> <Link to="object_bag#0x2_object_bag_EBagNotEmpty">EBagNotEmpty</Link>: u64 = 0;
 </code></pre>
 
 
@@ -96,7 +96,7 @@ Creates a new, empty bag
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_new">new</Link>(ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_new">new</Link>(ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>
 </code></pre>
 
 
@@ -106,9 +106,9 @@ Creates a new, empty bag
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_new">new</Link>(ctx: &<b>mut</b> TxContext): <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> \{
-    <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> \{
-        id: <Link href="object#0x2_object_new">object::new</Link>(ctx),
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_new">new</Link>(ctx: &<b>mut</b> TxContext): <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> \{
+    <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> \{
+        id: <Link to="object#0x2_object_new">object::new</Link>(ctx),
         size: 0,
     }
 }
@@ -123,7 +123,7 @@ Creates a new, empty bag
 ## Function `add`
 
 Adds a key-value pair to the bag <code>
-<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>
+<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>
 Aborts with <code>
 iota::dynamic_field::EFieldAlreadyExists</code> if the bag already has an entry with
 that key <code>
@@ -131,7 +131,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_add">add</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K, v: V)
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_add">add</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K, v: V)
 </code></pre>
 
 
@@ -141,9 +141,9 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_add">add</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K, v: V) \{
-    ofield::add(&<b>mut</b> <Link href="bag#0x2_bag">bag</Link>.id, k, v);
-    <Link href="bag#0x2_bag">bag</Link>.size = <Link href="bag#0x2_bag">bag</Link>.size + 1;
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_add">add</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K, v: V) \{
+    ofield::add(&<b>mut</b> <Link to="bag#0x2_bag">bag</Link>.id, k, v);
+    <Link to="bag#0x2_bag">bag</Link>.size = <Link to="bag#0x2_bag">bag</Link>.size + 1;
 }
 </code></pre>
 
@@ -156,7 +156,7 @@ k: K</code>.
 ## Function `borrow`
 
 Immutably borrows the value associated with the key in the bag <code>
-<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>.
+<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
 that key <code>
@@ -167,7 +167,7 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): &V
+<b>public</b> <b>fun</b> <Link to="borrow#0x2_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): &V
 </code></pre>
 
 
@@ -177,8 +177,8 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="borrow#0x2_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): &V \{
-    ofield::borrow(&<Link href="bag#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link to="borrow#0x2_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): &V \{
+    ofield::borrow(&<Link to="bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -191,7 +191,7 @@ the value does not have the specified type.
 ## Function `borrow_mut`
 
 Mutably borrows the value associated with the key in the bag <code>
-<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>.
+<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
 that key <code>
@@ -202,7 +202,7 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): &<b>mut</b> V
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): &<b>mut</b> V
 </code></pre>
 
 
@@ -212,8 +212,8 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): &<b>mut</b> V \{
-    ofield::borrow_mut(&<b>mut</b> <Link href="bag#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): &<b>mut</b> V \{
+    ofield::borrow_mut(&<b>mut</b> <Link to="bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -226,7 +226,7 @@ the value does not have the specified type.
 ## Function `remove`
 
 Mutably borrows the key-value pair in the bag <code>
-<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code> and returns the value.
+<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code> and returns the value.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
 that key <code>
@@ -237,7 +237,7 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): V
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): V
 </code></pre>
 
 
@@ -247,9 +247,9 @@ the value does not have the specified type.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): V \{
-    <b>let</b> v = ofield::remove(&<b>mut</b> <Link href="bag#0x2_bag">bag</Link>.id, k);
-    <Link href="bag#0x2_bag">bag</Link>.size = <Link href="bag#0x2_bag">bag</Link>.size - 1;
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): V \{
+    <b>let</b> v = ofield::remove(&<b>mut</b> <Link to="bag#0x2_bag">bag</Link>.id, k);
+    <Link to="bag#0x2_bag">bag</Link>.size = <Link to="bag#0x2_bag">bag</Link>.size - 1;
     v
 }
 </code></pre>
@@ -264,11 +264,11 @@ the value does not have the specified type.
 
 Returns true iff there is an value associated with the key <code>
 k: K</code> in the bag <code>
-<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>
+<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_contains">contains</Link>&lt;K: <b>copy</b>, drop, store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): bool
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_contains">contains</Link>&lt;K: <b>copy</b>, drop, store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): bool
 </code></pre>
 
 
@@ -278,8 +278,8 @@ k: K</code> in the bag <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_contains">contains</Link>&lt;K: <b>copy</b> + drop + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): bool \{
-    ofield::exists_&lt;K&gt;(&<Link href="bag#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_contains">contains</Link>&lt;K: <b>copy</b> + drop + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): bool \{
+    ofield::exists_&lt;K&gt;(&<Link to="bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -293,13 +293,13 @@ k: K</code> in the bag <code>
 
 Returns true iff there is an value associated with the key <code>
 k: K</code> in the bag <code>
-<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>
+<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link></code>
 with an assigned value of type <code>
 V</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): bool
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b>, drop, store, V: store, key&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): bool
 </code></pre>
 
 
@@ -309,8 +309,8 @@ V</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): bool \{
-    ofield::exists_with_type&lt;K, V&gt;(&<Link href="bag#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_contains_with_type">contains_with_type</Link>&lt;K: <b>copy</b> + drop + store, V: key + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): bool \{
+    ofield::exists_with_type&lt;K, V&gt;(&<Link to="bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 
@@ -326,7 +326,7 @@ Returns the size of the bag, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_length">length</Link>(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>): u64
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_length">length</Link>(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>): u64
 </code></pre>
 
 
@@ -336,8 +336,8 @@ Returns the size of the bag, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_length">length</Link>(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>): u64 \{
-    <Link href="bag#0x2_bag">bag</Link>.size
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_length">length</Link>(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>): u64 \{
+    <Link to="bag#0x2_bag">bag</Link>.size
 }
 </code></pre>
 
@@ -355,7 +355,7 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_is_empty">is_empty</Link>(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>): bool
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_is_empty">is_empty</Link>(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>): bool
 </code></pre>
 
 
@@ -365,8 +365,8 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_is_empty">is_empty</Link>(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>): bool \{
-    <Link href="bag#0x2_bag">bag</Link>.size == 0
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_is_empty">is_empty</Link>(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>): bool \{
+    <Link to="bag#0x2_bag">bag</Link>.size == 0
 }
 </code></pre>
 
@@ -380,11 +380,11 @@ length</code> returns <code>
 
 Destroys an empty bag
 Aborts with <code>
-<Link href="object_bag#0x2_object_bag_EBagNotEmpty">EBagNotEmpty</Link></code> if the bag still contains values
+<Link to="object_bag#0x2_object_bag_EBagNotEmpty">EBagNotEmpty</Link></code> if the bag still contains values
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_destroy_empty">destroy_empty</Link>(<Link href="bag#0x2_bag">bag</Link>: <Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>)
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_destroy_empty">destroy_empty</Link>(<Link to="bag#0x2_bag">bag</Link>: <Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>)
 </code></pre>
 
 
@@ -394,9 +394,9 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_destroy_empty">destroy_empty</Link>(<Link href="bag#0x2_bag">bag</Link>: <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>) \{
-    <b>let</b> <Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> \{ id, size } = <Link href="bag#0x2_bag">bag</Link>;
-    <b>assert</b>!(size == 0, <Link href="object_bag#0x2_object_bag_EBagNotEmpty">EBagNotEmpty</Link>);
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_destroy_empty">destroy_empty</Link>(<Link to="bag#0x2_bag">bag</Link>: <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>) \{
+    <b>let</b> <Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link> \{ id, size } = <Link to="bag#0x2_bag">bag</Link>;
+    <b>assert</b>!(size == 0, <Link to="object_bag#0x2_object_bag_EBagNotEmpty">EBagNotEmpty</Link>);
     id.delete()
 }
 </code></pre>
@@ -415,7 +415,7 @@ Returns none otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_value_id">value_id</Link>&lt;K: <b>copy</b>, drop, store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="object#0x2_object_ID">object::ID</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_value_id">value_id</Link>&lt;K: <b>copy</b>, drop, store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">object_bag::ObjectBag</Link>, k: K): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="object#0x2_object_ID">object::ID</Link>&gt;
 </code></pre>
 
 
@@ -425,8 +425,8 @@ Returns none otherwise
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="object_bag#0x2_object_bag_value_id">value_id</Link>&lt;K: <b>copy</b> + drop + store&gt;(<Link href="bag#0x2_bag">bag</Link>: &<Link href="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): Option&lt;ID&gt; \{
-    ofield::id(&<Link href="bag#0x2_bag">bag</Link>.id, k)
+<b>public</b> <b>fun</b> <Link to="object_bag#0x2_object_bag_value_id">value_id</Link>&lt;K: <b>copy</b> + drop + store&gt;(<Link to="bag#0x2_bag">bag</Link>: &<Link to="object_bag#0x2_object_bag_ObjectBag">ObjectBag</Link>, k: K): Option&lt;ID&gt; \{
+    ofield::id(&<Link to="bag#0x2_bag">bag</Link>.id, k)
 }
 </code></pre>
 

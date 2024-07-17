@@ -14,7 +14,7 @@ Kiosk</code>
 itself is a trading primitive, most of the extensions are expected to be
 related to trading. However, there's no limit to what can be built using the
 <code>
-<Link href="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> module, as it gives certain benefits such as using <code>
+<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> module, as it gives certain benefits such as using <code>
 Kiosk</code>
 as the storage for any type of data / assets.
 
@@ -62,8 +62,8 @@ PurchaseCap</code> to build a custom
 logic around the purchase flow. However, it should be carefully managed to
 prevent asset locking.
 - <code>
-<Link href="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> is a friend module to <code>
-<Link href="kiosk#0x2_kiosk">kiosk</Link></code> and has access to its
+<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> is a friend module to <code>
+<Link to="kiosk#0x2_kiosk">kiosk</Link></code> and has access to its
 internal functions (such as <code>
 place_internal</code> and <code>
 lock_internal</code> to
@@ -95,12 +95,12 @@ lock</code> respectively).
 
 
 <pre><code>
-<b>use</b> <Link href="bag#0x2_bag">0x2::bag</Link>;
-<b>use</b> <Link href="dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="kiosk#0x2_kiosk">0x2::kiosk</Link>;
-<b>use</b> <Link href="object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="transfer_policy#0x2_transfer_policy">0x2::transfer_policy</Link>;
-<b>use</b> <Link href="tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="bag#0x2_bag">0x2::bag</Link>;
+<b>use</b> <Link to="dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link to="kiosk#0x2_kiosk">0x2::kiosk</Link>;
+<b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="transfer_policy#0x2_transfer_policy">0x2::transfer_policy</Link>;
+<b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -111,12 +111,12 @@ lock</code> respectively).
 
 The Extension struct contains the data used by the extension and the
 configuration for this extension. Stored under the <code>
-<Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code>
+<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code>
 dynamic field.
 
 
 <pre><code>
-<b>struct</b> <Link href="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> <b>has</b> store
+<b>struct</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> <b>has</b> store
 </code></pre>
 
 
@@ -128,7 +128,7 @@ dynamic field.
 <dl>
 <dt>
 <code>
-storage: <Link href="bag#0x2_bag_Bag">bag::Bag</Link></code>
+storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  Storage for the extension, an isolated Bag. By putting the extension
@@ -185,14 +185,14 @@ add</code> call), however the Kiosk
 ## Struct `ExtensionKey`
 
 The <code>
-<Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code> is a typed dynamic field key used to store the
+<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code> is a typed dynamic field key used to store the
 extension configuration and data. <code>
 Ext</code> is a phantom type that is used
 to identify the extension witness.
 
 
 <pre><code>
-<b>struct</b> <Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; <b>has</b> <b>copy</b>, drop, store
+<b>struct</b> <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -225,7 +225,7 @@ Trying to add an extension while not being the owner of the Kiosk.
 
 
 <pre><code>
-<b>const</b> <Link href="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>: u64 = 0;
+<b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>: u64 = 0;
 </code></pre>
 
 
@@ -237,7 +237,7 @@ the required permission.
 
 
 <pre><code>
-<b>const</b> <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>: u64 = 2;
+<b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>: u64 = 2;
 </code></pre>
 
 
@@ -248,7 +248,7 @@ Extension is not installed in the Kiosk.
 
 
 <pre><code>
-<b>const</b> <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>: u64 = 3;
+<b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>: u64 = 3;
 </code></pre>
 
 
@@ -262,7 +262,7 @@ permissions bitmap.
 
 
 <pre><code>
-<b>const</b> <Link href="kiosk_extension#0x2_kiosk_extension_LOCK">LOCK</Link>: u128 = 2;
+<b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_LOCK">LOCK</Link>: u128 = 2;
 </code></pre>
 
 
@@ -274,7 +274,7 @@ place</code> permission in the permissions bitmap.
 
 
 <pre><code>
-<b>const</b> <Link href="kiosk_extension#0x2_kiosk_extension_PLACE">PLACE</Link>: u128 = 1;
+<b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_PLACE">PLACE</Link>: u128 = 1;
 </code></pre>
 
 
@@ -290,7 +290,7 @@ add</code> call.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_add">add</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link href="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, permissions: u128, ctx: &<b>mut</b> <Link href="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_add">add</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, permissions: u128, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -300,19 +300,19 @@ add</code> call.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_add">add</Link>&lt;Ext: drop&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_add">add</Link>&lt;Ext: drop&gt;(
     _ext: Ext,
     self: &<b>mut</b> Kiosk,
     cap: &KioskOwnerCap,
     permissions: u128,
     ctx: &<b>mut</b> TxContext
 ) \{
-    <b>assert</b>!(self.has_access(cap), <Link href="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(self.has_access(cap), <Link to="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
     df::add(
         self.uid_mut_as_owner(cap),
-        <Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{},
-        <Link href="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
-            storage: <Link href="bag#0x2_bag_new">bag::new</Link>(ctx),
+        <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{},
+        <Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
+            storage: <Link to="bag#0x2_bag_new">bag::new</Link>(ctx),
             permissions,
             is_enabled: <b>true</b>,
         }
@@ -334,7 +334,7 @@ The storage is still available to the extension (until it's removed).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_disable">disable</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link href="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_disable">disable</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
 </code></pre>
 
 
@@ -344,13 +344,13 @@ The storage is still available to the extension (until it's removed).
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_disable">disable</Link>&lt;Ext: drop&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_disable">disable</Link>&lt;Ext: drop&gt;(
     self: &<b>mut</b> Kiosk,
     cap: &KioskOwnerCap,
 ) \{
-    <b>assert</b>!(self.has_access(cap), <Link href="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
-    <Link href="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).is_enabled = <b>false</b>;
+    <b>assert</b>!(self.has_access(cap), <Link to="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).is_enabled = <b>false</b>;
 }
 </code></pre>
 
@@ -371,7 +371,7 @@ disable</code> call.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_enable">enable</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link href="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_enable">enable</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
 </code></pre>
 
 
@@ -381,13 +381,13 @@ disable</code> call.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_enable">enable</Link>&lt;Ext: drop&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_enable">enable</Link>&lt;Ext: drop&gt;(
     self: &<b>mut</b> Kiosk,
     cap: &KioskOwnerCap,
 ) \{
-    <b>assert</b>!(self.has_access(cap), <Link href="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
-    <Link href="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).is_enabled = <b>true</b>;
+    <b>assert</b>!(self.has_access(cap), <Link to="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).is_enabled = <b>true</b>;
 }
 </code></pre>
 
@@ -404,7 +404,7 @@ the extension storage must be empty for the transaction to succeed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_remove">remove</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link href="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_remove">remove</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
 </code></pre>
 
 
@@ -414,17 +414,17 @@ the extension storage must be empty for the transaction to succeed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_remove">remove</Link>&lt;Ext: drop&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_remove">remove</Link>&lt;Ext: drop&gt;(
     self: &<b>mut</b> Kiosk, cap: &KioskOwnerCap
 ) \{
-    <b>assert</b>!(self.has_access(cap), <Link href="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    <b>assert</b>!(self.has_access(cap), <Link to="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
 
-    <b>let</b> <Link href="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
+    <b>let</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
         storage,
         permissions: _,
         is_enabled: _,
-    } = df::remove(self.uid_mut_as_owner(cap), <Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{});
+    } = df::remove(self.uid_mut_as_owner(cap), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{});
 
     storage.destroy_empty();
 }
@@ -443,7 +443,7 @@ the extension as long as the extension is installed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_storage">storage</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link href="bag#0x2_bag_Bag">bag::Bag</Link>
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage">storage</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link to="bag#0x2_bag_Bag">bag::Bag</Link>
 </code></pre>
 
 
@@ -453,11 +453,11 @@ the extension as long as the extension is installed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_storage">storage</Link>&lt;Ext: drop&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage">storage</Link>&lt;Ext: drop&gt;(
     _ext: Ext, self: &Kiosk
 ): &Bag \{
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
-    &<Link href="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).storage
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    &<Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).storage
 }
 </code></pre>
 
@@ -484,7 +484,7 @@ aware of the risks.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_storage_mut">storage_mut</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link href="bag#0x2_bag_Bag">bag::Bag</Link>
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage_mut">storage_mut</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link to="bag#0x2_bag_Bag">bag::Bag</Link>
 </code></pre>
 
 
@@ -494,11 +494,11 @@ aware of the risks.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_storage_mut">storage_mut</Link>&lt;Ext: drop&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage_mut">storage_mut</Link>&lt;Ext: drop&gt;(
     _ext: Ext, self: &<b>mut</b> Kiosk
 ): &<b>mut</b> Bag \{
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
-    &<b>mut</b> <Link href="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).storage
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    &<b>mut</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).storage
 }
 </code></pre>
 
@@ -523,7 +523,7 @@ TransferPolicy</code> for the placed type to exist.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_place">place</Link>&lt;Ext: drop, T: store, key&gt;(_ext: Ext, self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, _policy: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_place">place</Link>&lt;Ext: drop, T: store, key&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, _policy: &<Link to="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -533,11 +533,11 @@ TransferPolicy</code> for the placed type to exist.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_place">place</Link>&lt;Ext: drop, T: key + store&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_place">place</Link>&lt;Ext: drop, T: key + store&gt;(
     _ext: Ext, self: &<b>mut</b> Kiosk, item: T, _policy: &TransferPolicy&lt;T&gt;
 ) \{
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext&gt;(self) || <Link href="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext&gt;(self) || <Link to="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>);
 
     self.place_internal(item)
 }
@@ -557,7 +557,7 @@ lock</code> permission.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_lock">lock</Link>&lt;Ext: drop, T: store, key&gt;(_ext: Ext, self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, _policy: &<Link href="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;)
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_lock">lock</Link>&lt;Ext: drop, T: store, key&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, _policy: &<Link to="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;)
 </code></pre>
 
 
@@ -567,11 +567,11 @@ lock</code> permission.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_lock">lock</Link>&lt;Ext: drop, T: key + store&gt;(
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_lock">lock</Link>&lt;Ext: drop, T: key + store&gt;(
     _ext: Ext, self: &<b>mut</b> Kiosk, item: T, _policy: &TransferPolicy&lt;T&gt;
 ) \{
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
-    <b>assert</b>!(<Link href="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext&gt;(self), <Link href="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
+    <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>);
 
     self.lock_internal(item)
 }
@@ -590,7 +590,7 @@ Ext</code> is installed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext: drop&gt;(self: &<Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
 </code></pre>
 
 
@@ -600,8 +600,8 @@ Ext</code> is installed.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
-    df::exists_(self.uid(), <Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
+    df::exists_(self.uid(), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
 }
 </code></pre>
 
@@ -618,7 +618,7 @@ Ext</code> is enabled.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext: drop&gt;(self: &<Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
 </code></pre>
 
 
@@ -628,8 +628,8 @@ Ext</code> is enabled.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
-    <Link href="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).is_enabled
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
+    <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).is_enabled
 }
 </code></pre>
 
@@ -647,7 +647,7 @@ place</code> into Kiosk.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext: drop&gt;(self: &<Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
 </code></pre>
 
 
@@ -657,8 +657,8 @@ place</code> into Kiosk.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
-    <Link href="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext&gt;(self) && <Link href="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).permissions & <Link href="kiosk_extension#0x2_kiosk_extension_PLACE">PLACE</Link> != 0
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
+    <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext&gt;(self) && <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).permissions & <Link to="kiosk_extension#0x2_kiosk_extension_PLACE">PLACE</Link> != 0
 }
 </code></pre>
 
@@ -678,7 +678,7 @@ place</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext: drop&gt;(self: &<Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
 </code></pre>
 
 
@@ -688,8 +688,8 @@ place</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
-    <Link href="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext&gt;(self) && <Link href="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).permissions & <Link href="kiosk_extension#0x2_kiosk_extension_LOCK">LOCK</Link> != 0
+<b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
+    <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext&gt;(self) && <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).permissions & <Link to="kiosk_extension#0x2_kiosk_extension_LOCK">LOCK</Link> != 0
 }
 </code></pre>
 
@@ -705,7 +705,7 @@ Internal: get a read-only access to the Extension.
 
 
 <pre><code>
-<b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext: drop&gt;(self: &<Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link href="kiosk_extension#0x2_kiosk_extension_Extension">kiosk_extension::Extension</Link>
+<b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link to="kiosk_extension#0x2_kiosk_extension_Extension">kiosk_extension::Extension</Link>
 </code></pre>
 
 
@@ -715,8 +715,8 @@ Internal: get a read-only access to the Extension.
 
 
 <pre><code>
-<b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext: drop&gt;(self: &Kiosk): &<Link href="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
-    df::borrow(self.uid(), <Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
+<b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext: drop&gt;(self: &Kiosk): &<Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
+    df::borrow(self.uid(), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
 }
 </code></pre>
 
@@ -732,7 +732,7 @@ Internal: get a mutable access to the Extension.
 
 
 <pre><code>
-<b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link href="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link href="kiosk_extension#0x2_kiosk_extension_Extension">kiosk_extension::Extension</Link>
+<b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">kiosk_extension::Extension</Link>
 </code></pre>
 
 
@@ -742,8 +742,8 @@ Internal: get a mutable access to the Extension.
 
 
 <pre><code>
-<b>fun</b> <Link href="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> Kiosk): &<b>mut</b> <Link href="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
-    df::borrow_mut(self.uid_mut_internal(), <Link href="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
+<b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> Kiosk): &<b>mut</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
+    df::borrow_mut(self.uid_mut_internal(), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
 }
 </code></pre>
 

@@ -32,10 +32,10 @@ removal
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
-<b>use</b> <Link href="../iota-framework/object#0x2_object">0x2::object</Link>;
-<b>use</b> <Link href="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
+<b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
+<b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 </code></pre>
 
 
@@ -47,7 +47,7 @@ removal
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt; <b>has</b> store, key
+<b>struct</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt; <b>has</b> store, key
 </code></pre>
 
 
@@ -59,7 +59,7 @@ removal
 <dl>
 <dt>
 <code>
-id: <Link href="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  the ID of this table
@@ -73,14 +73,14 @@ size: u64</code>
 </dd>
 <dt>
 <code>
-head: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+head: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
 </dt>
 <dd>
  the front of the table, i.e. the key of the first entry
 </dd>
 <dt>
 <code>
-tail: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+tail: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
 </dt>
 <dd>
  the back of the table, i.e. the key of the last entry
@@ -97,7 +97,7 @@ tail: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>
 
 
 <pre><code>
-<b>struct</b> <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt; <b>has</b> store
+<b>struct</b> <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt; <b>has</b> store
 </code></pre>
 
 
@@ -109,14 +109,14 @@ tail: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>
 <dl>
 <dt>
 <code>
-prev: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+prev: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
 </dt>
 <dd>
  the previous key
 </dd>
 <dt>
 <code>
-next: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+next: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
 </dt>
 <dd>
  the next key
@@ -143,7 +143,7 @@ value: V</code>
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link>: u64 = 0;
+<b>const</b> <Link to="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link>: u64 = 0;
 </code></pre>
 
 
@@ -153,7 +153,7 @@ value: V</code>
 
 
 <pre><code>
-<b>const</b> <Link href="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link>: u64 = 1;
+<b>const</b> <Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link>: u64 = 1;
 </code></pre>
 
 
@@ -166,7 +166,7 @@ Creates a new, empty table
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_new">new</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(ctx: &<b>mut</b> <Link href="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_new">new</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;
 </code></pre>
 
 
@@ -176,12 +176,12 @@ Creates a new, empty table
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_new">new</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(ctx: &<b>mut</b> TxContext): <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt; \{
-    <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link> \{
-        id: <Link href="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_new">new</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt; \{
+    <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link> \{
+        id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
         size: 0,
-        head: <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
-        tail: <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+        head: <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>(),
+        tail: <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>(),
     }
 }
 </code></pre>
@@ -198,7 +198,7 @@ Returns the key for the first element in the table, or None if the table is empt
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_front">front</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_front">front</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </code></pre>
 
 
@@ -208,8 +208,8 @@ Returns the key for the first element in the table, or None if the table is empt
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_front">front</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): &Option&lt;K&gt; \{
-    &<Link href="../iota-framework/table#0x2_table">table</Link>.head
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_front">front</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): &Option&lt;K&gt; \{
+    &<Link to="../iota-framework/table#0x2_table">table</Link>.head
 }
 </code></pre>
 
@@ -225,7 +225,7 @@ Returns the key for the last element in the table, or None if the table is empty
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_back">back</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_back">back</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </code></pre>
 
 
@@ -235,8 +235,8 @@ Returns the key for the last element in the table, or None if the table is empty
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_back">back</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): &Option&lt;K&gt; \{
-    &<Link href="../iota-framework/table#0x2_table">table</Link>.tail
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_back">back</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): &Option&lt;K&gt; \{
+    &<Link to="../iota-framework/table#0x2_table">table</Link>.tail
 }
 </code></pre>
 
@@ -257,7 +257,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_push_front">push_front</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K, value: V)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_push_front">push_front</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K, value: V)
 </code></pre>
 
 
@@ -267,23 +267,23 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_push_front">push_front</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(
-    <Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;,
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_push_front">push_front</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(
+    <Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;,
     k: K,
     value: V,
 ) \{
-    <b>let</b> old_head = <Link href="../iota-framework/table#0x2_table">table</Link>.head.swap_or_fill(k);
-    <b>if</b> (<Link href="../iota-framework/table#0x2_table">table</Link>.tail.is_none()) <Link href="../iota-framework/table#0x2_table">table</Link>.tail.fill(k);
-    <b>let</b> prev = <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>();
+    <b>let</b> old_head = <Link to="../iota-framework/table#0x2_table">table</Link>.head.swap_or_fill(k);
+    <b>if</b> (<Link to="../iota-framework/table#0x2_table">table</Link>.tail.is_none()) <Link to="../iota-framework/table#0x2_table">table</Link>.tail.fill(k);
+    <b>let</b> prev = <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>();
     <b>let</b> next = <b>if</b> (old_head.is_some()) \{
         <b>let</b> old_head_k = old_head.destroy_some();
-        field::borrow_mut&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, old_head_k).prev = <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(k);
-        <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(old_head_k)
+        field::borrow_mut&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, old_head_k).prev = <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(k);
+        <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(old_head_k)
     } <b>else</b> \{
-        <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>()
+        <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     };
-    field::add(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, k, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link> \{ prev, next, value });
-    <Link href="../iota-framework/table#0x2_table">table</Link>.size = <Link href="../iota-framework/table#0x2_table">table</Link>.size + 1;
+    field::add(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, k, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link> \{ prev, next, value });
+    <Link to="../iota-framework/table#0x2_table">table</Link>.size = <Link to="../iota-framework/table#0x2_table">table</Link>.size + 1;
 }
 </code></pre>
 
@@ -304,7 +304,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_push_back">push_back</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K, value: V)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_push_back">push_back</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K, value: V)
 </code></pre>
 
 
@@ -314,23 +314,23 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_push_back">push_back</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(
-    <Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;,
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_push_back">push_back</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(
+    <Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;,
     k: K,
     value: V,
 ) \{
-    <b>if</b> (<Link href="../iota-framework/table#0x2_table">table</Link>.head.is_none()) <Link href="../iota-framework/table#0x2_table">table</Link>.head.fill(k);
-    <b>let</b> old_tail = <Link href="../iota-framework/table#0x2_table">table</Link>.tail.swap_or_fill(k);
+    <b>if</b> (<Link to="../iota-framework/table#0x2_table">table</Link>.head.is_none()) <Link to="../iota-framework/table#0x2_table">table</Link>.head.fill(k);
+    <b>let</b> old_tail = <Link to="../iota-framework/table#0x2_table">table</Link>.tail.swap_or_fill(k);
     <b>let</b> prev = <b>if</b> (old_tail.is_some()) \{
         <b>let</b> old_tail_k = old_tail.destroy_some();
-        field::borrow_mut&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, old_tail_k).next = <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(k);
-        <Link href="../move-stdlib/option#0x1_option_some">option::some</Link>(old_tail_k)
+        field::borrow_mut&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, old_tail_k).next = <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(k);
+        <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(old_tail_k)
     } <b>else</b> \{
-        <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>()
+        <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     };
-    <b>let</b> next = <Link href="../move-stdlib/option#0x1_option_none">option::none</Link>();
-    field::add(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, k, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link> \{ prev, next, value });
-    <Link href="../iota-framework/table#0x2_table">table</Link>.size = <Link href="../iota-framework/table#0x2_table">table</Link>.size + 1;
+    <b>let</b> next = <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>();
+    field::add(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, k, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link> \{ prev, next, value });
+    <Link to="../iota-framework/table#0x2_table">table</Link>.size = <Link to="../iota-framework/table#0x2_table">table</Link>.size + 1;
 }
 </code></pre>
 
@@ -343,7 +343,7 @@ k: K</code>.
 ## Function `borrow`
 
 Immutable borrows the value associated with the key in the table <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -351,7 +351,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &V
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &V
 </code></pre>
 
 
@@ -361,8 +361,8 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): &V \{
-    &field::borrow&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link href="../iota-framework/table#0x2_table">table</Link>.id, k).value
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): &V \{
+    &field::borrow&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link to="../iota-framework/table#0x2_table">table</Link>.id, k).value
 }
 </code></pre>
 
@@ -375,7 +375,7 @@ k: K</code>.
 ## Function `borrow_mut`
 
 Mutably borrows the value associated with the key in the table <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -383,7 +383,7 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &<b>mut</b> V
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &<b>mut</b> V
 </code></pre>
 
 
@@ -393,11 +393,11 @@ k: K</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(
-    <Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;,
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_borrow_mut">borrow_mut</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(
+    <Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;,
     k: K,
 ): &<b>mut</b> V \{
-    &<b>mut</b> field::borrow_mut&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, k).value
+    &<b>mut</b> field::borrow_mut&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, k).value
 }
 </code></pre>
 
@@ -412,7 +412,7 @@ k: K</code>.
 Borrows the key for the previous entry of the specified key <code>
 k: K</code> in the table
 <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>. Returns None if the entry does not have a predecessor.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>. Returns None if the entry does not have a predecessor.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -420,7 +420,7 @@ k: K</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_prev">prev</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_prev">prev</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </code></pre>
 
 
@@ -430,8 +430,8 @@ k: K</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_prev">prev</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): &Option&lt;K&gt; \{
-    &field::borrow&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link href="../iota-framework/table#0x2_table">table</Link>.id, k).prev
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_prev">prev</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): &Option&lt;K&gt; \{
+    &field::borrow&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link to="../iota-framework/table#0x2_table">table</Link>.id, k).prev
 }
 </code></pre>
 
@@ -446,7 +446,7 @@ k: K</code>
 Borrows the key for the next entry of the specified key <code>
 k: K</code> in the table
 <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>. Returns None if the entry does not have a predecessor.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>. Returns None if the entry does not have a predecessor.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
 that key <code>
@@ -454,7 +454,7 @@ k: K</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_next">next</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_next">next</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </code></pre>
 
 
@@ -464,8 +464,8 @@ k: K</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_next">next</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): &Option&lt;K&gt; \{
-    &field::borrow&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link href="../iota-framework/table#0x2_table">table</Link>.id, k).next
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_next">next</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): &Option&lt;K&gt; \{
+    &field::borrow&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link to="../iota-framework/table#0x2_table">table</Link>.id, k).next
 }
 </code></pre>
 
@@ -478,7 +478,7 @@ k: K</code>
 ## Function `remove`
 
 Removes the key-value pair in the table <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
 This splices the element out of the ordering.
 Aborts with <code>
 iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
@@ -487,7 +487,7 @@ k: K</code>. Note: this is also what happens when the table is empty.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): V
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): V
 </code></pre>
 
 
@@ -497,17 +497,17 @@ k: K</code>. Note: this is also what happens when the table is empty.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): V \{
-    <b>let</b> <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt; \{ prev, next, value } = field::remove(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, k);
-    <Link href="../iota-framework/table#0x2_table">table</Link>.size = <Link href="../iota-framework/table#0x2_table">table</Link>.size - 1;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): V \{
+    <b>let</b> <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt; \{ prev, next, value } = field::remove(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, k);
+    <Link to="../iota-framework/table#0x2_table">table</Link>.size = <Link to="../iota-framework/table#0x2_table">table</Link>.size - 1;
     <b>if</b> (prev.is_some()) \{
-        field::borrow_mut&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, *prev.<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>()).next = next
+        field::borrow_mut&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, *prev.<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>()).next = next
     };
     <b>if</b> (next.is_some()) \{
-        field::borrow_mut&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link href="../iota-framework/table#0x2_table">table</Link>.id, *next.<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>()).prev = prev
+        field::borrow_mut&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<b>mut</b> <Link to="../iota-framework/table#0x2_table">table</Link>.id, *next.<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>()).prev = prev
     };
-    <b>if</b> (<Link href="../iota-framework/table#0x2_table">table</Link>.head.<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>() == &k) <Link href="../iota-framework/table#0x2_table">table</Link>.head = next;
-    <b>if</b> (<Link href="../iota-framework/table#0x2_table">table</Link>.tail.<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>() == &k) <Link href="../iota-framework/table#0x2_table">table</Link>.tail = prev;
+    <b>if</b> (<Link to="../iota-framework/table#0x2_table">table</Link>.head.<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>() == &k) <Link to="../iota-framework/table#0x2_table">table</Link>.head = next;
+    <b>if</b> (<Link to="../iota-framework/table#0x2_table">table</Link>.tail.<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>() == &k) <Link to="../iota-framework/table#0x2_table">table</Link>.tail = prev;
     value
 }
 </code></pre>
@@ -521,13 +521,13 @@ k: K</code>. Note: this is also what happens when the table is empty.
 ## Function `pop_front`
 
 Removes the front of the table <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
 Aborts with <code>
-<Link href="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link></code> if the table is empty
+<Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link></code> if the table is empty
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_pop_front">pop_front</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): (K, V)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_pop_front">pop_front</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): (K, V)
 </code></pre>
 
 
@@ -537,10 +537,10 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_pop_front">pop_front</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): (K, V) \{
-    <b>assert</b>!(<Link href="../iota-framework/table#0x2_table">table</Link>.head.is_some(), <Link href="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link>);
-    <b>let</b> head = *<Link href="../iota-framework/table#0x2_table">table</Link>.head.<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>();
-    (head, <Link href="../iota-framework/table#0x2_table">table</Link>.<Link href="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>(head))
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_pop_front">pop_front</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): (K, V) \{
+    <b>assert</b>!(<Link to="../iota-framework/table#0x2_table">table</Link>.head.is_some(), <Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link>);
+    <b>let</b> head = *<Link to="../iota-framework/table#0x2_table">table</Link>.head.<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>();
+    (head, <Link to="../iota-framework/table#0x2_table">table</Link>.<Link to="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>(head))
 }
 </code></pre>
 
@@ -553,13 +553,13 @@ Aborts with <code>
 ## Function `pop_back`
 
 Removes the back of the table <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
 Aborts with <code>
-<Link href="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link></code> if the table is empty
+<Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link></code> if the table is empty
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_pop_back">pop_back</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): (K, V)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_pop_back">pop_back</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): (K, V)
 </code></pre>
 
 
@@ -569,10 +569,10 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_pop_back">pop_back</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): (K, V) \{
-    <b>assert</b>!(<Link href="../iota-framework/table#0x2_table">table</Link>.tail.is_some(), <Link href="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link>);
-    <b>let</b> tail = *<Link href="../iota-framework/table#0x2_table">table</Link>.tail.<Link href="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>();
-    (tail, <Link href="../iota-framework/table#0x2_table">table</Link>.<Link href="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>(tail))
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_pop_back">pop_back</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): (K, V) \{
+    <b>assert</b>!(<Link to="../iota-framework/table#0x2_table">table</Link>.tail.is_some(), <Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link>);
+    <b>let</b> tail = *<Link to="../iota-framework/table#0x2_table">table</Link>.tail.<Link to="../iota-framework/linked_table#0x2_linked_table_borrow">borrow</Link>();
+    (tail, <Link to="../iota-framework/table#0x2_table">table</Link>.<Link to="../iota-framework/linked_table#0x2_linked_table_remove">remove</Link>(tail))
 }
 </code></pre>
 
@@ -587,11 +587,11 @@ Aborts with <code>
 Returns true iff there is a value associated with the key <code>
 k: K</code> in table
 <code>
-<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_contains">contains</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): bool
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_contains">contains</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;, k: K): bool
 </code></pre>
 
 
@@ -601,8 +601,8 @@ k: K</code> in table
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_contains">contains</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): bool \{
-    field::exists_with_type&lt;K, <Link href="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link href="../iota-framework/table#0x2_table">table</Link>.id, k)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_contains">contains</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;, k: K): bool \{
+    field::exists_with_type&lt;K, <Link to="../iota-framework/linked_table#0x2_linked_table_Node">Node</Link>&lt;K, V&gt;&gt;(&<Link to="../iota-framework/table#0x2_table">table</Link>.id, k)
 }
 </code></pre>
 
@@ -618,7 +618,7 @@ Returns the size of the table, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_length">length</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): u64
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_length">length</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): u64
 </code></pre>
 
 
@@ -628,8 +628,8 @@ Returns the size of the table, the number of key-value pairs
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_length">length</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): u64 \{
-    <Link href="../iota-framework/table#0x2_table">table</Link>.size
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_length">length</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): u64 \{
+    <Link to="../iota-framework/table#0x2_table">table</Link>.size
 }
 </code></pre>
 
@@ -647,7 +647,7 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">is_empty</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): bool
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">is_empty</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;): bool
 </code></pre>
 
 
@@ -657,8 +657,8 @@ length</code> returns <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_is_empty">is_empty</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: &<Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): bool \{
-    <Link href="../iota-framework/table#0x2_table">table</Link>.size == 0
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_is_empty">is_empty</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;): bool \{
+    <Link to="../iota-framework/table#0x2_table">table</Link>.size == 0
 }
 </code></pre>
 
@@ -672,11 +672,11 @@ length</code> returns <code>
 
 Destroys an empty table
 Aborts with <code>
-<Link href="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link></code> if the table still contains values
+<Link to="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link></code> if the table still contains values
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b>, drop, store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;)
 </code></pre>
 
 
@@ -686,9 +686,9 @@ Aborts with <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;) \{
-    <b>let</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link> \{ id, size, head: _, tail: _ } = <Link href="../iota-framework/table#0x2_table">table</Link>;
-    <b>assert</b>!(size == 0, <Link href="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link>);
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b> + drop + store, V: store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;) \{
+    <b>let</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link> \{ id, size, head: _, tail: _ } = <Link to="../iota-framework/table#0x2_table">table</Link>;
+    <b>assert</b>!(size == 0, <Link to="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link>);
     id.delete()
 }
 </code></pre>
@@ -708,7 +708,7 @@ drop</code> ability
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_drop">drop</Link>&lt;K: <b>copy</b>, drop, store, V: drop, store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;)
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_drop">drop</Link>&lt;K: <b>copy</b>, drop, store, V: drop, store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;K, V&gt;)
 </code></pre>
 
 
@@ -718,8 +718,8 @@ drop</code> ability
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="../iota-framework/linked_table#0x2_linked_table_drop">drop</Link>&lt;K: <b>copy</b> + drop + store, V: drop + store&gt;(<Link href="../iota-framework/table#0x2_table">table</Link>: <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;) \{
-    <b>let</b> <Link href="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link> \{ id, size: _, head: _, tail: _ } = <Link href="../iota-framework/table#0x2_table">table</Link>;
+<b>public</b> <b>fun</b> <Link to="../iota-framework/linked_table#0x2_linked_table_drop">drop</Link>&lt;K: <b>copy</b> + drop + store, V: drop + store&gt;(<Link to="../iota-framework/table#0x2_table">table</Link>: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;) \{
+    <b>let</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link> \{ id, size: _, head: _, tail: _ } = <Link to="../iota-framework/table#0x2_table">table</Link>;
     id.delete()
 }
 </code></pre>

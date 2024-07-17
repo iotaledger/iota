@@ -21,11 +21,11 @@ import Link from '@docusaurus/Link';
 
 
 <pre><code>
-<b>use</b> <Link href="../move-stdlib/fixed_point32#0x1_fixed_point32">0x1::fixed_point32</Link>;
-<b>use</b> <Link href="../move-stdlib/option#0x1_option">0x1::option</Link>;
-<b>use</b> <Link href="../move-stdlib/string#0x1_string">0x1::string</Link>;
-<b>use</b> <Link href="../iota-framework/url#0x2_url">0x2::url</Link>;
-<b>use</b> <Link href="../iota-framework/vec_map#0x2_vec_map">0x2::vec_map</Link>;
+<b>use</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32">0x1::fixed_point32</Link>;
+<b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
+<b>use</b> <Link to="../move-stdlib/string#0x1_string">0x1::string</Link>;
+<b>use</b> <Link to="../iota-framework/url#0x2_url">0x2::url</Link>;
+<b>use</b> <Link to="../iota-framework/vec_map#0x2_vec_map">0x2::vec_map</Link>;
 </code></pre>
 
 
@@ -38,7 +38,7 @@ The IRC27 NFT metadata standard schema.
 
 
 <pre><code>
-<b>struct</b> <Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link> <b>has</b> store
+<b>struct</b> <Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link> <b>has</b> store
 </code></pre>
 
 
@@ -50,14 +50,14 @@ The IRC27 NFT metadata standard schema.
 <dl>
 <dt>
 <code>
-version: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+version: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  Version of the metadata standard.
 </dd>
 <dt>
 <code>
-media_type: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+media_type: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The media type (MIME) of the asset.
@@ -83,28 +83,28 @@ text/plain</code>, etc.
 </dd>
 <dt>
 <code>
-uri: <Link href="../iota-framework/url#0x2_url_Url">url::Url</Link></code>
+uri: <Link to="../iota-framework/url#0x2_url_Url">url::Url</Link></code>
 </dt>
 <dd>
  URL pointing to the NFT file location.
 </dd>
 <dt>
 <code>
-name: <Link href="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  Alphanumeric text string defining the human identifiable name for the NFT.
 </dd>
 <dt>
 <code>
-collection_name: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+collection_name: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
 </dt>
 <dd>
  The human-readable collection name of the NFT.
 </dd>
 <dt>
 <code>
-royalties: <Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link href="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>&gt;</code>
+royalties: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>&gt;</code>
 </dt>
 <dd>
  Royalty payment addresses mapped to the payout percentage.
@@ -113,28 +113,28 @@ royalties: <Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::Ve
 </dd>
 <dt>
 <code>
-issuer_name: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+issuer_name: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
 </dt>
 <dd>
  The human-readable name of the NFT creator.
 </dd>
 <dt>
 <code>
-description: <Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+description: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
 </dt>
 <dd>
  The human-readable description of the NFT.
 </dd>
 <dt>
 <code>
-attributes: <Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+attributes: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
 </dt>
 <dd>
  Additional attributes which follow [OpenSea Metadata standards](https://docs.opensea.io/docs/metadata-standards).
 </dd>
 <dt>
 <code>
-non_standard_fields: <Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+non_standard_fields: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
 </dt>
 <dd>
  Legacy non-standard metadata fields.
@@ -153,7 +153,7 @@ version</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_version">version</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_version">version</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -163,8 +163,8 @@ version</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_version">version</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &String \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.version
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_version">version</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &String \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.version
 }
 </code></pre>
 
@@ -181,7 +181,7 @@ media_type</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_media_type">media_type</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_media_type">media_type</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -191,8 +191,8 @@ media_type</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_media_type">media_type</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &String \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.media_type
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_media_type">media_type</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &String \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.media_type
 }
 </code></pre>
 
@@ -209,7 +209,7 @@ uri</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_uri">uri</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../iota-framework/url#0x2_url_Url">url::Url</Link>
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_uri">uri</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../iota-framework/url#0x2_url_Url">url::Url</Link>
 </code></pre>
 
 
@@ -219,8 +219,8 @@ uri</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_uri">uri</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Url \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.uri
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_uri">uri</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Url \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.uri
 }
 </code></pre>
 
@@ -237,7 +237,7 @@ name</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_name">name</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_name">name</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </code></pre>
 
 
@@ -247,8 +247,8 @@ name</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_name">name</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &String \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.name
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_name">name</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &String \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.name
 }
 </code></pre>
 
@@ -265,7 +265,7 @@ collection_name</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_collection_name">collection_name</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_collection_name">collection_name</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </code></pre>
 
 
@@ -275,8 +275,8 @@ collection_name</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_collection_name">collection_name</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Option&lt;String&gt; \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.collection_name
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_collection_name">collection_name</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Option&lt;String&gt; \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.collection_name
 }
 </code></pre>
 
@@ -293,7 +293,7 @@ royalties</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_royalties">royalties</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link href="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_royalties">royalties</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>&gt;
 </code></pre>
 
 
@@ -303,8 +303,8 @@ royalties</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_royalties">royalties</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &VecMap&lt;<b>address</b>, FixedPoint32&gt; \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.royalties
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_royalties">royalties</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &VecMap&lt;<b>address</b>, FixedPoint32&gt; \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.royalties
 }
 </code></pre>
 
@@ -321,7 +321,7 @@ issuer_name</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_issuer_name">issuer_name</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_issuer_name">issuer_name</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </code></pre>
 
 
@@ -331,8 +331,8 @@ issuer_name</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_issuer_name">issuer_name</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Option&lt;String&gt; \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.issuer_name
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_issuer_name">issuer_name</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Option&lt;String&gt; \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.issuer_name
 }
 </code></pre>
 
@@ -349,7 +349,7 @@ description</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_description">description</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_description">description</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </code></pre>
 
 
@@ -359,8 +359,8 @@ description</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_description">description</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Option&lt;String&gt; \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.description
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_description">description</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &Option&lt;String&gt; \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.description
 }
 </code></pre>
 
@@ -377,7 +377,7 @@ attributes</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_attributes">attributes</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_attributes">attributes</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </code></pre>
 
 
@@ -387,8 +387,8 @@ attributes</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_attributes">attributes</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &VecMap&lt;String, String&gt; \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.attributes
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_attributes">attributes</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &VecMap&lt;String, String&gt; \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.attributes
 }
 </code></pre>
 
@@ -405,7 +405,7 @@ non_standard_fields</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_non_standard_fields">non_standard_fields</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link href="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link href="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link href="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_non_standard_fields">non_standard_fields</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>): &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </code></pre>
 
 
@@ -415,8 +415,8 @@ non_standard_fields</code>.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_non_standard_fields">non_standard_fields</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: &<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &VecMap&lt;String, String&gt; \{
-    &<Link href="irc27#0x107a_irc27">irc27</Link>.non_standard_fields
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_non_standard_fields">non_standard_fields</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: &<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>): &VecMap&lt;String, String&gt; \{
+    &<Link to="irc27#0x107a_irc27">irc27</Link>.non_standard_fields
 }
 </code></pre>
 
@@ -429,11 +429,11 @@ non_standard_fields</code>.
 ## Function `destroy`
 
 Permanently destroy a <code>
-<Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link></code> object.
+<Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link></code> object.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_destroy">destroy</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: <Link href="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>)
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_destroy">destroy</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: <Link to="irc27#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</Link>)
 </code></pre>
 
 
@@ -443,8 +443,8 @@ Permanently destroy a <code>
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link href="irc27#0x107a_irc27_destroy">destroy</Link>(<Link href="irc27#0x107a_irc27">irc27</Link>: <Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>) \{
-    <b>let</b> <Link href="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link> \{
+<b>public</b> <b>fun</b> <Link to="irc27#0x107a_irc27_destroy">destroy</Link>(<Link to="irc27#0x107a_irc27">irc27</Link>: <Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link>) \{
+    <b>let</b> <Link to="irc27#0x107a_irc27_Irc27Metadata">Irc27Metadata</Link> \{
         version: _,
         media_type: _,
         uri: _,
@@ -455,7 +455,7 @@ Permanently destroy a <code>
         description: _,
         attributes: _,
         non_standard_fields: _,
-    } = <Link href="irc27#0x107a_irc27">irc27</Link>;
+    } = <Link to="irc27#0x107a_irc27">irc27</Link>;
  }
 </code></pre>
 
