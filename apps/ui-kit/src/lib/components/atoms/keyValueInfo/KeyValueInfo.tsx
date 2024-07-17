@@ -44,18 +44,18 @@ export function KeyValueInfo({
 }: KeyValueProps): React.JSX.Element {
     const supportingLabelClasses = size && SUPPORTING_LABEL_TEXT_SIZE[size];
     return (
-        <div className="p-4 flex w-full flex-row items-center justify-between gap-4 font-inter">
+        <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
             <div className="flex flex-row items-center">
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
                 {showInfoIcon && <Info className="pl-xxxs text-neutral-60" />}
             </div>
-            <div className="flex flex-row items-center gap-1">
+            <div className="flex w-full flex-row items-center justify-end gap-1">
                 {valueLink ? (
                     <a
                         href={valueLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary-60 dark:text-primary-40"
+                        className="text-body-md text-primary-60 dark:text-primary-40"
                     >
                         {valueText}
                     </a>
@@ -72,7 +72,7 @@ export function KeyValueInfo({
                         {supportingLabel && (
                             <span
                                 className={cx(
-                                    ' pt-xxxs text-neutral-60 dark:text-neutral-40',
+                                    'pt-xxs text-neutral-60 dark:text-neutral-40',
                                     supportingLabelClasses,
                                 )}
                             >
