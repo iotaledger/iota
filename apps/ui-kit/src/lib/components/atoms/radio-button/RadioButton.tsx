@@ -27,7 +27,6 @@ interface RadioButtonProps {
 const RadioButton: React.FC<RadioButtonProps> = ({ label, isChecked, isDisabled, onChange }) => {
     const [checked, setChecked] = useState(isChecked);
 
-    // Update local state when isChecked prop changes
     useEffect(() => {
         setChecked(isChecked);
     }, [isChecked]);
