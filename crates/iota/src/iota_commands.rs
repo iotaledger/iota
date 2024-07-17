@@ -195,12 +195,16 @@ impl IotaCommand {
                 config_dir,
                 no_full_node,
             } => {
-                // Auto genesis if path is none and iota directory doesn't exists.
-                if config_dir.is_none() && !iota_config_dir()?.join(IOTA_NETWORK_CONFIG).exists() {
+                // Resolve the configuration directory.
+                let config_dir = config_dir.map(Ok).unwrap_or_else(iota_config_dir)?;
+
+                let network_config_path = config_dir.clone().join(IOTA_NETWORK_CONFIG);
+                // Auto genesis if no configuration exists in the configuration directory.
+                if !network_config_path.exists() {
                     genesis(
                         None,
                         None,
-                        None,
+                        Some(config_dir.clone()),
                         false,
                         None,
                         None,
@@ -212,10 +216,6 @@ impl IotaCommand {
                     .await?;
                 }
 
-                // Resolve the configuration directory.
-                let config_dir = config_dir.map(Ok).unwrap_or_else(iota_config_dir)?;
-                // Load the config of the Iota authority.
-                let network_config_path = config_dir.clone().join(IOTA_NETWORK_CONFIG);
                 let NetworkConfigLight {
                     validator_configs,
                     account_keys,
