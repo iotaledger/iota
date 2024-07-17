@@ -4,15 +4,10 @@
 import { Close, VisibilityOn, VisibilityOff } from '@iota/ui-icons';
 import cx from 'classnames';
 import { useCallback, useRef } from 'react';
+import { TextFieldPropsByType } from './text-field.types';
+import { TextFieldType } from './text-field.enums';
 
-enum TextFieldType {
-    Text = 'text',
-    Password = 'password',
-    Email = 'email',
-    Number = 'number',
-}
-
-interface TextFieldProps {
+interface TextFieldBaseProps {
     /**
      * Name for the input field
      */
@@ -34,9 +29,9 @@ interface TextFieldProps {
      */
     isDisabled?: boolean;
     /**
-     * Shows an error message below the input field
+     * Adds error styling to the input field
      */
-    errorMessage?: string;
+    errored?: string;
     /**
      * Callback function that is called when the input field value changes
      */
@@ -46,13 +41,9 @@ interface TextFieldProps {
      */
     value?: string;
     /**
-     * The type of the input field
+     * A leading icon that is shown before the input field
      */
-    type?: TextFieldType;
-    /**
-     * A leading element that is shown before the input field
-     */
-    leadingElement?: React.JSX.Element;
+    leadingIcon?: React.JSX.Element;
     /**
      * Supporting text that is shown at the side of the placeholder text.
      */
@@ -64,28 +55,26 @@ interface TextFieldProps {
     /**
      * Shows password toggle button
      */
-    showPasswordToggle?: boolean;
+    hidePasswordToggle?: boolean;
     /**
      * The Id of the input field
      */
     id?: string;
     /**
-     * Min number in case of number type
-     */
-    min?: number;
-    /**
-     * Max number in case of number type
-     */
-    max?: number;
-    /**
-     * Step number in case of number type
-     */
-    step?: number;
-    /**
      * The pattern for the input field
      */
     pattern?: string;
+    /**
+     * Autofocus the input field on render
+     */
+    autofocus?: boolean;
+    /**
+     * Trailing element that is shown after the input field
+     */
+    trailingElement?: React.JSX.Element;
 }
+
+type TextFieldProps = TextFieldBaseProps & TextFieldPropsByType;
 
 export function TextField({
     name,
@@ -93,22 +82,21 @@ export function TextField({
     placeholder,
     caption,
     isDisabled,
-    errorMessage,
+    errored,
     onChange,
     value,
-    type,
-    leadingElement,
+    leadingIcon,
     supportingText,
     amountCounter,
     id,
-    min,
-    max,
-    step,
     pattern,
-    showPasswordToggle,
+    hidePasswordToggle,
+    autofocus,
+    trailingElement,
+    type = TextFieldType.Text,
+    ...inputPropsByType
 }: TextFieldProps) {
     const inputRef = useRef<HTMLInputElement>(null);
-
     const focusInput = useCallback(() => {
         inputRef.current?.focus();
     }, [inputRef]);
@@ -127,7 +115,8 @@ export function TextField({
             aria-disabled={isDisabled}
             className={cx('group flex flex-col gap-y-2', {
                 'opacity-40': isDisabled,
-                errored: errorMessage,
+                errored,
+                enabled: !isDisabled,
             })}
         >
             {label && (
@@ -140,10 +129,12 @@ export function TextField({
                 </label>
             )}
             <div
-                className="flex cursor-text flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:border-neutral-50 group-[.errored]:border-error-30 group-[.invalid]:border-error-30 dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.invalid]:border-error-80 [&:has(input:focus-visible)]:border-primary-30"
+                className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm group-[.enabled]:cursor-text group-[.errored]:border-error-30 hover:group-[.enabled]:border-neutral-50  dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 [&:has(input:focus)]:border-primary-30"
                 onClick={focusInput}
             >
-                {leadingElement}
+                {leadingIcon && (
+                    <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
+                )}
                 <input
                     type={type}
                     name={name}
@@ -153,34 +144,24 @@ export function TextField({
                     onChange={(e) => onChange?.(e.target.value)}
                     ref={inputRef}
                     id={id}
-                    min={min}
-                    max={max}
-                    step={step}
+                    {...inputPropsByType}
                     pattern={pattern}
-                    className="w-full text-body-lg text-neutral-10 caret-primary-30 focus:outline-none focus-visible:outline-none enabled:placeholder:text-neutral-40/40 dark:text-neutral-92 enabled:dark:placeholder:text-neutral-60/40"
+                    autoFocus={autofocus}
+                    className="w-full bg-transparent text-body-lg text-neutral-10 caret-primary-30 focus:outline-none focus-visible:outline-none enabled:placeholder:text-neutral-40/40 dark:text-neutral-92 dark:placeholder:text-neutral-60/40 enabled:dark:placeholder:text-neutral-60/40"
                 />
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
-                {type === TextFieldType.Password && showPasswordToggle && (
-                    <button onClick={togglePasswordVisibility}>
-                        {inputRef.current?.type === TextFieldType.Password ? (
-                            <VisibilityOn onClick={togglePasswordVisibility} />
-                        ) : (
-                            <VisibilityOff onClick={togglePasswordVisibility} />
-                        )}
-                    </button>
-                )}
-                {type !== TextFieldType.Password && value && (
-                    <button onClick={() => onChange?.('')}>
-                        <Close />
-                    </button>
-                )}
+
+                <TextFieldTrailingElement
+                    value={value}
+                    type={type}
+                    hidePasswordToggle={hidePasswordToggle}
+                    onChange={onChange}
+                    inputRef={inputRef}
+                    togglePasswordVisibility={togglePasswordVisibility}
+                />
             </div>
             <div className="flex flex-row items-center justify-between">
-                {errorMessage ? (
-                    <span className="text-label-lg">{errorMessage}</span>
-                ) : (
-                    caption && <SecondaryText>{caption}</SecondaryText>
-                )}
+                {caption && <SecondaryText>{caption}</SecondaryText>}
                 {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
             </div>
         </div>
@@ -193,4 +174,49 @@ function SecondaryText({ children }: React.PropsWithChildren) {
             {children}
         </p>
     );
+}
+
+type TextFieldTrailingElement = Pick<
+    TextFieldProps,
+    'value' | 'type' | 'hidePasswordToggle' | 'onChange' | 'trailingElement'
+> & {
+    inputRef: React.RefObject<HTMLInputElement>;
+    togglePasswordVisibility: () => void;
+};
+
+function TextFieldTrailingElement({
+    value,
+    type,
+    hidePasswordToggle,
+    onChange,
+    inputRef,
+    togglePasswordVisibility,
+    trailingElement,
+}: TextFieldTrailingElement) {
+    if (trailingElement) {
+        return trailingElement;
+    }
+
+    if (type === TextFieldType.Password && !hidePasswordToggle) {
+        return (
+            <button
+                onClick={togglePasswordVisibility}
+                className="text-neutral-10 dark:text-neutral-92"
+            >
+                {inputRef.current?.type === TextFieldType.Password ? (
+                    <VisibilityOn />
+                ) : (
+                    <VisibilityOff />
+                )}
+            </button>
+        );
+    }
+
+    if ((type === TextFieldType.Text || type === TextFieldType.Email) && value) {
+        return (
+            <button className="text-neutral-10 dark:text-neutral-92" onClick={() => onChange?.('')}>
+                <Close />
+            </button>
+        );
+    }
 }

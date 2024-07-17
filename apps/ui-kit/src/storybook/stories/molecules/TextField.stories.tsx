@@ -3,30 +3,30 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { TextField } from '@/components/molecules/textfield/TextField';
+import { TextField, TextFieldType } from '@/components/molecules/text-field';
 import { PlaceholderReplace } from '@iota/ui-icons';
-import { ComponentProps, useState } from 'react';
+import { ComponentProps, useEffect, useState } from 'react';
 
 type CustomStoryProps = {
-    withLeadingElement?: boolean;
-    withPlaceholder?: boolean;
+    withLeadingIcon?: boolean;
 };
 
 function TextFieldStory({
-    placeholder,
-    withLeadingElement,
-    withPlaceholder,
+    withLeadingIcon,
     ...props
 }: ComponentProps<typeof TextField> & CustomStoryProps): JSX.Element {
-    const [value, setValue] = useState('');
+    const [value, setValue] = useState(props.value ?? '');
+
+    useEffect(() => {
+        setValue(props.value ?? '');
+    }, [props.value]);
+
     return (
         <TextField
             {...props}
             onChange={(value) => setValue(value)}
             value={value}
-            onResetClick={() => setValue('')}
-            leadingElement={withLeadingElement ? <PlaceholderReplace /> : undefined}
-            placeholder={placeholder ?? (withPlaceholder ? 'Placeholder' : undefined)}
+            leadingIcon={withLeadingIcon ? <PlaceholderReplace /> : undefined}
         />
     );
 }
@@ -44,6 +44,7 @@ export const Default: Story = {
     args: {
         label: 'Label',
         caption: 'Caption',
+        type: TextFieldType.Text,
     },
     argTypes: {
         amountCounter: {
@@ -51,7 +52,7 @@ export const Default: Story = {
                 type: 'text',
             },
         },
-        leadingElement: {
+        leadingIcon: {
             control: {
                 type: 'none',
             },
@@ -61,5 +62,11 @@ export const Default: Story = {
 };
 
 export const WithLeadingElement: Story = {
-    render: (props) => <TextFieldStory {...props} withLeadingElement withPlaceholder />,
+    args: {
+        type: TextFieldType.Text,
+        placeholder: 'Placeholder',
+        amountCounter: '10',
+        caption: 'Caption',
+    },
+    render: (props) => <TextFieldStory {...props} withLeadingIcon />,
 };
