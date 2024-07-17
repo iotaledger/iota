@@ -23,11 +23,11 @@ Before getting started, make sure you:
 - Understand [the mechanism behind the Escrow smart contract backend](../trustless-token-swap.mdx).
 - Check out [indexing service guide](indexer-api.mdx) to learn how we index on-chain data and API endpoints exposed to serve data query requests.
 - Install [`pnpm` through this guide](https://pnpm.io/installation) as we will use it as our package manager.
-- Check out [IOTA Typescript SDK](https://sdk.mystenlabs.com/typescript) for basic usage on how to interact with IOTA with Typescript.
-- Check out [IOTA dApp Kit](https://sdk.mystenlabs.com/dapp-kit) to learn basic building blocks for developing a dApp in the IOTA ecosystem with React.js.
+- Check out [IOTA Typescript SDK](https://sdk.iota.com/typescript) for basic usage on how to interact with IOTA with Typescript.
+- Check out [IOTA dApp Kit](https://sdk.iota.com/dapp-kit) to learn basic building blocks for developing a dApp in the IOTA ecosystem with React.js.
 - Check out [React Router](https://reactrouter.com/en/main) as we use it to navigate between different routes in our UI website.
 - `dApp Kit` provides a set of hooks for making query and mutation calls to IOTA blockchain. These hooks are thin wrappers around query and mutation hooks from `@tanstack/react-query`. Please check out [@tanstack/react-query](https://tanstack.com/query/latest/docs/framework/react/overview) to learn the basic usage for managing, caching, mutating server state.
-- This project is bootstrapped through `pnpm create @iota/dapp`. Please check out [@iota/create-dapp](https://sdk.mystenlabs.com/dapp-kit/create-dapp) for how to scaffold a React.js IOTA dApp project quickly.
+- This project is bootstrapped through `pnpm create @iota/dapp`. Please check out [@iota/create-dapp](https://sdk.iota.com/dapp-kit/create-dapp) for how to scaffold a React.js IOTA dApp project quickly.
 
 ## Overview
 
@@ -565,7 +565,7 @@ export function OwnedLockedList() {
 }
 ```
 
-Fetch the owned `Locked` objects directly from IOTA blockchain using the `useIOTAClientInfiniteQuery()` hook from `dApp Kit`. This hook is a thin wrapper around IOTA blockchain RPC calls, reference the documentation to learn more about these [RPC hooks](https://sdk.mystenlabs.com/dapp-kit/rpc-hooks). Basically, supply the RPC endpoint you want to execute, in this case it's the [`getOwnedObjects` endpoint](https://docs.iota.io/iota-api-ref#iotax_getownedobjects). Supply the connected wallet account and the `Locked` object struct type to the call. The struct type is usually identified by the format of `{PACKAGE_ID}::{{MODULE_NAME}}::{{STRUCT_TYPE}}`. The returned data is stored inside the cache at query key `getOwnedObjects`. Recall the previous section where you invalidate the data at this key after the mutation succeeds, the `useIOTAClientInfiniteQuery()` hook automatically re-fetches the data, thus you don't have to worry about the out-dated data living in your frontend application.
+Fetch the owned `Locked` objects directly from IOTA blockchain using the `useIOTAClientInfiniteQuery()` hook from `dApp Kit`. This hook is a thin wrapper around IOTA blockchain RPC calls, reference the documentation to learn more about these [RPC hooks](https://sdk.iota.com/dapp-kit/rpc-hooks). Basically, supply the RPC endpoint you want to execute, in this case it's the [`getOwnedObjects` endpoint](https://docs.iota.io/iota-api-ref#iotax_getownedobjects). Supply the connected wallet account and the `Locked` object struct type to the call. The struct type is usually identified by the format of `{PACKAGE_ID}::{{MODULE_NAME}}::{{STRUCT_TYPE}}`. The returned data is stored inside the cache at query key `getOwnedObjects`. Recall the previous section where you invalidate the data at this key after the mutation succeeds, the `useIOTAClientInfiniteQuery()` hook automatically re-fetches the data, thus you don't have to worry about the out-dated data living in your frontend application.
 
 #### `LockedObject` and `Locked` component
 

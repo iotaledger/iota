@@ -8,9 +8,9 @@ Building an on-chain Plinko game shares a lot of similarities with the [Coin Fli
 
 :::info
 
-You can find the source files for this example in the [Plinko repo](https://github.com/MystenLabs/plinko-poc/tree/main) on GitHub.
+You can find the source files for this example in the [Plinko repo](https://github.com/iotaledger/plinko-poc/tree/main) on GitHub.
 
-A version of the game is also deployed at [Mysten Plinko](https://plinko-poc.vercel.app/).
+A version of the game is also deployed at [IOTA Plinko](https://plinko-poc.vercel.app/).
 
 :::
 
@@ -734,7 +734,7 @@ module plinko::counter_nft {
 
 ## Deployment
 
-Navigate to the [setup folder](https://github.com/MystenLabs/plinko-poc/tree/main/setup) of the Plinko repository and execute the `publish.sh` script. Refer to the [README instructions](https://github.com/MystenLabs/plinko-poc/blob/main/README.md) for deploying the smart contracts and testing them locally.
+Navigate to the [setup folder](https://github.com/iotaledger/plinko-poc/tree/main/setup) of the Plinko repository and execute the `publish.sh` script. Refer to the [README instructions](https://github.com/iotaledger/plinko-poc/blob/main/README.md) for deploying the smart contracts and testing them locally.
 
 
 ## Frontend
@@ -749,11 +749,11 @@ The `Plinko` component, a central element of the Plinko game's frontend module, 
 
 ## UI components and styling
 
-The `MatterSim` and `PlinkoSettings` components are the foundation for the Plinko frontend. To see code for all components and source files, see the [Plinko repo](https://github.com/MystenLabs/plinko-poc/tree/main/app/src).  
+The `MatterSim` and `PlinkoSettings` components are the foundation for the Plinko frontend. To see code for all components and source files, see the [Plinko repo](https://github.com/iotaledger/plinko-poc/tree/main/app/src).  
 
 ### Simulation component
 
-The [`MatterSim` component](https://github.com/MystenLabs/plinko-poc/blob/main/app/src/components/MatterSim.tsx) plays a pivotal role in the Plinko game by rendering the game board with a realistic physical representation of the dropping Plinko balls. It leverages the robust capabilities of [Matter.js](https://brm.io/matter-js/), a renowned physics engine, to simulate the intricate dynamics of the Plinko game's environment. 
+The [`MatterSim` component](https://github.com/iotaledger/plinko-poc/blob/main/app/src/components/MatterSim.tsx) plays a pivotal role in the Plinko game by rendering the game board with a realistic physical representation of the dropping Plinko balls. It leverages the robust capabilities of [Matter.js](https://brm.io/matter-js/), a renowned physics engine, to simulate the intricate dynamics of the Plinko game's environment. 
 
 ```ts
 ...
@@ -771,11 +771,11 @@ import Matter, {
 ...
 ```
 
-The randomness integral to the game's fairness and unpredictability, as detailed in the [`counter_nft` module](https://github.com/MystenLabs/plinko-poc/blob/main/plinko/sources/counter_nft.move), dictates the path of each ball dropped by the player. To align the Plinko balls' movement with the predetermined paths derived from on-chain data, `MatterSim` applies physics principles, such as gravity, to ensure natural ball descent. Additionally, to accurately guide the balls along these specific trajectories, `MatterSim` introduces subtle, custom forces. These adjustments are calibrated to not only ensure compliance with the paths determined by the game's underlying blockchain mechanics but also to maintain a visually coherent and physically plausible ball movement, to better simulate realism.
+The randomness integral to the game's fairness and unpredictability, as detailed in the [`counter_nft` module](https://github.com/iotaledger/plinko-poc/blob/main/plinko/sources/counter_nft.move), dictates the path of each ball dropped by the player. To align the Plinko balls' movement with the predetermined paths derived from on-chain data, `MatterSim` applies physics principles, such as gravity, to ensure natural ball descent. Additionally, to accurately guide the balls along these specific trajectories, `MatterSim` introduces subtle, custom forces. These adjustments are calibrated to not only ensure compliance with the paths determined by the game's underlying blockchain mechanics but also to maintain a visually coherent and physically plausible ball movement, to better simulate realism.
 
 ## Plinko settings component
 
-The [`PlinkoSettings` component](https://github.com/MystenLabs/plinko-poc/blob/main/app/src/components/PlinkoSettings.tsx) is an integral part of the user interface in the Plinko game, enabling players to customize their gameplay experience according to their preferences. This React component allows users to select the number of Plinko balls they want to drop, set the bet size for each ball, and initiate the game round by pressing the **Play** button.
+The [`PlinkoSettings` component](https://github.com/iotaledger/plinko-poc/blob/main/app/src/components/PlinkoSettings.tsx) is an integral part of the user interface in the Plinko game, enabling players to customize their gameplay experience according to their preferences. This React component allows users to select the number of Plinko balls they want to drop, set the bet size for each ball, and initiate the game round by pressing the **Play** button.
 
 ### Customization options
 
@@ -788,5 +788,5 @@ Game Initiation: After selecting the desired number of balls and setting the bet
 
 ## Related links
 
-- [Plinko repository](https://github.com/MystenLabs/plinko-poc/tree/main): The Plinko GitHub repository contains all the source files for this example.
-- [Mysten Plinko](https://plinko-poc.vercel.app/): A hosted version of the Plinko game.
+- [Plinko repository](https://github.com/iotaledger/plinko-poc/tree/main): The Plinko GitHub repository contains all the source files for this example.
+- [IOTA Plinko](https://plinko-poc.vercel.app/): A hosted version of the Plinko game.
