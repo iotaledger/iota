@@ -3,21 +3,22 @@
 
 import { useBackgroundClient } from './useBackgroundClient';
 import { useQueryClient } from '@tanstack/react-query';
-import { IOTA_COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_BIP44_COIN_TYPE } from '../redux/slices/iota-objects/Coin';
 import { type AllowedAccountTypes } from '_src/background/accounts-finder';
 
 export interface UseAccountFinderOptions {
     accountType?: AllowedAccountTypes;
-    coinType?: number;
-    gasType?: string;
+    bip44CoinType?: number;
+    coinType?: string;
     accountGapLimit?: number;
     addressGapLimit?: number;
     sourceID: string;
 }
 
 export function useAccountsFinder({
-    coinType = IOTA_COIN_TYPE_ID,
-    gasType = GAS_TYPE_ARG,
+    bip44CoinType = IOTA_BIP44_COIN_TYPE,
+    coinType = IOTA_TYPE_ARG,
     addressGapLimit,
     accountGapLimit,
     sourceID,
@@ -38,8 +39,8 @@ export function useAccountsFinder({
 
         await backgroundClient.searchAccountsFinder({
             accountType,
-            bip44CoinType: coinType,
-            coinType: gasType,
+            bip44CoinType,
+            coinType,
             sourceID,
             accountGapLimit,
             addressGapLimit,

@@ -20,7 +20,7 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 
-    // Total supply is in IOTA, snapshot supply is Micros
+    // Total supply is in IOTA, snapshot supply is Nanos
     assert_eq!(total_supply, TOTAL_SUPPLY_IOTA * 1_000_000);
 
     println!("Total supply: {total_supply}");
