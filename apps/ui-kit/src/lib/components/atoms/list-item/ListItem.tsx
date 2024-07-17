@@ -12,9 +12,9 @@ interface ListItemProps {
      */
     showRightIcon?: boolean;
     /**
-     * Has bottom border (optional).
+     * Hide bottom border (optional).
      */
-    showBottomBorder?: boolean;
+    hideBottomBorder?: boolean;
     /**
      * On click handler (optional).
      */
@@ -27,7 +27,7 @@ interface ListItemProps {
 
 export function ListItem({
     showRightIcon,
-    showBottomBorder = true,
+    hideBottomBorder,
     onClick,
     isDisabled,
     children,
@@ -39,7 +39,7 @@ export function ListItem({
                 'w-full pb-xs',
                 {
                     'border-b border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
-                        showBottomBorder,
+                        !hideBottomBorder,
                 },
                 { 'opacity-40': isDisabled },
             )}
