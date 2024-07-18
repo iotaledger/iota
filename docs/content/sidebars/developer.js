@@ -19,7 +19,7 @@ const developer = [
 					'developer/getting-started/local-network',
 					'developer/getting-started/get-address',
 					'developer/getting-started/get-coins',
-					'developer/getting-started/graphql-rpc',
+					//'developer/getting-started/graphql-rpc',
 					{
 						type: 'category',
 						label: 'Your First IOTA dApp',
@@ -103,7 +103,7 @@ const developer = [
 							'developer/iota-101/iota-move-concepts/conventions',
 						],
 					},
-					'developer/graphql-rpc',
+					//'developer/graphql-rpc',
 					{
 						type: 'category',
 						label: 'Object Model',
@@ -256,7 +256,7 @@ const developer = [
 						},
 						items: ['developer/advanced/min-gas-fees'],
 					},*/
-					'developer/advanced/graphql-migration',
+					//'developer/advanced/graphql-migration',
 					'developer/advanced/move-2024-migration',
 					'developer/advanced/asset-tokenization',
 					'developer/advanced/custom-indexer',

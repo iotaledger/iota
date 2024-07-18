@@ -86,7 +86,7 @@ fragment Functions on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 2,1 --sender A
+//# upgrade --package P0 --upgrade-capability 2,0 --sender A
 
 module P0::m {
     public fun f<T: drop>(_: T): (u64, u64) { (42, 43) }
