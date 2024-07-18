@@ -17,7 +17,7 @@ interface BadgeProps {
     label?: string;
 }
 
-export function Badge({ type = BadgeType.PrimarySolid, label }: BadgeProps): React.JSX.Element {
+export function Badge({ type, label }: BadgeProps): React.JSX.Element {
     const backgroundClasses = BACKGROUND_COLORS[type];
     const textClasses = TEXT_COLORS[type];
     const borderClasses = BORDER_COLORS[type];
