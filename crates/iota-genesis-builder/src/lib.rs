@@ -274,17 +274,6 @@ impl Builder {
         let mut objects = self.migration_objects.take_objects();
         objects.extend(self.objects.values().cloned());
 
-        // Use stake_subsidy_start_epoch to mimic the burn of newly minted IOTA coins
-        if !self.is_vanilla() {
-            // Because we set the `stake_subsidy_fund` as non-zero
-            // we need to effectively disable subsidy rewards
-            // to avoid the respective inflation effects.
-            //
-            // TODO: Handle properly during new tokenomics
-            // implementation.
-            self.parameters.stake_subsidy_start_epoch = u64::MAX;
-        }
-
         // Finally build the genesis data
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,

@@ -274,7 +274,9 @@ mod checked {
             "No gas charges must be applied yet"
         );
 
-        let is_genesis_tx = matches!(transaction_kind, TransactionKind::Genesis(_));
+        let is_genesis_or_epoch_change_tx = matches!(transaction_kind, TransactionKind::Genesis(_))
+            || transaction_kind.is_end_of_epoch_tx();
+
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 
         // We must charge object read here during transaction execution, because if this
@@ -348,7 +350,7 @@ mod checked {
             protocol_config.simple_conservation_checks(),
             enable_expensive_checks,
             &cost_summary,
-            is_genesis_tx,
+            is_genesis_or_epoch_change_tx,
             advance_epoch_gas_summary,
         ) {
             // FIXME: we cannot fail the transaction if this is an epoch change transaction.
@@ -367,11 +369,11 @@ mod checked {
         simple_conservation_checks: bool,
         enable_expensive_checks: bool,
         cost_summary: &GasCostSummary,
-        is_genesis_tx: bool,
+        is_genesis_or_epoch_change_tx: bool,
         advance_epoch_gas_summary: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut result: std::result::Result<(), iota_types::error::ExecutionError> = Ok(());
-        if !is_genesis_tx && !Mode::skip_conservation_checks() {
+        if !is_genesis_or_epoch_change_tx && !Mode::skip_conservation_checks() {
             // ensure that this transaction did not create or destroy IOTA, try to recover
             // if the check fails
             let conservation_result = {
@@ -716,7 +718,13 @@ mod checked {
         let (storage_rewards, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
 
         // Step 2: Advance the epoch.
-        let mut arguments = vec![storage_rewards, computation_rewards];
+        let mut arguments = vec![
+            builder
+                .pure(params.validator_target_reward)
+                .expect("bcs encoding a u64 should not fail"),
+            storage_rewards,
+            computation_rewards,
+        ];
         let call_arg_arguments = vec![
             CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
