@@ -5,7 +5,7 @@ title: IOTA On-Chain Signatures Verification in Move
 Move contracts in IOTA support verifications for several signature schemes on-chain. Not all signatures supported in on-chain verification are supported as user signature verification. See [IOTA Signatures](../explanations/transaction-auth/signatures.mdx) for valid signature schemes for transaction authorization.
 
 This topic covers:
-1. How to use [fastcrypto](https://github.com/iotaledger/fastcrypto)'s CLI tool to create a signature of a given scheme. For testing and debugging only, DO NOT use in production.
+1. How to use [fastcrypto](https://github.com/MystenLabs/fastcrypto)'s CLI tool to create a signature of a given scheme. For testing and debugging only, DO NOT use in production.
 1. Call the Move method on-chain to verification by submitting the signature, the message and the public key. 
 
 Signature schemes covered: 
@@ -22,7 +22,7 @@ Signature schemes covered:
 ### Set up fastcrypto CLI binary
 
 ```shell
-git@github.com:iotaledger/fastcrypto.git
+git@github.com:MystenLabs/fastcrypto.git
 cd fastcrypto/
 cargo build --bin sigs-cli
 ```
