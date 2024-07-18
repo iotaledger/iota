@@ -196,7 +196,7 @@ impl IotaCommand {
                 no_full_node,
             } => {
                 // Resolve the configuration directory.
-                let config_dir = config_dir.map(Ok).unwrap_or_else(iota_config_dir)?;
+                let config_dir = config_dir.map_or_else(iota_config_dir, Ok)?;
 
                 let network_config_path = config_dir.clone().join(IOTA_NETWORK_CONFIG);
                 // Auto genesis if no configuration exists in the configuration directory.
