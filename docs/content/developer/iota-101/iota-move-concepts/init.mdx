@@ -17,7 +17,7 @@ For example, the following `init` functions are all valid:
 - `fun init(otw: EXAMPLE, ctx: &TxContext)`
 - `fun init(otw: EXAMPLE, ctx: &mut TxContext)`
 
-Every function that fits this criteria will be run when the package is first published, and at no other time, including when the package is upgraded.  This means that an `init` function that was introduced during an upgrade (to a new or existing module) will never run.
+Every function that fits this criteria will be run when the package is first published, and at no other time, including when the package is upgraded. This means that an `init` function that was introduced during an upgrade (to a new or existing module) will never run.
 
 The following example demonstrates a valid `init` function in a module:
 
@@ -28,7 +28,7 @@ module examples::one_timer {
     use iota::tx_context::{Self, TxContext};
 
     /// The one of a kind - created in the module initializer.
-    struct CreatorCapability has key {
+    public struct CreatorCapability has key {
         id: UID
     }
 

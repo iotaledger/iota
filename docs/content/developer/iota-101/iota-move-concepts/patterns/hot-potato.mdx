@@ -27,12 +27,12 @@ module examples::trade_in {
     const EIncorrectAmount: u64 = 2;
 
     /// A phone; can be purchased or traded in for a newer model
-    struct Phone has key, store { id: UID, model: u8 }
+    public struct Phone has key, store { id: UID, model: u8 }
 
     /// Payable receipt. Has to be paid directly or paid with a trade-in option.
     /// Cannot be stored, owned or dropped - has to be used to select one of the
     /// options for payment: `trade_in` or `pay_full`.
-    struct Receipt { price: u64 }
+    public struct Receipt { price: u64 }
 
     /// Get a phone, pay later.
     /// Receipt has to be passed into one of the functions that accept it:
@@ -71,4 +71,4 @@ module examples::trade_in {
 }
 ```
 
-The IOTA repository includes [several examples](https://github.com/iotaledger/iota/tree/main/examples/move) that demonstrate IOTA capabilities. The [Flash Loan](https://github.com/iotaledger/iota/blob/main/examples/move/flash_lender/sources/example.move) code in those examples demonstrates the pattern this topic describes.
+The Iota repository includes [several examples](https://github.com/iotaledger/iota/tree/main/examples/move) that demonstrate Iota capabilities. The [Flash Loan](https://github.com/iotaledger/iota/blob/main/examples/move/flash_lender/sources/example.move) code in those examples demonstrates the pattern this topic describes.
