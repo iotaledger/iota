@@ -1466,7 +1466,7 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       tailwindcss:
-        specifier: ^3.4.4
+        specifier: ^3.3.3
         version: 3.4.4(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.4.5))
       web3:
         specifier: ^4.2.2
