@@ -48,7 +48,7 @@ jobs:
       - name: Build Project Artifacts
         run: vercel build --prod --cwd ./apps/apps-backend --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prod --cwd ./apps/explorer --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
+        run: vercel deploy --prod --cwd ./apps/apps-backend --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
       - name: Extract Deploy URL
         id: deploy_url
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
