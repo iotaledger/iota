@@ -413,10 +413,13 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
 }
 
 /// Create a [`TxContext]` that remains the same across invocations.
-pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -> TxContext {
+pub(super) fn create_migration_context(
+    coin_type: &CoinType,
+    target_network: MigrationTargetNetwork,
+) -> TxContext {
     TxContext::new(
         &IotaAddress::default(),
-        &target_network.migration_transaction_digest(),
+        &target_network.migration_transaction_digest(coin_type),
         &EpochData::new_genesis(0),
     )
 }
