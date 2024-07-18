@@ -117,10 +117,6 @@ export class AccountsFinder {
             GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.addressGapLimit;
     }
 
-    reset() {
-        this.accounts = [];
-    }
-
     // This function calls each time when user press "Search" button
     async find() {
         switch (this.algorithm) {
