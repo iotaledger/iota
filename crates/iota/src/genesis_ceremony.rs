@@ -68,16 +68,19 @@ pub enum CeremonyCommand {
         /// The path to the Ed25519 network key file.
         #[clap(long)]
         network_key_file: PathBuf,
-        /// The network address.
+        /// The network address. This must be a TCP address in ASCII format.
         #[clap(long)]
         network_address: Multiaddr,
-        /// The peer-to-peer address.
+        /// The peer-to-peer address. This must be a UDP address in ASCII
+        /// format.
         #[clap(long)]
         p2p_address: Multiaddr,
-        /// The narwhal primary address.
+        /// The narwhal primary address. This must be a UDP address in ASCII
+        /// format.
         #[clap(long)]
         narwhal_primary_address: Multiaddr,
-        /// The narwhal worker address.
+        /// The narwhal worker address. This must be a UDP address in ASCII
+        /// format.
         #[clap(long)]
         narwhal_worker_address: Multiaddr,
         /// An optional description of the validator.
