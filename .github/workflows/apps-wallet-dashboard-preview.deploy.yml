@@ -44,7 +44,7 @@ jobs:
       - name: Copy the .env file
         run: cp ./apps/wallet-dashboard/.vercel/.env.preview.local ./sdk/.env
       - name: Build Wallet Dashboard
-        run: pnpm explorer build
+        run: pnpm wallet-dashboard build
       - name: Build Project Artifacts
         run: vercel build --cwd ./apps/wallet-dashboard --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
