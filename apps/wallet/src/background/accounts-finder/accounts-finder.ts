@@ -116,7 +116,7 @@ async function recoverAccount(
         });
 
         if (isHasBalance) {
-            targetAddressIndex = addressIndex + addressGapLimit;
+            targetAddressIndex = addressIndex + addressGapLimit + 1;
             isBalanceExists = true;
         }
 

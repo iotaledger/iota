@@ -86,9 +86,10 @@ test('DepthSearch with found addresses', async () => {
     assert(foundAccounts.length === 1); // expected number of accounts - 1 as we make a search by isolated address;
 
     // we expect to have at least 4 addresses (indexes: 0, 1, 2, 3).
-    // But as we have a hit on positions: (0,0,0), (0,2,0) we have 6 addresses.
-    // Because of 2 (last index with balance) + 4 (addressGapLimit) = 6.
-    assert(foundAccounts[0].addresses.length === 6);
+    // But as we have a hit on positions: (0,0,0), (0,2,0).
+    // Because of 2 (last index with balance) + 4 (addressGapLimit) = 6 last expected index.
+    // Number of elements should be 7
+    assert(foundAccounts[0].addresses.length === 7);
 });
 
 test('Merge accounts', async () => {
