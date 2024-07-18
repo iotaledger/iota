@@ -7,11 +7,16 @@
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::{
-    stardust::{parse::HornetSnapshotParser, test_outputs::add_snapshot_test_outputs},
+    stardust::{
+        parse::HornetSnapshotParser,
+        test_outputs::{add_snapshot_test_outputs, to_micros},
+    },
     IF_STARDUST_ADDRESS,
 };
 use iota_sdk::types::block::address::Address;
 use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
+
+const WITH_SAMPLING: bool = false;
 
 fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<()> {
     let file = File::open(path)?;
@@ -23,8 +28,11 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 
-    // Total supply is in IOTA, snapshot supply is Nanos
-    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA * 1_000_000);
+    // Total supply is in IOTA, snapshot supply is Micros
+    assert_eq!(
+        total_supply,
+        to_micros(TOTAL_SUPPLY_IOTA).expect("total supply should not overflow")
+    );
 
     println!("Total supply: {total_supply}");
 
@@ -51,11 +59,8 @@ async fn main() -> anyhow::Result<()> {
     add_snapshot_test_outputs::<false>(
         &current_path,
         &new_path,
-        Some(
-            *Address::try_from_bech32(IF_STARDUST_ADDRESS)
-                .unwrap()
-                .as_ed25519(),
-        ),
+        *Address::try_from_bech32(IF_STARDUST_ADDRESS)?.as_ed25519(),
+        WITH_SAMPLING,
     )
     .await?;
 

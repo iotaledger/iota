@@ -15,7 +15,6 @@ use iota_sdk::{
         },
     },
 };
-use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{
@@ -110,14 +109,7 @@ fn add_vested_outputs(
 ) -> anyhow::Result<()> {
     let (initial_unlock_amount, vested_amount) = initial_unlock_and_vested_amounts(rng);
 
-    let mut transaction_id = [0; 32];
-
-    // Prepare a transaction ID with the vested reward prefix.
-    transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
-
     outputs.push(new_vested_output(
-        &mut transaction_id,
         vested_index,
         initial_unlock_amount,
         address,
@@ -128,7 +120,6 @@ fn add_vested_outputs(
         let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
         outputs.push(new_vested_output(
-            &mut transaction_id,
             vested_index,
             vested_amount,
             address,

@@ -24,7 +24,6 @@ use iota_sdk::{
         },
     },
 };
-use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{
@@ -172,11 +171,6 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut outputs = Vec::new();
 
-    let mut vested_rewards_transaction_id = [0; 32];
-    // Prepare a transaction ID with the vested reward prefix.
-    vested_rewards_transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
-
     for wallet in STARDUST_MIX {
         let secret_manager = MnemonicSecretManager::try_from_mnemonic(wallet.mnemonic)?;
         for [account_index, internal, address_index] in wallet.addresses {
@@ -200,7 +194,6 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
             outputs.extend(alias_foundry_outputs);
 
             outputs.push(new_vested_output(
-                &mut vested_rewards_transaction_id,
                 vested_index,
                 OUTPUT_IOTA_AMOUNT,
                 address,
