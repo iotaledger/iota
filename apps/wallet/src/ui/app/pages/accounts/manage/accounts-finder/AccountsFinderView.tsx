@@ -9,7 +9,7 @@ import { useParams } from 'react-router-dom';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { getKey } from '_src/ui/app/helpers/accounts';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
 import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
+import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -39,9 +40,8 @@ export function AccountsFinderView(): JSX.Element {
     const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
     const [searched, setSearched] = useState(false);
     const [password, setPassword] = useState('');
-    const { find } = useAccountsFinder({
-        accountSourceType,
-        sourceStrategy:
+    const sourceStrategy: SourceStrategyToFind = useMemo(
+        () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
                 ? {
                       type: 'ledger',
@@ -51,6 +51,11 @@ export function AccountsFinderView(): JSX.Element {
                       type: 'software',
                       sourceID: accountSourceId!,
                   },
+        [password, accountSourceId],
+    );
+    const { find } = useAccountsFinder({
+        accountSourceType,
+        sourceStrategy,
     });
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
