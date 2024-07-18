@@ -41,7 +41,6 @@ export function KeyValueInfo({
     valueLink,
     size = ValueSize.Small,
 }: KeyValueProps): React.JSX.Element {
-    const supportingLabelSizeClasses = size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md';
     return (
         <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
             <div className="flex flex-row items-center">
@@ -63,7 +62,7 @@ export function KeyValueInfo({
                         <span
                             className={cx(
                                 'text-neutral-10 dark:text-neutral-92',
-                                supportingLabelSizeClasses,
+                                size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
                             )}
                         >
                             {valueText}
@@ -72,7 +71,7 @@ export function KeyValueInfo({
                             <span
                                 className={cx(
                                     'text-neutral-60 dark:text-neutral-40',
-                                    supportingLabelSizeClasses,
+                                    size === ValueSize.Medium ? 'text-body-md' : 'text-body-sm',
                                 )}
                             >
                                 {supportingLabel}
