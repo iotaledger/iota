@@ -42,7 +42,7 @@ jobs:
       - name: Pull Vercel Env variables (network configs)
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - name: Copy the .env file
-        run: cp ./apps/wallet-dashboard/.vercel/.env.preview.local ./sdk/.env
+        run: cp ./.vercel/.env.preview.local ./sdk/.env
       - name: Build Wallet Dashboard
         run: pnpm wallet-dashboard build
       - name: Build Project Artifacts
