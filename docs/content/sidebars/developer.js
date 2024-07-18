@@ -19,7 +19,7 @@ const developer = [
 					'developer/getting-started/local-network',
 					'developer/getting-started/get-address',
 					'developer/getting-started/get-coins',
-					'developer/getting-started/graphql-rpc',
+					//'developer/getting-started/graphql-rpc',
 					{
 						type: 'category',
 						label: 'Your First IOTA dApp',
@@ -103,7 +103,7 @@ const developer = [
 							'developer/iota-101/iota-move-concepts/conventions',
 						],
 					},
-					'developer/graphql-rpc',
+					//'developer/graphql-rpc',
 					{
 						type: 'category',
 						label: 'Object Model',
@@ -224,15 +224,6 @@ const developer = [
 									'developer/cryptography/explanations/transaction-auth/intent-signing',
 								],
 							},
-							{
-								type: 'category',
-								label: 'zkLogin',
-								link: {
-									type: 'doc',
-									id: 'developer/cryptography/explanations/zklogin',
-								},
-								items: ['developer/cryptography/explanations/zklogin/zklogin-example'],
-							},
 							'developer/cryptography/explanations/system/checkpoint-verification',
 						],
 					},
@@ -265,7 +256,7 @@ const developer = [
 						},
 						items: ['developer/advanced/min-gas-fees'],
 					},*/
-					'developer/advanced/graphql-migration',
+					//'developer/advanced/graphql-migration',
 					'developer/advanced/move-2024-migration',
 					'developer/advanced/asset-tokenization',
 					'developer/advanced/custom-indexer',
@@ -325,22 +316,6 @@ const developer = [
 					},
 					'developer/standards/kiosk',
 					'developer/standards/kiosk-apps',
-					{
-						type: 'category',
-						label: 'DeepBook',
-						link: {
-							type: 'doc',
-							id: 'developer/standards/deepbook',
-						},
-						items: [
-							'developer/standards/deepbook/design',
-							'developer/standards/deepbook/orders',
-							'developer/standards/deepbook/pools',
-							'developer/standards/deepbook/query-the-pool',
-							'developer/standards/deepbook/routing-a-swap',
-							'developer/standards/deepbook/trade-and-swap',
-						],
-					},
 					'developer/standards/display',
 					'developer/standards/wallet-standard',
 				]
