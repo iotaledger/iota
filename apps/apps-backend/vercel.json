@@ -1,16 +1,9 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "dist/vercel-main.js",
-            "use": "@vercel/node"
+    "functions": {
+        "dist/vercel-main.js": {
+            "memory": 3009,
+            "maxDuration": 30
         }
-    ],
-    "routes": [
-        {
-            "src": "/(.*)",
-            "dest": "dist/vercel-main.ts",
-            "methods": ["GET", "POST", "PUT", "DELETE"]
-        }
-    ]
+    }
 }
