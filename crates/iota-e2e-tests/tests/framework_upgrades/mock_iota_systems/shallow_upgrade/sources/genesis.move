@@ -49,7 +49,7 @@ module iota_system::genesis {
     }
 
     struct TokenDistributionSchedule has drop {
-        stake_subsidy_fund_nanos: u64,
+        pre_minted_supply: u64,
         allocations: vector<TokenAllocation>,
     }
 
