@@ -4,6 +4,8 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import cx from 'classnames';
 import * as React from 'react';
+import { Close } from '@iota/ui-icons';
+import { useEffect, useState } from 'react';
 
 const Dialog = RadixDialog.Root;
 const DialogTrigger = RadixDialog.Trigger;
@@ -11,8 +13,10 @@ const DialogClose = RadixDialog.Close;
 
 const DialogOverlay = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Overlay>,
-    React.ComponentPropsWithoutRef<typeof RadixDialog.Overlay>
->(({ className, ...props }, ref) => (
+    React.ComponentPropsWithoutRef<typeof RadixDialog.Overlay> & {
+        showCloseIcon?: boolean;
+    }
+>(({ className, showCloseIcon, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
         className={cx(
@@ -20,7 +24,11 @@ const DialogOverlay = React.forwardRef<
             className,
         )}
         {...props}
-    />
+    >
+        <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
+            <Close />
+        </DialogClose>
+    </RadixDialog.Overlay>
 ));
 DialogOverlay.displayName = RadixDialog.Overlay.displayName;
 
@@ -28,13 +36,21 @@ const DialogContent = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Content>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Content> & {
         containerId?: string;
+        showCloseOnOverlay?: boolean;
     }
->(({ className, containerId, ...props }, ref) => {
+>(({ className, containerId, showCloseOnOverlay, ...props }, ref) => {
+    const [containerElement, setContainerElement] = useState<HTMLElement | undefined>(undefined);
+
+    useEffect(() => {
+        // This ensures document.getElementById is called in the client-side environment only.
+        // note. containerElement cant be null
+        const element = containerId ? document.getElementById(containerId) : undefined;
+        setContainerElement(element ?? undefined);
+    }, [containerId]);
+
     return (
-        <RadixDialog.Portal
-            container={containerId ? document.getElementById(containerId) : undefined}
-        >
-            <DialogOverlay />
+        <RadixDialog.Portal container={containerElement}>
+            <DialogOverlay showCloseIcon={showCloseOnOverlay} />
             <RadixDialog.Content
                 ref={ref}
                 className={cx(
@@ -68,7 +84,7 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = RadixDialog.Title.displayName;
 
-const DialogDescription = React.forwardRef<
+const DialogBody = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Description>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Description>
 >(({ className, ...props }, ref) => (
@@ -78,7 +94,7 @@ const DialogDescription = React.forwardRef<
         {...props}
     />
 ));
-DialogDescription.displayName = RadixDialog.Description.displayName;
+DialogBody.displayName = RadixDialog.Description.displayName;
 
 export {
     Dialog,
@@ -88,5 +104,5 @@ export {
     DialogHeader,
     DialogFooter,
     DialogTitle,
-    DialogDescription,
+    DialogBody,
 };

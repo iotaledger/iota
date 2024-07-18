@@ -12,7 +12,7 @@ import {
     DialogContent,
     DialogFooter,
     DialogHeader,
-    DialogDescription,
+    DialogBody,
 } from '@/components';
 import { useState } from 'react';
 
@@ -24,8 +24,8 @@ const meta = {
         return (
             <div className="flex">
                 <Button size={ButtonSize.Small} text="Open Dialog" onClick={() => setOpen(true)} />
-                <Dialog open={open}>
-                    <DialogContent>
+                <Dialog open={open} onOpenChange={setOpen}>
+                    <DialogContent showCloseOnOverlay>
                         <DialogHeader>
                             <Header
                                 title="Connect Ledger Wallet"
@@ -36,7 +36,7 @@ const meta = {
                                 onBack={() => setOpen(false)}
                             />
                         </DialogHeader>
-                        <DialogDescription>
+                        <DialogBody>
                             <div className="flex flex-col items-center gap-2">
                                 <div className="mt-4.5">Logo</div>
                                 <div className="mt-4.5 break-words text-center">
@@ -45,7 +45,7 @@ const meta = {
                                 </div>
                                 <div className="mt-4.5"> Need more help? View tutorial.</div>
                             </div>
-                        </DialogDescription>
+                        </DialogBody>
                         <DialogFooter>
                             <div className="flex w-full flex-row justify-center gap-2 px-md pb-md">
                                 <Button
