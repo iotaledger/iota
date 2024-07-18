@@ -371,17 +371,17 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let db = ctx.data_unchecked();
-
         Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
-            let state = ctx
-                .data_unchecked::<PgManager>()
-                .fetch_iota_system_state(None)
-                .await?;
+            let pg_manager = ctx.data_unchecked::<PgManager>();
+
+            let state = pg_manager.fetch_iota_system_state(None).await?;
 
             state.iota_total_supply
         } else {
             let cap_type = TreasuryCap::type_(*coin_struct).into();
+
+            let db = ctx.data_unchecked();
+
             let Some(object) = Object::query_singleton(db, cap_type).await? else {
                 return Ok(None);
             };
