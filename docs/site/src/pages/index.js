@@ -125,7 +125,7 @@ export default function Home() {
           <HomeCard title="References" aux heroCardBg={heroCardBg1}>
             <Link
               className={styles.cardLink}
-              to="https://sdk.mystenlabs.com/dapp-kit?ref=blog.iota.io"
+              to="references"
             >
               IOTA dApp Kit
             </Link>
