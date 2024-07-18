@@ -89,10 +89,11 @@ export function getSupplyIncreaseVestingUserType(
 
 export function buildSupplyIncreaseVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
+    currentEpochTimestamp: number,
 ): SupplyIncreaseVestingPortfolio {
     const userType = getSupplyIncreaseVestingUserType([referencePayout]);
 
-    if (!userType || Date.now() >= referencePayout.expirationTimestampMs) {
+    if (!userType || currentEpochTimestamp >= referencePayout.expirationTimestampMs) {
         // if the latest payout has already been unlocked, we cant build a vesting schedule
         return [];
     }
@@ -109,6 +110,7 @@ export function buildSupplyIncreaseVestingSchedule(
 
 export function getVestingOverview(
     objects: (Timelocked | TimelockedStakedIota)[],
+    currentEpochTimestamp: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isVesting);
     const latestPayout = getLastSupplyIncreaseVestingPayout(vestingObjects);
@@ -127,9 +129,13 @@ export function getVestingOverview(
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     const totalVestedAmount = vestingPayoutsCount * latestPayout.amount;
-    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout);
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
+        latestPayout,
+        currentEpochTimestamp,
+    );
     const totalLockedAmount = vestingPortfolio.reduce(
-        (acc, current) => (current.expirationTimestampMs > Date.now() ? acc + current.amount : acc),
+        (acc, current) =>
+            current.expirationTimestampMs > currentEpochTimestamp ? acc + current.amount : acc,
         0,
     );
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
@@ -144,12 +150,16 @@ export function getVestingOverview(
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
+            current.expirationTimestampMs <= currentEpochTimestamp
+                ? acc + current.locked.value
+                : acc,
         0,
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > Date.now() ? acc + current.locked.value : acc,
+            current.expirationTimestampMs > currentEpochTimestamp
+                ? acc + current.locked.value
+                : acc,
         0,
     );
 
