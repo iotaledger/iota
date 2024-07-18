@@ -16,13 +16,10 @@ const DialogOverlay = React.forwardRef<
     React.ComponentPropsWithoutRef<typeof RadixDialog.Overlay> & {
         showCloseIcon?: boolean;
     }
->(({ className, showCloseIcon, ...props }, ref) => (
+>(({ showCloseIcon, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
-        className={cx(
-            'fixed inset-0 z-[99998] bg-shader-neutral-light-72 backdrop-blur-lg dark:bg-shader-neutral-dark-72',
-            className,
-        )}
+        className="fixed inset-0 z-[99998] bg-shader-neutral-light-72 backdrop-blur-lg dark:bg-shader-neutral-dark-72"
         {...props}
     >
         <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
@@ -53,10 +50,7 @@ const DialogContent = React.forwardRef<
             <DialogOverlay showCloseIcon={showCloseOnOverlay} />
             <RadixDialog.Content
                 ref={ref}
-                className={cx(
-                    'absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96',
-                    className,
-                )}
+                className="absolute left-1/2 top-1/2 z-[99999] flex max-h-[60vh] w-80 max-w-[85vw] -translate-x-1/2 -translate-y-1/2 flex-col justify-center overflow-hidden rounded-xl bg-primary-100 dark:bg-neutral-6 md:w-96"
                 {...props}
             />
         </RadixDialog.Portal>
@@ -64,21 +58,13 @@ const DialogContent = React.forwardRef<
 });
 DialogContent.displayName = RadixDialog.Content.displayName;
 
-const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div className={cx('flex flex-col gap-1.5 text-center', className)} {...props} />
-);
-
-const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div className={cx('mt-3', className)} {...props} />
-);
-
 const DialogTitle = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Title>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Title>
->(({ className, ...props }, ref) => (
+>((props, ref) => (
     <RadixDialog.Title
         ref={ref}
-        className={cx('font-inter text-title-lg text-neutral-10 dark:text-neutral-92', className)}
+        className="font-inter text-title-lg text-neutral-10 dark:text-neutral-92"
         {...props}
     />
 ));
@@ -87,22 +73,13 @@ DialogTitle.displayName = RadixDialog.Title.displayName;
 const DialogBody = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Description>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Description>
->(({ className, ...props }, ref) => (
+>((props, ref) => (
     <RadixDialog.Description
         ref={ref}
-        className={cx('p-md text-body-sm text-neutral-40 dark:text-neutral-60', className)}
+        className="p-md text-body-sm text-neutral-40 dark:text-neutral-60"
         {...props}
     />
 ));
 DialogBody.displayName = RadixDialog.Description.displayName;
 
-export {
-    Dialog,
-    DialogClose,
-    DialogTrigger,
-    DialogContent,
-    DialogHeader,
-    DialogFooter,
-    DialogTitle,
-    DialogBody,
-};
+export { Dialog, DialogClose, DialogTrigger, DialogContent, DialogTitle, DialogBody };
