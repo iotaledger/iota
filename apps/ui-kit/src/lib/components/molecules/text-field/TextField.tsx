@@ -29,11 +29,6 @@ interface TextFieldBaseProps {
      */
     isDisabled?: boolean;
     /**
-     * Adds error styling to the input field
-     */
-    isErrored?: boolean;
-
-    /**
      * Error Message. Overrides the caption.
      */
     errorMessage?: string;
@@ -91,7 +86,6 @@ export function TextField({
     placeholder,
     caption,
     isDisabled,
-    isErrored,
     errorMessage,
     onChange,
     value,
@@ -126,7 +120,7 @@ export function TextField({
             aria-disabled={isDisabled}
             className={cx('group flex flex-col gap-y-2', {
                 'opacity-40': isDisabled,
-                errored: isErrored,
+                errored: errorMessage,
                 enabled: !isDisabled,
                 required: required,
             })}
@@ -234,7 +228,7 @@ function TextFieldTrailingElement({
         );
     }
 
-    if ((type === TextFieldType.Text || type === TextFieldType.Email) && value) {
+    if (type === TextFieldType.Text && value) {
         return (
             <button className="text-neutral-10 dark:text-neutral-92" onClick={() => onChange?.('')}>
                 <Close />
