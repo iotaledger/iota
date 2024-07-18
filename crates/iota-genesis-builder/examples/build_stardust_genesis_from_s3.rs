@@ -19,13 +19,13 @@ fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     info!("Reading IOTA snapshot from {}", IOTA_OBJECT_SNAPSHOT_URL);
-    let iota_snapshot_reader = Builder::read_snapshot_from_s3(SnapshotUrl::Iota)?;
+    let iota_snapshot_reader = SnapshotUrl::Iota.to_reader()?;
 
     info!(
         "Reading Shimmer snapshot from {}",
         SHIMMER_OBJECT_SNAPSHOT_URL
     );
-    let shimmer_snapshot_reader = Builder::read_snapshot_from_s3(SnapshotUrl::Shimmer)?;
+    let shimmer_snapshot_reader = SnapshotUrl::Shimmer.to_reader()?;
 
     // Start building
     info!("Building the genesis..");
@@ -46,8 +46,7 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
 
-    let genesis = builder.build();
-    println!("{:?}", genesis);
+    let _genesis = builder.build();
 
     info!("Genesis built successfully");
 

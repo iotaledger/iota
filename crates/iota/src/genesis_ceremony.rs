@@ -183,7 +183,7 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 
         CeremonyCommand::BuildUnsignedCheckpoint => {
             let mut builder = Builder::load(&dir)?;
-            let UnsignedGenesis { checkpoint, .. } = builder.build_unsigned_genesis_checkpoint();
+            let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
             println!(
                 "Successfully built unsigned checkpoint: {}",
                 checkpoint.digest()

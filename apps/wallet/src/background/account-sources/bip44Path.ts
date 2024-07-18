@@ -2,18 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export interface MakeDerivationOptions {
-    coinType?: number;
+    bip44CoinType?: number;
     accountIndex: number;
     changeIndex?: number;
     addressIndex?: number;
 }
 
 export function makeDerivationPath({
-    coinType = 4218,
+    bip44CoinType = 4218,
     accountIndex,
     changeIndex = 0,
     addressIndex = 0,
 }: MakeDerivationOptions) {
     // currently returns only Ed25519 path
-    return `m/44'/${coinType}'/${accountIndex}'/${changeIndex}'/${addressIndex}'`;
+    return `m/44'/${bip44CoinType}'/${accountIndex}'/${changeIndex}'/${addressIndex}'`;
 }
