@@ -8,7 +8,7 @@ ID pointer is a technique that separates the main data (an object) and its acces
 - Splitting dynamic data and static (for example, an NFT and its collection information)
 - Avoiding unnecessary type linking (and witness requirement) in generic applications (LP token for a `LiquidityPool`)
 
-The following example implements basic `Lock` and `Key` mechanics on IOTA where `Lock<T>` is a shared object that can contain any object, and `Key` is an owned object, which is required to get access to the contents of the lock.
+The following example implements basic `Lock` and `Key` mechanics on Iota where `Lock<T>` is a shared object that can contain any object, and `Key` is an owned object, which is required to get access to the contents of the lock.
 
 `Key` is linked to its `Lock` using an `ID` field. This check allows off-chain discovery of the target, as well as splits the dynamic transferable capability and the 'static' contents. Another benefit of this approach is that the target asset is always discoverable, while you can wrap its `Key` into another object (such as a marketplace listing).
 
@@ -29,14 +29,14 @@ module examples::lock_and_key {
     const ELockIsFull: u64 = 2;
 
     /// Lock that stores any content inside it.
-    struct Lock<T: store + key> has key {
+    public struct Lock<T: store + key> has key {
         id: UID,
         locked: Option<T>
     }
 
     /// A key that is created with a Lock; is transferable
     /// and contains all the needed information to open the Lock.
-    struct Key<phantom T: store + key> has key, store {
+    public struct Key<phantom T: store + key> has key, store {
         id: UID,
         for: ID,
     }

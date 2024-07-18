@@ -8,9 +8,9 @@ Inputs can either be an object reference (either to an owned object, an immutabl
 
 The signature is provided with the private key owned by the wallet, and its public key must be consistent with the transaction sender's IOTA address.
 
-IOTA uses a `IOTAKeyPair` to produce the signature, which commits to the Blake2b hash digest of the intent message (`intent || bcs bytes of tx_data`). The signature schemes currently supported are `Ed25519 Pure`, `ECDSA Secp256k1`, `ECDSA Secp256r1`, `Multisig`, and `zkLogin`.
+IOTA uses a `IOTAKeyPair` to produce the signature, which commits to the Blake2b hash digest of the intent message (`intent || bcs bytes of tx_data`). The signature schemes currently supported are `Ed25519 Pure`, `ECDSA Secp256k1`, `ECDSA Secp256r1` and `Multisig`.
 
-You can instantiate `Ed25519 Pure`, `ECDSA Secp256k1`, and `ECDSA Secp256r1` using `IOTAKeyPair` and use it to sign transactions. Note that this guide does not apply to `Multisig` and `zkLogin`, please refer to their own pages ([Multisig](../../cryptography/explanations/transaction-auth/multisig.mdx) and [zkLogin](https://docs.iota.io../cryptography/explanations/zklogin) respectively) for instructions.
+You can instantiate `Ed25519 Pure`, `ECDSA Secp256k1`, and `ECDSA Secp256r1` using `IOTAKeyPair` and use it to sign transactions. Note that this guide does not apply to `Multisig`, please refer to it's [own page](../../cryptography/explanations/transaction-auth/multisig.mdx) for instructions.
 
 With a signature and the transaction bytes, a transaction can be submitted to be executed.
 
@@ -255,7 +255,6 @@ iota client execute-signed-tx --tx-bytes $TX_BYTES --signatures $SERIALIZED_SIGN
 ### Notes
 
 1. This guide demonstrates how to sign with a single private key. Refer to [Multisig](../../cryptography/explanations/transaction-auth/multisig.mdx) when it is preferred to set up more complex signing policies.
-2. Similarly, native zkLogin does not follow the above steps, see [the docs](../../cryptography/explanations/zklogin.mdx) to understand how to derive a zkLogin address, and produce a zkLogin signature with an ephemeral key pair.
-3. If you decide to implement your own signing mechanisms instead of using the previous tools, see the [Signatures](../../cryptography/explanations/transaction-auth/signatures.mdx) doc on the accepted signature specifications for each scheme.
-4. Flag is one byte that differentiates signature schemes. See supported schemes and its flag in [Signatures](../../cryptography/explanations/transaction-auth/signatures.mdx).
-5. The `execute_transaction_block` endpoint takes a list of signatures, so it should contain exactly one user signature, unless you are using sponsored transaction that a second signature for the gas object can be provided. See [Sponsored Transactions](sponsored-transactions.mdx) for more information.
+2. If you decide to implement your own signing mechanisms instead of using the previous tools, see the [Signatures](../../cryptography/explanations/transaction-auth/signatures.mdx) doc on the accepted signature specifications for each scheme.
+3. Flag is one byte that differentiates signature schemes. See supported schemes and its flag in [Signatures](../../cryptography/explanations/transaction-auth/signatures.mdx).
+4. The `execute_transaction_block` endpoint takes a list of signatures, so it should contain exactly one user signature, unless you are using sponsored transaction that a second signature for the gas object can be provided. See [Sponsored Transactions](sponsored-transactions.mdx) for more information.
