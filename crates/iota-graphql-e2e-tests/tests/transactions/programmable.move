@@ -199,7 +199,7 @@ fragment ComprehensivePTB on ProgrammableTransactionBlock {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 module P0::m {
     public struct Foo has key, store {
         id: UID,
