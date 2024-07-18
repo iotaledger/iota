@@ -4,8 +4,8 @@ This is a self contained Ansible role for configuring a Linux system as a Iota N
 
 Tested with `ansible [core 2.13.4]` and:
 
--   ubuntu 20.04 (linux/amd64) on bare metal
--   ubuntu 22.04 (linux/amd64) on bare metal
+- ubuntu 20.04 (linux/amd64) on bare metal
+- ubuntu 22.04 (linux/amd64) on bare metal
 
 ## Prerequisites and Setup
 
@@ -23,10 +23,10 @@ Tested with `ansible [core 2.13.4]` and:
 
 ## Example use:
 
--   Configure everything:
+- Configure everything:
 
 `ansible-playbook -i inventory.yaml iota-node.yaml -e host=$inventory_name`
 
--   Software update:
+- Software update:
 
 `TODO`
