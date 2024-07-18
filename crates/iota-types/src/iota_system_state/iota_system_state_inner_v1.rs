@@ -701,7 +701,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
-            iota_total_supply: iota_treasury_cap.total_supply(),
+            iota_total_supply: iota_treasury_cap.total_supply().value,
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),

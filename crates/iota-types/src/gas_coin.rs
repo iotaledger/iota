@@ -16,7 +16,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::Balance,
+    balance::{Balance, Supply},
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
@@ -189,9 +189,9 @@ mod checked {
             }
         }
 
-        /// Returns the total supply of `Coin<IOTA>`.
-        pub fn total_supply(&self) -> u64 {
-            self.inner.total_supply.value
+        /// Returns the total `Supply` of `Coin<IOTA>`.
+        pub fn total_supply(&self) -> &Supply {
+            &self.inner.total_supply
         }
     }
 }

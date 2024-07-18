@@ -563,7 +563,7 @@ impl Builder {
             .sum();
 
         assert_eq!(
-            system_state.iota_treasury_cap.total_supply(),
+            system_state.iota_treasury_cap.total_supply().value,
             token_distribution_schedule.pre_minted_supply + allocations_amount
         );
 

@@ -275,7 +275,7 @@ fn examine_total_supply(
             println!("{:#?}\n", coins);
         }
     }
-    assert_eq!(total_iota, iota_treasury_cap.total_supply());
+    assert_eq!(total_iota, iota_treasury_cap.total_supply().value);
     // Always print this.
     println!(
         "Total Supply of Iota: {total_iota} NANOS or {} IOTA",
