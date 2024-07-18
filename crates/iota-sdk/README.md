@@ -5,7 +5,7 @@ This crate provides the Iota Rust SDK, containing APIs to interact with the Iota
 Add the `iota-sdk` dependency as following:
 
 ```toml
-iota-sdk = { git = "https://github.com/iotaledger/iota", package = "iota-sdk"}
+iota-sdk = { git = "https://github.com/iotaledger/iota", package = "iota-sdk" }
 tokio = { version = "1.2", features = ["full"] }
 anyhow = "1.0"
 ```
@@ -29,7 +29,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-
 ```
 
 ## Documentation for iota-sdk crate
@@ -60,14 +59,14 @@ Unless otherwise specified, most of these examples assume `Rust` and `cargo` are
 
 In the root folder of the `iota` repository (or in the `iota-sdk` crate folder), you can individually run examples using the command `cargo run --example filename` (without `.rs` extension). For example:
 
--   `cargo run --example iota_client` -- this one requires a local Iota network running (see [here](#Connecting to Iota Network
-    )). If you do not have a local Iota network running, please skip this example.
--   `cargo run --example coin_read_api`
--   `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
--   `cargo run --example governance_api`
--   `cargo run --example read_api`
--   `cargo run --example programmable_transactions_api`
--   `cargo run --example sign_tx_guide`
+- `cargo run --example iota_client` -- this one requires a local Iota network running (see [here](#Connecting to Iota Network
+  )). If you do not have a local Iota network running, please skip this example.
+- `cargo run --example coin_read_api`
+- `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
+- `cargo run --example governance_api`
+- `cargo run --example read_api`
+- `cargo run --example programmable_transactions_api`
+- `cargo run --example sign_tx_guide`
 
 ### Basic Examples
 
@@ -75,10 +74,10 @@ In the root folder of the `iota` repository (or in the `iota-sdk` crate folder),
 
 The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the Iota network are:
 
--   Local: http://127.0.0.1:9000
--   Devnet: https://fullnode.devnet.iota.io:443
--   Testnet: https://fullnode.testnet.iota.io:443
--   Mainnet: https://fullnode.mainnet.iota.io:443
+- Local: http://127.0.0.1:9000
+- Devnet: https://fullnode.devnet.iota.io:443
+- Testnet: https://fullnode.testnet.iota.io:443
+- Mainnet: https://fullnode.mainnet.iota.io:443
 
 For all available servers, see [here](https://iota.io/networkinfo).
 
@@ -143,46 +142,46 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
 
 1. Prepare the environment
 
-    1. Install `iota` binary following the [Iota installation](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-install.mdx) docs.
-    1. [Connect to Iota Devnet](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/connect.mdx).
-    1. [Make sure you have two addresses with gas](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/get-address.mdx) by using the `new-address` command to create new addresses:
-        ```shell
-        iota client new-address ed25519
-        ```
-        You must specify the key scheme, one of `ed25519` or `secp256k1` or `secp256r1`.
-        You can skip this step if you are going to play with a friend. :)
-    1. [Request Iota tokens](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/get-coins.mdx) for all addresses that will be used to join the game.
+   1. Install `iota` binary following the [Iota installation](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-install.mdx) docs.
+   1. [Connect to Iota Devnet](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/connect.mdx).
+   1. [Make sure you have two addresses with gas](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/get-address.mdx) by using the `new-address` command to create new addresses:
+      ```shell
+      iota client new-address ed25519
+      ```
+      You must specify the key scheme, one of `ed25519` or `secp256k1` or `secp256r1`.
+      You can skip this step if you are going to play with a friend. :)
+   1. [Request Iota tokens](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/get-coins.mdx) for all addresses that will be used to join the game.
 
 2. Publish the move contract
 
-    1. [Download the Iota source code](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-install.mdx).
-    1. Publish the [`games` package](https://github.com/iotaledger/iota/tree/main/iota_programmability/examples/games)
-       using the Iota client:
-        ```shell
-        iota client publish --path /path-to-iota-source-code/iota_programmability/examples/games --gas-budget 10000
-        ```
-    1. Record the package object ID.
+   1. [Download the Iota source code](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-install.mdx).
+   1. Publish the [`games` package](https://github.com/iotaledger/iota/tree/main/iota_programmability/examples/games)
+      using the Iota client:
+      ```shell
+      iota client publish --path /path-to-iota-source-code/iota_programmability/examples/games --gas-budget 10000
+      ```
+   1. Record the package object ID.
 
 3. Create a new tic-tac-toe game
 
-    1. Run the following command in the Iota source code directory to start a new game, replacing the game package objects ID with the one you recorded:
-        ```shell
-        cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game
-        ```
-        This will create a game for the first two addresses in your keystore by default. If you want to specify the identity of each player,
-        use the following command and replace the variables with the actual player's addresses:
-        ```shell
-        cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game --player-x <<player X address>> --player-o <<player O address>>
-        ```
-    1. Copy the game ID and pass it to your friend to join the game.
+   1. Run the following command in the Iota source code directory to start a new game, replacing the game package objects ID with the one you recorded:
+      ```shell
+      cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game
+      ```
+      This will create a game for the first two addresses in your keystore by default. If you want to specify the identity of each player,
+      use the following command and replace the variables with the actual player's addresses:
+      ```shell
+      cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game --player-x <<player X address>> --player-o <<player O address>>
+      ```
+   1. Copy the game ID and pass it to your friend to join the game.
 
 4. Joining the game
 
-    Run the following command in the Iota source code directory to join the game, replacing the game ID and address accordingly:
+   Run the following command in the Iota source code directory to join the game, replacing the game ID and address accordingly:
 
-    ```shell
-    cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> join-game --my-identity <<address>> --game-id <<game ID>>
-    ```
+   ```shell
+   cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> join-game --my-identity <<address>> --game-id <<game ID>>
+   ```
 
 ## License
 
