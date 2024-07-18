@@ -1,11 +1,11 @@
 ---
 title: IOTA Keytool CLI
-description: The IOTA Keytool CLI has commands for managing and generating addresses, working with private keys, signatures, or zkLogin.
+description: The IOTA Keytool CLI has commands for managing and generating addresses, working with private keys, or signatures.
 ---
 
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
-The IOTA CLI `keytool` command provides several command-level access for the management and generation of addresses, as well as working with private keys, signatures, or zkLogin. For example, a user could export a private key from the IOTA Wallet and import it into the local IOTA CLI wallet using the `iota keytool import [...]` command.
+The IOTA CLI `keytool` command provides several command-level access for the management and generation of addresses, as well as working with private keys, or signatures. For example, a user could export a private key from the IOTA Wallet and import it into the local IOTA CLI wallet using the `iota keytool import [...]` command.
 
 <CliCheckInstall />
 
@@ -44,14 +44,7 @@ Commands:
                                         	BCS serialized transaction bytes itself and its intent. If intent is absent, default will be used
   unpack                            	This takes [enum IOTAKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It outputs the keypair into a file at the current
                                         	directory where the address is the filename, and prints out its IOTA address, Base64 encoded public key, the key scheme, and the key
-                                        	scheme flag
-  zk-login-sign-and-execute-tx      	Given the max_epoch, generate an OAuth url, ask user to paste the redirect with id_token, call salt server, then call the prover
-                                        	server, create a test transaction, use the ephemeral key to sign and execute it by assembling to a serialized zkLogin signature
-  zk-login-enter-token              	A workaround to the above command because sometimes token pasting does not work. All the inputs required here are printed from the
-                                        	command above
-  zk-login-sig-verify               	Given a zkLogin signature, parse it if valid. If tx_bytes provided, it verifies the zkLogin signature based on provider and its latest
-                                        	JWK fetched. Example request: iota keytool zk-login-sig-verify --sig $SERIALIZED_ZKLOGIN_SIG --tx-bytes $TX_BYTES --provider Google
-                                        	--curr-epoch 10
+                                        	scheme flag  
   help                              	Print this message or the help of the given subcommand(s)
 
 Options:

@@ -104,8 +104,8 @@ VITE_FAUCET_URL='https://faucet.devnet.iota.io:443/gas' VITE_FULLNODE_URL='https
 The `IotaClient` class provides a connection to the JSON-RPC Server and should be used for all
 read-only operations. The default URLs to connect with the RPC server are:
 
--   local: http://127.0.0.1:9000
--   Devnet: https://fullnode.devnet.iota.io
+- local: http://127.0.0.1:9000
+- Devnet: https://fullnode.devnet.iota.io
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';

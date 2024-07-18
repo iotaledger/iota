@@ -47,7 +47,6 @@ The script supports different modes, which can be used individually or in combin
 - indexer-cluster: Brings up two fullnodes, two indexers, and a PostgreSQL cluster with a primary and replica database. indexer-1 uses the primary PostgreSQL, while indexer-2 uses the replica.
 - all: Brings up all services.
 
-
 #### Example
 
 To bring up everything:
@@ -65,35 +64,35 @@ To bring up 4 validators, three full nodes (one with the backup feature enabled)
 ### Ports
 
 - fullnode-1:
-    - JSON-RPC: http://127.0.0.1:9000
-    - Metrics: http://127.0.0.1:9184
+  - JSON-RPC: http://127.0.0.1:9000
+  - Metrics: http://127.0.0.1:9184
 
 - fullnode-2:
-    - JSON-RPC: http://127.0.0.1:9001
-    - Metrics: http://127.0.0.1:9185
+  - JSON-RPC: http://127.0.0.1:9001
+  - Metrics: http://127.0.0.1:9185
 
 - fullnode-3:
-    - JSON-RPC: http://127.0.0.1:9002
-    - Metrics: http://127.0.0.1:9186
-  
+  - JSON-RPC: http://127.0.0.1:9002
+  - Metrics: http://127.0.0.1:9186
+
 - fullnode-4:
-    - JSON-RPC: http://127.0.0.1:9003
-    - Metrics: http://127.0.0.1:9187
+  - JSON-RPC: http://127.0.0.1:9003
+  - Metrics: http://127.0.0.1:9187
 
 - faucet-1:
-    - JSON-RPC: http://127.0.0.1:5003
-    - Metrics: http://127.0.0.1:9188
+  - JSON-RPC: http://127.0.0.1:5003
+  - Metrics: http://127.0.0.1:9188
 
 - indexer-1:
-    - JSON-RPC: http://127.0.0.1:9004
-    - Metrics: http://127.0.0.1:9181
+  - JSON-RPC: http://127.0.0.1:9004
+  - Metrics: http://127.0.0.1:9181
 
 - indexer-2:
-    - JSON-RPC: http://127.0.0.1:9005
-    - Metrics: http://127.0.0.1:9182
+  - JSON-RPC: http://127.0.0.1:9005
+  - Metrics: http://127.0.0.1:9182
 
 - postgres_primary:
-    - PostgreSQL: http://127.0.0.1:5432
+  - PostgreSQL: http://127.0.0.1:5432
 
 - postgres_replica:
-    - PostgreSQL: http://127.0.0.1:5433
+  - PostgreSQL: http://127.0.0.1:5433

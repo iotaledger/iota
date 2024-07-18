@@ -4,7 +4,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use fastcrypto::hash::HashFunction;
-use iota_types::{crypto::DefaultHash, digests::TransactionDigest};
+use iota_types::{crypto::DefaultHash, digests::TransactionDigest, stardust::coin_type::CoinType};
 
 const MAINNET: &str = "mainnet";
 const TESTNET: &str = "testnet";
@@ -24,8 +24,8 @@ pub enum MigrationTargetNetwork {
 impl MigrationTargetNetwork {
     /// Returns the [`TransactionDigest`] for the migration to the target
     /// network in `self`.
-    pub fn migration_transaction_digest(&self) -> TransactionDigest {
-        let hash_input = format!("stardust-migration-{self}");
+    pub fn migration_transaction_digest(&self, coin_type: &CoinType) -> TransactionDigest {
+        let hash_input = format!("{coin_type}-stardust-migration-{self}");
         let mut hasher = DefaultHash::default();
         hasher.update(hash_input);
         let hash = hasher.finalize();
