@@ -5,7 +5,6 @@ import React from 'react';
 import cx from 'classnames';
 import { Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
-import { SUPPORTING_LABEL_TEXT_SIZE } from './keyValueInfo.classes';
 
 interface KeyValueProps {
     /**
@@ -40,9 +39,9 @@ export function KeyValueInfo({
     showInfoIcon,
     supportingLabel,
     valueLink,
-    size,
+    size = ValueSize.Small,
 }: KeyValueProps): React.JSX.Element {
-    const supportingLabelClasses = size && SUPPORTING_LABEL_TEXT_SIZE[size];
+    const supportingLabelSizeClasses = size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md';
     return (
         <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
             <div className="flex flex-row items-center">
@@ -64,7 +63,7 @@ export function KeyValueInfo({
                         <span
                             className={cx(
                                 'text-neutral-10 dark:text-neutral-92',
-                                size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
+                                supportingLabelSizeClasses,
                             )}
                         >
                             {valueText}
@@ -73,7 +72,7 @@ export function KeyValueInfo({
                             <span
                                 className={cx(
                                     'text-neutral-60 dark:text-neutral-40',
-                                    supportingLabelClasses,
+                                    supportingLabelSizeClasses,
                                 )}
                             >
                                 {supportingLabel}
