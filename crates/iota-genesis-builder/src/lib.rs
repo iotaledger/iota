@@ -246,8 +246,6 @@ impl Builder {
             .unwrap();
         }
 
-        // Verify that token distribution schedule is valid
-        self.validate_token_distribution_schedule().unwrap();
         // Get the vanilla token distribution schedule or merge it with genesis stake
         let token_distribution_schedule = if self.is_vanilla() {
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
@@ -263,6 +261,11 @@ impl Builder {
         } else {
             self.genesis_stake.to_token_distribution_schedule()
         };
+        // Verify that token distribution schedule is valid
+        token_distribution_schedule.validate();
+        token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
+            self.validators.values().map(|v| v.info.iota_address()),
+        );
 
         // If the genesis stake was created, then burn gas objects that were added to
         // the token distribution schedule, because they will be created on the
