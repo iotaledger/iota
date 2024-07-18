@@ -36,6 +36,7 @@ function RadioButton({
         <label
             className={cx('group flex cursor-pointer flex-row gap-x-1 text-center', {
                 disabled: isDisabled,
+                'cursor-pointer': !isDisabled,
             })}
         >
             <div
