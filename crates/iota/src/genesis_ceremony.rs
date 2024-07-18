@@ -43,8 +43,8 @@ pub struct Ceremony {
 }
 
 impl Ceremony {
-    pub fn run(self) -> Result<()> {
-        run(self)
+    pub async fn run(self) -> Result<()> {
+        run(self).await
     }
 }
 
@@ -135,7 +135,7 @@ pub enum CeremonyCommand {
     Finalize,
 }
 
-pub fn run(cmd: Ceremony) -> Result<()> {
+pub async fn run(cmd: Ceremony) -> Result<()> {
     let dir = if let Some(path) = cmd.path {
         path
     } else {
@@ -272,7 +272,10 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 
             let mut builder = Builder::load(&dir)?;
             for source in local_snapshots.chain(remote_snapshots) {
-                builder = builder.add_migration_objects(source.to_reader()?)?;
+                builder = tokio::task::spawn_blocking(move || {
+                    builder.add_migration_objects(source.to_reader()?)
+                })
+                .await??;
             }
             let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
             println!(

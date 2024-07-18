@@ -291,7 +291,7 @@ impl IotaCommand {
                 )
                 .await
             }
-            IotaCommand::GenesisCeremony(cmd) => run(cmd),
+            IotaCommand::GenesisCeremony(cmd) => run(cmd).await,
             IotaCommand::KeyTool {
                 keystore_path,
                 json,
