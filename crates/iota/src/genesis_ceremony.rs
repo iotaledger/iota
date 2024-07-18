@@ -272,18 +272,18 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
             let mut builder = Builder::load(&dir)?;
             for source in local_snapshots.chain(remote_snapshots) {
-                builder = tokio::task::spawn_blocking(move || {
-                    builder.add_migration_objects(source.to_reader()?)
-                })
-                .await??;
+                builder = builder.add_migration_source(source);
             }
-            let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
-            println!(
-                "Successfully built unsigned checkpoint: {}",
-                checkpoint.digest()
-            );
+            tokio::task::spawn_blocking(move || {
+                let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
+                println!(
+                    "Successfully built unsigned checkpoint: {}",
+                    checkpoint.digest()
+                );
 
-            builder.save(dir)?;
+                builder.save(dir)
+            })
+            .await??;
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
