@@ -16,12 +16,15 @@ use iota_sdk::types::block::{
         BasicOutputBuilder, Output, OutputId,
     },
 };
-use iota_types::{gas_coin::TOTAL_SUPPLY_IOTA, timelock::timelock::VESTED_REWARD_ID_PREFIX};
+use iota_types::{
+    gas_coin::TOTAL_SUPPLY_IOTA,
+    timelock::timelock::{self, VESTED_REWARD_ID_PREFIX},
+};
 use packable::{
     packer::{IoPacker, Packer},
     Packable,
 };
-use rand::random;
+use rand::{random, thread_rng, Rng};
 
 use crate::stardust::{
     parse::HornetSnapshotParser,
@@ -41,7 +44,8 @@ const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
 const DELEGATOR_TIMELOCKS_NUM: u8 = 100;
 const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
 
-const NUM_OF_SAMPLES_TO_KEEP: u8 = 100;
+const WITH_SAMPLING: bool = true;
+const PROBABILITY_OF_PICKING_A_BASIC_OUTPUT: f64 = 0.1;
 
 pub(crate) fn new_simple_basic_output(
     amount: u64,
@@ -147,14 +151,28 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
             )?);
         }
 
-        // Samples
-        // Writes previous outputs.
-        let mut flag = [NUM_OF_SAMPLES_TO_KEEP; 5];
-        for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
-            let flag_index = (output.kind() - 2) as usize;
-            if flag[flag_index] > 0 {
-                flag[flag_index] -= 1;
-                new_outputs.push((output_header, output));
+        if WITH_SAMPLING {
+            // Samples without timelocks.
+            // Writes previous outputs.
+            let target_milestone_timestamp = parser.target_milestone_timestamp();
+            let mut rng = thread_rng();
+            for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
+                match output {
+                    Output::Basic(ref basic) => {
+                        if !timelock::is_timelocked_vested_reward(
+                            output_header.output_id(),
+                            &basic,
+                            target_milestone_timestamp,
+                        ) && rng.gen_bool(PROBABILITY_OF_PICKING_A_BASIC_OUTPUT)
+                        {
+                            new_outputs.push((output_header, output));
+                        }
+                    }
+                    Output::Treasury(_)
+                    | Output::Foundry(_)
+                    | Output::Alias(_)
+                    | Output::Nft(_) => new_outputs.push((output_header, output)),
+                };
             }
         }
 
