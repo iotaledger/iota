@@ -3,3 +3,4 @@
 
 export * from './segmented-button';
 export * from './title';
+export * from './account';
