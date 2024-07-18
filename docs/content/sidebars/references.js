@@ -17,7 +17,7 @@ const references = [
 			id: 'references/iota-api',
 		},
 		items: [
-			{
+			/*{
 				type: 'category',
 				label: 'GraphQL',
 				link: {
@@ -30,7 +30,7 @@ const references = [
 						dirName: 'references/iota-api/iota-graphql/reference',
 					},
 				],
-			},
+			},*/
 			{
 				type: 'link',
 				label: 'JSON-RPC',
@@ -109,7 +109,6 @@ const references = [
 							},
 							'references/ts-sdk/typescript/utils',
 							'references/ts-sdk/typescript/bcs',
-							'references/ts-sdk/typescript/zklogin',
 							{
 								type: 'category',
 								label: 'Owned Object Pool',
