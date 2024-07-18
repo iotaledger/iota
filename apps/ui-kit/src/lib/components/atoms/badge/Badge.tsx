@@ -17,13 +17,10 @@ interface BadgeProps {
     label?: string;
 }
 
-export function Badge({
-    type: variant = BadgeType.PrimarySolid,
-    label,
-}: BadgeProps): React.JSX.Element {
-    const backgroundClasses = BACKGROUND_COLORS[variant];
-    const textClasses = TEXT_COLORS[variant];
-    const borderClasses = BORDER_COLORS[variant];
+export function Badge({ type, label }: BadgeProps): React.JSX.Element {
+    const backgroundClasses = BACKGROUND_COLORS[type];
+    const textClasses = TEXT_COLORS[type];
+    const borderClasses = BORDER_COLORS[type];
     const labelClasses = label ? 'px-xs py-xxs' : 'h-1.5 w-1.5';
 
     return (
