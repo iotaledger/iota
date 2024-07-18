@@ -86,7 +86,7 @@ const config = {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/iotaledger/iota/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
