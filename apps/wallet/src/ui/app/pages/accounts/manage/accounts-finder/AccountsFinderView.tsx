@@ -18,16 +18,22 @@ import { ConnectLedgerModal } from '_src/ui/app/components/ledger/ConnectLedgerM
 import toast from 'react-hot-toast';
 import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
-import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
+import {
+    AccountSourceType,
+    type AccountSourceSerializedUI,
+} from '_src/background/account-sources/AccountSource';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
 ): AllowedAccountSourceTypes {
-    if (accountSource) {
-        return accountSource.type as unknown as AllowedAccountSourceTypes;
-    } else {
-        return AllowedAccountSourceTypes.LedgerDerived;
+    switch (accountSource?.type) {
+        case AccountSourceType.Mnemonic:
+            return AllowedAccountSourceTypes.MnemonicDerived;
+        case AccountSourceType.Seed:
+            return AllowedAccountSourceTypes.SeedDerived;
+        default:
+            return AllowedAccountSourceTypes.LedgerDerived;
     }
 }
 

@@ -9,9 +9,9 @@ import type { FindBalance } from './types';
 import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 
 export enum AllowedAccountSourceTypes {
-    MnemonicDerived = 'mnemonic',
-    SeedDerived = 'seed',
-    LedgerDerived = 'ledger',
+    MnemonicDerived = 'mnemonic-derived',
+    SeedDerived = 'seed-derived',
+    LedgerDerived = 'ledger-derived',
 }
 
 export enum AllowedBip44CoinTypes {
