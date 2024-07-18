@@ -3,6 +3,8 @@
 
 export * from './address';
 export * from './badge';
+export * from './button';
+export * from './radio-button';
 export * from './button-segment';
 export * from './button';
 export * from './checkbox';

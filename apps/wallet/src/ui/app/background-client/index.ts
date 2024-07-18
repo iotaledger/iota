@@ -40,10 +40,12 @@ import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
-    type InitAccountsFinder,
-    type SearchAccountsFinderPayload,
+    type DeriveBipPathAccountsFinder,
+    isDeriveBipPathAccountsFinderResponse,
+    type PersistAccountsFinder,
+    type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
-import { type AccountFinderConfigParams } from '_src/background/accounts-finder';
+import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -536,22 +538,32 @@ export class BackgroundClient {
         );
     }
 
-    public async resetAccountsFinder() {
-        await lastValueFrom(
+    public deriveBipPathAccountsFinder(sourceID: string, derivationOptions: MakeDerivationOptions) {
+        return lastValueFrom(
             this.sendMessage(
-                createMessage<InitAccountsFinder>({
-                    type: 'init-accounts-finder',
+                createMessage<DeriveBipPathAccountsFinder>({
+                    type: 'derive-bip-path-accounts-finder',
+                    sourceID,
+                    derivationOptions,
                 }),
-            ).pipe(take(1)),
+            ).pipe(
+                take(1),
+                map(({ payload }) => {
+                    if (isDeriveBipPathAccountsFinderResponse(payload)) {
+                        return payload;
+                    }
+                    throw new Error('Unexpected response type');
+                }),
+            ),
         );
     }
 
-    public async searchAccountsFinder(params: AccountFinderConfigParams) {
+    public async persistAccountsFinder(sourceStrategy: SourceStrategyToPersist) {
         await lastValueFrom(
             this.sendMessage(
-                createMessage<SearchAccountsFinderPayload>({
-                    type: 'search-accounts-finder',
-                    ...params,
+                createMessage<PersistAccountsFinder>({
+                    type: 'persist-accounts-finder',
+                    sourceStrategy,
                 }),
             ).pipe(take(1)),
         );

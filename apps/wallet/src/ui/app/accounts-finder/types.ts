@@ -8,6 +8,6 @@ export type FindBalance = (params: {
     addressIndex: number;
     changeIndex: number;
 }) => Promise<{
-    publicKeyHash: string;
+    publicKey: string;
     balance: CoinBalance;
 }>;
