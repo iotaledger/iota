@@ -3,7 +3,7 @@ processed 7 tasks
 init:
 A: object(0,0)
 
-task 1 'run-graphql'. lines 6-10:
+task 1 'run-graphql'. lines 7-11:
 Response: {
   "data": null,
   "errors": [
@@ -22,7 +22,7 @@ Response: {
   ]
 }
 
-task 2 'run-graphql'. lines 12-42:
+task 2 'run-graphql'. lines 13-43:
 Response: {
   "data": null,
   "errors": [
@@ -41,26 +41,26 @@ Response: {
   ]
 }
 
-task 3 'run-graphql'. lines 44-48:
+task 3 'run-graphql'. lines 45-49:
 Response: {
   "data": {}
 }
 
-task 4 'run-graphql'. lines 50-54:
+task 4 'run-graphql'. lines 51-55:
 Response: {
   "data": {
-    "chainIdentifier": "c49694ff"
+    "chainIdentifier": "c1c1a8b3"
   }
 }
 
-task 5 'run-graphql'. lines 56-60:
+task 5 'run-graphql'. lines 57-61:
 Response: {
   "data": {
-    "chainIdentifier": "c49694ff"
+    "chainIdentifier": "c1c1a8b3"
   }
 }
 
-task 6 'run-graphql'. lines 62-66:
+task 6 'run-graphql'. lines 63-67:
 Response: {
   "data": {}
 }

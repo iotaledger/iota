@@ -87,7 +87,7 @@ impl Executor {
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
     ) -> Result<Self> {
-        let mut tx_context = create_migration_context(target_network);
+        let mut tx_context = create_migration_context(&coin_type, target_network);
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
