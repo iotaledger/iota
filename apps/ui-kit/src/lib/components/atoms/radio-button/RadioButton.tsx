@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import cx from 'classnames';
 import { RadioOn, RadioOff } from '@iota/ui-icons';
 
@@ -24,26 +24,16 @@ interface RadioButtonProps {
     onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const RadioButton: React.FC<RadioButtonProps> = ({ label, isChecked, isDisabled, onChange }) => {
-    const [checked, setChecked] = useState(isChecked);
-
-    useEffect(() => {
-        setChecked(isChecked);
-    }, [isChecked]);
-
-    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setChecked(event.target.checked);
-        if (onChange) {
-            onChange(event);
-        }
-    };
-
-    const RadioIcon = checked ? RadioOn : RadioOff;
-    const inputId = `radio-${label}`;
+function RadioButton({
+    label,
+    isChecked,
+    isDisabled,
+    onChange,
+}: RadioButtonProps): React.JSX.Element {
+    const RadioIcon = isChecked ? RadioOn : RadioOff;
 
     return (
         <label
-            htmlFor={inputId}
             className={cx('group flex cursor-pointer flex-row gap-x-1 text-center', {
                 disabled: isDisabled,
             })}
@@ -57,10 +47,9 @@ const RadioButton: React.FC<RadioButtonProps> = ({ label, isChecked, isDisabled,
                 )}
             >
                 <input
-                    id={inputId}
                     type="radio"
-                    checked={checked}
-                    onChange={handleChange}
+                    checked={isChecked}
+                    onChange={onChange}
                     disabled={isDisabled}
                     className={cx('peer appearance-none disabled:opacity-40')}
                 />
@@ -72,13 +61,11 @@ const RadioButton: React.FC<RadioButtonProps> = ({ label, isChecked, isDisabled,
                     <RadioIcon width={24} height={24} />
                 </span>
             </div>
-            {label && (
-                <span className="inline-flex items-center justify-center text-label-lg text-neutral-40 group-[.disabled]:text-opacity-40 dark:text-neutral-60 group-[.disabled]:dark:text-opacity-40">
-                    {label}
-                </span>
-            )}
+            <span className="inline-flex items-center justify-center text-label-lg text-neutral-40 group-[.disabled]:text-opacity-40 dark:text-neutral-60 group-[.disabled]:dark:text-opacity-40">
+                {label}
+            </span>
         </label>
     );
-};
+}
 
 export { RadioButton };

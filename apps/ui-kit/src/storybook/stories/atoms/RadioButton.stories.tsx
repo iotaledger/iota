@@ -4,12 +4,26 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { RadioButton } from '@/components/atoms';
+import { useEffect, useState } from 'react';
 
 const meta = {
     component: RadioButton,
     tags: ['autodocs'],
     render: (props) => {
-        return <RadioButton {...props} />;
+        const { isChecked } = props;
+        const [checked, setIsChecked] = useState<boolean>(isChecked ?? false);
+
+        useEffect(() => {
+            setIsChecked(isChecked ?? false);
+        }, [isChecked]);
+
+        return (
+            <RadioButton
+                {...props}
+                isChecked={checked}
+                onChange={(e) => setIsChecked(e.target.checked)}
+            />
+        );
     },
 } satisfies Meta<typeof RadioButton>;
 
