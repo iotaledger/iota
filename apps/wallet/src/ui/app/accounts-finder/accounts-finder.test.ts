@@ -3,7 +3,7 @@
 
 import { recoverAccounts, mergeAccounts } from './accounts-finder';
 import { assert, test } from 'vitest';
-import { FindBalance } from '_src/background/accounts-finder/types';
+import { FindBalance } from './types';
 
 const findBalanceFactory = (
     accountIndexesWithBalance: number[],
@@ -17,7 +17,7 @@ const findBalanceFactory = (
             changeIndexesWithBalance.includes(changeIndex)
         ) {
             return Promise.resolve({
-                publicKeyHash: '',
+                publicKey: '',
                 balance: {
                     totalBalance: '100',
                     coinObjectCount: 2,
@@ -28,7 +28,7 @@ const findBalanceFactory = (
         }
 
         return Promise.resolve({
-            publicKeyHash: '',
+            publicKey: '',
             balance: {
                 totalBalance: '0',
                 coinObjectCount: 0,

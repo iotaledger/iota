@@ -1,21 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountFromFinder } from '_src/shared/accounts';
+import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
-import NetworkEnv from '../NetworkEnv';
-import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
-import { AccountType } from '../accounts/Account';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
-import {
-    persistAddressesToSource,
-    getEmptyBalance,
-    getPublicKey,
-} from '_src/background/accounts-finder/helpers';
-import { type FindBalance } from '_src/background/accounts-finder/types';
+import type { IotaClient } from '@iota/iota.js/client';
+import { getEmptyBalance } from './helpers';
+import type { FindBalance } from './types';
+import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 
-// Note: we exclude private keys for the account finder because more addresses cant be derived from them
-export type AllowedAccountTypes = Exclude<AccountType, AccountType.PrivateKeyDerived>;
+export enum AllowedAccountSourceTypes {
+    MnemonicDerived = 'mnemonic-derived',
+    SeedDerived = 'seed-derived',
+    LedgerDerived = 'ledger-derived',
+}
 
 export enum AllowedBip44CoinTypes {
     IOTA = 4218,
@@ -29,11 +26,16 @@ export enum SearchAlgorithm {
 }
 
 export interface AccountFinderConfigParams {
+    getPublicKey: (params: {
+        accountIndex: number;
+        addressIndex: number;
+        changeIndex: number;
+    }) => Promise<string>;
+    client: IotaClient;
     bip44CoinType: AllowedBip44CoinTypes;
-    accountType: AllowedAccountTypes;
+    accountSourceType: AllowedAccountSourceTypes;
     algorithm?: SearchAlgorithm;
     coinType: string; // format: '0x2::iota::IOTA'
-    sourceID: string;
     changeIndexes?: number[];
     accountGapLimit?: number;
     addressGapLimit?: number;
@@ -45,36 +47,36 @@ interface GapConfiguration {
 }
 
 type GapConfigurationByCoinType = {
-    [key in AllowedAccountTypes]: GapConfiguration;
+    [key in AllowedAccountSourceTypes]: GapConfiguration;
 };
 
 const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoinType } = {
     // in IOTA we have chrysalis users which could have rotated addresses
     [AllowedBip44CoinTypes.IOTA]: {
-        [AccountType.LedgerDerived]: {
+        [AllowedAccountSourceTypes.LedgerDerived]: {
             accountGapLimit: 1,
             addressGapLimit: 5,
         },
-        [AccountType.MnemonicDerived]: {
+        [AllowedAccountSourceTypes.MnemonicDerived]: {
             accountGapLimit: 3,
             addressGapLimit: 10,
         },
-        [AccountType.SeedDerived]: {
+        [AllowedAccountSourceTypes.SeedDerived]: {
             accountGapLimit: 3,
             addressGapLimit: 10,
         },
     },
     // In shimmer we focus on accounts indexes and never rotate addresses
     [AllowedBip44CoinTypes.Shimmer]: {
-        [AccountType.LedgerDerived]: {
+        [AllowedAccountSourceTypes.LedgerDerived]: {
             accountGapLimit: 3,
             addressGapLimit: 0,
         },
-        [AccountType.MnemonicDerived]: {
+        [AllowedAccountSourceTypes.MnemonicDerived]: {
             accountGapLimit: 10,
             addressGapLimit: 0,
         },
-        [AccountType.SeedDerived]: {
+        [AllowedAccountSourceTypes.SeedDerived]: {
             accountGapLimit: 10,
             addressGapLimit: 0,
         },
@@ -86,43 +88,47 @@ const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
     [AllowedBip44CoinTypes.Shimmer]: [0],
 };
 
-class AccountsFinder {
+export class AccountsFinder {
     private accountGapLimit: number = 0;
     private addressGapLimit: number = 0;
     private changeIndexes: number[] = [0];
 
-    private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
-    private bip44CoinType: AllowedBip44CoinTypes = AllowedBip44CoinTypes.IOTA; // 4218 for IOTA or 4219 for Shimmer
-    private coinType: string = IOTA_TYPE_ARG;
-    private sourceID: string = '';
-    public client: IotaClient | null = null;
+    private algorithm: SearchAlgorithm;
+    private bip44CoinType: AllowedBip44CoinTypes;
+    private coinType: string;
+    private getPublicKey;
+    private client: IotaClient;
+    private accounts: AccountFromFinder[] = []; // Found accounts with balances.
 
-    accounts: AccountFromFinder[] = []; // Found accounts with balances.
-
-    reset() {
-        this.accounts = [];
-    }
-
-    async setConfig(config: AccountFinderConfigParams) {
-        const network = await NetworkEnv.getActiveNetwork();
-        this.client = new IotaClient({
-            url: network.customRpcUrl ? network.customRpcUrl : getFullnodeUrl(network.network),
-        });
-
+    constructor(config: AccountFinderConfigParams) {
+        this.getPublicKey = config.getPublicKey;
+        this.client = config.client;
         this.bip44CoinType = config.bip44CoinType;
         this.coinType = config.coinType;
-        this.sourceID = config.sourceID;
         this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
 
         this.algorithm = config.algorithm || SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
-
         this.accountGapLimit =
             config.accountGapLimit ??
-            GAP_CONFIGURATION[this.bip44CoinType][config.accountType].accountGapLimit;
+            GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.accountGapLimit;
 
         this.addressGapLimit =
             config.addressGapLimit ??
-            GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
+            GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.addressGapLimit;
+    }
+
+    // This function calls each time when user press "Search" button
+    async find() {
+        switch (this.algorithm) {
+            case SearchAlgorithm.BREADTH:
+                return await this.runBreadthSearch();
+            case SearchAlgorithm.DEPTH:
+                return await this.runDepthSearch();
+            case SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST:
+                return [...(await this.runBreadthSearch()), ...(await this.runDepthSearch())];
+            default:
+                throw new Error(`Unsupported search algorithm: ${this.algorithm}`);
+        }
     }
 
     async processAccounts({ foundAccounts }: { foundAccounts: AccountFromFinder[] }) {
@@ -130,9 +136,10 @@ class AccountsFinder {
 
         // Persist new addresses
         const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
-        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
 
         this.accounts = mergedAccounts;
+
+        return newAddressesBipPaths;
     }
 
     async runDepthSearch() {
@@ -148,6 +155,8 @@ class AccountsFinder {
             }
         }
 
+        let processedAccounts: AddressFromFinder[] = [];
+
         // depth search is done by searching for more addresses for each account in isolation
         for (const account of depthAccounts) {
             // during depth search we search for 1 account at a time and start from the last address index
@@ -160,8 +169,13 @@ class AccountsFinder {
                 findBalance: this.findBalance,
             });
 
-            await this.processAccounts({ foundAccounts });
+            processedAccounts = [
+                ...processedAccounts,
+                ...(await this.processAccounts({ foundAccounts })),
+            ];
         }
+
+        return processedAccounts;
     }
 
     async runBreadthSearch() {
@@ -172,32 +186,12 @@ class AccountsFinder {
             accountStartIndex: initialAccountIndex, // we start from the last existing account index
             accountGapLimit: this.accountGapLimit, // we search for the full account gap limit
             addressStartIndex: 0, // we start from the first address index
-            addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+            addressGapLimit: 0, // we only search for 1 address
             changeIndexes: this.changeIndexes,
             findBalance: this.findBalance,
         });
 
-        await this.processAccounts({ foundAccounts });
-    }
-
-    // This function calls each time when user press "Search" button
-    async find(config: AccountFinderConfigParams) {
-        await this.setConfig(config);
-
-        switch (this.algorithm) {
-            case SearchAlgorithm.BREADTH:
-                await this.runBreadthSearch();
-                break;
-            case SearchAlgorithm.DEPTH:
-                await this.runDepthSearch();
-                break;
-            case SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST:
-                await this.runBreadthSearch();
-                await this.runDepthSearch();
-                break;
-            default:
-                throw new Error(`Unsupported search algorithm: ${this.algorithm}`);
-        }
+        return await this.processAccounts({ foundAccounts });
     }
 
     findBalance: FindBalance = async (params) => {
@@ -207,25 +201,17 @@ class AccountsFinder {
             throw new Error('IotaClient is not initialized');
         }
 
-        const publicKeyHash = await getPublicKey({
-            sourceID: this.sourceID,
-            bip44CoinType: this.bip44CoinType,
-            accountIndex: params.accountIndex,
-            addressIndex: params.addressIndex,
-            changeIndex: params.changeIndex,
-        });
+        const publicKeyB64 = await this.getPublicKey(params);
+        const publicKey = new Ed25519PublicKey(publicKeyB64);
 
         const foundBalance = await this.client.getBalance({
-            owner: publicKeyHash,
+            owner: publicKey.toIotaAddress(),
             coinType: this.coinType,
         });
 
         return {
-            publicKeyHash,
+            publicKey: publicKeyB64,
             balance: foundBalance || emptyBalance,
         };
     };
 }
-
-const accountsFinder = new AccountsFinder();
-export default accountsFinder;
