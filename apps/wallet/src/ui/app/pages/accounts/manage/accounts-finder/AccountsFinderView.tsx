@@ -34,12 +34,15 @@ function getAccountSourceType(
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();
+    const { data: accounts } = useAccounts();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
     const accountSourceType = getAccountSourceType(accountSource);
-    const { data: accounts } = useAccounts();
-    const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
     const [searched, setSearched] = useState(false);
     const [password, setPassword] = useState('');
+    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
+    const ledgerIotaClient = useIotaLedgerClient();
+    const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -57,26 +60,25 @@ export function AccountsFinderView(): JSX.Element {
         accountSourceType,
         sourceStrategy,
     });
-    const ledgerIotaClient = useIotaLedgerClient();
-    const unlockAccountSourceMutation = useUnlockMutation();
-    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
-    const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
+
+    function unlockLedger() {
+        setConnectLedgerModalOpen(true);
+    }
+
+    function verifyPassword() {
+        setPasswordModalVisible(true);
+    }
 
     async function findMore() {
-        if (accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient) {
-            return setConnectLedgerModalOpen(true);
-        }
-
-        if (
-            accountSource?.isLocked ||
-            (accountSourceId === AccountType.LedgerDerived && !password)
-        ) {
-            return setPasswordModalVisible(true);
-        }
-
         await find();
         setSearched(true);
     }
+
+    const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
+    const isLocked =
+        accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
+    const isLedgerLocked =
+        accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient;
 
     return (
         <>
@@ -87,18 +89,36 @@ export function AccountsFinderView(): JSX.Element {
                     })}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <Button
-                        variant="outline"
-                        size="tall"
-                        text={searched ? 'Search again' : 'Search'}
-                        after={<Search24 />}
-                        onClick={findMore}
-                    />
+                    {isLedgerLocked ? (
+                        <Button
+                            variant="outline"
+                            size="tall"
+                            text="Unlock Ledger"
+                            onClick={unlockLedger}
+                        />
+                    ) : isLocked ? (
+                        <Button
+                            variant="outline"
+                            size="tall"
+                            text="Verify password"
+                            onClick={verifyPassword}
+                        />
+                    ) : (
+                        <>
+                            <Button
+                                variant="outline"
+                                size="tall"
+                                text={searched ? 'Search again' : 'Search'}
+                                after={<Search24 />}
+                                onClick={findMore}
+                            />
 
-                    <div className="flex flex-row gap-2">
-                        <Button variant="outline" size="tall" text="Skip" />
-                        <Button variant="outline" size="tall" text="Continue" />
-                    </div>
+                            <div className="flex flex-row gap-2">
+                                <Button variant="outline" size="tall" text="Skip" />
+                                <Button variant="outline" size="tall" text="Continue" />
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
             {isPasswordModalVisible ? (
