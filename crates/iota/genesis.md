@@ -6,19 +6,18 @@ This document lays out the step-by-step process for orchestrating a Iota Genesis
 
 Each validator participating in the ceremony will need the following:
 
-- Ed25519 Public key
-- Iota network address // WAN
-- Narwhal_primary_to_primary network address // WAN
-- Narwhal_worker_to_primary network address // LAN
-- Narwhal_primary_to_worker network address // LAN
-- Narwhal_worker_to_worker network address // WAN
-- Narwhal_consensus_address network address // LAN
+- BLS12381 Public key
+- Ed25519 Public key(s)
+- Iota network address
+- p2p_address network address
+- Narwhal_primary_address network address
+- Narwhal_worker_address network address
 
 Note:
 
-- Network addresses should be Multiaddrs in the form of `/dns/{dns name}/tcp/{port}/http` and
-  only the addresses marked WAN need to be publicly accessible by the wider internet.
-- An Ed25519 key can be created using `iota keytool generate`
+- Network addresses should be Multiaddrs in the form of `/dns/{dns name}/tcp/{port}/http` (for example `/dns/localhost/tcp/8080/http`).
+- A BLS12381KeyPair can be created using `iota keytool generate bls12381`
+- An Ed25519KeyPair can be created using `iota keytool generate ed25519`
 
 ## Ceremony
 
@@ -32,7 +31,7 @@ The MC (Master of Ceremony) will create a new git repository and initialize the 
 
 ```
 $ git init genesis && cd genesis
-$ iota genesis-ceremony
+$ iota genesis-ceremony init
 $ git add .
 $ git commit -m "init genesis"
 $ git push
@@ -46,13 +45,17 @@ Once the shared workspace has been initialized, each validator can contribute th
 $ git clone <url to genesis repo> && cd genesis
 $ iota genesis-ceremony add-validator \
     --name <human-readable validator name> \
-    --key-file <path to key file> \
-    --network-address <multiaddr> \
-    --narwhal-primary-to-primary <multiaddr> \
-    --narwhal-worker-to-primary <multiaddr> \
-    --narwhal-primary-to-worker <multiaddr> \
-    --narwhal-worker-to-worker <multiaddr> \
-    --narwhal-consensus-address <multiaddr>
+    --validator-key-file <BLS12381KeyPair VALIDATOR_KEY_FILE> \
+    --worker-key-file <Ed25519KeyPair WORKER_KEY_FILE> \
+    --account-key-file <Ed25519KeyPair ACCOUNT_KEY_FILE> \
+    --network-key-file <Ed25519KeyPair NETWORK_KEY_FILE> \
+    --network-address <multiaddr TCP> \
+    --p2p-address <multiaddr UDP> \
+    --narwhal-primary-address <multiaddr UDP> \
+    --narwhal-worker-address <multiaddr UDP> \
+    --description <validator description> \
+    --image-url <validator image url> \
+    --project-url <validator project url>
 
 $ git add .
 $ git commit -m "add validator <name>'s information"
@@ -77,13 +80,13 @@ $ git push
 Once all validators and gas objects have been added, the MC can build the genesis object:
 
 ```
-$ iota genesis-ceremony build
+$ iota genesis-ceremony build-unsigned-checkpoint
 $ git add .
 $ git commit -m "build genesis"
 $ git push
 ```
 
-5. Verify and Sign Genesis
+4. Verify and Sign Genesis
 
 Once genesis is built each validator will need to verify and sign genesis:
 
@@ -95,7 +98,7 @@ $ git commit -m "sign genesis"
 $ git push
 ```
 
-6. Finalize Genesis
+5. Finalize Genesis
 
 Once all validators have successfully verified and signed genesis, the MC can finalize the ceremony
 and then the genesis state can be distributed:
