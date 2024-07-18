@@ -1,14 +1,14 @@
 ---
 title: Custom Transfer Rules
-description: Custom transfer rules enable you to define a set of rules that must be met before IOTA considers a transfer operation valid.
+description: Custom transfer rules enable you to define a set of rules that must be met before Iota considers a transfer operation valid.
 ---
 
-Every IOTA object must have the `key` ability. The `store` ability, on the other hand, is an optional ability you can add to IOTA objects. Objects with the `store` ability:
+Every Iota object must have the `key` ability. The `store` ability, on the other hand, is an optional ability you can add to Iota objects. Objects with the `store` ability:
 
 - are transferable by anyone using the `iota::transfer::public_transfer` function; and
 - are able to be wrapped in other objects.
 
-Importantly for custom transfer rules, if the IOTA object `O` does not have the `store` ability, you cannot call the `iota::transfer::public_transfer` function to transfer it. The Move module that defines `O` is the only entity that can transfer objects of that type using the `iota::transfer::transfer` function. Consequently, the module that defines the object `O` can define a custom transfer function for `O` that can take any number of arguments, and enforce any restrictions desired for performing a transfer operation (for example, a fee must be paid in order to transfer the object).
+Importantly for custom transfer rules, if the Iota object `O` does not have the `store` ability, you cannot call the `iota::transfer::public_transfer` function to transfer it. The Move module that defines `O` is the only entity that can transfer objects of that type using the `iota::transfer::transfer` function. Consequently, the module that defines the object `O` can define a custom transfer function for `O` that can take any number of arguments, and enforce any restrictions desired for performing a transfer operation (for example, a fee must be paid in order to transfer the object).
 
 ## The store ability and transfer rules
 
@@ -16,10 +16,10 @@ Custom transfer rules for objects enable you to define the transfer conditions t
 
 ## Example
 
-This example creates an object type `O` that is transferrable only if the `unlocked` flag inside of it is set to `true`:
+This example creates an object type `O` that is transferable only if the `unlocked` flag inside of it is set to `true`:
 
 ```move
-struct O has key {
+public struct O has key {
   id: UID,
   // An `O` object can only be transferred if this field is `true`
   unlocked: bool
@@ -33,7 +33,7 @@ module examples::custom_transfer {
   // Error code for trying to transfer a locked object
   const EObjectLocked: u64 = 0;
 
-  struct O has key {
+  public struct O has key {
     id: UID,
     // An `O` object can only be transferred if this field is `true`
     unlocked: bool
