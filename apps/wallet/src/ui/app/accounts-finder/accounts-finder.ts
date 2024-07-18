@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type CoinBalance } from '@iota/iota.js/client';
-import {
-    type Bip44Path,
-    type AccountFromFinder,
-    type AddressFromFinder,
-} from '_src/shared/accounts';
-import type { FindBalance } from '_src/background/accounts-finder/types';
+import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
+import type { FindBalance } from './types';
 
 /**
  * Recover accounts function and all related interfaces
@@ -155,7 +151,7 @@ async function searchBalances({
         }
 
         addresses.push({
-            pubKeyHash: foundBalance.publicKeyHash,
+            publicKey: foundBalance.publicKey,
             balance: foundBalance.balance,
             bipPath: {
                 addressIndex,
@@ -231,7 +227,7 @@ export function mergeAccounts(accounts1: AccountFromFinder[], accounts2: Account
 export function diffAddressesBipPaths(
     foundAccounts: AccountFromFinder[],
     persistedAccounts: AccountFromFinder[],
-): Bip44Path[] {
+): AddressFromFinder[] {
     const foundBipMap = transformToBipMap(foundAccounts);
     const persistedBipMap = transformToBipMap(persistedAccounts);
 
@@ -241,5 +237,5 @@ export function diffAddressesBipPaths(
         ([key, address]) => !persistedBipMapKeys.includes(key) && hasBalance(address.balance),
     );
 
-    return diffBipPaths.map(([_, account]) => account.bipPath);
+    return diffBipPaths.map(([_, account]) => account);
 }
