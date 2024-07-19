@@ -40,9 +40,7 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Env variables (network configs)
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Copy the .env file
-        run: cp ./.vercel/.env.production.local ./sdk/.env
+        run: vercel pull --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build the Apps Backend
         run: pnpm apps-backend build
       - name: Build Project Artifacts
