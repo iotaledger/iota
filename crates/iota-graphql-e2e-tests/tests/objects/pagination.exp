@@ -1,58 +1,93 @@
 processed 14 tasks
 
-task 1 'publish'. lines 6-19:
+task 1 'publish'. lines 7-20:
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 21-21:
+task 2 'run'. lines 22-22:
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 3 'run'. lines 23-23:
+task 3 'run'. lines 24-24:
 created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 4 'run'. lines 25-25:
+task 4 'run'. lines 26-26:
 created: object(4,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 5 'run'. lines 27-27:
+task 5 'run'. lines 28-28:
 created: object(5,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 6 'run'. lines 29-29:
+task 6 'run'. lines 30-30:
 created: object(6,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 7 'create-checkpoint'. lines 31-31:
+task 7 'create-checkpoint'. lines 32-32:
 Checkpoint created: 1
 
-task 8 'run-graphql'. lines 33-43:
+task 8 'run-graphql'. lines 35-49:
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "cursor": "IBhMDZiGp6kLWJkkamAXfLYMLEzymv79v9Ln0gRHmxA1AQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x17c2a9b2af8c0dbcf9560bf3b611f071f0468c193f11c95ed512d44b92fdfcce",
+                  "value": "4"
+                }
+              }
+            }
           },
           {
-            "cursor": "IGo2LF0uWBWev+G+hSmLww6rXmgJQEJ4LfFxqnhZYDReAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
+                  "value": "1"
+                }
+              }
+            }
           },
           {
-            "cursor": "IIOUWmWoubxXbnMHfwFcdQWza7EdEUhLiw2NWDKMZT5AAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
+                  "value": "2"
+                }
+              }
+            }
           },
           {
-            "cursor": "IMYcoQ7AWOYZT6WLrASYCF1Csj24o6N4XhfVz6MxLGK6AQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
+                  "value": "0"
+                }
+              }
+            }
           },
           {
-            "cursor": "IPLZxNQHzRLDTkk6wNlVvSFvT31q5DGf07odbAHgMWntAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
+                  "value": "3"
+                }
+              }
+            }
           }
         ]
       }
@@ -60,17 +95,31 @@ Response: {
   }
 }
 
-task 9 'run-graphql'. lines 45-55:
+task 9 'run-graphql'. lines 51-65:
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "cursor": "IBhMDZiGp6kLWJkkamAXfLYMLEzymv79v9Ln0gRHmxA1AQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x17c2a9b2af8c0dbcf9560bf3b611f071f0468c193f11c95ed512d44b92fdfcce",
+                  "value": "4"
+                }
+              }
+            }
           },
           {
-            "cursor": "IGo2LF0uWBWev+G+hSmLww6rXmgJQEJ4LfFxqnhZYDReAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
+                  "value": "1"
+                }
+              }
+            }
           }
         ]
       }
@@ -78,17 +127,31 @@ Response: {
   }
 }
 
-task 10 'run-graphql'. lines 57-69:
+task 10 'run-graphql'. lines 67-83:
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "cursor": "IGo2LF0uWBWev+G+hSmLww6rXmgJQEJ4LfFxqnhZYDReAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
+                  "value": "1"
+                }
+              }
+            }
           },
           {
-            "cursor": "IIOUWmWoubxXbnMHfwFcdQWza7EdEUhLiw2NWDKMZT5AAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
+                  "value": "2"
+                }
+              }
+            }
           }
         ]
       }
@@ -96,17 +159,31 @@ Response: {
   }
 }
 
-task 11 'run-graphql'. lines 71-81:
+task 11 'run-graphql'. lines 85-99:
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "cursor": "IMYcoQ7AWOYZT6WLrASYCF1Csj24o6N4XhfVz6MxLGK6AQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
+                  "value": "0"
+                }
+              }
+            }
           },
           {
-            "cursor": "IPLZxNQHzRLDTkk6wNlVvSFvT31q5DGf07odbAHgMWntAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
+                  "value": "3"
+                }
+              }
+            }
           }
         ]
       }
@@ -114,17 +191,31 @@ Response: {
   }
 }
 
-task 12 'run-graphql'. lines 83-93:
+task 12 'run-graphql'. lines 101-115:
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "cursor": "IGo2LF0uWBWev+G+hSmLww6rXmgJQEJ4LfFxqnhZYDReAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
+                  "value": "2"
+                }
+              }
+            }
           },
           {
-            "cursor": "IIOUWmWoubxXbnMHfwFcdQWza7EdEUhLiw2NWDKMZT5AAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
+                  "value": "0"
+                }
+              }
+            }
           }
         ]
       }
@@ -132,17 +223,31 @@ Response: {
   }
 }
 
-task 13 'run-graphql'. lines 95-104:
+task 13 'run-graphql'. lines 117-130:
 Response: {
   "data": {
     "address": {
       "objects": {
         "edges": [
           {
-            "cursor": "IMYcoQ7AWOYZT6WLrASYCF1Csj24o6N4XhfVz6MxLGK6AQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
+                  "value": "0"
+                }
+              }
+            }
           },
           {
-            "cursor": "IPLZxNQHzRLDTkk6wNlVvSFvT31q5DGf07odbAHgMWntAQAAAAAAAAA="
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
+                  "value": "3"
+                }
+              }
+            }
           }
         ]
       }
