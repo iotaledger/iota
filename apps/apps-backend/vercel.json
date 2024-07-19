@@ -12,6 +12,5 @@
             "dest": "src/main.ts",
             "methods": ["GET", "POST", "PUT", "DELETE"]
         }
-    ],
-    "buildCommand": "pnpm apps-backend build"
+    ]
 }
