@@ -50,7 +50,6 @@ export function AccountsFinderView(): JSX.Element {
     const { data: accounts } = useAccounts();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
     const accountSourceType = getAccountSourceType(accountSource);
-    const [searched, setSearched] = useState(false);
     const [password, setPassword] = useState('');
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Pending);
@@ -85,7 +84,6 @@ export function AccountsFinderView(): JSX.Element {
 
     async function runAccountsFinder() {
         try {
-            setSearched(true);
             setSearchPhase(SearchPhase.Ongoing);
             await find();
         } finally {
@@ -100,14 +98,25 @@ export function AccountsFinderView(): JSX.Element {
         accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient;
 
     const searchOptions = (() => {
-        if (searchPhase === SearchPhase.Ongoing)
+        if (searchPhase === SearchPhase.Pending) {
+            return {
+                text: 'Search',
+                icon: <Search24 />,
+            };
+        }
+        if (searchPhase === SearchPhase.Ongoing) {
             return {
                 text: '',
                 icon: <LoadingIndicator />,
             };
-
-        return { text: searched ? 'Search again' : 'Search', icon: <Search24 /> };
+        }
+        return {
+            text: 'Search again',
+            icon: <Search24 />,
+        };
     })();
+
+    const isSearchOngoing = searchPhase === SearchPhase.Ongoing;
 
     return (
         <>
@@ -140,7 +149,7 @@ export function AccountsFinderView(): JSX.Element {
                                 text={searchOptions.text}
                                 after={searchOptions.icon}
                                 onClick={runAccountsFinder}
-                                disabled={searchPhase === SearchPhase.Ongoing}
+                                disabled={isSearchOngoing}
                             />
 
                             <div className="flex flex-row gap-2">
@@ -148,13 +157,13 @@ export function AccountsFinderView(): JSX.Element {
                                     variant="outline"
                                     size="tall"
                                     text="Skip"
-                                    disabled={searchPhase === SearchPhase.Ongoing}
+                                    disabled={isSearchOngoing}
                                 />
                                 <Button
                                     variant="outline"
                                     size="tall"
                                     text="Continue"
-                                    disabled={searchPhase === SearchPhase.Ongoing}
+                                    disabled={isSearchOngoing}
                                 />
                             </div>
                         </>
