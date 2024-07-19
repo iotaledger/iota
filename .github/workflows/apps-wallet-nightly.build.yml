@@ -27,6 +27,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
+      - name: Create artifact name
+        shell: bash
+        run: |
+          export artifact_name="wallet-nightly-$(date -Idate)"
+          echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache
