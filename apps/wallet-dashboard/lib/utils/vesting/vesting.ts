@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { IotaObjectData } from '@iota/iota.js/client';
 import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
@@ -15,6 +16,7 @@ import {
     SupplyIncreaseVestingPortfolio,
     Timelocked,
     TimelockedStakedIota,
+    UID,
     VestingOverview,
 } from '../../interfaces';
 import { isTimelocked, isTimelockedStakedIota, isVesting } from '../timelock';
@@ -171,4 +173,29 @@ export function getSupplyIncreaseVestingPayoutsCount(userType: SupplyIncreaseUse
             : SUPPLY_INCREASE_INVESTOR_VESTING_DURATION;
 
     return SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * vestingDuration;
+}
+
+export function mapTimelockObjects(iotaObjects: IotaObjectData[]): Timelocked[] {
+    return iotaObjects.map((iotaObject) => {
+        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
+            return {
+                id: { id: '' },
+                locked: { value: 0 },
+                expirationTimestampMs: 0,
+                label: '0',
+            };
+        }
+        const fields = iotaObject.content.fields as unknown as {
+            id: UID;
+            locked: string;
+            expiration_timestamp_ms: string;
+            label: string;
+        };
+        return {
+            id: fields.id,
+            locked: { value: Number(fields.locked) },
+            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
+            label: fields.label,
+        };
+    });
 }
