@@ -29,10 +29,7 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
     })?;
 
     // Total supply is in IOTA, snapshot supply is Micros
-    assert_eq!(
-        total_supply,
-        to_micros(TOTAL_SUPPLY_IOTA).expect("total supply should not overflow")
-    );
+    assert_eq!(total_supply, to_micros(TOTAL_SUPPLY_IOTA));
 
     println!("Total supply: {total_supply}");
 

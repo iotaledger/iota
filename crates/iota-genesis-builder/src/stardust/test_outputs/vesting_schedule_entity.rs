@@ -44,23 +44,25 @@ pub(crate) async fn outputs(
     let vested_amount = amount * 90 / 100 / (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64);
 
     outputs.push(new_vested_output(
-        vested_index,
+        *vested_index,
         initial_unlock_amount,
         address,
         None,
         &mut rng,
     )?);
+    *vested_index -= 1;
 
     for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
         let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
         outputs.push(new_vested_output(
-            vested_index,
+            *vested_index,
             vested_amount,
             address,
             Some(timelock),
             &mut rng,
         )?);
+        *vested_index -= 1;
     }
 
     Ok(outputs)

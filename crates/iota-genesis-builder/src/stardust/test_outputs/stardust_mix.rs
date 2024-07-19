@@ -195,12 +195,13 @@ pub(crate) async fn outputs(
             outputs.extend(alias_foundry_outputs);
 
             outputs.push(new_vested_output(
-                vested_index,
+                *vested_index,
                 OUTPUT_IOTA_AMOUNT,
                 address,
                 None,
                 &mut rng,
             )?);
+            *vested_index -= 1;
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Basic(BasicOutputBuilder::new_with_amount(OUTPUT_IOTA_AMOUNT)),
                 address,

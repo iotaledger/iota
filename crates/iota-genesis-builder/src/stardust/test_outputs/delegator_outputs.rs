@@ -11,6 +11,7 @@ use iota_sdk::types::block::{
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
+use super::to_micros;
 use crate::stardust::types::{
     output_header::OutputHeader, output_index::random_output_index_with_rng,
 };
@@ -20,11 +21,10 @@ const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 const A_WEEK_IN_SECONDS: u32 = 604_800;
 const TIMELOCK_MAX_ENDING_TIME: u32 = A_WEEK_IN_SECONDS * 208;
 
-const TO_MICROS: u64 = 1_000_000;
 const DELEGATOR_GAS_COIN_NUM: u8 = 100;
-const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
+const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = to_micros(1_000_000);
 const DELEGATOR_TIMELOCKS_NUM: u8 = 100;
-const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
+const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = to_micros(1_000_000);
 
 pub(crate) fn new_simple_basic_output(
     amount: u64,
@@ -49,7 +49,7 @@ pub(crate) fn new_simple_basic_output(
 }
 
 pub(crate) fn new_vested_output(
-    vested_index: &mut u32,
+    vested_index: u32,
     amount: u64,
     address: Ed25519Address,
     timelock: Option<u32>,
@@ -59,7 +59,6 @@ pub(crate) fn new_vested_output(
     transaction_id[0..28]
         .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
     transaction_id[28..32].copy_from_slice(&vested_index.to_le_bytes());
-    *vested_index -= 1;
 
     let output_header = OutputHeader::new_testing(
         transaction_id,
@@ -101,12 +100,13 @@ pub fn outputs(
     // Add timelocks to delegator
     for _ in 0..DELEGATOR_TIMELOCKS_NUM {
         new_outputs.push(new_vested_output(
-            vested_index,
+            *vested_index,
             DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT,
             delegator,
             Some(MERGE_TIMESTAMP_SECS + TIMELOCK_MAX_ENDING_TIME),
             &mut rng,
         )?);
+        *vested_index -= 1;
     }
 
     Ok(new_outputs)

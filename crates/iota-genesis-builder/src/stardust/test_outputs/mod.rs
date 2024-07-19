@@ -38,8 +38,8 @@ const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
 const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
-pub const fn to_micros(n: u64) -> Option<u64> {
-    n.checked_mul(1_000_000)
+pub const fn to_micros(n: u64) -> u64 {
+    n * 1_000_000
 }
 
 const PROBABILITY_OF_PICKING_A_BASIC_OUTPUT: f64 = 0.1;
@@ -163,7 +163,6 @@ fn add_only_test_outputs<R: Read>(
     // Add all the remainder tokens to the zero address
     let zero_address = Ed25519Address::new([0; 32]);
     let remainder = to_micros(TOTAL_SUPPLY_IOTA)
-        .expect("total supply should not overflow")
         .checked_sub(new_temp_amount + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>())
         .ok_or_else(|| anyhow!("new amount should not be higher than total supply"))?;
     let remainder_per_output = remainder / 4;

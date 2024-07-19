@@ -111,23 +111,25 @@ fn add_vested_outputs(
     let (initial_unlock_amount, vested_amount) = initial_unlock_and_vested_amounts(rng);
 
     outputs.push(new_vested_output(
-        vested_index,
+        *vested_index,
         initial_unlock_amount,
         address,
         None,
         rng,
     )?);
+    *vested_index -= 1;
 
     for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
         let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
         outputs.push(new_vested_output(
-            vested_index,
+            *vested_index,
             vested_amount,
             address,
             Some(timelock),
             rng,
         )?);
+        *vested_index -= 1;
     }
 
     Ok(())

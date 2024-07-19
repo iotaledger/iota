@@ -68,12 +68,13 @@ pub(crate) async fn outputs(
             // 2 addresses out of 3 have an initial unlock.
             if address_index % 3 != 0 {
                 outputs.push(new_vested_output(
-                    vested_index,
+                    *vested_index,
                     initial_unlock_amount,
                     address,
                     None,
                     &mut rng,
                 )?);
+                *vested_index -= 1;
             }
 
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
@@ -83,12 +84,13 @@ pub(crate) async fn outputs(
                 // 1 address out of 4 only has unexpired timelocked vested outputs.
                 if address_index % 5 != 0 || timelock > now {
                     outputs.push(new_vested_output(
-                        vested_index,
+                        *vested_index,
                         vested_amount,
                         address,
                         Some(timelock),
                         &mut rng,
                     )?);
+                    *vested_index -= 1;
                 }
             }
         }
