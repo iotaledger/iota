@@ -41,14 +41,12 @@ jobs:
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Prod Environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Show the project.json
-        run: cat ./.vercel/project.json
       - name: Build the Apps Backend
         run: pnpm apps-backend build
       - name: Build Project Artifacts
-        run: vercel build --prod --debug --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prod --prebuilt --debug --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
+        run: vercel deploy --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
       - name: Extract Deploy URL
         id: deploy_url
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
