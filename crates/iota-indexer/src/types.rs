@@ -112,7 +112,6 @@ pub struct IndexedEpochInfo {
     pub minted_tokens_amount: Option<u64>,
 }
 
-
 impl IndexedEpochInfo {
     pub fn from_new_system_state_summary(
         new_system_state_summary: IotaSystemStateSummary,
