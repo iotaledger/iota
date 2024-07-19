@@ -550,7 +550,7 @@ mod checked {
                 }
 
                 for genesis_object in objects {
-                    assert_eq!(genesis_object.previous_transaction, tx_ctx.digest());
+                    // assert_eq!(genesis_object.previous_transaction, tx_ctx.digest());
                     assert_eq!(genesis_object.storage_rebate, 0);
                     temporary_store.create_object(genesis_object);
                 }

@@ -33,7 +33,7 @@ use iota_types::{
     },
     object::Object,
     storage::ObjectStore,
-    transaction::Transaction,
+    transaction::{Transaction, TransactionDataAPI, TransactionKind},
     IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -46,7 +46,6 @@ pub struct Genesis {
     transaction: Transaction,
     effects: TransactionEffects,
     events: TransactionEvents,
-    objects: Vec<Object>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -56,7 +55,6 @@ pub struct UnsignedGenesis {
     pub transaction: Transaction,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
-    pub objects: Vec<Object>,
 }
 
 // Hand implement PartialEq in order to get around the fact that AuthSigs don't
@@ -75,7 +73,6 @@ impl PartialEq for Genesis {
             && self.checkpoint_contents == other.checkpoint_contents
             && self.transaction == other.transaction
             && self.effects == other.effects
-            && self.objects == other.objects
     }
 }
 
@@ -88,7 +85,6 @@ impl Genesis {
         transaction: Transaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        objects: Vec<Object>,
     ) -> Self {
         Self {
             checkpoint,
@@ -96,20 +92,25 @@ impl Genesis {
             transaction,
             effects,
             events,
-            objects,
         }
     }
 
     pub fn into_objects(self) -> Vec<Object> {
-        self.objects
+        match self.transaction.data().transaction_data().kind() {
+            TransactionKind::Genesis(genesis_tx) => (*genesis_tx.objects).to_vec(),
+            _ => unreachable!(),
+        }
     }
 
     pub fn objects(&self) -> &[Object] {
-        &self.objects
+        match self.transaction.data().transaction_data().kind() {
+            TransactionKind::Genesis(genesis_tx) => &genesis_tx.objects,
+            _ => unreachable!(),
+        }
     }
 
     pub fn object(&self, id: ObjectID) -> Option<Object> {
-        self.objects.iter().find(|o| o.id() == id).cloned()
+        self.objects().iter().find(|o| o.id() == id).cloned()
     }
 
     pub fn transaction(&self) -> &Transaction {
@@ -226,7 +227,6 @@ impl Serialize for Genesis {
             transaction: &'a Transaction,
             effects: &'a TransactionEffects,
             events: &'a TransactionEvents,
-            objects: &'a [Object],
         }
 
         let raw_genesis = RawGenesis {
@@ -235,7 +235,6 @@ impl Serialize for Genesis {
             transaction: &self.transaction,
             effects: &self.effects,
             events: &self.events,
-            objects: &self.objects,
         };
 
         if serializer.is_human_readable() {
@@ -262,7 +261,6 @@ impl<'de> Deserialize<'de> for Genesis {
             transaction: Transaction,
             effects: TransactionEffects,
             events: TransactionEvents,
-            objects: Vec<Object>,
         }
 
         let raw_genesis = if deserializer.is_human_readable() {
@@ -279,18 +277,20 @@ impl<'de> Deserialize<'de> for Genesis {
             transaction: raw_genesis.transaction,
             effects: raw_genesis.effects,
             events: raw_genesis.events,
-            objects: raw_genesis.objects,
         })
     }
 }
 
 impl UnsignedGenesis {
     pub fn objects(&self) -> &[Object] {
-        &self.objects
+        match self.transaction.data().transaction_data().kind() {
+            TransactionKind::Genesis(genesis_tx) => &genesis_tx.objects,
+            _ => unreachable!(),
+        }
     }
 
     pub fn object(&self, id: ObjectID) -> Option<Object> {
-        self.objects.iter().find(|o| o.id() == id).cloned()
+        self.objects().iter().find(|o| o.id() == id).cloned()
     }
 
     pub fn transaction(&self) -> &Transaction {

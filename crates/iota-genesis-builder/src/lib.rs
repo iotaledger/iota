@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs::{self, File},
     io::{prelude::Read, BufReader, BufWriter},
     path::{Path, PathBuf},
@@ -35,7 +35,7 @@ use iota_types::{
         AuthoritySignature, DefaultHash, IotaAuthoritySignature,
     },
     deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
-    digests::ChainIdentifier,
+    digests::{ChainIdentifier, ObjectDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
@@ -56,7 +56,7 @@ use iota_types::{
     },
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
-        Transaction,
+        Transaction, TransactionKind,
     },
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
@@ -327,19 +327,20 @@ impl Builder {
         // Verify that all on-chain state was properly created
         self.validate().unwrap();
 
+        let unsigned_genesis = self
+            .built_genesis
+            .take()
+            .expect("genesis should have been built");
+
+        let committee = Self::committee(unsigned_genesis.objects());
+
         let UnsignedGenesis {
             checkpoint,
             checkpoint_contents,
             transaction,
             effects,
             events,
-            objects,
-        } = self
-            .built_genesis
-            .take()
-            .expect("genesis should have been built");
-
-        let committee = Self::committee(&objects);
+        } = unsigned_genesis;
 
         let checkpoint = {
             let signatures = self.signatures.clone().into_values().collect();
@@ -353,7 +354,6 @@ impl Builder {
             transaction,
             effects,
             events,
-            objects,
         )
     }
 
@@ -930,7 +930,7 @@ fn build_unsigned_genesis_data(
 
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
-    let (genesis_transaction, genesis_effects, genesis_events, objects) =
+    let (genesis_transaction, genesis_effects, genesis_events) =
         create_genesis_transaction(objects, &protocol_config, metrics, &epoch_data);
     let (checkpoint, checkpoint_contents) =
         create_genesis_checkpoint(parameters, &genesis_transaction, &genesis_effects);
@@ -941,7 +941,6 @@ fn build_unsigned_genesis_data(
         transaction: genesis_transaction,
         effects: genesis_effects,
         events: genesis_events,
-        objects,
     }
 }
 
@@ -977,12 +976,7 @@ fn create_genesis_transaction(
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
     epoch_data: &EpochData,
-) -> (
-    Transaction,
-    TransactionEffects,
-    TransactionEvents,
-    Vec<Object>,
-) {
+) -> (Transaction, TransactionEffects, TransactionEvents) {
     let genesis_transaction = {
         let genesis_objects = objects
             .into_iter()
@@ -1008,7 +1002,7 @@ fn create_genesis_transaction(
 
     let genesis_digest = *genesis_transaction.digest();
     // execute txn to effects
-    let (effects, events, objects) = {
+    let (effects, events) = {
         let silent = true;
 
         let executor = iota_execution::executor(protocol_config, silent, None)
@@ -1031,7 +1025,7 @@ fn create_genesis_transaction(
                 input_objects,
                 vec![],
                 IotaGasStatus::new_unmetered(),
-                kind,
+                kind.clone(),
                 signer,
                 genesis_digest,
             );
@@ -1043,11 +1037,40 @@ fn create_genesis_transaction(
         assert!(effects.wrapped().is_empty());
         assert!(effects.unwrapped_then_deleted().is_empty());
 
-        let objects = inner_temp_store.written.into_values().collect();
-        (effects, inner_temp_store.events, objects)
+        let execution_objects = inner_temp_store
+            .written
+            .into_values()
+            .collect::<Vec<Object>>();
+
+        match kind {
+            TransactionKind::Genesis(genesis_tx) => {
+                assert_eq!(execution_objects.len(), genesis_tx.objects.len());
+
+                let genesis_obj_refs: HashMap<ObjectID, (SequenceNumber, ObjectDigest)> =
+                    genesis_tx
+                        .objects
+                        .iter()
+                        .map(|o| {
+                            let (id, sequence_num, obj_digest) = o.compute_object_reference();
+                            (id, (sequence_num, obj_digest))
+                        })
+                        .collect();
+
+                for object in execution_objects {
+                    let (id, sequence_num, obj_digest) = &object.compute_object_reference();
+                    let (genesis_sequence_num, genesis_obj_digest) =
+                        genesis_obj_refs.get(&id).expect("should contain this id");
+                    assert_eq!(genesis_sequence_num, sequence_num);
+                    assert_eq!(genesis_obj_digest, obj_digest);
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        (effects, inner_temp_store.events)
     };
 
-    (genesis_transaction, effects, events, objects)
+    (genesis_transaction, effects, events)
 }
 
 fn create_genesis_objects(
