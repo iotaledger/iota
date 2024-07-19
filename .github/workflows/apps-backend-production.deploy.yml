@@ -39,7 +39,7 @@ jobs:
             turbo-${{ runner.os }}-
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
-      - name: Pull Vercel Env variables (network configs)
+      - name: Pull Vercel Prod Environment
         run: vercel pull --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build the Apps Backend
         run: pnpm apps-backend build
