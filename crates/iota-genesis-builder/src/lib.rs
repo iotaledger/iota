@@ -944,11 +944,6 @@ fn build_unsigned_genesis_data<'info>(
         .map(GenesisValidatorMetadata::from)
         .collect::<Vec<_>>();
 
-    token_distribution_schedule.validate();
-    token_distribution_schedule
-        .check_minimum_stake_for_validators(genesis_validators.iter().map(|v| v.iota_address))
-        .expect("all validators should have the required stake");
-
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);
 
     // Get the correct system packages for our protocol version. If we cannot find
