@@ -41,6 +41,8 @@ jobs:
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Prod Environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Show the ENV FILE
+        run: cat ./.vercel/.env.production.local
       - name: Build the Apps Backend
         run: pnpm apps-backend build
       - name: Build Project Artifacts
