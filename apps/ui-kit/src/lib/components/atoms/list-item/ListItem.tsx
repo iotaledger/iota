@@ -6,7 +6,7 @@ import cx from 'classnames';
 import { ArrowRight } from '@iota/ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components';
 
-interface ListItemProps {
+export interface ListItemProps {
     /**
      * Has right icon (optional).
      */
@@ -34,7 +34,6 @@ export function ListItem({
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
     return (
         <div
-            onClick={onClick}
             className={cx(
                 'w-full pb-xs',
                 {
@@ -45,9 +44,10 @@ export function ListItem({
             )}
         >
             <div
+                onClick={onClick}
                 className={cx(
-                    'relative flex min-h-[48px] flex-row items-center justify-between text-neutral-10 dark:text-neutral-92',
-                    { 'state-layer': !isDisabled },
+                    'relative flex min-h-[48px] flex-row items-center justify-between px-md text-neutral-10 dark:text-neutral-92',
+                    { 'state-layer': !isDisabled, 'cursor-pointer': !isDisabled && onClick },
                 )}
             >
                 {children}

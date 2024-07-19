@@ -1,0 +1,89 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import type { Meta, StoryObj } from '@storybook/react';
+import { SelectorField } from '@/components/molecules/selector-field/SelectorField';
+import { Fragment, useCallback, useState } from 'react';
+import { ListItem } from '@/lib';
+import { IotaLogoMark, PlaceholderReplace } from '@iota/ui-icons';
+
+const meta = {
+    component: SelectorField,
+    tags: ['autodocs'],
+} satisfies Meta<typeof SelectorField>;
+
+export default meta;
+
+type Story = StoryObj<typeof meta>;
+
+type CustomOption = {
+    label: string;
+    Icon: () => React.ReactNode;
+};
+
+const dropdownOptions: CustomOption[] = [
+    {
+        label: 'IOTA',
+        Icon: () => <IotaLogoMark />,
+    },
+    {
+        label: 'Shimmer',
+        Icon: () => <PlaceholderReplace />,
+    },
+];
+
+function OptionTile({ option }: { option: CustomOption }) {
+    return (
+        <div className="flex flex-row items-center gap-x-3">
+            {option.Icon()}
+            <span>{option.label}</span>
+        </div>
+    );
+}
+
+export const Default: Story = {
+    args: {
+        label: 'Selector Field',
+        supportingText: 'Info',
+    },
+    render: (args) => {
+        const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+        const [isOpen, setIsOpen] = useState<boolean>(false);
+        const [content, setContent] = useState<React.ReactNode | undefined>('Select an option');
+
+        const handleOptionClick = useCallback(
+            (option: CustomOption) => {
+                setContent(<OptionTile option={option} />);
+                setIsOpen(false);
+                if (option.label === 'Shimmer') {
+                    setErrorMessage('Shimmer is not supported');
+                }
+            },
+            [isOpen],
+        );
+
+        return (
+            <SelectorField
+                {...args}
+                isOpen={isOpen}
+                setIsOpen={setIsOpen}
+                errorMessage={errorMessage}
+                renderDropdownElements={
+                    <Fragment>
+                        {dropdownOptions.map((option, index) => (
+                            <ListItem
+                                key={option.label}
+                                hideBottomBorder={index === dropdownOptions.length - 1}
+                                onClick={() => handleOptionClick(option)}
+                            >
+                                <OptionTile option={option} />
+                            </ListItem>
+                        ))}
+                    </Fragment>
+                }
+            >
+                {content}
+            </SelectorField>
+        );
+    },
+};
