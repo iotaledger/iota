@@ -40,15 +40,15 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Env variables (network configs)
-        run: vercel pull ./apps/apps-backend --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Copy the .env file
         run: cp ./apps/apps-backend/.vercel/.env.production.local ./sdk/.env
       - name: Build the Apps Backend
         run: pnpm apps-backend build
       - name: Build Project Artifacts
-        run: vercel build --prod --cwd ./apps/apps-backend --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prod --cwd ./apps/apps-backend --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
+        run: vercel deploy --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
       - name: Extract Deploy URL
         id: deploy_url
         run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
