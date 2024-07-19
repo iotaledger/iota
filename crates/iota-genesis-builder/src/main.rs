@@ -150,7 +150,7 @@ fn main() -> Result<()> {
                         *(&mut filtered_outputs_cnt) += 1;
                     }
 
-                    filtered
+                    !filtered
                 })
                 .collect(); // we need to collect here to be able to chain the new aggregated outputs from the unlocked vesting output balances
 
@@ -211,9 +211,7 @@ fn collect_unlocked_vesting_outputs(
         return false;
     }
 
-    let Some(unlock_conds) = output.unlock_conditions() else {
-        panic!("no unlock conditions found")
-    };
+    let unlock_conds = output.unlock_conditions().expect("no unlock conditions found");
 
     // check if vesting unlock period is already done
     if unlock_conds.is_time_locked(snapshot_timestamp_s) {
