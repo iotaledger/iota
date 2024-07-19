@@ -19,6 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         label: 'Badge',
+        type: BadgeType.PrimarySolid,
     },
     argTypes: {
         type: {
@@ -26,12 +27,6 @@ export const Default: Story = {
                 type: 'select',
                 options: Object.values(BadgeType),
             },
-        },
-        disabled: {
-            control: 'boolean',
-        },
-        icon: {
-            control: 'text',
         },
     },
 };

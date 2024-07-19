@@ -1,26 +1,26 @@
 processed 7 tasks
 
-task 1 'publish'. lines 6-22:
+task 1 'publish'. lines 7-23:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 6862800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'programmable'. lines 24-25:
+task 2 'programmable'. lines 25-26:
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
 
-task 3 'programmable'. lines 27-28:
+task 3 'programmable'. lines 28-29:
 mutated: object(0,0), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2249676, non_refundable_storage_fee: 22724
 
-task 4 'programmable'. lines 30-32:
+task 4 'programmable'. lines 31-33:
 mutated: object(0,0), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 2249676, non_refundable_storage_fee: 22724
 
-task 5 'create-checkpoint'. lines 34-34:
+task 5 'create-checkpoint'. lines 35-35:
 Checkpoint created: 1
 
-task 6 'run-graphql'. lines 36-84:
+task 6 'run-graphql'. lines 37-85:
 Response: {
   "data": {
     "transactionBlocks": {
@@ -31,7 +31,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x0560c7a7aaa59a5a131c3d868702aa579ebb437c7a2bd9a3fe12a6cd5910d103",
+                  "package": "0xf681029828f38554a387525dc0773b42ac408bd9af388e6f38cd2b90ea9ba1fc",
                   "module": "m",
                   "functionName": "get"
                 }
@@ -44,17 +44,17 @@ Response: {
               "nodes": [
                 {
                   "__typename": "SharedObjectRead",
-                  "address": "0x38a646eb5a92aaff2c5a12db6c46d5cabf9066bd0331a6212cc61937085f74b9",
+                  "address": "0xcd5e5d900708b61cd8dc8c22f44708f8b2103ece21a4db72a70f71b4f9ddd806",
                   "version": 2,
-                  "digest": "3k6LLKh62mAuTmCK6nNa2trwFRAYQqh143noL2Mqm37v",
+                  "digest": "2M7ktvGE4p87fqG2FZ4XQsASjDaoDWyofpu5EBRFbHdL",
                   "object": {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0560c7a7aaa59a5a131c3d868702aa579ebb437c7a2bd9a3fe12a6cd5910d103::m::Foo"
+                          "repr": "0xf681029828f38554a387525dc0773b42ac408bd9af388e6f38cd2b90ea9ba1fc::m::Foo"
                         },
                         "json": {
-                          "id": "0x38a646eb5a92aaff2c5a12db6c46d5cabf9066bd0331a6212cc61937085f74b9",
+                          "id": "0xcd5e5d900708b61cd8dc8c22f44708f8b2103ece21a4db72a70f71b4f9ddd806",
                           "x": "0"
                         }
                       }
@@ -71,7 +71,7 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x0560c7a7aaa59a5a131c3d868702aa579ebb437c7a2bd9a3fe12a6cd5910d103",
+                  "package": "0xf681029828f38554a387525dc0773b42ac408bd9af388e6f38cd2b90ea9ba1fc",
                   "module": "m",
                   "functionName": "inc"
                 }
@@ -91,12 +91,12 @@ Response: {
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x0560c7a7aaa59a5a131c3d868702aa579ebb437c7a2bd9a3fe12a6cd5910d103",
+                  "package": "0xf681029828f38554a387525dc0773b42ac408bd9af388e6f38cd2b90ea9ba1fc",
                   "module": "m",
                   "functionName": "get"
                 },
                 {
-                  "package": "0x0560c7a7aaa59a5a131c3d868702aa579ebb437c7a2bd9a3fe12a6cd5910d103",
+                  "package": "0xf681029828f38554a387525dc0773b42ac408bd9af388e6f38cd2b90ea9ba1fc",
                   "module": "m",
                   "functionName": "inc"
                 }
