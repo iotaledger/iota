@@ -3,5 +3,6 @@
 
 export * from './segmented-button';
 export * from './title';
+export * from './navbar-item';
 export * from './account';
 export * from './table-cell';

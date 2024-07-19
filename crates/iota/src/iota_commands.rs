@@ -61,13 +61,6 @@ pub enum IotaCommand {
         #[clap(long = "no-full-node")]
         no_full_node: bool,
     },
-    #[clap(name = "network")]
-    Network {
-        #[clap(long = "network.config")]
-        config: Option<PathBuf>,
-        #[clap(short, long, help = "Dump the public keys of all authorities")]
-        dump_addresses: bool,
-    },
     /// Bootstrap and initialize a new iota network
     #[clap(name = "genesis")]
     Genesis {
@@ -266,29 +259,6 @@ impl IotaCommand {
 
                     interval.tick().await;
                 }
-            }
-            IotaCommand::Network {
-                config,
-                dump_addresses,
-            } => {
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_NETWORK_CONFIG));
-                let config: NetworkConfig = PersistedConfig::read(&config_path).map_err(|err| {
-                    err.context(format!(
-                        "Cannot open Iota network config file at {:?}",
-                        config_path
-                    ))
-                })?;
-
-                if dump_addresses {
-                    for validator in config.validator_configs() {
-                        println!(
-                            "{} - {}",
-                            validator.network_address(),
-                            validator.protocol_key_pair().public(),
-                        );
-                    }
-                }
-                Ok(())
             }
             IotaCommand::Genesis {
                 working_dir,
