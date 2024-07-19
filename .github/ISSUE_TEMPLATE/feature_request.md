@@ -15,9 +15,9 @@ Explain why this feature is needed.
 
 Write a list of what you want this feature to do.
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Open questions (optional)
 

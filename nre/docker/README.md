@@ -1,6 +1,7 @@
 # Run Iota Node using Docker Compose
 
 Tested using:
+
 - ubuntu 20.04 (linux/amd64) on bare metal
 - ubuntu 22.04 (linux/amd64) on bare metal
 
@@ -10,7 +11,7 @@ Tested using:
 
 2. Update [validator.yaml](../config/validator.yaml) and place it in the same directory as `docker-compose.yaml`.
 
-Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example: 
+Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example:
 
 ```
 protocol-key-pair:

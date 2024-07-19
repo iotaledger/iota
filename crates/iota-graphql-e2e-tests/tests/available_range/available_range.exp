@@ -1,54 +1,54 @@
 processed 5 tasks
 
-task 1 'run-graphql'. lines 6-28:
+task 1 'run-graphql'. lines 7-29:
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "digest": "CEFTofgVXxyMMuGhV9m53kdqGBZhHPf3tYK1QGDgm1dX",
+        "digest": "GR56Lsfho5vne1m9rGQyTGuRbJ5YV96gDaiVSCoujVC6",
         "sequenceNumber": 0
       },
       "last": {
-        "digest": "CEFTofgVXxyMMuGhV9m53kdqGBZhHPf3tYK1QGDgm1dX",
+        "digest": "GR56Lsfho5vne1m9rGQyTGuRbJ5YV96gDaiVSCoujVC6",
         "sequenceNumber": 0
       }
     },
     "first": {
-      "digest": "CEFTofgVXxyMMuGhV9m53kdqGBZhHPf3tYK1QGDgm1dX",
+      "digest": "GR56Lsfho5vne1m9rGQyTGuRbJ5YV96gDaiVSCoujVC6",
       "sequenceNumber": 0
     },
     "last": {
-      "digest": "CEFTofgVXxyMMuGhV9m53kdqGBZhHPf3tYK1QGDgm1dX",
+      "digest": "GR56Lsfho5vne1m9rGQyTGuRbJ5YV96gDaiVSCoujVC6",
       "sequenceNumber": 0
     }
   }
 }
 
-task 2 'create-checkpoint'. lines 30-30:
+task 2 'create-checkpoint'. lines 31-31:
 Checkpoint created: 1
 
-task 3 'create-checkpoint'. lines 33-33:
+task 3 'create-checkpoint'. lines 34-34:
 Checkpoint created: 2
 
-task 4 'run-graphql'. lines 36-58:
+task 4 'run-graphql'. lines 37-59:
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "digest": "CEFTofgVXxyMMuGhV9m53kdqGBZhHPf3tYK1QGDgm1dX",
+        "digest": "GR56Lsfho5vne1m9rGQyTGuRbJ5YV96gDaiVSCoujVC6",
         "sequenceNumber": 0
       },
       "last": {
-        "digest": "Gs5umhLTGMzabHTw6Ba4sEaSjvFhh53XtWS6F6waR5j4",
+        "digest": "27DoRoo4E8RgqwuUCSLnMNCi6XhVqB67pLufjwruoCFC",
         "sequenceNumber": 2
       }
     },
     "first": {
-      "digest": "CEFTofgVXxyMMuGhV9m53kdqGBZhHPf3tYK1QGDgm1dX",
+      "digest": "GR56Lsfho5vne1m9rGQyTGuRbJ5YV96gDaiVSCoujVC6",
       "sequenceNumber": 0
     },
     "last": {
-      "digest": "Gs5umhLTGMzabHTw6Ba4sEaSjvFhh53XtWS6F6waR5j4",
+      "digest": "27DoRoo4E8RgqwuUCSLnMNCi6XhVqB67pLufjwruoCFC",
       "sequenceNumber": 2
     }
   }
