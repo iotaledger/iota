@@ -1,6 +1,6 @@
 processed 12 tasks
 
-task 1 'run-graphql'. lines 6-15:
+task 1 'run-graphql'. lines 7-16:
 Response: {
   "data": {
     "type": {
@@ -106,7 +106,7 @@ Response: {
   }
 }
 
-task 2 'run-graphql'. lines 17-26:
+task 2 'run-graphql'. lines 18-27:
 Response: {
   "data": {
     "type": {
@@ -117,7 +117,7 @@ Response: {
   }
 }
 
-task 3 'run-graphql'. lines 28-37:
+task 3 'run-graphql'. lines 29-38:
 Response: {
   "data": {
     "type": {
@@ -132,7 +132,7 @@ Response: {
   }
 }
 
-task 4 'run-graphql'. lines 39-48:
+task 4 'run-graphql'. lines 40-49:
 Response: {
   "data": null,
   "errors": [
@@ -154,7 +154,7 @@ Response: {
   ]
 }
 
-task 5 'run-graphql'. lines 50-60:
+task 5 'run-graphql'. lines 51-61:
 Response: {
   "data": {
     "type": {
@@ -171,7 +171,7 @@ Response: {
   }
 }
 
-task 6 'run-graphql'. lines 62-77:
+task 6 'run-graphql'. lines 63-78:
 Response: {
   "data": null,
   "errors": [
@@ -194,7 +194,7 @@ Response: {
   ]
 }
 
-task 7 'run-graphql'. lines 79-102:
+task 7 'run-graphql'. lines 80-103:
 Response: {
   "data": {
     "token": {
@@ -228,7 +228,7 @@ Response: {
   }
 }
 
-task 8 'run-graphql'. lines 104-121:
+task 8 'run-graphql'. lines 105-122:
 Response: {
   "data": null,
   "errors": [
@@ -251,20 +251,20 @@ Response: {
   ]
 }
 
-task 9 'publish'. lines 123-140:
+task 9 'publish'. lines 124-141:
 created: object(9,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 4461200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 10 'create-checkpoint'. lines 142-142:
+task 10 'create-checkpoint'. lines 143-143:
 Checkpoint created: 1
 
-task 11 'run-graphql'. lines 144-152:
+task 11 'run-graphql'. lines 145-153:
 Response: {
   "data": null,
   "errors": [
     {
-      "message": "Internal error occurred while processing request: Error calculating layout for 0x63b334b83939a2be5f07bf604180d61a0dfd660b544ff2cb289f33f0952a99c9::m::S1<u32>: Type layout nesting exceeded limit of 128",
+      "message": "Internal error occurred while processing request: Error calculating layout for 0xb56e1e321a48e7c505cef0e82f544dc978ae3866c64bbb8bc3286b23b37cdbeb::m::S1<u32>: Type layout nesting exceeded limit of 128",
       "locations": [
         {
           "line": 4,

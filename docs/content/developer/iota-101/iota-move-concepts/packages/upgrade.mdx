@@ -1,11 +1,11 @@
 ---
 title: Upgrading Packages
-description: IOTA provides a method of upgrading your packages while still retaining their immutable properties.
+description: Iota provides a method of upgrading your packages while still retaining their immutable properties.
 ---
 
-IOTA smart contracts are immutable package objects consisting of a collection of Move modules. Because the packages are immutable, transactions can safely access smart contracts without full consensus (fastpath transactions). If someone could change these packages, they would become [shared objects](../../objects/object-ownership/shared.mdx), which would require full consensus before completing a transaction.
+Iota smart contracts are immutable package objects consisting of a collection of Move modules. Because the packages are immutable, transactions can safely access smart contracts without full consensus (fastpath transactions). If someone could change these packages, they would become [shared objects](../../objects/object-ownership/shared.mdx), which would require full consensus before completing a transaction.
 
-The inability to change package objects, however, becomes a problem when considering the iterative nature of code development. Builders require the ability to update their code and pull changes from other developers while still being able to reap the benefits of fastpath transactions. Fortunately, the IOTA network provides a method of upgrading your packages while still retaining their immutable properties.
+The inability to change package objects, however, becomes a problem when considering the iterative nature of code development. Builders require the ability to update their code and pull changes from other developers while still being able to reap the benefits of fastpath transactions. Fortunately, the Iota network provides a method of upgrading your packages while still retaining their immutable properties.
 
 ## Upgrade considerations
 
@@ -13,7 +13,7 @@ There are some details of the process that you should consider before upgrading 
 
 For example, [module initializers](../init.mdx) do not re-run with package upgrades. When you publish your initial package, Move runs the `init` function you define for the package once (and only once) at the time of the publish event. Any `init` functions you might include in subsequent versions of your package are ignored.
 
-As alluded to previously, all packages on the IOTA network are immutable. Because of this fact, you cannot delete old packages from the chain. As a result, there is nothing that prevents other packages from accessing the methods and types defined in the old versions of your upgraded packages. By default, users can choose to keep using the old version of a package, as well. As a package developer, you must be aware of and account for this possibility.
+As alluded to previously, all packages on the Iota network are immutable. Because of this fact, you cannot delete old packages from the chain. As a result, there is nothing that prevents other packages from accessing the methods and types defined in the old versions of your upgraded packages. By default, users can choose to keep using the old version of a package, as well. As a package developer, you must be aware of and account for this possibility.
 
 For example, you might define an `increment` function in your original package:
 
@@ -26,7 +26,7 @@ public fun increment(c: &mut Counter) {
 Then, your package upgrade might add an emit event to the `increment` function:
 
 ```move
-struct Progress has copy, drop {
+public struct Progress has copy, drop {
     reached: u64
 }
 
@@ -57,7 +57,7 @@ module example::counter {
     use iota::transfer;
     use iota::tx_context::TxContext;
 
-    struct Counter has key {
+    public struct Counter has key {
         id: UID,
         value: u64,
     }
@@ -93,7 +93,7 @@ module example::counter {
     // 1. Track the current version of the module
     const VERSION: u64 = 1;
 
-    struct Counter has key {
+    public struct Counter has key {
         id: UID,
         // 2. Track the current version of the shared object
         version: u64,
@@ -102,7 +102,7 @@ module example::counter {
         value: u64,
     }
 
-    struct AdminCap has key {
+    public struct AdminCap has key {
         id: UID,
     }
 
@@ -153,18 +153,18 @@ module example::counter {
     // 1. Bump the `VERSION` of the package.
     const VERSION: u64 = 2;
 
-    struct Counter has key {
+    public struct Counter has key {
         id: UID,
         version: u64,
         admin: ID,
         value: u64,
     }
 
-    struct AdminCap has key {
+    public struct AdminCap has key {
         id: UID,
     }
 
-    struct Progress has copy, drop {
+    public struct Progress has copy, drop {
         reached: u64,
     }
 
