@@ -147,7 +147,7 @@ fn main() -> Result<()> {
                     );
 
                     if filtered {
-                        *(&mut filtered_outputs_cnt) += 1;
+                        filtered_outputs_cnt += 1;
                     }
 
                     !filtered
@@ -218,9 +218,7 @@ fn collect_unlocked_vesting_outputs(
         return false;
     }
 
-    let Some(address) = unlock_conds.address() else {
-        panic!("no address unlock condition found")
-    };
+    let address = unlock_conds.address().expect("no unlock conditions found"); 
 
     // collect the unlocked vesting balances
     unlocked_address_balances
