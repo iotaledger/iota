@@ -40,7 +40,7 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Prod Environment
-        run: vercel pull --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build the Apps Backend
         run: pnpm apps-backend build
       - name: Build Project Artifacts
