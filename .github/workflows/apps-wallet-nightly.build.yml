@@ -5,11 +5,9 @@ env:
   IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'apps/wallet/**'
-      - '.github/workflows/apps-wallet-nightly.build.yml'
+  schedule:
+    # At 20:58 on every day-of-week from Monday through Friday
+    - cron: '58 20 * * 1-5'
 
 jobs:
   deploy-preview:
