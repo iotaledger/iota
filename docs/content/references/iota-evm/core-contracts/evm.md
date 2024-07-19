@@ -85,8 +85,7 @@ this endpoint.
 
 This endpoint is intended to be used in case the foundry is controlled by chain
 A, and the owner of the foundry wishes to register the ERC20 contract on chain
-B. In that case, the owner must call this endpoint on chain A with `target =
-chain B`. The request to chain B is then sent as an on-ledger request.
+B. In that case, the owner must call this endpoint on chain A with `target = chain B`. The request to chain B is then sent as an on-ledger request.
 After a few minutes, call
 [`getERC20ExternalNativeTokenAddress`](#geterc20externalnativetokenaddress)
 on chain B to find out the address of the ERC20 contract.
