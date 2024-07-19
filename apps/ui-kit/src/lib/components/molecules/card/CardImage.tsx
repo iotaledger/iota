@@ -1,52 +1,49 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import React from 'react';
 import cx from 'classnames';
+import { ImageType, ImageVariant } from './card.enums';
+import { IMAGE_BG_CLASSES, IMAGE_VARIANT_CLASSES } from './card.classes';
 import { ImagePlaceholder } from '@/components/atoms/image-placeholder';
-import { ImageVariant, ImageType } from './card.enums';
-import { IMAGE } from './card.classes';
 
-export type CardImageProps = {
+export interface CardImageProps {
     type?: ImageType;
     variant?: ImageVariant;
     url?: string;
-    iconName?: string;
-};
+    icon?: React.ReactNode;
+    children?: React.ReactNode;
+}
 
-export function CardImage({ type, variant = ImageVariant.Rounded, url, iconName }: CardImageProps) {
+export function CardImage({
+    type = ImageType.BgSolid,
+    variant = ImageVariant.Rounded,
+    url,
+    icon,
+    children,
+}: CardImageProps) {
     if (!variant) {
         return null;
     }
 
-    if (type === ImageType.Placeholder) {
-        return (
-            <div>
-                <ImagePlaceholder variant={variant} />
-            </div>
-        );
-    }
-
-    if (type === ImageType.Img && url) {
-        return (
-            <div className={cx(IMAGE[variant], 'overflow-hidden')}>
-                <img src={url} className={cx(IMAGE[variant], 'object-cover')} alt="Card Image" />
-            </div>
-        );
-    }
-
-    if (type === ImageType.Icon && iconName) {
-        return (
-            <div className={cx(IMAGE[variant], 'overflow-hidden bg-neutral-96')}>
-                {/* TODO put icon dynamic */}
-            </div>
-        );
-    }
-
-    if (type === ImageType.IconOnly && iconName) {
-        return (
-            <div className={cx(IMAGE[variant], 'overflow-hidden')}>
-                {/* TODO put icon dynamic */}
-            </div>
-        );
-    }
+    return (
+        <div
+            className={cx(
+                IMAGE_VARIANT_CLASSES[variant],
+                IMAGE_BG_CLASSES[type],
+                'flex items-center justify-center overflow-hidden',
+            )}
+        >
+            {type === ImageType.Placeholder && <ImagePlaceholder variant={variant} />}
+            {url && (
+                <img
+                    src={url}
+                    className={cx(IMAGE_VARIANT_CLASSES[variant], 'object-cover')}
+                    alt="Card Image"
+                />
+            )}
+            {!!icon && icon}
+            {children}
+        </div>
+    );
 }

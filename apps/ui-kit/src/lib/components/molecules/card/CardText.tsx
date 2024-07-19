@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export type CardTextProps = {
-    title?: string;
+    title: string;
     subtitle?: string;
 };
 

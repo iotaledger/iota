@@ -8,11 +8,9 @@ export enum CardVariant {
 }
 
 export enum ImageType {
-    None = 'none',
     Placeholder = 'placeholder',
-    Img = 'img',
-    Icon = 'icon',
-    IconOnly = 'icon-only',
+    BgSolid = 'bg-solid',
+    BgTransparent = 'bg-transparent',
 }
 
 export enum ImageVariant {
@@ -21,7 +19,6 @@ export enum ImageVariant {
 }
 
 export enum CardActionVariant {
-    None = 'none',
     Link = 'link',
     SupportingText = 'supporting-text',
     Button = 'button',

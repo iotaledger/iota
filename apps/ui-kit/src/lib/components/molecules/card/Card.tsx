@@ -6,12 +6,27 @@ import cx from 'classnames';
 import { CARD_DISABLED, CARD_CLASSES_VARIANT } from './card.classes';
 import { CardVariant } from './card.enums';
 
-export type CardProps = {
+export interface CardProps {
+    /**
+     * If `true`, the card will be disabled.
+     */
     disabled?: boolean;
+
+    /**
+     * Handler on click to the card.
+     */
     onClick?: () => void;
+
+    /**
+     * UI variant of the card.
+     */
     variant?: CardVariant;
+
+    /**
+     * Passing composable Card components like: CardImage, CardText, CardAction.
+     */
     children?: React.ReactNode;
-};
+}
 
 export function Card({
     disabled = false,

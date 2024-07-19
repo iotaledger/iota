@@ -1,15 +1,21 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CardVariant, ImageVariant } from './card.enums';
+import { CardVariant, ImageType, ImageVariant } from './card.enums';
 
 export const CARD_DISABLED = `cursor-default opacity-40`;
 
-export const IMAGE_SIZE = 'h-[40px] w-[40px]';
+export const IMAGE_SIZE = 'h-10 w-10';
 
-export const IMAGE: { [key in ImageVariant]: string } = {
+export const IMAGE_VARIANT_CLASSES: { [key in ImageVariant]: string } = {
     [ImageVariant.SquareRounded]: `${IMAGE_SIZE} rounded-md`,
     [ImageVariant.Rounded]: `${IMAGE_SIZE} rounded-full`,
+};
+
+export const IMAGE_BG_CLASSES: { [key in ImageType]: string } = {
+    [ImageType.Placeholder]: ``,
+    [ImageType.BgSolid]: `bg-neutral-96`,
+    [ImageType.BgTransparent]: ``,
 };
 
 const CARD_HOVER = `hover:cursor-pointer hover:bg-primary-60 hover:bg-opacity-8 hover:dark:bg-primary-60 hover:dark:bg-opacity-8`;
