@@ -757,7 +757,6 @@ impl Builder {
         } else {
             Default::default()
         };
-        println!("{:?}", migration_sources);
 
         let token_distribution_schedule_file =
             path.join(GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE);
