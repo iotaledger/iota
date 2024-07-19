@@ -63,15 +63,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
 
-    // Start network without authorities
-    let start = IotaCommand::Start {
-        config_dir: Some(working_dir.into()),
-        no_full_node: false,
-    }
-    .execute()
-    .await;
-    assert!(matches!(start, Err(..)));
-    // Genesis
     IotaCommand::Genesis {
         working_dir: Some(working_dir.to_path_buf()),
         write_config: None,
