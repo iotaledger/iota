@@ -75,6 +75,7 @@ pub struct ConfigBuilder<R = OsRng> {
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     data_ingestion_dir: Option<PathBuf>,
+    empty_validator_genesis: bool,
 }
 
 impl ConfigBuilder {
@@ -91,6 +92,7 @@ impl ConfigBuilder {
             num_unpruned_validators: None,
             authority_overload_config: None,
             data_ingestion_dir: None,
+            empty_validator_genesis: false,
         }
     }
 
@@ -226,6 +228,7 @@ impl<R> ConfigBuilder<R> {
             jwk_fetch_interval: self.jwk_fetch_interval,
             authority_overload_config: self.authority_overload_config,
             data_ingestion_dir: self.data_ingestion_dir,
+            empty_validator_genesis: self.empty_validator_genesis,
         }
     }
 
@@ -234,6 +237,15 @@ impl<R> ConfigBuilder<R> {
             self.genesis_config = Some(GenesisConfig::for_local_testing());
         }
         self.genesis_config.as_mut().unwrap()
+    }
+
+    /// Avoid initializing validator genesis in memory.
+    ///
+    /// This allows callers to create the genesis blob,
+    /// and use a file pointer to configure the validators.
+    pub fn with_empty_validator_genesis(mut self) -> Self {
+        self.empty_validator_genesis = true;
+        self
     }
 }
 
@@ -344,6 +356,17 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
+            for source in &genesis_config.migration_sources {
+                let reader = source
+                    .to_reader()
+                    .expect("migration source should be readable");
+                builder = builder
+                    .add_migration_objects(reader)
+                    .expect("migrated stated should be added without errors");
+            }
+            if !genesis_config.migration_sources.is_empty() {
+                tracing::info!("Added migrated state");
+            }
 
             for (i, validator) in validators.iter().enumerate() {
                 let name = validator
@@ -401,7 +424,11 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         builder = builder.with_unpruned_checkpoints();
                     }
                 }
-                builder.build(validator, genesis.clone())
+                if self.empty_validator_genesis {
+                    builder.build_without_genesis(validator)
+                } else {
+                    builder.build(validator, genesis.clone())
+                }
             })
             .collect();
         NetworkConfig {

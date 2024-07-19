@@ -38,7 +38,7 @@ Options:
 
 The main philosophy behind the CLI PTB support is to enable a user to build and execute a PTB from the command line. Bash scripts can be used to construct and execute the PTB just as you would do from the command line, providing great flexibility when it comes to automating different tasks.
 
-Besides using existing [traditional PTB](/concepts/transactions/prog-txn-blocks/) related concepts, we introduce a few new and important concepts for this command. 
+Besides using existing [traditional PTB](../../developer/iota-101/transactions/ptb/prog-txn-blocks.mdx) related concepts, we introduce a few new and important concepts for this command. 
 
 :::warning
 
@@ -74,7 +74,7 @@ iota client ptb \
 
 :::tip
 
-CLI PTB uses name resolution for common packages like `iota`, `std`, `deepbook`, so you can use them directly instead of their addresses: `0x2`, `0x1`, or `0xdee9`.
+CLI PTB uses name resolution for common packages like `iota`, `std`, so you can use them directly instead of their addresses: `0x2`, `0x1`, or `0xdee9`.
 
 :::
 
@@ -106,7 +106,7 @@ When a PTB is executed, the output contains all the relevant information (transa
 
 ### Move call
 
-When needing to execute a Move call, use the `--move-call` transaction to call a specific function from a package. The CLI PTB supports name resolution for common packages like `iota`, `std`, `deepbook`, so you can use both `0x1::option::is_none` as well as `std::option::is_none` for passing the function name.
+When needing to execute a Move call, use the `--move-call` transaction to call a specific function from a package. The CLI PTB supports name resolution for common packages like `iota`, `std`, so you can use both `0x1::option::is_none` as well as `std::option::is_none` for passing the function name.
 
 ```bash
 --assign A none
@@ -121,7 +121,7 @@ To call a specific function from a specific package, you can use the following c
 
 ### Publish
 
-Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](/concepts/iota-move-concepts/packages.mdx). Here is an example on how to publish a Move project on chain using the `iota client ptb` command. It makes a call to the `iota::tx_context::sender` to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
+Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../developer/iota-101/iota-move-concepts/packages/packages.mdx). Here is an example on how to publish a Move project on chain using the `iota client ptb` command. It makes a call to the `iota::tx_context::sender` to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
 
 ```bash
 iota client ptb \

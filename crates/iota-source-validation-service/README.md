@@ -2,7 +2,7 @@
 
 This document describes the Iota Source Validation Service. It is engineering documentation primarily for engineers who may want to build, extend, configure, or understand the service.
 
-The Source Validation Service is a server that returns Move source code associated with on-chain Move bytecode. It fetches and builds Move source code for a repository, and then verifies that the built artifact matches the on-chain bytecode. 
+The Source Validation Service is a server that returns Move source code associated with on-chain Move bytecode. It fetches and builds Move source code for a repository, and then verifies that the built artifact matches the on-chain bytecode.
 
 The default configuration limits scope to Iota framework packages in `crates/iota-framework/packages`:
 
@@ -16,7 +16,7 @@ See examples below for requesting source from the server.
 ## Build and Run
 
 ```
-cargo run --release --bin iota-source-validation-service crates/iota-source-validation-service/config.toml 
+cargo run --release --bin iota-source-validation-service crates/iota-source-validation-service/config.toml
 ```
 
 See [`config.toml` in this directory](config.toml).
@@ -33,17 +33,17 @@ repository = "https://github.com/iotaledger/iota"
 branch = "framework/mainnet"
 network = "mainnet"
 packages = [
-    { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
-    { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
-    { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
-    { path = "crates/iota-framework/packages/iota-system", watch = "0x3" },
+  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
+  { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
+  { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
+  { path = "crates/iota-framework/packages/iota-system", watch = "0x3" },
 ]
 ```
 
 It specifies the `repository` and `branch` for one or more move `packages`. `network` specifies the on-chain network to verify the source against. It can be one of `mainnet`, `testnet`, `devnet`, or `localnet`.
 
 A package `path` specifies the path of the package in the repository (where the `Move.toml` is).
-The `watch` field is optional, and specifies the address of an object that the server should monitor for on-chain changes if a package is upgraded. For example, Iota framework packages mutate their on-chain address when upgraded. 
+The `watch` field is optional, and specifies the address of an object that the server should monitor for on-chain changes if a package is upgraded. For example, Iota framework packages mutate their on-chain address when upgraded.
 Non-framework packages may mutate an `UpgradeCap` or an object wrapping the `UpgradeCap` (in which case, `watch` should be set to the `UpgradeCap` object ID or wrapped object ID respectively).
 
 Currently the `watch` field intends only to invalidate and evict the source code if on-chain code changes via upgrades. Due to current limitations, it does not automatically attempt to find and reprocess the latest source code. To reprocess the latest source code, restart the server, which will download and verify the source code afresh.
