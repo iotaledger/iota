@@ -46,7 +46,6 @@ pub(crate) async fn outputs(
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("vesting_schedule_portfolio_mix randomness seed: {randomness_seed}");
 
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager

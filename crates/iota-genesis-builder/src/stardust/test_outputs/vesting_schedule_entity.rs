@@ -29,7 +29,6 @@ pub(crate) async fn outputs(
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("vesting_schedule_entity randomness seed: {randomness_seed}");
 
     let address = secret_manager
         .generate_ed25519_addresses(COIN_TYPE, 0, 0..1, None)

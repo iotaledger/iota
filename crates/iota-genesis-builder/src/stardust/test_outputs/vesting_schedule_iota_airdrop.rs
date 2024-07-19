@@ -39,7 +39,6 @@ pub(crate) async fn outputs(
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("vesting_schedule_iota_airdrop randomness seed: {randomness_seed}");
 
     for account_index in 0..ACCOUNTS {
         for address_index in 0..ADDRESSES_PER_ACCOUNT {

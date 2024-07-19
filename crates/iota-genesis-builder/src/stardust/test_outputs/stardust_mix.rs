@@ -169,7 +169,6 @@ pub(crate) async fn outputs(
     randomness_seed: u64,
     vested_index: &mut u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    println!("stardust_mix randomness seed: {randomness_seed}");
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut outputs = Vec::new();
 

@@ -86,7 +86,6 @@ pub fn outputs(
     vested_index: &mut u32,
     delegator: Ed25519Address,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    println!("delegator_outputs randomness seed: {randomness_seed}");
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = Vec::new();
 

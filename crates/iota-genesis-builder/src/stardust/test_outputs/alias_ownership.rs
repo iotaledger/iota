@@ -36,7 +36,6 @@ pub(crate) async fn outputs(randomness_seed: u64) -> anyhow::Result<Vec<(OutputH
 
     // create a randomized ownership dependency tree
     let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("alias_ownership randomness seed: {randomness_seed}");
 
     let alias_owners = secret_manager
         .generate_ed25519_addresses(COIN_TYPE, 0, 0..OWNING_ALIAS_COUNT, None)
