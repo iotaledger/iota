@@ -11,7 +11,8 @@
     "external-crates/move/",
     "bridge/evm/lib/",
     "examples/trading/api/prisma/migrations/migration_lock.toml",
-    "sdk/create-dapp/templates/",
+    "sdk/*",
+    "apps/*",
     "crates/iota-framework/docs/**/*.{md}",
     "crates/iota-graphql-rpc/docs/examples.md"
   ],
