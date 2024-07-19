@@ -1,0 +1,47 @@
+name: Build Wallet App (nightly)
+
+env:
+  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/wallet/**'
+      - '.github/workflows/apps-wallet-nightly.build.yml'
+
+jobs:
+  deploy-preview:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: [tooling-runners]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+        with:
+          version: 9
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@v3
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Build Wallet
+        run: pnpm wallet build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.artifact_name }}
+          path: |
+            ./apps/wallet/dist
