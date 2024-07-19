@@ -29,7 +29,7 @@ use packable::{
     packer::{IoPacker, Packer},
     Packable,
 };
-use rand::{thread_rng, Rng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
 
@@ -57,6 +57,7 @@ const PROBABILITY_OF_PICKING_A_BASIC_OUTPUT: f64 = 0.1;
 pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     current_path: impl AsRef<Path> + core::fmt::Debug,
     new_path: impl AsRef<Path> + core::fmt::Debug,
+    randomness_seed: u64,
     delegator: impl Into<Option<Ed25519Address>>,
     with_sampling: bool,
 ) -> anyhow::Result<()> {
@@ -69,11 +70,11 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     let mut vested_index = u32::MAX;
 
     let mut new_outputs = [
-        alias_ownership::outputs().await?,
-        stardust_mix::outputs(&mut vested_index).await?,
-        vesting_schedule_entity::outputs(&mut vested_index).await?,
-        vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
-        vesting_schedule_portfolio_mix::outputs(&mut vested_index).await?,
+        alias_ownership::outputs(randomness_seed).await?,
+        stardust_mix::outputs(randomness_seed, &mut vested_index).await?,
+        vesting_schedule_entity::outputs(randomness_seed, &mut vested_index).await?,
+        vesting_schedule_iota_airdrop::outputs(randomness_seed, &mut vested_index).await?,
+        vesting_schedule_portfolio_mix::outputs(randomness_seed, &mut vested_index).await?,
     ]
     .concat();
 
@@ -81,6 +82,7 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
 
     new_outputs.append(&mut if let Some(delegator) = delegator.into() {
         add_only_test_outputs(
+            randomness_seed,
             &mut vested_index,
             delegator,
             with_sampling.then_some(&mut parser),
@@ -143,17 +145,19 @@ fn add_all_previous_outputs_and_test_outputs<R: Read>(
 /// with a timelocked staking. Optionally some samples from the previous
 /// snapshot are taken too.
 fn add_only_test_outputs<R: Read>(
+    randomness_seed: u64,
     vested_index: &mut u32,
     delegator: Ed25519Address,
     parser: Option<&mut HornetSnapshotParser<R>>,
     new_temp_amount: u64,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+    let mut rng = StdRng::seed_from_u64(randomness_seed);
     // Needed outputs for delegator
-    let mut new_outputs = delegator_outputs::outputs(vested_index, delegator)?;
+    let mut new_outputs = delegator_outputs::outputs(randomness_seed, vested_index, delegator)?;
 
     // Additional sample outputs
     if let Some(parser) = parser {
-        new_outputs.append(&mut with_sampling(parser)?)
+        new_outputs.append(&mut with_sampling(parser, &mut rng)?)
     }
 
     // Add all the remainder tokens to the zero address
@@ -165,10 +169,14 @@ fn add_only_test_outputs<R: Read>(
     let remainder_per_output = remainder / 4;
     let difference = remainder % 4;
     for _ in 0..4 {
-        new_outputs.push(new_simple_basic_output(remainder_per_output, zero_address)?);
+        new_outputs.push(new_simple_basic_output(
+            remainder_per_output,
+            zero_address,
+            &mut rng,
+        )?);
     }
     if difference > 0 {
-        new_outputs.push(new_simple_basic_output(difference, zero_address)?);
+        new_outputs.push(new_simple_basic_output(difference, zero_address, &mut rng)?);
     }
 
     Ok(new_outputs)
@@ -178,10 +186,10 @@ fn add_only_test_outputs<R: Read>(
 /// certain probability of picking basic outputs.
 fn with_sampling<R: Read>(
     parser: &mut HornetSnapshotParser<R>,
+    rng: &mut StdRng,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut new_outputs = Vec::new();
     let target_milestone_timestamp = parser.target_milestone_timestamp();
-    let mut rng = thread_rng();
 
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
         match output {

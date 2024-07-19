@@ -56,9 +56,11 @@ async fn main() -> anyhow::Result<()> {
 
     parse_snapshot::<false>(&current_path)?;
 
+    let randomness_seed = 0;
     add_snapshot_test_outputs::<false>(
         &current_path,
         &new_path,
+        randomness_seed,
         *Address::try_from_bech32(IF_STARDUST_ADDRESS)?.as_ed25519(),
         WITH_SAMPLING,
     )

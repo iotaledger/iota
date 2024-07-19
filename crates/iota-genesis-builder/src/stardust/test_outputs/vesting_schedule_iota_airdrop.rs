@@ -14,7 +14,7 @@ use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::output::Output,
 };
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{
     test_outputs::{new_vested_output, MERGE_TIMESTAMP_SECS},
@@ -28,14 +28,16 @@ const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 
-pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(
+    randomness_seed: u64,
+    vested_index: &mut u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs() as u32;
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
-    let randomness_seed = random::<u64>();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     println!("vesting_schedule_iota_airdrop randomness seed: {randomness_seed}");
 
@@ -71,6 +73,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                     initial_unlock_amount,
                     address,
                     None,
+                    &mut rng,
                 )?);
             }
 
@@ -85,6 +88,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                         vested_amount,
                         address,
                         Some(timelock),
+                        &mut rng,
                     )?);
                 }
             }

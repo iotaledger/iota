@@ -24,11 +24,11 @@ use iota_sdk::{
         },
     },
 };
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{
     test_outputs::new_vested_output,
-    types::{output_header::OutputHeader, output_index::random_output_index},
+    types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
 };
 
 const MERGE_MILESTONE_INDEX: u32 = 7669900;
@@ -165,8 +165,10 @@ const STARDUST_MIX: &[StardustWallet] = &[
     },
 ];
 
-pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    let randomness_seed = random::<u64>();
+pub(crate) async fn outputs(
+    randomness_seed: u64,
+    vested_index: &mut u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     println!("stardust_mix randomness seed: {randomness_seed}");
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut outputs = Vec::new();
@@ -198,6 +200,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                 OUTPUT_IOTA_AMOUNT,
                 address,
                 None,
+                &mut rng,
             )?);
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Basic(BasicOutputBuilder::new_with_amount(OUTPUT_IOTA_AMOUNT)),
@@ -230,12 +233,13 @@ fn new_basic_or_nft_outputs(
 
     builder = builder.add_unlock_condition(AddressUnlockCondition::new(address));
 
+    let mut rng_clone = rng.clone();
     let mut add_output_with_unlock_conditions = |unlock_conditions: Vec<UnlockCondition>| {
         let mut new_builder = builder.clone();
         for unlock_condition in unlock_conditions {
             new_builder = new_builder.add_unlock_condition(unlock_condition)
         }
-        outputs.push(finish_with_header(new_builder.finish()));
+        outputs.push(finish_with_header(new_builder.finish(), &mut rng_clone));
     };
 
     add_output_with_unlock_conditions(vec![]);
@@ -280,6 +284,7 @@ fn new_basic_or_nft_outputs(
                 get_nft_immutable_metadata().to_bytes(),
             )?)
             .finish(),
+        rng,
     ));
 
     Ok(outputs)
@@ -310,6 +315,7 @@ fn random_alias_foundry_native_token(
                 .with_foundry_counter(1)
                 .add_native_token(NativeToken::new(token_id, 100)?)
                 .finish()?,
+            rng,
         ));
         let metadata = Irc30Metadata::new(&format!("My Native Token {i}"), "MNT", 10)
             .with_description("A native token for testing");
@@ -322,6 +328,7 @@ fn random_alias_foundry_native_token(
                 ))
                 .add_immutable_feature(MetadataFeature::try_from(metadata)?)
                 .finish()?,
+            rng,
         ));
 
         // Only half the remaining amount as it will be duplicated for nft outputs
@@ -330,11 +337,11 @@ fn random_alias_foundry_native_token(
     Ok((outputs, native_tokens_for_basic_outputs))
 }
 
-fn finish_with_header(builder: impl Into<Output>) -> (OutputHeader, Output) {
+fn finish_with_header(builder: impl Into<Output>, rng: &mut StdRng) -> (OutputHeader, Output) {
     (
         OutputHeader::new_testing(
-            random::<[u8; 32]>(),
-            random_output_index(),
+            rng.gen::<[u8; 32]>(),
+            random_output_index_with_rng(rng),
             [0; 32],
             MERGE_MILESTONE_INDEX,
             MERGE_TIMESTAMP_SECS,

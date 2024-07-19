@@ -9,9 +9,11 @@ use iota_sdk::types::block::{
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::random;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
-use crate::stardust::types::{output_header::OutputHeader, output_index::random_output_index};
+use crate::stardust::types::{
+    output_header::OutputHeader, output_index::random_output_index_with_rng,
+};
 
 const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
@@ -27,10 +29,11 @@ const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = 1_000_000 * TO_MICROS;
 pub(crate) fn new_simple_basic_output(
     amount: u64,
     address: Ed25519Address,
+    rng: &mut StdRng,
 ) -> anyhow::Result<(OutputHeader, Output)> {
     let output_header = OutputHeader::new_testing(
-        random::<[u8; 32]>(),
-        random_output_index(),
+        rng.gen::<[u8; 32]>(),
+        random_output_index_with_rng(rng),
         [0; 32],
         MERGE_MILESTONE_INDEX,
         MERGE_TIMESTAMP_SECS,
@@ -50,6 +53,7 @@ pub(crate) fn new_vested_output(
     amount: u64,
     address: Ed25519Address,
     timelock: Option<u32>,
+    rng: &mut StdRng,
 ) -> anyhow::Result<(OutputHeader, Output)> {
     let mut transaction_id = [0; 32];
     transaction_id[0..28]
@@ -59,7 +63,7 @@ pub(crate) fn new_vested_output(
 
     let output_header = OutputHeader::new_testing(
         transaction_id,
-        random_output_index(),
+        random_output_index_with_rng(rng),
         [0; 32],
         MERGE_MILESTONE_INDEX,
         MERGE_TIMESTAMP_SECS,
@@ -78,9 +82,12 @@ pub(crate) fn new_vested_output(
 }
 
 pub fn outputs(
+    randomness_seed: u64,
     vested_index: &mut u32,
     delegator: Ed25519Address,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+    println!("delegator_outputs randomness seed: {randomness_seed}");
+    let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = Vec::new();
 
     // Add gas coins to delegator
@@ -88,6 +95,7 @@ pub fn outputs(
         new_outputs.push(new_simple_basic_output(
             DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT,
             delegator,
+            &mut rng,
         )?);
     }
 
@@ -98,6 +106,7 @@ pub fn outputs(
             DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT,
             delegator,
             Some(MERGE_TIMESTAMP_SECS + TIMELOCK_MAX_ENDING_TIME),
+            &mut rng,
         )?);
     }
 

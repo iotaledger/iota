@@ -15,7 +15,7 @@ use iota_sdk::{
         },
     },
 };
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{
     test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
@@ -38,11 +38,13 @@ const ADDRESSES: &[[u32; 3]] = &[
     [0, 1, 2],
 ];
 
-pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(
+    randomness_seed: u64,
+    vested_index: &mut u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
-    let randomness_seed = random::<u64>();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     println!("vesting_schedule_portfolio_mix randomness seed: {randomness_seed}");
 
@@ -114,6 +116,7 @@ fn add_vested_outputs(
         initial_unlock_amount,
         address,
         None,
+        rng,
     )?);
 
     for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
@@ -124,6 +127,7 @@ fn add_vested_outputs(
             vested_amount,
             address,
             Some(timelock),
+            rng,
         )?);
     }
 
