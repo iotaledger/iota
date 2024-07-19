@@ -318,7 +318,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
         };
 
-        let genesis_config = self
+        let mut genesis_config = self
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
 
@@ -356,16 +356,8 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
-            for source in &genesis_config.migration_sources {
-                let reader = source
-                    .to_reader()
-                    .expect("migration source should be readable");
-                builder = builder
-                    .add_migration_objects(reader)
-                    .expect("migrated stated should be added without errors");
-            }
-            if !genesis_config.migration_sources.is_empty() {
-                tracing::info!("Added migrated state");
+            for source in std::mem::take(&mut genesis_config.migration_sources) {
+                builder = builder.add_migration_source(source);
             }
 
             for (i, validator) in validators.iter().enumerate() {

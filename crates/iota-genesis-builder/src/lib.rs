@@ -128,13 +128,6 @@ impl Builder {
         }
     }
 
-    /// Add stardust and shimmer objects into genesis.
-    pub fn with_migrated_state(self) -> anyhow::Result<Self> {
-        tracing::info!("Adding migrated state...");
-        self.add_migration_objects(SnapshotUrl::Iota.to_reader()?)?
-            .add_migration_objects(SnapshotUrl::Shimmer.to_reader()?)
-    }
-
     /// Checks if the genesis to be built is vanilla or if it includes Stardust
     /// migration stakes
     pub fn is_vanilla(&self) -> bool {
@@ -220,12 +213,6 @@ impl Builder {
     pub fn add_migration_source(mut self, source: SnapshotSource) -> Self {
         self.migration_sources.push(source);
         self
-    }
-
-    pub fn add_migration_objects(mut self, reader: impl Read) -> anyhow::Result<Self> {
-        self.migration_objects
-            .extend(bcs::from_reader::<Vec<_>>(reader)?);
-        Ok(self)
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
@@ -1455,7 +1442,11 @@ pub fn split_timelocks(
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum SnapshotSource {
+    /// Local uncompressed file.
     Local(PathBuf),
+    /// Local file compressed with brotli.
+    LocalBrotli(PathBuf),
+    /// Remote file (S3) with gzip compressed file
     S3(SnapshotUrl),
 }
 
@@ -1465,7 +1456,17 @@ impl SnapshotSource {
         Ok(match self {
             SnapshotSource::Local(path) => Box::new(BufReader::new(File::open(path)?)),
             SnapshotSource::S3(snapshot_url) => Box::new(snapshot_url.to_reader()?),
+            SnapshotSource::LocalBrotli(path) => Box::new(brotli::Decompressor::new(
+                File::open(path)?,
+                BROTLI_COMPRESSOR_BUFFER_SIZE,
+            )),
         })
+    }
+}
+
+impl From<SnapshotUrl> for SnapshotSource {
+    fn from(value: SnapshotUrl) -> Self {
+        Self::S3(value)
     }
 }
 
