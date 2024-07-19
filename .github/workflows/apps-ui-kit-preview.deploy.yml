@@ -18,20 +18,6 @@ jobs:
         runs-on: [self-hosted-rust]
         steps:
             - uses: actions/checkout@v3
-            - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
-              with:
-                  version: 9
-            - name: Install Nodejs
-              uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
-              with:
-                  node-version: '20'
-                  cache: 'pnpm'
-            - name: Install Vercel CLI
-              run: pnpm add --global vercel@canary
-            - name: Pull Vercel Environment Information
-              run: vercel pull ./apps/ui-kit --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-            - name: Build Project Artifacts
-              run: vercel build --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }}
             - name: Deploy to Vercel
               uses: BetaHuhn/deploy-to-vercel-action@v1.10.0
               with:
@@ -40,6 +26,4 @@ jobs:
                   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
                   VERCEL_PROJECT_ID: ${{ secrets.APPS_UI_KIT_VERCEL_PROJECT_ID }}
                   VERCEL_SCOPE: ${{ secrets.VERCEL_SCOPE }}
-                  PRODUCTION: false
-                  PREBUILT: true
                   WORKING_DIRECTORY: ./apps/ui-kit
