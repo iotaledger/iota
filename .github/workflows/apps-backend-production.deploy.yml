@@ -42,7 +42,7 @@ jobs:
       - name: Pull Vercel Env variables (network configs)
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Copy the .env file
-        run: cp ./apps/apps-backend/.vercel/.env.production.local ./sdk/.env
+        run: cp ./.vercel/.env.production.local ./sdk/.env
       - name: Build the Apps Backend
         run: pnpm apps-backend build
       - name: Build Project Artifacts
