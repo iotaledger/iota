@@ -368,9 +368,9 @@ mod test {
 
     use super::*;
 
-    #[test]
+    #[tokio::test]
     #[cfg_attr(msim, ignore)]
-    fn ceremony() -> Result<()> {
+    async fn ceremony() -> Result<()> {
         let dir = nondeterministic!(tempfile::TempDir::new().unwrap());
 
         let validators = (0..10)
@@ -429,7 +429,7 @@ mod test {
             protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::Init,
         };
-        command.run()?;
+        command.run().await?;
 
         // Add the validators
         for (key_file, worker_key_file, network_key_file, account_key_file, validator) in
@@ -453,23 +453,28 @@ mod test {
                     project_url: None,
                 },
             };
-            command.run()?;
+            command.run().await?;
 
             Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-            .run()?;
+            .run()
+            .await?;
         }
 
         // Build the unsigned checkpoint
         let command = Ceremony {
             path: Some(dir.path().into()),
             protocol_version: MAX_PROTOCOL_VERSION,
-            command: CeremonyCommand::BuildUnsignedCheckpoint,
+            protocol_version: None,
+            command: CeremonyCommand::BuildUnsignedCheckpoint {
+                local_migration_snapshots: vec![],
+                remote_migration_snapshots: vec![],
+            },
         };
-        command.run()?;
+        command.run().await?;
 
         // Have all the validators verify and sign genesis
         for (key, _worker_key, _network_key, _account_key, _validator) in &validators {
@@ -480,14 +485,15 @@ mod test {
                     key_file: key.into(),
                 },
             };
-            command.run()?;
+            command.run().await?;
 
             Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-            .run()?;
+            .run()
+            .await?;
         }
 
         // Finalize the Ceremony and build the Genesis object
@@ -496,7 +502,7 @@ mod test {
             protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::Finalize,
         };
-        command.run()?;
+        command.run().await?;
 
         Ok(())
     }
