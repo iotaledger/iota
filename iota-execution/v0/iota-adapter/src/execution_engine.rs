@@ -41,7 +41,7 @@ mod checked {
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        object::{Object, ObjectInner, OBJECT_START_VERSION},
+        object::{Object, OBJECT_START_VERSION},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::{
             RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
@@ -550,17 +550,9 @@ mod checked {
                 }
 
                 for genesis_object in objects {
-                    match genesis_object {
-                        iota_types::transaction::GenesisObject::RawObject { data, owner } => {
-                            let object = ObjectInner {
-                                data,
-                                owner,
-                                previous_transaction: tx_ctx.digest(),
-                                storage_rebate: 0,
-                            };
-                            temporary_store.create_object(object.into());
-                        }
-                    }
+                    assert_eq!(genesis_object.previous_transaction, tx_ctx.digest());
+                    assert_eq!(genesis_object.storage_rebate, 0);
+                    temporary_store.create_object(genesis_object);
                 }
                 Ok(Mode::empty_results())
             }

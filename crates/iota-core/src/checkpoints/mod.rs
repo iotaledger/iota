@@ -1991,8 +1991,8 @@ mod tests {
         effects::TransactionEffects,
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
-        object,
-        transaction::{GenesisObject, VerifiedTransaction},
+        object::{self, Object},
+        transaction::VerifiedTransaction,
     };
     use shared_crypto::intent::{Intent, IntentScope};
     use tokio::sync::mpsc;
@@ -2007,8 +2007,8 @@ mod tests {
 
         let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![]);
         let dummy_tx_with_data =
-            VerifiedTransaction::new_genesis_transaction(vec![GenesisObject::RawObject {
-                data: object::Data::Package(
+            VerifiedTransaction::new_genesis_transaction(vec![Object::new_from_genesis(
+                object::Data::Package(
                     MovePackage::new(
                         ObjectID::random(),
                         SequenceNumber::new(),
@@ -2023,8 +2023,9 @@ mod tests {
                     )
                     .unwrap(),
                 ),
-                owner: object::Owner::Immutable,
-            }]);
+                object::Owner::Immutable,
+                TransactionDigest::genesis_marker(),
+            )]);
         for i in 0..15 {
             state
                 .database_for_testing()

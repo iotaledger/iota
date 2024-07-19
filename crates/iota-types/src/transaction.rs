@@ -189,23 +189,7 @@ pub struct ChangeEpoch {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
-    pub objects: Vec<GenesisObject>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub enum GenesisObject {
-    RawObject {
-        data: crate::object::Data,
-        owner: crate::object::Owner,
-    },
-}
-
-impl GenesisObject {
-    pub fn id(&self) -> ObjectID {
-        match self {
-            GenesisObject::RawObject { data, .. } => data.id(),
-        }
-    }
+    pub objects: Vec<Object>,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -2552,7 +2536,7 @@ impl VerifiedTransaction {
         .pipe(Self::new_system_transaction)
     }
 
-    pub fn new_genesis_transaction(objects: Vec<GenesisObject>) -> Self {
+    pub fn new_genesis_transaction(objects: Vec<Object>) -> Self {
         GenesisTransaction { objects }
             .pipe(TransactionKind::Genesis)
             .pipe(Self::new_system_transaction)

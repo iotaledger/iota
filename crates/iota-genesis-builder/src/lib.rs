@@ -998,11 +998,7 @@ fn create_genesis_transaction(
                     *initial_shared_version = SequenceNumber::MIN;
                 }
 
-                let object = object.into_inner();
-                iota_types::transaction::GenesisObject::RawObject {
-                    data: object.data,
-                    owner: object.owner,
-                }
+                object
             })
             .collect();
 

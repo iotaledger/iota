@@ -20,16 +20,15 @@ use iota_types::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
     },
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{MoveObject, Owner},
+    object::{MoveObject, Object, Owner},
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
-        InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-        SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
-        VersionedProtocolMessage,
+        Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, InputObjectKind,
+        ObjectArg, ProgrammableMoveCall, ProgrammableTransaction, SenderSignedData,
+        TransactionData, TransactionDataAPI, TransactionKind, VersionedProtocolMessage,
     },
     type_resolver::LayoutResolver,
     IOTA_FRAMEWORK_ADDRESS,
@@ -461,7 +460,11 @@ impl IotaTransactionBlockKind {
         Ok(match tx {
             TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
-                objects: g.objects.iter().map(GenesisObject::id).collect(),
+                objects: g
+                    .objects
+                    .iter()
+                    .map(|obj| Object::as_inner(obj).id())
+                    .collect(),
             }),
             TransactionKind::ConsensusCommitPrologue(p) => {
                 Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {

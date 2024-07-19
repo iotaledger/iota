@@ -6,11 +6,7 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_types::{
-    digests::TransactionDigest,
-    object::Object as NativeObject,
-    transaction::{GenesisObject, GenesisTransaction as NativeGenesisTransaction},
-};
+use iota_types::transaction::GenesisTransaction as NativeGenesisTransaction;
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -56,9 +52,7 @@ impl GenesisTransaction {
         connection.has_next_page = next;
 
         for c in cs {
-            let GenesisObject::RawObject { data, owner } = self.native.objects[c.ix].clone();
-            let native =
-                NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
+            let native = self.native.objects[c.ix].clone();
 
             let object = Object::from_native(IotaAddress::from(native.id()), native, Some(c.c));
             connection.edges.push(Edge::new(c.encode_cursor(), object));
