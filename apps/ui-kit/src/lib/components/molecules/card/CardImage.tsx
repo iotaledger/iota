@@ -5,7 +5,7 @@ import React from 'react';
 import cx from 'classnames';
 import { ImageType, ImageVariant } from './card.enums';
 import { IMAGE_BG_CLASSES, IMAGE_VARIANT_CLASSES } from './card.classes';
-import { ImagePlaceholder } from '@/components/atoms/image-placeholder';
+import { CardImagePlaceholder } from './CardImagePlaceholder';
 
 export interface CardImageProps {
     type?: ImageType;
@@ -32,7 +32,9 @@ export function CardImage({
                 'flex items-center justify-center overflow-hidden',
             )}
         >
-            {type === ImageType.Placeholder && <ImagePlaceholder variant={variant} />}
+            {type === ImageType.Placeholder && !children && (
+                <CardImagePlaceholder variant={variant} />
+            )}
             {url && !children && (
                 <img
                     src={url}

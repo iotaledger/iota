@@ -25,7 +25,6 @@ type CardCustomProps = CardProps & {
     imageType: CardImageProps['type'];
     imageUrl: CardImageProps['url'];
     imageVariant: CardImageProps['variant'];
-    // imageIconName: CardImageProps['iconName'];
     textTitle: CardTextProps['title'];
     textSubtitle: CardTextProps['subtitle'];
     actionTitle: CardActionProps['title'];
@@ -80,12 +79,7 @@ export const Default: Story = {
     render: (args) => {
         return (
             <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
-                <CardImage
-                    type={args.imageType}
-                    variant={args.imageVariant}
-                    url={args.imageUrl}
-                    // iconName={args.imageIconName}
-                />
+                <CardImage type={args.imageType} variant={args.imageVariant} url={args.imageUrl} />
                 <CardText title={args.textTitle} subtitle={args.textSubtitle} />
                 <CardAction
                     title={args.actionTitle}
