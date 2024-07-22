@@ -5,52 +5,74 @@ import { BadgeType, Badge } from '../../atoms';
 import { TableCellType } from './table-cell.enums';
 import { Copy } from '@iota/ui-icons';
 import cx from 'classnames';
-
-interface TableCellProps {
+interface TableCellBaseProps {
     /**
-     * The type of cell to render.
-     */
-    type?: TableCellType;
-    /**
-     * The text to display.
+     * The label of the cell.
      */
     label: string;
     /**
-     * The badge type to display.
-     */
-    badgeType?: BadgeType;
-    /**
-     * The leading element to display.
-     */
-    leadingElement?: React.JSX.Element;
-    /**
-     * The supporting label to display.
-     */
-    supportingLabel?: string;
-    /**
-     * If the cell has the last border none class.
+     * If the cell is the last in the row and should not have a border.
      */
     hasLastBorderNoneClass?: boolean;
-    /**
-     * The onCopy event of the cell (optional).
-     */
-    onCopy?: (e: React.MouseEvent<SVGElement>) => void;
 }
 
-export function TableCell({
-    type = TableCellType.Text,
-    label,
-    badgeType = BadgeType.PrimarySolid,
-    leadingElement,
-    supportingLabel,
-    hasLastBorderNoneClass,
-    onCopy,
-}: TableCellProps): React.JSX.Element {
+type TableCellText = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Text;
+    /**
+     * The supporting label of the cell.
+     */
+    supportingLabel?: string;
+};
+
+type TableCellTextToCopy = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.TextToCopy;
+    /**
+     * The function to call when the copy icon is clicked.
+     */
+    onCopy?: () => void;
+};
+
+type TableCellBadge = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Badge;
+    /**
+     * The type of the badge
+     */
+    badgeType: BadgeType;
+};
+
+type TableCellAvatarText = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.AvatarText;
+    /**
+     * The leading element of the cell.
+     */
+    leadingElement: React.JSX.Element;
+};
+
+export type TableCellProps = TableCellBaseProps &
+    (TableCellText | TableCellTextToCopy | TableCellBadge | TableCellAvatarText);
+
+export function TableCell(props: TableCellProps): JSX.Element {
+    const { type, label, hasLastBorderNoneClass } = props;
+
     const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
+
     const Cell = () => {
         switch (type) {
             case TableCellType.Text:
+                const { supportingLabel } = props as TableCellText;
                 return (
                     <div className="flex flex-row items-baseline gap-1">
                         <span className={cx(textColorClass, textSizeClass)}>{label}</span>
@@ -62,6 +84,7 @@ export function TableCell({
                     </div>
                 );
             case TableCellType.TextToCopy:
+                const { onCopy } = props as TableCellTextToCopy;
                 return (
                     <div
                         className={cx('flex items-center space-x-2', textColorClass, textSizeClass)}
@@ -71,8 +94,10 @@ export function TableCell({
                     </div>
                 );
             case TableCellType.Badge:
+                const { badgeType } = props as TableCellBadge;
                 return <Badge type={badgeType} label={label} />;
             case TableCellType.AvatarText:
+                const { leadingElement } = props as TableCellAvatarText;
                 return (
                     <div className="flex items-center gap-x-2.5">
                         {leadingElement}
