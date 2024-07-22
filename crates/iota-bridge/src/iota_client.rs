@@ -350,7 +350,7 @@ impl IotaClientInner for IotaSdkClient {
             }
         };
 
-        // get_dynamic_field_object does not return bcs, so we have to issue anothe
+        // get_dynamic_field_object does not return bcs, so we have to issue another
         // query
         let bcs_bytes = self
             .read_api()

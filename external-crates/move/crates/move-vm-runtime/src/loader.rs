@@ -564,7 +564,7 @@ impl ModuleCache {
 
 // Helpers to load/verify modules without recursion
 
-// In order to traverse the transitive dependencies of a module (when verifing
+// In order to traverse the transitive dependencies of a module (when verifying
 // the module), we create a stack and iterate over the dependencies to avoid
 // recursion. An entry on the stack is conceptually a pair (module,
 // dependencies) where dependencies is used to visit them and to track when a

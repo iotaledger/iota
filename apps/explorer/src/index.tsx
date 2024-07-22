@@ -10,11 +10,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
+import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
-import { initAmplitude } from './utils/analytics/amplitude';
-import { growthbook } from './utils/growthbook';
-import { queryClient } from './utils/queryClient';
-import './utils/sentry';
+
+initSentry();
 
 import '@iota/dapp-kit/dist/index.css';
 import './index.css';

@@ -39,6 +39,13 @@ import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
 import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import {
+    type DeriveBipPathAccountsFinder,
+    isDeriveBipPathAccountsFinderResponse,
+    type PersistAccountsFinder,
+    type SourceStrategyToPersist,
+} from '_src/shared/messaging/messages/payloads/accounts-finder';
+import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -526,6 +533,37 @@ export class BackgroundClient {
                     type: 'method-payload',
                     method: 'removeAccount',
                     args,
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public deriveBipPathAccountsFinder(sourceID: string, derivationOptions: MakeDerivationOptions) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<DeriveBipPathAccountsFinder>({
+                    type: 'derive-bip-path-accounts-finder',
+                    sourceID,
+                    derivationOptions,
+                }),
+            ).pipe(
+                take(1),
+                map(({ payload }) => {
+                    if (isDeriveBipPathAccountsFinderResponse(payload)) {
+                        return payload;
+                    }
+                    throw new Error('Unexpected response type');
+                }),
+            ),
+        );
+    }
+
+    public async persistAccountsFinder(sourceStrategy: SourceStrategyToPersist) {
+        await lastValueFrom(
+            this.sendMessage(
+                createMessage<PersistAccountsFinder>({
+                    type: 'persist-accounts-finder',
+                    sourceStrategy,
                 }),
             ).pipe(take(1)),
         );

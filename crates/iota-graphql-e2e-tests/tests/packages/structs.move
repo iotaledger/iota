@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 39 --addresses P0=0x0 P1=0x0 --accounts A --simulator
+//# init --protocol-version 1 --addresses P0=0x0 P1=0x0 --accounts A --simulator
 
 //# run-graphql
 
@@ -102,7 +102,7 @@ fragment Structs on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 2,1 --sender A
+//# upgrade --package P0 --upgrade-capability 2,0 --sender A
 
 module P1::m {
     public struct S has copy, drop { x: u64 }

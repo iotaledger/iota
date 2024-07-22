@@ -1,6 +1,6 @@
 module 0x42::Test {
     fun t() {
-        // test invalid vector instatiation, inferred type
+        // test invalid vector instantiation, inferred type
         vector[&0];
         vector[&mut 0];
         vector[()];

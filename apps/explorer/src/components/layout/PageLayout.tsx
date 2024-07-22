@@ -5,15 +5,15 @@
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useAppsBackend, useElementDimensions } from '@iota/core';
 import { LoadingIndicator } from '@iota/ui';
+import { Network } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useRef } from 'react';
 
 import Footer from '../footer/Footer';
 import Header from '../header/Header';
-import { useNetworkContext } from '~/context';
-import { Banner } from '~/ui/Banner';
-import { Network } from '~/utils/api/defaultRpcClient';
+import { useNetworkContext } from '~/contexts';
+import { Banner } from '~/components/ui';
 
 type PageLayoutProps = {
     gradient?: {

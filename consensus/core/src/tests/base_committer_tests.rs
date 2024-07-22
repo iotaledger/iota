@@ -21,7 +21,7 @@ use crate::{
 #[test]
 fn try_direct_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -77,7 +77,7 @@ fn try_direct_commit() {
 #[test]
 fn idempotence() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -86,7 +86,7 @@ fn idempotence() {
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
-    // aka thte decision round of wave 1.
+    // aka the decision round of wave 1.
     let decision_round_wave_1 = committer.decision_round(1);
     build_dag(context, dag_state, None, decision_round_wave_1);
 
@@ -121,7 +121,7 @@ fn idempotence() {
 #[test]
 fn multiple_direct_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -162,7 +162,7 @@ fn multiple_direct_commit() {
 #[test]
 fn direct_skip() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -214,7 +214,7 @@ fn direct_skip() {
 #[test]
 fn indirect_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -333,12 +333,13 @@ fn indirect_commit() {
     };
 
     // Quick Summary:
-    // Leader of wave 2 or C6 has the necessary votes/certs to be directly commited.
-    // Then, when we get to the leader of wave 1 or D3, we see that we cannot direct
-    // commit and it is marked as undecided. But this time we have a committed
-    // anchor so we check if there is a certified link from the anchor (c6) to
-    // the undecided leader (d3). There is a certified link through A5 with
-    // votes A4,B4,C4. So we can mark this leader as committed indirectly.
+    // Leader of wave 2 or C6 has the necessary votes/certs to be directly
+    // committed. Then, when we get to the leader of wave 1 or D3, we see that
+    // we cannot direct commit and it is marked as undecided. But this time we
+    // have a committed anchor so we check if there is a certified link from the
+    // anchor (c6) to the undecided leader (d3). There is a certified link
+    // through A5 with votes A4,B4,C4. So we can mark this leader as committed
+    // indirectly.
 
     // Ensure we commit the leader of wave 1 indirectly with the committed leader
     // of wave 2 as the anchor.
@@ -357,7 +358,7 @@ fn indirect_commit() {
 #[test]
 fn indirect_skip() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -411,7 +412,7 @@ fn indirect_skip() {
         dag_state.clone(),
     ));
 
-    // Add enough blocks to reach the decison round of wave 3.
+    // Add enough blocks to reach the decision round of wave 3.
     let decision_round_wave_3 = committer.decision_round(3);
     build_dag(
         context.clone(),
@@ -487,7 +488,7 @@ fn indirect_skip() {
 #[test]
 fn undecided() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -576,7 +577,7 @@ fn undecided() {
 #[test]
 fn test_byzantine_direct_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -659,19 +660,19 @@ fn test_byzantine_direct_commit() {
     // non-votes C13 but there are enough good votes to prevent a skip.
     // Additionally only one of the non-votes per authority should be counted so
     // we should not skip leader A12.
-    let decison_block_a14 = VerifiedBlock::new_for_test(
+    let decision_block_a14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
-    dag_state.write().accept_block(decison_block_a14.clone());
+    dag_state.write().accept_block(decision_block_a14.clone());
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
         .filter(|r| r.author != AuthorityIndex::new_for_test(2))
         .collect::<Vec<_>>();
 
-    let decison_block_b14 = VerifiedBlock::new_for_test(
+    let decision_block_b14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 1)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -682,9 +683,9 @@ fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_b14.clone());
+    dag_state.write().accept_block(decision_block_b14.clone());
 
-    let decison_block_c14 = VerifiedBlock::new_for_test(
+    let decision_block_c14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 2)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -695,9 +696,9 @@ fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_c14.clone());
+    dag_state.write().accept_block(decision_block_c14.clone());
 
-    let decison_block_d14 = VerifiedBlock::new_for_test(
+    let decision_block_d14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 3)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -708,7 +709,7 @@ fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_d14.clone());
+    dag_state.write().accept_block(decision_block_d14.clone());
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4

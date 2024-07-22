@@ -89,7 +89,7 @@ impl ConsensusStore {
             .unwrap_or_default()
     }
 
-    /// Returns thet latest subdag committed. If none is committed yet, then
+    /// Returns the latest subdag committed. If none is committed yet, then
     /// None is returned instead.
     pub fn get_latest_sub_dag(&self) -> Option<ConsensusCommit> {
         self.committed_sub_dags_by_index_v2
@@ -150,7 +150,7 @@ impl ConsensusStore {
 mod test {
     use std::collections::HashMap;
 
-    use test_utils::{latest_protocol_version, CommitteeFixture};
+    use test_utils::CommitteeFixture;
     use types::{Certificate, CommittedSubDag, ReputationScores};
 
     use crate::ConsensusStore;
@@ -166,7 +166,7 @@ mod test {
         for sequence_number in 0..10 {
             let sub_dag = CommittedSubDag::new(
                 vec![],
-                Certificate::default(&latest_protocol_version()),
+                Certificate::default(),
                 sequence_number,
                 ReputationScores::new(&committee),
                 None,
@@ -195,7 +195,7 @@ mod test {
 
             let sub_dag = CommittedSubDag::new(
                 vec![],
-                Certificate::default(&latest_protocol_version()),
+                Certificate::default(),
                 sequence_number,
                 scores,
                 None,

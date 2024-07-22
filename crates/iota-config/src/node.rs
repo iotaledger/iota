@@ -82,7 +82,7 @@ pub struct NodeConfig {
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
 
-    // only alow websocket connections for jsonrpc traffic
+    // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
     pub websocket_only: bool,
 
@@ -809,7 +809,7 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 pub struct Genesis {
     #[serde(flatten)]
-    location: GenesisLocation,
+    location: Option<GenesisLocation>,
 
     #[serde(skip)]
     genesis: once_cell::sync::OnceCell<genesis::Genesis>,
@@ -818,28 +818,36 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: GenesisLocation::InPlace { genesis },
+            location: Some(GenesisLocation::InPlace { genesis }),
             genesis: Default::default(),
         }
     }
 
     pub fn new_from_file<P: Into<PathBuf>>(path: P) -> Self {
         Self {
-            location: GenesisLocation::File {
+            location: Some(GenesisLocation::File {
                 genesis_file_location: path.into(),
-            },
+            }),
+            genesis: Default::default(),
+        }
+    }
+
+    pub fn new_empty() -> Self {
+        Self {
+            location: None,
             genesis: Default::default(),
         }
     }
 
     pub fn genesis(&self) -> Result<&genesis::Genesis> {
         match &self.location {
-            GenesisLocation::InPlace { genesis } => Ok(genesis),
-            GenesisLocation::File {
+            Some(GenesisLocation::InPlace { genesis }) => Ok(genesis),
+            Some(GenesisLocation::File {
                 genesis_file_location,
-            } => self
+            }) => self
                 .genesis
                 .get_or_try_init(|| genesis::Genesis::load(genesis_file_location)),
+            None => anyhow::bail!("no genesis location set"),
         }
     }
 }

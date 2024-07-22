@@ -2,17 +2,13 @@
 
 [move]
 version = 1
-manifest_digest = "E7FF1D7441FA0105B981EE018AEF168A18B22984DEABBF2F111AA6FBB3C3CB81"
+manifest_digest = "5B905A187E255F2C1971F86CEB3C14BFA80721C960FDCD0E079D9D6C20FF8F2A"
 deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
 
 dependencies = [
-  { name = "MoveStdlib" },
   { name = "Iota" },
+  { name = "MoveStdlib" },
 ]
-
-[[move.package]]
-name = "MoveStdlib"
-source = { local = "../move-stdlib" }
 
 [[move.package]]
 name = "Iota"
@@ -21,6 +17,10 @@ source = { local = "../iota-framework" }
 dependencies = [
   { name = "MoveStdlib" },
 ]
+
+[[move.package]]
+name = "MoveStdlib"
+source = { local = "../move-stdlib" }
 
 [move.toolchain-version]
 compiler-version = "1.22.0"

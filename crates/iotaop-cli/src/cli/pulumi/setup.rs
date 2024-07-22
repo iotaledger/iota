@@ -37,7 +37,7 @@ fn ensure_pulumi_authed() -> Result<()> {
             vec!["bash", "-c", "pulumi login"],
             Some(CommandOptions::new(true, false)),
         )?;
-        info!("logged in sucessfully")
+        info!("logged in successfully")
     } else {
         debug!("authed");
     }
@@ -103,7 +103,7 @@ fn ensure_gcloud_logged_in() -> Result<()> {
                     "Please select your @mystenlabs.com profile: {}",
                     "gcloud config set account `ACCOUNT`".bright_yellow()
                 );
-                return Err(anyhow!("Incorret account selected."));
+                return Err(anyhow!("Incorrect account selected."));
             }
         }
     }

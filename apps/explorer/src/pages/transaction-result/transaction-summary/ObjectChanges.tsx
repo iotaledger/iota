@@ -4,17 +4,17 @@
 
 import {
     ObjectChangeLabels,
+    useResolveIotaNSName,
+    type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     type ObjectChangesByOwner,
     type ObjectChangeSummary,
-    type IotaObjectChangeTypes,
-    useResolveIotaNSName,
 } from '@iota/core';
 import { ChevronRight12 } from '@iota/icons';
 import {
-    type IotaObjectChangePublished,
-    type IotaObjectChange,
     type DisplayFieldsResponse,
+    type IotaObjectChange,
+    type IotaObjectChangePublished,
 } from '@iota/iota.js/client';
 import { parseStructTag } from '@iota/iota.js/utils';
 import { Text } from '@iota/ui';
@@ -22,11 +22,16 @@ import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 
+import {
+    AddressLink,
+    CollapsibleCard,
+    CollapsibleSection,
+    ExpandableList,
+    ExpandableListControl,
+    ExpandableListItems,
+    ObjectLink,
+} from '~/components/ui';
 import { ObjectDisplay } from './ObjectDisplay';
-import { ExpandableList, ExpandableListControl, ExpandableListItems } from '~/ui/ExpandableList';
-import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 interface ItemProps {
     label: string;

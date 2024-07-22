@@ -4,7 +4,7 @@
 
 import { useContext } from 'react';
 
-import { KioskClientContext } from '../components/KioskClientProvider';
+import { KioskClientContext } from '../components';
 
 export function useKioskClient() {
     const kioskClient = useContext(KioskClientContext);

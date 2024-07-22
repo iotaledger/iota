@@ -48,7 +48,7 @@ macro_rules! get_or_add_item_macro {
     }};
 }
 
-pub const TABLE_MAX_SIZE: usize = u16::max_value() as usize;
+pub const TABLE_MAX_SIZE: usize = u16::MAX as usize;
 fn get_or_add_item_ref<K: Clone + Eq + Hash>(
     m: &mut HashMap<K, TableIndex>,
     k: &K,
@@ -253,7 +253,7 @@ pub(crate) struct Context<'a> {
     labels: HashMap<BlockLabel_, u16>,
 
     // queryable pools
-    // TODO: lookup for Fields is not that seemless after binary format changes
+    // TODO: lookup for Fields is not that seamless after binary format changes
     // We need multiple lookups or a better representation for fields
     fields: HashMap<(StructHandleIndex, Field_), (StructDefinitionIndex, SignatureToken, usize)>,
     function_handles: HashMap<(ModuleName, FunctionName), (FunctionHandle, FunctionHandleIndex)>,

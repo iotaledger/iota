@@ -36,7 +36,7 @@ import {
 /**
  * Important: We have 2 types so we can easily test transfer policy management without interference.
  * Please do not use `Villain` transfer policy for anything but testing the TP management.
- * If you wish to edit the TP, make sure to always end up having it be the same as the inital state when a case ends.
+ * If you wish to edit the TP, make sure to always end up having it be the same as the initial state when a case ends.
  * Alternatively, you can create a new TP for each iteration by using the TransferPolicyTransaction.
  */
 describe('Testing Kiosk SDK transaction building & querying e2e', () => {

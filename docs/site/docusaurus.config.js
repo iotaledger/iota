@@ -173,55 +173,58 @@ const config = {
           autoCollapseCategories: false,
         },
       },
+      colorMode:{
+        defaultMode: 'dark'
+      },
+      announcementBar:{
+        id: 'integrate_your_exchange',
+        content:
+            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+        isCloseable: false,
+        backgroundColor: '#0101ff',
+        textColor: '#FFFFFF',
+
+      },
       navbar: {
-        title: "IOTA Documentation",
+        title: "",
         logo: {
           alt: "IOTA Docs Logo",
           src: "img/iota-logo.svg",
         },
         items: [
           {
-            label: "Guides",
-            to: "guides",
+            label: "About IOTA",
+            to: "about-iota",
           },
           {
-            label: "Concepts",
-            to: "concepts",
+              label: "Developers",
+              to: "developer",
           },
           {
-            label: "Standards",
-            to: "standards",
+              label: "Node Operators",
+              to: "operator",
           },
           {
-            label: "References",
-            to: "references",
+              label: "References",
+              to: "references",
           },
-
-          /*
-          {
-            type: "docsVersionDropdown",
-            position: "right",
-            dropdownActiveClassDisabled: true,
-          },
-          {
-            type: "localeDropdown",
-            position: "right",
-          },
-          */
         ],
+      },
+      colorMode: {
+        defaultMode: 'dark',
+        disableSwitch: false,
       },
       footer: {
         logo: {
-          alt: "IOTA Logo",
-          src: "img/iota-logo-footer.svg",
-          href: "https://iota.org",
+          alt: "IOTA Wiki Logo",
+          src: "img/iota-logo.svg",
         },
-        style: "dark",
-        copyright: `© ${new Date().getFullYear()} IOTA Foundation | Documentation distributed under <a href="https://github.com/iota-foundation/iota-docs/blob/main/LICENSE">CC BY 4.0</a>`,
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+                    The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
       prism: {
         theme: themes.github,
-        darkTheme: themes.nightOwl,
+        darkTheme: themes.jettwaveDark,
         additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
     }),

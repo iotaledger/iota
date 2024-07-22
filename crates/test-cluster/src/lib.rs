@@ -34,7 +34,7 @@ use iota_sdk::{
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig, DEFAULT_GAS_AMOUNT},
-    network_config::NetworkConfig,
+    network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{ProtocolVersionsConfig, SupportedProtocolVersionsCallback},
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
 };
@@ -766,6 +766,7 @@ pub struct TestClusterBuilder {
     additional_objects: Vec<Object>,
     num_validators: Option<usize>,
     fullnode_rpc_port: Option<u16>,
+    fullnode_rpc_addr: Option<SocketAddr>,
     enable_fullnode_events: bool,
     validator_supported_protocol_versions_config: ProtocolVersionsConfig,
     // Default to validator_supported_protocol_versions_config, but can be overridden.
@@ -788,6 +789,7 @@ impl TestClusterBuilder {
             network_config: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
+            fullnode_rpc_addr: None,
             num_validators: None,
             enable_fullnode_events: false,
             validator_supported_protocol_versions_config: ProtocolVersionsConfig::Default,
@@ -813,6 +815,11 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_port(mut self, rpc_port: u16) -> Self {
         self.fullnode_rpc_port = Some(rpc_port);
+        self
+    }
+
+    pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
+        self.fullnode_rpc_addr = Some(addr);
         self
     }
 
@@ -1052,9 +1059,12 @@ impl TestClusterBuilder {
             builder = builder.with_authority_overload_config(authority_overload_config);
         }
 
-        if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
+        if let Some(fullnode_rpc_addr) = self.fullnode_rpc_addr {
+            builder = builder.with_fullnode_rpc_addr(fullnode_rpc_addr);
+        } else if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
             builder = builder.with_fullnode_rpc_port(fullnode_rpc_port);
         }
+
         if let Some(num_unpruned_validators) = self.num_unpruned_validators {
             builder = builder.with_num_unpruned_validators(num_unpruned_validators);
         }
@@ -1080,7 +1090,20 @@ impl TestClusterBuilder {
         let wallet_path = dir.join(IOTA_CLIENT_CONFIG);
         let keystore_path = dir.join(IOTA_KEYSTORE_FILENAME);
 
-        swarm.config().save(network_path)?;
+        let network_config = swarm.config();
+        // Create light config to save
+        let account_keys = network_config
+            .account_keys
+            .iter()
+            .map(|kp| kp.copy())
+            .collect();
+        let network_config_light = NetworkConfigLight::new(
+            network_config.validator_configs.clone(),
+            account_keys,
+            &network_config.genesis,
+        );
+        network_config_light.save(network_path)?;
+
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
             keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;

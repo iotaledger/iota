@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 39 --addresses P0=0x0 P1=0x0 --accounts A --simulator
+//# init --protocol-version 1 --addresses P0=0x0 P1=0x0 --accounts A --simulator
 
 //# publish --upgradeable --sender A
 
@@ -172,7 +172,7 @@ fragment ModuleFriends on Object {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 
 module P0::m0 { public fun f(): u64 { P0::n::f() } }
 module P0::m1 { public fun f(): u64 { P0::n::f() } }

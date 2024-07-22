@@ -26,7 +26,7 @@ module bridge::committee {
     const IOTA_MESSAGE_PREFIX: vector<u8> = b"IOTA_BRIDGE_MESSAGE";
 
     struct BridgeCommittee has store {
-        // commitee pub key and weight
+        // committee pub key and weight
         members: VecMap<vector<u8>, CommitteeMember>,
         // threshold for each message type
         thresholds: VecMap<u8, u64>
@@ -49,7 +49,7 @@ module bridge::committee {
     public(friend) fun create(_ctx: &TxContext): BridgeCommittee {
         // assert!(tx_context::sender(ctx) == @0x0, ENotSystemAddress);
         // Hardcoded genesis committee
-        // TODO: change this to real committe members
+        // TODO: change this to real committee members
         let members = vec_map::empty<vector<u8>, CommitteeMember>();
 
         let bridge_pubkey_bytes = hex::decode(b"02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4");

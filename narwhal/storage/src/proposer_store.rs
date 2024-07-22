@@ -61,7 +61,7 @@ impl ProposerStore {
 #[cfg(test)]
 mod test {
     use store::Map;
-    use test_utils::{fixture_batch_with_transactions, latest_protocol_version, CommitteeFixture};
+    use test_utils::{fixture_batch_with_transactions, CommitteeFixture};
     use types::{CertificateDigest, Header, Round};
 
     use crate::{ProposerStore, LAST_PROPOSAL_KEY};
@@ -76,11 +76,7 @@ mod test {
             .round(round)
             .epoch(fixture.committee().epoch())
             .parents([CertificateDigest::default()].iter().cloned().collect())
-            .with_payload_batch(
-                fixture_batch_with_transactions(10, &latest_protocol_version()),
-                0,
-                0,
-            )
+            .with_payload_batch(fixture_batch_with_transactions(10), 0, 0)
             .build()
             .unwrap();
         Header::V1(header)
