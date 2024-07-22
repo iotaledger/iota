@@ -78,7 +78,7 @@ const IF_STARDUST_ADDRESS: &str =
     "iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr";
 
 const GENESIS_BUILDER_COMMITTEE_DIR: &str = "committee";
-const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
+pub const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
 const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distribution-schedule";
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
@@ -705,9 +705,9 @@ impl Builder {
 
         // Load parameters
         let parameters_file = path.join(GENESIS_BUILDER_PARAMETERS_FILE);
-        let parameters = serde_yaml::from_slice(
-            &fs::read(parameters_file).context("unable to read genesis parameters file")?,
-        )
+        let parameters = serde_yaml::from_slice(&fs::read(&parameters_file).context(format!(
+            "unable to read genesis parameters file {parameters_file}"
+        ))?)
         .context("unable to deserialize genesis parameters")?;
 
         let token_distribution_schedule_file =
