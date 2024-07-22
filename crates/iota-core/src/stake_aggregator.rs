@@ -200,7 +200,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                         // errors in state. It
                                         // is possible to add the authority to a denylist or  punish
                                         // the byzantine authority.
-                                        warn!(name=?name.concise(), "Bad stake from validator: {:?}", err);
+                                        warn!(name=?name.concise(), "Bad stake from validator: {err:?}");
                                         self.data.remove(name);
                                         let votes = self.committee.weight(name);
                                         self.total_votes -= votes;
