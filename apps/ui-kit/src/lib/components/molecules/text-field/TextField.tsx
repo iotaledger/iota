@@ -1,13 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Close, VisibilityOn, VisibilityOff } from '@iota/ui-icons';
-import cx from 'classnames';
-import { useCallback, useRef } from 'react';
-import { TextFieldPropsByType } from './text-field.types';
+import { useCallback, useRef, useState } from 'react';
+import { TextFieldPropsByType, TextFieldTypeTextAreaProps } from './text-field.types';
 import { TextFieldType } from './text-field.enums';
+import { INPUT_CLASSES } from './text-field.classes';
+import { TextFieldTrailingElement } from './TextFieldTrailingElement';
+import cx from 'classnames';
 
-interface TextFieldBaseProps {
+export interface TextFieldBaseProps {
     /**
      * Name for the input field
      */
@@ -55,7 +56,7 @@ interface TextFieldBaseProps {
     /**
      * Shows password toggle button
      */
-    hidePasswordToggle?: boolean;
+    showHideContentButton?: boolean;
     /**
      * The Id of the input field
      */
@@ -78,7 +79,7 @@ interface TextFieldBaseProps {
     required?: boolean;
 }
 
-type TextFieldProps = TextFieldBaseProps & TextFieldPropsByType;
+export type TextFieldProps = TextFieldBaseProps & TextFieldPropsByType;
 
 export function TextField({
     name,
@@ -94,26 +95,31 @@ export function TextField({
     amountCounter,
     id,
     pattern,
-    hidePasswordToggle,
+    showHideContentButton,
     autofocus,
     trailingElement,
     required,
-    type = TextFieldType.Text,
-    ...inputPropsByType
+    ...inputProps
 }: TextFieldProps) {
     const inputRef = useRef<HTMLInputElement>(null);
+    const [isContentVisible, setIsContentVisible] = useState<boolean>(
+        inputProps.type !== TextFieldType.Password,
+    );
+
     const focusInput = useCallback(() => {
         inputRef.current?.focus();
     }, [inputRef]);
 
     const togglePasswordVisibility = useCallback(() => {
+        setIsContentVisible(!isContentVisible);
         if (inputRef.current) {
-            inputRef.current.type =
-                inputRef.current.type === TextFieldType.Password
-                    ? TextFieldType.Text
-                    : TextFieldType.Password;
+            inputRef.current.type = isContentVisible ? TextFieldType.Password : TextFieldType.Text;
         }
-    }, [inputRef]);
+    }, [inputProps, inputRef, isContentVisible]);
+
+    function handleOnChange(e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) {
+        onChange?.(e.target.value, e.target.name);
+    }
 
     return (
         <div
@@ -135,36 +141,63 @@ export function TextField({
                 </label>
             )}
             <div
-                className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm group-[.enabled]:cursor-text group-[.errored]:border-error-30 hover:group-[.enabled]:border-neutral-50  dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 [&:has(input:focus)]:border-primary-30"
+                className={cx(
+                    'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm  group-[.errored]:border-error-30 hover:group-[.enabled]:border-neutral-50  dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 [&:has(input:focus)]:border-primary-30',
+                    inputProps.type === TextFieldType.TextArea && !isContentVisible
+                        ? 'cursor-auto select-none'
+                        : 'group-[.enabled]:cursor-text',
+                )}
                 onClick={focusInput}
             >
                 {leadingIcon && (
                     <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
                 )}
-                <input
-                    type={type}
-                    name={name}
-                    placeholder={placeholder}
-                    disabled={isDisabled}
-                    value={value}
-                    onChange={(e) => onChange?.(e.target.value)}
-                    ref={inputRef}
-                    required={required}
-                    id={id}
-                    {...inputPropsByType}
-                    pattern={pattern}
-                    autoFocus={autofocus}
-                    className="w-full bg-transparent text-body-lg text-neutral-10 caret-primary-30 focus:outline-none focus-visible:outline-none enabled:placeholder:text-neutral-40/40 dark:text-neutral-92 dark:placeholder:text-neutral-60/40 enabled:dark:placeholder:text-neutral-60/40"
-                />
+
+                {inputProps.type !== TextFieldType.TextArea && (
+                    <input
+                        type={inputProps.type}
+                        name={name}
+                        placeholder={placeholder}
+                        disabled={isDisabled}
+                        value={value}
+                        onChange={handleOnChange}
+                        ref={inputRef}
+                        required={required}
+                        id={id}
+                        pattern={pattern}
+                        autoFocus={autofocus}
+                        className={INPUT_CLASSES}
+                    />
+                )}
+
+                {inputProps.type === TextFieldType.TextArea && (
+                    <TextArea
+                        name={name}
+                        placeholder={placeholder}
+                        isDisabled={isDisabled}
+                        onChange={handleOnChange}
+                        isContentVisible={isContentVisible}
+                        value={value}
+                        required={required}
+                        id={id}
+                        autofocus={autofocus}
+                        {...inputProps}
+                    />
+                )}
+
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
 
                 <TextFieldTrailingElement
                     value={value}
-                    type={type}
-                    hidePasswordToggle={hidePasswordToggle}
-                    onChange={onChange}
-                    inputRef={inputRef}
-                    togglePasswordVisibility={togglePasswordVisibility}
+                    type={inputProps.type}
+                    showHideContentButton={
+                        inputProps.type === TextFieldType.Password
+                            ? showHideContentButton ?? true
+                            : showHideContentButton
+                    }
+                    onClearInput={() => onChange?.('')}
+                    inputType={inputRef.current?.type}
+                    toggleContentVisibility={togglePasswordVisibility}
                     trailingElement={trailingElement}
                 />
             </div>
@@ -192,47 +225,52 @@ function SecondaryText({
     );
 }
 
-type TextFieldTrailingElement = Pick<
+type TextAreaProps = Pick<
     TextFieldProps,
-    'value' | 'type' | 'hidePasswordToggle' | 'onChange' | 'trailingElement'
-> & {
-    inputRef: React.RefObject<HTMLInputElement>;
-    togglePasswordVisibility: () => void;
-};
+    'isDisabled' | 'autofocus' | 'value' | 'name' | 'placeholder' | 'required' | 'id'
+> &
+    TextFieldTypeTextAreaProps;
 
-function TextFieldTrailingElement({
+function TextArea({
+    isContentVisible,
+    isDisabled,
+    autofocus,
     value,
-    type,
-    hidePasswordToggle,
+    hiddenRows,
     onChange,
-    inputRef,
-    togglePasswordVisibility,
-    trailingElement,
-}: TextFieldTrailingElement) {
-    if (trailingElement) {
-        return trailingElement;
-    }
+    rows = 3,
+    cols,
+    name,
+    placeholder,
+    required,
+    id,
+}: {
+    isContentVisible: boolean;
+    onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+} & TextAreaProps) {
+    return (
+        <div className="relative w-full">
+            <textarea
+                disabled={isDisabled}
+                placeholder={placeholder}
+                required={required}
+                id={id}
+                name={name}
+                autoFocus={autofocus}
+                onChange={onChange}
+                rows={rows}
+                cols={cols}
+                className={cx(INPUT_CLASSES, !isContentVisible && 'text-opacity-0')}
+                value={value}
+            />
 
-    if (type === TextFieldType.Password && !hidePasswordToggle) {
-        return (
-            <button
-                onClick={togglePasswordVisibility}
-                className="text-neutral-10 dark:text-neutral-92"
-            >
-                {inputRef.current?.type === TextFieldType.Password ? (
-                    <VisibilityOn />
-                ) : (
-                    <VisibilityOff />
-                )}
-            </button>
-        );
-    }
-
-    if (type === TextFieldType.Text && value) {
-        return (
-            <button className="text-neutral-10 dark:text-neutral-92" onClick={() => onChange?.('')}>
-                <Close />
-            </button>
-        );
-    }
+            {!isContentVisible && (
+                <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-2">
+                    {new Array(hiddenRows ?? rows ?? 3).fill(0).map((_, index) => (
+                        <div key={index} className="h-full w-full rounded bg-neutral-92" />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }

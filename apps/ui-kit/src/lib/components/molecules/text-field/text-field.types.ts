@@ -3,16 +3,35 @@
 
 import { TextFieldType } from './text-field.enums';
 
-type PasswordTextFieldProps = {
+type TextFieldTypePasswordProps = {
     type: TextFieldType.Password;
-    /**
-     * Whether the password toggle button should be hidden
-     */
-    hidePasswordToggle?: boolean;
 };
 
-type TextTextFieldProps = {
+type TextFieldTypeTextProps = {
     type: TextFieldType.Text;
 };
 
-export type TextFieldPropsByType = PasswordTextFieldProps | TextTextFieldProps;
+export type TextFieldTypeTextAreaProps = {
+    type: TextFieldType.TextArea;
+    /**
+     * Show a button to hide the content of the textarea.
+     */
+    hideContentToggle?: boolean;
+    /**
+     * The number of rows to show in the textarea
+     */
+    rows?: number;
+    /**
+     * The number of columns to show in the textarea
+     */
+    cols?: number;
+    /**
+     * How many 'hidden' rows are displayed.
+     */
+    hiddenRows?: number;
+};
+
+export type TextFieldPropsByType =
+    | TextFieldTypePasswordProps
+    | TextFieldTypeTextProps
+    | TextFieldTypeTextAreaProps;

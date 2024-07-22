@@ -4,4 +4,5 @@
 export enum TextFieldType {
     Text = 'text',
     Password = 'password',
+    TextArea = 'textarea',
 }

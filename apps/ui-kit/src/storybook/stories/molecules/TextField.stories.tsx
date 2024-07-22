@@ -6,6 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { TextField, TextFieldType } from '@/components/molecules/text-field';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import { ComponentProps, useEffect, useState } from 'react';
+import { Button } from '@/lib';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -73,7 +74,7 @@ export const WithLeadingElement: Story = {
 
 export const WithMaxTrailingButton: Story = {
     args: {
-        type: TextFieldType.Number,
+        type: TextFieldType.Text,
         placeholder: 'Send IOTAs',
         amountCounter: 'Max 10 IOTA',
         caption: 'Enter token amount',
@@ -128,10 +129,42 @@ export const WithMaxTrailingButton: Story = {
                 label="Send Tokens"
                 value={value}
                 trailingElement={<TrailingMaxButton />}
-                isErrored={!!error}
                 errorMessage={error}
                 onChange={onChange}
             />
+        );
+    },
+};
+
+export const TextAreaInput: Story = {
+    args: {
+        type: TextFieldType.TextArea,
+        placeholder: '0x...',
+        caption: 'Submit your address',
+    },
+    render: (props) => {
+        const { onChange, ...storyProps } = props;
+        const [value, setValue] = useState(props.value ?? '');
+
+        useEffect(() => {
+            setValue(props.value ?? '');
+        }, [props.value]);
+
+        function onSubmit() {
+            alert(value);
+        }
+
+        function handleOnChange(value: string) {
+            setValue(value);
+        }
+
+        return (
+            <div className="w-[300px]">
+                <TextField onChange={handleOnChange} {...storyProps} showHideContentButton />
+                <div className="flex w-full justify-end">
+                    <Button onClick={() => onSubmit()} text="Submit" />
+                </div>
+            </div>
         );
     },
 };
