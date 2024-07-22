@@ -168,12 +168,8 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 // and verify individually. Decrement total votes and continue
                                 // to find new authority for signature to reach the quorum.
                                 //
-                                // It is possible for the aggregated signature to fail
-                                // every time when the latest one
-                                // single signature fails to verify repeatedly, and trigger
-                                // this for loop to run. This can be optimized by caching single sig
-                                // verification result only verify
-                                // the net new ones.
+                                // To avoid verifying fail signatures repeatedly, we cache the
+                                // fail signatures and skip the verification for the next time.
                                 let mut bad_votes = 0;
                                 let mut bad_authorities = vec![];
                                 for (name, sig) in &self.data.clone() {
