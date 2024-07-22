@@ -39,7 +39,7 @@ $ git push
 
 2. Contribute Validator information
 
-Once the shared workspace has been initialized, each validator can contribute their information:
+Once the shared workspace has been initialized, each validator can contribute their information (worker key and network key must be different):
 
 ```
 $ git clone <url to genesis repo> && cd genesis
@@ -60,6 +60,23 @@ $ iota genesis-ceremony add-validator \
 $ git add .
 $ git commit -m "add validator <name>'s information"
 $ git push # either to the shared workspace or another branch followed by a PR
+```
+
+Example:
+```
+$ iota genesis-ceremony add-validator \
+    --name validator0 \
+    --validator-key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key \
+    --worker-key-file ./validator0/0x6c58f5df3d6749863ebac6592b1e4320e73ca7785764c93af7ea9ad63b98ded4.key \
+    --account-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
+    --network-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
+    --network-address /ip4/127.0.0.1/tcp/38189/http \
+    --p2p-address /ip4/127.0.0.1/udp/34523 \
+    --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
+    --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
+    --description "" \
+    --image-url "" \
+    --project-url ""
 ```
 
 3. Add token allocation for the faucet
@@ -96,6 +113,12 @@ $ iota genesis-ceremony verify-and-sign \
 $ git add .
 $ git commit -m "sign genesis"
 $ git push
+```
+
+Example:
+```
+$ iota genesis-ceremony verify-and-sign \
+    --key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key
 ```
 
 5. Finalize Genesis
