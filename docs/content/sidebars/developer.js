@@ -10,7 +10,7 @@ const developer = [
 				collapsed: false,
 				link: {
 					type: 'doc',
-					id: 'developer/getting-started',
+					id: 'developer/getting-started/getting-started',
 				},
 				items: [
 					'developer/getting-started/iota-environment',
