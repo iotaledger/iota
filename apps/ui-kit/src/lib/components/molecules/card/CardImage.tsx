@@ -9,7 +9,7 @@ import { CardImagePlaceholder } from './CardImagePlaceholder';
 
 export interface CardImageProps {
     type?: ImageType;
-    variant?: ImageVariant;
+    variant: ImageVariant;
     url?: string;
     children?: React.ReactNode;
 }
@@ -20,10 +20,6 @@ export function CardImage({
     url,
     children,
 }: CardImageProps) {
-    if (!variant) {
-        return null;
-    }
-
     return (
         <div
             className={cx(

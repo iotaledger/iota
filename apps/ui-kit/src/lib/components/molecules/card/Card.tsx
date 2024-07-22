@@ -3,7 +3,7 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { CARD_DISABLED, CARD_CLASSES_VARIANT } from './card.classes';
+import { CARD_DISABLED_CLASSES, CARD_CLASSES_VARIANT } from './card.classes';
 import { CardVariant } from './card.enums';
 
 export interface CardProps {
@@ -38,12 +38,11 @@ export function Card({
         <div
             onClick={onClick}
             className={cx(
-                'inline-flex items-center gap-3 rounded-lg px-md py-xs',
-                CARD_CLASSES_VARIANT[variant].default,
+                'relative inline-flex items-center gap-3 rounded-xl px-sm py-xs',
+                CARD_CLASSES_VARIANT[variant],
                 {
-                    [CARD_CLASSES_VARIANT[variant].hover]: !disabled,
-                    [CARD_CLASSES_VARIANT[variant].active]: !disabled,
-                    [CARD_DISABLED]: disabled,
+                    'state-layer': !disabled,
+                    [CARD_DISABLED_CLASSES]: disabled,
                 },
             )}
         >

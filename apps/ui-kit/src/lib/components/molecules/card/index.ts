@@ -4,4 +4,4 @@
 export * from './Card';
 export * from './CardAction';
 export * from './CardImage';
-export * from './CardText';
+export * from './CardBody';

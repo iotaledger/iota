@@ -9,8 +9,8 @@ import {
     CardImage,
     CardImageProps,
     CardAction,
-    CardText,
-    CardTextProps,
+    CardBody,
+    CardBodyProps,
     CardActionProps,
 } from '@/components/molecules/card';
 import {
@@ -21,12 +21,11 @@ import {
 } from '@/components/molecules/card/card.enums';
 
 type CardCustomProps = CardProps & {
-    test: string;
     imageType: CardImageProps['type'];
     imageUrl: CardImageProps['url'];
     imageVariant: CardImageProps['variant'];
-    textTitle: CardTextProps['title'];
-    textSubtitle: CardTextProps['subtitle'];
+    textTitle: CardBodyProps['title'];
+    textSubtitle: CardBodyProps['subtitle'];
     actionTitle: CardActionProps['title'];
     actionSubtitle: CardActionProps['subtitle'];
     actionVariant: CardActionProps['variant'];
@@ -80,7 +79,7 @@ export const Default: Story = {
         return (
             <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
                 <CardImage type={args.imageType} variant={args.imageVariant} url={args.imageUrl} />
-                <CardText title={args.textTitle} subtitle={args.textSubtitle} />
+                <CardBody title={args.textTitle} subtitle={args.textSubtitle} />
                 <CardAction
                     title={args.actionTitle}
                     subtitle={args.actionSubtitle}
@@ -104,7 +103,7 @@ export const WithIcon: Story = {
                 <CardImage type={args.imageType} variant={args.imageVariant} url={args.imageUrl}>
                     <IotaLogoSmall />
                 </CardImage>
-                <CardText title={args.textTitle} subtitle={args.textSubtitle} />
+                <CardBody title={args.textTitle} subtitle={args.textSubtitle} />
                 <CardAction
                     title={args.actionTitle}
                     subtitle={args.actionSubtitle}

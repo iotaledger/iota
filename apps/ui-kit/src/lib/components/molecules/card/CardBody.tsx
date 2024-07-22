@@ -1,15 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export type CardTextProps = {
+export type CardBodyProps = {
     title: string;
     subtitle?: string;
 };
 
-export function CardText({ title, subtitle }: CardTextProps) {
+export function CardBody({ title, subtitle }: CardBodyProps) {
     return (
         <div>
-            <div className={'font-inter text-title-lg text-neutral-10 dark:text-neutral-92'}>
+            <div className={'font-inter text-title-md text-neutral-10 dark:text-neutral-92'}>
                 {title}
             </div>
             {subtitle && (

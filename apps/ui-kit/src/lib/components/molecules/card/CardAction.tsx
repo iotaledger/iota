@@ -7,7 +7,7 @@ import { CardActionVariant } from './card.enums';
 export type CardActionProps = {
     title?: string;
     subtitle?: string;
-    variant?: CardActionVariant;
+    variant: CardActionVariant;
     onClick?: () => void;
 };
 
@@ -44,7 +44,7 @@ export function CardAction({ variant, onClick, subtitle, title }: CardActionProp
                 )}
                 {subtitle && (
                     <div
-                        className={'font-inter text-label-sm text-neutral-40 dark:text-neutral-60'}
+                        className={'font-inter text-label-sm text-neutral-60 dark:text-neutral-40'}
                     >
                         {subtitle}
                     </div>
