@@ -33,9 +33,10 @@ const dropdownOptions: CustomOption[] = [
 ];
 
 function OptionTile({ option }: { option: CustomOption }) {
+    const TileIcon = option.Icon;
     return (
         <div className="flex flex-row items-center gap-x-3">
-            {option.Icon()}
+            <TileIcon />
             <span>{option.label}</span>
         </div>
     );
@@ -45,6 +46,7 @@ export const Default: Story = {
     args: {
         label: 'Selector Field',
         supportingText: 'Info',
+        caption: 'Caption',
     },
     render: (args) => {
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
@@ -66,27 +68,29 @@ export const Default: Story = {
         );
 
         return (
-            <SelectorField
-                {...args}
-                isOpen={isOpen}
-                setIsOpen={setIsOpen}
-                errorMessage={errorMessage}
-                dropdownElements={
-                    <Fragment>
-                        {dropdownOptions.map((option, index) => (
-                            <ListItem
-                                key={option.label}
-                                hideBottomBorder={index === dropdownOptions.length - 1}
-                                onClick={() => handleOptionClick(option)}
-                            >
-                                <OptionTile option={option} />
-                            </ListItem>
-                        ))}
-                    </Fragment>
-                }
-            >
-                {selectorContent}
-            </SelectorField>
+            <div className="h-60">
+                <SelectorField
+                    {...args}
+                    isOpen={isOpen}
+                    setIsOpen={setIsOpen}
+                    errorMessage={errorMessage}
+                    dropdownElements={
+                        <Fragment>
+                            {dropdownOptions.map((option, index) => (
+                                <ListItem
+                                    key={option.label}
+                                    hideBottomBorder={index === dropdownOptions.length - 1}
+                                    onClick={() => handleOptionClick(option)}
+                                >
+                                    <OptionTile option={option} />
+                                </ListItem>
+                            ))}
+                        </Fragment>
+                    }
+                >
+                    {selectorContent}
+                </SelectorField>
+            </div>
         );
     },
 };
