@@ -55,10 +55,10 @@ The IOTA TypeScript SDK deprecates the following classes with version 0.38.0:
     messages without the need of a `Signer` class. See the
     [Key pairs](./cryptography/keypairs.mdx) topic for more information.
 -   `signAndExecuteTransactionBlock` - This method was not deprecated, but is now part of
-    `IOTAClient`.
+    `IotaClient`.
 -   `Connection` classes - The `Connection` classes (`Connection`, `devnetConnection`, and so on)
     have been deprecated in favor of using `iotaClient` for establishing the connection. See
-    [Network Interactions with IOTAClient](./iota-client.mdx) for more information.
+    [Network Interactions with IotaClient](./iota-client.mdx) for more information.
 -   The `superstruct` type definitions for `JsonRPCProvider` types are replaced with generated types
     exported from `@iota/iota.js/client`. The new type definitions are pure TypeScript types that
     you can't use for runtime validation.
