@@ -173,19 +173,9 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 let mut bad_votes = 0;
                                 let mut bad_authorities = vec![];
                                 for (name, sig) in &self.data.clone() {
-                                    if let Some(cached_error) = self.error_cache.get(sig) {
-                                        warn!(
-                                            "Cached Error: {cached_error:?} for signature: {sig:?}",
-                                        );
-
-                                        self.data.remove(name);
-                                        let votes = self.committee.weight(name);
-                                        self.total_votes -= votes;
-                                        bad_votes += votes;
-                                        bad_authorities.push(*name);
-                                        continue;
-                                    }
-                                    if let Err(err) = sig.verify_secure(
+                                    let sig_err = if let Some(cached_error) = self.error_cache.get(sig) {
+                                        Some(cached_error.clone())
+                                    } else if let Err(err) = sig.verify_secure(
                                         &data,
                                         Intent::iota_app(T::SCOPE),
                                         self.committee(),
@@ -196,13 +186,18 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                         // errors in state. It
                                         // is possible to add the authority to a denylist or  punish
                                         // the byzantine authority.
+                                        self.error_cache.put(sig.clone(), err.clone()); // Cache the signature error using LruCache
+                                        Some(err)
+                                    } else {
+                                        None
+                                    };
+                                    if let Some(err) = sig_err {
                                         warn!(name=?name.concise(), "Bad stake from validator: {err:?}");
                                         self.data.remove(name);
                                         let votes = self.committee.weight(name);
                                         self.total_votes -= votes;
                                         bad_votes += votes;
                                         bad_authorities.push(*name);
-                                        self.error_cache.put(sig.clone(), err); // Cache the signature using LruCache
                                     }
                                 }
                                 InsertResult::NotEnoughVotes {
