@@ -198,7 +198,7 @@ fn with_sampling<R: Read>(
             Output::Basic(ref basic) => {
                 if !timelock::is_timelocked_vested_reward(
                     output_header.output_id(),
-                    &basic,
+                    basic,
                     target_milestone_timestamp,
                 ) && rng.gen_bool(PROBABILITY_OF_PICKING_A_BASIC_OUTPUT)
                 {
