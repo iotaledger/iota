@@ -39,7 +39,10 @@ const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
 pub const fn to_micros(n: u64) -> u64 {
-    n * 1_000_000
+    match n.checked_mul(1_000_000) {
+        Some(res) => res,
+        None => panic!("should not overflow"),
+    }
 }
 
 const PROBABILITY_OF_PICKING_A_BASIC_OUTPUT: f64 = 0.1;
