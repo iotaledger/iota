@@ -39,9 +39,9 @@ function getAccountSourceType(
 }
 
 enum SearchPhase {
-    Ready, // initialized waiting for the search to be triggered.
+    Ready, // initialized and ready to start
     Ongoing, // search ongoing
-    Idle, // Search has finished, and is ready for ones
+    Idle, // search has finished and is idle, ready to start again
 }
 
 export function AccountsFinderView(): JSX.Element {
