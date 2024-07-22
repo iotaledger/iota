@@ -184,7 +184,7 @@ fn add_only_test_outputs<R: Read>(
     Ok(new_outputs)
 }
 
-/// Get samples of the previous Hornet shapshot without timelocks and with a
+/// Get samples of the previous Hornet snapshot without timelocks and with a
 /// certain probability of picking basic outputs.
 fn with_sampling<R: Read>(
     parser: &mut HornetSnapshotParser<R>,
