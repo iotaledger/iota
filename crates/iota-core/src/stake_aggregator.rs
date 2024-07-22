@@ -182,6 +182,11 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                             "Cached Error: {:?} for signature: {:?}",
                                             cached_error, sig
                                         );
+                                        self.data.remove(name);
+                                        let votes = self.committee.weight(name);
+                                        self.total_votes -= votes;
+                                        bad_votes += votes;
+                                        bad_authorities.push(*name);
                                         continue;
                                     }
                                     if let Err(err) = sig.verify_secure(
