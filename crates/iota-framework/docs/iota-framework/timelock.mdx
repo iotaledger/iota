@@ -485,7 +485,7 @@ Split a <code>
     // Split the locked <Link to="../iota-framework/balance#0x2_balance">balance</Link>.
     <b>let</b> value = self.locked.<Link to="../iota-framework/timelock#0x2_timelock_split">split</Link>(value);
 
-    // Pack the splitted <Link to="../iota-framework/balance#0x2_balance">balance</Link> into a <Link to="../iota-framework/timelock#0x2_timelock">timelock</Link>.
+    // Pack the split <Link to="../iota-framework/balance#0x2_balance">balance</Link> into a <Link to="../iota-framework/timelock#0x2_timelock">timelock</Link>.
     <Link to="../iota-framework/timelock#0x2_timelock_pack">pack</Link>(value, self.<Link to="../iota-framework/timelock#0x2_timelock_expiration_timestamp_ms">expiration_timestamp_ms</Link>(), self.<Link to="../iota-framework/timelock#0x2_timelock_label">label</Link>(), ctx)
 }
 </code></pre>
