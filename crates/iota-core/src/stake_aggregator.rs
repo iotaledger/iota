@@ -173,8 +173,10 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 let mut bad_votes = 0;
                                 let mut bad_authorities = vec![];
                                 for (name, sig) in &self.data.clone() {
-                                    let sig_err = if let Some(cached_error) = self.error_cache.get(sig) {
-                                        Some(cached_error.clone())
+                                    let sig_err = if let Some(cached_error) =
+                                        self.error_cache.get(sig)
+                                    {
+                                        Some(cached_error.as_ref())
                                     } else if let Err(err) = sig.verify_secure(
                                         &data,
                                         Intent::iota_app(T::SCOPE),
@@ -186,8 +188,8 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                         // errors in state. It
                                         // is possible to add the authority to a denylist or  punish
                                         // the byzantine authority.
-                                        self.error_cache.put(sig.clone(), err.clone()); // Cache the signature error using LruCache
-                                        Some(err)
+                                        self.error_cache.put(sig.to_owned(), err.clone()); // Cache the signature error using LruCache
+                                        Some(err.into())
                                     } else {
                                         None
                                     };
