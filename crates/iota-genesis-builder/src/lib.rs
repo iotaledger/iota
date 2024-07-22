@@ -74,7 +74,7 @@ pub mod stardust;
 pub mod validator_info;
 
 // TODO: Lazy static `stardust_to_iota_address`
-const IF_STARDUST_ADDRESS: &str =
+pub const IF_STARDUST_ADDRESS: &str =
     "iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr";
 
 const GENESIS_BUILDER_COMMITTEE_DIR: &str = "committee";
