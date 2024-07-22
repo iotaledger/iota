@@ -139,10 +139,21 @@ impl Builder {
         self
     }
 
+    /// Set the [`TokenDistributionSchedule`].
+    ///
+    /// # Panic
+    ///
+    /// This method fails if the passed schedule contains timelocked stake.
+    /// This is to avoid conflicts with the genesis stake, that delegates
+    /// timelocked stake based on the migrated state.
     pub fn with_token_distribution_schedule(
         mut self,
         token_distribution_schedule: TokenDistributionSchedule,
     ) -> Self {
+        assert!(
+            !token_distribution_schedule.contains_timelocked_stake(),
+            "timelocked stake should be generated only from migrated stake"
+        );
         self.token_distribution_schedule = Some(token_distribution_schedule);
         self
     }
@@ -249,6 +260,15 @@ impl Builder {
     }
 
     /// Evaluate the genesis [`TokenDistributionSchedule`].
+    ///
+    /// This merges conditionally the cached token distribution
+    /// (i.e. `self.token_distribution_schedule`)  with the genesis stake
+    /// resulting from the migrated state.
+    ///
+    /// If the cached token distribution schedule contains timelocked stake, it
+    /// is assumed that the genesis stake is already merged and no operation
+    /// is performed. This is the case where we load a [`Builder`] from disk
+    /// that has already built genesis with the migrated state.
     fn resolve_token_distribution_schedule(&mut self) -> TokenDistributionSchedule {
         let validator_addresses = self.validators.values().map(|v| v.info.iota_address());
         let token_distribution_schedule = self.token_distribution_schedule.take();
