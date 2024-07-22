@@ -6,7 +6,8 @@
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::stardust::{
-    parse::HornetSnapshotParser, test_outputs::add_snapshot_test_outputs,
+    parse::HornetSnapshotParser,
+    test_outputs::{add_snapshot_test_outputs, to_micros},
 };
 use iota_types::gas_coin::STARDUST_TOTAL_SUPPLY_IOTA;
 
@@ -20,8 +21,8 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 
-    // Total supply is in IOTA, snapshot supply is Nanos
-    assert_eq!(total_supply, STARDUST_TOTAL_SUPPLY_IOTA * 1_000_000);
+    // Total supply is in IOTA, snapshot supply is Micros
+    assert_eq!(total_supply, to_micros(STARDUST_TOTAL_SUPPLY_IOTA));
 
     println!("Total supply: {total_supply}");
 
@@ -45,7 +46,9 @@ async fn main() -> anyhow::Result<()> {
 
     parse_snapshot::<false>(&current_path)?;
 
-    add_snapshot_test_outputs::<false>(&current_path, &new_path).await?;
+    let randomness_seed = 0;
+    add_snapshot_test_outputs::<false>(&current_path, &new_path, randomness_seed, None, false)
+        .await?;
 
     parse_snapshot::<false>(&new_path)?;
 

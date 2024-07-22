@@ -40,7 +40,7 @@ impl GenesisStake {
         std::mem::take(&mut self.timelocks_to_burn)
     }
 
-    /// Take the inner timelock objects that must be splitted.
+    /// Take the inner timelock objects that must be split.
     ///
     /// This follows the semantics of [`std::mem::take`].
     pub fn take_timelocks_to_split(&mut self) -> Vec<(ObjectRef, u64, IotaAddress)> {

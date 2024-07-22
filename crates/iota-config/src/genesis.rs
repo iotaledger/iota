@@ -563,7 +563,7 @@ impl TokenDistributionSchedule {
     /// denote the allocation to the stake subsidy fund. It must be in the
     /// following format:
     /// `0x0000000000000000000000000000000000000000000000000000000000000000,
-    /// <pre minted supply>,`
+    /// <pre>minted supply</pre>,`
     ///
     /// All entries in a token distribution schedule must add up to 10B Iota.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {

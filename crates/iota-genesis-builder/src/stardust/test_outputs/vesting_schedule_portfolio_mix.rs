@@ -15,8 +15,7 @@ use iota_sdk::{
         },
     },
 };
-use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{
     test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
@@ -39,13 +38,14 @@ const ADDRESSES: &[[u32; 3]] = &[
     [0, 1, 2],
 ];
 
-pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(
+    randomness_seed: u64,
+    vested_index: &mut u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
-    let randomness_seed = random::<u64>();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("vesting_schedule_portfolio_mix randomness seed: {randomness_seed}");
 
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager
@@ -110,30 +110,26 @@ fn add_vested_outputs(
 ) -> anyhow::Result<()> {
     let (initial_unlock_amount, vested_amount) = initial_unlock_and_vested_amounts(rng);
 
-    let mut transaction_id = [0; 32];
-
-    // Prepare a transaction ID with the vested reward prefix.
-    transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
-
     outputs.push(new_vested_output(
-        &mut transaction_id,
-        vested_index,
+        *vested_index,
         initial_unlock_amount,
         address,
         None,
+        rng,
     )?);
+    *vested_index -= 1;
 
     for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
         let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
         outputs.push(new_vested_output(
-            &mut transaction_id,
-            vested_index,
+            *vested_index,
             vested_amount,
             address,
             Some(timelock),
+            rng,
         )?);
+        *vested_index -= 1;
     }
 
     Ok(())
