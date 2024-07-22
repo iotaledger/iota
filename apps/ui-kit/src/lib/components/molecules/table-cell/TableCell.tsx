@@ -31,6 +31,10 @@ interface TableCellProps {
      * If the cell has the last border none class.
      */
     hasLastBorderNoneClass?: boolean;
+    /**
+     * The onCopy event of the cell (optional).
+     */
+    onCopy?: (e: React.MouseEvent<SVGElement>) => void;
 }
 
 export function TableCell({
@@ -40,6 +44,7 @@ export function TableCell({
     leadingElement,
     supportingLabel,
     hasLastBorderNoneClass,
+    onCopy,
 }: TableCellProps): React.JSX.Element {
     const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
@@ -62,7 +67,7 @@ export function TableCell({
                         className={cx('flex items-center space-x-2', textColorClass, textSizeClass)}
                     >
                         <span>{label}</span>
-                        <Copy />
+                        <Copy className="h-4 w-4 cursor-pointer" onClick={onCopy} />
                     </div>
                 );
             case TableCellType.Badge:
