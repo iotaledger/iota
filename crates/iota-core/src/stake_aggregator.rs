@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cmp::Eq,
     collections::{hash_map::Entry, BTreeMap, HashMap},
     hash::Hash,
+    num::NonZeroUsize,
     sync::Arc,
 };
 
@@ -15,18 +17,22 @@ use iota_types::{
     error::IotaError,
     message_envelope::{Envelope, Message},
 };
+use lru::LruCache;
 use serde::Serialize;
 use shared_crypto::intent::Intent;
 use tracing::warn;
+
+const ERROR_CACHE_SIZE: usize = 1000;
 
 /// StakeAggregator allows us to keep track of the total stake of a set of
 /// validators. STRENGTH indicates whether we want a strong quorum (2f+1) or a
 /// weak quorum (f+1).
 #[derive(Debug)]
-pub struct StakeAggregator<S, const STRENGTH: bool> {
+pub struct StakeAggregator<S: Hash + Eq, const STRENGTH: bool> {
     data: HashMap<AuthorityName, S>,
     total_votes: StakeUnit,
     committee: Arc<Committee>,
+    error_cache: LruCache<S, IotaError>,
 }
 
 /// StakeAggregator is a utility data structure that allows us to aggregate a
@@ -35,12 +41,13 @@ pub struct StakeAggregator<S, const STRENGTH: bool> {
 /// generic implementation does not require `S` to be an actual signature, but
 /// just an indication that a specific validator has voted. A specialized
 /// implementation for `AuthoritySignInfo` is followed below.
-impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
+impl<S: Clone + Eq + Hash, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
     pub fn new(committee: Arc<Committee>) -> Self {
         Self {
             data: Default::default(),
             total_votes: Default::default(),
             committee,
+            error_cache: LruCache::new(NonZeroUsize::new(ERROR_CACHE_SIZE).unwrap()),
         }
     }
 
@@ -161,7 +168,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 // and verify individually. Decrement total votes and continue
                                 // to find new authority for signature to reach the quorum.
                                 //
-                                // TODO(joyqvq): It is possible for the aggregated signature to fail
+                                // It is possible for the aggregated signature to fail
                                 // every time when the latest one
                                 // single signature fails to verify repeatedly, and trigger
                                 // this for loop to run. This can be optimized by caching single sig
@@ -170,6 +177,13 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 let mut bad_votes = 0;
                                 let mut bad_authorities = vec![];
                                 for (name, sig) in &self.data.clone() {
+                                    if let Some(cached_error) = self.error_cache.get(sig) {
+                                        warn!(
+                                            "Cached Error: {:?} for signature: {:?}",
+                                            cached_error, sig
+                                        );
+                                        continue;
+                                    }
                                     if let Err(err) = sig.verify_secure(
                                         &data,
                                         Intent::iota_app(T::SCOPE),
@@ -187,6 +201,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                         self.total_votes -= votes;
                                         bad_votes += votes;
                                         bad_authorities.push(*name);
+                                        self.error_cache.put(sig.clone(), err); // Cache the signature using LruCache
                                     }
                                 }
                                 InsertResult::NotEnoughVotes {
