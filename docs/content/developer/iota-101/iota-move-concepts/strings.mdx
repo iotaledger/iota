@@ -13,7 +13,7 @@ module examples::strings {
     use std::string::{Self, String};
 
     /// A dummy Object that holds a String type
-    struct Name has key, store {
+    public struct Name has key, store {
         id: UID,
 
         /// Here it is - the String type
@@ -37,7 +37,7 @@ module examples::strings {
 Define string literals in Move as byte strings. To do so, prepend `b` to your string.
 
 ```move
-const IMAGE_URL: vector<u8> = b"https://api.capy.art/capys/";
+const IMAGE_URL: vector<u8> = b"https://example.com/image/";
 
 let keys = vector[
             utf8(b"name"),

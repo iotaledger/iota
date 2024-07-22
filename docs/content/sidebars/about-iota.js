@@ -45,8 +45,6 @@ const aboutIota = [
 			'about-iota/tokenomics/validators-staking',
 			'about-iota/tokenomics/staking-unstaking',
 			'about-iota/tokenomics/iota-coin',
-			'about-iota/tokenomics/iota-bridging',
-			'about-iota/tokenomics/storage-fund',
 			'about-iota/tokenomics/gas-pricing',
 			'about-iota/tokenomics/gas-in-iota',
 		],

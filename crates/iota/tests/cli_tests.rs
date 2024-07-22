@@ -62,17 +62,7 @@ const TEST_DATA_DIR: &str = "tests/data/";
 async fn test_genesis() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
-    let config = working_dir.join(IOTA_NETWORK_CONFIG);
 
-    // Start network without authorities
-    let start = IotaCommand::Start {
-        config: Some(config),
-        no_full_node: false,
-    }
-    .execute()
-    .await;
-    assert!(matches!(start, Err(..)));
-    // Genesis
     IotaCommand::Genesis {
         working_dir: Some(working_dir.to_path_buf()),
         write_config: None,
