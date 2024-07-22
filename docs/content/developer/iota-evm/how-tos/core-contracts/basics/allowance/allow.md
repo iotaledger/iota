@@ -11,7 +11,7 @@ tags:
 
 # Allow
 
-The allowance concept is well known from the EVM contracts like ERC20. 
+The allowance concept is well known from the EVM contracts like ERC20.
 In ISC, we have a similar concept for our native assets. You might want to use this, for example, to [send native assets to L1](../send-assets-to-l1.mdx) (which includes sending tokens to other L1 chain accounts).
 
 ## Example Code
@@ -19,7 +19,7 @@ In ISC, we have a similar concept for our native assets. You might want to use t
 ### 1. Create the `allow` Function
 
 Create a function which allows an address or contract to access a specific ID of your account:
- 
+
 ```solidity
 function allow(address _address, bytes32 _allowanceNFTID) public {
 ```
