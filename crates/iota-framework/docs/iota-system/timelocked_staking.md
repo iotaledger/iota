@@ -409,11 +409,11 @@ All the other parameters of the <code><a href="timelocked_staking.md#0x3_timeloc
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="timelocked_staking.md#0x3_timelocked_staking_split">split</a>(self: &<b>mut</b> <a href="timelocked_staking.md#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</a>, split_amount: u64, ctx: &<b>mut</b> TxContext): <a href="timelocked_staking.md#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</a> {
-    <b>let</b> splitted_stake = self.staked_iota.<a href="timelocked_staking.md#0x3_timelocked_staking_split">split</a>(split_amount, ctx);
+    <b>let</b> split_stake = self.staked_iota.<a href="timelocked_staking.md#0x3_timelocked_staking_split">split</a>(split_amount, ctx);
 
     <a href="timelocked_staking.md#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</a> {
         id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
-        staked_iota: splitted_stake,
+        staked_iota: split_stake,
         expiration_timestamp_ms: self.expiration_timestamp_ms,
         label: self.label,
     }
