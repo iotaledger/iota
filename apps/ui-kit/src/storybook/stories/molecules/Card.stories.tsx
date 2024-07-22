@@ -41,37 +41,42 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+const COMMON_ARG_TYPES = {
+    imageType: {
+        control: 'select',
+        options: Object.values(ImageType),
+    },
+    imageVariant: {
+        control: 'select',
+        options: Object.values(ImageVariant),
+    },
+    actionVariant: {
+        control: 'select',
+        options: Object.values(CardActionVariant),
+    },
+    onClick: {
+        action: 'clicked',
+    },
+};
+
+const COMMON_ARGS = {
+    textTitle: 'Card Title',
+    textSubtitle: 'Card Subtitle',
+    actionTitle: 'Action title',
+    actionSubtitle: 'Action subtitle',
+    actionVariant: CardActionVariant.Link,
+    variant: CardVariant.Default,
+    disabled: false,
+    imageVariant: ImageVariant.Rounded,
+};
+
 export const Default: Story = {
     args: {
+        ...COMMON_ARGS,
         imageType: ImageType.Placeholder,
         imageUrl: 'https://via.placeholder.com/150.png',
-        imageVariant: ImageVariant.Rounded,
-        // imageIconName: '',
-        disabled: false,
-        variant: CardVariant.Default,
-        textTitle: 'Card Title',
-        textSubtitle: 'Card Subtitle',
-        actionTitle: 'Action title',
-        actionSubtitle: 'Action subtitle',
-        actionVariant: CardActionVariant.Link,
     },
-    argTypes: {
-        imageType: {
-            control: 'select',
-            options: Object.values(ImageType),
-        },
-        imageVariant: {
-            control: 'select',
-            options: Object.values(ImageVariant),
-        },
-        actionVariant: {
-            control: 'select',
-            options: Object.values(CardActionVariant),
-        },
-        onClick: {
-            action: 'clicked',
-        },
-    },
+    argTypes: COMMON_ARG_TYPES,
     render: (args) => {
         return (
             <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
@@ -95,42 +100,16 @@ export const Default: Story = {
 
 export const WithIcon: Story = {
     args: {
+        ...COMMON_ARGS,
         imageType: ImageType.BgSolid,
-        imageVariant: ImageVariant.Rounded,
-        disabled: false,
-        variant: CardVariant.Default,
-        textTitle: 'Card Title',
-        textSubtitle: 'Card Subtitle',
-        actionTitle: 'Action title',
-        actionSubtitle: 'Action subtitle',
-        actionVariant: CardActionVariant.Link,
     },
-    argTypes: {
-        imageType: {
-            control: 'select',
-            options: Object.values(ImageType),
-        },
-        imageVariant: {
-            control: 'select',
-            options: Object.values(ImageVariant),
-        },
-        actionVariant: {
-            control: 'select',
-            options: Object.values(CardActionVariant),
-        },
-        onClick: {
-            action: 'clicked',
-        },
-    },
+    argTypes: COMMON_ARG_TYPES,
     render: (args) => {
         return (
             <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
-                <CardImage
-                    type={args.imageType}
-                    variant={args.imageVariant}
-                    url={args.imageUrl}
-                    icon={<IotaLogoSmall />}
-                />
+                <CardImage type={args.imageType} variant={args.imageVariant} url={args.imageUrl}>
+                    <IotaLogoSmall />
+                </CardImage>
                 <CardText title={args.textTitle} subtitle={args.textSubtitle} />
                 <CardAction
                     title={args.actionTitle}

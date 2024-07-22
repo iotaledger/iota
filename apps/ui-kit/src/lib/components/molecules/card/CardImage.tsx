@@ -11,7 +11,6 @@ export interface CardImageProps {
     type?: ImageType;
     variant?: ImageVariant;
     url?: string;
-    icon?: React.ReactNode;
     children?: React.ReactNode;
 }
 
@@ -19,7 +18,6 @@ export function CardImage({
     type = ImageType.BgSolid,
     variant = ImageVariant.Rounded,
     url,
-    icon,
     children,
 }: CardImageProps) {
     if (!variant) {
@@ -35,14 +33,13 @@ export function CardImage({
             )}
         >
             {type === ImageType.Placeholder && <ImagePlaceholder variant={variant} />}
-            {url && (
+            {url && !children && (
                 <img
                     src={url}
                     className={cx(IMAGE_VARIANT_CLASSES[variant], 'object-cover')}
                     alt="Card Image"
                 />
             )}
-            {!!icon && icon}
             {children}
         </div>
     );
