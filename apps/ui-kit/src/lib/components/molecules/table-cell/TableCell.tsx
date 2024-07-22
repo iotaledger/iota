@@ -72,7 +72,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
     const Cell = () => {
         switch (type) {
             case TableCellType.Text:
-                const { supportingLabel } = props as TableCellText;
+                const { supportingLabel } = props;
                 return (
                     <div className="flex flex-row items-baseline gap-1">
                         <span className={cx(textColorClass, textSizeClass)}>{label}</span>
@@ -84,7 +84,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     </div>
                 );
             case TableCellType.TextToCopy:
-                const { onCopy } = props as TableCellTextToCopy;
+                const { onCopy } = props;
                 return (
                     <div
                         className={cx('flex items-center space-x-2', textColorClass, textSizeClass)}
@@ -94,10 +94,10 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     </div>
                 );
             case TableCellType.Badge:
-                const { badgeType } = props as TableCellBadge;
+                const { badgeType } = props;
                 return <Badge type={badgeType} label={label} />;
             case TableCellType.AvatarText:
-                const { leadingElement } = props as TableCellAvatarText;
+                const { leadingElement } = props;
                 return (
                     <div className="flex items-center gap-x-2.5">
                         {leadingElement}
