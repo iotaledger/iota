@@ -6,7 +6,7 @@ import { TextFieldType } from './text-field.enums';
 type PasswordTextFieldProps = {
     type: TextFieldType.Password;
     /**
-     * Wheter the password toggle button should be hidden
+     * Whether the password toggle button should be hidden
      */
     hidePasswordToggle?: boolean;
 };
