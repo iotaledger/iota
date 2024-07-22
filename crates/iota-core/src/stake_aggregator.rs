@@ -179,9 +179,9 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 for (name, sig) in &self.data.clone() {
                                     if let Some(cached_error) = self.error_cache.get(sig) {
                                         warn!(
-                                            "Cached Error: {:?} for signature: {:?}",
-                                            cached_error, sig
+                                            "Cached Error: {cached_error:?} for signature: {sig:?}",
                                         );
+
                                         self.data.remove(name);
                                         let votes = self.committee.weight(name);
                                         self.total_votes -= votes;
