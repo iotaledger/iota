@@ -231,11 +231,12 @@ fn build_packages_with_move_config(
 ///   for a package into a flat list of packages;
 /// * Deduplicate packages (since multiple packages could share dependencies);
 ///   and
-/// * Write out the package docs in a flat directory structure.
+/// * Replace html tags and use Docusaurus components where needed.
 fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap<String, String>) {
     // Turn on multi-line mode so that `.` matches newlines, consume from the start
-    // of the file to beginning of the heading, then capture the heading and
-    // replace with the yaml tag for docusaurus. E.g., ```
+    // of the file to beginning of the heading, then capture the heading as three different parts and
+    // replace with the yaml tag for docusaurus, add the Link import and the title anchor,
+    // so the tile can be linked to. E.g., ```
     // -<a name="0x2_display"></a>
     // -
     // -# Module `0x2::display`
@@ -243,8 +244,16 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     // +---
     // +title: Module `0x2::display`
     // +---
+    // +
+    // +import Link from '@docusaurus/Link';
+    // +<Link id="0x2::display"/>
     //```
-    let re = regex::Regex::new(r"(?s).*\n#\s+(.*?)\n").unwrap();
+    let title_regex = regex::Regex::new(r"(?s).*\n#\s+(.*?)`(\S*?)`\n").unwrap();
+    let link_from_regex = regex::Regex::new(r#"<a name=\"([^\"]+)\"></a>"#).unwrap();
+    let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
+    let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
+    let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
+
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
         let top_level = path.components().count() == 1;
@@ -257,14 +266,37 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             new_path.push(path.components().skip(1).collect::<PathBuf>());
             new_path.to_string_lossy().to_string()
         };
-        output.entry(file_name).or_insert_with(|| {
-            re.replace_all(
-                &file_content
-                    .replace("../../dependencies/", "../")
-                    .replace("dependencies/", "../"),
-                "---\ntitle: $1\n---\n",
-            )
-            .to_string()
+
+        // Replace a-tags with Link to register anchors in Docusaurus (we have to use the `id` attribute as `name` is deprecated and not existing in Link component)
+        let content = link_from_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
+
+        // Replace a-tags with href for Link tags to enable link and anchor checking. We need to make sure that `to` path don't contain extensions in a later step.
+        let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
+
+        // Escape `{` in <code> and add new lines as this is a requirement from mdx
+        let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
+            let code_content = caps.get(1).unwrap().as_str();
+            format!("<code>\n{}</code>", code_content.replace("{", "\\{"))
+        });
+
+        // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as
+        // React components otherwise
+        let content = type_regex.replace_all(&content, r#"`$1<$2>`"#);
+
+        let content = content
+            .replace("../../dependencies/", "../")
+            .replace("dependencies/", "../")
+            // Here we remove the extension from `to` property in Link tags
+            .replace(".md", "");
+
+        // Store all files in a map to deduplicate and change extension to mdx
+        output.entry(format!("{}x", file_name)).or_insert_with(|| {
+            title_regex.replace_all(&content, |caps: &regex::Captures| {
+                    let title_type = caps.get(1).unwrap().as_str();
+                    let name = caps.get(2).unwrap().as_str();
+                    let anchor = name.replace("::", "_");
+                    format!("---\ntitle: {}`{}`\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, anchor)
+        }).to_string()
         });
     }
 }
