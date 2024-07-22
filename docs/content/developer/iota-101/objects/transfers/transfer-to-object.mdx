@@ -154,8 +154,8 @@ client
      "accept_payment",
      vec!["0x2::iota::IOTA"],
      vec![
-       IOTAJsonValue::from_object_id("0xcafe"),
-       IOTAJsonValue::from_object_id("0xc0ffee") // 0xcoffee is turned into the `Receiving<...>` argument of `accept_payment` by the SDK
+       IotaJsonValue::from_object_id("0xcafe"),
+       IotaJsonValue::from_object_id("0xc0ffee") // 0xcoffee is turned into the `Receiving<...>` argument of `accept_payment` by the SDK
      ])
   ...
 ```
