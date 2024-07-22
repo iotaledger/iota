@@ -39,9 +39,9 @@ function getAccountSourceType(
 }
 
 enum SearchPhase {
-    Pending,
-    Ongoing,
-    Successful,
+    Ready, // initialized waiting for the search to be triggered.
+    Ongoing, // search ongoing
+    Idle, // Search has finished, and is ready for ones
 }
 
 export function AccountsFinderView(): JSX.Element {
@@ -52,7 +52,7 @@ export function AccountsFinderView(): JSX.Element {
     const accountSourceType = getAccountSourceType(accountSource);
     const [password, setPassword] = useState('');
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
-    const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Pending);
+    const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
@@ -87,7 +87,7 @@ export function AccountsFinderView(): JSX.Element {
             setSearchPhase(SearchPhase.Ongoing);
             await find();
         } finally {
-            setSearchPhase(SearchPhase.Successful);
+            setSearchPhase(SearchPhase.Idle);
         }
     }
 
@@ -98,7 +98,7 @@ export function AccountsFinderView(): JSX.Element {
         accountSourceId === AccountType.LedgerDerived && !ledgerIotaClient.iotaLedgerClient;
 
     const searchOptions = (() => {
-        if (searchPhase === SearchPhase.Pending) {
+        if (searchPhase === SearchPhase.Ready) {
             return {
                 text: 'Search',
                 icon: <Search24 />,
