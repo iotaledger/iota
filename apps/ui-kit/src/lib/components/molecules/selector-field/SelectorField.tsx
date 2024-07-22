@@ -22,7 +22,7 @@ interface SelectorFieldProps extends React.PropsWithChildren {
     /**
      * The dropdown elements to render.
      */
-    renderDropdownElements?: React.ReactNode;
+    dropdownElements?: React.ReactNode;
     /**
      * The icon to show on the left of the field.
      */
@@ -42,7 +42,7 @@ interface SelectorFieldProps extends React.PropsWithChildren {
     /**
      * Set the dropdown open
      */
-    setIsOpen: (isOpen: boolean) => void;
+    setIsOpen?: (isOpen: boolean) => void;
 }
 
 export function SelectorField({
@@ -52,20 +52,20 @@ export function SelectorField({
     supportingText,
     errorMessage,
     caption,
-    renderDropdownElements,
+    dropdownElements,
     children,
     isOpen,
     setIsOpen,
 }: SelectorFieldProps) {
     const onClick = useCallback(() => {
         if (!isDisabled) {
-            setIsOpen(!isOpen);
+            setIsOpen?.(!isOpen);
         }
     }, [isOpen, isDisabled]);
 
     useEffect(() => {
         if (isDisabled && isOpen) {
-            setIsOpen(false);
+            setIsOpen?.(false);
         }
     }, [isDisabled]);
 
@@ -75,7 +75,7 @@ export function SelectorField({
             className={cx('group flex flex-col gap-y-2', {
                 'opacity-40': isDisabled,
                 errored: !!errorMessage,
-                enabled: !isDisabled,
+                opened: isOpen,
             })}
         >
             {label && (
@@ -90,7 +90,7 @@ export function SelectorField({
                 <button
                     onClick={onClick}
                     disabled={isDisabled}
-                    className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm group-[.errored]:border-error-30  hover:group-[.enabled]:border-neutral-50 dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 [&:has(input:focus)]:border-primary-30"
+                    className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30  active:enabled:border-primary-30 group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80"
                 >
                     {leadingIcon && (
                         <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
@@ -115,7 +115,7 @@ export function SelectorField({
                 </button>
                 {isOpen && (
                     <div className="absolute top-full z-[2] w-full">
-                        <Dropdown>{renderDropdownElements}</Dropdown>
+                        <Dropdown>{dropdownElements}</Dropdown>
                     </div>
                 )}
             </div>

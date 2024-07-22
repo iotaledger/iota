@@ -49,11 +49,14 @@ export const Default: Story = {
     render: (args) => {
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [content, setContent] = useState<React.ReactNode | undefined>('Select an option');
+        const [selectorContent, setSelectorContent] = useState<React.ReactNode | undefined>(
+            'Select an option',
+        );
 
         const handleOptionClick = useCallback(
             (option: CustomOption) => {
-                setContent(<OptionTile option={option} />);
+                setErrorMessage(undefined);
+                setSelectorContent(<OptionTile option={option} />);
                 setIsOpen(false);
                 if (option.label === 'Shimmer') {
                     setErrorMessage('Shimmer is not supported');
@@ -68,7 +71,7 @@ export const Default: Story = {
                 isOpen={isOpen}
                 setIsOpen={setIsOpen}
                 errorMessage={errorMessage}
-                renderDropdownElements={
+                dropdownElements={
                     <Fragment>
                         {dropdownOptions.map((option, index) => (
                             <ListItem
@@ -82,7 +85,7 @@ export const Default: Story = {
                     </Fragment>
                 }
             >
-                {content}
+                {selectorContent}
             </SelectorField>
         );
     },

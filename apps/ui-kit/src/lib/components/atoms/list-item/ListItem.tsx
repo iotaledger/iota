@@ -32,6 +32,12 @@ export function ListItem({
     isDisabled,
     children,
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
+    function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            onClick && onClick();
+        }
+    }
+
     return (
         <div
             className={cx(
@@ -45,6 +51,9 @@ export function ListItem({
         >
             <div
                 onClick={onClick}
+                role="button"
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
                 className={cx(
                     'relative flex min-h-[48px] flex-row items-center justify-between px-md text-neutral-10 dark:text-neutral-92',
                     { 'state-layer': !isDisabled, 'cursor-pointer': !isDisabled && onClick },
