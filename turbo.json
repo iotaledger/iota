@@ -1,7 +1,9 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"pipeline": {
-		"lint": {},
+		"lint": {
+			"cache": false
+		},
 		"prettier:fix": {
 			"cache": false
 		},
