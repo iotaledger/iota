@@ -73,11 +73,6 @@ pub struct JsonPackage {
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct JsonMoveObject {
-    /// DEPRECATED this field is no longer used to determine whether a tx can
-    /// transfer this object. Instead, it is always calculated from the
-    /// objects type when loaded in execution
-    has_public_transfer: bool,
-
     // TODO Do we want to spend the effort to render this?
     // Move Struct rendered with type info
     // fields: BTreeMap<String, IotaMoveValue>,
@@ -90,7 +85,6 @@ impl JsonObject {
         let (type_, object_data) = match &object.data {
             iota_types::object::Data::Move(struct_) => {
                 let s = JsonMoveObject {
-                    has_public_transfer: struct_.has_public_transfer(),
                     content: struct_.contents().to_vec(),
                 };
 
