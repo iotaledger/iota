@@ -7,27 +7,47 @@ import { Copy } from '@iota/ui-icons';
 import cx from 'classnames';
 
 interface TableCellProps {
-    type: TableCellType;
+    /**
+     * The type of cell to render.
+     */
+    type?: TableCellType;
+    /**
+     * The text to display.
+     */
     label: string;
+    /**
+     * The badge type to display.
+     */
     badgeType?: BadgeType;
+    /**
+     * The leading element to display.
+     */
     leadingElement?: React.JSX.Element;
+    /**
+     * The supporting label to display.
+     */
     supportingLabel?: string;
+    /**
+     * If the cell has the last border none class.
+     */
+    hasLastBorderNoneClass?: boolean;
 }
 
 export function TableCell({
-    type,
+    type = TableCellType.Text,
     label,
     badgeType = BadgeType.PrimarySolid,
     leadingElement,
     supportingLabel,
+    hasLastBorderNoneClass,
 }: TableCellProps): React.JSX.Element {
     const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
-    const renderCell = () => {
+    const Cell = () => {
         switch (type) {
             case TableCellType.Text:
                 return (
-                    <div className="flex flex-row items-baseline gap-0.5">
+                    <div className="flex flex-row items-baseline gap-1">
                         <span className={cx(textColorClass, textSizeClass)}>{label}</span>
                         {supportingLabel && (
                             <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
@@ -60,8 +80,13 @@ export function TableCell({
     };
 
     return (
-        <td className="border-b border-shader-neutral-light-8 p-md dark:border-shader-neutral-dark-8">
-            {renderCell()}
+        <td
+            className={cx(
+                'inline-flex h-14 flex-row items-center border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
+                { 'last:border-none': hasLastBorderNoneClass },
+            )}
+        >
+            <Cell />
         </td>
     );
 }
