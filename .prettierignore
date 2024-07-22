@@ -15,6 +15,7 @@
 npm-debug.log*
 package-lock.json
 yarn-debug.log*
+yarn-error.log*
 .next/
 .swc/
 build/
@@ -24,6 +25,4 @@ out/
 generated/
 playwright-report/
 storybook-static/
-CHANGELOG.md
 pnpm-lock.yaml
-
