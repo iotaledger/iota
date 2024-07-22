@@ -4,6 +4,7 @@
 
 import React, { useRef } from "react";
 import { useHistory } from "@docusaurus/router";
+import Heading from "@theme/Heading";
 import Parameters from "./parameters";
 import Result from "./result";
 import Examples from "./examples";
@@ -38,14 +39,15 @@ const Method = (props) => {
             key={`div-${api.replaceAll(/\s/g, "-").toLowerCase()}`}
             ref={parentScrollContainerRef()}
           >
-            <h2
+            <Heading
+              as="h2"
               id={`${api.replaceAll(/\s/g, "-").toLowerCase()}`}
               className="border-0 border-b border-solid border-iota-blue-dark dark:border-iota-blue scroll-mt-32 text-3xl text-iota-blue-dark dark:text-iota-blue font-bold mt-12 after:content-['_#'] after:hidden after:hover:inline after:opacity-20 cursor-pointer"
               onClick={handleClick}
               key={api.replaceAll(/\s/g, "-").toLowerCase()}
             >
               {api}
-            </h2>
+            </Heading>
             <ScrollSpy parentScrollContainerRef={parentScrollContainerRef()}>
               {json["methods"]
                 .filter((method) => method.tags[0].name === api)
@@ -68,13 +70,15 @@ const Method = (props) => {
                       id={`${method.name.toLowerCase()}`}
                       onClick={handleClick}
                     >
-                      <h3
+                      <Heading
+                        as="h3"
                         className="text-2xl font-bold after:content-['_#'] after:hidden after:hover:inline after:opacity-20 cursor-pointer"
                         key={`link-${method.name.toLowerCase()}`}
+                        id={`${method.name.toLowerCase()}`}
                         onClick={null}
                       >
                         {method.name}
-                      </h3>
+                      </Heading>
 
                       {method.deprecated && (
                         <div className="p-4 bg-iota-issue rounded-lg font-bold mt-4">

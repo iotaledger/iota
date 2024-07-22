@@ -184,7 +184,7 @@ fn add_only_test_outputs<R: Read>(
     Ok(new_outputs)
 }
 
-/// Get samples of the previous Hornet shapshot without timelocks and with a
+/// Get samples of the previous Hornet snapshot without timelocks and with a
 /// certain probability of picking basic outputs.
 fn with_sampling<R: Read>(
     parser: &mut HornetSnapshotParser<R>,
@@ -198,7 +198,7 @@ fn with_sampling<R: Read>(
             Output::Basic(ref basic) => {
                 if !timelock::is_timelocked_vested_reward(
                     output_header.output_id(),
-                    &basic,
+                    basic,
                     target_milestone_timestamp,
                 ) && rng.gen_bool(PROBABILITY_OF_PICKING_A_BASIC_OUTPUT)
                 {
