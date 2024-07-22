@@ -8,11 +8,11 @@ Protecting the ability to upgrade a package on chain using a single key can pose
 
 <UpgradeSingleKeyRisk />
 
-To address the security risk of single-key upgrade ownership poses while still providing the opportunity to [upgrade live packages](./upgrade.mdx), Iota offers _custom upgrade policies_. These policies protect `UpgradeCap` access and issue `UpgradeTicket` objects that authorize upgrades on a case-by-case basis.
+To address the security risk of single-key upgrade ownership poses while still providing the opportunity to [upgrade live packages](./upgrade.mdx), IOTA offers _custom upgrade policies_. These policies protect `UpgradeCap` access and issue `UpgradeTicket` objects that authorize upgrades on a case-by-case basis.
 
 ## Compatibility {#compatibility}
 
-Iota comes with a set of built-in package compatibility policies, listed here from most to least strict:
+IOTA comes with a set of built-in package compatibility policies, listed here from most to least strict:
 
 | Policy          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -40,7 +40,7 @@ Package upgrades must occur end-to-end in a single transaction block and are com
 1. **Commit:** Update the `UpgradeCap` with information about the
    newly created package.
 
-While step 2 is a built-in command, steps 1 and 3 are implemented as Move functions. The Iota framework provides their most basic implementation:
+While step 2 is a built-in command, steps 1 and 3 are implemented as Move functions. The IOTA framework provides their most basic implementation:
 
 ```move
 module iota::package {
@@ -119,7 +119,7 @@ After creating an `UpgradeTicket`, you must use it within that transaction block
 
 The `UpgradeTicket` `digest` field comes from the `digest` parameter to `authorize_upgrade`, which the caller must supply. While
 `authorize_upgrade` does not process the `digest`, custom policies can use it to authorize only upgrades that it has seen the
-bytecode or source code for ahead of time. Iota calculates the digest as follows:
+bytecode or source code for ahead of time. IOTA calculates the digest as follows:
 
 - Take the bytecode for each module, represented as an array of bytes.
 - Append the list of the package's transitive dependencies, each represented as an array of bytes.
@@ -149,11 +149,11 @@ module iota::package {
 }
 ```
 
-The `UpgradeReceipt` is proof that the `Upgrade` command ran successfully, and Iota added the new package to the set of created
+The `UpgradeReceipt` is proof that the `Upgrade` command ran successfully, and IOTA added the new package to the set of created
 objects for the transaction. It is used to update its `UpgradeCap` (identified by `cap: ID`) with the ID of the latest package in its
 family (`package: ID`).
 
-After Iota creates an `UpgradeReceipt`, you must use it to update its `UpgradeCap` within the same transaction block (you cannot store it for later, drop it, or burn it), or the transaction fails.
+After IOTA creates an `UpgradeReceipt`, you must use it to update its `UpgradeCap` within the same transaction block (you cannot store it for later, drop it, or burn it), or the transaction fails.
 
 ## Isolating policies {#isolating-policies}
 
@@ -344,16 +344,16 @@ iota client publish --gas-budget 100000000
 A successful publish returns the following:
 
 ```bash
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING policy
 Successfully verified dependencies on-chain against source.
 ----- Transaction Digest ----
 CAFFD2HHnULQMCycL9xgad5JJpjFu2nuftf2xyugQu4t
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 251, 96, 164, 70, 48, 195, 251, 181, 82, 206, 254, 167, 84, 165, 40, 29, 254, 102, 165, 152, 81, 244, 203, 199, 97, 33, 107, 29, 95, 120, 212, 34, 19, 233, 109, 179, 72, 246, 219, 23, 254, 108, 222, 210, 250, 166, 172, 208, 133, 108, 252, 36, 165, 71, 97, 210, 206, 144, 138, 237, 169, 15, 218, 13, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519IOTASignature(Ed25519IOTASignature([0, 251, 96, 164, 70, 48, 195, 251, 181, 82, 206, 254, 167, 84, 165, 40, 29, 254, 102, 165, 152, 81, 244, 203, 199, 97, 33, 107, 29, 95, 120, 212, 34, 19, 233, 109, 179, 72, 246, 219, 23, 254, 108, 222, 210, 250, 166, 172, 208, 133, 108, 252, 36, 165, 71, 97, 210, 206, 144, 138, 237, 169, 15, 218, 13, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
 Transaction Kind : Programmable
-Inputs: [Pure(IotaPureValue { value_type: Some(Address), value: "<SENDER>" })]
+Inputs: [Pure(IOTAPureValue { value_type: Some(Address), value: "<SENDER>" })]
 Commands: [
   Publish(_,0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002),
   TransferObjects([Result(0)],Input(0)),
@@ -446,7 +446,7 @@ A successful call returns the following:
 ----- Transaction Digest ----
 FqTdsEgFnyVqc3sFeu5EnBUziEDYbxhLUAaLv4FDjN6d
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 123, 97, 9, 252, 127, 238, 10, 88, 175, 157, 155, 98, 11, 23, 234, 52, 167, 230, 45, 218, 171, 31, 174, 87, 107, 174, 117, 236, 65, 117, 18, 42, 74, 56, 149, 82, 107, 216, 199, 223, 142, 135, 165, 200, 80, 151, 32, 110, 75, 133, 128, 150, 66, 13, 40, 173, 228, 211, 94, 222, 201, 248, 221, 10, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519IOTASignature(Ed25519IOTASignature([0, 123, 97, 9, 252, 127, 238, 10, 88, 175, 157, 155, 98, 11, 23, 234, 52, 167, 230, 45, 218, 171, 31, 174, 87, 107, 174, 117, 236, 65, 117, 18, 42, 74, 56, 149, 82, 107, 216, 199, 223, 142, 135, 165, 200, 80, 151, 32, 110, 75, 133, 128, 150, 66, 13, 40, 173, 228, 211, 94, 222, 201, 248, 221, 10, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
 Transaction Kind : Programmable
 Inputs: [Object(ImmOrOwnedObject { object_id: <POLICY-UPGRADE-CAP>, version: SequenceNumber(6), digest: o#DG1CABxqdHNhjBDzt7K4VKiJdLfnrW9qnCx8yr4jVP4 })]
 Commands: [
@@ -530,7 +530,7 @@ Create a new directory to store a Node.js project. You can use the `npm init` fu
 
 ```
 
-Open a terminal or console to the root of your Node.js project. Run the following command to add the Iota TypeScript SDK as a dependency:
+Open a terminal or console to the root of your Node.js project. Run the following command to add the IOTA TypeScript SDK as a dependency:
 
 ```bash
 npm install @iota/iota.js
@@ -548,7 +548,7 @@ const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
 ```
 
-Next, add boilerplate code to get the signer key pair for the currently active address in the Iota Client CLI:
+Next, add boilerplate code to get the signer key pair for the currently active address in the IOTA Client CLI:
 
 ```js
 import { execSync } from 'child_process';
@@ -575,7 +575,7 @@ const signer = (() => {
         }
 
         const pair = Ed25519Keypair.fromSecretKey(raw.slice(1));
-        if (pair.getPublicKey().toIotaAddress() === sender) {
+        if (pair.getPublicKey().toIOTAAddress() === sender) {
             return pair;
         }
     }
@@ -627,9 +627,9 @@ tx.transferObjects([tuesdayUpgradeCap], tx.pure(sender));
 And finally, execute that transaction and display its effects to the console. The following snippet assumes that you're running your examples against a local network. Pass `devnet`, `testnet`, or `mainnet` to the `getFullnodeUrl()` function to run on Devnet, Testnet, or Mainnet respectively:
 
 ```js
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IOTAClient } from '@iota/iota.js/client';
 
-const client = new IotaClient({ url: getFullnodeUrl('localnet')})
+const client = new IOTAClient({ url: getFullnodeUrl('localnet')})
 const result = await client.signAndExecuteTransactionBlock({
     signer,
     transactionBlock: tx,
@@ -657,7 +657,7 @@ import { homedir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IOTAClient } from '@iota/iota.js/client';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { TransactionBlock } from '@iota/iota.js/transactions';
 import { fromB64 } from '@iota/iota.js/utils';
@@ -680,7 +680,7 @@ const signer = (() => {
         }
 
         const pair = Ed25519Keypair.fromSecretKey(raw.slice(1));
-        if (pair.getPublicKey().toIotaAddress() === sender) {
+        if (pair.getPublicKey().toIOTAAddress() === sender) {
             return pair;
         }
     }
@@ -710,7 +710,7 @@ const tuesdayUpgradeCap = tx.moveCall({
 
 tx.transferObjects([tuesdayUpgradeCap], tx.pure(sender));
 
-const client = new IotaClient({ url: getFullnodeUrl('localnet')})
+const client = new IOTAClient({ url: getFullnodeUrl('localnet')})
 const result = await client.signAndExecuteTransactionBlock({
     signer,
     transactionBlock: tx,
@@ -740,7 +740,7 @@ node publish.js
 If the script is successful, the console prints the following response:
 
 ```bash
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING example
 {
@@ -829,7 +829,7 @@ A successful call responds with the following:
 ----- Transaction Digest ----
 Bx1GA8EsBjoLKvXV2GG92DC5Jt58dbytf6jFcLg18dDR
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 92, 22, 253, 150, 35, 134, 140, 185, 239, 72, 194, 25, 250, 153, 98, 134, 26, 219, 232, 199, 122, 56, 189, 186, 56, 126, 184, 147, 148, 184, 4, 17, 177, 156, 231, 198, 74, 118, 28, 187, 132, 94, 141, 44, 55, 70, 207, 157, 143, 182, 83, 59, 156, 116, 226, 22, 65, 211, 179, 187, 18, 76, 245, 4, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519IOTASignature(Ed25519IOTASignature([0, 92, 22, 253, 150, 35, 134, 140, 185, 239, 72, 194, 25, 250, 153, 98, 134, 26, 219, 232, 199, 122, 56, 189, 186, 56, 126, 184, 147, 148, 184, 4, 17, 177, 156, 231, 198, 74, 118, 28, 187, 132, 94, 141, 44, 55, 70, 207, 157, 143, 182, 83, 59, 156, 116, 226, 22, 65, 211, 179, 187, 18, 76, 245, 4, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
 Transaction Kind : Programmable
 Inputs: []
 Commands: [
@@ -907,7 +907,7 @@ import { homedir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IOTAClient } from '@iota/iota.js/client';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { TransactionBlock, UpgradePolicy } from '@iota/iota.js/transactions';
 import { fromB64 } from '@iota/iota.js/utils';
@@ -932,7 +932,7 @@ const signer = (() => {
         }
 
         const pair = Ed25519Keypair.fromSecretKey(raw.slice(1));
-        if (pair.getPublicKey().toIotaAddress() === sender) {
+        if (pair.getPublicKey().toIOTAAddress() === sender) {
             return pair;
         }
     }
@@ -973,7 +973,7 @@ tx.moveCall({
     arguments: [cap, receipt],
 });
 
-const client = new IotaClient({ url: getFullnodeUrl('localnet') });
+const client = new IOTAClient({ url: getFullnodeUrl('localnet') });
 const result = await client.signAndExecuteTransactionBlock({
     signer,
     transactionBlock: tx,
@@ -1000,7 +1000,7 @@ node upgrade.js
 If the script is successful (and today is Tuesday), your console displays the following response:
 
 ```bash
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING example
 {
@@ -1063,7 +1063,7 @@ BUILDING example
 </details>
 
 
-Use the Iota Client CLI to test the upgraded package (the package ID is **different** from the original version of your example package):
+Use the IOTA Client CLI to test the upgraded package (the package ID is **different** from the original version of your example package):
 
 ```bash
 iota client call --gas-budget 10000000 \
@@ -1083,7 +1083,7 @@ If successful, the console prints the following response:
 ----- Transaction Digest ----
 EF2rQzWHmtjPvkqzFGyFvANA8e4ETULSBqDMkzqVoshi
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 88, 98, 118, 173, 218, 55, 4, 48, 166, 42, 106, 193, 210, 159, 75, 233, 95, 77, 201, 38, 0, 234, 183, 77, 252, 178, 22, 221, 106, 202, 42, 166, 29, 130, 164, 97, 110, 201, 153, 91, 149, 50, 72, 6, 213, 183, 70, 83, 55, 5, 190, 182, 5, 98, 212, 134, 103, 181, 204, 247, 90, 28, 125, 14, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519IOTASignature(Ed25519IOTASignature([0, 88, 98, 118, 173, 218, 55, 4, 48, 166, 42, 106, 193, 210, 159, 75, 233, 95, 77, 201, 38, 0, 234, 183, 77, 252, 178, 22, 221, 106, 202, 42, 166, 29, 130, 164, 97, 110, 201, 153, 91, 149, 50, 72, 6, 213, 183, 70, 83, 55, 5, 190, 182, 5, 98, 212, 134, 103, 181, 204, 247, 90, 28, 125, 14, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
 Transaction Kind : Programmable
 Inputs: []
 Commands: [
