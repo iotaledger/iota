@@ -89,7 +89,7 @@ impl ConsensusStore {
             .unwrap_or_default()
     }
 
-    /// Returns thet latest subdag committed. If none is committed yet, then
+    /// Returns the latest subdag committed. If none is committed yet, then
     /// None is returned instead.
     pub fn get_latest_sub_dag(&self) -> Option<ConsensusCommit> {
         self.committed_sub_dags_by_index_v2

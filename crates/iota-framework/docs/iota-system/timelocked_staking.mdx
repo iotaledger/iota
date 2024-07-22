@@ -442,11 +442,11 @@ pool_id</code> remain the same.
 
 <pre><code>
 <b>public</b> <b>fun</b> <Link to="timelocked_staking#0x3_timelocked_staking_split">split</Link>(self: &<b>mut</b> <Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>, split_amount: u64, ctx: &<b>mut</b> TxContext): <Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> \{
-    <b>let</b> splitted_stake = self.staked_iota.<Link to="timelocked_staking#0x3_timelocked_staking_split">split</Link>(split_amount, ctx);
+    <b>let</b> split_stake = self.staked_iota.<Link to="timelocked_staking#0x3_timelocked_staking_split">split</Link>(split_amount, ctx);
 
     <Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> \{
         id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
-        staked_iota: splitted_stake,
+        staked_iota: split_stake,
         expiration_timestamp_ms: self.expiration_timestamp_ms,
         label: self.label,
     }
