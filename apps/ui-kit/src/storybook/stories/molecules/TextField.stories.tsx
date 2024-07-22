@@ -73,7 +73,7 @@ export const WithLeadingElement: Story = {
 
 export const WithMaxTrailingButton: Story = {
     args: {
-        type: TextFieldType.Number,
+        type: TextFieldType.Text,
         placeholder: 'Send IOTAs',
         amountCounter: 'Max 10 IOTA',
         caption: 'Enter token amount',
@@ -128,7 +128,6 @@ export const WithMaxTrailingButton: Story = {
                 label="Send Tokens"
                 value={value}
                 trailingElement={<TrailingMaxButton />}
-                isErrored={!!error}
                 errorMessage={error}
                 onChange={onChange}
             />
