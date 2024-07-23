@@ -8,12 +8,8 @@ on:
       - 'testnet'
       - 'mainnet'
       - 'releases/iota-*-release'
-    paths-ignore:
-      - 'docs/**'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - 'docs/**'
   workflow_dispatch:
     inputs:
       iota_repo_ref:

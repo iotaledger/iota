@@ -9,7 +9,7 @@ use iota_sdk::types::block::{
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng};
 
 use super::to_micros;
 use crate::stardust::types::{
@@ -81,11 +81,10 @@ pub(crate) fn new_vested_output(
 }
 
 pub fn outputs(
-    randomness_seed: u64,
+    rng: &mut StdRng,
     vested_index: &mut u32,
     delegator: Ed25519Address,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = Vec::new();
 
     // Add gas coins to delegator
@@ -93,7 +92,7 @@ pub fn outputs(
         new_outputs.push(new_simple_basic_output(
             DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT,
             delegator,
-            &mut rng,
+            rng,
         )?);
     }
 
@@ -104,7 +103,7 @@ pub fn outputs(
             DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT,
             delegator,
             Some(MERGE_TIMESTAMP_SECS + TIMELOCK_MAX_ENDING_TIME),
-            &mut rng,
+            rng,
         )?);
         *vested_index -= 1;
     }
