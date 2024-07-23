@@ -5,6 +5,7 @@
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::{
+    collections::BTreeMap,
     fs::File,
     io::{BufWriter, Write},
 };
@@ -15,15 +16,19 @@ use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
+        types::output_header::OutputHeader,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
 };
-use iota_sdk::types::block::output::{
-    unlock_condition::StorageDepositReturnUnlockCondition, AliasOutputBuilder, BasicOutputBuilder,
-    FoundryOutputBuilder, NftOutputBuilder, Output,
+use iota_sdk::types::block::{
+    address::Address,
+    output::{
+        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
+        AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
+    },
 };
-use iota_types::stardust::coin_type::CoinType;
+use iota_types::{stardust::coin_type::CoinType, timelock::timelock::is_vested_reward};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -114,21 +119,119 @@ fn main() -> Result<()> {
         Box::new(BufWriter::new(output_file))
     };
 
-    // Run the migration and write the objects snapshot
-    snapshot_parser
-        .outputs()
-        .map(|res| {
-            if coin_type == CoinType::Iota {
+    match coin_type {
+        CoinType::Shimmer => {
+            // Run the migration and write the objects snapshot
+            snapshot_parser
+                .outputs()
+                .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+        }
+        CoinType::Iota => {
+            struct MergingIterator<I> {
+                unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
+                snapshot_timestamp_s: u32,
+                outputs: I,
+            }
+
+            impl<I> MergingIterator<I> {
+                fn new(snapshot_timestamp_s: u32, outputs: I) -> Self {
+                    Self {
+                        unlocked_address_balances: Default::default(),
+                        snapshot_timestamp_s,
+                        outputs,
+                    }
+                }
+            }
+
+            impl<I: Iterator<Item = Result<(OutputHeader, Output)>>> Iterator for MergingIterator<I> {
+                type Item = I::Item;
+
+                fn next(&mut self) -> Option<Self::Item> {
+                    // First process all the outputs, building the unlocked_address_balances map as
+                    // we go.
+                    for res in self.outputs.by_ref() {
+                        if let Ok((header, output)) = res {
+                            fn mergeable_address(
+                                header: &OutputHeader,
+                                output: &Output,
+                                snapshot_timestamp_s: u32,
+                            ) -> Option<Address> {
+                                // ignore all non-basic outputs and non vesting outputs
+                                if !output.is_basic()
+                                    || !is_vested_reward(header.output_id(), output.as_basic())
+                                {
+                                    return None;
+                                }
+
+                                if let Some(unlock_conditions) = output.unlock_conditions() {
+                                    // check if vesting unlock period is already done
+                                    if unlock_conditions.is_time_locked(snapshot_timestamp_s) {
+                                        return None;
+                                    }
+                                    unlock_conditions.address().map(|uc| *uc.address())
+                                } else {
+                                    None
+                                }
+                            }
+
+                            if let Some(address) =
+                                mergeable_address(&header, &output, self.snapshot_timestamp_s)
+                            {
+                                // collect the unlocked vesting balances
+                                self.unlocked_address_balances
+                                    .entry(address)
+                                    .and_modify(|x| x.balance += output.amount())
+                                    .or_insert(OutputHeaderWithBalance {
+                                        output_header: header,
+                                        balance: output.amount(),
+                                    });
+                                continue;
+                            } else {
+                                return Some(Ok((header, output)));
+                            }
+                        } else {
+                            return Some(res);
+                        }
+                    }
+
+                    // Now that we are out
+                    self.unlocked_address_balances.pop_first().map(
+                        |(address, output_header_with_balance)| {
+                            // create a new basic output which holds the aggregated balance from
+                            // unlocked vesting outputs for this address
+                            let basic = BasicOutputBuilder::new_with_amount(
+                                output_header_with_balance.balance,
+                            )
+                            .add_unlock_condition(AddressUnlockCondition::new(address))
+                            .finish()
+                            .expect("should be able to create a basic output");
+
+                            Ok((output_header_with_balance.output_header, basic.into()))
+                        },
+                    )
+                }
+            }
+
+            MergingIterator::new(
+                snapshot_parser.target_milestone_timestamp(),
+                snapshot_parser.outputs(),
+            )
+            .map(|res| {
                 let (header, mut output) = res?;
                 scale_output_amount_for_iota(&mut output)?;
-                Ok((header, output))
-            } else {
-                res
-            }
-        })
-        .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+
+                Ok::<_, anyhow::Error>((header, output))
+            })
+            .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+        }
+    }
 
     Ok(())
+}
+
+struct OutputHeaderWithBalance {
+    output_header: OutputHeader,
+    balance: u64,
 }
 
 fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
