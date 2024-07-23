@@ -5,5 +5,6 @@ export * from './segmented-button';
 export * from './title';
 export * from './navbar-item';
 export * from './account';
-export * from './selector-field';
 export * from './dropdown';
+export * from './table-cell';
+export * from './selector-field';
