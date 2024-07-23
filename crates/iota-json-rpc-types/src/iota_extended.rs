@@ -67,7 +67,7 @@ pub struct EndOfEpochInfo {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_end_timestamp: u64,
-    /// existing fields from `SystemEpochInfo`
+    /// existing fields from `SystemEpochInfoEvent` (without epoch)
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub protocol_version: u64,
