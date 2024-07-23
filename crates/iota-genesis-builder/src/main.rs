@@ -149,9 +149,9 @@ fn main() -> Result<()> {
                 fn next(&mut self) -> Option<Self::Item> {
                     // First process all the outputs, building the unlocked_address_balances map as
                     // we go.
-                    while let Some(res) = self.outputs.next() {
+                    for res in self.outputs.by_ref() {
                         if let Ok((header, output)) = res {
-                            fn mergable_address(
+                            fn mergeable_address(
                                 header: &OutputHeader,
                                 output: &Output,
                                 snapshot_timestamp_s: u32,
@@ -175,12 +175,12 @@ fn main() -> Result<()> {
                             }
 
                             if let Some(address) =
-                                mergable_address(&header, &output, self.snapshot_timestamp_s)
+                                mergeable_address(&header, &output, self.snapshot_timestamp_s)
                             {
                                 // collect the unlocked vesting balances
                                 self.unlocked_address_balances
                                     .entry(address)
-                                    .and_modify(|x| x.balance = x.balance + output.amount())
+                                    .and_modify(|x| x.balance += output.amount())
                                     .or_insert(OutputHeaderWithBalance {
                                         output_header: header,
                                         balance: output.amount(),
@@ -193,6 +193,7 @@ fn main() -> Result<()> {
                             return Some(res);
                         }
                     }
+                    
                     // Now that we are out
                     self.unlocked_address_balances.pop_first().map(
                         |(address, output_header_with_balance)| {
