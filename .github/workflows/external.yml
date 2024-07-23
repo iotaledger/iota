@@ -3,8 +3,12 @@ name: External crates
 on:
     push:
         branches: [develop, extensions, devnet]
+        paths-ignore:
+            - 'docs/**'
     pull_request:
         types: [opened, synchronize, reopened, ready_for_review]
+        paths-ignore:
+            - 'docs/**'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

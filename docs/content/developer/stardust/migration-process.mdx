@@ -30,7 +30,7 @@ uses generic defaults. As much as possible, though, the migration attempts to do
 possible. The package template is filled with the extracted data, compiled, and published.
 
 In Move, the `TreasuryCap` type uses a `u64` representation (within
-[`Balance`](../../references/framework/iota-framework/balance.md#struct-balance)) as its maximum supply. Since
+[`Balance`](../../references/framework/iota-framework/balance.mdx#struct-balance)) as its maximum supply. Since
 Stardust allows for `u256` to be used, in some rare cases, the maximum or circulating supply may exceed the maximum
 value representable by `u64` (`MAX_U64_SUPPLY`, which here refers to `2^64 - 2` for technical reasons). If the maximum
 supply exceeds it, it is truncated to `MAX_U64_SUPPLY`, which is fine since no more than `MAX_U64_SUPPLY` tokens were
@@ -84,7 +84,7 @@ the `owner` of `B` to the address of `A` (the Alias ID), which is equivalent to 
 the same as if `B` would have been transferred (using either of `iota::transfer::{transfer,public_transfer}`) to the
 address of `A` (the Alias ID). The migrated alias `A` can then _receive_ `B` using the
 `stardust::address_unlock_condition::unlock_alias_address_owned_basic` function, which is essentially a wrapper around
-[`iota::transfer::receive`](../../references/framework/iota-framework/transfer.md#function-receive). There are
+[`iota::transfer::receive`](../../references/framework/iota-framework/transfer.mdx#function-receive). There are
 equivalent unlock functions for the other possible variants of object ownership.
 
 ## Basic Outputs
