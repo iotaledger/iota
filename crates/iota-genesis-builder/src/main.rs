@@ -5,7 +5,7 @@
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fs::File,
     io::{BufWriter, Write},
 };
@@ -119,7 +119,6 @@ fn main() -> Result<()> {
         Box::new(BufWriter::new(output_file))
     };
 
-    let mut filtered_outputs_cnt = 0;
     match coin_type {
         CoinType::Shimmer => {
             // Run the migration and write the objects snapshot
@@ -128,42 +127,77 @@ fn main() -> Result<()> {
                 .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
         }
         CoinType::Iota => {
-            let mut unlocked_address_balances = HashMap::new();
-            let snapshot_timestamp_s = snapshot_parser.target_milestone_timestamp();
+            struct MergingIterator<I> {
+                unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
+                snapshot_timestamp_s: u32,
+                outputs: I,
+            }
 
-            let filtered_outputs: Vec<_> = snapshot_parser
-                .outputs()
-                .filter(|res| {
-                    let Ok((ref header, ref output)) = res else {
-                        panic!("reading output from snapshot should not return an error")
-                    };
-
-                    // we filter all vesting outputs that are already unlockable
-                    let filtered = collect_unlocked_vesting_outputs(
-                        &mut unlocked_address_balances,
+            impl<I> MergingIterator<I> {
+                fn new(snapshot_timestamp_s: u32, outputs: I) -> Self {
+                    Self {
+                        unlocked_address_balances: Default::default(),
                         snapshot_timestamp_s,
-                        header,
-                        output,
-                    );
-
-                    if filtered {
-                        filtered_outputs_cnt += 1;
+                        outputs,
                     }
+                }
+            }
 
-                    !filtered
-                })
-                .collect(); // we need to collect here to be able to chain the new aggregated outputs from the unlocked vesting output balances
+            impl<I: Iterator<Item = Result<(OutputHeader, Output)>>> Iterator for MergingIterator<I> {
+                type Item = I::Item;
 
-                println!("filtered vesting outputs: {}, filtered unique addresses: {}", filtered_outputs_cnt, unlocked_address_balances.len());
+                fn next(&mut self) -> Option<Self::Item> {
+                    // First process all the outputs, building the unlocked_address_balances map as
+                    // we go.
+                    while let Some(res) = self.outputs.next() {
+                        if let Ok((header, output)) = res {
+                            fn mergable_address(
+                                header: &OutputHeader,
+                                output: &Output,
+                                snapshot_timestamp_s: u32,
+                            ) -> Option<Address> {
+                                // ignore all non-basic outputs and non vesting outputs
+                                if !output.is_basic()
+                                    || !is_vested_reward(header.output_id(), output.as_basic())
+                                {
+                                    return None;
+                                }
 
-            // Run the migration and write the objects snapshot
-            filtered_outputs
-                .into_iter()
-                .chain(
-                    unlocked_address_balances
-                        .into_iter()
-                        .map(|(address, output_header_with_balance)| {
-                            // create a new basic output which holds the aggregated balance from unlocked vesting outputs for this address
+                                if let Some(unlock_conditions) = output.unlock_conditions() {
+                                    // check if vesting unlock period is already done
+                                    if unlock_conditions.is_time_locked(snapshot_timestamp_s) {
+                                        return None;
+                                    }
+                                    unlock_conditions.address().map(|uc| *uc.address())
+                                } else {
+                                    None
+                                }
+                            }
+
+                            if let Some(address) =
+                                mergable_address(&header, &output, self.snapshot_timestamp_s)
+                            {
+                                // collect the unlocked vesting balances
+                                self.unlocked_address_balances
+                                    .entry(address)
+                                    .and_modify(|x| x.balance = x.balance + output.amount())
+                                    .or_insert(OutputHeaderWithBalance {
+                                        output_header: header,
+                                        balance: output.amount(),
+                                    });
+                                continue;
+                            } else {
+                                return Some(Ok((header, output)));
+                            }
+                        } else {
+                            return Some(res);
+                        }
+                    }
+                    // Now that we are out
+                    self.unlocked_address_balances.pop_first().map(
+                        |(address, output_header_with_balance)| {
+                            // create a new basic output which holds the aggregated balance from
+                            // unlocked vesting outputs for this address
                             let basic = BasicOutputBuilder::new_with_amount(
                                 output_header_with_balance.balance,
                             )
@@ -172,16 +206,22 @@ fn main() -> Result<()> {
                             .expect("should be able to create a basic output");
 
                             Ok((output_header_with_balance.output_header, basic.into()))
-                        })
-                        .into_iter(),
-                )
-                .map(|res| {
-                    let (header, mut output) = res?;
-                    scale_output_amount_for_iota(&mut output)?;
+                        },
+                    )
+                }
+            }
 
-                    Ok::<_, anyhow::Error>((header, output))
-                })
-                .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+            MergingIterator::new(
+                snapshot_parser.target_milestone_timestamp(),
+                snapshot_parser.outputs(),
+            )
+            .map(|res| {
+                let (header, mut output) = res?;
+                scale_output_amount_for_iota(&mut output)?;
+
+                Ok::<_, anyhow::Error>((header, output))
+            })
+            .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
         }
     }
 
@@ -191,45 +231,6 @@ fn main() -> Result<()> {
 struct OutputHeaderWithBalance {
     output_header: OutputHeader,
     balance: u64,
-}
-
-/// returns true if the output is an already unlocked vesting output.
-/// it collects the aggregated unlocked balance per address in `unlocked_address_balances`.
-fn collect_unlocked_vesting_outputs(
-    unlocked_address_balances: &mut HashMap<Address, OutputHeaderWithBalance>,
-    snapshot_timestamp_s: u32,
-    header: &OutputHeader,
-    output: &Output,
-) -> bool {
-    // ignore all non-basic outputs
-    if !output.is_basic() {
-        return false;
-    }
-
-    // ignore all non vesting outputs
-    if !is_vested_reward(header.output_id(), output.as_basic()) {
-        return false;
-    }
-
-    let unlock_conds = output.unlock_conditions().expect("no unlock conditions found");
-
-    // check if vesting unlock period is already done
-    if unlock_conds.is_time_locked(snapshot_timestamp_s) {
-        return false;
-    }
-
-    let address = unlock_conds.address().expect("no unlock conditions found"); 
-
-    // collect the unlocked vesting balances
-    unlocked_address_balances
-        .entry(address.address().clone())
-        .and_modify(|x| x.balance = x.balance + output.amount())
-        .or_insert(OutputHeaderWithBalance {
-            output_header: header.clone(),
-            balance: output.amount(),
-        });
-
-    true
 }
 
 fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
