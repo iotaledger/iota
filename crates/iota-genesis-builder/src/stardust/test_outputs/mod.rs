@@ -72,12 +72,13 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
+    let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = [
-        alias_ownership::outputs(randomness_seed).await?,
-        stardust_mix::outputs(randomness_seed, &mut vested_index).await?,
-        vesting_schedule_entity::outputs(randomness_seed, &mut vested_index).await?,
-        vesting_schedule_iota_airdrop::outputs(randomness_seed, &mut vested_index).await?,
-        vesting_schedule_portfolio_mix::outputs(randomness_seed, &mut vested_index).await?,
+        alias_ownership::outputs(&mut rng).await?,
+        stardust_mix::outputs(&mut rng, &mut vested_index).await?,
+        vesting_schedule_entity::outputs(&mut rng, &mut vested_index).await?,
+        vesting_schedule_iota_airdrop::outputs(&mut rng, &mut vested_index).await?,
+        vesting_schedule_portfolio_mix::outputs(&mut rng, &mut vested_index).await?,
     ]
     .concat();
 
@@ -85,7 +86,7 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
 
     new_outputs.append(&mut if let Some(delegator) = delegator.into() {
         add_only_test_outputs(
-            randomness_seed,
+            &mut rng,
             &mut vested_index,
             delegator,
             with_sampling.then_some(&mut parser),
@@ -148,19 +149,18 @@ fn add_all_previous_outputs_and_test_outputs<R: Read>(
 /// with a timelocked staking. Optionally some samples from the previous
 /// snapshot are taken too.
 fn add_only_test_outputs<R: Read>(
-    randomness_seed: u64,
+    rng: &mut StdRng,
     vested_index: &mut u32,
     delegator: Ed25519Address,
     parser: Option<&mut HornetSnapshotParser<R>>,
     new_temp_amount: u64,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
     // Needed outputs for delegator
-    let mut new_outputs = delegator_outputs::outputs(randomness_seed, vested_index, delegator)?;
+    let mut new_outputs = delegator_outputs::outputs(rng, vested_index, delegator)?;
 
     // Additional sample outputs
     if let Some(parser) = parser {
-        new_outputs.append(&mut with_sampling(parser, &mut rng)?)
+        new_outputs.append(&mut with_sampling(parser, rng)?)
     }
 
     // Add all the remainder tokens to the zero address
@@ -174,17 +174,17 @@ fn add_only_test_outputs<R: Read>(
         new_outputs.push(new_simple_basic_output(
             remainder_per_output,
             zero_address,
-            &mut rng,
+            rng,
         )?);
     }
     if difference > 0 {
-        new_outputs.push(new_simple_basic_output(difference, zero_address, &mut rng)?);
+        new_outputs.push(new_simple_basic_output(difference, zero_address, rng)?);
     }
 
     Ok(new_outputs)
 }
 
-/// Get samples of the previous Hornet shapshot without timelocks and with a
+/// Get samples of the previous Hornet snapshot without timelocks and with a
 /// certain probability of picking basic outputs.
 fn with_sampling<R: Read>(
     parser: &mut HornetSnapshotParser<R>,
@@ -198,7 +198,7 @@ fn with_sampling<R: Read>(
             Output::Basic(ref basic) => {
                 if !timelock::is_timelocked_vested_reward(
                     output_header.output_id(),
-                    &basic,
+                    basic,
                     target_milestone_timestamp,
                 ) && rng.gen_bool(PROBABILITY_OF_PICKING_A_BASIC_OUTPUT)
                 {
