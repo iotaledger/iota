@@ -1,6 +1,6 @@
 # Multi-Signature Transactions
 
-The Iota TypeScript SDK provides a `MultiSigPublicKey` class to support
+The IOTA TypeScript SDK provides a `MultiSigPublicKey` class to support
 [Multi-Signature](https://docs.iota.io/concepts/cryptography/transaction-auth/multisig) (MultiSig)
 transaction and personal message signing.
 
@@ -11,7 +11,7 @@ and you call the same methods to verify signatures for `PersonalMessages` and `T
 
 To create a `MultiSigPublicKey`, you provide a `threshold`(u16) value and an array of objects that
 contain `publicKey` and `weight`(u8) values. If the combined weight of valid signatures for a
-transaction is equal to or greater than the threshold value, then the Iota network considers the
+transaction is equal to or greater than the threshold value, then the IOTA network considers the
 transdaction valid.
 
 ```typescript
