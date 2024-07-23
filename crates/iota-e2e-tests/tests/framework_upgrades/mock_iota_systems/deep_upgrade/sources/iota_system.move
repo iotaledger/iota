@@ -47,7 +47,7 @@ module iota_system::iota_system {
     }
 
     fun advance_epoch(
-        storage_reward: Balance<IOTA>,
+        storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         wrapper: &mut IotaSystemState,
         new_epoch: u64,
@@ -66,7 +66,7 @@ module iota_system::iota_system {
             self,
             new_epoch,
             next_protocol_version,
-            storage_reward,
+            storage_charge,
             computation_reward,
             storage_rebate,
             epoch_start_timestamp_ms,

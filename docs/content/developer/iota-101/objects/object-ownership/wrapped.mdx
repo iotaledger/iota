@@ -30,7 +30,7 @@ public struct Bar has key, store {
 
 Now `Bar` is also an object type. If you put an object of type `Bar` into an object of type `Foo`, the object type `Foo` wraps the object type `Bar`. The object type `Foo` is the wrapper or wrapping object.
 
-There are some interesting consequences of wrapping an object into another. When an object is wrapped, the object no longer exists independently on-chain. You can no longer look up the object by its ID. The object becomes part of the data of the object that wraps it. Most importantly, you can no longer pass the wrapped object as an argument in any way in Iota Move calls. The only access point is through the wrapping object.
+There are some interesting consequences of wrapping an object into another. When an object is wrapped, the object no longer exists independently on-chain. You can no longer look up the object by its ID. The object becomes part of the data of the object that wraps it. Most importantly, you can no longer pass the wrapped object as an argument in any way in IOTA Move calls. The only access point is through the wrapping object.
 
 It is not possible to create circular wrapping behavior, where A wraps B, B wraps C, and C also wraps A.
 
@@ -63,9 +63,9 @@ public fun new(scarcity: u8, style: u8, ctx: &mut TxContext): Object {
 
 ```
 
-You can also enable a swap/trade between your object and others' objects. For example, define a function that takes two objects from two addresses and swaps their ownership. But this doesn't work in Iota. Only object owners can send a transaction to mutate the object. So one person cannot send a transaction that would swap their own object with someone else's object.
+You can also enable a swap/trade between your object and others' objects. For example, define a function that takes two objects from two addresses and swaps their ownership. But this doesn't work in IOTA. Only object owners can send a transaction to mutate the object. So one person cannot send a transaction that would swap their own object with someone else's object.
 
-Another common solution is to send your object to a pool - such as an NFT marketplace or a staking pool - and perform the swap in the pool (either right away, or later when there is demand). Other chapters explore the concept of shared objects that can be mutated by anyone, and show how it enables anyone to operate in a shared object pool. This chapter focuses on how to achieve the same effect using owned objects. Transactions using only owned objects are faster and less expensive (in terms of gas) than using shared objects, since they do not require consensus in Iota.
+Another common solution is to send your object to a pool - such as an NFT marketplace or a staking pool - and perform the swap in the pool (either right away, or later when there is demand). Other chapters explore the concept of shared objects that can be mutated by anyone, and show how it enables anyone to operate in a shared object pool. This chapter focuses on how to achieve the same effect using owned objects. Transactions using only owned objects are faster and less expensive (in terms of gas) than using shared objects, since they do not require consensus in IOTA.
 
 To swap objects, the same address must own both objects. Anyone who wants to swap their object can send their objects to the third party, such as a site that offers swapping services, and the third party helps perform the swap and send the objects to the appropriate owner. To ensure that you retain custody of your objects (such as coins and NFTs) and not give full custody to the third party, use direct wrapping. To define a wrapper object type:
 
