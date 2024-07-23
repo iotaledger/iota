@@ -39,7 +39,7 @@ export function CardAction({ type, onClick, subtitle, title }: CardActionProps) 
     }
     if (type === CardActionType.Button) {
         return (
-            <div>
+            <div className="shrink-0">
                 <Button
                     type={ButtonType.Outlined}
                     size={ButtonSize.Small}
