@@ -44,7 +44,7 @@ jobs:
             - uses: dorny/paths-filter@v3
               id: filter
               with:
-                  list-files: 'json'
+                  list-files: "json"
                   filters: .github/external-crates-filters.yml
 
     diff:
@@ -97,7 +97,7 @@ jobs:
             # See '.cargo/config' for list of enabled/disabled clippy lints
             - name: cargo move-clippy
               run: |
-                  cargo ci-clippy-external
+                  cargo +stable ci-clippy-external
 
     rustfmt:
         needs: diff
