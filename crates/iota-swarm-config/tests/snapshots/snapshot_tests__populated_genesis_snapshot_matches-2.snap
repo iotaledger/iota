@@ -329,7 +329,7 @@ stake_subsidy:
       id: "0xe70d4fb2a7c58d5c850afff4a6831a6ee93583c2ee2b267d98827b9d46327c61"
     size: 0
 safe_mode: false
-safe_mode_storage_rewards:
+safe_mode_storage_charges:
   value: 0
 safe_mode_computation_rewards:
   value: 0

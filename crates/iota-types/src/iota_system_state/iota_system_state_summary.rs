@@ -66,11 +66,11 @@ pub struct IotaSystemStateSummary {
     /// advance_epoch, and ended up executing advance_epoch_safe_mode.
     /// It can be reset once we are able to successfully execute advance_epoch.
     pub safe_mode: bool,
-    /// Amount of storage rewards accumulated (and not yet distributed) during
+    /// Amount of storage charges accumulated (and not yet distributed) during
     /// safe mode.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub safe_mode_storage_rewards: u64,
+    pub safe_mode_storage_charges: u64,
     /// Amount of computation rewards accumulated (and not yet distributed)
     /// during safe mode.
     #[schemars(with = "BigInt<u64>")]
@@ -352,7 +352,7 @@ impl Default for IotaSystemStateSummary {
             storage_fund_non_refundable_balance: 0,
             reference_gas_price: 1,
             safe_mode: false,
-            safe_mode_storage_rewards: 0,
+            safe_mode_storage_charges: 0,
             safe_mode_computation_rewards: 0,
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
