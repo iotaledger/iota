@@ -23,18 +23,14 @@ export function CardAction({ type, onClick, subtitle, title }: CardActionProps) 
 
     if (type === CardActionType.SupportingText) {
         return (
-            <div className={'shrink-0 text-right'}>
+            <div className="shrink-0 text-right">
                 {title && (
-                    <div
-                        className={'font-inter text-label-md text-neutral-10 dark:text-neutral-92'}
-                    >
+                    <div className="font-inter text-label-md text-neutral-10 dark:text-neutral-92">
                         {title}
                     </div>
                 )}
                 {subtitle && (
-                    <div
-                        className={'font-inter text-label-sm text-neutral-60 dark:text-neutral-40'}
-                    >
+                    <div className="font-inter text-label-sm text-neutral-60 dark:text-neutral-40">
                         {subtitle}
                     </div>
                 )}

@@ -9,11 +9,11 @@ export type CardBodyProps = {
 export function CardBody({ title, subtitle }: CardBodyProps) {
     return (
         <div>
-            <div className={'font-inter text-title-md text-neutral-10 dark:text-neutral-92'}>
+            <div className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                 {title}
             </div>
             {subtitle && (
-                <div className={'font-inter text-body-md text-neutral-40 dark:text-neutral-60'}>
+                <div className="font-inter text-body-md text-neutral-40 dark:text-neutral-60">
                     {subtitle}
                 </div>
             )}
