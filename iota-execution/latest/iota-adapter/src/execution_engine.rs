@@ -274,7 +274,9 @@ mod checked {
             "No gas charges must be applied yet"
         );
 
-        let is_genesis_tx = matches!(transaction_kind, TransactionKind::Genesis(_));
+        let is_genesis_or_epoch_change_tx = matches!(transaction_kind, TransactionKind::Genesis(_))
+            || transaction_kind.is_end_of_epoch_tx();
+
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 
         // We must charge object read here during transaction execution, because if this
@@ -348,7 +350,7 @@ mod checked {
             protocol_config.simple_conservation_checks(),
             enable_expensive_checks,
             &cost_summary,
-            is_genesis_tx,
+            is_genesis_or_epoch_change_tx,
             advance_epoch_gas_summary,
         ) {
             // FIXME: we cannot fail the transaction if this is an epoch change transaction.
@@ -367,11 +369,11 @@ mod checked {
         simple_conservation_checks: bool,
         enable_expensive_checks: bool,
         cost_summary: &GasCostSummary,
-        is_genesis_tx: bool,
+        is_genesis_or_epoch_change_tx: bool,
         advance_epoch_gas_summary: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut result: std::result::Result<(), iota_types::error::ExecutionError> = Ok(());
-        if !is_genesis_tx && !Mode::skip_conservation_checks() {
+        if !is_genesis_or_epoch_change_tx && !Mode::skip_conservation_checks() {
             // ensure that this transaction did not create or destroy IOTA, try to recover
             // if the check fails
             let conservation_result = {
@@ -678,13 +680,13 @@ mod checked {
         builder: &mut ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> (Argument, Argument) {
-        // Create storage rewards.
+        // Create storage charges.
         let storage_charge_arg = builder
             .input(CallArg::Pure(
                 bcs::to_bytes(&params.storage_charge).unwrap(),
             ))
             .unwrap();
-        let storage_rewards = builder.programmable_move_call(
+        let storage_charges = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
@@ -705,25 +707,30 @@ mod checked {
             vec![GAS::type_tag()],
             vec![computation_charge_arg],
         );
-        (storage_rewards, computation_rewards)
+        (storage_charges, computation_rewards)
     }
 
     pub fn construct_advance_epoch_pt(
         mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
-        // Step 1: Create storage and computation rewards.
-        let (storage_rewards, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
+        // Step 1: Create storage charges and computation rewards.
+        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
 
         // Step 2: Advance the epoch.
-        let mut arguments = vec![storage_rewards, computation_rewards];
+        let mut arguments = vec![
+            builder
+                .pure(params.validator_target_reward)
+                .expect("bcs encoding a u64 should not fail"),
+            storage_charges,
+            computation_rewards,
+        ];
         let call_arg_arguments = vec![
             CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.storage_fund_reinvest_rate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
         ]
@@ -764,11 +771,11 @@ mod checked {
         protocol_config: &ProtocolConfig,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
-        // Step 1: Create storage and computation rewards.
-        let (storage_rewards, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
+        // Step 1: Create storage charges and computation rewards.
+        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
 
         // Step 2: Advance the epoch.
-        let mut arguments = vec![storage_rewards, computation_rewards];
+        let mut arguments = vec![storage_charges, computation_rewards];
 
         let mut args = vec![
             CallArg::IOTA_SYSTEM_MUT,
@@ -822,11 +829,11 @@ mod checked {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
             next_protocol_version: change_epoch.protocol_version,
+            validator_target_reward: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
             storage_rebate: change_epoch.storage_rebate,
             non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
-            storage_fund_reinvest_rate: protocol_config.storage_fund_reinvest_rate(),
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
         };
