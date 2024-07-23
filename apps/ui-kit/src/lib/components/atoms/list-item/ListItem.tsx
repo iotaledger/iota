@@ -55,7 +55,7 @@ export function ListItem({
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
                 className={cx(
-                    'relative flex min-h-[48px] flex-row items-center justify-between px-md text-neutral-10 dark:text-neutral-92',
+                    'relative flex flex-row items-center justify-between px-md py-sm text-neutral-10 dark:text-neutral-92',
                     { 'state-layer': !isDisabled, 'cursor-pointer': !isDisabled && onClick },
                 )}
             >

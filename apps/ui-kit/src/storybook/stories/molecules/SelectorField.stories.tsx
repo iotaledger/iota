@@ -79,7 +79,7 @@ export const Default: Story = {
                             {dropdownOptions.map((option, index) => (
                                 <ListItem
                                     key={option.label}
-                                    hideBottomBorder={index === dropdownOptions.length - 1}
+                                    hideBottomBorder
                                     onClick={() => handleOptionClick(option)}
                                 >
                                     <OptionTile option={option} />
