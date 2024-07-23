@@ -41,9 +41,9 @@ export function ListItem({
     return (
         <div
             className={cx(
-                'w-full pb-xs',
+                'w-full',
                 {
-                    'border-b border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+                    'border-b border-shader-neutral-light-8 pb-xs dark:border-shader-neutral-dark-8':
                         !hideBottomBorder,
                 },
                 { 'opacity-40': isDisabled },

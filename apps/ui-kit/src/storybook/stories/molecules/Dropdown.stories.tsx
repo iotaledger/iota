@@ -30,11 +30,7 @@ export const Default: Story = {
         return (
             <Dropdown {...args}>
                 {options.map((option, index) => (
-                    <ListItem
-                        key={index}
-                        {...option}
-                        hideBottomBorder={index === options.length - 1}
-                    />
+                    <ListItem key={index} {...option} hideBottomBorder />
                 ))}
             </Dropdown>
         );
