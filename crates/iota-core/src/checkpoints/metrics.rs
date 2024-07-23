@@ -99,7 +99,7 @@ impl CheckpointMetrics {
             .unwrap(),
             checkpoint_creation_latency_ms: Histogram::new_in_registry(
                 "checkpoint_creation_latency_ms",
-                "Latency from consensus commit timstamp to local checkpoint creation in milliseconds",
+                "Latency from consensus commit timestamp to local checkpoint creation in milliseconds",
                 registry,
             ),
             remote_checkpoint_forks: register_int_counter_with_registry!(

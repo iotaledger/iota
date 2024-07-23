@@ -1789,7 +1789,7 @@ module deepbook::clob_v2 {
     /// Skip any order_id that is invalid.
     /// Note that this function can reduce gas cost even further if caller has multiple orders at the same price level,
     /// and if orders with the same price are grouped together in the vector.
-    /// For example, if we have the following order_id to price mapping, {0: 100., 1: 200., 2: 100., 3: 200.}.
+    /// For example, if we have the following order_id to price mapping, \{0: 100., 1: 200., 2: 100., 3: 200.}.
     /// Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
     public fun batch_cancel_order<BaseAsset, QuoteAsset>(
         pool: &mut Pool<BaseAsset, QuoteAsset>,
@@ -1863,7 +1863,7 @@ module deepbook::clob_v2 {
     /// Clean up expired orders
     /// Note that this function can reduce gas cost if orders
     /// with the same price are grouped together in the vector because we would not need the computation to find the tick_index.
-    /// For example, if we have the following order_id to price mapping, {0: 100., 1: 200., 2: 100., 3: 200.}.
+    /// For example, if we have the following order_id to price mapping, \{0: 100., 1: 200., 2: 100., 3: 200.}.
     /// Grouping order_ids like [0, 2, 1, 3] would make it the most gas efficient.
     /// Order owners should be the owner addresses from the account capacities which placed the orders,
     /// and they should correspond to the order IDs one by one.
