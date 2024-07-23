@@ -34,15 +34,9 @@ module iota_system::storage_fund {
     public(package) fun advance_epoch(
         self: &mut StorageFund,
         storage_charges: Balance<IOTA>,
-        storage_fund_reinvestment: Balance<IOTA>,
-        leftover_staking_rewards: Balance<IOTA>,
         storage_rebate_amount: u64,
         non_refundable_storage_fee_amount: u64,
     ) : Balance<IOTA> {
-        // Both the reinvestment and leftover rewards are not to be refunded so they go to the non-refundable balance.
-        self.non_refundable_balance.join(storage_fund_reinvestment);
-        self.non_refundable_balance.join(leftover_staking_rewards);
-
         // The storage charges for the epoch come from the storage rebate of the new objects created
         // and the new storage rebates of the objects modified during the epoch so we put the charges
         // into `total_object_storage_rebates`.

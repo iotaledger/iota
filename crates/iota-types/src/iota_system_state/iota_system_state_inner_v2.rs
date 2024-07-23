@@ -18,6 +18,7 @@ use crate::{
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
+    gas_coin::IotaTreasuryCap,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         get_validators_from_table_vec,
@@ -69,6 +70,7 @@ pub struct IotaSystemStateInnerV2 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
+    pub iota_treasury_cap: IotaTreasuryCap,
     pub validators: ValidatorSetV1,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV2,
@@ -201,6 +203,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_treasury_cap: _,
             validators:
                 ValidatorSetV1 {
                     total_stake,
