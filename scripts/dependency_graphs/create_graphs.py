@@ -173,7 +173,7 @@ def convert_dot_files(output_folder, file_type):
 
 ################################################################################
 if __name__ == '__main__':  
-    output_folder = "dependency_graphs"
+    output_folder = "output"
     skip_dev_dependencies = True            # whether or not to include the `dev-dependencies`
 
     # Create the output folder if it doesn't exist
@@ -185,7 +185,7 @@ if __name__ == '__main__':
         raise Exception("cargo tree process exited with return code %d" % result.returncode)
     
     # Parse the cargo tree and generate the DOT file
-    dependencies = parse_cargo_tree(result.stdout, pathlib.Path("../").absolute().resolve(), skip_dev_dependencies)
+    dependencies = parse_cargo_tree(result.stdout, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
     
     generate_dot_all(output_folder, dependencies)
     generate_dot_per_crate(output_folder, dependencies)
