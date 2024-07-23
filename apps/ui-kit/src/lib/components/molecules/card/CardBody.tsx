@@ -8,7 +8,7 @@ export type CardBodyProps = {
 
 export function CardBody({ title, subtitle }: CardBodyProps) {
     return (
-        <div>
+        <div className="flex w-full flex-col">
             <div className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                 {title}
             </div>
