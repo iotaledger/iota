@@ -214,7 +214,9 @@ module iota_system::iota_system_state_inner {
         stake_subsidy_amount: u64,
         total_gas_fees: u64,
         total_stake_rewards_distributed: u64,
-        leftover_storage_fund_inflow: u64,
+        burnt_leftover_amount: u64,
+        burnt_tokens_amount: u64,
+        minted_tokens_amount: u64,
     }
 
     // Errors
@@ -876,7 +878,7 @@ module iota_system::iota_system_state_inner {
         let stake_subsidy_amount = stake_subsidy.value();
         computation_reward.join(stake_subsidy);
 
-        let mut total_validator_rewards = match_computation_reward_to_target_reward(
+        let (mut total_validator_rewards, minted_tokens_amount, burnt_tokens_amount) = match_computation_reward_to_target_reward(
             validator_target_reward,
             computation_reward,
             &mut self.iota_treasury_cap,
@@ -911,7 +913,7 @@ module iota_system::iota_system_state_inner {
         // Because of precision issues with integer divisions, we expect that there will be some
         // remaining balance in `total_validator_rewards`.
         let leftover_staking_rewards = total_validator_rewards;
-        let leftover_storage_fund_inflow = leftover_staking_rewards.value();
+        let burnt_leftover_amount = leftover_staking_rewards.value();
 
         // Burning leftover rewards
         self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
@@ -924,20 +926,23 @@ module iota_system::iota_system_state_inner {
             );
 
         event::emit(
-            //TODO: Add additional information (e.g., how much was burned, how much was leftover, etc.)
             SystemEpochInfoEvent {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
                 reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
                 storage_charge,
+                // TODO: remove(obsolete)
                 storage_fund_reinvestment: 0,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
+                // TODO: remove(obsolete)
                 stake_subsidy_amount,
                 total_gas_fees: computation_charge,
                 total_stake_rewards_distributed: total_validator_rewards_distributed,
-                leftover_storage_fund_inflow,
+                burnt_leftover_amount,
+                burnt_tokens_amount,
+                minted_tokens_amount
             }
         );
         self.safe_mode = false;
@@ -958,20 +963,21 @@ module iota_system::iota_system_state_inner {
         mut computation_reward: Balance<IOTA>,
         iota_treasury_cap: &mut iota::iota::IotaTreasuryCap,
         ctx: &TxContext,
-    ): Balance<IOTA> {
+    ): (Balance<IOTA>, u64, u64) {
+        let mut burnt_tokens_amount = 0;
+        let mut minted_tokens_amount = 0;
         if (computation_reward.value() < validator_target_reward) {
             let tokens_to_mint = validator_target_reward - computation_reward.value();
             let new_tokens = iota_treasury_cap.mint_balance(tokens_to_mint, ctx);
+            minted_tokens_amount = new_tokens.value();
             computation_reward.join(new_tokens);
-            computation_reward
         } else if (computation_reward.value() > validator_target_reward) {
             let tokens_to_burn = computation_reward.value() - validator_target_reward;
             let rewards_to_burn = computation_reward.split(tokens_to_burn);
+            burnt_tokens_amount = rewards_to_burn.value();
             iota_treasury_cap.burn_balance(rewards_to_burn, ctx);
-            computation_reward
-        } else {
-            computation_reward
-        }
+        };
+        (computation_reward, minted_tokens_amount, burnt_tokens_amount)
     }
 
     /// Return the current epoch number. Useful for applications that need a coarse-grained concept of time,
