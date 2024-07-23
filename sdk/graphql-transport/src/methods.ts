@@ -811,7 +811,7 @@ export const RPC_METHODS: {
                 systemState.safeMode?.gasSummary?.nonRefundableStorageFee,
             ),
             safeModeStorageRebates: String(systemState.safeMode?.gasSummary?.storageRebate),
-            safeModeStorageRewards: String(systemState.safeMode?.gasSummary?.storageCost),
+            safeModeStorageCharges: String(systemState.safeMode?.gasSummary?.storageCost),
             stakeSubsidyBalance: String(systemState.systemStakeSubsidy?.balance),
             stakeSubsidyCurrentDistributionAmount: String(
                 systemState.systemStakeSubsidy?.currentDistributionAmount,

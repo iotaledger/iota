@@ -7,8 +7,8 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint && pnpm run prettier:check",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "test": "jest"
     },
     "engines": {

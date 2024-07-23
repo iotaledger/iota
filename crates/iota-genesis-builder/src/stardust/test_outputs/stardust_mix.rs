@@ -24,7 +24,7 @@ use iota_sdk::{
         },
     },
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
     test_outputs::new_vested_output,
@@ -166,10 +166,9 @@ const STARDUST_MIX: &[StardustWallet] = &[
 ];
 
 pub(crate) async fn outputs(
-    randomness_seed: u64,
+    rng: &mut StdRng,
     vested_index: &mut u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut outputs = Vec::new();
 
     for wallet in STARDUST_MIX {
@@ -190,7 +189,7 @@ pub(crate) async fn outputs(
 
             // Random add up to 2 aliases with foundry and native tokens
             let (alias_foundry_outputs, native_tokens_for_basic_outputs) =
-                random_alias_foundry_native_token(address, &mut rng)?;
+                random_alias_foundry_native_token(address, rng)?;
             let native_tokens_for_nft_outputs = native_tokens_for_basic_outputs.clone();
             outputs.extend(alias_foundry_outputs);
 
@@ -199,14 +198,14 @@ pub(crate) async fn outputs(
                 OUTPUT_IOTA_AMOUNT,
                 address,
                 None,
-                &mut rng,
+                rng,
             )?);
             *vested_index -= 1;
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Basic(BasicOutputBuilder::new_with_amount(OUTPUT_IOTA_AMOUNT)),
                 address,
                 native_tokens_for_basic_outputs,
-                &mut rng,
+                rng,
             )?);
             outputs.extend(new_basic_or_nft_outputs(
                 OutputBuilder::Nft(NftOutputBuilder::new_with_amount(
@@ -215,7 +214,7 @@ pub(crate) async fn outputs(
                 )),
                 address,
                 native_tokens_for_nft_outputs,
-                &mut rng,
+                rng,
             )?);
         }
     }

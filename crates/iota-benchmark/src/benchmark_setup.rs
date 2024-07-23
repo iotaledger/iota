@@ -9,7 +9,7 @@ use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     base_types::{ConciseableName, IotaAddress, ObjectID},
     crypto::{deterministic_random_account_key, AccountKeyPair},
-    gas_coin::TOTAL_SUPPLY_NANOS,
+    gas_coin::NANOS_PER_IOTA,
     object::Owner,
 };
 use prometheus::Registry;
@@ -26,6 +26,9 @@ use crate::{
     bank::BenchmarkBank, options::Opts, util::get_ed25519_keypair_from_keystore, FullNodeProxy,
     LocalValidatorAggregatorProxy, ValidatorProxy,
 };
+
+/// Balance of the primary gas owner in the local environment.
+const LOCAL_ENV_PRIMARY_GAS_OWNER_BALANCE: u64 = 2_300_000_000 * NANOS_PER_IOTA;
 
 pub enum Env {
     // Mode where benchmark in run on a validator cluster that gets spun up locally
@@ -102,9 +105,7 @@ impl Env {
                 let cluster = TestClusterBuilder::new()
                     .with_accounts(vec![AccountConfig {
                         address: Some(primary_gas_owner),
-                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator
-                        // stakes in genesis allocation.
-                        gas_amounts: vec![TOTAL_SUPPLY_NANOS / 2],
+                        gas_amounts: vec![LOCAL_ENV_PRIMARY_GAS_OWNER_BALANCE],
                     }])
                     .with_num_validators(committee_size)
                     .build()
