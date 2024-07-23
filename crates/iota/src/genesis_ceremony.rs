@@ -9,10 +9,11 @@ use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{genesis::UnsignedGenesis, IOTA_GENESIS_FILENAME};
-use iota_genesis_builder::Builder;
+use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
+use iota_protocol_config::MAX_PROTOCOL_VERSION;
 use iota_types::{
     base_types::IotaAddress,
     committee::ProtocolVersion,
@@ -27,12 +28,13 @@ use crate::genesis_inspector::examine_genesis_checkpoint;
 
 #[derive(Parser)]
 pub struct Ceremony {
+    /// The directory where the Genesis builder will be stored. Defaults to the
+    /// current directory.
     #[clap(long)]
     path: Option<PathBuf>,
-
-    #[clap(long)]
-    protocol_version: Option<u64>,
-
+    /// The protocol version to use for this snapshot.
+    #[clap(long, default_value_t = MAX_PROTOCOL_VERSION)]
+    protocol_version: u64,
     #[clap(subcommand)]
     command: CeremonyCommand,
 }
@@ -45,48 +47,65 @@ impl Ceremony {
 
 #[derive(Parser)]
 pub enum CeremonyCommand {
+    /// Initialize a Genesis builder which can be configured with validators.
     Init,
-
+    /// Validate the current state of the Genesis builder.
     ValidateState,
-
+    /// Add a validator to the Genesis builder.
     AddValidator {
+        /// The name of the validator.
         #[clap(long)]
         name: String,
+        /// The path to the BLS12381 authority key file for the validator.
         #[clap(long)]
         validator_key_file: PathBuf,
+        /// The path to the Ed25519 network key file for the worker.
         #[clap(long)]
         worker_key_file: PathBuf,
+        /// The path to the Ed25519 network key file for the account.
         #[clap(long)]
         account_key_file: PathBuf,
+        /// The path to the Ed25519 network key file.
         #[clap(long)]
         network_key_file: PathBuf,
+        /// The network address. This must be a TCP address in ASCII format.
         #[clap(long)]
         network_address: Multiaddr,
+        /// The peer-to-peer address. This must be a UDP address in ASCII
+        /// format.
         #[clap(long)]
         p2p_address: Multiaddr,
+        /// The narwhal primary address. This must be a UDP address in ASCII
+        /// format.
         #[clap(long)]
         narwhal_primary_address: Multiaddr,
+        /// The narwhal worker address. This must be a UDP address in ASCII
+        /// format.
         #[clap(long)]
         narwhal_worker_address: Multiaddr,
+        /// An optional description of the validator.
         #[clap(long)]
-        description: String,
+        description: Option<String>,
+        /// An optional URL pointing to an image for the validator.
         #[clap(long)]
-        image_url: String,
+        image_url: Option<String>,
+        /// An optional URL pointing to the validator webpage.
         #[clap(long)]
-        project_url: String,
+        project_url: Option<String>,
     },
-
+    /// List the current validators in the Genesis builder.
     ListValidators,
-
+    /// Build the Genesis checkpoint.
     BuildUnsignedCheckpoint,
-
+    /// Examine the details of the built Genesis checkpoint.
     ExamineGenesisCheckpoint,
-
+    /// Verify and sign the built Genesis checkpoint.
     VerifyAndSign {
+        /// The path to a key file which will be used to sign the checkpoint.
         #[clap(long)]
         key_file: PathBuf,
     },
-
+    /// Create the Genesis blob file from the current configuration.
     Finalize,
 }
 
@@ -98,20 +117,25 @@ pub fn run(cmd: Ceremony) -> Result<()> {
     };
     let dir = Utf8PathBuf::try_from(dir)?;
 
-    let protocol_version = cmd
-        .protocol_version
-        .map(ProtocolVersion::new)
-        .unwrap_or(ProtocolVersion::MAX);
+    let protocol_version = ProtocolVersion::new(cmd.protocol_version);
 
     match cmd.command {
         CeremonyCommand::Init => {
             let builder = Builder::new().with_protocol_version(protocol_version);
-            builder.save(dir)?;
+            builder.save(&dir)?;
+            println!(
+                "Initialized ceremony builder at {}",
+                dir.join(GENESIS_BUILDER_PARAMETERS_FILE)
+            );
         }
 
         CeremonyCommand::ValidateState => {
             let builder = Builder::load(&dir)?;
             builder.validate()?;
+            println!(
+                "Successfully validated ceremony builder at {}",
+                dir.join(GENESIS_BUILDER_PARAMETERS_FILE)
+            );
         }
 
         CeremonyCommand::AddValidator {
@@ -147,21 +171,18 @@ pub fn run(cmd: Ceremony) -> Result<()> {
                     p2p_address,
                     narwhal_primary_address,
                     narwhal_worker_address,
-                    description,
-                    image_url,
-                    project_url,
+                    description: description.unwrap_or_default(),
+                    image_url: image_url.unwrap_or_default(),
+                    project_url: project_url.unwrap_or_default(),
                 },
                 pop,
             );
             builder.save(dir)?;
+            println!("Successfully added validator",);
         }
 
         CeremonyCommand::ListValidators => {
             let builder = Builder::load(&dir)?;
-
-            let mut writer = csv::Writer::from_writer(std::io::stdout());
-
-            writer.write_record(["validator-name", "account-address"])?;
 
             let mut validators = builder
                 .validators()
@@ -174,10 +195,23 @@ pub fn run(cmd: Ceremony) -> Result<()> {
                 })
                 .collect::<Vec<_>>();
 
-            validators.sort_by_key(|v| v.0.clone());
+            let max_width = validators
+                .iter()
+                .max_by_key(|v| &v.0)
+                .map(|(n, _)| n.len().max(14))
+                .unwrap_or(14);
+
+            validators.sort_by(|v1, v2| v1.0.cmp(&v2.0));
+
+            println!(
+                "{:<width$} Account Address",
+                "Validator Name",
+                width = max_width
+            );
+            println!("{:-<width$} {:-<66}", "", "", width = max_width);
 
             for (name, address) in validators {
-                writer.write_record([&name, &address])?;
+                println!("{name:<width$} {address}", width = max_width);
             }
         }
 
@@ -197,7 +231,7 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 
             let Some(unsigned_genesis) = builder.unsigned_genesis_checkpoint() else {
                 return Err(anyhow::anyhow!(
-                    "Unable to examine genesis checkpoint; it hasn't been built yet"
+                    "Unable to examine genesis checkpoint; try running `build-unsigned-checkpoint`"
                 ));
             };
 
@@ -214,7 +248,7 @@ pub fn run(cmd: Ceremony) -> Result<()> {
             // Don't sign unless the unsigned checkpoint has already been created
             if builder.unsigned_genesis_checkpoint().is_none() {
                 return Err(anyhow::anyhow!(
-                    "Unable to verify and sign genesis checkpoint; it hasn't been built yet"
+                    "Unable to verify and sign genesis checkpoint; try running `build-unsigned-checkpoint`"
                 ));
             }
 
@@ -332,7 +366,7 @@ mod test {
         // Initialize
         let command = Ceremony {
             path: Some(dir.path().into()),
-            protocol_version: None,
+            protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::Init,
         };
         command.run()?;
@@ -343,7 +377,7 @@ mod test {
         {
             let command = Ceremony {
                 path: Some(dir.path().into()),
-                protocol_version: None,
+                protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::AddValidator {
                     name: validator.name().to_owned(),
                     validator_key_file: key_file.into(),
@@ -354,16 +388,16 @@ mod test {
                     p2p_address: validator.p2p_address().to_owned(),
                     narwhal_primary_address: validator.narwhal_primary_address.clone(),
                     narwhal_worker_address: validator.narwhal_worker_address.clone(),
-                    description: String::new(),
-                    image_url: String::new(),
-                    project_url: String::new(),
+                    description: None,
+                    image_url: None,
+                    project_url: None,
                 },
             };
             command.run()?;
 
             Ceremony {
                 path: Some(dir.path().into()),
-                protocol_version: None,
+                protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
             .run()?;
@@ -372,7 +406,7 @@ mod test {
         // Build the unsigned checkpoint
         let command = Ceremony {
             path: Some(dir.path().into()),
-            protocol_version: None,
+            protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::BuildUnsignedCheckpoint,
         };
         command.run()?;
@@ -381,7 +415,7 @@ mod test {
         for (key, _worker_key, _network_key, _account_key, _validator) in &validators {
             let command = Ceremony {
                 path: Some(dir.path().into()),
-                protocol_version: None,
+                protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::VerifyAndSign {
                     key_file: key.into(),
                 },
@@ -390,7 +424,7 @@ mod test {
 
             Ceremony {
                 path: Some(dir.path().into()),
-                protocol_version: None,
+                protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
             .run()?;
@@ -399,7 +433,7 @@ mod test {
         // Finalize the Ceremony and build the Genesis object
         let command = Ceremony {
             path: Some(dir.path().into()),
-            protocol_version: None,
+            protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::Finalize,
         };
         command.run()?;

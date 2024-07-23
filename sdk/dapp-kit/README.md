@@ -8,16 +8,16 @@ See https://sdk.mystenlabs.com/typescript for full documentation
 
 ### Core Features
 
--   **Query Hooks:** dApp Kit provides a set of hooks for making rpc calls to the Iota blockchain,
-    making it easy to load any information needed for your dApp.
--   **Automatic Wallet State Management:** dApp Kit removes the complexity of state management
-    related to wallet connections. You can focus on building your dApp.
--   **Supports all Iota wallets:** No need to manually define wallets you support. All Iota wallets
-    are automatically supported.
--   **Easy to integrate:** dApp Kit provides pre-built React Components that you can drop right into
-    your dApp, for easier integration
--   **Flexible:** dApp Kit ships both fully functional React Component, and lower level hooks that
-    you can use to build your own custom components.
+- **Query Hooks:** dApp Kit provides a set of hooks for making rpc calls to the Iota blockchain,
+  making it easy to load any information needed for your dApp.
+- **Automatic Wallet State Management:** dApp Kit removes the complexity of state management
+  related to wallet connections. You can focus on building your dApp.
+- **Supports all Iota wallets:** No need to manually define wallets you support. All Iota wallets
+  are automatically supported.
+- **Easy to integrate:** dApp Kit provides pre-built React Components that you can drop right into
+  your dApp, for easier integration
+- **Flexible:** dApp Kit ships both fully functional React Component, and lower level hooks that
+  you can use to build your own custom components.
 
 ## Install from NPM
 
