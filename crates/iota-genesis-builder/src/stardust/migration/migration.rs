@@ -258,9 +258,9 @@ impl Migration {
 
 /// All the objects created during the migration.
 ///
-/// Internally it maintains indexes of [`TimeLock`] and [`iota_types::gas_coin::GasCoin`]
-/// objects groupped by their owners to accommodate queries of this
-/// sort.
+/// Internally it maintains indexes of [`TimeLock`] and
+/// [`iota_types::gas_coin::GasCoin`] objects groupped by their owners to
+/// accommodate queries of this sort.
 #[derive(Debug, Clone, Default)]
 pub struct MigrationObjects {
     inner: Vec<Object>,
@@ -268,18 +268,22 @@ pub struct MigrationObjects {
     owner_gas_coin: HashMap<IotaAddress, Vec<usize>>,
 }
 
-impl MigrationObjects {
-    pub fn new(objects: Vec<Object>) -> Self {
-        let mut owner_timelock: HashMap<IotaAddress, Vec<usize>> = Default::default();
-        let mut owner_gas_coin: HashMap<IotaAddress, Vec<usize>> = Default::default();
-        for (i, tag, object) in objects.iter().enumerate().filter_map(|(i, object)| {
-            let tag = object.struct_tag()?;
-            Some((i, tag, object))
-        }) {
-            let index = if is_timelocked_balance(&tag) {
-                &mut owner_timelock
+impl Extend<Object> for MigrationObjects {
+    fn extend<T: IntoIterator<Item = Object>>(&mut self, iter: T) {
+        let last_current_ix = self.inner.len();
+        self.inner.extend(iter);
+        for (i, tag, object) in self.inner[last_current_ix..]
+            .iter()
+            .zip(last_current_ix..)
+            .filter_map(|(object, i)| {
+                let tag = object.struct_tag()?;
+                Some((i, tag, object))
+            })
+        {
+            let owner_object_map = if is_timelocked_balance(&tag) {
+                &mut self.owner_timelock
             } else if object.is_gas_coin() {
-                &mut owner_gas_coin
+                &mut self.owner_gas_coin
             } else {
                 continue;
             };
@@ -287,16 +291,19 @@ impl MigrationObjects {
                 .owner
                 .get_owner_address()
                 .expect("timelocks should have an address owner");
-            index
+            owner_object_map
                 .entry(owner)
                 .and_modify(|object_ixs| object_ixs.push(i))
                 .or_insert_with(|| vec![i]);
         }
-        Self {
-            inner: objects,
-            owner_timelock,
-            owner_gas_coin,
-        }
+    }
+}
+
+impl MigrationObjects {
+    pub fn new(objects: Vec<Object>) -> Self {
+        let mut migration_objects = Self::default();
+        migration_objects.extend(objects);
+        migration_objects
     }
 
     /// Evict the objects with the specified ids
@@ -364,7 +371,8 @@ impl MigrationObjects {
         )
     }
 
-    /// Get [`iota_types::gas_coin::GasCoin`] objects created during the migration.
+    /// Get [`iota_types::gas_coin::GasCoin`] objects created during the
+    /// migration.
     ///
     /// The query is filtered by the object owner.
     pub fn get_gas_coins_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
@@ -405,10 +413,13 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
 }
 
 /// Create a [`TxContext]` that remains the same across invocations.
-pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -> TxContext {
+pub(super) fn create_migration_context(
+    coin_type: &CoinType,
+    target_network: MigrationTargetNetwork,
+) -> TxContext {
     TxContext::new(
         &IotaAddress::default(),
-        &target_network.migration_transaction_digest(),
+        &target_network.migration_transaction_digest(coin_type),
         &EpochData::new_genesis(0),
     )
 }
