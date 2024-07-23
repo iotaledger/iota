@@ -7,6 +7,7 @@ use iota_config::genesis::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
+    gas_coin::STARDUST_TOTAL_SUPPLY_NANOS,
     object::Object,
     stardust::coin_kind::get_gas_balance_maybe,
 };
@@ -64,6 +65,11 @@ impl GenesisStake {
     /// inner token allocations.
     pub fn to_token_distribution_schedule(&self) -> TokenDistributionSchedule {
         let mut builder = TokenDistributionScheduleBuilder::new();
+
+        let pre_minted_supply = self.calculate_pre_minted_supply();
+
+        builder.set_pre_minted_supply(pre_minted_supply);
+
         for allocation in self.token_allocation.clone() {
             builder.add_allocation(allocation);
         }
@@ -83,9 +89,14 @@ impl GenesisStake {
         vanilla_schedule
             .allocations
             .extend(self.token_allocation.clone());
-        vanilla_schedule.stake_subsidy_fund_nanos -= self.sum_token_allocation();
+        vanilla_schedule.pre_minted_supply = self.calculate_pre_minted_supply();
         vanilla_schedule.validate();
         vanilla_schedule
+    }
+
+    /// Calculates the part of the IOTA supply that is pre-minted.
+    fn calculate_pre_minted_supply(&self) -> u64 {
+        STARDUST_TOTAL_SUPPLY_NANOS - self.sum_token_allocation()
     }
 }
 

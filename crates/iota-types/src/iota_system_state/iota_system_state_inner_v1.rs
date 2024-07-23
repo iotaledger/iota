@@ -22,6 +22,7 @@ use crate::{
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
     error::IotaError,
+    gas_coin::IotaTreasuryCap,
     id::ID,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     multiaddr::Multiaddr,
@@ -471,6 +472,7 @@ pub struct IotaSystemStateInnerV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
+    pub iota_treasury_cap: IotaTreasuryCap,
     pub validators: ValidatorSetV1,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV1,
@@ -626,6 +628,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_treasury_cap,
             validators:
                 ValidatorSetV1 {
                     total_stake,
@@ -698,6 +701,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_total_supply: iota_treasury_cap.total_supply().value,
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),

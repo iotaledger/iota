@@ -16,7 +16,8 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
-    gas_coin::{GAS, TOTAL_SUPPLY_NANOS},
+    gas_coin::GAS,
+    iota_system_state::IotaSystemStateTrait,
     object::Object,
     parse_iota_struct_tag,
 };
@@ -218,8 +219,13 @@ impl CoinReadApiServer for CoinReadApi {
         with_tracing!(async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             Ok(if GAS::is_gas(&coin_struct) {
+                let system_state_summary = self
+                    .internal
+                    .get_state()
+                    .get_system_state()?
+                    .into_iota_system_state_summary();
                 Supply {
-                    value: TOTAL_SUPPLY_NANOS,
+                    value: system_state_summary.iota_total_supply,
                 }
             } else {
                 let treasury_cap_object = self
@@ -1287,7 +1293,18 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_types::{gas_coin::TOTAL_SUPPLY_NANOS, id::UID};
+        use iota_types::{
+            collection_types::VecMap,
+            gas_coin::IotaTreasuryCap,
+            id::UID,
+            iota_system_state::{
+                iota_system_state_inner_v1::{
+                    IotaSystemStateInnerV1, StakeSubsidyV1, StorageFundV1, SystemParametersV1,
+                    ValidatorSetV1,
+                },
+                IotaSystemState,
+            },
+        };
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1295,15 +1312,21 @@ mod tests {
         #[tokio::test]
         async fn test_success_response_for_gas_coin() {
             let coin_type = "0x2::iota::IOTA";
-            let mock_internal = MockCoinReadInternal::new();
-            let coin_read_api = CoinReadApi {
-                internal: Box::new(mock_internal),
-            };
+
+            let mut mock_state = MockStateRead::new();
+            mock_state.expect_get_system_state().returning(move || {
+                let mut state = default_system_state();
+                state.iota_treasury_cap.inner.total_supply.value = 42;
+
+                Ok(IotaSystemState::V1(state))
+            });
+
+            let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
 
             let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
 
             let supply = response.unwrap();
-            assert_eq!(supply.value, TOTAL_SUPPLY_NANOS);
+            assert_eq!(supply.value, 42);
         }
 
         #[tokio::test]
@@ -1405,6 +1428,70 @@ mod tests {
                 "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
             ];
             expected.assert_eq(error_object.message());
+        }
+
+        fn default_system_state() -> IotaSystemStateInnerV1 {
+            IotaSystemStateInnerV1 {
+                epoch: Default::default(),
+                protocol_version: Default::default(),
+                system_state_version: Default::default(),
+                iota_treasury_cap: IotaTreasuryCap {
+                    inner: TreasuryCap {
+                        id: UID::new(ObjectID::random()),
+                        total_supply: Supply {
+                            value: Default::default(),
+                        },
+                    },
+                },
+                validators: ValidatorSetV1 {
+                    total_stake: Default::default(),
+                    active_validators: Default::default(),
+                    pending_active_validators: Default::default(),
+                    pending_removals: Default::default(),
+                    staking_pool_mappings: Default::default(),
+                    inactive_validators: Default::default(),
+                    validator_candidates: Default::default(),
+                    at_risk_validators: VecMap {
+                        contents: Default::default(),
+                    },
+                    extra_fields: Default::default(),
+                },
+                storage_fund: StorageFundV1 {
+                    total_object_storage_rebates: iota_types::balance::Balance::new(
+                        Default::default(),
+                    ),
+                    non_refundable_balance: iota_types::balance::Balance::new(Default::default()),
+                },
+                parameters: SystemParametersV1 {
+                    epoch_duration_ms: Default::default(),
+                    stake_subsidy_start_epoch: Default::default(),
+                    max_validator_count: Default::default(),
+                    min_validator_joining_stake: Default::default(),
+                    validator_low_stake_threshold: Default::default(),
+                    validator_very_low_stake_threshold: Default::default(),
+                    validator_low_stake_grace_period: Default::default(),
+                    extra_fields: Default::default(),
+                },
+                reference_gas_price: Default::default(),
+                validator_report_records: VecMap {
+                    contents: Default::default(),
+                },
+                stake_subsidy: StakeSubsidyV1 {
+                    balance: iota_types::balance::Balance::new(Default::default()),
+                    distribution_counter: Default::default(),
+                    current_distribution_amount: Default::default(),
+                    stake_subsidy_period_length: Default::default(),
+                    stake_subsidy_decrease_rate: Default::default(),
+                    extra_fields: Default::default(),
+                },
+                safe_mode: Default::default(),
+                safe_mode_storage_rewards: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_computation_rewards: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_storage_rebates: Default::default(),
+                safe_mode_non_refundable_storage_fee: Default::default(),
+                epoch_start_timestamp_ms: Default::default(),
+                extra_fields: Default::default(),
+            }
         }
     }
 }
