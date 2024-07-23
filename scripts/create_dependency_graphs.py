@@ -7,8 +7,7 @@
 import re, pathlib, os, subprocess
 from bs4 import BeautifulSoup
 
-OUTPUT_FOLDER = "dependency_graphs"
-
+# calculates the depth of the crate in the graph
 def calculate_graph_depth(line):
     markers = ['│   ', '├── ', '└── ', '    ']
     depth = 0
@@ -24,11 +23,11 @@ def get_internal_crate_name(base_path, line):
         crate_name = re.sub(r' v[0-9]+\.[0-9]+\.[0-9]+.*', '', package_info).strip()
     return crate_name
 
-def parse_cargo_tree(file_path, base_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
+# parse the cargo tree from a file into a map of dependencies
+def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
     dependencies = {}
+
+    lines = cargo_tree_output.split('\n')
 
     # get all internal crates first
     for line in lines:
@@ -44,12 +43,31 @@ def parse_cargo_tree(file_path, base_path):
     
     # loop again to determine the dependencies
     stack = []
+    skip_depth = None
     for line in lines:
+        depth = calculate_graph_depth(line)
+
+        if skip_dev_dependencies and '[dev-dependencies]' in line:
+            if (skip_depth != None) and (depth > skip_depth):
+                # we found a nested dev-dependency, don't overwrite where we are coming from!
+                continue
+
+            # we found dev-dependencies which we don't want to track
+            skip_depth = depth
+            continue
+
+        elif (skip_depth != None) and (depth <= skip_depth):
+            # we left the dev-dependencies branch
+            skip_depth = None
+
+        if skip_depth != None:
+            # we are still in the dev-dependencies branch
+            continue
+
         crate_name = get_internal_crate_name(base_path, line)
         if crate_name == None:
             continue
 
-        depth = calculate_graph_depth(line)
         if depth == 0:
             stack = [crate_name]
         else:
@@ -63,8 +81,8 @@ def parse_cargo_tree(file_path, base_path):
     return dependencies
 
 # create one file to rule them all
-def generate_dot_all(dependencies):
-    with open('%s/all.dot' % (OUTPUT_FOLDER), 'w') as file:
+def generate_dot_all(output_folder, dependencies):
+    with open('%s/all.dot' % (output_folder), 'w') as file:
         file.write("digraph dependencies {\n")
         for parent, children in dependencies.items():
             for child in children:
@@ -72,16 +90,38 @@ def generate_dot_all(dependencies):
         file.write("}\n")
 
 # but there are too many of them, so let's go into detail
-def generate_dot_per_crate(dependencies):
+def generate_dot_per_crate(output_folder, dependencies):
+    # Create a reverse dependency map
+    reverse_dependencies = {}
+    for parent, children in dependencies.items():
+        for child in children:
+            if child not in reverse_dependencies:
+                reverse_dependencies[child] = []
+            reverse_dependencies[child].append(parent)
+    
     # root level
     for parent, children in dependencies.items():
         if len(children) == 0:
             continue
         
-        with open('%s/%s.dot' % (OUTPUT_FOLDER, parent), 'w') as file:
+        with open(f'{output_folder}/{parent}.dot', 'w') as file:
             file.write("digraph dependencies {\n")
+            
+            # Set the text color of the current crate to green
+            file.write(f'    "{parent}" [fontcolor=green];\n')
+            
+            # Add direct dependencies
             for child in children:
+                color = 'red' if len(dependencies[child]) == 0 else 'black'
+                file.write(f'    "{child}" [fontcolor={color}];\n')
                 file.write(f'    "{parent}" -> "{child}";\n')
+            
+            # Add reverse dependencies
+            if parent in reverse_dependencies:
+                for reverse_parent in reverse_dependencies[parent]:
+                    file.write(f'    "{reverse_parent}" [fontcolor=blue];\n')
+                    file.write(f'    "{reverse_parent}" -> "{parent}";\n')
+            
             file.write("}\n")
 
 # the dot command line tool didn't convert URL or href to hyperlinks, so we have to do it ourselves
@@ -105,11 +145,7 @@ def add_hyperlinks_to_svg(svg_file, dependencies):
             for element in node.find_all():
                 link.append(element.extract())
             node.append(link)
-        else:
-            # Set the title color to red
-            for text_element in node.find_all('text'):
-                text_element['style'] = 'fill:red'
-
+    
     with open(svg_file, 'w') as file:
         file.write(str(soup))
 
@@ -120,39 +156,46 @@ def create_index_html(folder):
         file.write("<html><body>\n")
         file.write("<h1>IOTA-Rebased Dependency Graphs</h1>\n")
         file.write("<ul>\n")
-        for svg_file in pathlib.Path(folder).glob('*.svg'):
+        svg_files = sorted(pathlib.Path(folder).glob('*.svg'), key=lambda f: f.name)
+        for svg_file in svg_files:
             file.write(f'<li><a href="{svg_file.name}">{svg_file.stem}</a></li>\n')
         file.write("</ul>\n")
         file.write("</body></html>\n")
 
-if __name__ == '__main__':
-    # Create the output folder if it doesn't exist
-    pathlib.Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
-
-    # Run the cargo tree command and save the output to a file
-    tree_file_path = f"{OUTPUT_FOLDER}/tree.txt"
-    with open(tree_file_path, 'w') as tree_file:
-        result = subprocess.run(['cargo', 'tree'], stdout=tree_file)
-        if result.returncode:
-            raise "cargo tree process exited with return code %d" % (result.returncode)
-    
-    # Parse the cargo tree and generate the DOT file
-    dependencies = parse_cargo_tree('%s/tree.txt' % (OUTPUT_FOLDER), pathlib.Path("../").absolute().resolve())
-    
-    generate_dot_all(dependencies)
-    generate_dot_per_crate(dependencies)
-
-    # Convert DOT files to SVG
-    for dot_file in pathlib.Path(OUTPUT_FOLDER).glob('*.dot'):
-        svg_file = dot_file.with_suffix('.svg')
-        result = subprocess.run(['dot', '-Tsvg', str(dot_file), '-o', str(svg_file)])
+# converts the dot files to another format and deletes the source files
+def convert_dot_files(output_folder, file_type):
+    for dot_file in pathlib.Path(output_folder).glob('*.dot'):
+        result_file = dot_file.with_suffix('.%s' % (file_type))
+        result = subprocess.run(['dot', '-T%s' % (file_type), str(dot_file), '-o', str(result_file)])
         if result.returncode:
             raise "dot process exited with return code %d" % (result.returncode)
         os.remove(dot_file)
 
+################################################################################
+if __name__ == '__main__':  
+    output_folder = "dependency_graphs"
+    skip_dev_dependencies = True            # whether or not to include the `dev-dependencies`
+
+    # Create the output folder if it doesn't exist
+    pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
+
+    # Run the cargo tree command and store the output in a string variable
+    result = subprocess.run(['cargo', 'tree'], stdout=subprocess.PIPE, text=True)
+    if result.returncode:
+        raise Exception("cargo tree process exited with return code %d" % result.returncode)
+    
+    # Parse the cargo tree and generate the DOT file
+    dependencies = parse_cargo_tree(result.stdout, pathlib.Path("../").absolute().resolve(), skip_dev_dependencies)
+    
+    generate_dot_all(output_folder, dependencies)
+    generate_dot_per_crate(output_folder, dependencies)
+
+    # Convert DOT files to SVG
+    convert_dot_files(output_folder, "svg")
+
     # Add hyperlinks to all SVG files for easier navigation
-    for svg_file in pathlib.Path(OUTPUT_FOLDER).glob('*.svg'):
+    for svg_file in pathlib.Path(output_folder).glob('*.svg'):
         add_hyperlinks_to_svg(svg_file, dependencies)
 
     # Create index.html for better overview
-    create_index_html(OUTPUT_FOLDER)
+    create_index_html(output_folder)
