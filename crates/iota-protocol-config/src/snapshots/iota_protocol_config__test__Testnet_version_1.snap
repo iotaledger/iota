@@ -121,10 +121,11 @@ obj_access_cost_verify_per_byte: 200
 gas_model_version: 8
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
-storage_rebate_rate: 9900
-storage_fund_reinvest_rate: 500
+storage_rebate_rate: 10000
+storage_fund_reinvest_rate: 0
 reward_slashing_rate: 10000
 storage_gas_price: 76
+validator_target_reward: 767000000000000
 max_transactions_per_checkpoint: 10000
 max_checkpoint_size_bytes: 31457280
 buffer_stake_for_protocol_upgrade_bps: 5000
