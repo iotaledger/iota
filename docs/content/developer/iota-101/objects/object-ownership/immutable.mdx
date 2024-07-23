@@ -2,7 +2,7 @@
 title: Immutable Objects
 ---
 
-Objects in Iota can have different types of ownership, with two broad categories: immutable objects and mutable objects. An immutable object is an object that can't be mutated, transferred, or deleted. Immutable objects have no owner, so anyone can use them.
+Objects in IOTA can have different types of ownership, with two broad categories: immutable objects and mutable objects. An immutable object is an object that can't be mutated, transferred, or deleted. Immutable objects have no owner, so anyone can use them.
 
 ## Create immutable object
 
@@ -43,8 +43,8 @@ This function creates a new `ColorObject` and immediately makes it immutable bef
 
 ## Use immutable object
 
-After an object becomes immutable, the rules of who can use this object in Iota Move calls change:
-You can only pass an immutable object as a read-only, immutable reference to Iota Move entry functions as `&T`.
+After an object becomes immutable, the rules of who can use this object in IOTA Move calls change:
+You can only pass an immutable object as a read-only, immutable reference to IOTA Move entry functions as `&T`.
 
 Anyone can use immutable objects.
 
@@ -123,7 +123,7 @@ export ADDR=`iota client active-address`
 iota client objects $ADDR
 ```
 
-Publish the `ColorObject` code on-chain using the Iota Client CLI:
+Publish the `ColorObject` code on-chain using the IOTA Client CLI:
 
 ```shell
 iota client publish $ROOT/examples/move/color_object --gas-budget <GAS-AMOUNT>

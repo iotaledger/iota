@@ -7852,6 +7852,7 @@
           "epochStartTimestampMs",
           "inactivePoolsId",
           "inactivePoolsSize",
+          "iotaTotalSupply",
           "maxValidatorCount",
           "minValidatorJoiningStake",
           "pendingActiveValidatorsId",
@@ -7942,6 +7943,14 @@
           },
           "inactivePoolsSize": {
             "description": "Number of inactive staking pools.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "iotaTotalSupply": {
+            "description": "The current IOTA supply.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"

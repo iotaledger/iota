@@ -22,7 +22,7 @@ use iota_sdk::types::block::{
     output::{BasicOutputBuilder, Output, OutputId},
 };
 use iota_types::{
-    gas_coin::TOTAL_SUPPLY_IOTA,
+    gas_coin::STARDUST_TOTAL_SUPPLY_IOTA,
     timelock::timelock::{self},
 };
 use packable::{
@@ -165,7 +165,7 @@ fn add_only_test_outputs<R: Read>(
 
     // Add all the remainder tokens to the zero address
     let zero_address = Ed25519Address::new([0; 32]);
-    let remainder = to_micros(TOTAL_SUPPLY_IOTA)
+    let remainder = to_micros(STARDUST_TOTAL_SUPPLY_IOTA)
         .checked_sub(new_temp_amount + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>())
         .ok_or_else(|| anyhow!("new amount should not be higher than total supply"))?;
     let remainder_per_output = remainder / 4;

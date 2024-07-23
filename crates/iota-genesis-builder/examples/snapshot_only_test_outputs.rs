@@ -14,7 +14,7 @@ use iota_genesis_builder::{
     IF_STARDUST_ADDRESS,
 };
 use iota_sdk::types::block::address::Address;
-use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
+use iota_types::gas_coin::STARDUST_TOTAL_SUPPLY_IOTA;
 
 const WITH_SAMPLING: bool = false;
 
@@ -29,7 +29,7 @@ fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<
     })?;
 
     // Total supply is in IOTA, snapshot supply is Micros
-    assert_eq!(total_supply, to_micros(TOTAL_SUPPLY_IOTA));
+    assert_eq!(total_supply, to_micros(STARDUST_TOTAL_SUPPLY_IOTA));
 
     println!("Total supply: {total_supply}");
 

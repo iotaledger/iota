@@ -1,7 +1,7 @@
-# Paying for Iota Transactions with Gas Coins
+# Paying for IOTA Transactions with Gas Coins
 
 With Programmable Transaction blocks, you can use the gas payment coin to construct coins with a set
-balance using `splitCoin`. This is useful for Iota payments, and avoids the need for up-front coin
+balance using `splitCoin`. This is useful for IOTA payments, and avoids the need for up-front coin
 selection. You can use `txb.gas` to access the gas coin in a transaction block, and it is valid as
 input for any arguments, as long as it is used
 [by-reference](https://docs.iota.io/guides/developer/iota-101/simulating-refs). Practically speaking,
@@ -33,7 +33,7 @@ beforehand. The dry run gas consumption is then used to determine a balance for 
 can override this behavior by explicitly setting a gas budget for the transaction, by calling
 `setGasBudget` on the transaction builder.
 
-**Note:** The gas budget is represented in Iota, and should take the gas price of the transaction
+**Note:** The gas budget is represented in IOTA, and should take the gas price of the transaction
 block into account.
 
 ```tsx
