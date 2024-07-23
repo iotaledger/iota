@@ -628,7 +628,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
-            iota_treasury_cap: _,
+            iota_treasury_cap,
             validators:
                 ValidatorSetV1 {
                     total_stake,
@@ -701,6 +701,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_total_supply: iota_treasury_cap.total_supply().value,
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),
