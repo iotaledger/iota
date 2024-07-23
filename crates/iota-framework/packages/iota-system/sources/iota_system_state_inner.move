@@ -139,7 +139,7 @@ module iota_system::iota_system_state_inner {
         /// when advance_epoch_safe_mode is executed. They will eventually be processed once we
         /// are out of safe mode.
         safe_mode: bool,
-        safe_mode_storage_rewards: Balance<IOTA>,
+        safe_mode_storage_charges: Balance<IOTA>,
         safe_mode_computation_rewards: Balance<IOTA>,
         safe_mode_storage_rebates: u64,
         safe_mode_non_refundable_storage_fee: u64,
@@ -189,7 +189,7 @@ module iota_system::iota_system_state_inner {
         /// when advance_epoch_safe_mode is executed. They will eventually be processed once we
         /// are out of safe mode.
         safe_mode: bool,
-        safe_mode_storage_rewards: Balance<IOTA>,
+        safe_mode_storage_charges: Balance<IOTA>,
         safe_mode_computation_rewards: Balance<IOTA>,
         safe_mode_storage_rebates: u64,
         safe_mode_non_refundable_storage_fee: u64,
@@ -262,7 +262,7 @@ module iota_system::iota_system_state_inner {
             validator_report_records: vec_map::empty(),
             stake_subsidy,
             safe_mode: false,
-            safe_mode_storage_rewards: balance::zero(),
+            safe_mode_storage_charges: balance::zero(),
             safe_mode_computation_rewards: balance::zero(),
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
@@ -309,7 +309,7 @@ module iota_system::iota_system_state_inner {
             validator_report_records,
             stake_subsidy,
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
@@ -348,7 +348,7 @@ module iota_system::iota_system_state_inner {
             validator_report_records,
             stake_subsidy,
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
@@ -820,7 +820,7 @@ module iota_system::iota_system_state_inner {
 
     /// This function should be called at the end of an epoch, and advances the system to the next epoch.
     /// It does the following things:
-    /// 1. Add storage reward to the storage fund.
+    /// 1. Add storage charge to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
     /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
@@ -833,7 +833,7 @@ module iota_system::iota_system_state_inner {
         new_epoch: u64,
         next_protocol_version: u64,
         validator_target_reward: u64,
-        mut storage_reward: Balance<IOTA>,
+        mut storage_charge: Balance<IOTA>,
         mut computation_reward: Balance<IOTA>,
         mut storage_rebate_amount: u64,
         mut non_refundable_storage_fee_amount: u64,
@@ -849,8 +849,8 @@ module iota_system::iota_system_state_inner {
         assert!(reward_slashing_rate <= bps_denominator_u64, EBpsTooLarge);
 
         // Accumulate the gas summary during safe_mode before processing any rewards:
-        let safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
-        storage_reward.join(safe_mode_storage_rewards);
+        let safe_mode_storage_charges = self.safe_mode_storage_charges.withdraw_all();
+        storage_charge.join(safe_mode_storage_charges);
         let safe_mode_computation_rewards = self.safe_mode_computation_rewards.withdraw_all();
         computation_reward.join(safe_mode_computation_rewards);
         storage_rebate_amount = storage_rebate_amount + self.safe_mode_storage_rebates;
@@ -858,7 +858,7 @@ module iota_system::iota_system_state_inner {
         non_refundable_storage_fee_amount = non_refundable_storage_fee_amount + self.safe_mode_non_refundable_storage_fee;
         self.safe_mode_non_refundable_storage_fee = 0;
 
-        let storage_charge = storage_reward.value();
+        let storage_charge_value = storage_charge.value();
         let computation_charge = computation_reward.value();
 
         // Include stake subsidy in the rewards given out to validators and stakers.
@@ -920,7 +920,7 @@ module iota_system::iota_system_state_inner {
 
         let refunded_storage_rebate =
             self.storage_fund.advance_epoch(
-                storage_reward,
+                storage_charge,
                 storage_rebate_amount,
                 non_refundable_storage_fee_amount,
             );
@@ -931,7 +931,7 @@ module iota_system::iota_system_state_inner {
                 protocol_version: self.protocol_version,
                 reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
-                storage_charge,
+                storage_charge: storage_charge_value,
                 // TODO: remove(obsolete)
                 storage_fund_reinvestment: 0,
                 storage_rebate: storage_rebate_amount,
@@ -948,7 +948,7 @@ module iota_system::iota_system_state_inner {
         self.safe_mode = false;
         // Double check that the gas from safe mode has been processed.
         assert!(self.safe_mode_storage_rebates == 0
-            && self.safe_mode_storage_rewards.value() == 0
+            && self.safe_mode_storage_charges.value() == 0
             && self.safe_mode_computation_rewards.value() == 0, ESafeModeGasNotProcessed);
 
         // Return the storage rebate split from storage fund that's already refunded to the transaction senders.

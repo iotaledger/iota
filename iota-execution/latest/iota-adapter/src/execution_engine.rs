@@ -680,13 +680,13 @@ mod checked {
         builder: &mut ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> (Argument, Argument) {
-        // Create storage rewards.
+        // Create storage charges.
         let storage_charge_arg = builder
             .input(CallArg::Pure(
                 bcs::to_bytes(&params.storage_charge).unwrap(),
             ))
             .unwrap();
-        let storage_rewards = builder.programmable_move_call(
+        let storage_charges = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
@@ -707,22 +707,22 @@ mod checked {
             vec![GAS::type_tag()],
             vec![computation_charge_arg],
         );
-        (storage_rewards, computation_rewards)
+        (storage_charges, computation_rewards)
     }
 
     pub fn construct_advance_epoch_pt(
         mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
-        // Step 1: Create storage and computation rewards.
-        let (storage_rewards, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
+        // Step 1: Create storage charges and computation rewards.
+        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
 
         // Step 2: Advance the epoch.
         let mut arguments = vec![
             builder
                 .pure(params.validator_target_reward)
                 .expect("bcs encoding a u64 should not fail"),
-            storage_rewards,
+            storage_charges,
             computation_rewards,
         ];
         let call_arg_arguments = vec![
@@ -771,11 +771,11 @@ mod checked {
         protocol_config: &ProtocolConfig,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
-        // Step 1: Create storage and computation rewards.
-        let (storage_rewards, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
+        // Step 1: Create storage charges and computation rewards.
+        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
 
         // Step 2: Advance the epoch.
-        let mut arguments = vec![storage_rewards, computation_rewards];
+        let mut arguments = vec![storage_charges, computation_rewards];
 
         let mut args = vec![
             CallArg::IOTA_SYSTEM_MUT,

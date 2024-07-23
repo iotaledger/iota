@@ -7863,8 +7863,8 @@
           "safeMode",
           "safeModeComputationRewards",
           "safeModeNonRefundableStorageFee",
+          "safeModeStorageCharges",
           "safeModeStorageRebates",
-          "safeModeStorageRewards",
           "stakeSubsidyBalance",
           "stakeSubsidyCurrentDistributionAmount",
           "stakeSubsidyDecreaseRate",
@@ -8032,16 +8032,16 @@
               }
             ]
           },
-          "safeModeStorageRebates": {
-            "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
+          "safeModeStorageCharges": {
+            "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               }
             ]
           },
-          "safeModeStorageRewards": {
-            "description": "Amount of storage rewards accumulated (and not yet distributed) during safe mode.",
+          "safeModeStorageRebates": {
+            "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
