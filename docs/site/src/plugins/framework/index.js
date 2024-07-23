@@ -59,7 +59,7 @@ const frameworkPlugin = (context, options) => {
           const fp = path.join(dirPath, file.name);
           if (file.isDirectory()) {
             recurseFiles(fp, files);
-          } else if (file.isFile() && path.extname(file.name) === ".md") {
+          } else if (file.isFile() && path.extname(file.name) === ".mdx") {
             files.push(fp);
           }
         });
@@ -82,7 +82,7 @@ const frameworkPlugin = (context, options) => {
       allFiles.forEach((theseFiles) => {
         theseFiles.forEach((file) => {
           const markdown = fs.readFileSync(file, "utf8");
-          // .md extension in links messes up routing.
+          // .mdx extension in links messes up routing.
           // Removing here so linking still works in github crates/docs.
           // Remove the backticks from title.
           // Remove code blocks without pre's. Render automatically adds
@@ -91,7 +91,7 @@ const frameworkPlugin = (context, options) => {
           const filename = file.replace(/.*\/docs\/(.*)$/, `$1`);
           const parts = filename.split("/");
           const reMarkdown = markdown
-            .replace(/<a\s+(.*?)\.md(.*?)>/g, `<a $1$2>`)
+            .replace(/<a\s+(.*?)\.mdx(.*?)>/g, `<a $1$2>`)
             .replace(
               /(title: .*)Module `(0x[0-9a-f]{1,4}::)(.*)`/g,
               `$1 Module $2$3\nsidebar_label: $3\n`,
@@ -103,7 +103,7 @@ const frameworkPlugin = (context, options) => {
 
           // Should work for nested docs, but is currently flat tree.
           parts.forEach((part) => {
-            if (!part.match(/\.md$/)) {
+            if (!part.match(/\.mdx$/)) {
               // Capitalize lib name for nav.
               let styledPart = part
                 .split("-")

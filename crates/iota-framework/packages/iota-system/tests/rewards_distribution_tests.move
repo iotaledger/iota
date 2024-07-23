@@ -690,7 +690,7 @@ module iota_system::rewards_distribution_tests {
         let scenario = &mut scenario_val;
 
         // The leftover comes from the unequal distribution of rewards to validators.
-        // As example 1_000_000_000_1 cannot be splitted into equal parts, so it cause leftover.
+        // As example 1_000_000_000_1 cannot be split into equal parts, so it cause leftover.
         let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(1_000_000_000_1, 1_000_000_000_000, 1_000_000_000_1, 0, 0, scenario);
         destroy(storage_rebate);
 
