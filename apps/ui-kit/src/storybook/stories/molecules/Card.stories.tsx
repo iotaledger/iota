@@ -12,13 +12,11 @@ import {
     CardBody,
     CardBodyProps,
     CardActionProps,
-} from '@/components/molecules/card';
-import {
     CardActionType,
     CardType,
     ImageType,
     ImageShape,
-} from '@/components/molecules/card/card.enums';
+} from '@/components/molecules/card';
 
 type CardCustomProps = CardProps & {
     imageType: CardImageProps['type'];

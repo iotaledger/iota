@@ -5,3 +5,4 @@ export * from './Card';
 export * from './CardAction';
 export * from './CardImage';
 export * from './CardBody';
+export * from './card.enums';
