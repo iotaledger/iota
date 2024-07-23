@@ -29,9 +29,9 @@ crate. This document will give a high to mid-level overview of the migration pro
 
 Foundry Outputs in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
 are established ways for these operations, in particular using
-[`Coin`](../../references/framework/iota-framework/coin.md#resource-coin) and
-[`TreasuryCap`](../../references/framework/iota-framework/coin.md#resource-treasurycap). The two main goals of the
-foundry migration are to convert it to a [`CoinManager`](../../references/framework/iota-framework/coin_manager.md),
+[`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin) and
+[`TreasuryCap`](../../references/framework/iota-framework/coin.mdx#resource-treasurycap). The two main goals of the
+foundry migration are to convert it to a [`CoinManager`](../../references/framework/iota-framework/coin_manager.mdx),
 a type introduced in the Move IOTA framework in order to simplify working with the `TreasuryCap`, and to a `Coin<IOTA>`
 to hold the IOTA tokens of the foundry itself.
 
@@ -67,7 +67,7 @@ the minted coin, it is left at the zero address. This means they were burned in 
 also burned on the Move ledger, as no one controls the `0x0` address.
 
 In Move, the `TreasuryCap` type uses a `u64` representation (within
-[`Balance`](../../references/framework/iota-framework/balance.md#struct-balance)) as its maximum supply. Since
+[`Balance`](../../references/framework/iota-framework/balance.mdx#struct-balance)) as its maximum supply. Since
 Stardust allows for `u256` to be used, in some rare cases, the maximum or circulating supply may exceed the maximum
 value representable by `u64` (`MAX_U64_SUPPLY`, which here refers to `2^64 - 2` for technical reasons). If the maximum
 supply exceeds it, it is truncated to `MAX_U64_SUPPLY`, which is fine since no more than `MAX_U64_SUPPLY` tokens were
@@ -99,7 +99,7 @@ the `owner` of `B` to the address of `A` (the Alias ID), which is equivalent to 
 the same as if `B` would have been transferred (using either of `iota::transfer::{transfer,public_transfer}`) to the
 address of `A` (the Alias ID). The migrated alias `A` can then _receive_ `B` using the
 `stardust::address_unlock_condition::unlock_alias_address_owned_basic` function, which is essentially a wrapper around
-[`iota::transfer::receive`](../../references/framework/iota-framework/transfer#function-receive). There are
+[`iota::transfer::receive`](../../references/framework/iota-framework/transfer.mdx#function-receive). There are
 equivalent unlock functions for the other possible variants of object ownership.
 
 ## Basic Outputs

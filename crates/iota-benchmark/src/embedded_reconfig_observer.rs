@@ -55,8 +55,7 @@ impl EmbeddedReconfigObserver {
                 if new_epoch <= cur_epoch {
                     trace!(
                         cur_epoch,
-                        new_epoch,
-                        "Ignored Committee from a previous or current epoch",
+                        new_epoch, "Ignored Committee from a previous or current epoch",
                     );
                     return Ok(auth_agg);
                 }

@@ -17,7 +17,6 @@ use iota_types::{
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
-    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::get_iota_system_state,
     message_envelope::Message,
     storage::{
@@ -1757,7 +1756,7 @@ impl AuthorityStore {
             .set(imbalance);
         self.metrics
             .iota_conservation_imbalance
-            .set((total_iota as i128 - TOTAL_SUPPLY_NANOS as i128) as i64);
+            .set((total_iota as i128 - system_state.iota_total_supply as i128) as i64);
 
         if let Some(expected_imbalance) = self
             .perpetual_tables
@@ -1781,28 +1780,35 @@ impl AuthorityStore {
                 .expect("DB write cannot fail");
         }
 
-        if let Some(expected_iota) = self
-            .perpetual_tables
-            .expected_network_iota_amount
-            .get(&())
-            .expect("DB read cannot fail")
-        {
-            fp_ensure!(
-                total_iota == expected_iota,
-                IotaError::from(
-                    format!(
-                        "Inconsistent state detected at epoch {}: total iota: {}, expecting {}",
-                        system_state.epoch, total_iota, expected_iota
-                    )
-                    .as_str()
-                )
-            );
-        } else {
-            self.perpetual_tables
-                .expected_network_iota_amount
-                .insert(&(), &total_iota)
-                .expect("DB write cannot fail");
-        }
+        // TODO: Temporarily disabled since the inflation/deflation tokenomics changes
+        // violate this invariant. We need a deeper investigation whether we
+        // want to keep this check in some form or another. For instance, we
+        // could consider checking that the supply changes by at most X tokens
+        // per epoch (where X = validator_target_reward), but it's unclear whether that
+        // would really have any benefit.
+
+        // if let Some(expected_iota) = self
+        // .perpetual_tables
+        // .expected_network_iota_amount
+        // .get(&())
+        // .expect("DB read cannot fail")
+        // {
+        // fp_ensure!(
+        // total_iota == expected_iota,
+        // IotaError::from(
+        // format!(
+        // "Inconsistent state detected at epoch {}: total iota: {}, expecting {}",
+        // system_state.epoch, total_iota, expected_iota
+        // )
+        // .as_str()
+        // )
+        // );
+        // } else {
+        // self.perpetual_tables
+        // .expected_network_iota_amount
+        // .insert(&(), &total_iota)
+        // .expect("DB write cannot fail");
+        // }
 
         Ok(())
     }

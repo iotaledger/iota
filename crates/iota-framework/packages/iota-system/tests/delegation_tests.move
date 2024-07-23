@@ -232,7 +232,7 @@ module iota_system::stake_tests {
         );
 
         if (should_distribute_rewards) {
-            // Each validator pool gets 30 MICROS and each validator gets an additional 10 MICROS.
+            // Each validator pool gets 40 IOTA.
             advance_epoch_with_reward_amounts(0, 80, scenario);
         } else {
             advance_epoch(scenario);
@@ -242,8 +242,7 @@ module iota_system::stake_tests {
 
         advance_epoch(scenario);
 
-        let reward_amt = if (should_distribute_rewards) 15 * MICROS_PER_IOTA else 0;
-        let validator_reward_amt = if (should_distribute_rewards) 10 * MICROS_PER_IOTA else 0;
+        let reward_amt = if (should_distribute_rewards) 20 * MICROS_PER_IOTA else 0;
 
         // Make sure stake withdrawal happens
         scenario.next_tx(STAKER_ADDR_1);
@@ -270,10 +269,9 @@ module iota_system::stake_tests {
         // Validator unstakes now.
         assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 0);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
-        if (should_distribute_rewards) unstake(VALIDATOR_ADDR_1, 0, scenario);
 
         // Make sure have all of their stake. NB there is no epoch change. This is immediate.
-        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt + validator_reward_amt);
+        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt);
 
         scenario_val.end();
     }
@@ -294,10 +292,8 @@ module iota_system::stake_tests {
         // this epoch, they should get the rewards from this epoch.
         advance_epoch_with_reward_amounts(0, 80, scenario);
 
-        // Each validator pool gets 30 MICROS and validators shares the 20 MICROS from the storage fund
-        // so validator gets another 10 MICROS.
-        let reward_amt = 15 * MICROS_PER_IOTA;
-        let validator_reward_amt = 10 * MICROS_PER_IOTA;
+        // Each validator pool gets 40 IOTA.
+        let reward_amt = 20 * MICROS_PER_IOTA;
 
         // Make sure stake withdrawal happens
         scenario.next_tx(STAKER_ADDR_1);
@@ -322,10 +318,9 @@ module iota_system::stake_tests {
         // Validator unstakes now.
         assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 0);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
-        unstake(VALIDATOR_ADDR_1, 0, scenario);
 
         // Make sure have all of their stake. NB there is no epoch change. This is immediate.
-        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt + validator_reward_amt);
+        assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * MICROS_PER_IOTA + reward_amt);
 
         scenario_val.end();
     }
@@ -407,14 +402,19 @@ module iota_system::stake_tests {
         set_up_iota_system_state_with_storage_fund();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
+        // At this point we got the following distribution of stake:
+        // V1: 100, V2: 100, storage fund: 100
 
         add_validator_candidate(NEW_VALIDATOR_ADDR, b"name3", b"/ip4/127.0.0.1/udp/83", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
 
         // Delegate 100 IOTA to the preactive validator
         stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
+        // At this point we got the following distribution of stake:
+        // V1: 100, V2: 100, V3: 100, storage fund: 100
+    
         advance_epoch_with_reward_amounts(0, 300, scenario);
         // At this point we got the following distribution of stake:
-        // V1: 250, V2: 250, storage fund: 100
+        // V1: 250, V2: 250, V3: 100, storage fund: 100
 
         stake_with(STAKER_ADDR_2, NEW_VALIDATOR_ADDR, 50, scenario);
         stake_with(STAKER_ADDR_3, NEW_VALIDATOR_ADDR, 100, scenario);
@@ -422,26 +422,28 @@ module iota_system::stake_tests {
         // Now the preactive becomes active
         add_validator(NEW_VALIDATOR_ADDR, scenario);
         advance_epoch(scenario);
-
         // At this point we got the following distribution of stake:
         // V1: 250, V2: 250, V3: 250, storage fund: 100
 
         advance_epoch_with_reward_amounts(0, 85, scenario);
+        // At this point we got the following distribution of stake:
+        // V1: 278_330_500_000, V2: 278_330_500_000, V3: 278_339_000_000, storage fund: 100
 
-        // staker 1 and 3 unstake from the validator and earns about 2/5 * (85 - 10) * 1/3 = 10 IOTA each.
+        // staker 1 and 3 unstake from the validator and earns about 2/5 * 85 * 1/3 = 11.33 IOTA each.
         // Although they stake in different epochs, they earn the same rewards as long as they unstake
         // in the same epoch because the validator was preactive when they staked.
-        // So they will both get slightly more than 110 IOTA in total balance.
+        // So they will both get slightly more than 111 IOTA in total balance.
         unstake(STAKER_ADDR_1, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 110002000000);
+        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 111_335_600_000);
         unstake(STAKER_ADDR_3, 0, scenario);
-        assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 110002000000);
+        assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 111_335_600_000);
 
         advance_epoch_with_reward_amounts(0, 85, scenario);
         unstake(STAKER_ADDR_2, 0, scenario);
-        // staker 2 earns about 5 IOTA from the previous epoch and 24-ish from this one
-        // so in total she has about 50 + 5 + 24 = 79 IOTA.
-        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 78862939078);
+        // staker 2 earns about 1/5 * 85 * 1/3 = 5.66 IOTA from the previous epoch
+        // and 85 * 1/3 = 28.33 from this one
+        // so in total she has about 50 + 5.66 + 28.33 = 83.99 IOTA.
+        assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 84_006_800_000);
 
         scenario_val.end();
     }
