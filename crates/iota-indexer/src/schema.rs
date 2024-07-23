@@ -52,8 +52,10 @@ diesel::table! {
         stake_subsidy_amount -> Nullable<Int8>,
         total_gas_fees -> Nullable<Int8>,
         total_stake_rewards_distributed -> Nullable<Int8>,
-        leftover_storage_fund_inflow -> Nullable<Int8>,
+        burnt_leftover_amount -> Nullable<Int8>,
         epoch_commitments -> Nullable<Bytea>,
+        burnt_tokens_amount -> Nullable<Int8>,
+        minted_tokens_amount -> Nullable<Int8>,
     }
 }
 

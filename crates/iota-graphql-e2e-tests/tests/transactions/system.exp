@@ -1072,7 +1072,7 @@ Response: {
                               }
                             },
                             "safe_mode": false,
-                            "safe_mode_storage_rewards": {
+                            "safe_mode_storage_charges": {
                               "value": "0"
                             },
                             "safe_mode_computation_rewards": {
