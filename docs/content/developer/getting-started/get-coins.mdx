@@ -1,20 +1,20 @@
 ---
-description: Get test IOTA tokens using the IOTA CLI, SDK or cURL.
+description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
 tags: [test tokens, faucet, CLI, cURL, TypeScript SDK]
 ---
 
 # Get Test Tokens
 
-You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-iota/tokenomics/gas-in-iota.mdx) on the IOTA Devnet and Testnet networks. These test tokens have no real-world value. 
+You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-iota/tokenomics/gas-in-iota.mdx) on the IOTA Devnet and Testnet networks. These test tokens have no real-world value.
 
 ## Using the IOTA CLI
 
-You can use the [IOTA CLI client](../../references/cli/client.mdx) to request tokens for your [address](get-address.mdx), by using the `iota client faucet` command. By default, the command will use the active network and address, but you can specify any values for these using the following parameters:
+You can use the [IOTA CLI client](../../references/cli/client.mdx) to request tokens for your [address](get-address.mdx) by using the `iota client faucet` command. By default, the command will use the active network and address, but you can specify any values for these using the following parameters:
 
 - `--address` argument to provide a specific address (or its alias),
 - `--url` argument to provide a custom faucet endpoint.
 
-## Using cURL 
+## Using cURL
 
 You can use the following cURL command to request tokens directly from the faucet server:
 
@@ -34,7 +34,7 @@ If you're working with a local network, replace `'https://faucet.devnet.iota.io/
 
 - `iota-faucet`: `http://127.0.0.1:5003/gas`
 - `iota-test-validator`: `http://127.0.0.1:9123/gas`
- 
+
 You can also get tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
 
 :::

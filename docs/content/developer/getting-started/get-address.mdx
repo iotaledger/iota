@@ -6,16 +6,16 @@ tags: [ address, account, CLI, wallet]
 
 ## What's an Account?
 
-In IOTA, users are not identified by their email or any other personal information, but rather by an account and its
-associated [address](#whats-an-address). The account itself is generated from a private key, which in turn could be
-derived from a mnemonic. Accounts can own any type of [object](../iota-101/objects/object-model.mdx), and send
+In IOTA, users are not identified by email or personal information but by an account and its
+associated [address](#whats-an-address). The account is generated from a private key, which could be
+derived from a mnemonic. Accounts can own any type of [object](../iota-101/objects/object-model.mdx) and send
 transactions.
 
 ## What's an Address?
 
 An address is a way to uniquely and anonymously identify an [account](#whats-an-account)
-or [package](../iota-101/iota-move-concepts/packages/packages.mdx). In the same way that your email or ID number is
-unique, addresses have to be unique as they are the identifier your account uses to send and receive transactions. You
+or [package](../iota-101/iota-move-concepts/packages/packages.mdx). In the same way your email or ID number is
+unique, addresses have to be unique as they are your account's identifier to send and receive transactions. You
 can [create any number of addresses](#create-an-address), all of which will be unique.
 
 ### Address Structure
@@ -33,7 +33,7 @@ objects it owns.
 ### Reserved Addresses
 
 In IOTA, there are reserved addresses that identify standard packages and objects. Reserved
-addresses are typically simple values that are easy to remember and type. For example, the address of the Standard Library is `0x1`. Addresses, shorter than 32 bytes, are padded with zeros to the left.
+addresses are typically simple values that are easy to remember and type. For example, the address of the Standard Library is `0x1`. Addresses shorter than 32 bytes are padded with zeros to the left.
 
 ```move
 0x1 = 0x0000000000000000000000000000000000000000000000000000000000000001
@@ -54,7 +54,7 @@ Here are some examples of reserved addresses:
 
 ## Create an IOTA address
 
-IOTA provides multiple ways to obtain a IOTA address. The following are the two most common.
+IOTA provides multiple ways to obtain an IOTA address. The following are the two most common.
 
 :::note Supported Address Types
 
@@ -65,12 +65,12 @@ are `ed25519`, `secp256k1`, and `secp256r1`.
 
 ### IOTA Wallet
 
-Perhaps the simplest way to generate an IOTA address is using the [IOTA Wallet Chrome browser extension](TODO UPDATE LINK).
+The simplest way to generate an IOTA address is using the [IOTA Wallet Chrome browser extension](TODO UPDATE LINK).
 After you install the extension, there are several ways to create an address.
 
 Open the Chrome IOTA Wallet browser extension and then:
 
-- Click **More Options** → **Create a new passphrase account**. Then follow the on-screen instructions.
+- Click **More Options** → **Create a new passphrase account**. Then, follow the on-screen instructions.
 
 For more information on the IOTA Wallet and how to keep it secure, see
 the [IOTA Wallet documentation](TODO CHECK LINK).
@@ -82,9 +82,9 @@ the [IOTA Wallet documentation](TODO CHECK LINK).
 When you start the CLI for the first time, it will prompt you to set up a local wallet, which naturally has an address,
 so it can receive and send funds.
 
-:::Danger Recovery phrase
+:::danger Recovery phrase
 
-Please write down the recovery phrase associated to your address and keep in it in a safe place.
+Please write down the recovery phrase associated with your address and keep it in a safe place.
 
 :::
 
@@ -99,7 +99,7 @@ the `iota client new-address <AddressType>`, where `<AddresType>` is one of the 
 
 #### List Addresses
 
-You can list all the addressed associated to your local wallet by with
+You can list all the addresses associated with your local wallet with
 the [IOTA Keytool CLI](../../references/cli/keytool.mdx) by running the following command:
 
 ```bash
@@ -108,10 +108,8 @@ iota keytool list
 
 :::danger Private Keys
 
-The private keys associated with the IOTA addresses are stored locally on the machine where the CLI is installed, in
+The private keys associated with the IOTA addresses are stored locally on the machine where the CLI is installed in
 the `~/.iota/iota_config/iota.keystore` file. Anyone who can access that file can take control of your account, so you
 should not share it with anyone.
 
 :::
-
-

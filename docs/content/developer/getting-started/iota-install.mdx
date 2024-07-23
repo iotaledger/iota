@@ -1,13 +1,13 @@
 ---
 title: Install IOTA
 description: Install the IOTA framework and required prerequisites on your system, including the IOTA command line interface to interact with the IOTA network.
-tags: [ installation, setup, prerequisites, CLI]
+tags: [ installation, setup, prerequisites, CLI ]
 ---
 
 import MacosDeps from "../../_snippets/macos-deps.mdx";
 import LinuxDeps from "../../_snippets/linux-deps.mdx";
 
-The simplest way to get up and running with IOTA it to [install the binary](#install-from-binaries) from the latest
+The simplest way to get up and running with IOTA is to [install the binary](#install-from-binaries) from the latest
 release available in the [IOTA Rebased GitHub Repository](https://github.com/iotaledger/iota/). Make sure to download
 the version that matches the network you want to work on.
 
@@ -15,7 +15,7 @@ You can also use the
 convenient [docker images in the repository](https://github.com/iotaledger/iota/tree/develop/docker) to run your own
 local network.
 
-If you are require full control over the installation sources and process, you can
+If you require full control over the installation sources and process, you can
 always [build the binaries yourself from source](#install-from-source).
 
 ## Supported operating systems
@@ -58,15 +58,15 @@ website. TODO Check Link availability
 ## Install From Binaries
 
 You can find a set of binaries for most operating systems with
-each [IOTA release](https://github.com/iotaledger/iota/releases) that you can use to install IOTA. We recommend that you
-use the latest stable release for the network you are working on.
+each [IOTA release](https://github.com/iotaledger/iota/releases) that you can use to install IOTA. We recommend using
+the latest stable release for the network you are working on.
 
 Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
 and
 install the necessary binaries. You should start with the main IOTA binary.
 
 1. iota-`<OS>`-`<ARCHITECTURE>`: Main IOTA binary.
-2. iota-faucet-`<OS>`-`<ARCHITECTURE>`: Local faucet to mint coins on local network.
+2. iota-faucet-`<OS>`-`<ARCHITECTURE>`: Local faucet to mint coins on a local network.
 3. iota-indexer-`<OS>`-`<ARCHITECTURE>`: An indexer for a local IOTA network.
 4. iota-node-`<OS>`-`<ARCHITECTURE>`: Run a local node.
 5. iota-test-validator-`<OS>`-`<ARCHITECTURE>`: Run test validators on a local network for development.
@@ -74,7 +74,7 @@ install the necessary binaries. You should start with the main IOTA binary.
 
 :::note
 
-This process may take several minutes to download and install, this depends on your network and PC specifications.
+This process may take several minutes to download and install; this depends on your network and PC specifications.
 
 :::
 
@@ -86,7 +86,7 @@ You can quickly test if you have successfully installed the binaries by running 
 iota
 ```
 
-It should output a message stating the currently installed IOTA version, as well as some helpful commands.
+It should output a message stating the currently installed IOTA version and some helpful commands.
 
 ## Install From Source
 
@@ -95,19 +95,19 @@ from source.
 
 :::tip
 
-You can also download the [source code](./iota-environment.mdx) to have local access to files.
+You can also download the [source code](./iota-environment.mdx) to access files locally.
 
 :::
 
 ## Prerequisites
 
-Please make sure you install the following before you attempt to install IOTA from source.
+Please ensure you install the following before attempting to install IOTA from source.
 
 ### Rust and Cargo
 
 #### Install
 
-IOTA is built on Rust and, like most Rust projects, uses Cargo as a package manager. You can find detailed instructions
+Like most Rust projects, IOTA uses Cargo as a package manager. You can find detailed instructions
 on how to install Rust and Cargo for your OS in
 the [official Rust Documentation](https://www.rust-lang.org/tools/install)
 
@@ -120,7 +120,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 #### Update
 
 Since IOTA uses the latest version of Cargo to build and manage dependencies, you may need
-to [update](https://www.rust-lang.org/tools/install). The recommended update method is using `rustup`, as shown bellow:
+to [update](https://www.rust-lang.org/tools/install). The recommended update method is using `rustup`, as shown below:
 
 ```bash
 rustup update stable
@@ -174,7 +174,7 @@ Install cURL with the following command:
 sudo apt-get install curl
 ```
 
-Verify that cURL installed correctly with the following command:
+Verify that cURL is installed correctly with the following command:
 
 ```bash
 curl --version
@@ -217,10 +217,10 @@ Use the following command to install `libssl-dev`:
 sudo apt-get install libssl-dev
 ```
 
-If the version of Linux you use doesn't support `libssl-dev`, find an equivalent package for it on
+If the version of Linux you use doesn't support `libssl-dev,` find an equivalent package for it on
 the [ROS Index](https://index.ros.org/d/libssl-dev/).
 
-(Optional) If you have OpenSSL you might also need to also install `pkg-config`:
+(Optional) If you have OpenSSL, you might also need also to install `pkg-config`:
 
 ```bash
 sudo apt-get install pkg-config
@@ -269,7 +269,8 @@ The prerequisites needed for the macOS operating system include:
 - libpq
 - Git CLI
 
-macOS includes a version of cURL you can use to install Homebrew. Use Homebrew to install other tools, including a newer
+MacOS includes a version of cURL that you can use to install Homebrew. Use Homebrew to install other tools, including a
+newer
 version of cURL.
 
 #### Homebrew
@@ -282,7 +283,7 @@ Use the following command to install [Homebrew](https://brew.sh/):
 
 :::info
 
-If you used installed IOTA with [Homebrew](#homebrew), you do not need to install anything else.
+You do not need to install anything else if you installed IOTA with [Homebrew](#homebrew).
 
 :::
 
@@ -344,7 +345,7 @@ The prerequisites needed for the Windows 11 operating system include:
 
 #### cURL
 
-Windows 11 ships with a Microsoft version of [cURL](https://curl.se/windows/microsoft.html) already installed. If you
+Windows 11 ships with an installed Microsoft version of [cURL](https://curl.se/windows/microsoft.html). If you
 want to use the curl project version instead, download and install it
 from [https://curl.se/windows/](https://curl.se/windows/).
 
@@ -363,12 +364,12 @@ protoc-xx.x-win64.zip) and add the \bin directory to your Windows PATH environme
 
 #### Additional tools for Windows
 
-IOTA requires the following additional tools on computers running Windows.
+IOTA requires the following additional tools for computers running Windows:
 
 - For Windows on ARM64 only - [Visual Studio 2022 Preview](https://visualstudio.microsoft.com/vs/preview/).
 - [C++ build tools](https://visualstudio.microsoft.com/downloads/) is required to [install Rust](#rust-and-cargo).
 - The [LLVM Compiler Infrastructure](https://releases.llvm.org/). Look for a file with a name similar to
-  LLVM-15.0.7-win64.exe for 64-bit Windows, or LLVM-15.0.7-win32.exe for 32-bit Windows.
+  LLVM-15.0.7-win64.exe for 64-bit Windows or LLVM-15.0.7-win32.exe for 32-bit Windows.
 
 **Known issue** - The `iota console` command does not work in PowerShell.
 
@@ -384,8 +385,8 @@ Run the following command to install IOTA binaries from the `testnet` branch:
 cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota
 ```
 
-The installation process can take a while to complete. You can monitor installation progress in the terminal. If you
-encounter an error, make sure to install the latest version of all prerequisites and then try the command again.
+The installation process can take a while to complete. You can monitor the installation progress in the terminal. If you
+If you encounter an error, install the latest version of all prerequisites and try the command again.
 
 To update to the latest stable version of Rust:
 
