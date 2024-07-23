@@ -6,7 +6,7 @@ module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
     use iota::coin::Coin;
     use iota_system::staking_pool::{stake_activation_epoch, StakedIota};
-    use iota::iota::IOTA;
+    use iota::iota::{IOTA, IotaTreasuryCap};
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set::{Self, ValidatorSet};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
@@ -110,6 +110,8 @@ module iota_system::iota_system_state_inner {
         /// This is always the same as IotaSystemState.version. Keeping a copy here so that
         /// we know what version it is by inspecting IotaSystemStateInner as well.
         system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: IotaTreasuryCap,
         /// Contains all information about the validators.
         validators: ValidatorSet,
         /// The storage fund.
@@ -158,6 +160,8 @@ module iota_system::iota_system_state_inner {
         /// This is always the same as IotaSystemState.version. Keeping a copy here so that
         /// we know what version it is by inspecting IotaSystemStateInner as well.
         system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: IotaTreasuryCap,
         /// Contains all information about the validators.
         validators: ValidatorSet,
         /// The storage fund.
@@ -210,7 +214,9 @@ module iota_system::iota_system_state_inner {
         stake_subsidy_amount: u64,
         total_gas_fees: u64,
         total_stake_rewards_distributed: u64,
-        leftover_storage_fund_inflow: u64,
+        burnt_leftover_amount: u64,
+        burnt_tokens_amount: u64,
+        minted_tokens_amount: u64,
     }
 
     // Errors
@@ -232,6 +238,7 @@ module iota_system::iota_system_state_inner {
     /// Create a new IotaSystemState object and make it shared.
     /// This function will be called only once in genesis.
     public(package) fun create(
+        iota_treasury_cap: IotaTreasuryCap,
         validators: vector<Validator>,
         initial_storage_fund: Balance<IOTA>,
         protocol_version: u64,
@@ -247,6 +254,7 @@ module iota_system::iota_system_state_inner {
             epoch: 0,
             protocol_version,
             system_state_version: genesis_system_state_version(),
+            iota_treasury_cap,
             validators,
             storage_fund: storage_fund::new(initial_storage_fund),
             parameters,
@@ -293,6 +301,7 @@ module iota_system::iota_system_state_inner {
             epoch,
             protocol_version,
             system_state_version: _,
+            iota_treasury_cap,
             validators,
             storage_fund,
             parameters,
@@ -321,6 +330,7 @@ module iota_system::iota_system_state_inner {
             epoch,
             protocol_version,
             system_state_version: 2,
+            iota_treasury_cap,
             validators,
             storage_fund,
             parameters: SystemParametersV2 {
@@ -810,21 +820,23 @@ module iota_system::iota_system_state_inner {
 
     /// This function should be called at the end of an epoch, and advances the system to the next epoch.
     /// It does the following things:
-    /// 1. Add storage charge to the storage fund.
+    /// 1. Add storage reward to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
-    /// 3. Distribute computation charge to validator stake.
-    /// 4. Update all validators.
+    /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+    /// or smaller than the computation reward.
+    /// 4. Distribute the target reward to the validators.
+    /// 5. Burn any leftover rewards.
+    /// 6. Update all validators.
     public(package) fun advance_epoch(
         self: &mut IotaSystemStateInnerV2,
         new_epoch: u64,
         next_protocol_version: u64,
+        validator_target_reward: u64,
         mut storage_reward: Balance<IOTA>,
         mut computation_reward: Balance<IOTA>,
         mut storage_rebate_amount: u64,
         mut non_refundable_storage_fee_amount: u64,
-        storage_fund_reinvest_rate: u64, // share of storage fund's rewards that's reinvested
-                                         // into storage fund, in basis point.
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
         ctx: &mut TxContext,
@@ -834,16 +846,7 @@ module iota_system::iota_system_state_inner {
 
         let bps_denominator_u64 = BASIS_POINT_DENOMINATOR as u64;
         // Rates can't be higher than 100%.
-        assert!(
-            storage_fund_reinvest_rate <= bps_denominator_u64
-            && reward_slashing_rate <= bps_denominator_u64,
-            EBpsTooLarge,
-        );
-
-        // TODO: remove this in later upgrade.
-        if (self.parameters.stake_subsidy_start_epoch > 0) {
-            self.parameters.stake_subsidy_start_epoch = 20;
-        };
+        assert!(reward_slashing_rate <= bps_denominator_u64, EBpsTooLarge);
 
         // Accumulate the gas summary during safe_mode before processing any rewards:
         let safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
@@ -854,10 +857,6 @@ module iota_system::iota_system_state_inner {
         self.safe_mode_storage_rebates = 0;
         non_refundable_storage_fee_amount = non_refundable_storage_fee_amount + self.safe_mode_non_refundable_storage_fee;
         self.safe_mode_non_refundable_storage_fee = 0;
-
-        let total_validators_stake = self.validators.total_stake();
-        let storage_fund_balance = self.storage_fund.total_balance();
-        let total_stake = storage_fund_balance + total_validators_stake;
 
         let storage_charge = storage_reward.value();
         let computation_charge = computation_reward.value();
@@ -874,30 +873,26 @@ module iota_system::iota_system_state_inner {
                 balance::zero()
             };
 
+        // The stake subsidy fund is disabled through parameter choices in GenesisCeremonyParameters,
+        // so it is always a zero balance now. It will be fully removed in a later step.
         let stake_subsidy_amount = stake_subsidy.value();
         computation_reward.join(stake_subsidy);
 
-        let total_stake_u128 = total_stake as u128;
-        let computation_charge_u128 = computation_charge as u128;
-
-        let storage_fund_reward_amount = storage_fund_balance as u128 * computation_charge_u128 / total_stake_u128;
-        let mut storage_fund_reward = computation_reward.split(storage_fund_reward_amount as u64);
-        let storage_fund_reinvestment_amount =
-            storage_fund_reward_amount * (storage_fund_reinvest_rate as u128) / BASIS_POINT_DENOMINATOR;
-        let storage_fund_reinvestment = storage_fund_reward.split(
-            storage_fund_reinvestment_amount as u64,
+        let (mut total_validator_rewards, minted_tokens_amount, burnt_tokens_amount) = match_computation_reward_to_target_reward(
+            validator_target_reward,
+            computation_reward,
+            &mut self.iota_treasury_cap,
+            ctx
         );
 
         self.epoch = self.epoch + 1;
         // Sanity check to make sure we are advancing to the right epoch.
         assert!(new_epoch == self.epoch, EAdvancedToWrongEpoch);
 
-        let computation_reward_amount_before_distribution = computation_reward.value();
-        let storage_fund_reward_amount_before_distribution = storage_fund_reward.value();
+        let total_validator_rewards_amount_before_distribution = total_validator_rewards.value();
 
         self.validators.advance_epoch(
-            &mut computation_reward,
-            &mut storage_fund_reward,
+            &mut total_validator_rewards,
             &mut self.validator_report_records,
             reward_slashing_rate,
             self.parameters.validator_low_stake_threshold,
@@ -908,27 +903,24 @@ module iota_system::iota_system_state_inner {
 
         let new_total_stake = self.validators.total_stake();
 
-        let computation_reward_amount_after_distribution = computation_reward.value();
-        let storage_fund_reward_amount_after_distribution = storage_fund_reward.value();
-        let computation_reward_distributed = computation_reward_amount_before_distribution - computation_reward_amount_after_distribution;
-        let storage_fund_reward_distributed = storage_fund_reward_amount_before_distribution - storage_fund_reward_amount_after_distribution;
+        let remaining_validator_rewards_amount_after_distribution = total_validator_rewards.value();
+        let total_validator_rewards_distributed = total_validator_rewards_amount_before_distribution - remaining_validator_rewards_amount_after_distribution;
 
         self.protocol_version = next_protocol_version;
 
         // Derive the reference gas price for the new epoch
         self.reference_gas_price = self.validators.derive_reference_gas_price();
         // Because of precision issues with integer divisions, we expect that there will be some
-        // remaining balance in `storage_fund_reward` and `computation_reward`.
-        // All of these go to the storage fund.
-        let mut leftover_staking_rewards = storage_fund_reward;
-        leftover_staking_rewards.join(computation_reward);
-        let leftover_storage_fund_inflow = leftover_staking_rewards.value();
+        // remaining balance in `total_validator_rewards`.
+        let leftover_staking_rewards = total_validator_rewards;
+        let burnt_leftover_amount = leftover_staking_rewards.value();
+
+        // Burning leftover rewards
+        self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
         let refunded_storage_rebate =
             self.storage_fund.advance_epoch(
                 storage_reward,
-                storage_fund_reinvestment,
-                leftover_staking_rewards,
                 storage_rebate_amount,
                 non_refundable_storage_fee_amount,
             );
@@ -940,13 +932,17 @@ module iota_system::iota_system_state_inner {
                 reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
                 storage_charge,
-                storage_fund_reinvestment: storage_fund_reinvestment_amount as u64,
+                // TODO: remove(obsolete)
+                storage_fund_reinvestment: 0,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
+                // TODO: remove(obsolete)
                 stake_subsidy_amount,
                 total_gas_fees: computation_charge,
-                total_stake_rewards_distributed: computation_reward_distributed + storage_fund_reward_distributed,
-                leftover_storage_fund_inflow,
+                total_stake_rewards_distributed: total_validator_rewards_distributed,
+                burnt_leftover_amount,
+                burnt_tokens_amount,
+                minted_tokens_amount
             }
         );
         self.safe_mode = false;
@@ -958,6 +954,30 @@ module iota_system::iota_system_state_inner {
         // Return the storage rebate split from storage fund that's already refunded to the transaction senders.
         // This will be burnt at the last step of epoch change programmable transaction.
         refunded_storage_rebate
+    }
+
+    /// Mint or burn IOTA tokens depending on the given target reward per validator
+    /// and the amount of computation fees burned in this epoch.
+    fun match_computation_reward_to_target_reward(
+        validator_target_reward: u64,
+        mut computation_reward: Balance<IOTA>,
+        iota_treasury_cap: &mut iota::iota::IotaTreasuryCap,
+        ctx: &TxContext,
+    ): (Balance<IOTA>, u64, u64) {
+        let mut burnt_tokens_amount = 0;
+        let mut minted_tokens_amount = 0;
+        if (computation_reward.value() < validator_target_reward) {
+            let tokens_to_mint = validator_target_reward - computation_reward.value();
+            let new_tokens = iota_treasury_cap.mint_balance(tokens_to_mint, ctx);
+            minted_tokens_amount = new_tokens.value();
+            computation_reward.join(new_tokens);
+        } else if (computation_reward.value() > validator_target_reward) {
+            let tokens_to_burn = computation_reward.value() - validator_target_reward;
+            let rewards_to_burn = computation_reward.split(tokens_to_burn);
+            burnt_tokens_amount = rewards_to_burn.value();
+            iota_treasury_cap.burn_balance(rewards_to_burn, ctx);
+        };
+        (computation_reward, minted_tokens_amount, burnt_tokens_amount)
     }
 
     /// Return the current epoch number. Useful for applications that need a coarse-grained concept of time,
@@ -1002,6 +1022,11 @@ module iota_system::iota_system_state_inner {
     public(package) fun validator_staking_pool_mappings(self: &IotaSystemStateInnerV2): &Table<ID, address> {
 
         self.validators.staking_pool_mappings()
+    }
+
+    /// Returns the total iota supply.
+    public(package) fun get_total_iota_supply(self: &IotaSystemStateInnerV2): u64 {
+        self.iota_treasury_cap.total_supply()
     }
 
     /// Returns all the validators who are currently reporting `addr`

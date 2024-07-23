@@ -49,6 +49,15 @@ const aboutIota = [
 			'about-iota/tokenomics/gas-in-iota',
 		],
 	},
+	{
+		type: 'category',
+		label: 'Node Monitoring and Metrics',
+		items: [
+			'about-iota/telemetry/telemetry-subscribers',
+			'about-iota/telemetry/iota-metrics',
+			'about-iota/telemetry/iota-telemetry',
+		],
+	},
 	'about-iota/research-papers',
 ];
 module.exports = aboutIota;
