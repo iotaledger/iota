@@ -73,12 +73,12 @@ the [Solo Framework](../solo/getting-started.md).
 
 :::
 
-* [Waffle](https://ethereum-waffle.readthedocs.io/en/latest/getting-started.html#writing-tests)
-* [Remix](https://remix-ide.readthedocs.io/en/latest/unittesting.html#write-tests)
-* [Hardhat](https://hardhat.org/hardhat-runner/docs/guides/test-contracts)
-* [Brownie](https://eth-brownie.readthedocs.io/en/v1.0.0_a/tests.html)
-* [Ape](https://docs.apeworx.io/ape/stable/userguides/testing.html)
-* [Foundry](https://book.getfoundry.sh/forge/writing-tests)
+- [Waffle](https://ethereum-waffle.readthedocs.io/en/latest/getting-started.html#writing-tests)
+- [Remix](https://remix-ide.readthedocs.io/en/latest/unittesting.html#write-tests)
+- [Hardhat](https://hardhat.org/hardhat-runner/docs/guides/test-contracts)
+- [Brownie](https://eth-brownie.readthedocs.io/en/v1.0.0_a/tests.html)
+- [Ape](https://docs.apeworx.io/ape/stable/userguides/testing.html)
+- [Foundry](https://book.getfoundry.sh/forge/writing-tests)
 
 ### Integration Tests
 
@@ -104,5 +104,3 @@ Testing using the IOTA Sandbox serves well for the first stage of automated and 
 integration tests, as you have complete control over the entire local network. Once you are confident about how your
 contract behaves locally, you can deploy and test on the EVM Testnet,
 which replicates the IOTA EVM and ShimmerEVM networks, but also enables cost and risk-free interactions.
-
-
