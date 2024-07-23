@@ -9,11 +9,11 @@ on:
       - "mainnet"
       - "releases/iota-*-release"
     paths-ignore:
-      - 'docs/**'
+      - "docs/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
-      - 'docs/**'
+      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -282,7 +282,7 @@ jobs:
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
-        run: cargo ci-clippy
+        run: cargo +stable ci-clippy
 
   rustfmt:
     needs: diff

@@ -4,11 +4,11 @@ on:
     push:
         branches: [develop, extensions, devnet]
         paths-ignore:
-            - 'docs/**'
+            - "docs/**"
     pull_request:
         types: [opened, synchronize, reopened, ready_for_review]
         paths-ignore:
-            - 'docs/**'
+            - "docs/**"
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -48,7 +48,7 @@ jobs:
             - uses: dorny/paths-filter@v3
               id: filter
               with:
-                  list-files: 'json'
+                  list-files: "json"
                   filters: .github/external-crates-filters.yml
 
     test:
@@ -86,7 +86,7 @@ jobs:
         steps:
             - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
             - name: Detect Changes
-              uses: './.github/actions/diffs'
+              uses: "./.github/actions/diffs"
               id: diff
 
     clippy:
@@ -100,7 +100,7 @@ jobs:
             # See '.cargo/config' for list of enabled/disabled clippy lints
             - name: cargo move-clippy
               run: |
-                  cargo ci-clippy-external
+                  cargo +stable ci-clippy-external
 
     rustfmt:
         needs: diff
