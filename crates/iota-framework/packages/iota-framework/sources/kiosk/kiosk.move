@@ -56,7 +56,7 @@
 /// applications and not use it for direct trading (eg sending to another
 /// account).
 ///
-/// ### Using multiple Transfer Policies for different "tracks":
+/// ### Using multiple Transfer Policies for different 'tracks':
 ///
 /// Every `purchase` or `purchase_with_purchase_cap` creates a `TransferRequest`
 /// hot potato which must be resolved in a matching `TransferPolicy` for the
