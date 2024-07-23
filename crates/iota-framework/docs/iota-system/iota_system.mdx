@@ -106,6 +106,7 @@ the IotaSystemStateInner version, or vice versa.
 -  [Function `load_system_state_mut`](#0x3_iota_system_load_system_state_mut)
 -  [Function `load_inner_maybe_upgrade`](#0x3_iota_system_load_inner_maybe_upgrade)
 -  [Function `load_system_timelock_cap`](#0x3_iota_system_load_system_timelock_cap)
+-  [Function `get_total_iota_supply`](#0x3_iota_system_get_total_iota_supply)
 
 
 <pre><code>
@@ -208,7 +209,7 @@ This function will be called only once in genesis.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="iota_system#0x3_iota_system_create">create</Link>(id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, <Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>, <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>, system_timelock_cap: <Link to="../iota-framework/timelock#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="iota_system#0x3_iota_system_create">create</Link>(id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, <Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>, <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>, system_timelock_cap: <Link to="../iota-framework/timelock#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
 </code></pre>
 
 
@@ -220,6 +221,7 @@ This function will be called only once in genesis.
 <pre><code>
 <b>public</b>(package) <b>fun</b> <Link to="iota_system#0x3_iota_system_create">create</Link>(
     id: UID,
+    iota_treasury_cap: IotaTreasuryCap,
     validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     <Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: Balance&lt;IOTA&gt;,
     protocol_version: u64,
@@ -230,6 +232,7 @@ This function will be called only once in genesis.
     ctx: &<b>mut</b> TxContext,
 ) \{
     <b>let</b> system_state = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create">iota_system_state_inner::create</Link>(
+        iota_treasury_cap,
         validators,
         <Link to="storage_fund#0x3_storage_fund">storage_fund</Link>,
         protocol_version,
@@ -1481,15 +1484,18 @@ Getter returning addresses of the currently active validators.
 
 This function should be called at the end of an epoch, and advances the system to the next epoch.
 It does the following things:
-1. Add storage charge to the storage fund.
+1. Add storage reward to the storage fund.
 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
 gas coins.
-3. Distribute computation charge to validator stake.
-4. Update all validators.
+3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+or smaller than the computation reward.
+4. Distribute the target reward to the validators.
+5. Burn any leftover rewards.
+6. Update all validators.
 
 
 <pre><code>
-<b>fun</b> <Link to="iota_system#0x3_iota_system_advance_epoch">advance_epoch</Link>(storage_reward: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, computation_reward: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, wrapper: &<b>mut</b> <Link to="iota_system#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</Link>, new_epoch: u64, next_protocol_version: u64, storage_rebate: u64, non_refundable_storage_fee: u64, storage_fund_reinvest_rate: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<b>fun</b> <Link to="iota_system#0x3_iota_system_advance_epoch">advance_epoch</Link>(validator_target_reward: u64, storage_reward: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, computation_reward: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, wrapper: &<b>mut</b> <Link to="iota_system#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</Link>, new_epoch: u64, next_protocol_version: u64, storage_rebate: u64, non_refundable_storage_fee: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </code></pre>
 
 
@@ -1500,6 +1506,7 @@ gas coins.
 
 <pre><code>
 <b>fun</b> <Link to="iota_system#0x3_iota_system_advance_epoch">advance_epoch</Link>(
+    validator_target_reward: u64,
     storage_reward: Balance&lt;IOTA&gt;,
     computation_reward: Balance&lt;IOTA&gt;,
     wrapper: &<b>mut</b> <Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link>,
@@ -1507,8 +1514,6 @@ gas coins.
     next_protocol_version: u64,
     storage_rebate: u64,
     non_refundable_storage_fee: u64,
-    storage_fund_reinvest_rate: u64, // share of storage fund's rewards that's reinvested
-                                     // into storage fund, in basis point.
     reward_slashing_rate: u64, // how much rewards are slashed <b>to</b> punish a <Link to="validator#0x3_validator">validator</Link>, in bps.
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     ctx: &<b>mut</b> TxContext,
@@ -1519,11 +1524,11 @@ gas coins.
     <b>let</b> storage_rebate = self.<Link to="iota_system#0x3_iota_system_advance_epoch">advance_epoch</Link>(
         new_epoch,
         next_protocol_version,
+        validator_target_reward,
         storage_reward,
         computation_reward,
         storage_rebate,
         non_refundable_storage_fee,
-        storage_fund_reinvest_rate,
         reward_slashing_rate,
         epoch_start_timestamp_ms,
         ctx,
@@ -1649,6 +1654,34 @@ gas coins.
         &self.id,
         <Link to="iota_system#0x3_iota_system_SYSTEM_TIMELOCK_CAP_DF_KEY">SYSTEM_TIMELOCK_CAP_DF_KEY</Link>
     )
+}
+</code></pre>
+
+
+
+</details>
+
+<Link id="0x3_iota_system_get_total_iota_supply"></Link>
+
+## Function `get_total_iota_supply`
+
+Returns the total iota supply.
+
+
+<pre><code>
+<b>public</b> <b>fun</b> <Link to="iota_system#0x3_iota_system_get_total_iota_supply">get_total_iota_supply</Link>(wrapper: &<b>mut</b> <Link to="iota_system#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</Link>): u64
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code>
+<b>public</b> <b>fun</b> <Link to="iota_system#0x3_iota_system_get_total_iota_supply">get_total_iota_supply</Link>(wrapper: &<b>mut</b> <Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link>): u64 \{
+    <b>let</b> self = <Link to="iota_system#0x3_iota_system_load_system_state">load_system_state</Link>(wrapper);
+    self.<Link to="iota_system#0x3_iota_system_get_total_iota_supply">get_total_iota_supply</Link>()
 }
 </code></pre>
 

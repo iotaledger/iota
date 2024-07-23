@@ -14,7 +14,7 @@ use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::output::Output,
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
     test_outputs::{new_vested_output, MERGE_TIMESTAMP_SECS},
@@ -29,7 +29,7 @@ const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 
 pub(crate) async fn outputs(
-    randomness_seed: u64,
+    rng: &mut StdRng,
     vested_index: &mut u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let now = SystemTime::now()
@@ -37,8 +37,6 @@ pub(crate) async fn outputs(
         .as_secs() as u32;
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
-
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
 
     for account_index in 0..ACCOUNTS {
         for address_index in 0..ADDRESSES_PER_ACCOUNT {
@@ -72,7 +70,7 @@ pub(crate) async fn outputs(
                     initial_unlock_amount,
                     address,
                     None,
-                    &mut rng,
+                    rng,
                 )?);
                 *vested_index -= 1;
             }
@@ -88,7 +86,7 @@ pub(crate) async fn outputs(
                         vested_amount,
                         address,
                         Some(timelock),
-                        &mut rng,
+                        rng,
                     )?);
                     *vested_index -= 1;
                 }
