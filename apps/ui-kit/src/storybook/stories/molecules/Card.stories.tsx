@@ -14,25 +14,26 @@ import {
     CardActionProps,
 } from '@/components/molecules/card';
 import {
-    CardActionVariant,
-    CardVariant,
+    CardActionType,
+    CardType,
     ImageType,
-    ImageVariant,
+    ImageShape,
 } from '@/components/molecules/card/card.enums';
 
 type CardCustomProps = CardProps & {
     imageType: CardImageProps['type'];
     imageUrl: CardImageProps['url'];
-    imageVariant: CardImageProps['variant'];
+    imageVariant: CardImageProps['shape'];
     textTitle: CardBodyProps['title'];
     textSubtitle: CardBodyProps['subtitle'];
     actionTitle: CardActionProps['title'];
     actionSubtitle: CardActionProps['subtitle'];
-    actionVariant: CardActionProps['variant'];
+    actionType: CardActionProps['type'];
 };
 
 const meta: Meta<CardCustomProps> = {
     component: Card,
+    tags: ['autodocs'],
 };
 
 export default meta;
@@ -46,11 +47,11 @@ const COMMON_ARG_TYPES = {
     },
     imageVariant: {
         control: 'select',
-        options: Object.values(ImageVariant),
+        options: Object.values(ImageShape),
     },
-    actionVariant: {
+    actionType: {
         control: 'select',
-        options: Object.values(CardActionVariant),
+        options: Object.values(CardActionType),
     },
     onClick: {
         action: 'clicked',
@@ -62,10 +63,10 @@ const COMMON_ARGS = {
     textSubtitle: 'Card Subtitle',
     actionTitle: 'Action title',
     actionSubtitle: 'Action subtitle',
-    actionVariant: CardActionVariant.Link,
-    variant: CardVariant.Default,
-    disabled: false,
-    imageVariant: ImageVariant.Rounded,
+    actionType: CardActionType.Link,
+    variant: CardType.Default,
+    isDisabled: false,
+    imageVariant: ImageShape.Rounded,
 };
 
 export const Default: Story = {
@@ -77,13 +78,13 @@ export const Default: Story = {
     argTypes: COMMON_ARG_TYPES,
     render: (args) => {
         return (
-            <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
-                <CardImage type={args.imageType} variant={args.imageVariant} url={args.imageUrl} />
+            <Card isDisabled={args.isDisabled} type={args.type} onClick={args.onClick}>
+                <CardImage type={args.imageType} shape={args.imageVariant} url={args.imageUrl} />
                 <CardBody title={args.textTitle} subtitle={args.textSubtitle} />
                 <CardAction
                     title={args.actionTitle}
                     subtitle={args.actionSubtitle}
-                    variant={args.actionVariant}
+                    type={args.actionType}
                     onClick={args.onClick}
                 />
             </Card>
@@ -99,15 +100,15 @@ export const WithIcon: Story = {
     argTypes: COMMON_ARG_TYPES,
     render: (args) => {
         return (
-            <Card disabled={args.disabled} variant={args.variant} onClick={args.onClick}>
-                <CardImage type={args.imageType} variant={args.imageVariant} url={args.imageUrl}>
+            <Card isDisabled={args.isDisabled} type={args.type} onClick={args.onClick}>
+                <CardImage type={args.imageType} shape={args.imageVariant} url={args.imageUrl}>
                     <IotaLogoSmall />
                 </CardImage>
                 <CardBody title={args.textTitle} subtitle={args.textSubtitle} />
                 <CardAction
                     title={args.actionTitle}
                     subtitle={args.actionSubtitle}
-                    variant={args.actionVariant}
+                    type={args.actionType}
                     onClick={args.onClick}
                 />
             </Card>

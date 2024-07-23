@@ -1,16 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageVariant } from './card.enums';
+import { ImageShape } from './card.enums';
 
 export interface ImagePlaceholderProps {
     /**
      * The variant of the image placeholder.
      */
-    variant?: ImageVariant;
+    variant?: ImageShape;
 }
 
-export function CardImagePlaceholder({ variant = ImageVariant.Rounded }: ImagePlaceholderProps) {
-    if (variant === ImageVariant.Rounded) {
+export function CardImagePlaceholder({ variant = ImageShape.Rounded }: ImagePlaceholderProps) {
+    if (variant === ImageShape.Rounded) {
         return <ImagePlaceholderRounded />;
     }
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export enum CardVariant {
+export enum CardType {
     Default = 'default',
     Outlined = 'outlined',
     Filled = 'filled',
@@ -13,12 +13,12 @@ export enum ImageType {
     BgTransparent = 'bg-transparent',
 }
 
-export enum ImageVariant {
+export enum ImageShape {
     Rounded = 'rounded',
     SquareRounded = 'square-rounded',
 }
 
-export enum CardActionVariant {
+export enum CardActionType {
     Link = 'link',
     SupportingText = 'supporting-text',
     Button = 'button',

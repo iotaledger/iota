@@ -3,38 +3,38 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { ImageType, ImageVariant } from './card.enums';
+import { ImageType, ImageShape } from './card.enums';
 import { IMAGE_BG_CLASSES, IMAGE_VARIANT_CLASSES } from './card.classes';
 import { CardImagePlaceholder } from './CardImagePlaceholder';
 
 export interface CardImageProps {
     type?: ImageType;
-    variant: ImageVariant;
+    shape?: ImageShape;
     url?: string;
     children?: React.ReactNode;
 }
 
 export function CardImage({
     type = ImageType.BgSolid,
-    variant = ImageVariant.Rounded,
+    shape = ImageShape.Rounded,
     url,
     children,
 }: CardImageProps) {
     return (
         <div
             className={cx(
-                IMAGE_VARIANT_CLASSES[variant],
+                IMAGE_VARIANT_CLASSES[shape],
                 IMAGE_BG_CLASSES[type],
-                'flex items-center justify-center overflow-hidden',
+                'flex shrink-0 items-center justify-center  overflow-hidden',
             )}
         >
             {type === ImageType.Placeholder && !children && (
-                <CardImagePlaceholder variant={variant} />
+                <CardImagePlaceholder variant={shape} />
             )}
             {url && !children && (
                 <img
                     src={url}
-                    className={cx(IMAGE_VARIANT_CLASSES[variant], 'object-cover')}
+                    className={cx(IMAGE_VARIANT_CLASSES[shape], 'object-cover')}
                     alt="Card Image"
                 />
             )}
