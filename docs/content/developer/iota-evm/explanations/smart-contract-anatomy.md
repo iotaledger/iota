@@ -56,11 +56,11 @@ An entry point is a function through which you can invoke the program.
 
 There are two types of entry points:
 
--   _Full entry points_ (or simply _entry points_): These functions can modify
-    (mutate) the smart contract's state.
--   _View entry points_ (or _views_): These are read-only functions. They are only used
-    to retrieve the information from the smart contract state. They cannot
-    modify the state, i.e., they are read-only calls.
+- _Full entry points_ (or simply _entry points_): These functions can modify
+  (mutate) the smart contract's state.
+- _View entry points_ (or _views_): These are read-only functions. They are only used
+  to retrieve the information from the smart contract state. They cannot
+  modify the state, i.e., they are read-only calls.
 
 ## Execution Results
 

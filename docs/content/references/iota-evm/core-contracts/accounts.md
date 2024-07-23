@@ -142,7 +142,6 @@ This operation cannot be reverted.
 
 - `s` (`uint32`): The serial number of the foundry.
 
-
 ### `foundryCreateNew(t TokenScheme) s SerialNumber`
 
 :::warning Deprecated
@@ -165,7 +164,6 @@ The storage deposit for the new foundry must be provided via allowance (only the
 #### Returns
 
 - `s` (`uint32`): The serial number of the newly created foundry
-
 
 ### `mintNFT(I ImmutableData, a AgentID, C CollectionID, w WithdrawOnMint)`
 
