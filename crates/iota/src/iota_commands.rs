@@ -107,6 +107,7 @@ pub enum IotaCommand {
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
+    /// Build a genesis blob file.
     GenesisCeremony(Ceremony),
     /// Iota keystore tool.
     #[clap(name = "keytool")]

@@ -742,35 +742,38 @@ const developer = [
             },
         ],
     },
-			{
-				type:'category',
-				label: 'Integrate Your Exchange',
-				items:[
-					'developer/exchange-integration/exchange-integration',
 
-					{
-						type: 'category',
-						label: 'Migrating IOTA/Shimmer Stardust',
-						link: {
-							type: 'doc',
-							id: 'developer/stardust/stardust-migration',
-						},
-						items: [
-							'developer/stardust/exchanges',
-							'developer/stardust/move-models',
-							'developer/stardust/addresses',
-							'developer/stardust/units',
-							'developer/stardust/migration-process',
-							'developer/stardust/claiming',
-							'developer/stardust/vested',
-							'developer/stardust/testing',
-							'developer/stardust/if-tools',
-							'developer/stardust/faq',
-							'developer/stardust/advanced',
-						],
-					},
-				]
-			},
-		]
+    {   
+        type: 'category',
+        label: 'Migrating from IOTA/Shimmer Stardust',
+        link: {
+            type: 'doc',
+            id: 'developer/stardust/stardust-migration',
+        },
+        items: [
+            'developer/stardust/exchanges',
+            'developer/stardust/move-models',
+            'developer/stardust/addresses',
+            'developer/stardust/units',
+            'developer/stardust/migration-process',
+            'developer/stardust/claiming',
+            'developer/stardust/vested',
+            'developer/stardust/testing',
+            'developer/stardust/if-tools',
+            'developer/stardust/faq',
+            'developer/stardust/advanced',
+        ],
+    },
+
+
+    {
+        type:'category',
+        label: 'Exchange integration',
+        items:[
+            'developer/exchange-integration/exchange-integration',
+
+        ]
+    },
+]
 ;
 module.exports = developer;

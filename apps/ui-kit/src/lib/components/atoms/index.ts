@@ -14,3 +14,4 @@ export * from './key-value-info';
 export * from './label-text';
 export * from './list-item';
 export * from './header';
+export * from './table-header';
