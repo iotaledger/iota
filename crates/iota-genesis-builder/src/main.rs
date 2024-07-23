@@ -193,7 +193,7 @@ fn main() -> Result<()> {
                             return Some(res);
                         }
                     }
-                    
+
                     // Now that we are out
                     self.unlocked_address_balances.pop_first().map(
                         |(address, output_header_with_balance)| {
