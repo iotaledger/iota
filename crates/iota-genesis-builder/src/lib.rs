@@ -24,7 +24,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{types::block::address::Address, Url};
 use iota_types::{
-    balance::Balance,
+    balance::{Balance, BALANCE_MODULE_NAME},
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         TxContext,
@@ -58,7 +58,7 @@ use iota_types::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
     },
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
@@ -276,17 +276,6 @@ impl Builder {
         );
         let mut objects = self.migration_objects.take_objects();
         objects.extend(self.objects.values().cloned());
-
-        // Use stake_subsidy_start_epoch to mimic the burn of newly minted IOTA coins
-        if !self.is_vanilla() {
-            // Because we set the `stake_subsidy_fund` as non-zero
-            // we need to effectively disable subsidy rewards
-            // to avoid the respective inflation effects.
-            //
-            // TODO: Handle properly during new tokenomics
-            // implementation.
-            self.parameters.stake_subsidy_start_epoch = u64::MAX;
-        }
 
         // Finally build the genesis data
         self.built_genesis = Some(build_unsigned_genesis_data(
@@ -569,9 +558,16 @@ impl Builder {
 
         // Check distribution is correct
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
+
+        let allocations_amount: u64 = token_distribution_schedule
+            .allocations
+            .iter()
+            .map(|allocation| allocation.amount_nanos)
+            .sum();
+
         assert_eq!(
-            system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_nanos
+            system_state.iota_treasury_cap.total_supply().value,
+            token_distribution_schedule.pre_minted_supply + allocations_amount
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
@@ -1213,7 +1209,7 @@ pub fn generate_genesis_system_object(
         let mut builder = ProgrammableTransactionBuilder::new();
         // Step 1: Create the IotaSystemState UID
         let iota_system_state_uid = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("object").to_owned(),
             ident_str!("iota_system_state").to_owned(),
             vec![],
@@ -1222,7 +1218,7 @@ pub fn generate_genesis_system_object(
 
         // Step 2: Create and share the Clock.
         builder.move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("clock").to_owned(),
             ident_str!("create").to_owned(),
             vec![],
@@ -1233,7 +1229,7 @@ pub fn generate_genesis_system_object(
         // (which only happens in tests).
         if protocol_config.create_authenticator_state_in_genesis() {
             builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("authenticator_state").to_owned(),
                 ident_str!("create").to_owned(),
                 vec![],
@@ -1242,7 +1238,7 @@ pub fn generate_genesis_system_object(
         }
         if protocol_config.random_beacon() {
             builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("random").to_owned(),
                 ident_str!("create").to_owned(),
                 vec![],
@@ -1251,7 +1247,7 @@ pub fn generate_genesis_system_object(
         }
         if protocol_config.enable_coin_deny_list() {
             builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 DENY_LIST_MODULE.to_owned(),
                 DENY_LIST_CREATE_FUNC.to_owned(),
                 vec![],
@@ -1259,18 +1255,37 @@ pub fn generate_genesis_system_object(
             )?;
         }
 
-        // Step 4: Mint the supply of IOTA.
-        let iota_supply = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
+        // Step 4: Create the IOTA Coin Treasury Cap.
+        let iota_treasury_cap = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("iota").to_owned(),
             ident_str!("new").to_owned(),
             vec![],
             vec![],
         );
 
+        let pre_minted_supply_amount = builder
+            .pure(token_distribution_schedule.pre_minted_supply)
+            .expect("serialization of u64 should succeed");
+        let pre_minted_supply = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("iota").to_owned(),
+            ident_str!("mint_balance").to_owned(),
+            vec![],
+            vec![iota_treasury_cap, pre_minted_supply_amount],
+        );
+
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            BALANCE_MODULE_NAME.to_owned(),
+            ident_str!("destroy_genesis_supply").to_owned(),
+            vec![GAS::type_tag()],
+            vec![pre_minted_supply],
+        );
+
         // Step 5: Create System Timelock Cap.
         let system_timelock_cap = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("timelock").to_owned(),
             ident_str!("new_system_timelock_cap").to_owned(),
             vec![],
@@ -1279,8 +1294,8 @@ pub fn generate_genesis_system_object(
 
         // Step 6: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
-        // one is the IOTA supply we got from step 3.
-        let mut arguments = vec![iota_system_state_uid, iota_supply];
+        // one is the IOTA `TreasuryCap` we got from step 4.
+        let mut arguments = vec![iota_system_state_uid, iota_treasury_cap];
         let mut call_arg_arguments = vec![
             CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
             CallArg::Pure(bcs::to_bytes(&genesis_validators).unwrap()),
@@ -1354,7 +1369,7 @@ pub fn split_timelocks(
                 builder.pure(surplus_amount)?,
             ];
             let surplus_timelock = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("timelock").to_owned(),
                 ident_str!("split").to_owned(),
                 vec![GAS::type_tag()],
@@ -1362,7 +1377,7 @@ pub fn split_timelocks(
             );
             let arguments = vec![surplus_timelock, builder.pure(*recipient)?];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("timelock").to_owned(),
                 ident_str!("transfer").to_owned(),
                 vec![Balance::type_tag(GAS::type_tag())],

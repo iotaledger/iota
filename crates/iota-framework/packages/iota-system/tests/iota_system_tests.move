@@ -17,7 +17,7 @@ module iota_system::iota_system_tests {
     use iota_system::validator_set;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota::balance;
-    use iota::test_utils::{assert_eq, destroy};
+    use iota::test_utils::assert_eq;
     use iota::url;
 
     #[test]
@@ -578,7 +578,7 @@ module iota_system::iota_system_tests {
         let new_pubkey1 = x"91b8de031e0b60861c655c8168596d98b065d57f26f287f8c810590b06a636eff13c4055983e95b2f60a4d6ba5484fa4176923d1f7807cc0b222ddf6179c1db099dba0433f098aae82542b3fd27b411d64a0a35aad01b2c07ac67f7d0a1d2c11";
         let new_pop1 = x"b61913eb4dc7ea1d92f174e1a3c6cad3f49ae8de40b13b69046ce072d8d778bfe87e734349c7394fd1543fff0cb6e2d0";
 
-        let mut scenario_val = test_scenario::begin(validator_addr);
+        let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
         // Set up IotaSystemState with an active validator
@@ -920,7 +920,7 @@ module iota_system::iota_system_tests {
         let new_pubkey = x"96d19c53f1bee2158c3fcfb5bb2f06d3a8237667529d2d8f0fbb22fe5c3b3e64748420b4103674490476d98530d063271222d2a59b0f7932909cc455a30f00c69380e6885375e94243f7468e9563aad29330aca7ab431927540e9508888f0e1c";
         let new_pop = x"932336c35a8c393019c63eb0f7d385dd4e0bd131f04b54cf45aa9544f14dca4dab53bd70ffcb8e0b34656e4388309720";
 
-        let mut scenario_val = test_scenario::begin(validator_addr);
+        let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
         // Set up IotaSystemState with an active validator
@@ -972,35 +972,5 @@ module iota_system::iota_system_tests {
         );
         test_scenario::return_shared(system_state);
         scenario_val.end();
-    }
-
-    #[test]
-    fun test_skip_stake_subsidy() {
-        let mut scenario_val = test_scenario::begin(@0x0);
-        let scenario = &mut scenario_val;
-        // Epoch duration is set to be 42 here.
-        set_up_iota_system_state(vector[@0x1, @0x2]);
-
-        // If the epoch length is less than 42 then the stake subsidy distribution counter should not be incremented. Otherwise it should.
-        advance_epoch_and_check_distribution_counter(scenario, 42, true);
-        advance_epoch_and_check_distribution_counter(scenario, 32, false);
-        advance_epoch_and_check_distribution_counter(scenario, 52, true);
-        scenario_val.end();
-    }
-
-    fun advance_epoch_and_check_distribution_counter(scenario: &mut Scenario, epoch_length: u64, should_increment_counter: bool) {
-        scenario.next_tx(@0x0);
-        let new_epoch = scenario.ctx().epoch() + 1;
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        let prev_epoch_time = system_state.epoch_start_timestamp_ms();
-        let prev_counter = system_state.get_stake_subsidy_distribution_counter();
-
-        let rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, 0, 0, 0, 0, 0, 0, prev_epoch_time + epoch_length, scenario.ctx()
-        );
-        destroy(rebate);
-        assert_eq(system_state.get_stake_subsidy_distribution_counter(), prev_counter + (if (should_increment_counter) 1 else 0));
-        test_scenario::return_shared(system_state);
-        scenario.next_epoch(@0x0);
     }
 }
