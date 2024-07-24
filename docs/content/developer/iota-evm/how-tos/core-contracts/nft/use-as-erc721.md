@@ -8,6 +8,7 @@ tags:
 ---
 
 # Use as ERC721
+
 ## About the `ERC721NFTs` contract
 
 The `ERC721NFTs` contract is a hardcoded contract at address `0x1074030000000000000000000000000000000000`. Every L1 NFT owned by the chain can be accessed through it. In this example, we will show you how to use it by using `transferFrom`.
