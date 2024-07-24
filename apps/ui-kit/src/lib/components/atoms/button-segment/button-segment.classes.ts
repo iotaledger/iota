@@ -11,4 +11,5 @@ const TEXT_COLOR_FOCUSED = 'enabled:focused:text-neutral-40 enabled:dark:focused
 export const TEXT_COLORS = `${TEXT_COLOR} ${TEXT_COLOR_HOVER} ${TEXT_COLOR_FOCUSED}`;
 export const TEXT_COLORS_SELECTED = 'text-neutral-10 dark:text-neutral-92';
 
-export const UNDERLINED_BACKGROUND_SELECTED = 'border-b border-primary-30 bg-transparent';
+export const UNDERLINED_SELECTED = 'border-b border-primary-30 dark:border-primary-80';
+export const UNDERLINED = 'border-b border-neutral-60 dark:border-neutral-40';

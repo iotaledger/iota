@@ -7,7 +7,8 @@ import {
     BACKGROUND_COLORS_SELECTED,
     TEXT_COLORS,
     TEXT_COLORS_SELECTED,
-    UNDERLINED_BACKGROUND_SELECTED,
+    UNDERLINED,
+    UNDERLINED_SELECTED,
 } from './button-segment.classes';
 import cx from 'classnames';
 import { ButtonSegmentType } from './button-segment.enums';
@@ -51,10 +52,11 @@ export function ButtonSegment({
 
     const backgroundColors = selected
         ? isUnderlined
-            ? UNDERLINED_BACKGROUND_SELECTED
+            ? 'bg-transparent'
             : BACKGROUND_COLORS_SELECTED
         : BACKGROUND_COLORS;
 
+    const underlined = isUnderlined ? (selected ? UNDERLINED_SELECTED : UNDERLINED) : '';
     const textColors = selected ? TEXT_COLORS_SELECTED : TEXT_COLORS;
     const padding = isUnderlined ? 'px-lg py-md' : 'px-sm py-[6px]';
     const borderRadius = isUnderlined ? '' : 'rounded-full';
@@ -67,6 +69,7 @@ export function ButtonSegment({
                 textColors,
                 padding,
                 borderRadius,
+                underlined,
                 {
                     'pl-xs': !!icon && !isUnderlined,
                 },
