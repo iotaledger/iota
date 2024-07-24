@@ -14,7 +14,7 @@ def run_cargo_tree(skip_dev_dependencies, save_to_file=False):
         tree_edges += ',no-dev'
     
     # Run the cargo tree command and store the output in a string variable
-    result = subprocess.run(['cargo', 'tree', '-q', '--no-dedupe', '--depth=1', tree_edges], stdout=subprocess.PIPE, text=True)
+    result = subprocess.run(['cargo', 'tree', '-q', '--all-features', '--no-dedupe', '--depth=1', tree_edges], stdout=subprocess.PIPE, text=True)
     if result.returncode:
         raise Exception("cargo tree process exited with return code %d" % result.returncode)
     
