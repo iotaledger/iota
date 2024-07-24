@@ -17,7 +17,7 @@ env:
   TAG_NAME: "${{ github.event.inputs.iota_branch || 'develop' }}"
 
 jobs:
-  deploy-preview:
+  wallet-nightly-build:
     permissions:
       contents: read
       pull-requests: write
