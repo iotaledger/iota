@@ -9,7 +9,6 @@
     "**/target/",
     "**/build/",
     "external-crates/move/",
-    "bridge/evm/lib/",
     "examples/trading/api/prisma/migrations/migration_lock.toml",
     "sdk/create-dapp/templates/",
     "crates/iota-framework/docs/**/*.{md}",
