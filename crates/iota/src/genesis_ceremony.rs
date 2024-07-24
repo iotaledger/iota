@@ -468,7 +468,6 @@ mod test {
         let command = Ceremony {
             path: Some(dir.path().into()),
             protocol_version: MAX_PROTOCOL_VERSION,
-            protocol_version: None,
             command: CeremonyCommand::BuildUnsignedCheckpoint {
                 local_migration_snapshots: vec![],
                 remote_migration_snapshots: vec![],
