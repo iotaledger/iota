@@ -12,10 +12,6 @@ mysten-metrics:
   - "crates/mysten-metrics/**"
 mysten-network:
   - "crates/mysten-network/**"
-mysten-service:
-  - "crates/mysten-service/**"
-mysten-service-boilerplate:
-  - "crates/mysten-service-boilerplate/**"
 mysten-util-mem:
   - "crates/mysten-util-mem/**"
 mysten-util-mem-derive:
@@ -174,8 +170,6 @@ iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 iotans-indexer:
   - "crates/iotans-indexer/**"
-iotaop-cli:
-  - "crates/iotaop-cli/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:
