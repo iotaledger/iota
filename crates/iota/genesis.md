@@ -103,7 +103,7 @@ $ git commit -m "build genesis"
 $ git push
 ```
 
-4. Verify and Sign Genesis
+5. Verify and Sign Genesis
 
 Once genesis is built each validator will need to verify and sign genesis:
 
