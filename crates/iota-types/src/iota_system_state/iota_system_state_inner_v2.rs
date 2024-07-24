@@ -78,7 +78,7 @@ pub struct IotaSystemStateInnerV2 {
     pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
     pub stake_subsidy: StakeSubsidyV1,
     pub safe_mode: bool,
-    pub safe_mode_storage_rewards: Balance,
+    pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_rewards: Balance,
     pub safe_mode_storage_rebates: u64,
     pub safe_mode_non_refundable_storage_fee: u64,
@@ -119,7 +119,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
     fn advance_epoch_safe_mode(&mut self, params: &AdvanceEpochParams) {
         self.epoch = params.epoch;
         self.safe_mode = true;
-        self.safe_mode_storage_rewards
+        self.safe_mode_storage_charges
             .deposit_for_safe_mode(params.storage_charge);
         self.safe_mode_storage_rebates += params.storage_rebate;
         self.safe_mode_computation_rewards
@@ -203,7 +203,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             epoch,
             protocol_version,
             system_state_version,
-            iota_treasury_cap: _,
+            iota_treasury_cap,
             validators:
                 ValidatorSetV1 {
                     total_stake,
@@ -266,7 +266,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                     extra_fields: _,
                 },
             safe_mode,
-            safe_mode_storage_rewards,
+            safe_mode_storage_charges,
             safe_mode_computation_rewards,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
@@ -277,13 +277,14 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             epoch,
             protocol_version,
             system_state_version,
+            iota_total_supply: iota_treasury_cap.total_supply().value,
             storage_fund_total_object_storage_rebates: storage_fund
                 .total_object_storage_rebates
                 .value(),
             storage_fund_non_refundable_balance: storage_fund.non_refundable_balance.value(),
             reference_gas_price,
             safe_mode,
-            safe_mode_storage_rewards: safe_mode_storage_rewards.value(),
+            safe_mode_storage_charges: safe_mode_storage_charges.value(),
             safe_mode_computation_rewards: safe_mode_computation_rewards.value(),
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,

@@ -12,7 +12,7 @@ const meta = {
         return (
             <div className="flex flex-col">
                 <ListItem {...props}>
-                    <div className="flex flex-row items-center gap-2 pl-sm">
+                    <div className="flex flex-row items-center gap-2">
                         <Seed />
                         <div>Item 1</div>
                     </div>
