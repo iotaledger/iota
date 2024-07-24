@@ -70,9 +70,9 @@ function Snackbar({
         'rounded-md text-left',
         'transition-opacity transition-transform duration-300 ease-out',
         {
-            'bg-neutral-80': type === SnackbarType.Default,
-            'bg-tertiary-90': type === SnackbarType.Success,
-            'bg-error-90': type === SnackbarType.Error,
+            'bg-neutral-80 dark:bg-neutral-30': type === SnackbarType.Default,
+            'bg-tertiary-90 dark:bg-tertiary-10': type === SnackbarType.Success,
+            'bg-error-90 dark:bg-error-10': type === SnackbarType.Error,
             'translate-y-0 opacity-100': isOpen,
             'translate-y-full opacity-0': !isOpen,
             'py-[14px] px-md': !action && !onClose,
@@ -86,7 +86,13 @@ function Snackbar({
     return (
         <div className={snackbarClasses}>
             <div className={cx({ 'w-full': isMultiline })}>
-                <p className="text-left text-body-md text-neutral-10 dark:text-neutral-60">
+                <p
+                    className={cx('text-left text-body-md text-neutral-10 dark:text-neutral-60', {
+                        'dark:text-neutral-92': type === SnackbarType.Default,
+                        'dark:text-tertiary-90': type === SnackbarType.Success,
+                        'dark:text-error-90': type === SnackbarType.Error,
+                    })}
+                >
                     {message}
                 </p>
             </div>
