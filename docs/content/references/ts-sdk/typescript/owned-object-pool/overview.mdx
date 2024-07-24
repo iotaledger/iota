@@ -14,7 +14,7 @@ benefit of the lower latency those objects provide. On top of that, they are imp
 completely avoid because the transaction's gas coin is an owned object.
 
 Finally, the situation is exacerbated by
-[gas smashing](https://docs.iota.io/concepts/transactions/gas-smashing) and the IOTA TypeScript SDK's
+[gas smashing](../../../../developer/iota-101/transactions/gas-smashing.mdx) and the IOTA TypeScript SDK's
 default coin selection logic, which uses all the `0x2::coin::Coin<0x2::iota::IOTA>` objects owned by
 an address for every transaction's gas payment. These defaults make sending transactions from your
 wallet straightforward (doing so automatically cleans up coin dust), but means that developers
@@ -63,7 +63,7 @@ Before you can run this example, you need to already have at least one coin of t
 `0x2::coin::Coin<0x2::iota::IOTA>` in your wallet for each transaction that you need to execute in
 parallel (in our case 10 coins). Each `Coin<IOTA>` should have enough balance to execute each
 transaction. If you need IOTA for a test network, you can
-[use a faucet](https://docs.iota.io/guides/developer/getting-started/get-coins) to mint some.
+[use a faucet](../../../../developer/getting-started/get-coins.mdx) to mint some.
 
 ```ts
 import { IotaClient } from '@iota/iota.js/client';
