@@ -73,12 +73,12 @@ module iota_system::iota_system_state_inner {
 
     public(friend) fun advance_epoch(
         self: &mut IotaSystemStateInner,
-        storage_reward: Balance<IOTA>,
+        storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         storage_rebate_amount: u64,
     ) : Balance<IOTA> {
         balance::join(&mut self.storage_fund, computation_reward);
-        balance::join(&mut self.storage_fund, storage_reward);
+        balance::join(&mut self.storage_fund, storage_charge);
         let storage_rebate = balance::split(&mut self.storage_fund, storage_rebate_amount);
         storage_rebate
     }
