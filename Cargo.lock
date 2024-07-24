@@ -7168,36 +7168,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-oracle"
-version = "1.22.0"
-dependencies = [
- "anyhow",
- "bcs",
- "chrono",
- "clap",
- "dirs 4.0.0",
- "iota-config",
- "iota-json-rpc-types",
- "iota-keys",
- "iota-move-build",
- "iota-sdk 1.22.0",
- "iota-types",
- "jsonpath_lib",
- "mysten-metrics",
- "once_cell",
- "prometheus",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "shared-crypto",
- "tap",
- "telemetry-subscribers",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iota-package-resolver"
 version = "0.1.0"
 dependencies = [
@@ -8314,17 +8284,6 @@ source = "git+https://github.com/zhiburt/tabled.git?rev=e449317a1c02eb6b29e409ad
 dependencies = [
  "serde_json",
  "tabled",
-]
-
-[[package]]
-name = "jsonpath_lib"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eaa63191d68230cccb81c5aa23abd53ed64d83337cacbb25a7b8c7979523774f"
-dependencies = [
- "log",
- "serde",
- "serde_json",
 ]
 
 [[package]]

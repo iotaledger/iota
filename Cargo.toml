@@ -109,7 +109,6 @@ members = [
   "crates/iota-node",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
-  "crates/iota-oracle",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
   "crates/iota-protocol-config",

@@ -112,8 +112,6 @@ iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
   - "crates/iota-open-rpc-macros/**"
-iota-oracle:
-  - "crates/iota-oracle/**"
 iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
