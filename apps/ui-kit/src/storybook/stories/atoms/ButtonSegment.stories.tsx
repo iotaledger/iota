@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { ButtonSegment } from '@/components/atoms/';
+import { ButtonSegment, ButtonSegmentType } from '@/components/atoms/';
 
 const meta = {
     component: ButtonSegment,
@@ -34,6 +34,12 @@ export const Default: Story = {
         },
         disabled: {
             control: 'boolean',
+        },
+        type: {
+            control: {
+                type: 'select',
+                options: Object.values(ButtonSegmentType),
+            },
         },
     },
 };
