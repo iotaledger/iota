@@ -1297,11 +1297,7 @@ impl Frame {
             for instruction in &code[self.pc as usize..] {
                 trace!(
                     &self.function,
-                    &self.locals,
-                    self.pc,
-                    instruction,
-                    resolver,
-                    interpreter
+                    &self.locals, self.pc, instruction, resolver, interpreter
                 );
 
                 fail_point!("move_vm::interpreter_loop", |_| {
