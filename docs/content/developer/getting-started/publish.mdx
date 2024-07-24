@@ -2,7 +2,7 @@
 title: Publish a Package
 ---
 
-import AddressPrefix from "../../../_snippets/address-prefix.mdx";
+import AddressPrefix from "../../_snippets/address-prefix.mdx";
 
 Before you can call functions in a Move package (beyond an emulated IOTA execution scenario), that package must be available on the IOTA network. When you publish a package, you are actually creating an immutable IOTA object on the network that anyone can access.
 
@@ -82,7 +82,7 @@ flowchart TB
 
 ### Interact with the package
 
-Now that the package is on chain, you can call its functions to interact with the package. You can use the `iota move call` command to make individual calls to package functions, or you can construct more advanced blocks of transactions using the `iota client ptb` command. The `ptb` part of the command stands for [programmable transaction blocks](../../iota-101/transactions/ptb/prog-txn-blocks.mdx). In basic terms, PTBs allow you to group commands together in a single transaction for more efficient and cost-effective network activity.
+Now that the package is on chain, you can call its functions to interact with the package. You can use the `iota move call` command to make individual calls to package functions, or you can construct more advanced blocks of transactions using the `iota client ptb` command. The `ptb` part of the command stands for [programmable transaction blocks](../iota-101/transactions/ptb/prog-txn-blocks.mdx). In basic terms, PTBs allow you to group commands together in a single transaction for more efficient and cost-effective network activity.
 
 ```mermaid
 flowchart TB
@@ -154,7 +154,7 @@ Congratulations! You have successfully published a package to the IOTA network a
 ## Related links
 
 - [Debugging](debug.mdx): Print values to aid in logic debugging.
-- [Package Upgrades](../../iota-101/iota-move-concepts/packages/packages.mdx): Upgrading packages published on the IOTA network.
-- [Publish a Move Package](../../../references/cli/client.mdx#publish-a-move-package): More details about using the CLI to publish a package.
-- [Programmable Transaction Blocks](../../iota-101/transactions/ptb/prog-txn-blocks.mdx): PTBs are collections of transactions that are executed together.
-- [IOTA Client PTB CLI](../../../references/cli/ptb.mdx): The `client ptb` command allows you to specify the transactions for execution in a programmable transaction block directly from your CLI or through bash scripts.
+- [Package Upgrades](../iota-101/iota-move-concepts/packages/packages.mdx): Upgrading packages published on the IOTA network.
+- [Publish a Move Package](../../references/cli/client.mdx#publish-a-move-package): More details about using the CLI to publish a package.
+- [Programmable Transaction Blocks](../iota-101/transactions/ptb/prog-txn-blocks.mdx): PTBs are collections of transactions that are executed together.
+- [IOTA Client PTB CLI](../../references/cli/ptb.mdx): The `client ptb` command allows you to specify the transactions for execution in a programmable transaction block directly from your CLI or through bash scripts.

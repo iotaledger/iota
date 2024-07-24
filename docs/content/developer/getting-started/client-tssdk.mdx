@@ -2,7 +2,7 @@
 title: Client App with IOTA TypeScript SDK
 ---
 
-import InfoPnpmRequired from "../../../_snippets/info-pnpm-required.mdx";
+import InfoPnpmRequired from "../../_snippets/info-pnpm-required.mdx";
 
 This exercise diverges from the example built in the previous topics in this section. Rather than adding a frontend to the running example, the instruction walks you through setting up dApp Kit in a React App, allowing you to connect to wallets, and query data from IOTA RPC nodes to display in your app. You can use it to create your own frontend for the example used previously, but if you want to get a fully functional app up and running quickly, run the following command in a terminal or console to scaffold a new app with all steps in this exercise already implemented:
 
@@ -22,11 +22,11 @@ yarn create @iota/dapp --template react-client-dapp
 
 The IOTA TypeScript SDK (@iota/iota.js) provides all the low-level functionality needed to interact with IOTA ecosystem from TypeScript. You can use it in any TypeScript or JavaScript project, including web apps, Node.js apps, or mobile apps written with tools like React Native that support TypeScript.
 
-For more information on the IOTA TypeScript SDK, see the [IOTA TypeScript SDK documentation](../../../references/ts-sdk/typescript/index.mdx).
+For more information on the IOTA TypeScript SDK, see the [IOTA TypeScript SDK documentation](../../references/ts-sdk/typescript/index.mdx).
 
 ## What is dApp Kit?
 
-dApp Kit (@iota/dapp-kit) is a collection of React hooks, components, and utilities that make building dApps on IOTA straightforward. For more information on dApp Kit, see the [dApp Kit documentation](../../../references/ts-sdk/dapp-kit/index.mdx).
+dApp Kit (@iota/dapp-kit) is a collection of React hooks, components, and utilities that make building dApps on IOTA straightforward. For more information on dApp Kit, see the [dApp Kit documentation](../../references/ts-sdk/dapp-kit/index.mdx).
 
 ## Installing dependencies
 
@@ -218,5 +218,5 @@ You now have a dApp connected to wallets and can query data from RPC nodes.
 
 The next step from here is to start interacting with Move modules, constructing transaction blocks, and making Move calls. This exercise continues in the Counter end-to-end example.
 
-- [IOTA 101](../../iota-101.mdx): Learn the basics of the IOTA network and how to interact with on-chain objects using Move.
+- [IOTA 101](../iota-101.mdx): Learn the basics of the IOTA network and how to interact with on-chain objects using Move.
 - [IOTA Move CLI](/references/cli/move.mdx): The `move` commands in the IOTA CLI provide console or terminal interaction with the Move VM.
