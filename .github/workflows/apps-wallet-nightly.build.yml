@@ -14,6 +14,7 @@ on:
 env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
   IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_NIGHTLY_BUILD_APPS_BACKEND }}
   TAG_NAME: "${{ github.event.inputs.iota_branch || 'develop' }}"
 
 jobs:
