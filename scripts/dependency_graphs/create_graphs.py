@@ -7,6 +7,23 @@
 import re, pathlib, os, subprocess
 from bs4 import BeautifulSoup
 
+# runs the cargo tree command and returns the result
+def run_cargo_tree(skip_dev_dependencies, save_to_file=False):
+    args = ['--no-dedupe', '--depth=1']
+    if skip_dev_dependencies:
+        args.append('--edges=no-dev')
+
+    # Run the cargo tree command and store the output in a string variable
+    result = subprocess.run(['cargo', 'tree'] + args, stdout=subprocess.PIPE, text=True)
+    if result.returncode:
+        raise Exception("cargo tree process exited with return code %d" % result.returncode)
+    
+    if save_to_file:
+        with open('debug_tree.txt', 'w') as f:
+            f.write(result.stdout)
+
+    return result.stdout
+
 # calculates the depth of the crate in the graph
 def calculate_graph_depth(line):
     markers = ['│   ', '├── ', '└── ', '    ']
@@ -179,13 +196,10 @@ if __name__ == '__main__':
     # Create the output folder if it doesn't exist
     pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
 
-    # Run the cargo tree command and store the output in a string variable
-    result = subprocess.run(['cargo', 'tree'], stdout=subprocess.PIPE, text=True)
-    if result.returncode:
-        raise Exception("cargo tree process exited with return code %d" % result.returncode)
+    cargo_tree_output = run_cargo_tree(skip_dev_dependencies)
     
     # Parse the cargo tree and generate the DOT file
-    dependencies = parse_cargo_tree(result.stdout, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
+    dependencies = parse_cargo_tree(cargo_tree_output, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
     
     generate_dot_all(output_folder, dependencies)
     generate_dot_per_crate(output_folder, dependencies)
