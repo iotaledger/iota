@@ -7254,49 +7254,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-proxy"
-version = "0.0.2"
-dependencies = [
- "anyhow",
- "axum",
- "axum-server",
- "bytes",
- "clap",
- "const-str",
- "fastcrypto",
- "git-version",
- "hex",
- "http-body",
- "hyper",
- "iota-tls",
- "iota-types",
- "ipnetwork",
- "itertools 0.11.0",
- "mime",
- "multiaddr",
- "mysten-metrics",
- "once_cell",
- "prometheus",
- "prost 0.12.3",
- "prost-build",
- "protobuf",
- "rand 0.8.5",
- "reqwest",
- "rustls 0.21.6",
- "rustls-pemfile 1.0.2",
- "serde",
- "serde_json",
- "serde_with",
- "serde_yaml 0.8.26",
- "snap",
- "telemetry-subscribers",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
-]
-
-[[package]]
 name = "iota-replay"
 version = "0.1.0"
 dependencies = [
@@ -8191,15 +8148,6 @@ name = "ipnet"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
-
-[[package]]
-name = "ipnetwork"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "iri-string"
