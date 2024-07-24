@@ -30,7 +30,7 @@ assets.nfts = nftIDs;
 ### Call `takeAllowedFunds()`
 
 After that, you can call `takeAllowedFunds()` to take the allowance of the specified address/contract
- 
+
 ```solidity
 ISC.sandbox.takeAllowedFunds(_address, NFTID);
 ```

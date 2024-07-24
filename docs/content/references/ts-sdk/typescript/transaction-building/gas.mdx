@@ -4,7 +4,7 @@ With Programmable Transaction blocks, you can use the gas payment coin to constr
 balance using `splitCoin`. This is useful for IOTA payments, and avoids the need for up-front coin
 selection. You can use `txb.gas` to access the gas coin in a transaction block, and it is valid as
 input for any arguments, as long as it is used
-[by-reference](https://docs.iota.io/guides/developer/iota-101/simulating-refs). Practically speaking,
+[by-reference](../../../../developer/iota-101/transactions/ptb/simulating-refs.mdx). Practically speaking,
 this means you can also add to the gas coin with `mergeCoins` and borrow it for Move functions with
 `moveCall`.
 

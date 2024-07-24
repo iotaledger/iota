@@ -264,35 +264,6 @@ const developer = [
 				],
 			},
 			{
-				type: 'category',
-				label: 'App Examples',
-				link: {
-					type: 'doc',
-					id: 'developer/app-examples',
-				},
-				items: [
-					'developer/app-examples/blackjack',
-					'developer/app-examples/coin-flip',
-					'developer/app-examples/e2e-counter',
-					'developer/app-examples/plinko',
-					'developer/app-examples/recaptcha',
-					'developer/app-examples/tic-tac-toe',
-					{
-						type: 'category',
-						label: 'Trustless Token Swap',
-						link: {
-							type: 'doc',
-							id: 'developer/app-examples/trustless-token-swap',
-						},
-						items: [
-							'developer/app-examples/trustless-token-swap/backend',
-							'developer/app-examples/trustless-token-swap/indexer-api',
-							'developer/app-examples/trustless-token-swap/frontend',
-						],
-					},
-				],
-			},
-			{
 				type:'category',
 				label: 'Standards',
 				items: [

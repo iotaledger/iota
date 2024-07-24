@@ -101,7 +101,7 @@ txb.transferObjects([coin], '0xSomeIotaAddress');
 
 When providing inputs that are not on chain objects, the values must be serialized as
 
-[BCS](https://sdk.mystenlabs.com/bcs), which can be done using `txb.pure` eg,
+[BCS](../bcs.mdx), which can be done using `txb.pure` eg,
 `txb.pure.address(address)` or `txb.pure(bcs.vector(bcs.U8).serialize(bytes))`.
 
 `txb.pure` can be called as a function that accepts a SerializedBcs object, or as a namespace that

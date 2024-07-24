@@ -8,12 +8,8 @@ on:
       - "testnet"
       - "mainnet"
       - "releases/iota-*-release"
-    paths-ignore:
-      - "docs/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -116,6 +112,7 @@ jobs:
 
   license-check:
     name: license-check
+    if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1

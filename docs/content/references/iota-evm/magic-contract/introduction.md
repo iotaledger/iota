@@ -11,6 +11,7 @@ This section documents the magic contract and all it's interfaces:
 <DocCardList />
 
 <!-- TODO: Remove -->
+
 ## Call a Native Contract
 
 You can call native contracts using [`ISC.sandbox.call`](https://github.com/iotaledger/wasp/blob/develop/packages/vm/core/evm/iscmagic/ISCSandbox.sol#L56):

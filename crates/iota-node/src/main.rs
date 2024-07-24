@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use clap::{ArgGroup, Parser};
 use iota_config::{node::RunWithRange, Config, NodeConfig};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::metrics;
+use iota_node::{metrics, IotaNode};
 use iota_protocol_config::SupportedProtocolVersions;
 use iota_telemetry::send_telemetry_event;
 use iota_types::{
@@ -122,7 +122,7 @@ fn main() {
 
     // Run node in a separate runtime so that admin/monitoring functions continue to
     // work if it deadlocks.
-    let node_once_cell = Arc::new(AsyncOnceCell::<Arc<iota_node::IotaNode>>::new());
+    let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
     let rpc_runtime = runtimes.json_rpc.handle().clone();
 
@@ -130,7 +130,7 @@ fn main() {
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
     runtimes.iota_node.spawn(async move {
-        match iota_node::IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
+        match IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
@@ -145,13 +145,12 @@ fn main() {
         let node = node_once_cell_clone.get().await;
         let mut shutdown_rx = node.subscribe_to_shutdown_channel();
 
-        // when we get a shutdown signal from iota-node, forward it on to the runtime_shutdown_channel here in
-        // main to signal runtimes to all shutdown.
-        tokio::select! {
-           _ = shutdown_rx.recv() => {
-                runtime_shutdown_tx.send(()).expect("failed to forward shutdown signal from iota-node to iota-node main");
-            }
-        }
+        // when we get a shutdown signal from iota-node, forward it on to the
+        // runtime_shutdown_channel here in main to signal all runtimes to shutdown.
+        _ = shutdown_rx.recv().await;
+        runtime_shutdown_tx
+            .send(())
+            .expect("failed to forward shutdown signal from iota-node to iota-node main");
         // TODO: Do we want to provide a way for the node to gracefully shutdown?
         loop {
             tokio::time::sleep(Duration::from_secs(1000)).await;
@@ -203,7 +202,7 @@ fn main() {
 }
 
 #[cfg(not(unix))]
-async fn wait_termination(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>) {
+async fn wait_termination(mut shutdown_rx: broadcast::Receiver<()>) {
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
         _ = shutdown_rx.recv() => {},
@@ -211,7 +210,7 @@ async fn wait_termination(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>)
 }
 
 #[cfg(unix)]
-async fn wait_termination(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>) {
+async fn wait_termination(mut shutdown_rx: broadcast::Receiver<()>) {
     use futures::FutureExt;
     use tokio::signal::unix::*;
 
