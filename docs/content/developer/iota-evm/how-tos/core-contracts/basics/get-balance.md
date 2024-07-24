@@ -12,7 +12,6 @@ tags:
 
 Once you have your L1 assets on L2, you might want to check their balance. This guide explains how to do so by calling the three functions `getL2BalanceBaseTokens`, `getL2BalanceNativeTokens`and `getL2NFTAmount` for the corresponding token types.
 
-
 ## Example Code
 
 1. Get the [AgentID](../../../explanations/how-accounts-work.md) from the sender by calling `ISC.sandbox.getSenderAccount()`.
@@ -71,4 +70,3 @@ contract GetBalance {
     }
 }
 ```
-

@@ -50,23 +50,23 @@ If you are launching a new ERC721 token, you can use the ONFT standard to enable
 #### For ERC721
 
 - MyProxyONFT721.sol:
-    - CTOR:
-        - [`minGasToTransferAndStore`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/ONFT721Core.sol#L169):
-          The minimum gas needed to transfer and store your NFT is typically 100k for ERC721. This value would vary
-          depending on your contract complexity; it's recommended to test. If this value is set too low, the destination
-          tx will fail, and a manual retry is needed.
-        - `lzEndpoint`: LayerZero Endpoint on the source chain.
-        - `proxyToken`: deployed contract address of the NFT tokens on the source chain.
+  - CTOR:
+    - [`minGasToTransferAndStore`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/ONFT721Core.sol#L169):
+      The minimum gas needed to transfer and store your NFT is typically 100k for ERC721. This value would vary
+      depending on your contract complexity; it's recommended to test. If this value is set too low, the destination
+      tx will fail, and a manual retry is needed.
+    - `lzEndpoint`: LayerZero Endpoint on the source chain.
+    - `proxyToken`: deployed contract address of the NFT tokens on the source chain.
 
 - MyONFT721.sol:
-    - CTOR:
-        - `name`: name of the ONFT-wrapped tokens on the destination chain
-        - `symbol`: symbol of the ONFT-wrapped tokens on the destination chain
-        - [`minGasToTransferAndStore`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/ONFT721Core.sol#L169):
-          The minimum gas needed to transfer and store your NFT typically 100k for ERC721. This value would vary
-          depending on your contract complexity; it's recommended to test. If this value is set too low, the destination
-          tx will fail, and a manual retry is needed.
-        - `lzEndpoint`: - lzEndpoint: LayerZero Endpoint on the destination chain
+  - CTOR:
+    - `name`: name of the ONFT-wrapped tokens on the destination chain
+    - `symbol`: symbol of the ONFT-wrapped tokens on the destination chain
+    - [`minGasToTransferAndStore`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/ONFT721Core.sol#L169):
+      The minimum gas needed to transfer and store your NFT typically 100k for ERC721. This value would vary
+      depending on your contract complexity; it's recommended to test. If this value is set too low, the destination
+      tx will fail, and a manual retry is needed.
+    - `lzEndpoint`: - lzEndpoint: LayerZero Endpoint on the destination chain
 
 ### Set the Trusted Remote
 
@@ -126,7 +126,7 @@ approve step is also required, but the operations will happen on the `ONFT` cont
 ##### `AdapterParams`
 
 - You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L44) as a reference to set gas drop on the destination in `adapterParams`.
-    - The provided gas drop must be `<=` the config one. Otherwise, you will get [`dstNativeAmt` too large](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/mocks/LZEndpointMock.sol#L413) error.
+  - The provided gas drop must be `<=` the config one. Otherwise, you will get [`dstNativeAmt` too large](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/mocks/LZEndpointMock.sol#L413) error.
 - You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L34) as a reference to set default `adapterParams` without needing a gas drop.
 
 ##### LayerZero
@@ -149,12 +149,12 @@ yarn
 If you want to use the standard implementation for ERC20, copy
 the [`contracts-standard`](https://github.com/iota-community/layerzero-oft-V1-utils/tree/main/contracts-standard) folder
 to `contracts`. If you want to use a custom implementation, copy
-the  [`contracts-wiota`](https://github.com/iota-community/layerzero-oft-V1-utils/tree/main/contracts-wiota)
+the [`contracts-wiota`](https://github.com/iota-community/layerzero-oft-V1-utils/tree/main/contracts-wiota)
 to `contracts`. Then, run the following command to compile the contracts:
 
 ```bash
 yarn compile
-``` 
+```
 
 ### Set Your Configuration
 
@@ -188,7 +188,7 @@ You can use the following command to deploy ProxyONFT721 on the source chain (e.
 
 ```bash
 yarn deploy-proxy-onft-smr-Testnet
-``` 
+```
 
 Expected log output :
 
@@ -204,7 +204,7 @@ You can use the following command to deploy ProxyONFT721 on the destination chai
 
 ```bash
 yarn set-min-dest-gas-onft-bnb-Testnet
-``` 
+```
 
 Expected log output :
 
@@ -277,7 +277,7 @@ Done in 4.28s.
 
 You can use the following command to set batch size limits on the `ONFT` contract on the destination chain (e.g., BNB Testnet):
 
-```bash 
+```bash
 yarn set-batch-size-limit-onft-bnb-Testnet
 ```
 
@@ -292,7 +292,7 @@ Done in 4.26s.
 
 ### Set the Trusted Remote
 
-#### On the source  chain
+#### On the source chain
 
 You can use the following command to set a trusted remote on the `ProxyONFT` contract on the source chain (e.g., ShimmerEVM Testnet):
 
@@ -313,7 +313,7 @@ Done in 4.24s.
 
 You can use the following command to set a trusted remote on the `ONFT` contract on the destination chain (e.g., BNB Testnet):
 
-```bash 
+```bash
 yarn set-remote-onft-bnb-Testnet
 ```
 
