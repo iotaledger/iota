@@ -14,7 +14,6 @@ COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
 RUN cargo build --release \
-    --bin iota-oracle \
     --bin iotans-indexer
 RUN mkdir /iota/bin/
 RUN find /iota/target/release/ -maxdepth 1 -type f -executable -print 
