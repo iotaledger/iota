@@ -42,6 +42,8 @@ jobs:
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Env variables (network configs)
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Copy the .env file
+        run: cp ./.vercel/.env.production.local ./sdk/.env
       - name: Build Wallet Dashboard Local
         run: pnpm wallet-dashboard build
       - name: Build Vercel Project Artifacts
