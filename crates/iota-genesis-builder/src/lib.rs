@@ -82,6 +82,7 @@ pub const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
 const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distribution-schedule";
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
+const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
 
 pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
 /// Compression levels go from 0 to 11, where 11 has the highest compression
@@ -103,6 +104,7 @@ pub struct Builder {
     built_genesis: Option<UnsignedGenesis>,
     migration_objects: MigrationObjects,
     genesis_stake: GenesisStake,
+    migration_sources: Vec<SnapshotSource>,
 }
 
 impl Default for Builder {
@@ -122,14 +124,8 @@ impl Builder {
             built_genesis: None,
             migration_objects: Default::default(),
             genesis_stake: Default::default(),
+            migration_sources: Default::default(),
         }
-    }
-
-    /// Add stardust and shimmer objects into genesis.
-    pub fn with_migrated_state(self) -> anyhow::Result<Self> {
-        tracing::info!("Adding migrated state...");
-        self.add_migration_objects(SnapshotUrl::Iota.to_reader()?)?
-            .add_migration_objects(SnapshotUrl::Shimmer.to_reader()?)
     }
 
     /// Checks if the genesis to be built is vanilla or if it includes Stardust
@@ -143,10 +139,21 @@ impl Builder {
         self
     }
 
+    /// Set the [`TokenDistributionSchedule`].
+    ///
+    /// # Panic
+    ///
+    /// This method fails if the passed schedule contains timelocked stake.
+    /// This is to avoid conflicts with the genesis stake, that delegates
+    /// timelocked stake based on the migrated state.
     pub fn with_token_distribution_schedule(
         mut self,
         token_distribution_schedule: TokenDistributionSchedule,
     ) -> Self {
+        assert!(
+            !token_distribution_schedule.contains_timelocked_stake(),
+            "timelocked stake should be generated only from migrated stake"
+        );
         self.token_distribution_schedule = Some(token_distribution_schedule);
         self
     }
@@ -214,22 +221,27 @@ impl Builder {
         self
     }
 
-    pub fn add_migration_objects(mut self, reader: impl Read) -> anyhow::Result<Self> {
-        self.migration_objects
-            .extend(bcs::from_reader::<Vec<_>>(reader)?);
-        Ok(self)
+    pub fn add_migration_source(mut self, source: SnapshotSource) -> Self {
+        self.migration_sources.push(source);
+        self
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
         self.built_genesis.clone()
     }
 
-    fn build_and_cache_unsigned_genesis(&mut self) {
-        // Verify that all input data is valid
-        self.validate_inputs().unwrap();
-        let validators = self.validators.clone().into_values().collect::<Vec<_>>();
+    fn load_migration_sources(&mut self) -> anyhow::Result<()> {
+        for source in &self.migration_sources {
+            tracing::info!("Adding migration objects from {:?}", source);
+            self.migration_objects
+                .extend(bcs::from_reader::<Vec<_>>(source.to_reader()?)?);
+        }
+        Ok(())
+    }
 
-        // If not vanilla then create genesis_stake
+    /// Create and cache the [`GenesisStake`] if the builder
+    /// contains migrated objects.
+    fn create_and_cache_genesis_stake(&mut self) -> anyhow::Result<()> {
         if !self.migration_objects.is_empty() {
             let delegator =
                 stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
@@ -238,31 +250,66 @@ impl Builder {
             // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
             let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
             self.genesis_stake = delegate_genesis_stake(
-                &validators,
+                self.validators.values(),
                 delegator,
                 &self.migration_objects,
                 minimum_stake,
-            )
-            .unwrap();
+            )?;
         }
+        Ok(())
+    }
 
-        // Verify that token distribution schedule is valid
-        self.validate_token_distribution_schedule().unwrap();
-        // Get the vanilla token distribution schedule or merge it with genesis stake
-        let token_distribution_schedule = if self.is_vanilla() {
-            if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
-                token_distribution_schedule.clone()
-            } else {
+    /// Evaluate the genesis [`TokenDistributionSchedule`].
+    ///
+    /// This merges conditionally the cached token distribution
+    /// (i.e. `self.token_distribution_schedule`)  with the genesis stake
+    /// resulting from the migrated state.
+    ///
+    /// If the cached token distribution schedule contains timelocked stake, it
+    /// is assumed that the genesis stake is already merged and no operation
+    /// is performed. This is the case where we load a [`Builder`] from disk
+    /// that has already built genesis with the migrated state.
+    fn resolve_token_distribution_schedule(&mut self) -> TokenDistributionSchedule {
+        let validator_addresses = self.validators.values().map(|v| v.info.iota_address());
+        let token_distribution_schedule = self.token_distribution_schedule.take();
+        if self.genesis_stake.is_empty() {
+            token_distribution_schedule.unwrap_or_else(|| {
                 TokenDistributionSchedule::new_for_validators_with_default_allocation(
-                    validators.iter().map(|v| v.info.iota_address()),
+                    validator_addresses,
                 )
+            })
+        } else if let Some(schedule) = token_distribution_schedule {
+            if schedule.contains_timelocked_stake() {
+                // Genesis stake is already included
+                schedule
+            } else {
+                self.genesis_stake
+                    .extend_vanilla_token_distribution_schedule(schedule)
             }
-        } else if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
-            self.genesis_stake
-                .extend_vanilla_token_distribution_schedule(token_distribution_schedule.clone())
         } else {
             self.genesis_stake.to_token_distribution_schedule()
-        };
+        }
+    }
+
+    fn build_and_cache_unsigned_genesis(&mut self) {
+        // Verify that all input data is valid
+        self.validate_inputs().unwrap();
+
+        self.load_migration_sources()
+            .expect("migration sources should be loaded without errors");
+
+        self.create_and_cache_genesis_stake()
+            .expect("genesis stake should be created without errors");
+
+        // Get the vanilla token distribution schedule or merge it with genesis stake
+        let token_distribution_schedule = self.resolve_token_distribution_schedule();
+        // Verify that token distribution schedule is valid
+        token_distribution_schedule.validate();
+        token_distribution_schedule
+            .check_minimum_stake_for_validators(
+                self.validators.values().map(|v| v.info.iota_address()),
+            )
+            .expect("all validators should have the required stake");
 
         // If the genesis stake was created, then burn gas objects that were added to
         // the token distribution schedule, because they will be created on the
@@ -281,7 +328,7 @@ impl Builder {
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
-            &validators,
+            self.validators.values(),
             objects,
             &mut self.genesis_stake,
         ));
@@ -378,9 +425,9 @@ impl Builder {
     fn validate_token_distribution_schedule(&self) -> anyhow::Result<(), anyhow::Error> {
         if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
             token_distribution_schedule.validate();
-            token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
+            token_distribution_schedule.check_minimum_stake_for_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
-            );
+            )?;
         }
 
         Ok(())
@@ -706,6 +753,18 @@ impl Builder {
         ))?)
         .context("unable to deserialize genesis parameters")?;
 
+        // Load migration objects if any
+        let migration_sources_file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
+        let migration_sources: Vec<SnapshotSource> = if migration_sources_file.exists() {
+            serde_yaml::from_slice(
+                &fs::read(migration_sources_file)
+                    .context("unable to read migration sources file")?,
+            )
+            .context("unable to deserialize migration sources")?
+        } else {
+            Default::default()
+        };
+
         let token_distribution_schedule_file =
             path.join(GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE);
         let token_distribution_schedule = if token_distribution_schedule_file.exists() {
@@ -753,6 +812,7 @@ impl Builder {
             built_genesis: None, // Leave this as none, will build and compare below
             migration_objects: Default::default(),
             genesis_stake: Default::default(),
+            migration_sources,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -824,6 +884,11 @@ impl Builder {
             bcs::serialize_into(&mut write, &genesis)?;
         }
 
+        if !self.migration_sources.is_empty() {
+            let file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
+            fs::write(file, serde_yaml::to_string(&self.migration_sources)?)?;
+        }
+
         Ok(())
     }
 }
@@ -867,10 +932,10 @@ fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
     ProtocolConfig::get_for_version(version, ChainIdentifier::default().chain())
 }
 
-fn build_unsigned_genesis_data(
+fn build_unsigned_genesis_data<'info>(
     parameters: &GenesisCeremonyParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    validators: &[GenesisValidatorInfo],
+    validators: impl Iterator<Item = &'info GenesisValidatorInfo>,
     objects: Vec<Object>,
     genesis_stake: &mut GenesisStake,
 ) -> UnsignedGenesis {
@@ -882,15 +947,9 @@ fn build_unsigned_genesis_data(
 
     let genesis_chain_parameters = parameters.to_genesis_chain_parameters();
     let genesis_validators = validators
-        .iter()
         .cloned()
         .map(GenesisValidatorMetadata::from)
         .collect::<Vec<_>>();
-
-    token_distribution_schedule.validate();
-    token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
-        genesis_validators.iter().map(|v| v.iota_address),
-    );
 
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);
 
@@ -1403,7 +1462,11 @@ pub fn split_timelocks(
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum SnapshotSource {
+    /// Local uncompressed file.
     Local(PathBuf),
+    /// Local file compressed with brotli.
+    LocalBrotli(PathBuf),
+    /// Remote file (S3) with gzip compressed file
     S3(SnapshotUrl),
 }
 
@@ -1413,7 +1476,17 @@ impl SnapshotSource {
         Ok(match self {
             SnapshotSource::Local(path) => Box::new(BufReader::new(File::open(path)?)),
             SnapshotSource::S3(snapshot_url) => Box::new(snapshot_url.to_reader()?),
+            SnapshotSource::LocalBrotli(path) => Box::new(brotli::Decompressor::new(
+                File::open(path)?,
+                BROTLI_COMPRESSOR_BUFFER_SIZE,
+            )),
         })
+    }
+}
+
+impl From<SnapshotUrl> for SnapshotSource {
+    fn from(value: SnapshotUrl) -> Self {
+        Self::S3(value)
     }
 }
 
@@ -1424,6 +1497,16 @@ pub enum SnapshotUrl {
     Shimmer,
     /// Custom migration snapshot for testing purposes.
     Test(Url),
+}
+
+impl std::fmt::Display for SnapshotUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SnapshotUrl::Iota => "iota".fmt(f),
+            SnapshotUrl::Shimmer => "smr".fmt(f),
+            SnapshotUrl::Test(url) => url.as_str().fmt(f),
+        }
+    }
 }
 
 impl FromStr for SnapshotUrl {

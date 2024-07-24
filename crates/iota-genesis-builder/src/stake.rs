@@ -79,9 +79,12 @@ impl GenesisStake {
     /// Extend a vanilla [`TokenDistributionSchedule`] with the
     /// inner token allocations.
     ///
-    /// ## Panic
+    /// The resulting schedule is guaranteed to contain allocations
+    /// that sum up the initial total supply of Iota in nanos.
     ///
-    /// The method panics if the resulting schedule is invalid.
+    /// ## Errors
+    ///
+    /// The method fails if the resulting schedule contains is invalid.
     pub fn extend_vanilla_token_distribution_schedule(
         &self,
         mut vanilla_schedule: TokenDistributionSchedule,
@@ -167,8 +170,8 @@ pub fn pick_objects_for_allocation<'obj>(
 /// This function iterates in turn over [`TimeLock`] and
 /// [`GasCoin`][iota_types::gas_coin::GasCoin] objects created
 /// during stardust migration that are owned by the `delegator`.
-pub fn delegate_genesis_stake(
-    validators: &[GenesisValidatorInfo],
+pub fn delegate_genesis_stake<'info>(
+    validators: impl Iterator<Item = &'info GenesisValidatorInfo>,
     delegator: IotaAddress,
     migration_objects: &MigrationObjects,
     amount_nanos: u64,
