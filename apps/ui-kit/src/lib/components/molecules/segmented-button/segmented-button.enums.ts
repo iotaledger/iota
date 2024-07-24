@@ -4,4 +4,10 @@
 export enum SegmentedButtonType {
     Outlined = 'outlined',
     Filled = 'filled',
+    Transparent = 'transparent',
+}
+
+export enum SegmentedButtonShape {
+    Rounded = 'rounded',
+    Underlined = 'underlined',
 }

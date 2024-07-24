@@ -60,6 +60,7 @@ export function ButtonSegment({
     const textColors = selected ? TEXT_COLORS_SELECTED : TEXT_COLORS;
     const padding = isUnderlined ? 'px-lg py-md' : 'px-sm py-[6px]';
     const borderRadius = isUnderlined ? '' : 'rounded-full';
+    const textSize = isUnderlined ? 'text-title-md' : 'text-label-lg';
     return (
         <button
             onClick={onClick}
@@ -76,7 +77,7 @@ export function ButtonSegment({
             )}
             disabled={disabled}
         >
-            <div className={cx('flex flex-row items-center justify-center gap-2 text-body-md')}>
+            <div className={cx('flex flex-row items-center justify-center gap-2', textSize)}>
                 {icon && <span>{icon}</span>}
                 <span className="font-inter">{label}</span>
             </div>
