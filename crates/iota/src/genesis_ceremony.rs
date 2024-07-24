@@ -8,8 +8,11 @@ use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_config::{genesis::UnsignedGenesis, IOTA_GENESIS_FILENAME};
-use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
+use iota_config::{
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    IOTA_GENESIS_FILENAME,
+};
+use iota_genesis_builder::{Builder, SnapshotSource, SnapshotUrl, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
@@ -40,8 +43,8 @@ pub struct Ceremony {
 }
 
 impl Ceremony {
-    pub fn run(self) -> Result<()> {
-        run(self)
+    pub async fn run(self) -> Result<()> {
+        run(self).await
     }
 }
 
@@ -93,10 +96,33 @@ pub enum CeremonyCommand {
         #[clap(long)]
         project_url: Option<String>,
     },
+    /// Add token allocation for the given address.
+    AddTokenAllocation {
+        #[clap(long)]
+        recipient_address: IotaAddress,
+        #[clap(long)]
+        amount_nanos: u64,
+    },
     /// List the current validators in the Genesis builder.
     ListValidators,
     /// Build the Genesis checkpoint.
-    BuildUnsignedCheckpoint,
+    BuildUnsignedCheckpoint {
+        #[clap(
+            long,
+            help = "Define paths to local migration snapshots.",
+            name = "path"
+        )]
+        #[arg(num_args(0..))]
+        local_migration_snapshots: Vec<PathBuf>,
+        #[clap(
+            long,
+            name = "iota|smr|<full-url>",
+            help = "Remote migration snapshots.",
+            default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+        )]
+        #[arg(num_args(0..))]
+        remote_migration_snapshots: Vec<SnapshotUrl>,
+    },
     /// Examine the details of the built Genesis checkpoint.
     ExamineGenesisCheckpoint,
     /// Verify and sign the built Genesis checkpoint.
@@ -109,7 +135,7 @@ pub enum CeremonyCommand {
     Finalize,
 }
 
-pub fn run(cmd: Ceremony) -> Result<()> {
+pub async fn run(cmd: Ceremony) -> Result<()> {
     let dir = if let Some(path) = cmd.path {
         path
     } else {
@@ -136,6 +162,24 @@ pub fn run(cmd: Ceremony) -> Result<()> {
                 "Successfully validated ceremony builder at {}",
                 dir.join(GENESIS_BUILDER_PARAMETERS_FILE)
             );
+        }
+
+        CeremonyCommand::AddTokenAllocation {
+            recipient_address,
+            amount_nanos,
+        } => {
+            let mut builder = Builder::load(&dir)?;
+            let token_allocation = TokenAllocation {
+                recipient_address,
+                amount_nanos,
+                staked_with_validator: None,
+                staked_with_timelock_expiration: None,
+            };
+            let mut schedule_builder = TokenDistributionScheduleBuilder::new();
+            schedule_builder.add_allocation(token_allocation);
+            builder = builder.with_token_distribution_schedule(schedule_builder.build());
+
+            builder.save(dir)?;
         }
 
         CeremonyCommand::AddValidator {
@@ -215,15 +259,31 @@ pub fn run(cmd: Ceremony) -> Result<()> {
             }
         }
 
-        CeremonyCommand::BuildUnsignedCheckpoint => {
-            let mut builder = Builder::load(&dir)?;
-            let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
-            println!(
-                "Successfully built unsigned checkpoint: {}",
-                checkpoint.digest()
-            );
+        CeremonyCommand::BuildUnsignedCheckpoint {
+            local_migration_snapshots,
+            remote_migration_snapshots,
+        } => {
+            let local_snapshots = local_migration_snapshots
+                .into_iter()
+                .map(SnapshotSource::Local);
+            let remote_snapshots = remote_migration_snapshots
+                .into_iter()
+                .map(SnapshotSource::S3);
 
-            builder.save(dir)?;
+            let mut builder = Builder::load(&dir)?;
+            for source in local_snapshots.chain(remote_snapshots) {
+                builder = builder.add_migration_source(source);
+            }
+            tokio::task::spawn_blocking(move || {
+                let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
+                println!(
+                    "Successfully built unsigned checkpoint: {}",
+                    checkpoint.digest()
+                );
+
+                builder.save(dir)
+            })
+            .await??;
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
@@ -308,9 +368,9 @@ mod test {
 
     use super::*;
 
-    #[test]
+    #[tokio::test]
     #[cfg_attr(msim, ignore)]
-    fn ceremony() -> Result<()> {
+    async fn ceremony() -> Result<()> {
         let dir = nondeterministic!(tempfile::TempDir::new().unwrap());
 
         let validators = (0..10)
@@ -369,7 +429,7 @@ mod test {
             protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::Init,
         };
-        command.run()?;
+        command.run().await?;
 
         // Add the validators
         for (key_file, worker_key_file, network_key_file, account_key_file, validator) in
@@ -393,23 +453,27 @@ mod test {
                     project_url: None,
                 },
             };
-            command.run()?;
+            command.run().await?;
 
             Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-            .run()?;
+            .run()
+            .await?;
         }
 
         // Build the unsigned checkpoint
         let command = Ceremony {
             path: Some(dir.path().into()),
             protocol_version: MAX_PROTOCOL_VERSION,
-            command: CeremonyCommand::BuildUnsignedCheckpoint,
+            command: CeremonyCommand::BuildUnsignedCheckpoint {
+                local_migration_snapshots: vec![],
+                remote_migration_snapshots: vec![],
+            },
         };
-        command.run()?;
+        command.run().await?;
 
         // Have all the validators verify and sign genesis
         for (key, _worker_key, _network_key, _account_key, _validator) in &validators {
@@ -420,14 +484,15 @@ mod test {
                     key_file: key.into(),
                 },
             };
-            command.run()?;
+            command.run().await?;
 
             Ceremony {
                 path: Some(dir.path().into()),
                 protocol_version: MAX_PROTOCOL_VERSION,
                 command: CeremonyCommand::ValidateState,
             }
-            .run()?;
+            .run()
+            .await?;
         }
 
         // Finalize the Ceremony and build the Genesis object
@@ -436,7 +501,7 @@ mod test {
             protocol_version: MAX_PROTOCOL_VERSION,
             command: CeremonyCommand::Finalize,
         };
-        command.run()?;
+        command.run().await?;
 
         Ok(())
     }

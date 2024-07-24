@@ -497,14 +497,6 @@ pub enum IotaError {
         authority: AuthorityName,
         reason: String,
     },
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "StorageError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_StorageError,
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "GenericStorageError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_GenericStorageError,
     #[error(
         "Attempted to access {object} through parent {given_parent}, \
         but it's actual parent is {actual_owner}"
@@ -514,15 +506,6 @@ pub enum IotaError {
         given_parent: ObjectID,
         actual_owner: Owner,
     },
-
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "StorageMissingFieldError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_StorageMissingFieldError,
-    #[allow(non_camel_case_types)]
-    #[serde(rename = "StorageCorruptedFieldError")]
-    #[error("DEPRECATED")]
-    DEPRECATED_StorageCorruptedFieldError,
 
     #[error("Authority Error: {error:?}")]
     GenericAuthorityError { error: String },
