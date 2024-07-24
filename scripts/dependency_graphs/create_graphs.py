@@ -40,9 +40,15 @@ def get_internal_crate_name(base_path, line):
         crate_name = re.sub(r' v[0-9]+\.[0-9]+\.[0-9]+.*', '', package_info).strip()
     return crate_name
 
+# holds infos about a dependency
+class Dependency(object):
+    def __init__(self, name, is_dev_dependency):
+        self.name               = name
+        self.is_dev_dependency  = is_dev_dependency
+
 # parse the cargo tree from a file into a map of dependencies
 def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
-    dependencies = {}
+    dependencies_dict = {}
 
     lines = cargo_tree_output.split('\n')
 
@@ -56,7 +62,7 @@ def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
         if crate_name == None:
             continue
         
-        dependencies[crate_name] = []
+        dependencies_dict[crate_name] = []
     
     # loop again to determine the dependencies
     stack = []
@@ -89,60 +95,60 @@ def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
             stack = [crate_name]
         else:
             parent = stack[depth - 1]
-            dependencies[parent].append(crate_name)
+            dependencies_dict[parent].append(Dependency(crate_name, is_dev_dependency=False))
             if depth < len(stack):
                 stack[depth] = crate_name
             else:
                 stack.append(crate_name)
         
-    return dependencies
+    return dependencies_dict
 
 # create one file to rule them all
-def generate_dot_all(output_folder, dependencies):
+def generate_dot_all(output_folder, dependencies_dict):
     with open('%s/all.dot' % (output_folder), 'w') as file:
         file.write("digraph dependencies {\n")
-        for parent, children in dependencies.items():
-            for child in children:
-                file.write(f'    "{parent}" -> "{child}";\n')
+        for crate_name, dependencies in dependencies_dict.items():
+            for dependency in dependencies:
+                file.write(f'    "{crate_name}" -> "{dependency.name}";\n')
         file.write("}\n")
 
 # but there are too many of them, so let's go into detail
-def generate_dot_per_crate(output_folder, dependencies):
+def generate_dot_per_crate(output_folder, dependencies_dict):
     # Create a reverse dependency map
     reverse_dependencies = {}
-    for parent, children in dependencies.items():
-        for child in children:
-            if child not in reverse_dependencies:
-                reverse_dependencies[child] = []
-            reverse_dependencies[child].append(parent)
+    for crate_name, dependencies in dependencies_dict.items():
+        for dependency in dependencies:
+            if dependency.name not in reverse_dependencies:
+                reverse_dependencies[dependency.name] = []
+            reverse_dependencies[dependency.name].append(crate_name)
     
     # root level
-    for parent, children in dependencies.items():
-        if len(children) == 0:
+    for crate_name, dependencies in dependencies_dict.items():
+        if len(dependencies) == 0:
             continue
         
-        with open(f'{output_folder}/{parent}.dot', 'w') as file:
+        with open(f'{output_folder}/{crate_name}.dot', 'w') as file:
             file.write("digraph dependencies {\n")
             
             # Set the text color of the current crate to green
-            file.write(f'    "{parent}" [fontcolor=green];\n')
+            file.write(f'    "{crate_name}" [fontcolor=green];\n')
             
             # Add direct dependencies
-            for child in children:
-                color = 'red' if len(dependencies[child]) == 0 else 'black'
-                file.write(f'    "{child}" [fontcolor={color}];\n')
-                file.write(f'    "{parent}" -> "{child}";\n')
+            for dependency in dependencies:
+                color = 'red' if len(dependencies_dict[dependency.name]) == 0 else 'black'
+                file.write(f'    "{dependency.name}" [fontcolor={color}];\n')
+                file.write(f'    "{crate_name}" -> "{dependency.name}";\n')
             
             # Add reverse dependencies
-            if parent in reverse_dependencies:
-                for reverse_parent in reverse_dependencies[parent]:
+            if crate_name in reverse_dependencies:
+                for reverse_parent in reverse_dependencies[crate_name]:
                     file.write(f'    "{reverse_parent}" [fontcolor=blue];\n')
-                    file.write(f'    "{reverse_parent}" -> "{parent}";\n')
+                    file.write(f'    "{reverse_parent}" -> "{crate_name}";\n')
             
             file.write("}\n")
 
 # the dot command line tool didn't convert URL or href to hyperlinks, so we have to do it ourselves
-def add_hyperlinks_to_svg(svg_file, dependencies):
+def add_hyperlinks_to_svg(svg_file, dependencies_dict):
     with open(svg_file, 'r') as file:
         svg_content = file.read()
 
@@ -151,7 +157,7 @@ def add_hyperlinks_to_svg(svg_file, dependencies):
 
     for i, node in enumerate(nodes):
         title = node.find('title')
-        if title and title.string in dependencies and len(dependencies[title.string]) > 0:
+        if title and title.string in dependencies_dict and len(dependencies_dict[title.string]) > 0:
             link = None
             if i == 0:
                 # add a way to go back on root level
@@ -199,17 +205,17 @@ if __name__ == '__main__':
     cargo_tree_output = run_cargo_tree(skip_dev_dependencies)
     
     # Parse the cargo tree and generate the DOT file
-    dependencies = parse_cargo_tree(cargo_tree_output, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
+    dependencies_dict = parse_cargo_tree(cargo_tree_output, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
     
-    generate_dot_all(output_folder, dependencies)
-    generate_dot_per_crate(output_folder, dependencies)
+    generate_dot_all(output_folder, dependencies_dict)
+    generate_dot_per_crate(output_folder, dependencies_dict)
 
     # Convert DOT files to SVG
     convert_dot_files(output_folder, "svg")
 
     # Add hyperlinks to all SVG files for easier navigation
     for svg_file in pathlib.Path(output_folder).glob('*.svg'):
-        add_hyperlinks_to_svg(svg_file, dependencies)
+        add_hyperlinks_to_svg(svg_file, dependencies_dict)
 
     # Create index.html for better overview
     create_index_html(output_folder)
