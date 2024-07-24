@@ -3,11 +3,11 @@ name: Trigger builds for images and binaries
 on:
   workflow_dispatch:
   push:
-    branches: 
-      - 'devnet'
-      - 'testnet'
-      - 'mainnet'
-      - 'releases/iota-*-release'
+    branches:
+      - "devnet"
+      - "testnet"
+      - "mainnet"
+      - "releases/iota-*-release"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
