@@ -5,24 +5,6 @@ on:
         branches: [develop, extensions, devnet]
     pull_request:
         types: [opened, synchronize, reopened, ready_for_review]
-        paths-ignore: # ignore tooling paths
-          - 'apps/**'
-          - 'dapps/**'
-          - 'sdk/**'
-          - 'linting/**'
-          - '.husky/**'
-          - '.changeset/**'
-          - '.eslintrc.js'
-          - '.lintstagedrc.json'
-          - '.npmrc'
-          - '.prettierignore'
-          - 'graphql.config.ts'
-          - 'package.json'
-          - 'pnpm-lock.yaml'
-          - 'pnpm-workspace.yaml'
-          - 'prettier.config.js'
-          - 'turbo.json'
-          - 'vercel.json'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
