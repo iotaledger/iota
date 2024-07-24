@@ -102,11 +102,11 @@ To restore from a RocksDB snapshot, follow these steps:
        --skip-indexes \
        --no-sign-request
    ```
-   - `--epoch`: The epoch that you want to download, for example `200`. Mysten Labs hosted buckets will only keep the last 90 epochs.
+   - `--epoch`: The epoch that you want to download, for example `200`. the IOTA Foundation hosted buckets will only keep the last 90 epochs.
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
    - `--no-sign-request`: If set, `--snapshot-bucket` and `--snapshot-bucket-type` are ignored, and Cloudflare R2 is used.
-   - `--snapshot-bucket`: Source snapshot bucket name, eg `mysten-mainnet-snapshots`.
+   - `--snapshot-bucket`: Source snapshot bucket name, eg `iota-mainnet-snapshots`.
    - `--snapshot-bucket-type`: Snapshot bucket type. GCS and S3 currently supported.
    - `--skip-indexes`: Skips downloading the very large `indexes/` dir, used by jsonrpc on the fullnode
 
@@ -139,12 +139,12 @@ The following steps can be used to restore a node from a Formal snapshot:
         --network <NETWORK> --snapshot-bucket <BUCKET-NAME> --snapshot-bucket-type <TYPE> \
         --path <PATH-TO-NODE-DB> --num-parallel-downloads 50 --no-sign-request
    ```
-   - `--epoch`: The epoch that you want to download, for example `200`. Mysten Labs hosted buckets will only keep the last 90 epochs. 
+   - `--epoch`: The epoch that you want to download, for example `200`. the IOTA Foundation hosted buckets will only keep the last 90 epochs. 
    - `--genesis`: The path to the location of the network's `genesis.blob`.
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
    - `--no-sign-request`: If set, `--snapshot-bucket` and `--snapshot-bucket-type` are ignored, and Cloudflare R2 is used.
-   - `--snapshot-bucket`: Source snapshot bucket name, eg `mysten-mainnet-snapshots`.
+   - `--snapshot-bucket`: Source snapshot bucket name, eg `iota-mainnet-snapshots`.
    - `--snapshot-bucket-type`: Snapshot bucket type. GCS and S3 currently supported.
 
    The following environment variables are used if `--no-sign-request` is not set:
@@ -153,9 +153,9 @@ The following steps can be used to restore a node from a Formal snapshot:
    * *AZURE*: `AZURE_SNAPSHOT_STORAGE_ACCOUNT`, `AZURE_SNAPSHOT_STORAGE_ACCESS_KEY`
 
 
-## Mysten Labs managed snapshots
+## IOTA Foundation managed snapshots
 
-Mysten Labs hosts two tiers of snapshot storage access. **High throughput, Requester Pays enabled buckets**, and **free, permissionless buckets**.
+The IOTA Foundation hosts two tiers of snapshot storage access. **High throughput, Requester Pays enabled buckets**, and **free, permissionless buckets**.
 
 **High throughput, Requester Pays enabled buckets:**
 * GCS and S3 are both setup with requester pays. This means that you'll need to provide a set of valid AWS/GCP credentials when downloading from these buckets.
@@ -168,12 +168,12 @@ Mysten Labs hosts two tiers of snapshot storage access. **High throughput, Reque
 
 ### Bucket Names
 **S3**
-Testnet: `s3://mysten-testnet-snapshots/`, `s3://mysten-testnet-formal/`
-Mainnet: `s3://mysten-mainnet-snapshots/`,  `s3://mysten-mainnet-formal/`
+Testnet: `s3://iota-testnet-snapshots/`, `s3://iota-testnet-formal/`
+Mainnet: `s3://iota-mainnet-snapshots/`,  `s3://iota-mainnet-formal/`
 
 **GCS**
-Testnet: `gs://mysten-testnet-snapshots/`, `gs://mysten-testnet-formal/`
-Mainnet: `gs://mysten-mainnet-snapshots/`,  `gs://mysten-mainnet-formal/`
+Testnet: `gs://iota-testnet-snapshots/`, `gs://iota-testnet-formal/`
+Mainnet: `gs://iota-mainnet-snapshots/`,  `gs://iota-mainnet-formal/`
 
-![Mysten Managed Snapshots](images/mysten-cloud-snapshots.png "A diagram that shows the current architecture of mysten snapshot availability")
+![IOTA Managed Snapshots](images/iota-cloud-snapshots.png "A diagram that shows the current architecture of iota snapshot availability")
 

@@ -3,7 +3,7 @@ title: Custom Indexer
 description: You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA Full node, and provides efficient assemblage of checkpoint data.
 ---
 
-You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from Mysten Labs, one that you set up in your local environment, or a combination of the two.  
+You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from the IOTA Foundation, one that you set up in your local environment, or a combination of the two.  
 
 Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA Full node, and provides efficient assemblage of checkpoint data.
 
@@ -27,7 +27,7 @@ Data ingestion for your indexer supports several checkpoint stream sources.
 
 ### Remote reader
 
-The most straightforward stream source is to subscribe to a remote store of checkpoint contents. Mysten Labs provides the following buckets:
+The most straightforward stream source is to subscribe to a remote store of checkpoint contents. the IOTA Foundation provides the following buckets:
 
 - Testnet: `https://checkpoints.testnet.iota.io`
 - Mainnet: `https://checkpoints.mainnet.iota.io`
@@ -158,6 +158,6 @@ The data ingestion executor can run multiple workflows simultaneously. For each 
 The concurrency parameter specifies how many threads the workflow uses. Having a concurrency value greater than 1 is helpful when tasks are idempotent and can be processed in parallel and out of order. The executor only updates the progress/watermark to a certain checkpoint when all preceding checkpoints are processed.
 
 Find more examples of custom ingestion pipelines in the IOTA repository:
-* IOTA data ingestion daemon that runs internal [pipelines](https://github.com/iotaledger/iota/tree/main/crates/iota-data-ingestion/src/).
-* IOTA Name Service's custom [indexer](https://github.com/iotaledger/iota/tree/main/crates/iotans-indexer/src).
+* IOTA data ingestion daemon that runs internal [pipelines](https://github.com/iotaledger/iota/tree/develop/crates/iota-data-ingestion/src/).
+* IOTA Name Service's custom [indexer](https://github.com/iotaledger/iota/tree/develop/crates/iotans-indexer/src).
 

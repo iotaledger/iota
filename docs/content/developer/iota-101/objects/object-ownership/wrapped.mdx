@@ -154,7 +154,6 @@ Since the contract defined only one way to deal with `SwapRequest` - `execute_sw
 
 Find the full source code in the [trusted_swap](https://github.com/iotaledger/iota/blob/main/examples/move/trusted_swap) example.
 
-To view a more complex example of how to use direct wrapping, see the [escrow](https://github.com/iotaledger/iota/tree/main/examples/move/escrow) example.
 
 ### Wrapping through `Option`
 
@@ -213,9 +212,9 @@ The function in the preceding example passes a `warrior` as a mutable reference 
 
 Note that because `Sword` is an object type without `drop` ability, if the warrior already has a sword equipped, the warrior can't drop that sword. If you call `option::fill` without first checking and taking out the existing sword, an error occurs. In `equip_sword`, first check whether there is already a sword equipped. If so, remove it out and send it back to the sender. To a player, this returns an equipped sword to their inventory when they equip the new sword.
 
-Find the source code in the [simple_warrior](https://github.com/iotaledger/iota/tree/main/examples/move/simple_warrior) example.
+Find the source code in the [simple_warrior](https://github.com/iotaledger/iota/tree/develop/examples/move/simple_warrior) example.
 
-To view a more complex example, see [hero](https://github.com/iotaledger/iota/tree/main/examples/move/hero).
+To view a more complex example, see [hero](https://github.com/iotaledger/iota/tree/develop/examples/move/hero).
 
 ### Wrapping through `vector`
 

@@ -198,8 +198,8 @@ IOTA is a DAG-based blockchain and uses checkpoints for node synchronization and
 
 IOTA Checkpoint API operations include:
 
-- [iota_getCheckpoint](/iota-api-ref#iota_getCheckpoint) - Retrieves the specified checkpoint.
-- [iota_getLatestCheckpointSequenceNumber](/iota-api-ref#iota_getLatestCheckpointSequenceNumber) - Retrieves the sequence number of the most recently executed checkpoint.
+- [iota_getCheckpoint](/iota-api-ref#iota_getcheckpoint) - Retrieves the specified checkpoint.
+- [iota_getLatestCheckpointSequenceNumber](/iota-api-ref#iota_getlatestcheckpointsequencenumber) - Retrieves the sequence number of the most recently executed checkpoint.
 - iota_getCheckpoints - Retrieves a paginated list of checkpoints that occurred during the specified interval. Pending a future release.
 
 ## IOTA Balance transfer {#iota-balance-transfer}
@@ -214,27 +214,27 @@ To transfer a specific amount of IOTA, you need a IOTA token worth that specific
 
 IOTA supports the following API operations related to transferring IOTA between addresses:
 
-- [iota_transferObject](/iota-api-ref#iota_transferObject)
+- [unsafe_transferObject](/iota-api-ref#unsafe_transferobject)
   Because IOTA tokens are objects, you can transfer IOTA tokens just like any other object. This method requires a gas token, and is useful in niche cases only.
 
-- [iota_payAllIOTA](/iota-api-ref#iota_payAllIOTA)
+- [unsafe_payAllIOTA](/iota-api-ref#unsafe_payalliota)
   This method accepts an array of IOTA token IDs. It merges all existing tokens into one, deducts the gas fee, then sends the merged token to the recipient address.
 
   The method is especially useful if you want to transfer all IOTA from an address. To merge together all coins for an address, set the recipient as the same address. This is a native IOTA method so is not considered a transaction in IOTA.
 
-- [iota_payIOTA](/iota-api-ref#iota_payIOTA)
+- [unsafe_payIOTA](/iota-api-ref#unsafe_payiota)
   This operation accepts an array of IOTA token IDs, an array of amounts, and an array of recipient addresses.
 
   The amounts and recipients array map one to one. Even if you use only one recipient address, you must include it for each amount in the amount array.
 
   The operation merges all of the tokens provided into one token object and settles the gas fees. It then splits the token according to the amounts in the amounts array and sends the first token to the first recipient, the second token to the second recipient, and so on. Any remaining IOTA on the token stays in the source address.
 
-  The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `iota_payIOTA` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA.You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
+  The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `unsafe_payIOTA` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA.You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
 
-- [iota_pay](/iota-api-ref#iota_pay)
+- [unsafe_pay](/iota-api-ref#unsafe_pay)
   This method is similar to iota_payIOTA, but it accepts any kind of coin or token instead of only IOTA. You must include a gas token, and all of the coins or tokens must be the same type.
 
-- [iota_transferIOTA](/iota-api-ref#iota_transferIOTA)
+- [unsafe_transferIOTA](/iota-api-ref#unsafe_transferiota)
   This method accepts only one IOTA token object and an amount to send to the recipient. It uses the same token for gas fees, so the amount to transfer must be strictly less than the value of the IOTA token used.
 
 ## Signing Transactions {#signing-transactions}

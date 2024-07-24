@@ -4,18 +4,12 @@ consensus-core:
   - "consensus/core/**"
 anemo-benchmark:
   - "crates/anemo-benchmark/**"
-data-transform:
-  - "crates/data-transform/**"
 mysten-common:
   - "crates/mysten-common/**"
 mysten-metrics:
   - "crates/mysten-metrics/**"
 mysten-network:
   - "crates/mysten-network/**"
-mysten-service:
-  - "crates/mysten-service/**"
-mysten-service-boilerplate:
-  - "crates/mysten-service-boilerplate/**"
 mysten-util-mem:
   - "crates/mysten-util-mem/**"
 mysten-util-mem-derive:
@@ -112,8 +106,6 @@ iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
   - "crates/iota-open-rpc-macros/**"
-iota-oracle:
-  - "crates/iota-oracle/**"
 iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
@@ -122,8 +114,6 @@ iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
   - "crates/iota-protocol-config-macros/**"
-iota-proxy:
-  - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
 iota-rest-api:
@@ -174,8 +164,6 @@ iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 iotans-indexer:
   - "crates/iotans-indexer/**"
-iotaop-cli:
-  - "crates/iotaop-cli/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:

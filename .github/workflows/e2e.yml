@@ -1,11 +1,11 @@
 name: TS End-to-end Tests
 on: 
   pull_request:
-    paths-ignore:
-      - 'docs/**'
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
 jobs:
   diff:
     runs-on: self-hosted-rust
