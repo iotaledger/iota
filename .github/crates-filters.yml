@@ -4,8 +4,6 @@ consensus-core:
   - "consensus/core/**"
 anemo-benchmark:
   - "crates/anemo-benchmark/**"
-data-transform:
-  - "crates/data-transform/**"
 mysten-common:
   - "crates/mysten-common/**"
 mysten-metrics:

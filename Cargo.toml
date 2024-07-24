@@ -65,7 +65,6 @@ members = [
   "consensus/config",
   "consensus/core",
   "crates/anemo-benchmark",
-  "crates/data-transform",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
   "crates/iota-analytics-indexer",
