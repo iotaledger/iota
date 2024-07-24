@@ -74,9 +74,9 @@ $ iota genesis-ceremony add-validator \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
     --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
     --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
-    --description "" \
-    --image-url "" \
-    --project-url ""
+    --description validator0 \
+    --image-url https://www.iota.org/favicon.png \
+    --project-url https://www.iota.org
 ```
 
 3. Add token allocation for the faucet
