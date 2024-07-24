@@ -1,9 +1,5 @@
 name: Build Wallet App (nightly)
 
-env:
-  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
-  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
-
 on:
   schedule:
     # At 20:58 on every day-of-week from Monday through Friday
@@ -16,6 +12,8 @@ on:
         required: false
 
 env:
+  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
   TAG_NAME: "${{ github.event.inputs.iota_branch || 'develop' }}"
 
 jobs:
