@@ -16,7 +16,6 @@ const aboutIota = [
 			'about-iota/iota-architecture/iota-security',
 			'about-iota/iota-architecture/transaction-lifecycle',
 			'about-iota/iota-architecture/consensus',
-			'about-iota/iota-architecture/indexer-functions',
 			'about-iota/iota-architecture/epochs',
 			'about-iota/iota-architecture/protocol-upgrades',
 			'about-iota/iota-architecture/staking-rewards',

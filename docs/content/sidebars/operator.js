@@ -10,6 +10,7 @@ const operator = [
     'operator/snapshots',
     'operator/archives',
     'operator/genesis',
+    'operator/indexer-functions',
     'operator/validator-committee',
     'operator/validator-tasks',
     'operator/node-tools',
