@@ -7,62 +7,33 @@
 import re, pathlib, os, subprocess
 from bs4 import BeautifulSoup
 
-# calculates the depth of the crate in the graph
-def calculate_graph_depth(line):
-    markers = ['│   ', '├── ', '└── ', '    ']
-    depth = 0
-    for marker in markers:
-        depth += line.count(marker)
-    return depth
-
 # returns None if not an internal crate
 def get_internal_crate_name(base_path, line):
-    package_info = re.sub(r'^[├─└─│ ]+\s*', '', line.strip())
+    package_info = re.sub(r'^\d+\s+', '', line.strip())
     crate_name = None
     if f'({base_path}' in package_info and not 'external-crates/' in package_info:
         crate_name = re.sub(r' v[0-9]+\.[0-9]+\.[0-9]+.*', '', package_info).strip()
     return crate_name
 
 # parse the cargo tree from a file into a map of dependencies
-def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
+def parse_cargo_tree(cargo_tree_output, base_path):
     dependencies = {}
 
     lines = cargo_tree_output.split('\n')
 
     # get all internal crates first
     for line in lines:
-        depth = calculate_graph_depth(line)
-        if depth != 0:
-            continue
-
         crate_name = get_internal_crate_name(base_path, line)
         if crate_name == None:
             continue
-        
         dependencies[crate_name] = []
     
     # loop again to determine the dependencies
     stack = []
-    skip_depth = None
     for line in lines:
-        depth = calculate_graph_depth(line)
-
-        if skip_dev_dependencies and '[dev-dependencies]' in line:
-            if (skip_depth != None) and (depth > skip_depth):
-                # we found a nested dev-dependency, don't overwrite where we are coming from!
-                continue
-
-            # we found dev-dependencies which we don't want to track
-            skip_depth = depth
-            continue
-
-        elif (skip_depth != None) and (depth <= skip_depth):
-            # we left the dev-dependencies branch
-            skip_depth = None
-
-        if skip_depth != None:
-            # we are still in the dev-dependencies branch
-            continue
+        if len(line) == 0:
+            continue        
+        depth = int(line[0])
 
         crate_name = get_internal_crate_name(base_path, line)
         if crate_name == None:
@@ -180,12 +151,17 @@ if __name__ == '__main__':
     pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
 
     # Run the cargo tree command and store the output in a string variable
-    result = subprocess.run(['cargo', 'tree'], stdout=subprocess.PIPE, text=True)
+    # `--prefix depth` shows the dependency depth of a package
+    cargo_cmd = ['cargo', 'tree', '--prefix', 'depth', '--format', ' {p}']
+    if skip_dev_dependencies :
+        cargo_cmd.extend(['-e','no-dev'])
+    
+    result = subprocess.run(cargo_cmd, stdout=subprocess.PIPE, text=True)
     if result.returncode:
         raise Exception("cargo tree process exited with return code %d" % result.returncode)
     
     # Parse the cargo tree and generate the DOT file
-    dependencies = parse_cargo_tree(result.stdout, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
+    dependencies = parse_cargo_tree(result.stdout, pathlib.Path("../../").absolute().resolve())
     
     generate_dot_all(output_folder, dependencies)
     generate_dot_per_crate(output_folder, dependencies)
