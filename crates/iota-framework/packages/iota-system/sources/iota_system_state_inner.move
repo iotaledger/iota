@@ -207,7 +207,6 @@ module iota_system::iota_system_state_inner {
         protocol_version: u64,
         reference_gas_price: u64,
         total_stake: u64,
-        storage_fund_reinvestment: u64,
         storage_charge: u64,
         storage_rebate: u64,
         storage_fund_balance: u64,
@@ -932,8 +931,6 @@ module iota_system::iota_system_state_inner {
                 reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
                 storage_charge: storage_charge_value,
-                // TODO: remove(obsolete)
-                storage_fund_reinvestment: 0,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
                 // TODO: remove(obsolete)

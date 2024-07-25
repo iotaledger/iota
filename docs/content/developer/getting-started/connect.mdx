@@ -4,11 +4,13 @@ tags: [ network, development, Mainnet, Testnet, Devnet ]
 ---
 
 import DataWipe from "../../_snippets/data-wipe.mdx";
+import AlphaNet from "../../_snippets/alphanet.mdx";
 
 # Connect to an IOTA Network
 
-You can use the following networks to develop on IOTA. If you are still developing your application, you should use the
-Devnet or Testnet, as these networks provide convenient faucets for test tokens.
+<AlphaNet />
+
+The IOTA Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. Clients send transactions and read requests via this endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443` using [JSON-RPC](/references/iota-api/json-rpc-format.mdx).
 
 ## Devnet
 
@@ -117,7 +119,9 @@ Secret Recovery Phrase : [hat become demise beyond history wood stage add nice l
 
 ## Add a Network Environment
 
-The [IOTA CLI Client](../../references/cli/client.mdx) allows you to add any number of network environments.
+<AlphaNet />
+
+If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet` at `https://fullnode.devnet.iota.io:443`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
 
 :::tip Check the current Network  ENVs
 
@@ -128,7 +132,16 @@ environment `alias` and URL, as well as indicate the currently active environmen
 iota client envs
 ```
 
+
 :::
+
+<AlphaNet />
+
+The command outputs the available environment aliases, with `(active)` denoting the currently active network.
+```sh
+localnet => http://0.0.0.0:9000 (active)
+devnet => https://fullnode.devnet.iota.io:443
+```
 
 You can add a new environment using the `iota client new` command. You should specify and `alias` and `rpc` URL, for
 example:

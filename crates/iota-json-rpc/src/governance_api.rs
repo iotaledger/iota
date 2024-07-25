@@ -429,20 +429,14 @@ impl GovernanceReadApiServer for GovernanceReadApi {
 }
 
 pub fn calculate_apys(
-    stake_subsidy_start_epoch: u64,
+    // TODO: Will be properly fixed in the stake subsidy removal PR.
+    _stake_subsidy_start_epoch: u64,
     exchange_rate_table: Vec<ValidatorExchangeRates>,
 ) -> Vec<ValidatorApy> {
     let mut apys = vec![];
 
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
-        // we start the apy calculation from the epoch when the stake subsidy starts
-        let exchange_rates = rates.rates.into_iter().filter_map(|(epoch, rate)| {
-            if epoch >= stake_subsidy_start_epoch {
-                Some(rate)
-            } else {
-                None
-            }
-        });
+        let exchange_rates = rates.rates.into_iter().map(|(_, rate)| rate);
 
         // we need at least 2 data points to calculate apy
         let average_apy = if exchange_rates.clone().count() >= 2 {
@@ -457,8 +451,12 @@ pub fn calculate_apys(
                 .take(30)
                 .collect::<Vec<_>>();
 
-            let apy_counts = apys.len() as f64;
-            apys.iter().sum::<f64>() / apy_counts
+            if apys.is_empty() {
+                0.0
+            } else {
+                let apy_counts = apys.len() as f64;
+                apys.iter().sum::<f64>() / apy_counts
+            }
         } else {
             0.0
         };
