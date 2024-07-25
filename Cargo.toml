@@ -73,7 +73,6 @@ members = [
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
   "crates/iota-cluster-test",
-  "crates/iota-common",
   "crates/iota-config",
   "crates/iota-core",
   "crates/iota-cost",
@@ -469,7 +468,6 @@ iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-benchmark = { path = "crates/iota-benchmark" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
-iota-common = { path = "crates/iota-common" }
 iota-config = { path = "crates/iota-config" }
 iota-core = { path = "crates/iota-core" }
 iota-cost = { path = "crates/iota-cost" }

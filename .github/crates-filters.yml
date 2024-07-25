@@ -36,8 +36,6 @@ iota-benchmark:
   - "crates/iota-benchmark/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
-iota-common:
-  - "crates/iota-common/**"
 iota-config:
   - "crates/iota-config/**"
 iota-core:

@@ -5370,17 +5370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-common"
-version = "0.1.0"
-dependencies = [
- "futures",
- "iota-types",
- "mysten-metrics",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iota-config"
 version = "0.0.0"
 dependencies = [
