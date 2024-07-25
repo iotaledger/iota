@@ -4,7 +4,6 @@
 
 const aboutIota = [
 	'about-iota/about-iota',
-	'about-iota/components',
 	{
 		type: 'category',
 		label: 'IOTA Architecture',
@@ -32,12 +31,13 @@ const aboutIota = [
 			id: 'about-iota/tokenomics',
 		},
 		items: [
+			'about-iota/tokenomics/iota-coin',
+			'about-iota/tokenomics/smr-coin',
 			'about-iota/tokenomics/proof-of-stake',
 			'about-iota/tokenomics/validators-staking',
 			'about-iota/tokenomics/staking-unstaking',
-			'about-iota/tokenomics/iota-coin',
-			'about-iota/tokenomics/gas-pricing',
 			'about-iota/tokenomics/gas-in-iota',
+			'about-iota/tokenomics/gas-pricing',
 		],
 	},
 	{
