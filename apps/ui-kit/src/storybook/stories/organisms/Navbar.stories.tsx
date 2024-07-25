@@ -13,6 +13,12 @@ const NAVBAR_ITEMS: NavbarItemWithID[] = [
     { id: 'apps', icon: <Apps /> },
     { id: 'activity', icon: <Activity /> },
 ];
+const NAVBAR_ITEMS_WITH_TEXT: NavbarItemWithID[] = [
+    { id: 'home', icon: <Home />, text: 'Home' },
+    { id: 'assets', icon: <Assets />, text: 'Assets' },
+    { id: 'apps', icon: <Apps />, text: 'Apps' },
+    { id: 'activity', icon: <Activity />, text: 'Activity' },
+];
 
 const meta: Meta<NavbarProps> = {
     component: Navbar,
@@ -61,14 +67,19 @@ export const SlideOut: Story = {
     argTypes: {},
     render: (args) => {
         const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
-
+        const [isOpen, setIsOpen] = useState(true);
+        console.log('--- activeId', activeId);
         return (
-            <div className="flex border border-gray-200">
-                <NavbarSlideout
-                    items={NAVBAR_ITEMS}
-                    activeId={activeId}
-                    onClick={(id) => setActiveId(id)}
-                />
+            <div>
+                <div onClick={() => setIsOpen(!isOpen)}>Change open</div>
+                <div className="relative flex h-[500px] w-1/3 border border-gray-200">
+                    <NavbarSlideout
+                        isOpen={isOpen}
+                        items={NAVBAR_ITEMS_WITH_TEXT}
+                        activeId={activeId}
+                        onClick={(id) => setActiveId(id)}
+                    />
+                </div>
             </div>
         );
     },

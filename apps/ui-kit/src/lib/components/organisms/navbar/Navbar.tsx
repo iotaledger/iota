@@ -67,7 +67,7 @@ function Navbar({
             )}
             <div className={cx('hidden sm:flex', { 'flex-col': type === NavbarType.Vertical })}>
                 {items.map((item) => (
-                    <div key={item.id} className=" px-xs py-xxs  ">
+                    <div key={item.id} className="px-xs py-xxs">
                         <NavbarItem
                             {...item}
                             isSelected={item.id === activeId}

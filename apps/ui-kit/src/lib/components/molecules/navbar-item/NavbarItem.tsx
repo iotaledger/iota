@@ -15,8 +15,14 @@ import {
     UNSELECTED_TEXT,
 } from './navbarItem.classes';
 import { Badge, BadgeType } from '../../atoms';
+import { NavbarItemType } from './navbarItem.enums';
 
 export interface NavbarItemProps {
+    /**
+     * The type of the navbar item.
+     */
+    type?: NavbarItemType;
+
     /**
      * The icon of the navbar item.
      */
@@ -40,6 +46,7 @@ export interface NavbarItemProps {
 }
 
 export function NavbarItem({
+    type = NavbarItemType.Vertical,
     icon,
     text,
     isSelected,
@@ -54,14 +61,17 @@ export function NavbarItem({
     return (
         <div
             onClick={onClick}
-            className="inline-flex cursor-pointer flex-col items-center justify-center space-y-1"
+            className={cx('inline-flex cursor-pointer items-center', {
+                'flex w-full gap-3 p-sm': type === NavbarItemType.Horizontal,
+                'flex-col justify-center space-y-1': type === NavbarItemType.Vertical,
+            })}
         >
             <div
-                className={cx(
-                    'state-layer relative inline-flex rounded-full',
-                    paddingClasses,
-                    backgroundColors,
-                )}
+                className={cx('inline-flex rounded-full', backgroundColors, {
+                    'state-layer relative': type === NavbarItemType.Vertical,
+                    [paddingClasses]: type === NavbarItemType.Vertical,
+                    'p-none': type === NavbarItemType.Horizontal,
+                })}
             >
                 {React.cloneElement(icon as React.ReactElement, {
                     className: cx('w-6 h-6', fillClasses),
@@ -72,7 +82,16 @@ export function NavbarItem({
                     </div>
                 )}
             </div>
-            {text && <span className={cx('text-center text-label-md', textClasses)}>{text}</span>}
+            {text && (
+                <span
+                    className={cx(textClasses, {
+                        'text-center text-label-md': type === NavbarItemType.Vertical,
+                        'text-label-lg': type === NavbarItemType.Horizontal,
+                    })}
+                >
+                    {text}
+                </span>
+            )}
         </div>
     );
 }
