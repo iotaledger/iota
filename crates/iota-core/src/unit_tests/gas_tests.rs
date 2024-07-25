@@ -299,7 +299,7 @@ async fn touch_gas_coins(
         .unwrap();
 }
 
-// - OOG computation, storage ok
+// Computation OOG, storage OK, minimal storage OK, single gas coin.
 #[tokio::test]
 async fn test_oog_computation_storage_ok_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
@@ -329,6 +329,7 @@ async fn test_oog_computation_storage_ok_one_coin() -> IotaResult {
     .await
 }
 
+// Computation OOG, storage OK, minimal storage OK, multiple gas coins.
 #[tokio::test]
 async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
@@ -357,7 +358,8 @@ async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
     .await
 }
 
-// OOG for computation, storage ok (e.g. computation is entire budget)
+// Computation OOG(is entire budget), storage OK, minimal storage OK, single gas
+// coin.
 #[tokio::test]
 async fn test_oog_computation_storage_ok_computation_is_entire_budget() -> IotaResult {
     const GAS_PRICE: u64 = 1000;
@@ -388,7 +390,7 @@ async fn test_oog_computation_storage_ok_computation_is_entire_budget() -> IotaR
     .await
 }
 
-// - computation ok, OOG for storage, minimal storage ok
+// Computation OK, storage OOG, minimal storage OK, single gas coin.
 #[tokio::test]
 async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
@@ -421,7 +423,7 @@ async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
     .await
 }
 
-// - computation ok, OOG for storage, minimal storage ok
+// Computation OK, storage OOG, minimal storage OK, multiple gas coins.
 #[tokio::test]
 async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
@@ -453,8 +455,8 @@ async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult 
     .await
 }
 
-// - computation ok, OOG for storage, minimal storage ok (e.g. computation is
-//   entire budget)
+// Computation OK(is entire budget), storage OOG, minimal storage OK, single gas
+// coin.
 #[tokio::test]
 async fn test_computation_ok_oog_storage_computation_is_entire_budget() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
