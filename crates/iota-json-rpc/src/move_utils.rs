@@ -214,8 +214,7 @@ impl MoveUtilsServer for MoveUtils {
             match functions.get(&identifier) {
                 Some(function) => Ok(function.clone().into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "No function was found with function name {}",
-                    function_name
+                    "No function was found with function name {function_name}"
                 )))?,
             }
         })
@@ -241,13 +240,11 @@ impl MoveUtilsServer for MoveUtils {
                             .map_err(Error::from)
                     }
                     _ => Err(IotaRpcInputError::GenericInvalid(format!(
-                        "Object is not a package with ID {}",
-                        package
+                        "Object is not a package with ID {package}"
                     )))?,
                 },
                 _ => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "Package object does not exist with ID {}",
-                    package
+                    "Package object does not exist with ID {package}"
                 )))?,
             }?;
 
@@ -277,8 +274,7 @@ impl MoveUtilsServer for MoveUtils {
                     })
                     .collect::<Vec<MoveFunctionArgType>>()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "No parameters found for function {}",
-                    function
+                    "No parameters found for function {function}"
                 )))?,
             }
         })

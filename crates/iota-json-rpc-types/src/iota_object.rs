@@ -253,7 +253,7 @@ impl Display for IotaObjectData {
             format!("----- {type_} ({}[{}]) -----", self.object_id, self.version).bold()
         )?;
         if let Some(owner) = self.owner {
-            writeln!(writer, "{}: {}", "Owner".bold().bright_black(), owner)?;
+            writeln!(writer, "{}: {owner}", "Owner".bold().bright_black())?;
         }
 
         writeln!(
@@ -265,26 +265,24 @@ impl Display for IotaObjectData {
         if let Some(storage_rebate) = self.storage_rebate {
             writeln!(
                 writer,
-                "{}: {}",
+                "{}: {storage_rebate}",
                 "Storage Rebate".bold().bright_black(),
-                storage_rebate
             )?;
         }
 
         if let Some(previous_transaction) = self.previous_transaction {
             writeln!(
                 writer,
-                "{}: {:?}",
+                "{}: {previous_transaction:?}",
                 "Previous Transaction".bold().bright_black(),
-                previous_transaction
             )?;
         }
         if let Some(content) = self.content.as_ref() {
             writeln!(writer, "{}", "----- Data -----".bold())?;
-            write!(writer, "{}", content)?;
+            write!(writer, "{content}")?;
         }
 
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -831,14 +829,14 @@ impl Display for IotaParsedData {
                 )?;
             }
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
 impl IotaParsedData {
     pub fn try_from_object_read(object_read: ObjectRead) -> Result<Self, anyhow::Error> {
         match object_read {
-            ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {} does not exist", id)),
+            ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {id} does not exist")),
             ObjectRead::Exists(_object_ref, o, layout) => {
                 let data = match o.into_inner().data {
                     Data::Move(m) => {
@@ -852,10 +850,7 @@ impl IotaParsedData {
                 Ok(data)
             }
             ObjectRead::Deleted((object_id, version, digest)) => Err(anyhow::anyhow!(
-                "Object {} was deleted at version {} with digest {}",
-                object_id,
-                version,
-                digest
+                "Object {object_id} was deleted at version {version} with digest {digest}"
             )),
         }
     }

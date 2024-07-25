@@ -36,8 +36,6 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
-iota-bridge:
-  - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:

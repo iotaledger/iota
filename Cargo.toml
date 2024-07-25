@@ -73,7 +73,6 @@ members = [
   "crates/iota-authority-aggregation",
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
-  "crates/iota-bridge",
   "crates/iota-cluster-test",
   "crates/iota-common",
   "crates/iota-config",
