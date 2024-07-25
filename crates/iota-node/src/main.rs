@@ -9,12 +9,11 @@ use iota_config::{node::RunWithRange, Config, NodeConfig};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::{metrics, IotaNode};
 use iota_protocol_config::SupportedProtocolVersions;
-use iota_telemetry::send_telemetry_event;
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
 };
 use mysten_common::sync::async_once_cell::AsyncOnceCell;
-use tokio::{sync::broadcast, time::sleep};
+use tokio::sync::broadcast;
 use tracing::{error, info};
 
 const GIT_REVISION: &str = {
@@ -157,9 +156,8 @@ fn main() {
         }
     });
 
-    let node_once_cell_clone = node_once_cell.clone();
     runtimes.metrics.spawn(async move {
-        let node = node_once_cell_clone.get().await;
+        let node = node_once_cell.get().await;
         let chain_identifier = match node.state().get_chain_identifier() {
             Some(chain_identifier) => chain_identifier.to_string(),
             None => "unknown".to_string(),
@@ -179,15 +177,6 @@ fn main() {
             .unwrap();
 
         iota_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
-    });
-
-    runtimes.metrics.spawn(async move {
-        let node = node_once_cell.get().await;
-        let state = node.state();
-        loop {
-            send_telemetry_event(state.clone(), is_validator).await;
-            sleep(Duration::from_secs(3600)).await;
-        }
     });
 
     // wait for SIGINT on the main thread

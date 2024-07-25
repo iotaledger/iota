@@ -134,8 +134,6 @@ iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
   - "crates/iota-swarm-config/**"
-iota-telemetry:
-  - "crates/iota-telemetry/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
 iota-test-validator:

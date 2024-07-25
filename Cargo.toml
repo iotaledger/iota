@@ -123,7 +123,6 @@ members = [
   "crates/iota-surfer",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
-  "crates/iota-telemetry",
   "crates/iota-test-transaction-builder",
   "crates/iota-test-validator",
   "crates/iota-tls",
@@ -514,7 +513,6 @@ iota-storage = { path = "crates/iota-storage" }
 iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
-iota-telemetry = { path = "crates/iota-telemetry" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-test-validator = { path = "crates/iota-test-validator" }
 iota-tls = { path = "crates/iota-tls" }

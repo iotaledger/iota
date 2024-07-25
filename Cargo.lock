@@ -6411,7 +6411,6 @@ dependencies = [
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
- "iota-telemetry",
  "iota-tls",
  "iota-types",
  "move-vm-profiler",
@@ -7022,16 +7021,6 @@ dependencies = [
  "serde_yaml 0.8.26",
  "shared-crypto",
  "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "iota-telemetry"
-version = "0.1.0"
-dependencies = [
- "iota-core",
- "reqwest",
- "serde",
  "tracing",
 ]
 
