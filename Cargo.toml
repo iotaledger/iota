@@ -64,7 +64,6 @@ exclude = [
 members = [
   "consensus/config",
   "consensus/core",
-  "crates/anemo-benchmark",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
   "crates/iota-analytics-indexer",
@@ -462,7 +461,6 @@ anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9a
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
 
 ### Workspace Members ###
-anemo-benchmark = { path = "crates/anemo-benchmark" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
