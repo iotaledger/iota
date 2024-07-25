@@ -264,35 +264,6 @@ const developer = [
 				],
 			},
 			{
-				type: 'category',
-				label: 'App Examples',
-				link: {
-					type: 'doc',
-					id: 'developer/app-examples',
-				},
-				items: [
-					'developer/app-examples/blackjack',
-					'developer/app-examples/coin-flip',
-					'developer/app-examples/e2e-counter',
-					'developer/app-examples/plinko',
-					'developer/app-examples/recaptcha',
-					'developer/app-examples/tic-tac-toe',
-					{
-						type: 'category',
-						label: 'Trustless Token Swap',
-						link: {
-							type: 'doc',
-							id: 'developer/app-examples/trustless-token-swap',
-						},
-						items: [
-							'developer/app-examples/trustless-token-swap/backend',
-							'developer/app-examples/trustless-token-swap/indexer-api',
-							'developer/app-examples/trustless-token-swap/frontend',
-						],
-					},
-				],
-			},
-			{
 				type:'category',
 				label: 'Standards',
 				items: [
@@ -742,35 +713,38 @@ const developer = [
             },
         ],
     },
-			{
-				type:'category',
-				label: 'Integrate Your Exchange',
-				items:[
-					'developer/exchange-integration/exchange-integration',
 
-					{
-						type: 'category',
-						label: 'Migrating IOTA/Shimmer Stardust',
-						link: {
-							type: 'doc',
-							id: 'developer/stardust/stardust-migration',
-						},
-						items: [
-							'developer/stardust/exchanges',
-							'developer/stardust/move-models',
-							'developer/stardust/addresses',
-							'developer/stardust/units',
-							'developer/stardust/migration-process',
-							'developer/stardust/claiming',
-							'developer/stardust/vested',
-							'developer/stardust/testing',
-							'developer/stardust/if-tools',
-							'developer/stardust/faq',
-							'developer/stardust/advanced',
-						],
-					},
-				]
-			},
-		]
+    {   
+        type: 'category',
+        label: 'Migrating from IOTA/Shimmer Stardust',
+        link: {
+            type: 'doc',
+            id: 'developer/stardust/stardust-migration',
+        },
+        items: [
+            'developer/stardust/exchanges',
+            'developer/stardust/move-models',
+            'developer/stardust/addresses',
+            'developer/stardust/units',
+            'developer/stardust/migration-process',
+            'developer/stardust/claiming',
+            'developer/stardust/vested',
+            'developer/stardust/testing',
+            'developer/stardust/if-tools',
+            'developer/stardust/faq',
+            'developer/stardust/advanced',
+        ],
+    },
+
+
+    {
+        type:'category',
+        label: 'Exchange integration',
+        items:[
+            'developer/exchange-integration/exchange-integration',
+
+        ]
+    },
+]
 ;
 module.exports = developer;

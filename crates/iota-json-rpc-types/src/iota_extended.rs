@@ -67,7 +67,7 @@ pub struct EndOfEpochInfo {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_end_timestamp: u64,
-    /// existing fields from `SystemEpochInfo`
+    /// existing fields from `SystemEpochInfoEvent` (without epoch)
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub protocol_version: u64,
@@ -100,7 +100,13 @@ pub struct EndOfEpochInfo {
     pub total_stake_rewards_distributed: u64,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
-    pub leftover_storage_fund_inflow: u64,
+    pub burnt_leftover_amount: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub burnt_tokens_amount: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub minted_tokens_amount: u64,
 }
 
 #[serde_as]

@@ -19,7 +19,7 @@ use iota_sdk::{
         },
     },
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
     test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
@@ -30,12 +30,9 @@ const MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evol
 const COIN_TYPE: u32 = 4218;
 const OWNING_ALIAS_COUNT: u32 = 10;
 
-pub(crate) async fn outputs(randomness_seed: u64) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(rng: &mut StdRng) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
-
-    // create a randomized ownership dependency tree
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
 
     let alias_owners = secret_manager
         .generate_ed25519_addresses(COIN_TYPE, 0, 0..OWNING_ALIAS_COUNT, None)
@@ -43,7 +40,7 @@ pub(crate) async fn outputs(randomness_seed: u64) -> anyhow::Result<Vec<(OutputH
 
     // create 10 different alias outputs with each owning various other assets
     for alias_owner in alias_owners {
-        let alias_output_header = random_output_header(&mut rng);
+        let alias_output_header = random_output_header(rng);
 
         let alias_output = AliasOutputBuilder::new_with_amount(
             1_000_000,
@@ -69,14 +66,14 @@ pub(crate) async fn outputs(randomness_seed: u64) -> anyhow::Result<Vec<(OutputH
                 match rng.gen_range(0..=3) {
                     0 => {
                         // alias
-                        let (output_header, alias) = random_alias_output(&mut rng, owning_addr)?;
+                        let (output_header, alias) = random_alias_output(rng, owning_addr)?;
                         owning_addresses
                             .push_back((depth + 1, AliasAddress::new(*alias.alias_id()).into()));
                         outputs.push((output_header, alias.into()));
                     }
                     1 => {
                         // nft
-                        let (output_header, nft) = random_nft_output(&mut rng, owning_addr)?;
+                        let (output_header, nft) = random_nft_output(rng, owning_addr)?;
                         owning_addresses.push_back((
                             depth + 1,
                             nft.nft_address(&output_header.output_id()).into(),
@@ -85,14 +82,14 @@ pub(crate) async fn outputs(randomness_seed: u64) -> anyhow::Result<Vec<(OutputH
                     }
                     2 => {
                         // basic
-                        let (output_header, basic) = random_basic_output(&mut rng, owning_addr)?;
+                        let (output_header, basic) = random_basic_output(rng, owning_addr)?;
                         outputs.push((output_header, basic.into()));
                     }
                     3 => {
                         // foundry
                         if let Address::Alias(owning_addr) = owning_addr {
                             let (output_header, foundry) =
-                                random_foundry_output(&mut rng, &mut serial_number, owning_addr)?;
+                                random_foundry_output(rng, &mut serial_number, owning_addr)?;
                             outputs.push((output_header, foundry.into()));
                         }
                     }

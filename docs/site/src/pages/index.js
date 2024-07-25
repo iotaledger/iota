@@ -125,7 +125,7 @@ export default function Home() {
           <HomeCard title="References" aux heroCardBg={heroCardBg1}>
             <Link
               className={styles.cardLink}
-              to="https://sdk.mystenlabs.com/dapp-kit?ref=blog.iota.io"
+              to="references"
             >
               IOTA dApp Kit
             </Link>
@@ -134,13 +134,13 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="https://github.com/iotaledger/iota/tree/main/crates/iota-framework/docs"
+              to="https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/docs"
             >
               IOTA framework (GitHub)
             </Link>
             <Link
               className={styles.cardLink}
-              to="https://github.com/iotaledger/iota/tree/main/crates/iota-sdk"
+              to="https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk"
             >
               Rust SDK (GitHub)
             </Link>

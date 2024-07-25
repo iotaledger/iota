@@ -22,7 +22,7 @@ However, in normal operation, multiple Wasp _nodes_ should be used.
 
 ## Requirements
 
--   [`wasp-cli` configured](wasp-cli.md) to interact with your wasp node.
+- [`wasp-cli` configured](wasp-cli.md) to interact with your wasp node.
 
 ## Trust Setup
 

@@ -234,9 +234,9 @@ fn build_packages_with_move_config(
 /// * Replace html tags and use Docusaurus components where needed.
 fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap<String, String>) {
     // Turn on multi-line mode so that `.` matches newlines, consume from the start
-    // of the file to beginning of the heading, then capture the heading as three different parts and
-    // replace with the yaml tag for docusaurus, add the Link import and the title anchor,
-    // so the tile can be linked to. E.g., ```
+    // of the file to beginning of the heading, then capture the heading as three
+    // different parts and replace with the yaml tag for docusaurus, add the
+    // Link import and the title anchor, so the tile can be linked to. E.g., ```
     // -<a name="0x2_display"></a>
     // -
     // -# Module `0x2::display`
@@ -267,16 +267,19 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             new_path.to_string_lossy().to_string()
         };
 
-        // Replace a-tags with Link to register anchors in Docusaurus (we have to use the `id` attribute as `name` is deprecated and not existing in Link component)
-        let content = link_from_regex.replace_all(&file_content, r#"<Link id="$1"></Link>"#);
+        // Replace a-tags with Link to register anchors in Docusaurus (we have to use
+        // the `id` attribute as `name` is deprecated and not existing in Link
+        // component)
+        let content = link_from_regex.replace_all(file_content, r#"<Link id="$1"></Link>"#);
 
-        // Replace a-tags with href for Link tags to enable link and anchor checking. We need to make sure that `to` path don't contain extensions in a later step.
+        // Replace a-tags with href for Link tags to enable link and anchor checking. We
+        // need to make sure that `to` path don't contain extensions in a later step.
         let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
         // Escape `{` in <code> and add new lines as this is a requirement from mdx
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
             let code_content = caps.get(1).unwrap().as_str();
-            format!("<code>\n{}</code>", code_content.replace("{", "\\{"))
+            format!("<code>\n{}</code>", code_content.replace('{', "\\{"))
         });
 
         // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as
