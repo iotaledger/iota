@@ -5,13 +5,9 @@ import React from 'react';
 import cx from 'classnames';
 import { IotaLogoMark, Menu } from '@iota/ui-icons';
 import { NavbarItem, NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
+import { NavbarType } from '@/components/organisms/navbar/navbar.enums';
 
 export type NavbarItemWithID = NavbarItemProps & { id: string };
-
-export enum NavbarType {
-    Horizontal = 'horizontal',
-    Vertical = 'vertical',
-}
 
 export interface NavbarProps {
     type?: NavbarType;

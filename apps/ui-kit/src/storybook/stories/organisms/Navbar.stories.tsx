@@ -4,7 +4,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
-import { Navbar, NavbarItemWithID, NavbarProps, NavbarType } from '@/components';
+import { Navbar, NavbarSlideout, NavbarItemWithID, NavbarProps, NavbarType } from '@/components';
 import { useState } from 'react';
 
 const NAVBAR_ITEMS: NavbarItemWithID[] = [
@@ -48,6 +48,23 @@ export const Vertical: Story = {
             <div className="flex border border-gray-200">
                 <Navbar
                     type={NavbarType.Vertical}
+                    items={NAVBAR_ITEMS}
+                    activeId={activeId}
+                    onClick={(id) => setActiveId(id)}
+                />
+            </div>
+        );
+    },
+};
+export const SlideOut: Story = {
+    args: {},
+    argTypes: {},
+    render: (args) => {
+        const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
+
+        return (
+            <div className="flex border border-gray-200">
+                <NavbarSlideout
                     items={NAVBAR_ITEMS}
                     activeId={activeId}
                     onClick={(id) => setActiveId(id)}
