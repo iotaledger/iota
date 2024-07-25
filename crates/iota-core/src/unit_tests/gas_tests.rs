@@ -318,9 +318,9 @@ async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
             assert!(summary.computation_cost > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
-            assert!(summary.storage_cost == summary.storage_rebate);
-            assert!(summary.non_refundable_storage_fee == 0);
-            assert!(initial_value - gas_used == final_value);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
+            assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
     )
@@ -346,8 +346,8 @@ async fn test_computation_oog_storage_ok_multi_gas_coins() -> IotaResult {
             assert!(summary.computation_cost > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
-            assert!(summary.non_refundable_storage_fee == 0);
-            assert!(initial_value - gas_used == final_value);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
+            assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
     )
@@ -375,9 +375,9 @@ async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaR
             assert!(summary.computation_cost > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
-            assert!(summary.storage_cost == summary.storage_rebate);
-            assert!(summary.non_refundable_storage_fee == 0);
-            assert!(initial_value - gas_used == final_value);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
+            assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
     )
@@ -406,8 +406,8 @@ async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
             assert!(summary.computation_cost > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
-            assert!(summary.storage_cost == summary.storage_rebate);
-            assert!(summary.non_refundable_storage_fee == 0);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
@@ -437,7 +437,7 @@ async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
             assert!(summary.computation_cost > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
-            assert!(summary.non_refundable_storage_fee == 0);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value as i64 - gas_used, final_value as i64);
             Ok(())
         },
@@ -468,8 +468,8 @@ async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaR
             assert!(summary.computation_cost > 0);
             assert!(summary.storage_cost > 0);
             assert!(summary.storage_rebate > 0);
-            assert!(summary.storage_cost == summary.storage_rebate);
-            assert!(summary.non_refundable_storage_fee == 0);
+            assert_eq!(summary.storage_cost, summary.storage_rebate);
+            assert_eq!(summary.non_refundable_storage_fee, 0);
             assert_eq!(initial_value - gas_used, final_value);
             Ok(())
         },
