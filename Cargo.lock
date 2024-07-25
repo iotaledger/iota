@@ -200,19 +200,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anemo-benchmark"
-version = "0.0.0"
-dependencies = [
- "anemo",
- "anemo-build",
- "clap",
- "mysten-network",
- "rand 0.8.5",
- "telemetry-subscribers",
- "tokio",
-]
-
-[[package]]
 name = "anemo-build"
 version = "0.0.0"
 source = "git+https://github.com/mystenlabs/anemo.git?rev=26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7#26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7"
@@ -5383,17 +5370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-common"
-version = "0.1.0"
-dependencies = [
- "futures",
- "iota-types",
- "mysten-metrics",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iota-config"
 version = "0.0.0"
 dependencies = [
@@ -6435,7 +6411,6 @@ dependencies = [
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
- "iota-telemetry",
  "iota-tls",
  "iota-types",
  "move-vm-profiler",
@@ -7046,16 +7021,6 @@ dependencies = [
  "serde_yaml 0.8.26",
  "shared-crypto",
  "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "iota-telemetry"
-version = "0.1.0"
-dependencies = [
- "iota-core",
- "reqwest",
- "serde",
  "tracing",
 ]
 
