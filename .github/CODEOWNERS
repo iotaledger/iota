@@ -7,6 +7,10 @@
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
 
+# dev-tools team
+/crates/iota/ @iotaledger/dev-tools
+/crates/iota-sdk/ @iotaledger/dev-tools
+
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
 /apps/ @iotaledger/boxfish @iotaledger/tooling
 /dapps/ @iotaledger/boxfish @iotaledger/tooling
