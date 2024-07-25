@@ -64,7 +64,6 @@ exclude = [
 members = [
   "consensus/config",
   "consensus/core",
-  "crates/anemo-benchmark",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
   "crates/iota-analytics-indexer",
@@ -73,9 +72,7 @@ members = [
   "crates/iota-authority-aggregation",
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
-  "crates/iota-bridge",
   "crates/iota-cluster-test",
-  "crates/iota-common",
   "crates/iota-config",
   "crates/iota-core",
   "crates/iota-cost",
@@ -463,7 +460,6 @@ anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9a
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
 
 ### Workspace Members ###
-anemo-benchmark = { path = "crates/anemo-benchmark" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
@@ -472,7 +468,6 @@ iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-benchmark = { path = "crates/iota-benchmark" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
-iota-common = { path = "crates/iota-common" }
 iota-config = { path = "crates/iota-config" }
 iota-core = { path = "crates/iota-core" }
 iota-cost = { path = "crates/iota-cost" }

@@ -2,8 +2,6 @@ consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
-anemo-benchmark:
-  - "crates/anemo-benchmark/**"
 mysten-common:
   - "crates/mysten-common/**"
 mysten-metrics:
@@ -36,12 +34,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
-iota-bridge:
-  - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
-iota-common:
-  - "crates/iota-common/**"
 iota-config:
   - "crates/iota-config/**"
 iota-core:
