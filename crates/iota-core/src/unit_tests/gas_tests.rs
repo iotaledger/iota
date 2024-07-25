@@ -70,28 +70,30 @@ async fn test_tx_more_than_maximum_gas_budget() {
 }
 
 // Out Of Gas Scenarios
-// "minimal storage" is storage for input objects after reset. Operations for
-// "minimal storage" can only happen if storage charges fail and the rebate rate
-// is less then 100%.
+//
+// Terms:
+// - OOG - Out Of Gas.
+// - Computation - is a price for computation.
+// - Storage - is a storage price.
+// - Minimal storage - is a storage price charged for updating input objects,
+//   which occurs if a storage charge fails and the rebate rate is less then
+//   100%.
 //
 // Single gas coin:
-// - OOG computation, storage (minimal storage) ok
-// - computation ok, OOG for storage, minimal storage ok
+// - Computation OOG, storage OK, minimal storage OK.
+// - Computation OOG(is entire budget), storage OK, minimal storage OK.
+// - Computation OK, storage OOG, minimal storage OK.
+// - Computation OK(is entire budget), storage OOG, minimal storage OK.
 //
-// With multiple gas coins is practically impossible to fail storage cost
-// because we get a significant among of MICROS back from smashing. So we try:
-// - OOG computation, storage ok
+// With multiple gas coins we try:
+// - Computation OOG, storage OK, minimal storage OK.
+// - Computation OK, storage OOG, minimal storage OK.
 //
 // Impossible scenarios:
-// - OOG for computation, OOG for storage, minimal storage ok - OOG for
-//   computation implies
-// - OOG for computation, OOG for minimal storage (e.g. computation is entire
-//   budget) - since the rebate rate is set to 100%, minimal storage is always
-//   valid in case of computation OOG
-// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation
-//   is entire budget) - since the rebate rate is set to 100%, minimal storage
-//   is always valid in case of OOG for storage
-// minimal storage is the only extra charge, so storage == minimal storage
+// - Computation OOG, storage OOG, minimal storage OK - OOG for computation
+//   implies.
+// - Minimal storage OOG - since the rebate rate is set to 100%, minimal storage
+//   is always valid.
 //
 
 // Helpers for OOG scenarios
