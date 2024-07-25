@@ -13,6 +13,15 @@ const operator = [
     'operator/validator-committee',
     'operator/validator-tasks',
     'operator/node-tools',
+	{
+		type: 'category',
+		label: 'Node Monitoring and Metrics',
+		items: [
+			'operator/telemetry/telemetry-subscribers',
+			'operator/telemetry/iota-metrics',
+			'operator/telemetry/iota-telemetry',
+		],
+	},
     {
         type: 'category',
         label: 'IOTA EVM Network',

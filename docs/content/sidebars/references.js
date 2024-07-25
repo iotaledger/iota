@@ -304,6 +304,8 @@ const references = [
 			},
 		],
 	},
+    'references/research-papers',
+	
 	'references/iota-glossary',
 	{
 		type: 'category',

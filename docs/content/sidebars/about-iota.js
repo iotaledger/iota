@@ -25,15 +25,6 @@ const aboutIota = [
 	},
 	{
 		type: 'category',
-		label: 'Execution Architecture',
-		items: [
-			'about-iota/execution-architecture/iota-execution',
-			'about-iota/execution-architecture/adapter',
-			'about-iota/execution-architecture/natives',
-		],
-	},
-	{
-		type: 'category',
 		label: 'Tokenomics',
 		collapsed: false,
 		link: {
@@ -51,13 +42,18 @@ const aboutIota = [
 	},
 	{
 		type: 'category',
-		label: 'Node Monitoring and Metrics',
+		label: 'Expert topics',
 		items: [
-			'about-iota/telemetry/telemetry-subscribers',
-			'about-iota/telemetry/iota-metrics',
-			'about-iota/telemetry/iota-telemetry',
-		],
+			{
+				type: 'category',
+				label: 'Execution Architecture',
+				items: [
+					'about-iota/execution-architecture/iota-execution',
+					'about-iota/execution-architecture/adapter',
+					'about-iota/execution-architecture/natives',
+				],
+			},
+		]
 	},
-	'about-iota/research-papers',
 ];
 module.exports = aboutIota;
