@@ -317,7 +317,7 @@ reference_gas_price: 1000
 validator_report_records:
   contents: []
 safe_mode: false
-safe_mode_storage_rewards:
+safe_mode_storage_charges:
   value: 0
 safe_mode_computation_rewards:
   value: 0

@@ -23,8 +23,6 @@ pub struct StoredEpochInfo {
     pub epoch_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
-    // TODO: remove(obsolete)
-    pub storage_fund_reinvestment: Option<i64>,
     pub storage_charge: Option<i64>,
     pub storage_rebate: Option<i64>,
     pub total_gas_fees: Option<i64>,
@@ -49,8 +47,6 @@ pub struct QueryableEpochInfo {
     pub epoch_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
-    // TODO: remove(obsolete)
-    pub storage_fund_reinvestment: Option<i64>,
     pub storage_charge: Option<i64>,
     pub storage_rebate: Option<i64>,
     pub total_gas_fees: Option<i64>,
@@ -88,7 +84,6 @@ impl StoredEpochInfo {
             epoch_total_transactions: e.epoch_total_transactions.map(|v| v as i64),
             last_checkpoint_id: e.last_checkpoint_id.map(|v| v as i64),
             epoch_end_timestamp: e.epoch_end_timestamp.map(|v| v as i64),
-            storage_fund_reinvestment: e.storage_fund_reinvestment.map(|v| v as i64),
             storage_charge: e.storage_charge.map(|v| v as i64),
             storage_rebate: e.storage_rebate.map(|v| v as i64),
             total_gas_fees: e.total_gas_fees.map(|v| v as i64),
@@ -124,7 +119,6 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
             total_stake: info.total_stake as u64,
             storage_fund_balance: info.storage_fund_balance as u64,
             epoch_end_timestamp: info.epoch_end_timestamp.map(|v| v as u64)?,
-            storage_fund_reinvestment: info.storage_fund_reinvestment.map(|v| v as u64)?,
             storage_charge: info.storage_charge.map(|v| v as u64)?,
             storage_rebate: info.storage_rebate.map(|v| v as u64)?,
             total_gas_fees: info.total_gas_fees.map(|v| v as u64)?,

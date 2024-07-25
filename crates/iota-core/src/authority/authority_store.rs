@@ -17,7 +17,6 @@ use iota_types::{
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
-    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::get_iota_system_state,
     message_envelope::Message,
     storage::{
@@ -1757,7 +1756,7 @@ impl AuthorityStore {
             .set(imbalance);
         self.metrics
             .iota_conservation_imbalance
-            .set((total_iota as i128 - TOTAL_SUPPLY_NANOS as i128) as i64);
+            .set((total_iota as i128 - system_state.iota_total_supply as i128) as i64);
 
         if let Some(expected_imbalance) = self
             .perpetual_tables

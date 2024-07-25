@@ -64,8 +64,6 @@ exclude = [
 members = [
   "consensus/config",
   "consensus/core",
-  "crates/anemo-benchmark",
-  "crates/data-transform",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
   "crates/iota-analytics-indexer",
@@ -74,9 +72,7 @@ members = [
   "crates/iota-authority-aggregation",
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
-  "crates/iota-bridge",
   "crates/iota-cluster-test",
-  "crates/iota-common",
   "crates/iota-config",
   "crates/iota-core",
   "crates/iota-cost",
@@ -109,12 +105,10 @@ members = [
   "crates/iota-node",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
-  "crates/iota-oracle",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
-  "crates/iota-proxy",
   "crates/iota-replay",
   "crates/iota-rest-api",
   "crates/iota-rosetta",
@@ -129,10 +123,8 @@ members = [
   "crates/iota-surfer",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
-  "crates/iota-telemetry",
   "crates/iota-test-transaction-builder",
   "crates/iota-test-validator",
-  "crates/iota-tls",
   "crates/iota-tool",
   "crates/iota-transaction-builder",
   "crates/iota-transaction-checks",
@@ -141,12 +133,9 @@ members = [
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
   "crates/iotans-indexer",
-  "crates/iotaop-cli",
   "crates/mysten-common",
   "crates/mysten-metrics",
   "crates/mysten-network",
-  "crates/mysten-service",
-  "crates/mysten-service-boilerplate",
   "crates/mysten-util-mem",
   "crates/mysten-util-mem-derive",
   "crates/prometheus-closure-metric",
@@ -469,7 +458,6 @@ anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9a
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
 
 ### Workspace Members ###
-anemo-benchmark = { path = "crates/anemo-benchmark" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
@@ -478,7 +466,6 @@ iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-benchmark = { path = "crates/iota-benchmark" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
-iota-common = { path = "crates/iota-common" }
 iota-config = { path = "crates/iota-config" }
 iota-core = { path = "crates/iota-core" }
 iota-cost = { path = "crates/iota-cost" }
@@ -512,7 +499,6 @@ iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
-iota-proxy = { path = "crates/iota-proxy" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
@@ -526,10 +512,8 @@ iota-storage = { path = "crates/iota-storage" }
 iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
-iota-telemetry = { path = "crates/iota-telemetry" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-test-validator = { path = "crates/iota-test-validator" }
-iota-tls = { path = "crates/iota-tls" }
 iota-tool = { path = "crates/iota-tool" }
 iota-transaction-builder = { path = "crates/iota-transaction-builder" }
 iota-transaction-checks = { path = "crates/iota-transaction-checks" }
@@ -540,8 +524,6 @@ iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional
 mysten-common = { path = "crates/mysten-common" }
 mysten-metrics = { path = "crates/mysten-metrics" }
 mysten-network = { path = "crates/mysten-network" }
-mysten-service = { path = "crates/mysten-service" }
-mysten-service-boilerplate = { path = "crates/mysten-service-boilerplate" }
 mysten-util-mem = { path = "crates/mysten-util-mem" }
 mysten-util-mem-derive = { path = "crates/mysten-util-mem-derive" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
@@ -575,10 +557,3 @@ iota-execution = { path = "iota-execution" }
 # move-stdlib = { path = "external-crates/move/move-stdlib" }
 # move-vm-runtime = { path = "external-crates/move/move-vm/runtime" }
 # move-bytecode-verifier = { path = "external-crates/move/move-bytecode-verifier" }
-
-# iotaop dependencies
-docker-api = "0.12.2"
-field_names = "0.2.0"
-include_dir = "0.7.3"
-semver = "1.0.16"
-spinners = "4.1.0"

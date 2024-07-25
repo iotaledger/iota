@@ -5,7 +5,7 @@
 use async_graphql::{connection::Connection, *};
 use iota_types::{
     coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
-    gas_coin::{GAS, TOTAL_SUPPLY_IOTA},
+    gas_coin::GAS,
     TypeTag,
 };
 
@@ -26,7 +26,7 @@ use super::{
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };
-use crate::{data::Db, error::Error};
+use crate::{context_data::db_data_provider::PgManager, data::Db, error::Error};
 
 pub(crate) struct CoinMetadata {
     pub super_: MoveObject,
@@ -321,7 +321,7 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let supply = CoinMetadata::query_total_supply(ctx.data_unchecked(), coin_type)
+        let supply = CoinMetadata::query_total_supply(ctx, coin_type)
             .await
             .extend()?;
 
@@ -362,7 +362,7 @@ impl CoinMetadata {
     }
 
     pub(crate) async fn query_total_supply(
-        db: &Db,
+        ctx: &Context<'_>,
         coin_type: TypeTag,
     ) -> Result<Option<u64>, Error> {
         let TypeTag::Struct(coin_struct) = coin_type else {
@@ -372,9 +372,16 @@ impl CoinMetadata {
         };
 
         Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
-            TOTAL_SUPPLY_IOTA
+            let pg_manager = ctx.data_unchecked::<PgManager>();
+
+            let state = pg_manager.fetch_iota_system_state(None).await?;
+
+            state.iota_total_supply
         } else {
             let cap_type = TreasuryCap::type_(*coin_struct).into();
+
+            let db = ctx.data_unchecked();
+
             let Some(object) = Object::query_singleton(db, cap_type).await? else {
                 return Ok(None);
             };

@@ -4,6 +4,7 @@
 
 use std::{env, net::SocketAddr, str::FromStr};
 
+use axum::routing::{get, post};
 pub use balance_changes::*;
 use hyper::{
     header::{HeaderName, HeaderValue},
@@ -23,7 +24,12 @@ use tower_http::{
 };
 use tracing::info;
 
-use crate::{error::Error, metrics::MetricsLogger, routing_layer::RpcRouter};
+use crate::{
+    axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
+    error::Error,
+    metrics::MetricsLogger,
+    routing_layer::RpcRouter,
+};
 
 pub mod authority_state;
 pub mod axum_router;
@@ -57,9 +63,9 @@ pub fn iota_rpc_doc(version: &str) -> Project {
         version,
         "Iota JSON-RPC",
         "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
-        "Mysten Labs",
-        "https://mystenlabs.com",
-        "build@mystenlabs.com",
+        "IOTA Foundation",
+        "https://iota.org",
+        "contact@iota.org",
         "Apache-2.0",
         "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )
@@ -174,58 +180,28 @@ impl JsonRpcServerBuilder {
         match server_type {
             Some(ServerType::WebSocket) => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/subscribe",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    );
+                    .route("/", get(ws_json_rpc_upgrade))
+                    .route("/subscribe", get(ws_json_rpc_upgrade));
             }
             Some(ServerType::Http) => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/json-rpc",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/public",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    );
+                    .route("/", post(json_rpc_handler))
+                    .route("/json-rpc", post(json_rpc_handler))
+                    .route("/public", post(json_rpc_handler));
             }
             None => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/subscribe",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/json-rpc",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/public",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    );
+                    .route("/", post(json_rpc_handler))
+                    .route("/", get(ws_json_rpc_upgrade))
+                    .route("/subscribe", get(ws_json_rpc_upgrade))
+                    .route("/json-rpc", post(json_rpc_handler))
+                    .route("/public", post(json_rpc_handler));
             }
         }
 
         let app = router.with_state(service).layer(middleware);
 
-        info!("Available JSON-RPC methods : {:?}", methods_names);
+        info!("Available JSON-RPC methods : {methods_names:?}");
 
         Ok(app)
     }

@@ -1277,22 +1277,17 @@ fn get_value_from_move_struct(
                     if let Some(value) = fields.get(part) {
                         current_value = value;
                     } else {
-                        Err(anyhow!(
-                            "Field value {} cannot be found in struct",
-                            var_name
-                        ))?;
+                        Err(anyhow!("Field value {var_name} cannot be found in struct"))?;
                     }
                 } else {
                     Err(Error::UnexpectedError(format!(
-                        "Unexpected move struct type for field {}",
-                        var_name
+                        "Unexpected move struct type for field {var_name}"
                     )))?;
                 }
             }
             _ => {
                 Err(Error::UnexpectedError(format!(
-                    "Unexpected move value type for field {}",
-                    var_name
+                    "Unexpected move value type for field {var_name}"
                 )))?;
             }
         }
@@ -1304,8 +1299,7 @@ fn get_value_from_move_struct(
             None => Ok("".to_string()),
         },
         IotaMoveValue::Vector(_) => Err(anyhow!(
-            "Vector is not supported as a Display value {}",
-            var_name
+            "Vector is not supported as a Display value {var_name}"
         ))?,
 
         _ => Ok(current_value.to_string()),
@@ -1323,7 +1317,7 @@ fn convert_to_response(
     if opts.show_raw_input && cache.transaction.is_some() {
         let sender_signed_data = cache.transaction.as_ref().unwrap().data();
         let raw_tx = bcs::to_bytes(sender_signed_data)
-            .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {}", e))?; // TODO: is this a client or server error?
+            .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {e}"))?; // TODO: is this a client or server error?
         response.raw_transaction = raw_tx;
     }
 
@@ -1337,8 +1331,7 @@ fn convert_to_response(
         let effects = cache.effects.unwrap().try_into().map_err(|e| {
             anyhow!(
                 // TODO: is this a client or server error?
-                "Failed to convert transaction block effects with error: {}",
-                e
+                "Failed to convert transaction block effects with error: {e}"
             )
         })?;
         response.effects = Some(effects);

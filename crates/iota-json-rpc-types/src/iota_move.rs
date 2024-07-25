@@ -340,13 +340,13 @@ impl Display for IotaMoveValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match self {
-            IotaMoveValue::Number(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::Bool(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::Address(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::String(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Number(value) => write!(writer, "{value}")?,
+            IotaMoveValue::Bool(value) => write!(writer, "{value}")?,
+            IotaMoveValue::Address(value) => write!(writer, "{value}")?,
+            IotaMoveValue::String(value) => write!(writer, "{value}")?,
             IotaMoveValue::UID { id } => write!(writer, "{id}")?,
-            IotaMoveValue::Struct(value) => write!(writer, "{}", value)?,
-            IotaMoveValue::Option(value) => write!(writer, "{:?}", value)?,
+            IotaMoveValue::Struct(value) => write!(writer, "{value}")?,
+            IotaMoveValue::Option(value) => write!(writer, "{value:?}")?,
             IotaMoveValue::Vector(vec) => {
                 write!(
                     writer,
@@ -467,7 +467,7 @@ impl Display for IotaMoveStruct {
                 writeln!(writer)?;
                 writeln!(writer, "  {}: {type_}", "type".bold().bright_black())?;
                 for (name, value) in fields {
-                    let value = format!("{}", value);
+                    let value = format!("{value}");
                     let value = if value.starts_with('\n') {
                         indent(&value, 2)
                     } else {
@@ -484,7 +484,7 @@ impl Display for IotaMoveStruct {
 fn indent<T: Display>(d: &T, indent: usize) -> String {
     d.to_string()
         .lines()
-        .map(|line| format!("{:indent$}{}", "", line))
+        .map(|line| format!("{:indent$}{line}", ""))
         .join("\n")
 }
 

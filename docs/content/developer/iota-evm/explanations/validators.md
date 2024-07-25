@@ -39,8 +39,8 @@ account.
 
 Any node can optionally provide access to smart contracts for external callers, allowing them to:
 
--   Query the state of the chain (i.e., _view calls_)
--   Send off-ledger requests directly to the node (instead of sending an on-ledger request as a L1 transaction)
+- Query the state of the chain (i.e., _view calls_)
+- Send off-ledger requests directly to the node (instead of sending an on-ledger request as a L1 transaction)
 
 It is common for validator nodes to be part of a private subnet and have only a group of access nodes exposed to the
 outside world, protecting the committee from external attacks.

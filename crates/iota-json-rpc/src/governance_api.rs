@@ -445,8 +445,12 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
                 .take(30)
                 .collect::<Vec<_>>();
 
-            let apy_counts = apys.len() as f64;
-            apys.iter().sum::<f64>() / apy_counts
+            if apys.is_empty() {
+                0.0
+            } else {
+                let apy_counts = apys.len() as f64;
+                apys.iter().sum::<f64>() / apy_counts
+            }
         } else {
             0.0
         };
