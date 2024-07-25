@@ -16,7 +16,7 @@ import {
 } from './navbarItem.classes';
 import { Badge, BadgeType } from '../../atoms';
 
-interface NavbarItemProps {
+export interface NavbarItemProps {
     /**
      * The icon of the navbar item.
      */
