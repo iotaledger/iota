@@ -230,7 +230,7 @@ impl From<IotaError> for ReplayEngineError {
 impl From<IotaRpcError> for ReplayEngineError {
     fn from(err: IotaRpcError) -> Self {
         match err {
-            IotaRpcError::RpcError(JsonRpseeError::RequestTimeout) => {
+            IotaRpcError::Rpc(JsonRpseeError::RequestTimeout) => {
                 ReplayEngineError::IotaRpcRequestTimeout
             }
             _ => ReplayEngineError::IotaRpcError {

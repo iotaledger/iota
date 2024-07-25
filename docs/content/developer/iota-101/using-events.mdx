@@ -2,6 +2,7 @@
 title: Using Events
 description: Monitor IOTA on-chain activity by subscribing to events that Move packages published on IOTA emit.
 ---
+import AlphaNet from "../../_snippets/alphanet.mdx";
 
 The IOTA network stores countless objects on chain where Move code can perform actions using those objects. Tracking this activity is often desired, for example, to discover how many times a module mints an NFT or to tally the amount of IOTA in transactions that a smart contract generates.
 
@@ -185,6 +186,8 @@ subscribeEvent {
 ```
 
 ### Rust SDK
+
+<AlphaNet />
 
 ```rust
 use futures::StreamExt;

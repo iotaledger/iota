@@ -340,7 +340,7 @@ impl IotaClientBuilder {
             .pointer("/info/version")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                Error::DataError("Fail parsing server version from rpc.discover endpoint.".into())
+                Error::Data("Fail parsing server version from rpc.discover endpoint.".into())
             })?;
         let rpc_methods = Self::parse_methods(&rpc_spec)?;
 
@@ -362,9 +362,7 @@ impl IotaClientBuilder {
             .pointer("/methods")
             .and_then(|methods| methods.as_array())
             .ok_or_else(|| {
-                Error::DataError(
-                    "Fail parsing server information from rpc.discover endpoint.".into(),
-                )
+                Error::Data("Fail parsing server information from rpc.discover endpoint.".into())
             })?;
 
         Ok(methods
