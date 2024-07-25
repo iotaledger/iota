@@ -2,8 +2,6 @@ consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
-anemo-benchmark:
-  - "crates/anemo-benchmark/**"
 mysten-common:
   - "crates/mysten-common/**"
 mysten-metrics:
@@ -38,8 +36,6 @@ iota-benchmark:
   - "crates/iota-benchmark/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
-iota-common:
-  - "crates/iota-common/**"
 iota-config:
   - "crates/iota-config/**"
 iota-core:
@@ -138,8 +134,6 @@ iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
   - "crates/iota-swarm-config/**"
-iota-telemetry:
-  - "crates/iota-telemetry/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
 iota-test-validator:

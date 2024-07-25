@@ -31,5 +31,9 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 /docs/**/package.json @iotaledger/devx
 /docs/**/vercel.json @iotaledger/devx
 
+# CI Taskforce
+/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
