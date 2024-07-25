@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
     # Run the cargo tree command and store the output in a string variable
     # `--prefix depth` shows the dependency depth of a package
-    # `--format ' {p}'` adds a space between depth and pacakge name
+    # `--format ' {p}'` adds a space between depth and package name
     cargo_cmd = ['cargo', 'tree', '--prefix', 'depth', '--format', ' {p}']
     if skip_dev_dependencies :
         cargo_cmd.extend(['-e','no-dev'])
