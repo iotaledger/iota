@@ -76,7 +76,7 @@ impl ObjectStoreListExt for Arc<DynObjectStore> {
         &self,
         src: Option<&Path>,
     ) -> object_store::Result<BoxStream<'_, object_store::Result<ObjectMeta>>> {
-        self.list(src).await
+        Ok(self.list(src))
     }
 }
 
@@ -103,7 +103,7 @@ as_ref_put_ext_impl!(Box<dyn ObjectStorePutExt>);
 #[async_trait]
 impl ObjectStorePutExt for Arc<DynObjectStore> {
     async fn put_bytes(&self, src: &Path, bytes: Bytes) -> Result<()> {
-        self.put(src, bytes).await?;
+        self.put(src, bytes.into()).await?;
         Ok(())
     }
 }

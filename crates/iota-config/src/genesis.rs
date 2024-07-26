@@ -491,6 +491,13 @@ pub struct TokenDistributionSchedule {
 }
 
 impl TokenDistributionSchedule {
+    pub fn contains_timelocked_stake(&self) -> bool {
+        self.allocations
+            .iter()
+            .find_map(|allocation| allocation.staked_with_timelock_expiration)
+            .is_some()
+    }
+
     pub fn validate(&self) {
         let mut total_nanos = self.pre_minted_supply;
 
@@ -501,12 +508,10 @@ impl TokenDistributionSchedule {
         }
     }
 
-    pub fn check_all_stake_operations_are_for_valid_validators<
-        I: IntoIterator<Item = IotaAddress>,
-    >(
+    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = IotaAddress>>(
         &self,
         validators: I,
-    ) {
+    ) -> Result<()> {
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
@@ -526,11 +531,12 @@ impl TokenDistributionSchedule {
         let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                panic!(
+                anyhow::bail!(
                     "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
                 );
             }
         }
+        Ok(())
     }
 
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(

@@ -219,7 +219,7 @@ pub fn update_dependency_graph(
     use toml_edit::value;
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::Document>()?;
+    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
     let move_table = toml
         .entry("move")
         .or_insert(Item::Table(toml_edit::Table::new()))
@@ -266,7 +266,7 @@ pub fn update_compiler_toolchain(
 ) -> Result<()> {
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::Document>()?;
+    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
     let move_table = toml["move"].as_table_mut().ok_or(std::fmt::Error)?;
     let toolchain_version = toml::Value::try_from(ToolchainVersion {
         compiler_version,
@@ -326,11 +326,11 @@ pub fn update_managed_address(
     environment: &str,
     managed_address_update: ManagedAddressUpdate,
 ) -> Result<()> {
-    use toml_edit::{value, Document, Table};
+    use toml_edit::{value, DocumentMut, Table};
 
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<Document>()?;
+    let mut toml = toml_string.parse::<DocumentMut>()?;
 
     let env_table = toml
         .entry(ENV_TABLE_NAME)

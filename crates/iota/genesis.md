@@ -59,17 +59,16 @@ $ git commit -m "add validator <name>'s information"
 $ git push # either to the shared workspace or another branch followed by a PR
 ```
 
-3. Add Initial Gas Objects
+3. Add token allocation for the faucet
 
-Add configuration for any initial gas objects that should be created at genesis.
+Add allocation for any faucet that might have been launched.
 
 ```
-$ iota genesis-ceremony add-gas-object \
-    --address <IotaAddress> \
-    --object-id <ObjectId> \
-    --value <# of iota coins>
+$ iota genesis-ceremony add-token-allocation \
+    --recipient-address <IotaAddress> \
+    --amount-nanos <# of iota coins>
 $ git add .
-$ git commit -m "add gas object"
+$ git commit -m "add faucet token allocation"
 $ git push
 ```
 
