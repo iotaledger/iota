@@ -15,6 +15,12 @@ transactions.
 
 In IOTA, an address is 32 bytes and is encoded in base16 (hexadecimal format) with the `0x` prefix. For example, this is a valid IOTA address: `0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331`. You can use the [IOTA network explorer](https://explorer.iota.cafe/) to find more information about this address and the objects it owns.
 
+:::warning Legacy address format
+
+In IOTA Stardust we used a different address standard by default (Bech32, starting with `iota1` and `smr1`). To read more about this change check out the [address details migration page](../stardust/addresses).
+
+:::
+
 An address is a way to uniquely and anonymously identify an [account](#whats-an-account)
 or [package](../iota-101/iota-move-concepts/packages/packages.mdx). In the same way your email or ID number is
 unique, addresses have to be unique as they are your account's identifier to send and receive transactions. You
@@ -43,8 +49,8 @@ addresses are typically simple values that are easy to remember and type. For ex
 
 Here are some examples of reserved addresses:
 
-- `0x1` - address of the Sui Standard Library (alias `std`)
-- `0x2` - address of the Sui Framework (alias `sui`)
+- `0x1` - address of the IOTA Move Standard Library (alias `std`)
+- `0x2` - address of the IOTA Framework (alias `iota`)
 - `0x6` - address of the system `Clock` object
 
 :::tip Keys and Addresses

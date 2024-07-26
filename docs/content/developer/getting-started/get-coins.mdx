@@ -3,6 +3,8 @@ description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
 tags: [test tokens, faucet, CLI, cURL, TypeScript SDK]
 ---
 
+import AlphaNet from "../../_snippets/alphanet.mdx";
+
 # Get Test Tokens
 
 You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-iota/tokenomics/gas-in-iota.mdx) on the IOTA Devnet and Testnet networks. These test tokens have no real-world value.
@@ -14,13 +16,6 @@ You can use the [IOTA CLI client](../../references/cli/client.mdx) to request to
 - `--address` argument to provide a specific address (or its alias),
 - `--url` argument to provide a custom faucet endpoint.
 
-## Request test tokens through Discord
-
-1. Join [Discord](https://discord.gg/iota).
-   If you try to join the IOTA Discord channel using a newly created Discord account, you may need to wait a few days for validation.
-1. Request test IOTA tokens in the IOTA [#devnet-faucet](https://discord.com/channels/916379725201563759/971488439931392130) or [#testnet-faucet](https://discord.com/channels/916379725201563759/1037811694564560966) Discord channels. Send the following message to the channel with your client address:
-   `!faucet <Your client address>`
-
 ## Request test tokens through wallet
 
 You can request test tokens within IOTA Wallet.
@@ -30,7 +25,7 @@ You can request test tokens within IOTA Wallet.
 You can use the following cURL command to request tokens directly from the faucet server:
 
 ```
-curl --location --request POST 'https://faucet.devnet.iota.io/gas' \
+curl --location --request POST 'https://faucet.iota-rebased-alphanet.iota.cafe/gas' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "FixedAmountRequest": {
@@ -39,9 +34,11 @@ curl --location --request POST 'https://faucet.devnet.iota.io/gas' \
 }'
 ```
 
+<AlphaNet />
+
 :::tip Test tokens on a local network
 
-If you're working with a local network, replace `'https://faucet.devnet.iota.io/gas'` with the appropriate value based on which package runs your network:
+If you're working with a local network, replace `'https://faucet.iota-rebased-alphanet.iota.cafe/gas'` with the appropriate value based on which package runs your network:
 
 - `iota-faucet`: `http://127.0.0.1:5003/gas`
 - `iota-test-validator`: `http://127.0.0.1:9123/gas`
