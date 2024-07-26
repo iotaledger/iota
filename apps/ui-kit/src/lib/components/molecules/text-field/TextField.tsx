@@ -1,33 +1,38 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Close, VisibilityOn, VisibilityOff } from '@iota/ui-icons';
 import cx from 'classnames';
-import { useCallback, useRef } from 'react';
+import { Close, VisibilityOn, VisibilityOff } from '@iota/ui-icons';
+import { useRef } from 'react';
 import { TextFieldPropsByType } from './text-field.types';
 import { TextFieldType } from './text-field.enums';
 
-interface TextFieldBaseProps {
-    /**
-     * Name for the input field
-     */
-    name?: string;
+type InputPickedProps = Pick<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    | 'min'
+    | 'max'
+    | 'step'
+    | 'maxLength'
+    | 'minLength'
+    | 'autoComplete'
+    | 'autoFocus'
+    | 'pattern'
+    | 'name'
+    | 'required'
+    | 'placeholder'
+    | 'disabled'
+    | 'id'
+>;
+
+interface TextFieldBaseProps extends InputPickedProps {
     /**
      * Shows a label with the text above the input field.
      */
     label?: string;
     /**
-     * The placeholder text inside the input field.
-     */
-    placeholder?: string;
-    /**
      * Shows a caption with the text below the input field.
      */
     caption?: string;
-    /**
-     * Disables the input field
-     */
-    isDisabled?: boolean;
     /**
      * Error Message. Overrides the caption.
      */
@@ -36,10 +41,6 @@ interface TextFieldBaseProps {
      * Callback function that is called when the input field value changes
      */
     onChange?: (value: string, name?: string) => void;
-    /**
-     * The value of the input field
-     */
-    value?: string;
     /**
      * A leading icon that is shown before the input field
      */
@@ -57,25 +58,29 @@ interface TextFieldBaseProps {
      */
     hidePasswordToggle?: boolean;
     /**
-     * The Id of the input field
-     */
-    id?: string;
-    /**
-     * The pattern for the input field
-     */
-    pattern?: string;
-    /**
-     * Autofocus the input field on render
-     */
-    autofocus?: boolean;
-    /**
      * Trailing element that is shown after the input field
      */
     trailingElement?: React.JSX.Element;
     /**
-     * If the field is required
+     * Ref for the input field
      */
-    required?: boolean;
+    ref?: React.RefObject<HTMLInputElement>;
+    /**
+     * Is the password visible
+     */
+    isPasswordVisible?: boolean;
+    /**
+     * Value of the input field
+     */
+    value?: string;
+    /**
+     * Toggles the password visibility
+     */
+    togglePasswordVisibility?: () => void;
+    /**
+     * onClearInput function that is called when the clear button is clicked
+     */
+    onClearInput?: () => void;
 }
 
 type TextFieldProps = TextFieldBaseProps & TextFieldPropsByType;
@@ -85,7 +90,7 @@ export function TextField({
     label,
     placeholder,
     caption,
-    isDisabled,
+    disabled,
     errorMessage,
     onChange,
     value,
@@ -95,33 +100,37 @@ export function TextField({
     id,
     pattern,
     hidePasswordToggle,
-    autofocus,
+    autoFocus,
     trailingElement,
     required,
+    max,
+    min,
+    step,
+    maxLength,
+    minLength,
+    autoComplete,
+    ref,
+    isPasswordVisible,
+    togglePasswordVisibility,
+    onClearInput,
     type = TextFieldType.Text,
-    ...inputPropsByType
 }: TextFieldProps) {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const focusInput = useCallback(() => {
-        inputRef.current?.focus();
-    }, [inputRef]);
+    const fallbackRef = useRef<HTMLInputElement>(null);
+    const inputRef = ref ?? fallbackRef;
 
-    const togglePasswordVisibility = useCallback(() => {
-        if (inputRef.current) {
-            inputRef.current.type =
-                inputRef.current.type === TextFieldType.Password
-                    ? TextFieldType.Text
-                    : TextFieldType.Password;
+    function focusInput() {
+        if (inputRef?.current) {
+            inputRef?.current?.focus();
         }
-    }, [inputRef]);
+    }
 
     return (
         <div
-            aria-disabled={isDisabled}
+            aria-disabled={disabled}
             className={cx('group flex flex-col gap-y-2', {
-                'opacity-40': isDisabled,
+                'opacity-40': disabled,
                 errored: errorMessage,
-                enabled: !isDisabled,
+                enabled: !disabled,
                 required: required,
             })}
         >
@@ -145,15 +154,20 @@ export function TextField({
                     type={type}
                     name={name}
                     placeholder={placeholder}
-                    disabled={isDisabled}
+                    disabled={disabled}
                     value={value}
-                    onChange={(e) => onChange?.(e.target.value)}
+                    onChange={(e) => onChange?.(e.target.value, e.target.name)}
                     ref={inputRef}
                     required={required}
                     id={id}
-                    {...inputPropsByType}
                     pattern={pattern}
-                    autoFocus={autofocus}
+                    autoFocus={autoFocus}
+                    maxLength={maxLength}
+                    minLength={minLength}
+                    autoComplete={autoComplete}
+                    max={max}
+                    min={min}
+                    step={step}
                     className="w-full bg-transparent text-body-lg text-neutral-10 caret-primary-30 focus:outline-none focus-visible:outline-none enabled:placeholder:text-neutral-40/40 dark:text-neutral-92 dark:placeholder:text-neutral-60/40 enabled:dark:placeholder:text-neutral-60/40"
                 />
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
@@ -162,14 +176,21 @@ export function TextField({
                     value={value}
                     type={type}
                     hidePasswordToggle={hidePasswordToggle}
-                    onChange={onChange}
-                    inputRef={inputRef}
+                    onClearInput={onClearInput}
                     togglePasswordVisibility={togglePasswordVisibility}
                     trailingElement={trailingElement}
+                    isPasswordVisible={isPasswordVisible}
                 />
             </div>
-            <div className="flex flex-row items-center justify-between">
-                {caption && <SecondaryText>{errorMessage ?? caption}</SecondaryText>}
+            <div
+                className={cx(
+                    'flex flex-row items-center',
+                    caption || errorMessage ? 'justify-between' : 'justify-end',
+                )}
+            >
+                {(errorMessage || caption) && (
+                    <SecondaryText>{errorMessage || caption}</SecondaryText>
+                )}
                 {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
             </div>
         </div>
@@ -179,13 +200,18 @@ export function TextField({
 function SecondaryText({
     children,
     noErrorStyles,
-}: React.PropsWithChildren<{ noErrorStyles?: boolean }>) {
+    className,
+}: React.PropsWithChildren<{ noErrorStyles?: boolean; className?: string }>) {
     const ERROR_STYLES = 'group-[.errored]:text-error-30 dark:group-[.errored]:text-error-80';
     return (
         <p
-            className={cx('text-label-lg text-neutral-40  dark:text-neutral-60 ', {
-                [ERROR_STYLES]: !noErrorStyles,
-            })}
+            className={cx(
+                'text-label-lg text-neutral-40  dark:text-neutral-60 ',
+                {
+                    [ERROR_STYLES]: !noErrorStyles,
+                },
+                className,
+            )}
         >
             {children}
         </p>
@@ -194,20 +220,20 @@ function SecondaryText({
 
 type TextFieldTrailingElement = Pick<
     TextFieldProps,
-    'value' | 'type' | 'hidePasswordToggle' | 'onChange' | 'trailingElement'
+    'value' | 'type' | 'hidePasswordToggle' | 'trailingElement' | 'isPasswordVisible'
 > & {
-    inputRef: React.RefObject<HTMLInputElement>;
-    togglePasswordVisibility: () => void;
+    togglePasswordVisibility?: () => void;
+    onClearInput?: () => void;
 };
 
 function TextFieldTrailingElement({
     value,
     type,
     hidePasswordToggle,
-    onChange,
-    inputRef,
+    onClearInput,
     togglePasswordVisibility,
     trailingElement,
+    isPasswordVisible,
 }: TextFieldTrailingElement) {
     if (trailingElement) {
         return trailingElement;
@@ -219,18 +245,14 @@ function TextFieldTrailingElement({
                 onClick={togglePasswordVisibility}
                 className="text-neutral-10 dark:text-neutral-92"
             >
-                {inputRef.current?.type === TextFieldType.Password ? (
-                    <VisibilityOn />
-                ) : (
-                    <VisibilityOff />
-                )}
+                {isPasswordVisible ? <VisibilityOn /> : <VisibilityOff />}
             </button>
         );
     }
 
     if (type === TextFieldType.Text && value) {
         return (
-            <button className="text-neutral-10 dark:text-neutral-92" onClick={() => onChange?.('')}>
+            <button className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
                 <Close />
             </button>
         );

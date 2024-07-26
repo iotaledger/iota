@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { TextField, TextFieldType } from '@/components/molecules/text-field';
 import { PlaceholderReplace } from '@iota/ui-icons';
-import { ComponentProps, useEffect, useState } from 'react';
+import { ComponentProps, useEffect, useState, useCallback } from 'react';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -92,9 +92,9 @@ export const WithMaxTrailingButton: Story = {
             setValue('10');
         }
 
-        function onChange(value: string) {
+        const onChange = useCallback((value: string) => {
             setValue(value);
-        }
+        }, []);
 
         function checkInputValidity(value: string) {
             if (Number(value) < 0) {
@@ -130,6 +130,7 @@ export const WithMaxTrailingButton: Story = {
                 trailingElement={<TrailingMaxButton />}
                 errorMessage={error}
                 onChange={onChange}
+                onClearInput={() => setValue('')}
             />
         );
     },
