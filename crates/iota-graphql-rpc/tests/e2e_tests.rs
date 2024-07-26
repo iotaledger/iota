@@ -764,7 +764,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[tokio::test]
     #[serial]
     async fn test_epoch_data() {
