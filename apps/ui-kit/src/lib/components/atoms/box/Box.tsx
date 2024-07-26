@@ -25,12 +25,7 @@ export function Box({
     return (
         <div className="flex w-full flex-col rounded-xl border border-shader-neutral-light-8 p-md dark:border-shader-neutral-dark-8">
             {title && (
-                <span
-                    className={cx(
-                        'font-inter text-title-md text-neutral-10 dark:text-neutral-92',
-                        titleSize,
-                    )}
-                >
+                <span className={cx('font-inter text-neutral-10 dark:text-neutral-92', titleSize)}>
                     {title}
                 </span>
             )}
