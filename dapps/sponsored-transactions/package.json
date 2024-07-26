@@ -6,8 +6,8 @@
     "scripts": {
         "dev": "vite",
         "preview": "vite preview",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
@@ -21,7 +21,7 @@
     "devDependencies": {
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota.js": "workspace:*",
-        "@types/react": "^18.2.15",
+        "@types/react": "^18.3.3",
         "@types/react-dom": "^18.2.7",
         "@vitejs/plugin-react": "^4.0.3",
         "autoprefixer": "^10.4.14",

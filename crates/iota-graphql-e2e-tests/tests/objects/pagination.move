@@ -31,13 +31,18 @@ module Test::M1 {
 
 //# create-checkpoint
 
+
 //# run-graphql
 {
   # select all objects owned by A
   address(address: "@{A}") {
     objects {
       edges {
-        cursor
+        node {
+          contents {
+            json
+          }
+        }
       }
     }
   }
@@ -49,13 +54,17 @@ module Test::M1 {
   address(address: "@{A}") {
     objects(first: 2) {
       edges {
-        cursor
+        node {
+          contents {
+            json
+          }
+        }
       }
     }
   }
 }
 
-//# run-graphql --cursors @{obj_5_0}
+//# run-graphql --cursors @{obj_6_0}
 {
   address(address: "@{A}") {
     # select the 2nd and 3rd objects
@@ -63,7 +72,11 @@ module Test::M1 {
     # to order in which objects were created
     objects(first: 2 after: "@{cursor_0}") {
       edges {
-        cursor
+        node {
+          contents {
+            json
+          }
+        }
       }
     }
   }
@@ -75,19 +88,27 @@ module Test::M1 {
     # select 4th and last object
     objects(first: 2 after: "@{cursor_0}") {
       edges {
-        cursor
+        node {
+          contents {
+            json
+          }
+        }
       }
     }
   }
 }
 
-//# run-graphql --cursors @{obj_3_0}
+//# run-graphql --cursors @{obj_5_0}
 {
   address(address: "@{A}") {
     # select 3rd and 4th object
     objects(last: 2 before: "@{cursor_0}") {
       edges {
-        cursor
+        node {
+          contents {
+            json
+          }
+        }
       }
     }
   }
@@ -98,7 +119,11 @@ module Test::M1 {
   address(address: "@{A}") {
     objects(last: 2) {
       edges {
-        cursor
+        node {
+          contents {
+            json
+          }
+        }
       }
     }
   }

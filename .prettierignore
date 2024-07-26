@@ -7,11 +7,15 @@
 !/.config
 !/*.js
 
+# ignore markdown files
+**/*.md
+
 # ignore generated files
 /apps/icons/src
 npm-debug.log*
 package-lock.json
 yarn-debug.log*
+yarn-error.log*
 .next/
 .swc/
 build/
@@ -21,6 +25,4 @@ out/
 generated/
 playwright-report/
 storybook-static/
-CHANGELOG.md
 pnpm-lock.yaml
-                    

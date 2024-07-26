@@ -4,16 +4,20 @@
 
 use std::{env, net::SocketAddr, str::FromStr};
 
+use axum::{
+    body::Body,
+    routing::{get, post},
+};
 pub use balance_changes::*;
 use hyper::{
     header::{HeaderName, HeaderValue},
-    Body, Method, Request,
+    Method, Request,
 };
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
-use jsonrpsee::RpcModule;
+use jsonrpsee::{types::ErrorObjectOwned, Extensions, RpcModule};
 pub use object_changes::*;
 use prometheus::Registry;
 use tokio::runtime::Handle;
@@ -23,7 +27,12 @@ use tower_http::{
 };
 use tracing::info;
 
-use crate::{error::Error, metrics::MetricsLogger, routing_layer::RpcRouter};
+use crate::{
+    axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
+    error::Error,
+    metrics::MetricsLogger,
+    routing_layer::RpcRouter,
+};
 
 pub mod authority_state;
 pub mod axum_router;
@@ -57,9 +66,9 @@ pub fn iota_rpc_doc(version: &str) -> Project {
         version,
         "Iota JSON-RPC",
         "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
-        "Mysten Labs",
-        "https://mystenlabs.com",
-        "build@mystenlabs.com",
+        "IOTA Foundation",
+        "https://iota.org",
+        "contact@iota.org",
         "Apache-2.0",
         "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )
@@ -114,7 +123,7 @@ impl JsonRpcServerBuilder {
 
     fn trace_layer() -> TraceLayer<
         tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
-        impl tower_http::trace::MakeSpan<hyper::Body> + Clone,
+        impl tower_http::trace::MakeSpan<Body> + Clone,
         (),
         (),
         (),
@@ -157,7 +166,9 @@ impl JsonRpcServerBuilder {
 
         let rpc_docs = self.rpc_doc.clone();
         let mut module = self.module.clone();
-        module.register_method("rpc.discover", move |_, _| Ok(rpc_docs.clone()))?;
+        module.register_method("rpc.discover", move |_, _, _| {
+            Result::<_, ErrorObjectOwned>::Ok(rpc_docs.clone())
+        })?;
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
@@ -166,66 +177,40 @@ impl JsonRpcServerBuilder {
             .layer(Self::trace_layer())
             .layer(Self::cors()?);
 
-        let service =
-            crate::axum_router::JsonRpcService::new(module.into(), rpc_router, metrics_logger);
+        let service = crate::axum_router::JsonRpcService::new(
+            module.into(),
+            rpc_router,
+            metrics_logger,
+            Extensions::new(),
+        );
 
         let mut router = axum::Router::new();
 
         match server_type {
             Some(ServerType::WebSocket) => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/subscribe",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    );
+                    .route("/", get(ws_json_rpc_upgrade))
+                    .route("/subscribe", get(ws_json_rpc_upgrade));
             }
             Some(ServerType::Http) => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/json-rpc",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/public",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    );
+                    .route("/", post(json_rpc_handler))
+                    .route("/json-rpc", post(json_rpc_handler))
+                    .route("/public", post(json_rpc_handler));
             }
             None => {
                 router = router
-                    .route(
-                        "/",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/subscribe",
-                        axum::routing::get(crate::axum_router::ws::ws_json_rpc_upgrade),
-                    )
-                    .route(
-                        "/json-rpc",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    )
-                    .route(
-                        "/public",
-                        axum::routing::post(crate::axum_router::json_rpc_handler),
-                    );
+                    .route("/", post(json_rpc_handler))
+                    .route("/", get(ws_json_rpc_upgrade))
+                    .route("/subscribe", get(ws_json_rpc_upgrade))
+                    .route("/json-rpc", post(json_rpc_handler))
+                    .route("/public", post(json_rpc_handler));
             }
         }
 
         let app = router.with_state(service).layer(middleware);
 
-        info!("Available JSON-RPC methods : {:?}", methods_names);
+        info!("Available JSON-RPC methods : {methods_names:?}");
 
         Ok(app)
     }
@@ -238,10 +223,20 @@ impl JsonRpcServerBuilder {
     ) -> Result<ServerHandle, Error> {
         let app = self.to_router(server_type)?;
 
-        let server = axum::Server::bind(&listen_address).serve(app.into_make_service());
+        let listener = tokio::net::TcpListener::bind(listen_address)
+            .await
+            .map_err(|e| {
+                Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+            })?;
 
-        let addr = server.local_addr();
-        let handle = tokio::spawn(async move { server.await.unwrap() });
+        let addr = listener.local_addr().map_err(|e| {
+            Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+        })?;
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app.into_make_service())
+                .await
+                .unwrap()
+        });
 
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),

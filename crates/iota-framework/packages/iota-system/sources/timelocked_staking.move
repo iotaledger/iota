@@ -191,11 +191,11 @@ module iota_system::timelocked_staking {
     /// and the remaining principal is left in `self`.
     /// All the other parameters of the `TimelockedStakedIota` like `stake_activation_epoch` or `pool_id` remain the same.
     public fun split(self: &mut TimelockedStakedIota, split_amount: u64, ctx: &mut TxContext): TimelockedStakedIota {
-        let splitted_stake = self.staked_iota.split(split_amount, ctx);
+        let split_stake = self.staked_iota.split(split_amount, ctx);
 
         TimelockedStakedIota {
             id: object::new(ctx),
-            staked_iota: splitted_stake,
+            staked_iota: split_stake,
             expiration_timestamp_ms: self.expiration_timestamp_ms,
             label: self.label,
         }

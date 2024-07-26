@@ -22,7 +22,7 @@ pnpm iota-docs dev
 
 > If you're running the site locally and getting an error saying that you don't have `open-rpc` specs, run `pnpm build` first. It will prepare the files and fix the issue.
 
-The deployment watches for updates to files in the `content` directory (and site source files), updating the UI to match any saves you make. 
+The deployment watches for updates to files in the `content` directory (and site source files), updating the UI to match any saves you make.
 
 Once you've finished making changes, you should again run `pnpm build`. This builds the static site and places the files in `site\build`. This is important to run before submitting your changes for review, because a build will fail on errors like bad internal links, displaying the cause of the error to the console. The development preview ignores such errors to provide a more agile environment.
 
@@ -34,17 +34,15 @@ IOTA uses Vercel to host its documentation site. Vercel builds a preview of the 
 
 If you'd like to view the Vercel preview before your changes are ready for review, then [mark your PR as a draft](https://github.blog/2019-02-14-introducing-draft-pull-requests/).
 
-
-
 ## Contributing
 
 IOTA is for the community. Contribute for the benefit of all.
 
-- [Docs contributing guidelines](https://docs.iota.io/references/contribute/contribution-process)
-- [Repo contributing guidelines](https://docs.iota.io/contribute-to-iota-repos)
-- [Style guide](https://docs.iota.io/style-guide)
-- [Localization](https://docs.iota.io/localize-iota-docs)
-- [Code of conduct](https://docs.iota.io/contribute/code-of-conduct)
+- [Docs contributing guidelines](https://wiki.iota.cafe/references/contribute/contribution-process)
+- [Repo contributing guidelines](https://wiki.iota.cafe/contribute-to-iota-repos)
+- [Style guide](https://wiki.iota.cafe/style-guide)
+- [Localization](https://wiki.iota.cafe/localize-iota-docs)
+- [Code of conduct](https://wiki.iota.cafe/code-of-conduct)
 
 ## License
 

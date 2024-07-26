@@ -28,6 +28,7 @@ iota.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-faucet.workspace = true
+iota-genesis-builder.workspace = true
 iota-graphql-rpc.workspace = true
 iota-indexer.workspace = true
 iota-json.workspace = true

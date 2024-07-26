@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::time::Duration;
 
-use tonic::{
-    codegen::http::{header::HeaderName, HeaderValue, Request, Response},
-    Code, Status,
-};
+use http::{HeaderName, HeaderValue, Request, Response};
+use tonic::{Code, Status};
 use tower_http::{
     classify::GrpcFailureClass,
     trace::{OnFailure, OnRequest, OnResponse},

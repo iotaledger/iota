@@ -110,9 +110,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub checkpoint_executor_config: CheckpointExecutorConfig,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metrics: Option<MetricsConfig>,
-
     /// In a `iota-node` binary, this is set to
     /// SupportedProtocolVersions::SYSTEM_DEFAULT in iota-node/src/main.rs.
     /// It is present in the config so that it can be changed by tests in
@@ -645,15 +642,6 @@ impl AuthorityStorePruningConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct MetricsConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub push_interval_seconds: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub push_url: Option<String>,
-}
-
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DBCheckpointConfig {
@@ -809,7 +797,7 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 pub struct Genesis {
     #[serde(flatten)]
-    location: GenesisLocation,
+    location: Option<GenesisLocation>,
 
     #[serde(skip)]
     genesis: once_cell::sync::OnceCell<genesis::Genesis>,
@@ -818,28 +806,36 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: GenesisLocation::InPlace { genesis },
+            location: Some(GenesisLocation::InPlace { genesis }),
             genesis: Default::default(),
         }
     }
 
     pub fn new_from_file<P: Into<PathBuf>>(path: P) -> Self {
         Self {
-            location: GenesisLocation::File {
+            location: Some(GenesisLocation::File {
                 genesis_file_location: path.into(),
-            },
+            }),
+            genesis: Default::default(),
+        }
+    }
+
+    pub fn new_empty() -> Self {
+        Self {
+            location: None,
             genesis: Default::default(),
         }
     }
 
     pub fn genesis(&self) -> Result<&genesis::Genesis> {
         match &self.location {
-            GenesisLocation::InPlace { genesis } => Ok(genesis),
-            GenesisLocation::File {
+            Some(GenesisLocation::InPlace { genesis }) => Ok(genesis),
+            Some(GenesisLocation::File {
                 genesis_file_location,
-            } => self
+            }) => self
                 .genesis
                 .get_or_try_init(|| genesis::Genesis::load(genesis_file_location)),
+            None => anyhow::bail!("no genesis location set"),
         }
     }
 }

@@ -26,7 +26,8 @@ const config = {
   },
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -86,7 +87,7 @@ const config = {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/iotaledger/iota/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -173,6 +174,18 @@ const config = {
           autoCollapseCategories: false,
         },
       },
+      colorMode:{
+        defaultMode: 'dark'
+      },
+      announcementBar:{
+        id: 'integrate_your_exchange',
+        content:
+            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+        isCloseable: false,
+        backgroundColor: '#0101ff',
+        textColor: '#FFFFFF',
+
+      },
       navbar: {
         title: "",
         logo: {
@@ -181,20 +194,20 @@ const config = {
         },
         items: [
           {
-            label: "Guides",
-            to: "guides",
+            label: "About IOTA",
+            to: "about-iota",
           },
           {
-            label: "Concepts",
-            to: "concepts",
+              label: "Developers",
+              to: "developer",
           },
           {
-            label: "Standards",
-            to: "standards",
+              label: "Node Operators",
+              to: "operator",
           },
           {
-            label: "References",
-            to: "references",
+              label: "References",
+              to: "references",
           },
         ],
       },
@@ -207,6 +220,8 @@ const config = {
           alt: "IOTA Wiki Logo",
           src: "img/iota-logo.svg",
         },
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+                    The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
       prism: {
         theme: themes.github,

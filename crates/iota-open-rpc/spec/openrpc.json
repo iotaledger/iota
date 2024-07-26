@@ -2034,13 +2034,13 @@
                   "f64": "2.3"
                 },
                 "storage_fund_reinvest_rate": {
-                  "u64": "500"
+                  "u64": "0"
                 },
                 "storage_gas_price": {
                   "u64": "76"
                 },
                 "storage_rebate_rate": {
-                  "u64": "9900"
+                  "u64": "10000"
                 },
                 "transfer_freeze_object_cost_base": {
                   "u64": "52"
@@ -2065,6 +2065,9 @@
                 },
                 "types_is_one_time_witness_type_tag_cost_per_byte": {
                   "u64": "2"
+                },
+                "validator_target_reward": {
+                  "u64": "767000000000000"
                 },
                 "validator_validate_metadata_cost_base": {
                   "u64": "52"
@@ -7849,6 +7852,7 @@
           "epochStartTimestampMs",
           "inactivePoolsId",
           "inactivePoolsSize",
+          "iotaTotalSupply",
           "maxValidatorCount",
           "minValidatorJoiningStake",
           "pendingActiveValidatorsId",
@@ -7859,8 +7863,8 @@
           "safeMode",
           "safeModeComputationRewards",
           "safeModeNonRefundableStorageFee",
+          "safeModeStorageCharges",
           "safeModeStorageRebates",
-          "safeModeStorageRewards",
           "stakeSubsidyBalance",
           "stakeSubsidyCurrentDistributionAmount",
           "stakeSubsidyDecreaseRate",
@@ -7945,6 +7949,14 @@
               }
             ]
           },
+          "iotaTotalSupply": {
+            "description": "The current IOTA supply.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
           "maxValidatorCount": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
             "allOf": [
@@ -8020,16 +8032,16 @@
               }
             ]
           },
-          "safeModeStorageRebates": {
-            "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
+          "safeModeStorageCharges": {
+            "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               }
             ]
           },
-          "safeModeStorageRewards": {
-            "description": "Amount of storage rewards accumulated (and not yet distributed) during safe mode.",
+          "safeModeStorageRebates": {
+            "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
