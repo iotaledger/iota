@@ -7,6 +7,8 @@ tags: [ installation, setup, prerequisites, CLI ]
 import MacosDeps from "../../_snippets/macos-deps.mdx";
 import LinuxDeps from "../../_snippets/linux-deps.mdx";
 
+In order to deploy your contracts and interact with the chains some tooling is required. IOTA Rebased has a excellent command-line tool that can be used for the most common tasks.
+
 The simplest way to get up and running with IOTA is to [install the binary](#install-from-binaries) from the latest
 release available in the [IOTA Rebased GitHub Repository](https://github.com/iotaledger/iota/). Make sure to download
 the version that matches the network you want to work on.
@@ -25,6 +27,9 @@ IOTA supports the following operating systems:
 - Linux - Ubuntu version 20.04 (Bionic Beaver)
 - macOS - macOS Monterey
 - Microsoft Windows - Windows 10 and 11
+
+{/* TODO: Re-enable and check if we have packages published */}
+{/*
 
 ## Install Using a Package Manager
 
@@ -54,6 +59,8 @@ website. TODO Check Link availability
 </TabItem>
 
 </Tabs>
+
+*/}
 
 ## Install From Binaries
 
@@ -95,7 +102,7 @@ from source.
 
 :::tip
 
-You can also download the [source code](./iota-environment.mdx) to access files locally.
+You can also download the [source code](../advanced/iota-repository.mdx) to access files locally.
 
 :::
 
@@ -384,6 +391,13 @@ Run the following command to install IOTA binaries from the `testnet` branch:
 ```shell
 cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota
 ```
+
+:::info Alternative releases
+
+Replace `testnet` with another branch if needed when working on anything besides the testnet. Common options would be `develop` for the absolute latest version, `devnet` and `mainnet`.
+See the [repository details](../advanced/iota-repository.mdx) for more information on commonly used branches.
+
+:::
 
 The installation process can take a while to complete. You can monitor the installation progress in the terminal. If you
 If you encounter an error, install the latest version of all prerequisites and try the command again.
