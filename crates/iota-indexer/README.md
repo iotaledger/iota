@@ -2,7 +2,7 @@ Iota indexer is an off-fullnode service to serve data from Iota protocol, includ
 
 ## Architecture
 
-![enhanced_FN](https://github.com/user-attachments/assets/11b027e9-b868-4b58-9d86-5c66ac0576b3)
+![enhanced_FN](../../docs/content/operator/images/indexer-arch.png)
 
 > [!NOTE]
 > * Indexer sync workers require the `NodeConfig::enable_experimental_rest_api` flag set to `true` in the node
