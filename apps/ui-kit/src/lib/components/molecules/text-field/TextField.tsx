@@ -1,12 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRef } from 'react';
-import { TextFieldPropsByType, TextFieldTypeTextAreaProps } from './text-field.types';
+import { useEffect, useRef, useState } from 'react';
+import { TextFieldPropsByType } from './text-field.types';
 import { TextFieldType } from './text-field.enums';
-import { INPUT_CLASSES } from './text-field.classes';
 import { TextFieldTrailingElement } from './TextFieldTrailingElement';
 import cx from 'classnames';
+import { TextFieldWrapper, type TextFieldWrapperProps, SecondaryText } from './TextFieldWrapper';
+import {
+    BORDER_CLASSES,
+    INPUT_CLASSES,
+    INPUT_TEXT_CLASSES,
+    PLACEHOLDER_TEXT_CLASSES,
+} from './text-field.classes';
 
 type InputPickedProps = Pick<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -21,23 +27,9 @@ type InputPickedProps = Pick<
     | 'name'
     | 'required'
     | 'placeholder'
-    | 'disabled'
-    | 'id'
 >;
 
-interface TextFieldBaseProps extends InputPickedProps {
-    /**
-     * Shows a label with the text above the input field.
-     */
-    label?: string;
-    /**
-     * Shows a caption with the text below the input field.
-     */
-    caption?: string;
-    /**
-     * Error Message. Overrides the caption.
-     */
-    errorMessage?: string;
+interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
     /**
      * Callback function that is called when the input field value changes
      */
@@ -47,7 +39,7 @@ interface TextFieldBaseProps extends InputPickedProps {
      */
     leadingIcon?: React.JSX.Element;
     /**
-     * Supporting text that is shown at the side of the placeholder text.
+     * Supporting text that is shown at the end of the input component.
      */
     supportingText?: string;
     /**
@@ -74,10 +66,6 @@ interface TextFieldBaseProps extends InputPickedProps {
      * Value of the input field
      */
     value?: string;
-    /**
-     * Toggles the password visibility
-     */
-    onToggleButtonClick?: () => void;
     /**
      * onClearInput function that is called when the clear button is clicked
      */
@@ -111,13 +99,26 @@ export function TextField({
     minLength,
     autoComplete,
     ref,
-    isContentVisible,
-    onToggleButtonClick,
     onClearInput,
+    isContentVisible,
     type = TextFieldType.Text,
 }: TextFieldProps) {
     const fallbackRef = useRef<HTMLInputElement>(null);
     const inputRef = ref ?? fallbackRef;
+
+    const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
+        isContentVisible ?? type !== TextFieldType.Password,
+    );
+
+    useEffect(() => {
+        if (isContentVisible !== undefined) {
+            setIsInputContentVisible(isContentVisible);
+        }
+    }, [isContentVisible]);
+
+    function onToggleButtonClick() {
+        setIsInputContentVisible((prev) => !prev);
+    }
 
     function focusInput() {
         if (inputRef?.current) {
@@ -126,187 +127,57 @@ export function TextField({
     }
 
     return (
-        <div
-            aria-disabled={disabled}
-            className={cx('group flex flex-col gap-y-2', {
-                'opacity-40': disabled,
-                errored: errorMessage,
-                enabled: !disabled,
-                required: required,
-            })}
+        <TextFieldWrapper
+            label={label}
+            caption={caption}
+            disabled={disabled}
+            errorMessage={errorMessage}
+            amountCounter={amountCounter}
+            id={id}
+            required={required}
+            onFocusInputClick={focusInput}
         >
-            {label && (
-                <label
-                    onClick={focusInput}
-                    htmlFor={id}
-                    className="text-label-lg text-neutral-40 dark:text-neutral-60"
-                >
-                    {label}
-                </label>
-            )}
             <div
-                className={cx(
-                    'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm  group-[.errored]:border-error-30 hover:group-[.enabled]:border-neutral-50  dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 [&:has(input:focus)]:border-primary-30',
-                    type === TextFieldType.TextArea && !isContentVisible
-                        ? 'cursor-auto select-none'
-                        : 'group-[.enabled]:cursor-text',
-                )}
+                className={cx('relative flex flex-row items-center gap-x-3', BORDER_CLASSES)}
                 onClick={focusInput}
             >
                 {leadingIcon && (
                     <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
                 )}
 
-                {type !== TextFieldType.TextArea && (
-                    <input
-                        type={type}
-                        name={name}
-                        placeholder={placeholder}
-                        disabled={disabled}
-                        value={value}
-                        onChange={(e) => onChange?.(e.target.value, e.target.name)}
-                        ref={inputRef}
-                        required={required}
-                        id={id}
-                        pattern={pattern}
-                        autoFocus={autoFocus}
-                        maxLength={maxLength}
-                        minLength={minLength}
-                        autoComplete={autoComplete}
-                        max={max}
-                        min={min}
-                        step={step}
-                        className="w-full bg-transparent text-body-lg text-neutral-10 caret-primary-30 focus:outline-none focus-visible:outline-none enabled:placeholder:text-neutral-40/40 dark:text-neutral-92 dark:placeholder:text-neutral-60/40 enabled:dark:placeholder:text-neutral-60/40"
-                    />
-                )}
-
-                {type === TextFieldType.TextArea && (
-                    <TextArea
-                        name={name}
-                        placeholder={placeholder}
-                        disabled={disabled}
-                        onChange={onChange}
-                        isContentVisible={isContentVisible}
-                        value={value}
-                        required={required}
-                        id={id}
-                        autoFocus={autoFocus}
-                        maxLength={maxLength}
-                        minLength={minLength}
-                    />
-                )}
+                <input
+                    type={type === TextFieldType.Password && isInputContentVisible ? 'text' : type}
+                    name={name}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    value={value}
+                    onChange={(e) => onChange?.(e.target.value, e.target.name)}
+                    ref={inputRef}
+                    required={required}
+                    id={id}
+                    pattern={pattern}
+                    autoFocus={autoFocus}
+                    maxLength={maxLength}
+                    minLength={minLength}
+                    autoComplete={autoComplete}
+                    max={max}
+                    min={min}
+                    step={step}
+                    className={cx(INPUT_CLASSES, INPUT_TEXT_CLASSES, PLACEHOLDER_TEXT_CLASSES)}
+                />
 
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
 
-                <TextFieldTrailingElement
-                    value={value}
-                    type={type}
-                    isToggleButtonVisible={
-                        type === TextFieldType.Password
-                            ? isToggleButtonVisible ?? true
-                            : isToggleButtonVisible
-                    }
-                    onClearInput={onClearInput}
-                    inputType={inputRef.current?.type}
-                    onToggleButtonClick={onToggleButtonClick}
-                    trailingElement={trailingElement}
-                    isContentVisible={isContentVisible}
-                />
-            </div>
-            <div
-                className={cx(
-                    'flex flex-row items-center',
-                    caption || errorMessage ? 'justify-between' : 'justify-end',
-                )}
-            >
-                {(errorMessage || caption) && (
-                    <SecondaryText>{errorMessage || caption}</SecondaryText>
-                )}
-                {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
-            </div>
-        </div>
-    );
-}
-
-function SecondaryText({
-    children,
-    noErrorStyles,
-    className,
-}: React.PropsWithChildren<{ noErrorStyles?: boolean; className?: string }>) {
-    const ERROR_STYLES = 'group-[.errored]:text-error-30 dark:group-[.errored]:text-error-80';
-    return (
-        <p
-            className={cx(
-                'text-label-lg text-neutral-40  dark:text-neutral-60 ',
-                {
-                    [ERROR_STYLES]: !noErrorStyles,
-                },
-                className,
-            )}
-        >
-            {children}
-        </p>
-    );
-}
-
-type TextAreaProps = Pick<
-    TextFieldProps,
-    | 'disabled'
-    | 'autoFocus'
-    | 'value'
-    | 'name'
-    | 'placeholder'
-    | 'required'
-    | 'id'
-    | 'maxLength'
-    | 'minLength'
-> &
-    Omit<TextFieldTypeTextAreaProps, 'type'>;
-
-function TextArea({
-    isContentVisible,
-    disabled,
-    autoFocus,
-    value,
-    hiddenRows,
-    onChange,
-    rows = 3,
-    cols,
-    name,
-    placeholder,
-    required,
-    id,
-    maxLength,
-    minLength,
-}: {
-    isContentVisible?: boolean;
-    onChange?: (value: string, name?: string) => void;
-} & TextAreaProps) {
-    return (
-        <div className="relative w-full">
-            <textarea
-                disabled={disabled}
-                placeholder={placeholder}
-                required={required}
-                id={id}
-                name={name}
-                autoFocus={autoFocus}
-                onChange={(e) => onChange?.(e.target.value, e.target.name)}
-                rows={rows}
-                cols={cols}
-                className={cx(INPUT_CLASSES, !isContentVisible && 'text-opacity-0')}
-                value={value}
-                maxLength={maxLength}
-                minLength={minLength}
-            />
-
-            {!isContentVisible && (
-                <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-2">
-                    {new Array(hiddenRows ?? rows ?? 3).fill(0).map((_, index) => (
-                        <div key={index} className="h-full w-full rounded bg-neutral-92" />
+                {trailingElement ||
+                    ((isToggleButtonVisible ?? type === TextFieldType.Password) && (
+                        <TextFieldTrailingElement
+                            onClearInput={onClearInput}
+                            onToggleButtonClick={onToggleButtonClick}
+                            trailingElement={trailingElement}
+                            isContentVisible={isInputContentVisible}
+                        />
                     ))}
-                </div>
-            )}
-        </div>
+            </div>
+        </TextFieldWrapper>
     );
 }
