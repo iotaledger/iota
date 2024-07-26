@@ -293,6 +293,7 @@ const developer = [
             'developer/advanced/asset-tokenization',
             'developer/advanced/custom-indexer',
             'developer/advanced/stardust-on-move',
+            'developer/advanced/iota-repository',
         ],
     },
 
