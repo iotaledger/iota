@@ -48,7 +48,7 @@ module iota_system::iota_system {
     }
 
     fun advance_epoch(
-        storage_reward: Balance<IOTA>,
+        storage_charge: Balance<IOTA>,
         computation_reward: Balance<IOTA>,
         wrapper: &mut IotaSystemState,
         _new_epoch: u64,
@@ -64,7 +64,7 @@ module iota_system::iota_system {
         assert!(tx_context::sender(ctx) == @0x1, 0); // aborts here
         iota_system_state_inner::advance_epoch(
             self,
-            storage_reward,
+            storage_charge,
             computation_reward,
             storage_rebate,
         )

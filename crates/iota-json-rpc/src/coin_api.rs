@@ -27,12 +27,13 @@ use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
 use mysten_metrics::spawn_monitored_task;
 use tap::TapFallible;
-use tracing::{debug, info, instrument};
+use tracing::{debug, instrument};
 
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
-    with_tracing, IotaRpcModule,
+    logger::with_tracing,
+    IotaRpcModule,
 };
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
@@ -89,22 +90,26 @@ impl CoinReadApiServer for CoinReadApi {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
-        with_tracing!(async move {
-            let coin_type_tag = parse_to_type_tag(coin_type)?;
+        with_tracing(
+            async move {
+                let coin_type_tag = parse_to_type_tag(coin_type)?;
 
-            let cursor = match cursor {
-                Some(c) => (coin_type_tag.to_string(), c),
-                // If cursor is not specified, we need to start from the beginning of the coin type,
-                // which is the minimal possible ObjectID.
-                None => (coin_type_tag.to_string(), ObjectID::ZERO),
-            };
+                let cursor = match cursor {
+                    Some(c) => (coin_type_tag.to_string(), c),
+                    // If cursor is not specified, we need to start from the beginning of the coin
+                    // type, which is the minimal possible ObjectID.
+                    None => (coin_type_tag.to_string(), ObjectID::ZERO),
+                };
 
-            self.internal
-                .get_coins_iterator(
-                    owner, cursor, limit, true, // only care about one type of coin
-                )
-                .await
-        })
+                self.internal
+                    .get_coins_iterator(
+                        owner, cursor, limit, true, // only care about one type of coin
+                    )
+                    .await
+            },
+            None,
+        )
+        .await
     }
 
     #[instrument(skip(self))]
@@ -115,41 +120,45 @@ impl CoinReadApiServer for CoinReadApi {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
-        with_tracing!(async move {
-            let cursor = match cursor {
-                Some(object_id) => {
-                    let obj = self.internal.get_object(&object_id).await?;
-                    match obj {
-                        Some(obj) => {
-                            let coin_type = obj.coin_type_maybe();
-                            if coin_type.is_none() {
-                                Err(IotaRpcInputError::GenericInvalid(
-                                    "cursor is not a coin".to_string(),
-                                ))
-                            } else {
-                                Ok((coin_type.unwrap().to_string(), object_id))
+        with_tracing(
+            async move {
+                let cursor = match cursor {
+                    Some(object_id) => {
+                        let obj = self.internal.get_object(&object_id).await?;
+                        match obj {
+                            Some(obj) => {
+                                let coin_type = obj.coin_type_maybe();
+                                if coin_type.is_none() {
+                                    Err(IotaRpcInputError::GenericInvalid(
+                                        "cursor is not a coin".to_string(),
+                                    ))
+                                } else {
+                                    Ok((coin_type.unwrap().to_string(), object_id))
+                                }
                             }
+                            None => Err(IotaRpcInputError::GenericInvalid(
+                                "cursor not found".to_string(),
+                            )),
                         }
-                        None => Err(IotaRpcInputError::GenericInvalid(
-                            "cursor not found".to_string(),
-                        )),
                     }
-                }
-                None => {
-                    // If cursor is None, start from the beginning
-                    Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO))
-                }
-            }?;
+                    None => {
+                        // If cursor is None, start from the beginning
+                        Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO))
+                    }
+                }?;
 
-            let coins = self
-                .internal
-                .get_coins_iterator(
-                    owner, cursor, limit, false, // return all types of coins
-                )
-                .await?;
+                let coins = self
+                    .internal
+                    .get_coins_iterator(
+                        owner, cursor, limit, false, // return all types of coins
+                    )
+                    .await?;
 
-            Ok(coins)
-        })
+                Ok(coins)
+            },
+            None,
+        )
+        .await
     }
 
     #[instrument(skip(self))]
@@ -158,95 +167,111 @@ impl CoinReadApiServer for CoinReadApi {
         owner: IotaAddress,
         coin_type: Option<String>,
     ) -> RpcResult<Balance> {
-        with_tracing!(async move {
-            let coin_type_tag = parse_to_type_tag(coin_type)?;
-            let balance = self
-                .internal
-                .get_balance(owner, coin_type_tag.clone())
-                .await
-                .tap_err(|e| {
-                    debug!(?owner, "Failed to get balance with error: {:?}", e);
-                })?;
-            Ok(Balance {
-                coin_type: coin_type_tag.to_string(),
-                coin_object_count: balance.num_coins as usize,
-                total_balance: balance.balance as u128,
-                // note: LockedCoin is deprecated
-                locked_balance: Default::default(),
-            })
-        })
+        with_tracing(
+            async move {
+                let coin_type_tag = parse_to_type_tag(coin_type)?;
+                let balance = self
+                    .internal
+                    .get_balance(owner, coin_type_tag.clone())
+                    .await
+                    .tap_err(|e| {
+                        debug!(?owner, "Failed to get balance with error: {:?}", e);
+                    })?;
+                Ok(Balance {
+                    coin_type: coin_type_tag.to_string(),
+                    coin_object_count: balance.num_coins as usize,
+                    total_balance: balance.balance as u128,
+                    // note: LockedCoin is deprecated
+                    locked_balance: Default::default(),
+                })
+            },
+            None,
+        )
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
-        with_tracing!(async move {
-            let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
-                debug!(?owner, "Failed to get all balance with error: {:?}", e);
-            })?;
-            Ok(all_balance
-                .iter()
-                .map(|(coin_type, balance)| {
-                    Balance {
-                        coin_type: coin_type.to_string(),
-                        coin_object_count: balance.num_coins as usize,
-                        total_balance: balance.balance as u128,
-                        // note: LockedCoin is deprecated
-                        locked_balance: Default::default(),
-                    }
-                })
-                .collect())
-        })
+        with_tracing(
+            async move {
+                let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
+                    debug!(?owner, "Failed to get all balance with error: {:?}", e);
+                })?;
+                Ok(all_balance
+                    .iter()
+                    .map(|(coin_type, balance)| {
+                        Balance {
+                            coin_type: coin_type.to_string(),
+                            coin_object_count: balance.num_coins as usize,
+                            total_balance: balance.balance as u128,
+                            // note: LockedCoin is deprecated
+                            locked_balance: Default::default(),
+                        }
+                    })
+                    .collect())
+            },
+            None,
+        )
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_coin_metadata(&self, coin_type: String) -> RpcResult<Option<IotaCoinMetadata>> {
-        with_tracing!(async move {
-            let coin_struct = parse_to_struct_tag(&coin_type)?;
-            let metadata_object = self
-                .internal
-                .find_package_object(
-                    &coin_struct.address.into(),
-                    CoinMetadata::type_(coin_struct),
-                )
-                .await
-                .ok();
-            Ok(metadata_object.and_then(|v: Object| v.try_into().ok()))
-        })
+        with_tracing(
+            async move {
+                let coin_struct = parse_to_struct_tag(&coin_type)?;
+                let metadata_object = self
+                    .internal
+                    .find_package_object(
+                        &coin_struct.address.into(),
+                        CoinMetadata::type_(coin_struct),
+                    )
+                    .await
+                    .ok();
+                Ok(metadata_object.and_then(|v: Object| v.try_into().ok()))
+            },
+            None,
+        )
+        .await
     }
 
     #[instrument(skip(self))]
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
-        with_tracing!(async move {
-            let coin_struct = parse_to_struct_tag(&coin_type)?;
-            Ok(if GAS::is_gas(&coin_struct) {
-                let system_state_summary = self
-                    .internal
-                    .get_state()
-                    .get_system_state()?
-                    .into_iota_system_state_summary();
-                Supply {
-                    value: system_state_summary.iota_total_supply,
-                }
-            } else {
-                let treasury_cap_object = self
-                    .internal
-                    .find_package_object(
-                        &coin_struct.address.into(),
-                        TreasuryCap::type_(coin_struct),
+        with_tracing(
+            async move {
+                let coin_struct = parse_to_struct_tag(&coin_type)?;
+                Ok(if GAS::is_gas(&coin_struct) {
+                    let system_state_summary = self
+                        .internal
+                        .get_state()
+                        .get_system_state()?
+                        .into_iota_system_state_summary();
+                    Supply {
+                        value: system_state_summary.iota_total_supply,
+                    }
+                } else {
+                    let treasury_cap_object = self
+                        .internal
+                        .find_package_object(
+                            &coin_struct.address.into(),
+                            TreasuryCap::type_(coin_struct),
+                        )
+                        .await?;
+                    let treasury_cap = TreasuryCap::from_bcs_bytes(
+                        treasury_cap_object.data.try_as_move().unwrap().contents(),
                     )
-                    .await?;
-                let treasury_cap = TreasuryCap::from_bcs_bytes(
-                    treasury_cap_object.data.try_as_move().unwrap().contents(),
-                )
-                .map_err(Error::from)?;
-                treasury_cap.total_supply
-            })
-        })
+                    .map_err(Error::from)?;
+                    treasury_cap.total_supply
+                })
+            },
+            None,
+        )
+        .await
     }
 }
 
 #[cached(
-    type = "SizedCache<String, ObjectID>",
+    ty = "SizedCache<String, ObjectID>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, object_struct_tag) }"#,
     result = true
@@ -428,7 +453,6 @@ mod tests {
         utils::create_fake_transaction,
         TypeTag,
     };
-    use jsonrpsee::types::ErrorObjectOwned;
     use mockall::{mock, predicate};
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
@@ -567,7 +591,6 @@ mod tests {
     }
 
     mod get_coins_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
 
         use super::{super::*, *};
 
@@ -735,13 +758,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
                 "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -756,12 +778,11 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected =
                 expect!["Invalid struct type: 0x2::iota:🤵. Got error: unrecognized token: :🤵"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         // Unexpected error scenarios
@@ -784,13 +805,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
             let expected = expect!["Index store not available on this Fullnode."];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -810,13 +830,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INTERNAL_ERROR_CODE
             );
             let expected = expect!["Storage error: mock rocksdb error"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
@@ -913,12 +932,11 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
-            assert_eq!(error_object.code(), -32602);
+            assert_eq!(error_result.code(), -32602);
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect!["cursor is not a coin"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -935,16 +953,14 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect!["cursor not found"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
     mod get_balance_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
 
         use super::{super::*, *};
         // Success scenarios
@@ -1031,13 +1047,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
                 "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         // Unexpected error scenarios
@@ -1058,13 +1073,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
             let expected = expect!["Index store not available on this Fullnode."];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -1084,19 +1098,17 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
 
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INTERNAL_ERROR_CODE
             );
             let expected = expect!["Error executing mock db error"];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
     mod get_all_balances_tests {
-        use jsonrpsee::types::ErrorObjectOwned;
 
         use super::{super::*, *};
 
@@ -1176,13 +1188,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
             let expected = expect!["Index store not available on this Fullnode."];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
     }
 
@@ -1377,13 +1388,12 @@ mod tests {
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
-            expected.assert_eq(&error_object.code().to_string());
+            expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
                 "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         #[tokio::test]
@@ -1419,15 +1429,14 @@ mod tests {
 
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;
             let error_result = response.unwrap_err();
-            let error_object: ErrorObjectOwned = error_result.into();
             assert_eq!(
-                error_object.code(),
+                error_result.code(),
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
             let expected = expect![
                 "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
             ];
-            expected.assert_eq(error_object.message());
+            expected.assert_eq(error_result.message());
         }
 
         fn default_system_state() -> IotaSystemStateInnerV1 {
@@ -1485,7 +1494,7 @@ mod tests {
                     extra_fields: Default::default(),
                 },
                 safe_mode: Default::default(),
-                safe_mode_storage_rewards: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_storage_charges: iota_types::balance::Balance::new(Default::default()),
                 safe_mode_computation_rewards: iota_types::balance::Balance::new(Default::default()),
                 safe_mode_storage_rebates: Default::default(),
                 safe_mode_non_refundable_storage_fee: Default::default(),

@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use humantime::parse_duration;
 use serde::Deserialize;
-use strum_macros::Display;
+use strum::Display;
 
 pub mod query;
 
@@ -129,9 +129,9 @@ pub fn fails_threshold_condition(
 }
 
 fn unix_seconds_to_timestamp_string(unix_seconds: i64) -> String {
-    let datetime = NaiveDateTime::from_timestamp_opt(unix_seconds, 0);
-    let timestamp: DateTime<Utc> = DateTime::from_naive_utc_and_offset(datetime.unwrap(), Utc);
-    timestamp.to_string()
+    DateTime::<Utc>::from_timestamp(unix_seconds, 0)
+        .unwrap()
+        .to_string()
 }
 
 #[cfg(test)]

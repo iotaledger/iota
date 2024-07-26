@@ -3,6 +3,7 @@ title: IOTA Client CLI
 description: The IOTA Client CLI provides command-level access to interact with the IOTA network.
 ---
 
+import AlphaNet from "../../_snippets/alphanet.mdx";
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
 The IOTA CLI `client` command provides command-level access to interact with the IOTA network. Typical uses for `iota client` include publishing Move smart contracts, getting the information of an object, executing transactions, or managing addresses.
@@ -81,6 +82,8 @@ Use the `iota client envs` command to find the network environments set up in th
 │ devnet │ https://fullnode.devnet.iota.io:443 │ *  	   │
 ╰────────┴────────────────────────────────────┴────────╯
 ```
+
+<AlphaNet />
 
 ### Create network environment
 
@@ -294,7 +297,7 @@ your published smart contract, and finally run the profiler on the transaction t
 
 ## Publish a Move package
 
-One of the main uses of the `iota client` command is to publish smart contracts on the IOTA network. This example switches the current environment to the Devnet network, then builds, tests, and publishes one of the existing Move examples available in the IOTA repository: [iota/examples/move](https://github.com/iotaledger/iota/tree/main/examples/move)
+One of the main uses of the `iota client` command is to publish smart contracts on the IOTA network. This example switches the current environment to the Devnet network, then builds, tests, and publishes one of the existing Move examples available in the IOTA repository: [iota/examples/move](https://github.com/iotaledger/iota/tree/develop/examples/move)
 
 This example also makes use of `iota move` commands. To learn more about those commands, see [IOTA Move CLI](./move.mdx).
 

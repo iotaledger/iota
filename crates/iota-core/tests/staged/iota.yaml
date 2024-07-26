@@ -1,4 +1,3 @@
----
 AccountAddress:
   NEWTYPESTRUCT:
     TUPLEARRAY:
@@ -1058,4 +1057,3 @@ ZkLoginAuthenticatorAsBytes:
 ZkLoginPublicIdentifier:
   NEWTYPESTRUCT:
     SEQ: U8
-
