@@ -27,37 +27,37 @@ runs:
       with:
         filters: |
           isRust:
-            - 'consensus/**'
-            - 'crates/**'
-            - 'external-crates/**'
-            - 'narwhal/**'
-            - 'sui-execution/**'
-            - '.github/workflows/codecov.yml'
-            - '.github/workflows/rust.yml'
-            - '.github/workflows/external.yml'
+            - "consensus/**"
+            - "crates/**"
+            - "external-crates/**"
+            - "narwhal/**"
+            - "sui-execution/**"
+            - ".github/workflows/codecov.yml"
+            - ".github/workflows/rust.yml"
+            - ".github/workflows/external.yml"
           isDoc:
-            - 'docs/content/**'
-            - '*.mdx'
-            - '.github/workflows/docs.yml'
+            - "docs/content/**"
+            - "*.mdx"
+            - ".github/workflows/docs.yml"
           isOldDoc:
-            - 'doc/**'
-            - '*.md'
+            - "doc/**"
+            - "*.md"
           isMove:
-            - 'crates/sui-framework/**'
-            - 'crates/sui-framework-build/**'
-            - 'crates/sui-framework-tests/**'
-            - 'crates/sui_move/**'
-            - 'Cargo.toml'
-            - 'examples/**'
-            - 'sui_programmability/**'
+            - "crates/sui-framework/**"
+            - "crates/sui-framework-build/**"
+            - "crates/sui-framework-tests/**"
+            - "crates/sui_move/**"
+            - "Cargo.toml"
+            - "examples/**"
+            - "sui_programmability/**"
           isReleaseNotesEligible:
-            - 'consensus/**'
-            - 'crates/**'
-            - 'dashboards/**'
-            - 'doc/**'
-            - 'docker/**'
-            - 'external-crates/**'
-            - 'kiosk/**'
-            - 'narwhal/**'
-            - 'nre/**'
-            - 'sui-execution/**'
+            - "consensus/**"
+            - "crates/**"
+            - "dashboards/**"
+            - "doc/**"
+            - "docker/**"
+            - "external-crates/**"
+            - "kiosk/**"
+            - "narwhal/**"
+            - "nre/**"
+            - "sui-execution/**"

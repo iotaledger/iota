@@ -80,7 +80,7 @@ jobs:
         with:
           filters: |
             iota-sdk:
-              - 'crates/iota-sdk/**'
+              - "crates/iota-sdk/**"
 
   test-iota-sdk:
     name: Test iota-sdk
