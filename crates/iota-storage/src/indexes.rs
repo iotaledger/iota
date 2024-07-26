@@ -702,7 +702,7 @@ impl IndexStore {
             }
             // NOTE: filter via checkpoint sequence number is implemented in
             // `get_transactions` of authority.rs.
-            Some(_) => Err(IotaError::UserInputError {
+            Some(_) => Err(IotaError::UserInput {
                 error: UserInputError::Unsupported(format!("{:?}", filter)),
             }),
             None => {
@@ -841,7 +841,7 @@ impl IndexStore {
     ) -> IotaResult<Vec<TransactionDigest>> {
         // If we are passed a function with no module return a UserInputError
         if function.is_some() && module.is_none() {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::MoveFunctionInputError(
                     "Cannot supply function without supplying module".to_string(),
                 ),
@@ -850,7 +850,7 @@ impl IndexStore {
 
         // We cannot have a cursor without filling out the other keys.
         if cursor.is_some() && (module.is_none() || function.is_none()) {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::MoveFunctionInputError(
                     "Cannot supply cursor without supplying module and function".to_string(),
                 ),
@@ -1364,9 +1364,7 @@ impl IndexStore {
             })
             .await
             .unwrap()
-            .map_err(|e| {
-                IotaError::ExecutionError(format!("Failed to read balance frm DB: {:?}", e))
-            });
+            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e)));
         }
 
         self.metrics.balance_lookup_from_total.inc();
@@ -1403,7 +1401,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!("Failed to read balance frm DB: {:?}", e))
+                    IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
                 })
             })
             .await
@@ -1429,7 +1427,7 @@ impl IndexStore {
             .await
             .unwrap()
             .map_err(|e| {
-                IotaError::ExecutionError(format!("Failed to read all balance from DB: {:?}", e))
+                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
             });
         }
 
@@ -1445,10 +1443,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!(
-                        "Failed to read all balance from DB: {:?}",
-                        e
-                    ))
+                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
                 })
             })
             .await
@@ -1495,12 +1490,7 @@ impl IndexStore {
                 coin_object_count += 1;
             }
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
-                |e| {
-                    IotaError::ExecutionError(format!(
-                        "Failed to parse event sender address: {:?}",
-                        e
-                    ))
-                },
+                |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
             )?));
             balances.insert(
                 coin_type,

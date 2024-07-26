@@ -594,7 +594,7 @@ async fn exchange_rates(
         system_state_summary.inactive_pools_size as usize,
     )? {
         let pool_id: ID =
-            bcs::from_bytes(&df.1.bcs_name).map_err(|e| IotaError::ObjectDeserializationError {
+            bcs::from_bytes(&df.1.bcs_name).map_err(|e| IotaError::ObjectDeserialization {
                 error: e.to_string(),
             })?;
         let validator = get_validator_from_table(
@@ -619,7 +619,7 @@ async fn exchange_rates(
             .into_iter()
             .map(|df| {
                 let epoch: EpochId = bcs::from_bytes(&df.1.bcs_name).map_err(|e| {
-                    IotaError::ObjectDeserializationError {
+                    IotaError::ObjectDeserialization {
                         error: e.to_string(),
                     }
                 })?;

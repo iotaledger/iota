@@ -535,7 +535,7 @@ impl<A: Clone> AuthorityAggregator<A> {
     ) -> IotaResult<AuthorityAggregator<NetworkAuthorityClient>> {
         let network_clients =
             make_network_authority_clients_with_network_config(&committee, network_config)
-                .map_err(|err| IotaError::GenericAuthorityError {
+                .map_err(|err| IotaError::GenericAuthority {
                     error: format!(
                         "Failed to make authority clients from committee {committee}, err: {:?}",
                         err
@@ -564,7 +564,7 @@ impl<A: Clone> AuthorityAggregator<A> {
         if disallow_missing_intermediate_committees {
             fp_ensure!(
                 self.committee.epoch + 1 == new_committee.epoch,
-                IotaError::AdvanceEpochError {
+                IotaError::AdvanceEpoch {
                     error: format!(
                         "Trying to advance from epoch {} to epoch {}",
                         self.committee.epoch, new_committee.epoch
@@ -804,7 +804,7 @@ where
                             // timeout
                             Err(_) => {
                                 debug!(name=?name.concise(), "authority request timed out");
-                                authority_errors.insert(name, IotaError::TimeoutError);
+                                authority_errors.insert(name, IotaError::Timeout);
                             }
                             // request completed
                             Ok(inner_res) => {
@@ -879,7 +879,7 @@ where
         if let Some(t) = timeout_total {
             timeout(t, fut).await.map_err(|_timeout_error| {
                 if authority_errors.is_empty() {
-                    IotaError::TimeoutError
+                    IotaError::Timeout
                 } else {
                     IotaError::TooManyIncorrectAuthorities {
                         errors: authority_errors
@@ -1177,7 +1177,7 @@ where
         display_name: &String,
         error: &IotaError,
     ) {
-        if let IotaError::RpcError(_message, code) = error {
+        if let IotaError::Rpc(_message, code) = error {
             metrics
                 .total_rpc_err
                 .with_label_values(&[display_name, code.as_str()])

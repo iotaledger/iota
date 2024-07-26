@@ -474,7 +474,7 @@ where
         &ID::new(pool_id),
     )
     .map_err(|err| {
-        IotaError::IotaSystemStateReadError(format!(
+        IotaError::IotaSystemStateRead(format!(
             "Failed to load candidate address from pool mappings: {:?}",
             err
         ))

@@ -111,7 +111,7 @@ pub enum ConsensusError {
     PeerDisconnected(String),
 
     #[error("Network error: {0:?}")]
-    NetworkError(String),
+    Network(String),
 
     #[error("Consensus has shut down!")]
     Shutdown,

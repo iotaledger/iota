@@ -125,7 +125,7 @@ async fn test_empty_sender_signed_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -152,7 +152,7 @@ async fn test_multiple_sender_signed_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -176,7 +176,7 @@ async fn test_duplicate_sender_signed_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -196,7 +196,7 @@ async fn test_empty_gas_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::MissingGasPayment
                 }
             );
@@ -218,7 +218,7 @@ async fn test_duplicate_gas_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::MutableObjectUsedMoreThanOnce { .. }
                 }
             );
@@ -279,7 +279,7 @@ async fn test_user_sends_system_transaction() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -1097,8 +1097,7 @@ async fn test_very_large_certificate() {
     let err = res.err().unwrap();
     // The resulting error should be a RpcError with a message length too large.
     assert!(
-        matches!(err, IotaError::RpcError(..))
-            && err.to_string().contains("message length too large")
+        matches!(err, IotaError::Rpc(..)) && err.to_string().contains("message length too large")
     );
 }
 
@@ -1200,7 +1199,7 @@ async fn test_handle_certificate_errors() {
 
     assert_matches!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::Unsupported(message)
         } if message == "SenderSignedData must contain exactly one transaction"
     );
@@ -1217,7 +1216,7 @@ async fn test_handle_certificate_errors() {
 
     assert_matches!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::Unsupported(message)
         } if message == "SenderSignedData must not contain system transaction"
     );

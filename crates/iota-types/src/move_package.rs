@@ -599,13 +599,13 @@ where
         })?;
         let view = BinaryIndexedView::Module(&module);
         let d = Disassembler::from_view(view, Spanned::unsafe_no_loc(()).loc).map_err(|e| {
-            IotaError::ObjectSerializationError {
+            IotaError::ObjectSerialization {
                 error: e.to_string(),
             }
         })?;
         let bytecode_str = d
             .disassemble()
-            .map_err(|e| IotaError::ObjectSerializationError {
+            .map_err(|e| IotaError::ObjectSerialization {
                 error: e.to_string(),
             })?;
         disassembled.insert(module.name().to_string(), Value::String(bytecode_str));

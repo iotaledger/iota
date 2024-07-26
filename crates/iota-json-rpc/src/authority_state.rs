@@ -687,8 +687,8 @@ impl From<IotaError> for StateReadError {
         match e {
             IotaError::IndexStoreNotAvailable
             | IotaError::TransactionNotFound { .. }
-            | IotaError::UnsupportedFeatureError { .. }
-            | IotaError::UserInputError { .. }
+            | IotaError::UnsupportedFeature { .. }
+            | IotaError::UserInput { .. }
             | IotaError::WrongMessageVersion { .. } => StateReadError::Client(e.into()),
             _ => StateReadError::Internal(e.into()),
         }

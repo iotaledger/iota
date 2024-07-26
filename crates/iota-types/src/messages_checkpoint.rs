@@ -324,7 +324,7 @@ impl CertifiedCheckpointSummary {
             let content_digest = *contents.digest();
             fp_ensure!(
                 content_digest == self.data().content_digest,
-                IotaError::GenericAuthorityError {
+                IotaError::GenericAuthority {
                     error: format!(
                         "Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions",
                         self.data(),

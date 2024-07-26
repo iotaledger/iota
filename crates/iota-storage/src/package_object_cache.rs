@@ -53,7 +53,7 @@ impl PackageObjectCache {
                 self.cache.write().push(*package_id, p.clone());
                 Ok(Some(p))
             } else {
-                Err(IotaError::UserInputError {
+                Err(IotaError::UserInput {
                     error: UserInputError::MoveObjectAsPackage {
                         object_id: *package_id,
                     },

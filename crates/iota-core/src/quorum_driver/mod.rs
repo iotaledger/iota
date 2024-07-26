@@ -128,7 +128,7 @@ impl<A: Clone> QuorumDriver<A> {
                     self.metrics.current_transactions_in_retry.inc();
                 }
             })
-            .map_err(|e| IotaError::QuorumDriverCommunicationError {
+            .map_err(|e| IotaError::QuorumDriverCommunication {
                 error: e.to_string(),
             })
     }

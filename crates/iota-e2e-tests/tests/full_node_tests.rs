@@ -1360,7 +1360,7 @@ async fn test_access_old_object_pruned() {
                 )
                 .await
                 .unwrap_err(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::ObjectVersionUnavailableForConsumption {
                     provided_obj_ref: gas_object,
                     current_version: new_gas_version,

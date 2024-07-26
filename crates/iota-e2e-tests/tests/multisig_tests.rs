@@ -49,7 +49,7 @@ async fn test_upgraded_multisig_feature_deny() {
 
     let err = do_upgraded_multisig_test().await.unwrap_err();
 
-    assert!(matches!(err, IotaError::UnsupportedFeatureError { .. }));
+    assert!(matches!(err, IotaError::UnsupportedFeature { .. }));
 }
 
 #[sim_test]
@@ -65,7 +65,7 @@ async fn test_upgraded_multisig_feature_allow() {
 
     // we didn't make a real transaction with a valid object, but we verify that we
     // pass the feature gate.
-    assert!(matches!(res.unwrap_err(), IotaError::UserInputError { .. }));
+    assert!(matches!(res.unwrap_err(), IotaError::UserInput { .. }));
 }
 
 #[sim_test]

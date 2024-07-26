@@ -172,7 +172,7 @@ async fn handle_move_call_transaction(
 fn assert_denied<T: std::fmt::Debug>(result: &IotaResult<T>) {
     assert!(matches!(
         result.as_ref().unwrap_err(),
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::TransactionDenied { .. }
         }
     ));

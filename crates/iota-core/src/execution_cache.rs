@@ -147,7 +147,7 @@ pub trait ExecutionCacheRead: Send + Sync {
                             version: Some(object_ref.1),
                         }
                     };
-                    return Err(IotaError::UserInputError { error });
+                    return Err(IotaError::UserInput { error });
                 }
                 Some(object) => {
                     result.push(object);

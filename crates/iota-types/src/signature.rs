@@ -156,7 +156,7 @@ impl GenericSignature {
                         })?)
                             .into(),
                     )),
-                    _ => Err(IotaError::UnsupportedFeatureError {
+                    _ => Err(IotaError::UnsupportedFeature {
                         error: "Unsupported signature scheme".to_string(),
                     }),
                 }
@@ -164,7 +164,7 @@ impl GenericSignature {
             GenericSignature::ZkLoginAuthenticator(s) => Ok(CompressedSignature::ZkLogin(
                 ZkLoginAuthenticatorAsBytes(s.as_ref().to_vec()),
             )),
-            _ => Err(IotaError::UnsupportedFeatureError {
+            _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
             }),
         }
@@ -180,29 +180,29 @@ impl GenericSignature {
                 match s.scheme() {
                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
-                            IotaError::KeyConversionError("Cannot parse ed25519 pk".to_string())
+                            IotaError::KeyConversion("Cannot parse ed25519 pk".to_string())
                         })?)
                             .into(),
                     )),
                     SignatureScheme::Secp256k1 => Ok(PublicKey::Secp256k1(
                         (&Secp256k1PublicKey::from_bytes(bytes).map_err(|_| {
-                            IotaError::KeyConversionError("Cannot parse secp256k1 pk".to_string())
+                            IotaError::KeyConversion("Cannot parse secp256k1 pk".to_string())
                         })?)
                             .into(),
                     )),
                     SignatureScheme::Secp256r1 => Ok(PublicKey::Secp256r1(
                         (&Secp256r1PublicKey::from_bytes(bytes).map_err(|_| {
-                            IotaError::KeyConversionError("Cannot parse secp256r1 pk".to_string())
+                            IotaError::KeyConversion("Cannot parse secp256r1 pk".to_string())
                         })?)
                             .into(),
                     )),
-                    _ => Err(IotaError::UnsupportedFeatureError {
+                    _ => Err(IotaError::UnsupportedFeature {
                         error: "Unsupported signature scheme in MultiSig".to_string(),
                     }),
                 }
             }
             GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
-            _ => Err(IotaError::UnsupportedFeatureError {
+            _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
             }),
         }

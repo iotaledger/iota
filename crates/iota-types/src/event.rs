@@ -132,7 +132,7 @@ impl Event {
         layout: MoveStructLayout,
     ) -> IotaResult<MoveStruct> {
         BoundedVisitor::deserialize_struct(contents, &layout).map_err(|e| {
-            IotaError::ObjectSerializationError {
+            IotaError::ObjectSerialization {
                 error: e.to_string(),
             }
         })

@@ -1266,7 +1266,7 @@ impl AuthorityState {
             certificate,
         )?
         .write_to_file(&dump_dir)
-        .map_err(|e| IotaError::FileIOError(e.to_string()))
+        .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -1672,13 +1672,13 @@ impl AuthorityState {
     )> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         if !self.is_fullnode(&epoch_store) {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "dry-exec is only supported on fullnodes".to_string(),
             });
         }
 
         if transaction.kind().is_system_tx() {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "dry-exec does not support system transactions".to_string(),
             });
         }
@@ -1821,7 +1821,7 @@ impl AuthorityState {
         Ok((
             DryRunTransactionBlockResponse {
                 input: IotaTransactionBlockData::try_from(transaction, &module_cache).map_err(
-                    |e| IotaError::TransactionSerializationError {
+                    |e| IotaError::TransactionSerialization {
                         error: format!(
                             "Failed to convert transaction to IotaTransactionBlockData: {}",
                             e
@@ -1860,13 +1860,13 @@ impl AuthorityState {
         let epoch_store = self.load_epoch_store_one_call_per_task();
 
         if !self.is_fullnode(&epoch_store) {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "dev-inspect is only supported on fullnodes".to_string(),
             });
         }
 
         if transaction_kind.is_system_tx() {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "system transactions are not supported".to_string(),
             });
         }
@@ -1896,7 +1896,7 @@ impl AuthorityState {
         });
 
         let raw_txn_data = if show_raw_txn_data_and_effects {
-            bcs::to_bytes(&transaction).map_err(|_| IotaError::TransactionSerializationError {
+            bcs::to_bytes(&transaction).map_err(|_| IotaError::TransactionSerialization {
                 error: "Failed to serialize transaction during dev inspect".to_string(),
             })?
         } else {
@@ -2020,7 +2020,7 @@ impl AuthorityState {
         );
 
         let raw_effects = if show_raw_txn_data_and_effects {
-            bcs::to_bytes(&effects).map_err(|_| IotaError::TransactionSerializationError {
+            bcs::to_bytes(&effects).map_err(|_| IotaError::TransactionSerialization {
                 error: "Failed to serialize transaction effects during dev inspect".to_string(),
             })?
         } else {
@@ -2304,7 +2304,7 @@ impl AuthorityState {
         let name_type = move_object.type_().try_extract_field_name(&type_)?;
 
         let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-            IotaError::ObjectSerializationError {
+            IotaError::ObjectSerialization {
                 error: format!("{e}"),
             }
         })?;
@@ -3078,13 +3078,11 @@ impl AuthorityState {
 
         if checkpoint_path_tmp.exists() {
             fs::remove_dir_all(&checkpoint_path_tmp)
-                .map_err(|e| IotaError::FileIOError(e.to_string()))?;
+                .map_err(|e| IotaError::FileIO(e.to_string()))?;
         }
 
-        fs::create_dir_all(&checkpoint_path_tmp)
-            .map_err(|e| IotaError::FileIOError(e.to_string()))?;
-        fs::create_dir(&store_checkpoint_path_tmp)
-            .map_err(|e| IotaError::FileIOError(e.to_string()))?;
+        fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
+        fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
 
         // NOTE: Do not change the order of invoking these checkpoint calls
         // We want to snapshot checkpoint db first to not race with state sync
@@ -3104,7 +3102,7 @@ impl AuthorityState {
         }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
-            .map_err(|e| IotaError::FileIOError(e.to_string()))?;
+            .map_err(|e| IotaError::FileIO(e.to_string()))?;
         Ok(())
     }
 
@@ -3223,12 +3221,12 @@ impl AuthorityState {
         let o = self.get_object_read(object_id)?.into_object()?;
         if let Some(move_object) = o.data.try_as_move() {
             Ok(bcs::from_bytes(move_object.contents()).map_err(|e| {
-                IotaError::ObjectDeserializationError {
+                IotaError::ObjectDeserialization {
                     error: format!("{e}"),
                 }
             })?)
         } else {
-            Err(IotaError::ObjectDeserializationError {
+            Err(IotaError::ObjectDeserialization {
                 error: format!("Provided object : [{object_id}] is not a Move object."),
             })
         }
@@ -3418,7 +3416,7 @@ impl AuthorityState {
                 IotaError::from(UserInputError::MovePackageAsObject { object_id: id.0 })
             })?;
             move_objects.push(bcs::from_bytes(move_object.contents()).map_err(|e| {
-                IotaError::ObjectDeserializationError {
+                IotaError::ObjectDeserialization {
                     error: format!("{e}"),
                 }
             })?);
@@ -3507,7 +3505,7 @@ impl AuthorityState {
     fn get_indexes(&self) -> IotaResult<Arc<IndexStore>> {
         match &self.indexes {
             Some(i) => Ok(i.clone()),
-            None => Err(IotaError::UnsupportedFeatureError {
+            None => Err(IotaError::UnsupportedFeature {
                 error: "extended object indexing is not enabled on this server".into(),
             }),
         }
@@ -3576,7 +3574,7 @@ impl AuthorityState {
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
         self.get_checkpoint_store()
             .get_highest_executed_checkpoint_seq_number()?
-            .ok_or(IotaError::UserInputError {
+            .ok_or(IotaError::UserInput {
                 error: UserInputError::LatestCheckpointSequenceNumberNotFound,
             })
     }
@@ -3600,7 +3598,7 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => Ok(verified_checkpoint.into_inner().into_data()),
-            None => Err(IotaError::UserInputError {
+            None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
             }),
         }
@@ -3616,7 +3614,7 @@ impl AuthorityState {
             .get_checkpoint_by_digest(&digest)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => Ok(verified_checkpoint.into_inner().into_data()),
-            None => Err(IotaError::UserInputError {
+            None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointDigestNotFound(Base58::encode(digest)),
             }),
         }
@@ -3641,7 +3639,7 @@ impl AuthorityState {
         let content = self.get_checkpoint_contents(summary.content_digest)?;
         let genesis_transaction = content.enumerate_transactions(&summary).next();
         Ok(genesis_transaction
-            .ok_or(IotaError::UserInputError {
+            .ok_or(IotaError::UserInput {
                 error: UserInputError::GenesisTransactionNotFound,
             })?
             .1
@@ -3658,7 +3656,7 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => Ok(verified_checkpoint),
-            None => Err(IotaError::UserInputError {
+            None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
             }),
         }
@@ -3674,7 +3672,7 @@ impl AuthorityState {
             .get_checkpoint_by_digest(&digest)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => Ok(verified_checkpoint),
-            None => Err(IotaError::UserInputError {
+            None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointDigestNotFound(Base58::encode(digest)),
             }),
         }
@@ -3687,7 +3685,7 @@ impl AuthorityState {
     ) -> IotaResult<CheckpointContents> {
         self.get_checkpoint_store()
             .get_checkpoint_contents(&digest)?
-            .ok_or(IotaError::UserInputError {
+            .ok_or(IotaError::UserInput {
                 error: UserInputError::CheckpointContentsNotFound(digest),
             })
     }
@@ -3705,7 +3703,7 @@ impl AuthorityState {
                 let content_digest = verified_checkpoint.into_inner().content_digest;
                 self.get_checkpoint_contents(content_digest)
             }
-            None => Err(IotaError::UserInputError {
+            None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
             }),
         }
@@ -3743,7 +3741,7 @@ impl AuthorityState {
                 if filters.is_empty() {
                     index_store.all_events(tx_num, event_num, limit, descending)?
                 } else {
-                    return Err(IotaError::UserInputError {
+                    return Err(IotaError::UserInput {
                         error: UserInputError::Unsupported(
                             "This query type does not currently support filter combinations"
                                 .to_string(),
@@ -3788,7 +3786,7 @@ impl AuthorityState {
             | EventFilter::Any(_)
             | EventFilter::And(_, _)
             | EventFilter::Or(_, _) => {
-                return Err(IotaError::UserInputError {
+                return Err(IotaError::UserInput {
                     error: UserInputError::Unsupported(
                         "This query type is not supported by the full node.".to_string(),
                     ),

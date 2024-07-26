@@ -356,7 +356,7 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         let child_receiving_arg = CallArg::Object(ObjectArg::Receiving(child.0));
 
         // Duplicate object reference between receiving and input object arguments.
-        let IotaError::UserInputError { error } = runner
+        let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
@@ -375,7 +375,7 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         assert!(matches!(error, UserInputError::DuplicateObjectRefInput));
 
         // Duplicate object reference in receiving object arguments.
-        let IotaError::UserInputError { error } = runner
+        let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
@@ -482,7 +482,7 @@ async fn test_tto_invalid_receiving_arguments() {
         ];
 
         for (i, (mutate, expect)) in mutations.into_iter().enumerate() {
-            let IotaError::UserInputError { error } = runner.signing_error({
+            let IotaError::UserInput { error } = runner.signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
                 let child = builder.obj(ObjectArg::Receiving(mutate(child.0))).unwrap();

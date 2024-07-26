@@ -440,7 +440,7 @@ impl ChildObjectResolver for PersistedStore {
         }
 
         if child_object.version() > child_version_upper_bound {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "TODO InMemoryStorage::read_child_object does not yet support bounded reads"
                     .to_owned(),
             });
@@ -572,7 +572,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .skip_to_last()
             .next()
             .map(|(_, checkpoint)| checkpoint.into())
-            .ok_or(IotaError::UserInputError {
+            .ok_or(IotaError::UserInput {
                 error: UserInputError::LatestCheckpointSequenceNumberNotFound,
             })
             .map_err(iota_types::storage::error::Error::custom)

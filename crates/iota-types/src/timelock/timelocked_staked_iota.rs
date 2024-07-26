@@ -92,7 +92,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
         match &object.data {
             Data::Move(o) => {
                 if o.type_().is_timelocked_staked_iota() {
-                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::TypeError {
+                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!(
                             "Unable to deserialize TimelockedStakedIota object: {:?}",
                             err
@@ -103,7 +103,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
             Data::Package(_) => {}
         }
 
-        Err(IotaError::TypeError {
+        Err(IotaError::Type {
             error: format!("Object type is not a TimelockedStakedIota: {:?}", object),
         })
     }

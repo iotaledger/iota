@@ -117,12 +117,10 @@ pub fn get_authenticator_state(
         return Ok(None);
     };
     let move_object = outer.data.try_as_move().ok_or_else(|| {
-        IotaError::IotaSystemStateReadError(
-            "AuthenticatorState object must be a Move object".to_owned(),
-        )
+        IotaError::IotaSystemStateRead("AuthenticatorState object must be a Move object".to_owned())
     })?;
     let outer = bcs::from_bytes::<AuthenticatorState>(move_object.contents())
-        .map_err(|err| IotaError::IotaSystemStateReadError(err.to_string()))?;
+        .map_err(|err| IotaError::IotaSystemStateRead(err.to_string()))?;
 
     // No other versions exist yet.
     assert_eq!(outer.version, AUTHENTICATOR_STATE_VERSION);
@@ -130,7 +128,7 @@ pub fn get_authenticator_state(
     let id = outer.id.id.bytes;
     let inner: AuthenticatorStateInner =
         get_dynamic_field_from_store(object_store, id, &outer.version).map_err(|err| {
-            IotaError::DynamicFieldReadError(format!(
+            IotaError::DynamicFieldRead(format!(
                 "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                 id, outer.version, err
             ))

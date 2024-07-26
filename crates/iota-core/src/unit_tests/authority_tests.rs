@@ -5726,7 +5726,7 @@ async fn test_publish_not_a_package_dependency() {
         .unwrap_err();
 
     assert_eq!(
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::MoveObjectAsPackage {
                 object_id: IOTA_SYSTEM_STATE_OBJECT_ID
             }

@@ -732,7 +732,7 @@ impl ExecutionCacheRead for WritebackCache {
                 self.packages.insert(*package_id, p.clone());
                 Ok(Some(p))
             } else {
-                Err(IotaError::UserInputError {
+                Err(IotaError::UserInput {
                     error: UserInputError::MoveObjectAsPackage {
                         object_id: *package_id,
                     },

@@ -39,31 +39,31 @@ pub fn derive_key_pair_from_path(
             let indexes = path.into_iter().map(|i| i.into()).collect::<Vec<_>>();
             let derived = derive_ed25519_private_key(seed, &indexes);
             let sk = Ed25519PrivateKey::from_bytes(&derived)
-                .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?;
+                .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
             let kp: Ed25519KeyPair = sk.into();
             Ok((kp.public().into(), IotaKeyPair::Ed25519(kp)))
         }
         SignatureScheme::Secp256k1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
-                .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?;
+                .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
             let kp = Secp256k1KeyPair::from(
                 Secp256k1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
-                    .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?,
+                    .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
             );
             Ok((kp.public().into(), IotaKeyPair::Secp256k1(kp)))
         }
         SignatureScheme::Secp256r1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
-                .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?;
+                .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
             let kp = Secp256r1KeyPair::from(
                 Secp256r1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
-                    .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?,
+                    .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
             );
             Ok((kp.public().into(), IotaKeyPair::Secp256r1(kp)))
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeatureError {
+        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }
@@ -90,17 +90,17 @@ pub fn validate_path(
                         {
                             Ok(p)
                         } else {
-                            Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
+                            Err(IotaError::SignatureKeyGen("Invalid path".to_string()))
                         }
                     } else {
-                        Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
+                        Err(IotaError::SignatureKeyGen("Invalid path".to_string()))
                     }
                 }
                 None => Ok(format!(
                     "m/{DERVIATION_PATH_PURPOSE_ED25519}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0'/0'"
                 )
                 .parse()
-                .map_err(|_| IotaError::SignatureKeyGenError("Cannot parse path".to_string()))?),
+                .map_err(|_| IotaError::SignatureKeyGen("Cannot parse path".to_string()))?),
             }
         }
         SignatureScheme::Secp256k1 => {
@@ -119,17 +119,17 @@ pub fn validate_path(
                         {
                             Ok(p)
                         } else {
-                            Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
+                            Err(IotaError::SignatureKeyGen("Invalid path".to_string()))
                         }
                     } else {
-                        Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
+                        Err(IotaError::SignatureKeyGen("Invalid path".to_string()))
                     }
                 }
                 None => Ok(format!(
                     "m/{DERVIATION_PATH_PURPOSE_SECP256K1}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0/0"
                 )
                 .parse()
-                .map_err(|_| IotaError::SignatureKeyGenError("Cannot parse path".to_string()))?),
+                .map_err(|_| IotaError::SignatureKeyGen("Cannot parse path".to_string()))?),
             }
         }
         SignatureScheme::Secp256r1 => {
@@ -148,22 +148,22 @@ pub fn validate_path(
                         {
                             Ok(p)
                         } else {
-                            Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
+                            Err(IotaError::SignatureKeyGen("Invalid path".to_string()))
                         }
                     } else {
-                        Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
+                        Err(IotaError::SignatureKeyGen("Invalid path".to_string()))
                     }
                 }
                 None => Ok(format!(
                     "m/{DERVIATION_PATH_PURPOSE_SECP256R1}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0/0"
                 )
                 .parse()
-                .map_err(|_| IotaError::SignatureKeyGenError("Cannot parse path".to_string()))?),
+                .map_err(|_| IotaError::SignatureKeyGen("Cannot parse path".to_string()))?),
             }
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeatureError {
+        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }

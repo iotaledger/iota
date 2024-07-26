@@ -239,17 +239,15 @@ pub fn get_iota_system_state_wrapper(
         .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
-            IotaError::IotaSystemStateReadError(
-                "IotaSystemStateWrapper object not found".to_owned(),
-            )
+            IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
         })?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
-        IotaError::IotaSystemStateReadError(
+        IotaError::IotaSystemStateRead(
             "IotaSystemStateWrapper object must be a Move object".to_owned(),
         )
     })?;
     let result = bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents())
-        .map_err(|err| IotaError::IotaSystemStateReadError(err.to_string()))?;
+        .map_err(|err| IotaError::IotaSystemStateRead(err.to_string()))?;
     Ok(result)
 }
 
@@ -261,7 +259,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             let result: IotaSystemStateInnerV1 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
-                        IotaError::DynamicFieldReadError(format!(
+                        IotaError::DynamicFieldRead(format!(
                             "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                             id, wrapper.version, err
                         ))
@@ -273,7 +271,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             let result: IotaSystemStateInnerV2 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
-                        IotaError::DynamicFieldReadError(format!(
+                        IotaError::DynamicFieldRead(format!(
                             "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                             id, wrapper.version, err
                         ))
@@ -286,7 +284,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             let result: SimTestIotaSystemStateInnerV1 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
-                        IotaError::DynamicFieldReadError(format!(
+                        IotaError::DynamicFieldRead(format!(
                             "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                             id, wrapper.version, err
                         ))
@@ -299,7 +297,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             let result: SimTestIotaSystemStateInnerShallowV2 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
-                        IotaError::DynamicFieldReadError(format!(
+                        IotaError::DynamicFieldRead(format!(
                             "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                             id, wrapper.version, err
                         ))
@@ -312,7 +310,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             let result: SimTestIotaSystemStateInnerDeepV2 =
                 get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
                     |err| {
-                        IotaError::DynamicFieldReadError(format!(
+                        IotaError::DynamicFieldRead(format!(
                             "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                             id, wrapper.version, err
                         ))
@@ -320,7 +318,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
                 )?;
             Ok(IotaSystemState::SimTestDeepV2(result))
         }
-        _ => Err(IotaError::IotaSystemStateReadError(format!(
+        _ => Err(IotaError::IotaSystemStateRead(format!(
             "Unsupported IotaSystemState version: {}",
             wrapper.version
         ))),
@@ -341,7 +339,7 @@ where
 {
     let field: ValidatorWrapper = get_dynamic_field_from_store(object_store, table_id, key)
         .map_err(|err| {
-            IotaError::IotaSystemStateReadError(format!(
+            IotaError::IotaSystemStateRead(format!(
                 "Failed to load validator wrapper from table: {:?}",
                 err
             ))
@@ -353,7 +351,7 @@ where
             let validator: ValidatorV1 =
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
-                        IotaError::IotaSystemStateReadError(format!(
+                        IotaError::IotaSystemStateRead(format!(
                             "Failed to load inner validator from the wrapper: {:?}",
                             err
                         ))
@@ -365,7 +363,7 @@ where
             let validator: SimTestValidatorV1 =
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
-                        IotaError::IotaSystemStateReadError(format!(
+                        IotaError::IotaSystemStateRead(format!(
                             "Failed to load inner validator from the wrapper: {:?}",
                             err
                         ))
@@ -377,14 +375,14 @@ where
             let validator: SimTestValidatorDeepV2 =
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
-                        IotaError::IotaSystemStateReadError(format!(
+                        IotaError::IotaSystemStateRead(format!(
                             "Failed to load inner validator from the wrapper: {:?}",
                             err
                         ))
                     })?;
             Ok(validator.into_iota_validator_summary())
         }
-        _ => Err(IotaError::IotaSystemStateReadError(format!(
+        _ => Err(IotaError::IotaSystemStateRead(format!(
             "Unsupported Validator version: {}",
             version
         ))),
@@ -404,7 +402,7 @@ where
     for i in 0..table_size {
         let validator: ValidatorType = get_dynamic_field_from_store(&object_store, table_id, &i)
             .map_err(|err| {
-                IotaError::IotaSystemStateReadError(format!(
+                IotaError::IotaSystemStateRead(format!(
                     "Failed to load validator from table: {:?}",
                     err
                 ))

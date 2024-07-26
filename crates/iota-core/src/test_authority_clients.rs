@@ -69,7 +69,7 @@ impl AuthorityAPI for LocalAuthorityClient {
             .map(|_| VerifiedTransaction::new_from_verified(transaction))?;
         let result = state.handle_transaction(&epoch_store, transaction).await;
         if self.fault_config.fail_after_handle_transaction {
-            return Err(IotaError::GenericAuthorityError {
+            return Err(IotaError::GenericAuthority {
                 error: "Mock error after handle_transaction".to_owned(),
             });
         }
@@ -164,7 +164,7 @@ impl LocalAuthorityClient {
         fault_config: LocalAuthorityClientFaultConfig,
     ) -> Result<HandleCertificateResponseV2, IotaError> {
         if fault_config.fail_before_handle_confirmation {
-            return Err(IotaError::GenericAuthorityError {
+            return Err(IotaError::GenericAuthority {
                 error: "Mock error before handle_confirmation_transaction".to_owned(),
             });
         }
@@ -196,7 +196,7 @@ impl LocalAuthorityClient {
         };
 
         if fault_config.fail_after_handle_confirmation {
-            return Err(IotaError::GenericAuthorityError {
+            return Err(IotaError::GenericAuthority {
                 error: "Mock error after handle_confirmation_transaction".to_owned(),
             });
         }

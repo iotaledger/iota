@@ -103,7 +103,7 @@ impl TryFrom<&Object> for StakedIota {
         match &object.data {
             Data::Move(o) => {
                 if o.type_().is_staked_iota() {
-                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::TypeError {
+                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!("Unable to deserialize StakedIota object: {:?}", err),
                     });
                 }
@@ -111,7 +111,7 @@ impl TryFrom<&Object> for StakedIota {
             Data::Package(_) => {}
         }
 
-        Err(IotaError::TypeError {
+        Err(IotaError::Type {
             error: format!("Object type is not a StakedIota: {:?}", object),
         })
     }
