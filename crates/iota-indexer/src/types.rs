@@ -98,8 +98,6 @@ pub struct IndexedEpochInfo {
     pub epoch_total_transactions: Option<u64>,
     pub last_checkpoint_id: Option<u64>,
     pub epoch_end_timestamp: Option<u64>,
-    // TODO: remove(obsolete)
-    pub storage_fund_reinvestment: Option<u64>,
     pub storage_charge: Option<u64>,
     pub storage_rebate: Option<u64>,
     // TODO: remove(obsolete)
@@ -148,7 +146,6 @@ impl IndexedEpochInfo {
             ),
             last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_fund_reinvestment: Some(event.storage_fund_reinvestment),
             storage_charge: Some(event.storage_charge),
             storage_rebate: Some(event.storage_rebate),
             burnt_leftover_amount: Some(event.burnt_leftover_amount),

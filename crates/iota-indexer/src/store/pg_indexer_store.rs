@@ -721,8 +721,6 @@ impl PgIndexerStore {
                                 .eq(excluded(epochs::epoch_total_transactions)),
                             epochs::last_checkpoint_id.eq(excluded(epochs::last_checkpoint_id)),
                             epochs::epoch_end_timestamp.eq(excluded(epochs::epoch_end_timestamp)),
-                            epochs::storage_fund_reinvestment
-                                .eq(excluded(epochs::storage_fund_reinvestment)),
                             epochs::storage_charge.eq(excluded(epochs::storage_charge)),
                             epochs::storage_rebate.eq(excluded(epochs::storage_rebate)),
                             epochs::stake_subsidy_amount.eq(excluded(epochs::stake_subsidy_amount)),

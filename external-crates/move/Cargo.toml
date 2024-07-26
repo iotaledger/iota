@@ -3,6 +3,9 @@ resolver = "2"
 
 members = [
     "crates/*",
+    "move-execution/v0/crates/move-bytecode-verifier",
+    "move-execution/v0/crates/move-vm-runtime",
+    "move-execution/v0/crates/move-stdlib",
 ]
 
 # Dependencies that should be kept in sync through the whole workspace
@@ -26,7 +29,10 @@ criterion-cpu-time = "0.1.0"
 crossbeam = "0.8"
 crossbeam-channel = "0.5.0"
 crossterm = "0.25.0"
-curve25519-dalek = { version = "0.1.0", package = "curve25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
+curve25519-dalek = { version = "0.1.0", package = "curve25519-dalek-fiat", default-features = false, features = [
+    "std",
+    "u64_backend",
+] }
 datatest-stable = "0.1.1"
 derivative = "2.2.0"
 difference = "2.0.0"
@@ -34,7 +40,11 @@ digest = "0.9.0"
 dir-diff = "0.3.2"
 dirs-next = "2.0.0"
 dunce = "1.0.2"
-ed25519-dalek = { version = "0.1.0", package = "ed25519-dalek-fiat", default-features = false, features = ["std", "serde", "u64_backend"] }
+ed25519-dalek = { version = "0.1.0", package = "ed25519-dalek-fiat", default-features = false, features = [
+    "std",
+    "serde",
+    "u64_backend",
+] }
 ethnum = "1.0.4"
 fail = "0.4.0"
 file_diff = "1.0.0"
@@ -45,7 +55,7 @@ hex = "0.4.3"
 hex-literal = "0.3.4"
 hkdf = "0.10.0"
 im = "15.1.0"
-internment = { version = "0.5.0", features = [ "arc"] }
+internment = { version = "0.5.0", features = ["arc"] }
 itertools = "0.10.0"
 leb128 = "0.2.5"
 libfuzzer-sys = "0.4"
@@ -65,10 +75,14 @@ paste = "1.0.5"
 pathdiff = "0.2.1"
 petgraph = "0.5.1"
 phf = { version = "0.11", features = ["macros"] }
-plotters = { version = "0.3.0", default-features = false, features = ["evcxr", "line_series", "histogram"]}
+plotters = { version = "0.3.0", default-features = false, features = [
+    "evcxr",
+    "line_series",
+    "histogram",
+] }
 pretty = "0.10.0"
 prettydiff = "0.4.0"
-primitive-types = { version = "0.10.1", features = ["impl-serde"]}
+primitive-types = { version = "0.10.1", features = ["impl-serde"] }
 proc-macro2 = "1.0.24"
 proptest = "1.0.0"
 proptest-derive = "0.3.0"
@@ -99,7 +113,7 @@ thiserror = "1.0.24"
 tiny-keccak = { version = "2.0.2", features = ["sha3"] }
 tokio = { version = "1.18.2", features = ["full"] }
 toml = "0.5.8"
-toml_edit =  { version = "0.14.3", features = ["easy"] }
+toml_edit = { version = "0.14.3", features = ["easy"] }
 tracing = "0.1.26"
 tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
 treeline = "0.1.0"
@@ -110,11 +124,14 @@ variant_count = "1.1.0"
 vfs = "0.10.0"
 walkdir = "2.3.1"
 whoami = { version = "1.2.1" }
-x25519-dalek = { version = "0.1.0", package = "x25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
+x25519-dalek = { version = "0.1.0", package = "x25519-dalek-fiat", default-features = false, features = [
+    "std",
+    "u64_backend",
+] }
 z3tracer = "0.8.0"
 
 bytecode-interpreter-crypto = { path = "crates/bytecode-interpreter-crypto" }
-enum-compat-util = { path = "crates/enum-compat-util"}
+enum-compat-util = { path = "crates/enum-compat-util" }
 invalid-mutations = { path = "crates/invalid-mutations" }
 module-generation = { path = "crates/module-generation" }
 move-abstract-stack = { path = "crates/move-abstract-stack" }
@@ -138,7 +155,7 @@ move-ir-to-bytecode-syntax = { path = "crates/move-ir-to-bytecode-syntax" }
 move-ir-types = { path = "crates/move-ir-types" }
 move-model = { path = "crates/move-model" }
 move-package = { path = "crates/move-package" }
-move-proc-macros = { path = "crates/move-proc-macros"}
+move-proc-macros = { path = "crates/move-proc-macros" }
 move-prover = { path = "crates/move-prover" }
 move-prover-test-utils = { path = "crates/move-prover-test-utils" }
 move-read-write-set-types = { path = "crates/move-read-write-set-types" }
@@ -153,7 +170,7 @@ move-vm-profiler = { path = "crates/move-vm-profiler" }
 move-vm-runtime = { path = "crates/move-vm-runtime" }
 move-vm-test-utils = { path = "crates/move-vm-test-utils" }
 move-vm-types = { path = "crates/move-vm-types" }
-prover_bytecode = { path = "crates/move-stackless-bytecode", package="move-stackless-bytecode" }
+prover_bytecode = { path = "crates/move-stackless-bytecode", package = "move-stackless-bytecode" }
 
 [profile.bench]
 debug = true
@@ -169,6 +186,6 @@ opt-level = 3
 # use release settings to reduce memory pressure in the linking step in CI
 [profile.ci]
 inherits = "test"
-debug = 0 # for saving disk space during linking
+debug = 0           # for saving disk space during linking
 incremental = false
 codegen-units = 16

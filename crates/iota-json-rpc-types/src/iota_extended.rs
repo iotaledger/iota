@@ -79,9 +79,6 @@ pub struct EndOfEpochInfo {
     pub total_stake: u64,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
-    pub storage_fund_reinvestment: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
     pub storage_charge: u64,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]

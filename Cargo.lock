@@ -200,19 +200,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anemo-benchmark"
-version = "0.0.0"
-dependencies = [
- "anemo",
- "anemo-build",
- "clap",
- "mysten-network",
- "rand 0.8.5",
- "telemetry-subscribers",
- "tokio",
-]
-
-[[package]]
 name = "anemo-build"
 version = "0.0.0"
 source = "git+https://github.com/mystenlabs/anemo.git?rev=26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7#26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7"
@@ -5383,17 +5370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-common"
-version = "0.1.0"
-dependencies = [
- "futures",
- "iota-types",
- "mysten-metrics",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iota-config"
 version = "0.0.0"
 dependencies = [
@@ -6435,8 +6411,6 @@ dependencies = [
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
- "iota-telemetry",
- "iota-tls",
  "iota-types",
  "move-vm-profiler",
  "mysten-common",
@@ -6679,9 +6653,7 @@ dependencies = [
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "telemetry-subscribers",
- "test-cluster",
  "tokio",
- "tonic 0.11.0",
  "tracing",
 ]
 
@@ -7052,16 +7024,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-telemetry"
-version = "0.1.0"
-dependencies = [
- "iota-core",
- "reqwest",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "iota-test-transaction-builder"
 version = "0.1.0"
 dependencies = [
@@ -7089,27 +7051,6 @@ dependencies = [
  "tower",
  "tower-http",
  "uuid",
-]
-
-[[package]]
-name = "iota-tls"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "axum",
- "axum-server",
- "ed25519 1.5.3",
- "fastcrypto",
- "pkcs8 0.9.0",
- "rand 0.8.5",
- "rcgen",
- "reqwest",
- "rustls 0.21.6",
- "rustls-webpki 0.101.7",
- "tokio",
- "tokio-rustls 0.24.0",
- "tower-layer",
- "x509-parser",
 ]
 
 [[package]]
