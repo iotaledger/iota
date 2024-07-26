@@ -39,7 +39,7 @@ pub type IotaMoveTypeParameterIndex = u16;
 #[path = "unit_tests/iota_move_tests.rs"]
 mod iota_move_tests;
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum IotaMoveAbility {
     Copy,
     Drop,
@@ -47,33 +47,33 @@ pub enum IotaMoveAbility {
     Key,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct IotaMoveAbilitySet {
     pub abilities: Vec<IotaMoveAbility>,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum IotaMoveVisibility {
     Private,
     Public,
     Friend,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveStructTypeParameter {
     pub constraints: IotaMoveAbilitySet,
     pub is_phantom: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct IotaMoveNormalizedField {
     pub name: String,
     #[serde(rename = "type")]
     pub type_: IotaMoveNormalizedType,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedStruct {
     pub abilities: IotaMoveAbilitySet,
@@ -81,7 +81,7 @@ pub struct IotaMoveNormalizedStruct {
     pub fields: Vec<IotaMoveNormalizedField>,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub enum IotaMoveNormalizedType {
     Bool,
     U8,
@@ -105,7 +105,7 @@ pub enum IotaMoveNormalizedType {
     MutableReference(Box<IotaMoveNormalizedType>),
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedFunction {
     pub visibility: IotaMoveVisibility,
@@ -115,13 +115,13 @@ pub struct IotaMoveNormalizedFunction {
     pub return_: Vec<IotaMoveNormalizedType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct IotaMoveModuleId {
     address: String,
     name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedModule {
     pub file_format_version: u32,
@@ -292,14 +292,14 @@ impl From<AbilitySet> for IotaMoveAbilitySet {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum ObjectValueKind {
     ByImmutableReference,
     ByMutableReference,
     ByValue,
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, JsonSchema)]
 pub enum MoveFunctionArgType {
     Pure,
     Object(ObjectValueKind),

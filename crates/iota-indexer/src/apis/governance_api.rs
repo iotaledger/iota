@@ -296,7 +296,7 @@ fn stake_status(
 /// 1, it will be cleared when the epoch changes. rates are in descending order
 /// by epoch.
 #[cached(
-    type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
+    ty = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
     convert = "{ system_state_summary.epoch }",
     result = true
@@ -391,7 +391,7 @@ async fn exchange_rates(
 
 /// Cache a map representing the validators' APYs for this epoch
 #[cached(
-    type = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
+    ty = "SizedCache<EpochId, BTreeMap<IotaAddress, f64>>",
     create = "{ SizedCache::with_size(1) }",
     convert = " {apys.epoch} "
 )]

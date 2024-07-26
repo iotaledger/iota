@@ -9,8 +9,8 @@ on:
     branches:
       - develop
     paths:
-      - 'apps/apps-backend/**'
-      - '.github/workflows/apps-backend-production.deploy.yml'
+      - "apps/apps-backend/**"
+      - ".github/workflows/apps-backend-production.deploy.yml"
 
 jobs:
   deploy-preview:
@@ -26,8 +26,8 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache
