@@ -8,40 +8,45 @@ import cx from 'classnames';
 
 type TrailingElementProps = Pick<
     TextFieldProps,
-    'value' | 'type' | 'showHideContentButton' | 'trailingElement'
+    'value' | 'type' | 'isToggleButtonVisible' | 'trailingElement' | 'isContentVisible'
 >;
 
 type TextFieldTrailingElementProps = TrailingElementProps & {
     inputType: string | undefined;
-    toggleContentVisibility: () => void;
-    onClearInput?: () => void;
+    onToggleButtonClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onClearInput?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
 export function TextFieldTrailingElement({
     value,
     type,
-    showHideContentButton,
+    isToggleButtonVisible,
     onClearInput,
     inputType,
-    toggleContentVisibility,
+    onToggleButtonClick,
     trailingElement,
+    isContentVisible,
 }: TextFieldTrailingElementProps) {
     if (trailingElement) {
         return trailingElement;
     }
 
     if (
-        (type === TextFieldType.Password && showHideContentButton) ||
-        (type === TextFieldType.TextArea && showHideContentButton)
+        (type === TextFieldType.Password && isToggleButtonVisible) ||
+        (type === TextFieldType.TextArea && isToggleButtonVisible)
     ) {
         return (
             <button
-                onClick={toggleContentVisibility}
+                onClick={onToggleButtonClick}
                 className={cx('text-neutral-10 dark:text-neutral-92', {
                     'mt-auto': type === TextFieldType.TextArea,
                 })}
             >
-                {inputType === TextFieldType.Password ? <VisibilityOn /> : <VisibilityOff />}
+                {inputType === TextFieldType.Password && isContentVisible ? (
+                    <VisibilityOn />
+                ) : (
+                    <VisibilityOff />
+                )}
             </button>
         );
     }
