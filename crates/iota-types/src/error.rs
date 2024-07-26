@@ -723,7 +723,7 @@ impl TryFrom<IotaError> for UserInputError {
     fn try_from(err: IotaError) -> Result<Self, Self::Error> {
         match err {
             IotaError::UserInput { error } => Ok(error),
-            other => anyhow::bail!("error {:?} is not UserInputError", other),
+            other => anyhow::bail!("error {:?} is not UserInput", other),
         }
     }
 }
