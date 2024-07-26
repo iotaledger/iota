@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { useState } from 'react';
 import cx from 'classnames';
-import { Copy, ArrowTopRight } from '@iota/ui-icons';
+import { Copy, ArrowTopRight, Checkmark } from '@iota/ui-icons';
 
 interface AddressProps {
     /**
@@ -35,15 +35,39 @@ export function Address({
     onCopy,
     onOpen,
 }: AddressProps): React.JSX.Element {
+    const [isCopied, setIsCopied] = useState(false);
+
+    const copy = (() => {
+        if (!isCopyable) {
+            return;
+        }
+
+        if (isCopied) {
+            return <Checkmark />;
+        }
+
+        return (
+            <Copy
+                className="invisible cursor-pointer group-hover:visible"
+                onClick={(e) => {
+                    onCopy && onCopy(e);
+                    setIsCopied(true);
+
+                    setTimeout(() => {
+                        setIsCopied(false);
+                    }, 2000);
+                }}
+            />
+        );
+    })();
+
     return (
         <div className="group flex flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
-            {isCopyable && (
-                <Copy className="hidden cursor-pointer group-hover:flex" onClick={onCopy} />
-            )}
+            {copy}
             {isExternal && (
                 <ArrowTopRight
-                    className="hidden cursor-pointer group-hover:flex"
+                    className="invisible cursor-pointer group-hover:visible"
                     onClick={onOpen}
                 />
             )}
