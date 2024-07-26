@@ -8,9 +8,11 @@ import AlphaNet from "../../_snippets/alphanet.mdx";
 
 # Connect to an IOTA Network
 
-<AlphaNet />
+## Alphanet
 
-The IOTA Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. Clients send transactions and read requests via this endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443` using [JSON-RPC](/references/iota-api/json-rpc-format.mdx).
+A temporary network while still in early development, used before public launch of IOTA Rebased. Will be replaced by the Testnet afterwards.
+
+<AlphaNet />
 
 ## Devnet
 
@@ -22,11 +24,17 @@ repository.
 Once a release has been battle-tested in the Devnet, it moves to the Testnet. You can use this network to
 test your software in real-world conditions.
 
+<DataWipe />
+
+:::info Testnet node validators
+
+The IOTA Alphanet, Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. 
+
+:::
+
 ## Mainnet
 
 The fully operational production network, with data persistence and where tokens have real value.
-
-<DataWipe />
 
 :::tip Local Networks
 
@@ -43,8 +51,9 @@ IOTA provides [IOTA command line interface (CLI)](/references/cli/client.mdx) to
 - Call and publish Move modules
 
 You can use the [CLI](iota-environment.mdx#iota-cli) or [SDKs](iota-environment.mdx#iota-sdks) to send transactions and
-read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the following
-endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443`.
+read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the endpoint of choice for the given network.
+
+<AlphaNet />
 
 ## Environment Set Up
 
@@ -96,6 +105,8 @@ IOTA Full node server URL (Defaults to IOTA Devnet if not specified) :
 
 If you want to connect to the [Devnet](#devnet), you can simply press `Enter`.
 
+<AlphaNet />
+
 If not, specify your desired node URL. If you choose to add a custom URL, you should also add an alias for ease of
 access:
 
@@ -119,9 +130,7 @@ Secret Recovery Phrase : [hat become demise beyond history wood stage add nice l
 
 ## Add a Network Environment
 
-<AlphaNet />
-
-If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet` at `https://fullnode.devnet.iota.io:443`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
+If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
 
 :::tip Check the current Network  ENVs
 
@@ -140,7 +149,7 @@ iota client envs
 The command outputs the available environment aliases, with `(active)` denoting the currently active network.
 ```sh
 localnet => http://0.0.0.0:9000 (active)
-devnet => https://fullnode.devnet.iota.io:443
+alphanet => https://api.iota-rebased-alphanet.iota.cafe:443
 ```
 
 You can add a new environment using the `iota client new` command. You should specify and `alias` and `rpc` URL, for
