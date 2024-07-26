@@ -182,7 +182,8 @@ fn write_checkpoint_list(
     let mut checkpoints_path = config.checkpoint_summary_dir.clone();
     checkpoints_path.push("checkpoints.yaml");
     let mut writer = fs::File::create(checkpoints_path.clone())?;
-    let bytes = serde_yaml::to_vec(&checkpoints_list)?;
+    let mut bytes = Vec::new();
+    serde_yaml::to_writer(&mut bytes, &checkpoints_list)?;
     writer
         .write_all(&bytes)
         .map_err(|_| anyhow!("Unable to serialize checkpoint list"))

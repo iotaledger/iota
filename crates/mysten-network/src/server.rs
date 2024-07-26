@@ -48,7 +48,7 @@ pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProv
     health_reporter: tonic_health::server::HealthReporter,
 }
 
-type AddPathToHeaderFunction = fn(&Request<Body>) -> Option<HeaderValue>;
+type AddPathToHeaderFunction = fn(&Request<BoxBody>) -> Option<HeaderValue>;
 
 type WrapperService<M> = Stack<
     Stack<
@@ -110,7 +110,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             .global_concurrency_limit
             .map(tower::limit::GlobalConcurrencyLimitLayer::new);
 
-        fn add_path_to_request_header(request: &Request<Body>) -> Option<HeaderValue> {
+        fn add_path_to_request_header<B: Body>(request: &Request<B>) -> Option<HeaderValue> {
             let path = request.uri().path();
             Some(HeaderValue::from_str(path).unwrap())
         }
@@ -151,7 +151,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     /// Add a new service to this Server.
     pub fn add_service<S>(mut self, svc: S) -> Self
     where
-        S: Service<Request<Body>, Response = Response<BoxBody>, Error = Infallible>
+        S: Service<Request<BoxBody>, Response = Response<BoxBody>, Error = Infallible>
             + NamedService
             + Clone
             + Send

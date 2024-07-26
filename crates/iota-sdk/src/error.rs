@@ -12,7 +12,7 @@ pub type IotaRpcResult<T = ()> = Result<T, Error>;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    Rpc(#[from] jsonrpsee::core::Error),
+    Rpc(#[from] jsonrpsee::core::ClientError),
     #[error(transparent)]
     BcsSerialization(#[from] bcs::Error),
     #[error("Subscription error : {0}")]
@@ -30,4 +30,6 @@ pub enum Error {
     },
     #[error("Insufficient fund for address [{address}], requested amount: {amount}")]
     InsufficientFund { address: IotaAddress, amount: u128 },
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }

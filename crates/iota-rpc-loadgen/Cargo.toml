@@ -28,7 +28,6 @@ iota-types = { workspace = true, features = ["test-utils"] }
 serde_json.workspace = true
 shared-crypto.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 telemetry-subscribers.workspace = true
 
 [[bin]]
