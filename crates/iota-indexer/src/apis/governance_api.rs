@@ -368,11 +368,9 @@ async fn exchange_rates(
         {
             let dynamic_field = df
                 .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(
-                    || iota_types::error::IotaError::ObjectDeserialization {
-                        error: "dynamic field malformed".to_owned(),
-                    },
-                )?;
+                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserialization {
+                    error: "dynamic field malformed".to_owned(),
+                })?;
 
             rates.push((dynamic_field.name, dynamic_field.value));
         }
