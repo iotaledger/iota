@@ -1690,7 +1690,7 @@ impl move_bytecode_utils::module_cache::GetModule for IndexerReader {
 }
 
 #[cached(
-    type = "SizedCache<String, Option<ObjectID>>",
+    ty = "SizedCache<String, Option<ObjectID>>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, obj_type) }"#,
     result = true
