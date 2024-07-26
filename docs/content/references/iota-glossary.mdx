@@ -71,7 +71,7 @@ Single-writer objects are owned by one address. In IOTA, transactions affecting 
 
 ### Smart contract {#smart-contract}
 
-A [smart contract](https://en.wikipedia.org/wiki/Smart_contract) is an agreement based upon the protocol for conducting transactions in a blockchain. In IOTA, smart contracts are written in the [Move](https://github.com/MystenLabs/awesome-move) programming language.
+A [smart contract](https://en.wikipedia.org/wiki/Smart_contract) is an agreement based upon the protocol for conducting transactions in a blockchain. In IOTA, smart contracts are written in [Solidity/EVM or Move](../developer/evm-to-move.mdx).
 
 ### IOTA {#iota}
 
@@ -89,7 +89,7 @@ IOTA is the native token to the IOTA network.
 
 A transaction in IOTA is a change to the blockchain. This may be a _simple transaction_ affecting only single-writer, single-address objects, such as minting an NFT or transferring an NFT or another token. These transactions may bypass the consensus protocol in IOTA.
 
-More _complex transactions_ affecting objects that are shared or owned by multiple addresses, such as asset management and other DeFi use cases, go through the [Narwhal and Bullshark](https://github.com/MystenLabs/narwhal) DAG-based mempool and efficient Byzantine Fault Tolerant (BFT) consensus.
+More _complex transactions_ affecting objects that are shared or owned by multiple addresses, such as asset management and other DeFi use cases, go through the [Narwhal and Bullshark](https://github.com/iotaledger/iota/tree/develop/narwhal) DAG-based mempool and efficient Byzantine Fault Tolerant (BFT) consensus.
 
 ### Transfer {#transfer}
 

@@ -9,7 +9,7 @@ Here are IOTA's key features:
 
 - [Causal order vs. total order](#causal-order-vs-total-order) enables massively parallel execution
 - IOTA's variant of Move and its object-centric data model make composable objects/NFTs possible
-- The blockchain-oriented [Move programming language](https://github.com/MystenLabs/awesome-move) eases the developer experience
+- The blockchain-oriented [Move programming language](../developer/evm-to-move/why-move.mdx) eases the developer experience
 
 ## Traditional blockchains {#traditional-blockchains}
 
@@ -59,7 +59,7 @@ Unlike most existing blockchain systems (and as the reader may have guessed from
 
 Narwhal and Bullshark represent the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reaches throughputs more than 130,000 transactions per second on a WAN, with production cryptography, permanent storage, and a scaled-out primary-worker architecture.
 
-The [Narwhal mempool](https://github.com/MystenLabs/narwhal) offers a high-throughput data availability engine and a scaled architecture, splitting the disk I/O and networking requirements across several workers. And Bullshark is a zero-message overhead consensus algorithm, leveraging graph traversals.
+The [Narwhal mempool](https://github.com/iotaledger/iota/tree/develop/narwhal) offers a high-throughput data availability engine and a scaled architecture, splitting the disk I/O and networking requirements across several workers. And Bullshark is a zero-message overhead consensus algorithm, leveraging graph traversals.
 
 ## Where IOTA excels {#where-iota-excels}
 
@@ -128,4 +128,4 @@ IOTA uses the state commitment that arrives upon epoch change. IOTA requires a s
 
 In summary, IOTA offers many performance and usability gains at the cost of some complexity in less simple use cases. Direct sender transactions excel in IOTA. And complex smart contracts may benefit from shared objects where more than one user can mutate those objects (following smart contract specific rules). In this case, IOTA totally orders all transactions involving shared objects using a consensus protocol.
 
-IOTA uses a novel peer-reviewed consensus protocol based on [Narwhal and Bullshark](https://github.com/MystenLabs/narwhal), which provides a DAG-based mempool and efficient Byzantine Fault Tolerant (BFT) consensus. This is state-of-the-art in terms of both performance and robustness.
+IOTA uses a novel peer-reviewed consensus protocol based on [Narwhal and Bullshark](https://github.com/iotaledger/iota/tree/develop/narwhal), which provides a DAG-based mempool and efficient Byzantine Fault Tolerant (BFT) consensus. This is state-of-the-art in terms of both performance and robustness.

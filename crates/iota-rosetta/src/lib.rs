@@ -46,7 +46,7 @@ impl RosettaOnlineServer {
         }
     }
 
-    pub fn serve(self, addr: SocketAddr) -> JoinHandle<hyper::Result<()>> {
+    pub async fn serve(self, addr: SocketAddr) -> anyhow::Result<JoinHandle<std::io::Result<()>>> {
         // Online endpoints
         let app = Router::new()
             .route("/account/balance", post(account::balance))
@@ -60,12 +60,14 @@ impl RosettaOnlineServer {
             .route("/network/options", post(network::options))
             .layer(Extension(self.env))
             .with_state(self.context);
-        let server = axum::Server::bind(&addr).serve(app.into_make_service());
+        let listener = tokio::net::TcpListener::bind(addr).await?;
         info!(
             "Iota Rosetta online server listening on {}",
-            server.local_addr()
+            listener.local_addr()?
         );
-        spawn_monitored_task!(server)
+        Ok(spawn_monitored_task!(async {
+            axum::serve(listener, app.into_make_service()).await
+        }))
     }
 }
 
@@ -78,7 +80,7 @@ impl RosettaOfflineServer {
         Self { env }
     }
 
-    pub fn serve(self, addr: SocketAddr) -> JoinHandle<hyper::Result<()>> {
+    pub async fn serve(self, addr: SocketAddr) -> anyhow::Result<JoinHandle<std::io::Result<()>>> {
         // Online endpoints
         let app = Router::new()
             .route("/construction/derive", post(construction::derive))
@@ -90,11 +92,13 @@ impl RosettaOfflineServer {
             .route("/network/list", post(network::list))
             .route("/network/options", post(network::options))
             .layer(Extension(self.env));
-        let server = axum::Server::bind(&addr).serve(app.into_make_service());
+        let listener = tokio::net::TcpListener::bind(addr).await?;
         info!(
             "Iota Rosetta offline server listening on {}",
-            server.local_addr()
+            listener.local_addr()?
         );
-        spawn_monitored_task!(server)
+        Ok(spawn_monitored_task!(async {
+            axum::serve(listener, app.into_make_service()).await
+        }))
     }
 }

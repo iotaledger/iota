@@ -48,7 +48,6 @@ Response: {
         "activeValidators": {
           "nodes": [
             {
-              "apy": 1,
               "name": "validator-0"
             }
           ]
@@ -147,7 +146,6 @@ Response: {
         "activeValidators": {
           "nodes": [
             {
-              "apy": 2,
               "name": "validator-0",
               "reportRecords": {
                 "nodes": []

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::hash_map::RandomState,
     env,
     io::{stderr, Write},
     path::PathBuf,
@@ -16,18 +15,14 @@ use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    sdk::{
-        self, runtime,
-        trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
-        Resource,
-    },
-    trace::TracerProvider as _,
-};
-use opentelemetry_api::{
-    trace::{Link, SamplingResult, SpanKind, TraceId},
-    Context, Key, OrderMap, Value,
+    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
+    Context, KeyValue,
 };
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{
+    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
+    Resource,
+};
 use span_latency_prom::PrometheusSpanLatencyLayer;
 use tracing::{error, info, metadata::LevelFilter, Level};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -389,7 +384,7 @@ impl TelemetryConfig {
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
 
-            let config = sdk::trace::config()
+            let config = opentelemetry_sdk::trace::config()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
                     "iota-node",
@@ -402,7 +397,9 @@ impl TelemetryConfig {
                 let exporter =
                     FileExporter::new(Some(trace_file.into())).expect("Failed to create exporter");
                 file_output = exporter.cached_open_file.clone();
-                let processor = BatchSpanProcessor::builder(exporter, runtime::Tokio).build();
+                let processor =
+                    BatchSpanProcessor::builder(exporter, opentelemetry_sdk::runtime::Tokio)
+                        .build();
 
                 let p = TracerProvider::builder()
                     .with_config(config)
@@ -425,7 +422,7 @@ impl TelemetryConfig {
                             .with_endpoint(endpoint),
                     )
                     .with_trace_config(config)
-                    .install_batch(sdk::runtime::Tokio)
+                    .install_batch(opentelemetry_sdk::runtime::Tokio)
                     .expect("Could not create async Tracer");
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
@@ -433,7 +430,7 @@ impl TelemetryConfig {
 
             // Enable Trace Contexts for tying spans together
             opentelemetry::global::set_text_map_propagator(
-                opentelemetry::sdk::propagation::TraceContextPropagator::new(),
+                opentelemetry_sdk::propagation::TraceContextPropagator::new(),
             );
 
             let trace_env_filter = EnvFilter::try_from_env("TRACE_FILTER").unwrap();
@@ -522,7 +519,7 @@ impl ShouldSample for SamplingFilter {
         trace_id: TraceId,
         name: &str,
         span_kind: &SpanKind,
-        attributes: &OrderMap<Key, Value, RandomState>,
+        attributes: &[KeyValue],
         links: &[Link],
     ) -> SamplingResult {
         let sample_rate = self.sample_rate.load(Ordering::Relaxed);

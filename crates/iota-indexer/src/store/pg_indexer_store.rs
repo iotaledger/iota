@@ -721,17 +721,17 @@ impl PgIndexerStore {
                                 .eq(excluded(epochs::epoch_total_transactions)),
                             epochs::last_checkpoint_id.eq(excluded(epochs::last_checkpoint_id)),
                             epochs::epoch_end_timestamp.eq(excluded(epochs::epoch_end_timestamp)),
-                            epochs::storage_fund_reinvestment
-                                .eq(excluded(epochs::storage_fund_reinvestment)),
                             epochs::storage_charge.eq(excluded(epochs::storage_charge)),
                             epochs::storage_rebate.eq(excluded(epochs::storage_rebate)),
                             epochs::stake_subsidy_amount.eq(excluded(epochs::stake_subsidy_amount)),
                             epochs::total_gas_fees.eq(excluded(epochs::total_gas_fees)),
                             epochs::total_stake_rewards_distributed
                                 .eq(excluded(epochs::total_stake_rewards_distributed)),
-                            epochs::leftover_storage_fund_inflow
-                                .eq(excluded(epochs::leftover_storage_fund_inflow)),
+                            epochs::burnt_leftover_amount
+                                .eq(excluded(epochs::burnt_leftover_amount)),
                             epochs::epoch_commitments.eq(excluded(epochs::epoch_commitments)),
+                            epochs::burnt_tokens_amount.eq(excluded(epochs::burnt_tokens_amount)),
+                            epochs::minted_tokens_amount.eq(excluded(epochs::minted_tokens_amount)),
                         ))
                         .execute(conn)?;
                 }

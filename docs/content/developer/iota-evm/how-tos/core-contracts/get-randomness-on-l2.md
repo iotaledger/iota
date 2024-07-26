@@ -123,5 +123,4 @@ contract Random {
         return value;
     }
 }
-
 ```
