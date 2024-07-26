@@ -16,7 +16,7 @@ A successful build returns a response similar to the following:
 
 ```shell
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY IOTA
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING my_first_package
 ```
@@ -38,7 +38,7 @@ $ iota move test
 If you execute this command for the package created in [Write a Package](write-package.mdx), you see the following output. Unsurprisingly, the test result has an `OK` status because there are no tests written yet to fail.
 
 ```shell
-BUILDING IOTA
+BUILDING Iota
 BUILDING MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
@@ -116,7 +116,7 @@ Run the test command again. Now the output shows a single successful test has ru
 
 ```shell
 BUILDING MoveStdlib
-BUILDING IOTA
+BUILDING Iota
 BUILDING my_first_package
 Running Move unit tests
 [ PASS    ] 0x0::my_module::test_sword_create
@@ -245,7 +245,7 @@ In the pure Move testing function, the function transfers the `sword` object to 
 Run the test command again to see two successful tests for our module:
 
 ```shell
-BUILDING IOTA
+BUILDING Iota
 BUILDING MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
