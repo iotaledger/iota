@@ -121,7 +121,7 @@ export interface DelegatedTimelockedStake {
     stakingPool: string;
     validatorAddress: string;
 }
-/** Additional rguments supplied to dev inspect beyond what is allowed in today's API. */
+/** Additional arguments supplied to dev inspect beyond what is allowed in today's API. */
 export interface DevInspectArgs {
     /** The gas budget for the transaction. */
     gasBudget?: string | null;
@@ -612,6 +612,8 @@ export interface IotaSystemStateSummary {
     inactivePoolsId: string;
     /** Number of inactive staking pools. */
     inactivePoolsSize: string;
+    /** The current IOTA supply. */
+    iotaTotalSupply: string;
     /**
      * Maximum number of active validators at any moment. We do not allow the number of validators in any
      * epoch to go above this.
@@ -639,10 +641,10 @@ export interface IotaSystemStateSummary {
     safeModeComputationRewards: string;
     /** Amount of non-refundable storage fee accumulated during safe mode. */
     safeModeNonRefundableStorageFee: string;
-    /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
-    safeModeStorageRebates: string;
     /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */
     safeModeStorageCharges: string;
+    /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
+    safeModeStorageRebates: string;
     /** Balance of IOTA set aside for stake subsidies that will be drawn down over time. */
     stakeSubsidyBalance: string;
     /** The amount of stake subsidy to be drawn down per epoch. This amount decays and decreases over time. */
@@ -666,8 +668,8 @@ export interface IotaSystemStateSummary {
     /** Number of staking pool mappings. */
     stakingPoolMappingsSize: string;
     /**
-     * The non-refundable portion of the storage fund coming from storage reinvestment, non-refundable
-     * storage rebates and any leftover staking rewards.
+     * The non-refundable portion of the storage fund coming from non-refundable storage rebates and any
+     * leftover staking rewards.
      */
     storageFundNonRefundableBalance: string;
     /** The storage rebates of all the objects on-chain stored in the storage fund. */
