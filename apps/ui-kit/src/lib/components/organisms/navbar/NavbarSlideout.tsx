@@ -21,11 +21,11 @@ function NavbarSlideout({
 
     return (
         <>
-            <div className="z-1 absolute left-0 top-0 h-full w-full bg-shader-neutral-light-72"></div>
+            <div className="z-998 fixed left-0 top-0 h-full w-full bg-shader-neutral-light-72"></div>
             <div
                 className={cx(
                     className,
-                    'z-2 rounded-tb-3xl absolute left-0 top-0 h-full w-9/12 rounded-tr-3xl bg-white py-lg transition-transform duration-300 ease-out',
+                    'z-999 rounded-tb-3xl fixed left-0 top-0 h-full w-9/12 rounded-tr-3xl bg-white py-lg transition-transform duration-300 ease-out',
                     {
                         'translate-x-0': isOpen,
                         '-translate-x-full': !isOpen,

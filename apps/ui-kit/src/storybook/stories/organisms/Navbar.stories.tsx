@@ -20,7 +20,11 @@ const NAVBAR_ITEMS_WITH_TEXT: NavbarItemWithID[] = [
     { id: 'activity', icon: <Activity />, text: 'Activity' },
 ];
 
-const meta: Meta<NavbarProps> = {
+type NavbarCustomProps = NavbarProps & {
+    isOpen: boolean;
+};
+
+const meta: Meta<NavbarCustomProps> = {
     component: Navbar,
     tags: ['autodocs'],
     render: () => {
@@ -63,18 +67,22 @@ export const Vertical: Story = {
     },
 };
 export const SlideOut: Story = {
-    args: {},
-    argTypes: {},
+    args: {
+        isOpen: true,
+    },
+    argTypes: {
+        isOpen: {
+            control: 'boolean',
+        },
+    },
     render: (args) => {
         const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
-        const [isOpen, setIsOpen] = useState(true);
-        console.log('--- activeId', activeId);
+
         return (
             <div>
-                <div onClick={() => setIsOpen(!isOpen)}>Change open</div>
                 <div className="relative flex h-[500px] w-1/3 border border-gray-200">
                     <NavbarSlideout
-                        isOpen={isOpen}
+                        isOpen={args.isOpen}
                         items={NAVBAR_ITEMS_WITH_TEXT}
                         activeId={activeId}
                         onClick={(id) => setActiveId(id)}
