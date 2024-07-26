@@ -1,5 +1,7 @@
 name: Changesets CI
+
 on: pull_request
+
 jobs:
   validate:
     runs-on: self-hosted-rust
