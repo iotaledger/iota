@@ -16,13 +16,13 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_coins(active_address, coin_type.clone(), None, Some(5))
         .await;
     let error = coins.unwrap_err();
-    if let Error::RpcError(rpc_error) = error {
+    if let Error::Rpc(rpc_error) = error {
         let converted: JsonRpcError = rpc_error.into();
         println!(" *** RpcError ***");
         println!("{converted}");
         println!("{}", converted.is_client_error());
     } else {
-        bail!("Expected Error::RpcError, got {:?}", error);
+        bail!("Expected Error::Rpc, got {:?}", error);
     }
     Ok(())
 }
