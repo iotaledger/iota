@@ -128,7 +128,7 @@ to complete your request. You can check if your coins have arrived using the `io
 
 The `faucet` command uses the active address and the active network environment by default. If you need to pass in a
 different address or faucet server URL, check the `help` menu. If you're using a different network than a local
-or public one (fullnode.network.iota.io), you must pass the URL to the faucet server.
+or public one, you must pass the URL to the faucet server.
 
 :::
 
@@ -196,7 +196,7 @@ your `.env` file, edit the first line to read `API_ENV=local` and then save the 
 Run the following command from the `iota` root folder to start the IOTA Wallet on your local network:
 
 ```bash
-pnpm wallet dev
+pnpm wallet build
 ```
 
 ### Add a Local IOTA Wallet to Chrome
@@ -205,7 +205,7 @@ After you build your local version of IOTA Wallet, you can add the extension to 
 
 1. Open a Chrome browser to `chrome://extensions`.
 2. Click the **Developer mode** toggle to enable if it's not already on.
-3. Click the **Load unpacked** button and select your `iota/apps/wallet/dist` directory.
+3. Click the **Load unpacked** button and select your `apps/wallet/dist` directory in your local copy of the [IOTA repository](../advanced/iota-repository.mdx).
 
 Consult the IOTA
 Wallet [Readme](https://github.com/iotaledger/iota/blob/main/apps/wallet/README.md#install-the-extension-to-chrome) for
@@ -241,7 +241,18 @@ To resolve this, switch or update to Node.js 18 and then try again.
 ## Test with the IOTA TypeScript SDK
 
 The published version of the IOTA TypeScript SDK might be an earlier version than the version of IOTA you installed for
-your local network. To make sure you're using the latest version of the SDK, use the `experimental`-tagged version (for
-example, `0.0.0-experimental-20230317184920`) in
-the [Current Tags](https://www.npmjs.com/package/@iota/iota.js/v/0.0.0-experimental-20230127130009?activeTab=versions)
-section of the IOTA NPM registry.
+your local network. To make sure you're using the latest version of the SDK, use a local built version of SDK. 
+
+In your local checkout of the [IOTA repository](../advanced/iota-repository.mdx) make sure you are using the same branch as the network you are developing against. Run 
+```bash
+pnpm install && pnpm build
+```
+ to compile the SDK.
+
+To use the local built SDK in your project go to your project folder and execute 
+
+```bash
+pnpm add <PATH_TO_YOUR_REPO>/sdk/typescript
+``` 
+
+and the locally compiled version of `iota/iota.js` package will be installed for your application.
