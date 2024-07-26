@@ -12,7 +12,6 @@ bcs.workspace = true
 iota-types.workspace = true
 serde.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]

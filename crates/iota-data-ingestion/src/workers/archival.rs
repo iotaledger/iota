@@ -125,7 +125,7 @@ impl ArchivalWorker {
 
         let bytes = finalize_manifest(manifest)?;
         self.remote_store
-            .put(&Path::from("MANIFEST"), bytes)
+            .put(&Path::from("MANIFEST"), bytes.into())
             .await?;
         Ok(())
     }
@@ -140,7 +140,7 @@ impl ArchivalWorker {
         let mut cursor = Cursor::new(buffer);
         compress(&mut cursor, &mut compressed_buffer)?;
         self.remote_store
-            .put(&location, Bytes::from(compressed_buffer.clone()))
+            .put(&location, Bytes::from(compressed_buffer.clone()).into())
             .await?;
         Ok(Bytes::from(compressed_buffer))
     }

@@ -26,7 +26,7 @@ use iota_types::{
 pub use rpc_command_processor::{
     load_addresses_from_file, load_digests_from_file, load_objects_from_file, RpcCommandProcessor,
 };
-use strum_macros::EnumString;
+use strum::EnumString;
 
 use crate::load_test::LoadTestConfig;
 
