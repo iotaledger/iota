@@ -28,7 +28,8 @@ use iota_types::{
 use tracing::warn;
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    migration::executor::{with_no_prefix, FoundryLedgerData},
+    types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -75,14 +76,14 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
             .get(native_token.token_id())
             .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
 
-        let expected_token_type = foundry_data.canonical_coin_type();
+        let expected_df_key = with_no_prefix(foundry_data.canonical_coin_type());
         // The token amounts are scaled so that the total circulating supply does not
         // exceed `u64::MAX`
         let reduced_amount = foundry_data
             .token_scheme_u64
             .adjust_tokens(native_token.amount());
 
-        if let Some(created_value) = created_native_tokens.get(&expected_token_type) {
+        if let Some(created_value) = created_native_tokens.get(&expected_df_key) {
             ensure!(
                 *created_value == reduced_amount,
                 "created token amount mismatch: found {created_value}, expected {reduced_amount}"

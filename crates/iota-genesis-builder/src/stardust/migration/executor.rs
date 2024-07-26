@@ -769,7 +769,7 @@ mod pt {
     ) -> Result<()> {
         let key_type: StructTag = NATIVE_TOKEN_BAG_KEY_TYPE.parse()?;
         let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
-        let token_name = builder.pure(token_type)?;
+        let token_name = builder.pure(with_no_prefix(token_type))?;
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
@@ -831,4 +831,8 @@ impl FoundryLedgerData {
             self.coin_type_origin.struct_name
         )
     }
+}
+
+pub(crate) fn with_no_prefix(value: String) -> String {
+    value.replace("0x", "")
 }
