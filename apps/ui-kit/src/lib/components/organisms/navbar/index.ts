@@ -3,4 +3,3 @@
 
 export * from './Navbar';
 export * from './NavbarSlideout';
-export { NavbarType } from './navbar.enums';

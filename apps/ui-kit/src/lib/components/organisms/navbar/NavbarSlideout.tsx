@@ -39,14 +39,12 @@ function NavbarSlideout({
                         </div>
                     </div>
                     {items.map((item) => (
-                        <div
-                            key={item.id}
-                            className={cx('state-layer relative flex cursor-pointer px-lg', {
-                                'bg-primary-60 bg-opacity-8': item.id === activeId,
-                            })}
-                            onClick={() => onClick(item.id)}
-                        >
-                            <NavbarItem {...item} type={NavbarItemType.Horizontal} />
+                        <div key={item.id} className={cx('px-lg')} onClick={() => onClick(item.id)}>
+                            <NavbarItem
+                                {...item}
+                                type={NavbarItemType.Vertical}
+                                isSelected={item.id === activeId}
+                            />
                         </div>
                     ))}
                 </div>

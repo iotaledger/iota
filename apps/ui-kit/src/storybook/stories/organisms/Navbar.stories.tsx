@@ -4,7 +4,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
-import { Navbar, NavbarSlideout, NavbarItemWithID, NavbarProps, NavbarType } from '@/components';
+import { Navbar, NavbarSlideout, NavbarItemWithID, NavbarProps } from '@/components';
 import { useState } from 'react';
 
 const NAVBAR_ITEMS: NavbarItemWithID[] = [
@@ -48,7 +48,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
-export const Vertical: Story = {
+export const Collapsable: Story = {
     args: {},
     argTypes: {},
     render: (args) => {
@@ -57,7 +57,7 @@ export const Vertical: Story = {
         return (
             <div className="flex border border-gray-200">
                 <Navbar
-                    type={NavbarType.Vertical}
+                    isCollapsable
                     items={NAVBAR_ITEMS}
                     activeId={activeId}
                     onClick={(id) => setActiveId(id)}
