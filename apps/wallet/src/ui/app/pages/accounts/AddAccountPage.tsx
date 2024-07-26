@@ -11,7 +11,7 @@ import { useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
-
+import { Header } from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
     useAccountsFormContext,
@@ -47,13 +47,14 @@ export function AddAccountPage() {
 
     return (
         <Overlay showModal title="Add Account" closeOverlay={() => navigate('/')}>
+            <Header title="Add Account" />
             <div className="flex w-full flex-col gap-8">
                 <div className="flex flex-col gap-3">
                     <Button
                         variant="outline"
                         size="tall"
                         text="Set up Ledger"
-                        before={<LedgerLogo className="h-4 w-4 text-gray-90" />}
+                        before={<LedgerLogo className="text-gray-90 h-4 w-4" />}
                         onClick={async () => {
                             ampli.openedConnectLedgerFlow({ sourceFlow });
                             if (isPopup) {
@@ -139,11 +140,11 @@ function Section({ title, children }: SectionProps) {
     return (
         <section className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-                <div className="grow border-0 border-t border-solid border-gray-40"></div>
+                <div className="border-gray-40 grow border-0 border-t border-solid"></div>
                 <Text variant="caption" weight="semibold" color="steel">
                     {title}
                 </Text>
-                <div className="grow border-0 border-t border-solid border-gray-40"></div>
+                <div className="border-gray-40 grow border-0 border-t border-solid"></div>
             </div>
             {children}
         </section>
