@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::{eyre, Context, Result};
+use hyper_util::rt::TokioIo;
 use tonic::transport::{Channel, Endpoint, Uri};
 
 use crate::{
@@ -112,7 +113,11 @@ impl MyEndpoint {
                     let path = path.clone();
 
                     // Connect to a Uds socket
-                    tokio::net::UnixStream::connect(path)
+                    async {
+                        Ok::<_, std::io::Error>(TokioIo::new(
+                            tokio::net::UnixStream::connect(path).await?,
+                        ))
+                    }
                 }));
         }
 
@@ -128,7 +133,11 @@ impl MyEndpoint {
                     let path = path.clone();
 
                     // Connect to a Uds socket
-                    tokio::net::UnixStream::connect(path)
+                    async {
+                        Ok::<_, std::io::Error>(TokioIo::new(
+                            tokio::net::UnixStream::connect(path).await?,
+                        ))
+                    }
                 }))
                 .await
                 .map_err(Into::into);

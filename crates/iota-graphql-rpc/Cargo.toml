@@ -13,6 +13,7 @@ async-graphql-axum.workspace = true
 async-graphql-value.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+axum-extra = { workspace = true, features = ["typed-header"] }
 chrono.workspace = true
 clap.workspace = true
 const-str.workspace = true
@@ -24,7 +25,9 @@ futures.workspace = true
 git-version.workspace = true
 hex.workspace = true
 http.workspace = true
+http-body-util.workspace = true
 hyper.workspace = true
+hyper-util = { workspace = true, features = ["http2", "server", "tokio"] }
 im.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true

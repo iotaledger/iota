@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use strum_macros::EnumIter;
+use strum::EnumIter;
 
 #[derive(Parser)]
 #[clap(

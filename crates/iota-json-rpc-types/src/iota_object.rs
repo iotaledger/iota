@@ -219,6 +219,88 @@ pub struct IotaObjectData {
 }
 
 impl IotaObjectData {
+    pub fn new(
+        object_ref: ObjectRef,
+        obj: Object,
+        layout: impl Into<Option<MoveStructLayout>>,
+        options: IotaObjectDataOptions,
+        display_fields: impl Into<Option<DisplayFieldsResponse>>,
+    ) -> anyhow::Result<Self> {
+        let layout = layout.into();
+        let display_fields = display_fields.into();
+        let show_display = options.show_display;
+        let IotaObjectDataOptions {
+            show_type,
+            show_owner,
+            show_previous_transaction,
+            show_content,
+            show_bcs,
+            show_storage_rebate,
+            ..
+        } = options;
+
+        let (object_id, version, digest) = object_ref;
+        let type_ = if show_type {
+            Some(Into::<ObjectType>::into(&obj))
+        } else {
+            None
+        };
+
+        let bcs: Option<IotaRawData> = if show_bcs {
+            let data = match obj.data.clone() {
+                Data::Move(m) => {
+                    let layout = layout.clone().ok_or_else(|| {
+                        anyhow!("Layout is required to convert Move object to json")
+                    })?;
+                    IotaRawData::try_from_object(m, layout)?
+                }
+                Data::Package(p) => IotaRawData::try_from_package(p)
+                    .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
+            };
+            Some(data)
+        } else {
+            None
+        };
+
+        let obj = obj.into_inner();
+
+        let content: Option<IotaParsedData> = if show_content {
+            let data = match obj.data {
+                Data::Move(m) => {
+                    let layout = layout.ok_or_else(|| {
+                        anyhow!("Layout is required to convert Move object to json")
+                    })?;
+                    IotaParsedData::try_from_object(m, layout)?
+                }
+                Data::Package(p) => IotaParsedData::try_from_package(p)?,
+            };
+            Some(data)
+        } else {
+            None
+        };
+
+        Ok(IotaObjectData {
+            object_id,
+            version,
+            digest,
+            type_,
+            owner: if show_owner { Some(obj.owner) } else { None },
+            storage_rebate: if show_storage_rebate {
+                Some(obj.storage_rebate)
+            } else {
+                None
+            },
+            previous_transaction: if show_previous_transaction {
+                Some(obj.previous_transaction)
+            } else {
+                None
+            },
+            content,
+            bcs,
+            display: if show_display { display_fields } else { None },
+        })
+    }
+
     pub fn object_ref(&self) -> ObjectRef {
         (self.object_id, self.version, self.digest)
     }
@@ -426,10 +508,9 @@ impl TryFrom<(ObjectRead, IotaObjectDataOptions)> for IotaObjectResponse {
             ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
                 IotaObjectResponseError::NotExists { object_id: id },
             )),
-            ObjectRead::Exists(object_ref, o, layout) => {
-                let data = (object_ref, o, layout, options).try_into()?;
-                Ok(IotaObjectResponse::new_with_data(data))
-            }
+            ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
+                IotaObjectData::new(object_ref, o, layout, options, None)?,
+            )),
             ObjectRead::Deleted((object_id, version, digest)) => Ok(
                 IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
                     object_id,
@@ -467,126 +548,6 @@ impl TryFrom<(ObjectInfo, IotaObjectDataOptions)> for IotaObjectResponse {
             content: None,
             bcs: None,
         }))
-    }
-}
-
-impl
-    TryFrom<(
-        ObjectRef,
-        Object,
-        Option<MoveStructLayout>,
-        IotaObjectDataOptions,
-    )> for IotaObjectData
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (object_ref, o, layout, options): (
-            ObjectRef,
-            Object,
-            Option<MoveStructLayout>,
-            IotaObjectDataOptions,
-        ),
-    ) -> Result<Self, Self::Error> {
-        let IotaObjectDataOptions {
-            show_type,
-            show_owner,
-            show_previous_transaction,
-            show_content,
-            show_bcs,
-            show_storage_rebate,
-            ..
-        } = options;
-
-        let (object_id, version, digest) = object_ref;
-        let type_ = if show_type {
-            Some(Into::<ObjectType>::into(&o))
-        } else {
-            None
-        };
-
-        let bcs: Option<IotaRawData> = if show_bcs {
-            let data = match o.data.clone() {
-                Data::Move(m) => {
-                    let layout = layout.clone().ok_or_else(|| {
-                        anyhow!("Layout is required to convert Move object to json")
-                    })?;
-                    IotaRawData::try_from_object(m, layout)?
-                }
-                Data::Package(p) => IotaRawData::try_from_package(p)
-                    .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
-            };
-            Some(data)
-        } else {
-            None
-        };
-
-        let o = o.into_inner();
-
-        let content: Option<IotaParsedData> = if show_content {
-            let data = match o.data {
-                Data::Move(m) => {
-                    let layout = layout.ok_or_else(|| {
-                        anyhow!("Layout is required to convert Move object to json")
-                    })?;
-                    IotaParsedData::try_from_object(m, layout)?
-                }
-                Data::Package(p) => IotaParsedData::try_from_package(p)?,
-            };
-            Some(data)
-        } else {
-            None
-        };
-
-        Ok(IotaObjectData {
-            object_id,
-            version,
-            digest,
-            type_,
-            owner: if show_owner { Some(o.owner) } else { None },
-            storage_rebate: if show_storage_rebate {
-                Some(o.storage_rebate)
-            } else {
-                None
-            },
-            previous_transaction: if show_previous_transaction {
-                Some(o.previous_transaction)
-            } else {
-                None
-            },
-            content,
-            bcs,
-            display: None,
-        })
-    }
-}
-
-impl
-    TryFrom<(
-        ObjectRef,
-        Object,
-        Option<MoveStructLayout>,
-        IotaObjectDataOptions,
-        Option<DisplayFieldsResponse>,
-    )> for IotaObjectData
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (object_ref, o, layout, options, display_fields): (
-            ObjectRef,
-            Object,
-            Option<MoveStructLayout>,
-            IotaObjectDataOptions,
-            Option<DisplayFieldsResponse>,
-        ),
-    ) -> Result<Self, Self::Error> {
-        let show_display = options.show_display;
-        let mut data: IotaObjectData = (object_ref, o, layout, options).try_into()?;
-        if show_display {
-            data.display = display_fields;
-        }
-        Ok(data)
     }
 }
 
