@@ -10,11 +10,9 @@ use std::{
 };
 
 use futures::{future::BoxFuture, FutureExt};
-use opentelemetry::{
-    sdk::export::trace::{ExportResult, SpanData, SpanExporter},
-    trace::TraceError,
-};
+use opentelemetry::trace::TraceError;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 use prost::Message;
 
 #[derive(Clone)]

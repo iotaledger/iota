@@ -4,17 +4,20 @@
 
 use std::{env, net::SocketAddr, str::FromStr};
 
-use axum::routing::{get, post};
+use axum::{
+    body::Body,
+    routing::{get, post},
+};
 pub use balance_changes::*;
 use hyper::{
     header::{HeaderName, HeaderValue},
-    Body, Method, Request,
+    Method, Request,
 };
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
-use jsonrpsee::RpcModule;
+use jsonrpsee::{types::ErrorObjectOwned, Extensions, RpcModule};
 pub use object_changes::*;
 use prometheus::Registry;
 use tokio::runtime::Handle;
@@ -120,7 +123,7 @@ impl JsonRpcServerBuilder {
 
     fn trace_layer() -> TraceLayer<
         tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
-        impl tower_http::trace::MakeSpan<hyper::Body> + Clone,
+        impl tower_http::trace::MakeSpan<Body> + Clone,
         (),
         (),
         (),
@@ -163,7 +166,9 @@ impl JsonRpcServerBuilder {
 
         let rpc_docs = self.rpc_doc.clone();
         let mut module = self.module.clone();
-        module.register_method("rpc.discover", move |_, _| Ok(rpc_docs.clone()))?;
+        module.register_method("rpc.discover", move |_, _, _| {
+            Result::<_, ErrorObjectOwned>::Ok(rpc_docs.clone())
+        })?;
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
@@ -172,8 +177,12 @@ impl JsonRpcServerBuilder {
             .layer(Self::trace_layer())
             .layer(Self::cors()?);
 
-        let service =
-            crate::axum_router::JsonRpcService::new(module.into(), rpc_router, metrics_logger);
+        let service = crate::axum_router::JsonRpcService::new(
+            module.into(),
+            rpc_router,
+            metrics_logger,
+            Extensions::new(),
+        );
 
         let mut router = axum::Router::new();
 
@@ -214,10 +223,20 @@ impl JsonRpcServerBuilder {
     ) -> Result<ServerHandle, Error> {
         let app = self.to_router(server_type)?;
 
-        let server = axum::Server::bind(&listen_address).serve(app.into_make_service());
+        let listener = tokio::net::TcpListener::bind(listen_address)
+            .await
+            .map_err(|e| {
+                Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+            })?;
 
-        let addr = server.local_addr();
-        let handle = tokio::spawn(async move { server.await.unwrap() });
+        let addr = listener.local_addr().map_err(|e| {
+            Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
+        })?;
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app.into_make_service())
+                .await
+                .unwrap()
+        });
 
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),

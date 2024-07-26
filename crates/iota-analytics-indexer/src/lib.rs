@@ -22,7 +22,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use snowflake_api::{QueryResult, SnowflakeApi};
-use strum_macros::EnumIter;
+use strum::EnumIter;
 use tracing::info;
 
 use crate::{
@@ -270,7 +270,7 @@ impl MaxCheckpointReader for NoOpCheckpointReader {
     Eq,
     PartialEq,
     Parser,
-    strum_macros::Display,
+    strum::Display,
     ValueEnum,
     Serialize,
     Deserialize,

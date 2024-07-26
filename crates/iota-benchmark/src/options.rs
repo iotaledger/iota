@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use clap::*;
-use strum_macros::EnumString;
+use strum::EnumString;
 
 use crate::drivers::Interval;
 

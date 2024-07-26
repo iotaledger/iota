@@ -51,8 +51,8 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub storage_fund_total_object_storage_rebates: u64,
-    /// The non-refundable portion of the storage fund coming from storage
-    /// reinvestment, non-refundable storage rebates and any leftover
+    /// The non-refundable portion of the storage fund coming from
+    /// non-refundable storage rebates and any leftover
     /// staking rewards.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]

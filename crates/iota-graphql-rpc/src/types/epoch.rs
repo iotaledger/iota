@@ -11,6 +11,7 @@ use async_graphql::{
 };
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
+use futures::Future;
 use iota_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
 use iota_types::messages_checkpoint::CheckpointCommitment as EpochCommitment;
 
@@ -342,52 +343,57 @@ impl Epoch {
     }
 }
 
-#[async_trait::async_trait]
+#[allow(clippy::manual_async_fn)]
 impl Loader<EpochKey> for Db {
     type Value = Epoch;
     type Error = Error;
 
-    async fn load(&self, keys: &[EpochKey]) -> Result<HashMap<EpochKey, Epoch>, Error> {
-        use epochs::dsl;
+    fn load(
+        &self,
+        keys: &[EpochKey],
+    ) -> impl Future<Output = Result<HashMap<EpochKey, Self::Value>, Self::Error>> + Send {
+        async {
+            use epochs::dsl;
 
-        let epoch_ids: BTreeSet<_> = keys.iter().map(|key| key.epoch_id as i64).collect();
-        let epochs: Vec<QueryableEpochInfo> = self
-            .execute_repeatable(move |conn| {
-                conn.results(move || {
-                    dsl::epochs
-                        .select(QueryableEpochInfo::as_select())
-                        .filter(dsl::epoch.eq_any(epoch_ids.iter().cloned()))
+            let epoch_ids: BTreeSet<_> = keys.iter().map(|key| key.epoch_id as i64).collect();
+            let epochs: Vec<QueryableEpochInfo> = self
+                .execute_repeatable(move |conn| {
+                    conn.results(move || {
+                        dsl::epochs
+                            .select(QueryableEpochInfo::as_select())
+                            .filter(dsl::epoch.eq_any(epoch_ids.iter().cloned()))
+                    })
                 })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch epochs: {e}")))?;
+                .await
+                .map_err(|e| Error::Internal(format!("Failed to fetch epochs: {e}")))?;
 
-        let epoch_id_to_stored: BTreeMap<_, _> = epochs
-            .into_iter()
-            .map(|stored| (stored.epoch as u64, stored))
-            .collect();
+            let epoch_id_to_stored: BTreeMap<_, _> = epochs
+                .into_iter()
+                .map(|stored| (stored.epoch as u64, stored))
+                .collect();
 
-        Ok(keys
-            .iter()
-            .filter_map(|key| {
-                let stored = epoch_id_to_stored.get(&key.epoch_id).cloned()?;
-                let epoch = Epoch {
-                    stored,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
-                };
+            Ok(keys
+                .iter()
+                .filter_map(|key| {
+                    let stored = epoch_id_to_stored.get(&key.epoch_id).cloned()?;
+                    let epoch = Epoch {
+                        stored,
+                        checkpoint_viewed_at: key.checkpoint_viewed_at,
+                    };
 
-                // We filter by checkpoint viewed at in memory because it should be quite rare
-                // that this query actually filters something (only in edge
-                // cases), and not trying to encode it in the SQL query makes
-                // the query much simpler and therefore easier for
-                // the DB to plan.
-                let start = epoch.stored.first_checkpoint_id as u64;
-                if matches!(key.checkpoint_viewed_at, Some(cp) if cp < start) {
-                    None
-                } else {
-                    Some((*key, epoch))
-                }
-            })
-            .collect())
+                    // We filter by checkpoint viewed at in memory because it should be quite rare
+                    // that this query actually filters something (only in edge
+                    // cases), and not trying to encode it in the SQL query makes
+                    // the query much simpler and therefore easier for
+                    // the DB to plan.
+                    let start = epoch.stored.first_checkpoint_id as u64;
+                    if matches!(key.checkpoint_viewed_at, Some(cp) if cp < start) {
+                        None
+                    } else {
+                        Some((*key, epoch))
+                    }
+                })
+                .collect())
+        }
     }
 }
