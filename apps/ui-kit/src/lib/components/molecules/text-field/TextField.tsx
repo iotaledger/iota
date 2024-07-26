@@ -206,7 +206,7 @@ export function TextField({
                             ? isToggleButtonVisible ?? true
                             : isToggleButtonVisible
                     }
-                    onClearInput={() => onChange?.('')}
+                    onClearInput={onClearInput}
                     inputType={inputRef.current?.type}
                     onToggleButtonClick={onToggleButtonClick}
                     trailingElement={trailingElement}
