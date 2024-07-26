@@ -142,15 +142,15 @@ async fn main() -> Result<(), anyhow::Error> {
             // If the basic output can be unlocked, the command will be succesful and will
             // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
-            let mut extracted_native_tokens_bag = Box::new(Argument::NestedResult(extracted_assets, 1));
+            let mut extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
 
             ////// Command #2: extract the netive tokens from the Bag and send them to sender.
             for type_key in df_type_keys {
                 // Type argument for a Native Token contained in the basic output bag
-                let type_arguments = vec![TypeTag::from_str(&type_key)?];
+                let type_arguments = vec![TypeTag::from_str(&format!("0x{type_key}"))?];
                 // Then pass the the bag and the receiver address as input
-                let arguments = vec![*extracted_native_tokens_bag, builder.pure(sender)?];
-                *extracted_native_tokens_bag = builder.programmable_move_call(
+                let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
+                extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_ADDRESS.into(),
                     ident_str!("utilities").to_owned(),
                     ident_str!("extract_and_send_to").to_owned(),
@@ -160,27 +160,29 @@ async fn main() -> Result<(), anyhow::Error> {
             }
 
             ////// Command #3: delete the bag
-            let arguments = vec![*extracted_native_tokens_bag];
-                builder.programmable_move_call(
-                  IOTA_FRAMEWORK_ADDRESS.into(),
-                  ident_str!("bag").to_owned(),
-                  ident_str!("destroy_empty").to_owned(),
-                  vec![],
-                  arguments,
-              );
+            let arguments = vec![extracted_native_tokens_bag];
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("bag").to_owned(),
+                ident_str!("destroy_empty").to_owned(),
+                vec![],
+                arguments,
+            );
 
-              ////// Command #4: create a coin from the extracted IOTA balance
-              let arguments = vec![extracted_base_token];
-              let new_iota_coin= builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
-                    ident_str!("coin").to_owned(),
-                    ident_str!("from_balance").to_owned(),
-                    vec![],
-                    arguments,
-                );
+            ////// Command #4: create a coin from the extracted IOTA balance
+            // Type argument for the IOTA coin
+            let type_arguments = vec![GAS::type_tag()];
+            let arguments = vec![extracted_base_token];
+            let new_iota_coin= builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("coin").to_owned(),
+                ident_str!("from_balance").to_owned(),
+                type_arguments,
+                arguments,
+            );
 
-              ////// Command #5: send back the base token coin to the user.
-              builder.transfer_arg(sender, new_iota_coin)
+            ////// Command #5: send back the base token coin to the user.
+            builder.transfer_arg(sender, new_iota_coin)
         }
         builder.finish()
     };
