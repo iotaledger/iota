@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { TextField, TextFieldType } from '@/components/molecules/text-field';
 import { PlaceholderReplace } from '@iota/ui-icons';
-import { ComponentProps, useEffect, useState } from 'react';
+import { ComponentProps, useCallback, useEffect, useState } from 'react';
 import { Button } from '@/lib';
 
 type CustomStoryProps = {
@@ -93,9 +93,9 @@ export const WithMaxTrailingButton: Story = {
             setValue('10');
         }
 
-        function onChange(value: string) {
+        const onChange = useCallback((value: string) => {
             setValue(value);
-        }
+        }, []);
 
         function checkInputValidity(value: string) {
             if (Number(value) < 0) {
@@ -131,6 +131,7 @@ export const WithMaxTrailingButton: Story = {
                 trailingElement={<TrailingMaxButton />}
                 errorMessage={error}
                 onChange={onChange}
+                onClearInput={() => setValue('')}
             />
         );
     },
@@ -160,7 +161,7 @@ export const TextAreaInput: Story = {
 
         return (
             <div className="w-[300px]">
-                <TextField onChange={handleOnChange} {...storyProps} showHideContentButton />
+                <TextField onChange={handleOnChange} {...storyProps} isToggleButtonVisible />
                 <div className="flex w-full justify-end">
                     <Button onClick={() => onSubmit()} text="Submit" />
                 </div>

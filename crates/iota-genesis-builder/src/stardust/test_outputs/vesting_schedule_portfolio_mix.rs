@@ -15,7 +15,7 @@ use iota_sdk::{
         },
     },
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
     test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
@@ -39,13 +39,11 @@ const ADDRESSES: &[[u32; 3]] = &[
 ];
 
 pub(crate) async fn outputs(
-    randomness_seed: u64,
+    rng: &mut StdRng,
     vested_index: &mut u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
-
-    let mut rng = StdRng::seed_from_u64(randomness_seed);
 
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager
@@ -59,14 +57,14 @@ pub(crate) async fn outputs(
 
         match address_index {
             0 => {
-                add_random_basic_output(&mut outputs, &mut rng, address)?;
+                add_random_basic_output(&mut outputs, rng, address)?;
             }
             1 => {
-                add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
+                add_vested_outputs(&mut outputs, rng, vested_index, address)?;
             }
             2 => {
-                add_random_basic_output(&mut outputs, &mut rng, address)?;
-                add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
+                add_random_basic_output(&mut outputs, rng, address)?;
+                add_vested_outputs(&mut outputs, rng, vested_index, address)?;
             }
             _ => unreachable!(),
         }

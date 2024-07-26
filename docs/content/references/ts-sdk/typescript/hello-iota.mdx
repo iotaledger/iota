@@ -1,17 +1,17 @@
 import Faucet from '@site/../content/_snippets/faucet.mdx';
 
-# Hello Iota
+# Hello IOTA
 
-This basic example introduces you to the Iota TypeScript SDK. The Node.js example mints IOTA on a Iota
+This basic example introduces you to the IOTA TypeScript SDK. The Node.js example mints IOTA on a IOTA
 network and then queries the address to get a sum for the owned IOTA. You don't need to use an IDE to
 complete the example, but one like Microsoft Visual Studio Code helps centralize more advanced
 projects.
 
 ## Before you begin
 
-You need an address on a Iota development network (Devnet, Testnet, local). If you don't already have
-an address, use the [Iota Client CLI](https://docs.iota.io/references/cli/client) or the
-[Iota Wallet browser extension](https://docs.mystenlabs.com) to create one.
+You need an address on a IOTA development network (Devnet, Testnet, local). If you don't already have
+an address, use the [IOTA Client CLI](https://docs.iota.io/references/cli/client) or the
+[IOTA Wallet browser extension](https://docs.mystenlabs.com) to create one.
 
 You also need [Node.js](https://nodejs.org/en/download/current) and a package manager like
 [pnpm](https://pnpm.io/installation) to follow this example, so install them on your system if you
@@ -29,7 +29,7 @@ cd hello-iota
 
 When you use a package manager to install the necessary packages, it downloads the modules to your
 `node_modules` folder and adds the references to your `package.json` file, creating the file if it
-doesn't already exist. For this example, you need only the Iota TypeScript SDK:
+doesn't already exist. For this example, you need only the IOTA TypeScript SDK:
 
 ```sh npm2yarn
 npm i -D @iota/iota.js
@@ -74,7 +74,7 @@ const iotaBefore = await iotaClient.getBalance({
 
 await requestIotaFromFaucetv1({
     // use getFaucetHost to make sure you're using correct faucet address
-    // you can also just use the address (see Iota TypeScript SDK Quick Start for values)
+    // you can also just use the address (see IOTA TypeScript SDK Quick Start for values)
     host: getFaucetHost('devnet'),
     recipient: MY_ADDRESS,
 });
@@ -99,11 +99,11 @@ node index.js
 ```
 
 The code imports the `requestIotaFromFaucetv1` function from the SDK and calls it to mint IOTA for the
-provided address. The code also imports `IotaClient` to create a new client on the Iota network that
+provided address. The code also imports `IotaClient` to create a new client on the IOTA network that
 it uses to query the address and output the amount of IOTA the address owns before and after using
-the faucet. You can check the total IOTA for your address using the Iota Wallet or Iota Client CLI.
+the faucet. You can check the total IOTA for your address using the IOTA Wallet or IOTA Client CLI.
 
 <Faucet/>
 
-You can also use the [Iota Client CLI](https://docs.iota.io/references/cli/client) to perform client
-calls on a Iota network.
+You can also use the [IOTA Client CLI](https://docs.iota.io/references/cli/client) to perform client
+calls on a IOTA network.
