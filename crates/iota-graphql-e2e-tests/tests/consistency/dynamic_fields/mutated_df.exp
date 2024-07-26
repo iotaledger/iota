@@ -21,7 +21,7 @@ Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: 
 task 4 'run'. lines 52-52:
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 8664000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 5 'view-object'. lines 54-54:
 Owner: Account Address ( A )
@@ -30,7 +30,7 @@ Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: 
 
 task 6 'run'. lines 56-56:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 7 'view-object'. lines 58-58:
 Owner: Account Address ( A )
@@ -48,18 +48,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "ICl9e+teEjqve7CWW7hp/LMKm/9pm+aMG/MKnIFfOp5rAQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMg=="
-              },
-              "value": {
-                "json": "df2"
-              }
-            }
-          },
-          {
-            "cursor": "IIk7ci9dWGLPqHkbJUsBkx23/mvRUwJ3a75V1g5Rz3W3AQAAAAAAAAA=",
+            "cursor": "IAHqlq7I+3xawXIuvRYDkW9zX3Oy2WVwT3ku7/ug08HsAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
@@ -70,7 +59,18 @@ Response: {
             }
           },
           {
-            "cursor": "IP/ZlaK9PFyINPqH+9eefBdTeqfZbNS00XXurUtW4fQsAQAAAAAAAAA=",
+            "cursor": "IGmTWMeekEMzUWlqgd8ULHt9c7Qw1RZiwt2hi15+smB7AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg=="
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IKAS3DsjoyueQO6vCwiS/xGVp51Iz1hX4lRKuDO39QHsAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
@@ -115,8 +115,8 @@ Version: 4
 Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, count: 42u64}
 
 task 11 'run'. lines 114-114:
-mutated: object(0,0), object(2,0), object(4,1)
-gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4378968, non_refundable_storage_fee: 44232
+mutated: object(0,0), object(2,0), object(4,0)
+gas summary: computation_cost: 1000000, storage_cost: 4484000,  storage_rebate: 4423200, non_refundable_storage_fee: 0
 
 task 12 'view-object'. lines 116-116:
 Owner: Account Address ( A )
@@ -125,7 +125,7 @@ Contents: Test::M1::Parent {id: iota::object::UID {id: iota::object::ID {bytes: 
 
 task 13 'run'. lines 118-118:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 14 'view-object'. lines 120-120:
 Owner: Account Address ( A )
@@ -143,18 +143,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "ICl9e+teEjqve7CWW7hp/LMKm/9pm+aMG/MKnIFfOp5rAgAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmMg=="
-              },
-              "value": {
-                "json": "df2"
-              }
-            }
-          },
-          {
-            "cursor": "IIk7ci9dWGLPqHkbJUsBkx23/mvRUwJ3a75V1g5Rz3W3AgAAAAAAAAA=",
+            "cursor": "IAHqlq7I+3xawXIuvRYDkW9zX3Oy2WVwT3ku7/ug08HsAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMQ=="
@@ -165,7 +154,18 @@ Response: {
             }
           },
           {
-            "cursor": "IP/ZlaK9PFyINPqH+9eefBdTeqfZbNS00XXurUtW4fQsAgAAAAAAAAA=",
+            "cursor": "IGmTWMeekEMzUWlqgd8ULHt9c7Qw1RZiwt2hi15+smB7AgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg=="
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IKAS3DsjoyueQO6vCwiS/xGVp51Iz1hX4lRKuDO39QHsAgAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmMw=="
