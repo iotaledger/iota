@@ -1,6 +1,6 @@
 name: "Pull Request Labeler"
 on:
-- pull_request_target
+  - pull_request_target
 
 jobs:
   triage:
@@ -9,6 +9,6 @@ jobs:
       pull-requests: write
     runs-on: self-hosted-rust
     steps:
-    - uses: actions/labeler@9fd24f1f9d6ceb64ba34d181b329ee72f99978a0
-      with:
-        repo-token: "${{ secrets.GITHUB_TOKEN }}"
+      - uses: actions/labeler@9fd24f1f9d6ceb64ba34d181b329ee72f99978a0
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
