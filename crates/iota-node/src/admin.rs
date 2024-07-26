@@ -101,10 +101,10 @@ pub async fn run_admin_server(node: Arc<IotaNode>, port: u16, tracing_handle: Tr
         "starting admin server"
     );
 
-    axum::Server::bind(&socket_address)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(socket_address).await.unwrap();
+    axum::serve(listener, app.into_make_service())
         .await
-        .unwrap()
+        .unwrap();
 }
 
 #[derive(Deserialize)]

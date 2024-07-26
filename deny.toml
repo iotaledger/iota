@@ -44,12 +44,8 @@ yanked = "warn"
 ignore = [
   # difference 2.0.0 is unmaintained
   "RUSTSEC-2020-0095",
-  # rusoto is unmaintained, use aws crates
-  "RUSTSEC-2022-0071",
   # `tui` is unmaintained; use `ratatui` instead
   "RUSTSEC-2023-0049",
-  # ansi_term is Unmaintained
-  "RUSTSEC-2021-0139",
   # we don't do RSA signing on Iota (only verifying for zklogin)
   "RUSTSEC-2023-0071",
 ]
@@ -84,6 +80,7 @@ allow = [
   "BSL-1.0",
   "Unicode-DFS-2016",
   "Unicode-3.0",
+  "OpenSSL",
   # "Apache-2.0 WITH LLVM-exception",
 ]
 # The confidence threshold for detecting a license from license text.
@@ -233,7 +230,7 @@ allow-git = [
   "https://github.com/mystenmark/tokio-madsim-fork.git",
   "https://github.com/nextest-rs/nexlint.git",
   "https://github.com/nextest-rs/datatest-stable.git",
-  "https://github.com/wlmyng/jsonrpsee.git",
+  "https://github.com/tokio-rs/prost",
   "https://github.com/zhiburt/tabled.git",
 ]
 

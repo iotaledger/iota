@@ -78,8 +78,8 @@ impl RestService {
             app = Router::new().nest(&base, app);
         }
 
-        axum::Server::bind(&socket_address)
-            .serve(app.into_make_service())
+        let listener = tokio::net::TcpListener::bind(socket_address).await.unwrap();
+        axum::serve(listener, app.into_make_service())
             .await
             .unwrap();
     }

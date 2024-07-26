@@ -20,6 +20,7 @@ use anemo_tower::{
 };
 use anyhow::{anyhow, Result};
 use arc_swap::ArcSwap;
+use fastcrypto::error::FastCryptoError;
 use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider, JWK};
 use futures::TryFutureExt;
 pub use handle::IotaNodeHandle;
@@ -674,7 +675,8 @@ impl IotaNode {
             &prometheus_registry,
             custom_rpc_runtime,
             software_version,
-        )?;
+        )
+        .await?;
 
         let accumulator = Arc::new(StateAccumulator::new(store));
 
@@ -1762,12 +1764,36 @@ impl IotaNode {
         _authority: AuthorityName,
         provider: &OIDCProvider,
     ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        use fastcrypto_zkp::bn254::zk_login::fetch_jwks;
         let client = reqwest::Client::new();
         fetch_jwks(provider, &client)
             .await
             .map_err(|_| IotaError::JWKRetrievalError)
     }
+}
+
+pub async fn fetch_jwks(
+    provider: &OIDCProvider,
+    client: &reqwest::Client,
+) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
+    let response = client
+        .get(provider.get_config().jwk_endpoint)
+        .send()
+        .await
+        .map_err(|e| {
+            FastCryptoError::GeneralError(format!(
+                "Failed to get JWK {:?} {:?}",
+                e.to_string(),
+                provider
+            ))
+        })?;
+    let bytes = response.bytes().await.map_err(|e| {
+        FastCryptoError::GeneralError(format!(
+            "Failed to get bytes {:?} {:?}",
+            e.to_string(),
+            provider
+        ))
+    })?;
+    fastcrypto_zkp::bn254::zk_login::parse_jwks(&bytes, provider)
 }
 
 #[cfg(msim)]
@@ -1852,7 +1878,7 @@ fn build_kv_store(
     )))
 }
 
-pub fn build_http_server(
+pub async fn build_http_server(
     state: Arc<AuthorityState>,
     store: RocksDbStore,
     transaction_orchestrator: &Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
@@ -1944,10 +1970,14 @@ pub fn build_http_server(
         router = router.nest("/rest", rest_router);
     }
 
-    let server = axum::Server::bind(&config.json_rpc_address).serve(router.into_make_service());
+    let listener = tokio::net::TcpListener::bind(&config.json_rpc_address).await?;
 
-    let addr = server.local_addr();
-    let handle = tokio::spawn(async move { server.await.unwrap() });
+    let addr = listener.local_addr()?;
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, router.into_make_service())
+            .await
+            .unwrap()
+    });
 
     info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
 
