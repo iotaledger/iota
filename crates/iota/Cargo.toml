@@ -110,7 +110,5 @@ name = "ptb_files_tests"
 harness = false
 
 [features]
-gas-profiler = [
-  "iota-types/gas-profiler",
-  "iota-execution/gas-profiler",
-]
+gas-profiler = ["iota-types/gas-profiler", "iota-execution/gas-profiler"]
+insecure = []

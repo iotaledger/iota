@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+// TODO re-enable ZKLogin
+
 use std::{
     fmt::{Debug, Display, Formatter},
     fs,
@@ -9,7 +12,7 @@ use std::{
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use clap::*;
+use clap::{self, Subcommand};
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding, Hex},
@@ -17,12 +20,12 @@ use fastcrypto::{
     secp256k1::recoverable::Secp256k1Sig,
     traits::{KeyPair, ToFromBytes},
 };
-use fastcrypto_zkp::bn254::{
-    utils::{get_oidc_url, get_token_exchange_url},
-    zk_login::{fetch_jwks, JwkId, OIDCProvider, JWK},
-    zk_login_api::ZkLoginEnv,
-};
-use im::hashmap::HashMap as ImHashMap;
+// use fastcrypto_zkp::bn254::{
+//     utils::{get_oidc_url, get_token_exchange_url},
+//     zk_login::{fetch_jwks, JwkId, OIDCProvider, JWK},
+//     zk_login_api::ZkLoginEnv,
+// };
+// use im::hashmap::HashMap as ImHashMap;
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -33,9 +36,9 @@ use iota_keys::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    committee::EpochId,
+    // committee::EpochId,
     crypto::{
-        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature,
+        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey,
         SignatureScheme,
     },
     error::IotaResult,
@@ -43,17 +46,21 @@ use iota_types::{
     multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     transaction::{TransactionData, TransactionDataAPI},
-    zk_login_authenticator::ZkLoginAuthenticator,
+};
+#[cfg(insecure)]
+use iota_types::{
+    crypto::Signature, zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::get_zklogin_inputs,
 };
 use json_to_table::{json_to_table, Orientation};
-use num_bigint::BigUint;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+// use num_bigint::BigUint;
+// use rand::{rngs::StdRng, Rng, SeedableRng};
 use rusoto_core::Region;
 use rusoto_kms::{Kms, KmsClient, SignRequest};
 use serde::Serialize;
 use serde_json::json;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope, PersonalMessage};
+use shared_crypto::intent::{Intent, IntentMessage};
+// use shared_crypto::intent::{IntentScope, PersonalMessage};
 use tabled::{
     builder::Builder,
     settings::{object::Rows, Modify, Rotate, Width},
@@ -62,8 +69,9 @@ use tracing::info;
 
 use crate::{
     key_identity::{get_identity_address_from_keystore, KeyIdentity},
-    zklogin_commands_util::{perform_zk_login_test_tx, read_cli_line},
+    // zklogin_commands_util::{perform_zk_login_test_tx, read_cli_line},
 };
+
 #[cfg(test)]
 #[path = "unit_tests/keytool_tests.rs"]
 mod keytool_tests;
@@ -72,21 +80,20 @@ mod keytool_tests;
 #[derive(Subcommand)]
 #[clap(rename_all = "kebab-case")]
 pub enum KeyToolCommand {
-    /// Update an old alias to a new one.
-    /// If a new alias is not provided, a random one will be generated.
-    #[clap(name = "update-alias")]
-    Alias {
-        old_alias: String,
-        /// The alias must start with a letter and can contain only letters,
-        /// digits, dots, hyphens (-), or underscores (_).
-        new_alias: Option<String>,
-    },
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").
     /// Hex private key format import and export are both deprecated in
     /// Iota Wallet and Iota CLI Keystore. Use `iota keytool import` if you
     /// wish to import a key to Iota Keystore.
     Convert { value: String },
+    /// Given a Base64 encoded MultiSig signature, decode its components.
+    /// If tx_bytes is passed in, verify the multisig.
+    DecodeMultiSig {
+        #[clap(long)]
+        multisig: MultiSig,
+        #[clap(long)]
+        tx_bytes: Option<String>,
+    },
     /// Given a Base64 encoded transaction bytes, decode its components. If a
     /// signature is provided, verify the signature against the transaction
     /// and output the result.
@@ -96,13 +103,11 @@ pub enum KeyToolCommand {
         #[clap(long)]
         sig: Option<GenericSignature>,
     },
-    /// Given a Base64 encoded MultiSig signature, decode its components.
-    /// If tx_bytes is passed in, verify the multisig.
-    DecodeMultiSig {
+    /// Output the private key of the given key identity in Iota CLI Keystore as
+    /// Bech32 encoded string starting with `iotaprivkey`.
+    Export {
         #[clap(long)]
-        multisig: MultiSig,
-        #[clap(long)]
-        tx_bytes: Option<String>,
+        key_identity: KeyIdentity,
     },
     /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 |
     /// secp256r1} with optional derivation path, default to
@@ -121,7 +126,6 @@ pub enum KeyToolCommand {
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
     },
-
     /// Add a new key to Iota CLI Keystore using either the input mnemonic
     /// phrase or a Bech32 encoded 33-byte `flag || privkey` starting with
     /// "iotaprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
@@ -139,12 +143,6 @@ pub enum KeyToolCommand {
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
-    },
-    /// Output the private key of the given key identity in Iota CLI Keystore as
-    /// Bech32 encoded string starting with `iotaprivkey`.
-    Export {
-        #[clap(long)]
-        key_identity: KeyIdentity,
     },
     /// List all keys by its Iota address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
@@ -200,7 +198,6 @@ pub enum KeyToolCommand {
         #[clap(long)]
         threshold: ThresholdUnit,
     },
-
     /// Read the content at the provided file path. The accepted format can be
     /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or
     /// `type AuthorityKeyPair` (Base64 encoded `privkey`). It prints its
@@ -241,80 +238,85 @@ pub enum KeyToolCommand {
     /// address, Base64 encoded public key, the key scheme, and the key scheme
     /// flag.
     Unpack { keypair: String },
-
-    /// Given the max_epoch, generate an OAuth url, ask user to paste the
-    /// redirect with id_token, call salt server, then call the prover server,
-    /// create a test transaction, use the ephemeral key to sign and execute it
-    /// by assembling to a serialized zkLogin signature.
-    ZkLoginSignAndExecuteTx {
-        #[clap(long)]
-        max_epoch: EpochId,
-        #[clap(long, default_value = "devnet")]
-        network: String,
-        #[clap(long, default_value = "true")]
-        fixed: bool, // if true, use a fixed kp generated from [0; 32] seed.
-        #[clap(long, default_value = "true")]
-        test_multisig: bool, // if true, use a multisig address with zklogin and a traditional kp.
-        #[clap(long, default_value = "false")]
-        sign_with_sk: bool, /* if true, execute tx with the traditional sig (in the multisig),
-                             * otherwise with the zklogin sig. */
+    /// Update an old alias to a new one.
+    /// If a new alias is not provided, a random one will be generated.
+    UpdateAlias {
+        old_alias: String,
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, dots, hyphens (-), or underscores (_).
+        new_alias: Option<String>,
     },
-
-    /// A workaround to the above command because sometimes token pasting does
-    /// not work (for Facebook). All the inputs required here are printed from
-    /// the command above.
-    ZkLoginEnterToken {
-        #[clap(long)]
-        parsed_token: String,
-        #[clap(long)]
-        max_epoch: EpochId,
-        #[clap(long)]
-        jwt_randomness: String,
-        #[clap(long)]
-        kp_bigint: String,
-        #[clap(long)]
-        ephemeral_key_identifier: IotaAddress,
-        #[clap(long, default_value = "devnet")]
-        network: String,
-        #[clap(long, default_value = "true")]
-        test_multisig: bool,
-        #[clap(long, default_value = "false")]
-        sign_with_sk: bool,
-    },
-
-    /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
-    /// parse it as either as TransactionData or PersonalMessage based on
-    /// `intent_scope`. It verifies the zkLogin signature based its latest
-    /// JWK fetched. Example request: iota keytool zk-login-sig-verify --sig
-    /// $SERIALIZED_ZKLOGIN_SIG --bytes $BYTES --intent-scope 0 --network devnet
-    /// --curr-epoch 10
-    ZkLoginSigVerify {
-        /// The Base64 of the serialized zkLogin signature.
-        #[clap(long)]
-        sig: String,
-        /// The Base64 of the BCS encoded TransactionData or PersonalMessage.
-        #[clap(long)]
-        bytes: Option<String>,
-        /// Either 0 for TransactionData or 3 for PersonalMessage.
-        #[clap(long)]
-        intent_scope: u8,
-        /// The current epoch for the network to verify the signature's
-        /// max_epoch against.
-        #[clap(long)]
-        curr_epoch: Option<EpochId>,
-        /// The network to verify the signature for, determines ZkLoginEnv.
-        #[clap(long, default_value = "devnet")]
-        network: String,
-    },
-
-    /// TESTING ONLY: Given a string of data, sign with the fixed dev-only
-    /// ephemeral key and output a zkLogin signature with a fixed dev-only
-    /// proof with fixed max epoch 10.
-    ZkLoginInsecureSignPersonalMessage {
-        /// The string of data to sign.
-        #[clap(long)]
-        data: String,
-    },
+    // /// A workaround to the above command because sometimes token pasting does
+    // /// not work (for Facebook). All the inputs required here are printed from
+    // /// the command above.
+    // ZkLoginEnterToken {
+    //     #[clap(long)]
+    //     parsed_token: String,
+    //     #[clap(long)]
+    //     max_epoch: EpochId,
+    //     #[clap(long)]
+    //     jwt_randomness: String,
+    //     #[clap(long)]
+    //     kp_bigint: String,
+    //     #[clap(long)]
+    //     ephemeral_key_identifier: IotaAddress,
+    //     #[clap(long, default_value = "devnet")]
+    //     network: String,
+    //     #[clap(long, default_value = "true")]
+    //     test_multisig: bool,
+    //     #[clap(long, default_value = "false")]
+    //     sign_with_sk: bool,
+    // },
+    // /// TESTING ONLY: Given a string of data, sign with the fixed dev-only
+    // /// ephemeral key and output a zkLogin signature with a fixed dev-only
+    // /// proof with fixed max epoch 10.
+    // #[cfg(insecure)]
+    // ZkLoginInsecureSignPersonalMessage {
+    //     /// The string of data to sign.
+    //     #[clap(long)]
+    //     data: String,
+    // },
+    // /// Given the max_epoch, generate an OAuth url, ask user to paste the
+    // /// redirect with id_token, call salt server, then call the prover server,
+    // /// create a test transaction, use the ephemeral key to sign and execute it
+    // /// by assembling to a serialized zkLogin signature.
+    // ZkLoginSignAndExecuteTx {
+    //     #[clap(long)]
+    //     max_epoch: EpochId,
+    //     #[clap(long, default_value = "devnet")]
+    //     network: String,
+    //     #[clap(long, default_value = "true")]
+    //     fixed: bool, // if true, use a fixed kp generated from [0; 32] seed.
+    //     #[clap(long, default_value = "true")]
+    //     test_multisig: bool, // if true, use a multisig address with zklogin and a traditional
+    // kp.     #[clap(long, default_value = "false")]
+    //     sign_with_sk: bool, /* if true, execute tx with the traditional sig (in the multisig),
+    //                          * otherwise with the zklogin sig. */
+    // },
+    // /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
+    // /// parse it as either as TransactionData or PersonalMessage based on
+    // /// `intent_scope`. It verifies the zkLogin signature based its latest
+    // /// JWK fetched. Example request: iota keytool zk-login-sig-verify --sig
+    // /// $SERIALIZED_ZKLOGIN_SIG --bytes $BYTES --intent-scope 0 --network devnet
+    // /// --curr-epoch 10
+    // ZkLoginSigVerify {
+    //     /// The Base64 of the serialized zkLogin signature.
+    //     #[clap(long)]
+    //     sig: String,
+    //     /// The Base64 of the BCS encoded TransactionData or PersonalMessage.
+    //     #[clap(long)]
+    //     bytes: Option<String>,
+    //     /// Either 0 for TransactionData or 3 for PersonalMessage.
+    //     #[clap(long)]
+    //     intent_scope: u8,
+    //     /// The current epoch for the network to verify the signature's
+    //     /// max_epoch against.
+    //     #[clap(long)]
+    //     curr_epoch: Option<EpochId>,
+    //     /// The network to verify the signature for, determines ZkLoginEnv.
+    //     #[clap(long, default_value = "devnet")]
+    //     network: String,
+    // },
 }
 
 // Command Output types
@@ -464,6 +466,7 @@ pub struct ZkLoginSigVerifyResponse {
     res: Option<IotaResult>,
 }
 
+#[cfg(insecure)]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZkLoginInsecureSignPersonalMessage {
@@ -474,14 +477,13 @@ pub struct ZkLoginInsecureSignPersonalMessage {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum CommandOutput {
-    Alias(AliasUpdate),
     Convert(ConvertOutput),
     DecodeMultiSig(DecodedMultiSigOutput),
     DecodeOrVerifyTx(DecodeOrVerifyTxOutput),
     Error(String),
+    Export(ExportedKey),
     Generate(Key),
     Import(Key),
-    Export(ExportedKey),
     List(Vec<Key>),
     LoadKeypair(KeypairData),
     MultiSigAddress(MultiSigAddress),
@@ -491,29 +493,20 @@ pub enum CommandOutput {
     Show(Key),
     Sign(SignData),
     SignKMS(SerializedSig),
-    ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
+    UpdateAlias(AliasUpdate),
+    #[cfg(insecure)]
     ZkLoginInsecureSignPersonalMessage(ZkLoginInsecureSignPersonalMessage),
+    ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
     ZkLoginSigVerify(ZkLoginSigVerifyResponse),
 }
 
 impl KeyToolCommand {
     pub async fn execute(self, keystore: &mut Keystore) -> Result<CommandOutput, anyhow::Error> {
         let cmd_result = Ok(match self {
-            KeyToolCommand::Alias {
-                old_alias,
-                new_alias,
-            } => {
-                let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
-                CommandOutput::Alias(AliasUpdate {
-                    old_alias,
-                    new_alias,
-                })
-            }
             KeyToolCommand::Convert { value } => {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
             }
-
             KeyToolCommand::DecodeMultiSig { multisig, tx_bytes } => {
                 let pks = multisig.get_pk().pubkeys();
                 let sigs = multisig.get_sigs();
@@ -566,7 +559,6 @@ impl KeyToolCommand {
 
                 CommandOutput::DecodeMultiSig(output)
             }
-
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
@@ -589,6 +581,17 @@ impl KeyToolCommand {
                         })
                     }
                 }
+            }
+            KeyToolCommand::Export { key_identity } => {
+                let address = get_identity_address_from_keystore(key_identity, keystore)?;
+                let skp = keystore.get_key(&address)?;
+                let key = ExportedKey {
+                    exported_private_key: skp
+                        .encode()
+                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
+                    key: Key::from(skp),
+                };
+                CommandOutput::Export(key)
             }
             KeyToolCommand::Generate {
                 key_scheme,
@@ -619,7 +622,6 @@ impl KeyToolCommand {
                     CommandOutput::Generate(key)
                 }
             },
-
             KeyToolCommand::Import {
                 alias,
                 input_string,
@@ -643,7 +645,7 @@ impl KeyToolCommand {
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
-                        info!("Importing mneomonics to keystore");
+                        info!("Importing mnemonics to keystore");
                         let iota_address = keystore.import_from_mnemonic(
                             &input_string,
                             key_scheme,
@@ -654,17 +656,6 @@ impl KeyToolCommand {
                         CommandOutput::Import(key)
                     }
                 }
-            }
-            KeyToolCommand::Export { key_identity } => {
-                let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let skp = keystore.get_key(&address)?;
-                let key = ExportedKey {
-                    exported_private_key: skp
-                        .encode()
-                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key: Key::from(skp),
-                };
-                CommandOutput::Export(key)
             }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
@@ -681,7 +672,6 @@ impl KeyToolCommand {
                 }
                 CommandOutput::List(keys)
             }
-
             KeyToolCommand::LoadKeypair { file } => {
                 let output = match read_keypair_from_file(&file) {
                     Ok(keypair) => {
@@ -720,7 +710,6 @@ impl KeyToolCommand {
                 };
                 CommandOutput::LoadKeypair(output)
             }
-
             KeyToolCommand::MultiSigAddress {
                 threshold,
                 pks,
@@ -742,7 +731,6 @@ impl KeyToolCommand {
                 }
                 CommandOutput::MultiSigAddress(output)
             }
-
             KeyToolCommand::MultiSigCombinePartialSig {
                 sigs,
                 pks,
@@ -760,7 +748,6 @@ impl KeyToolCommand {
                     multisig_serialized,
                 })
             }
-
             KeyToolCommand::MultiSigCombinePartialSigLegacy {
                 sigs,
                 pks,
@@ -783,7 +770,6 @@ impl KeyToolCommand {
                     },
                 )
             }
-
             KeyToolCommand::Show { file } => {
                 let res = read_keypair_from_file(&file);
                 match res {
@@ -811,7 +797,6 @@ impl KeyToolCommand {
                     },
                 }
             }
-
             KeyToolCommand::Sign {
                 address,
                 data,
@@ -840,7 +825,6 @@ impl KeyToolCommand {
                     iota_signature: iota_signature.encode_base64(),
                 })
             }
-
             KeyToolCommand::SignKMS {
                 data,
                 keyid,
@@ -883,7 +867,7 @@ impl KeyToolCommand {
                 };
 
                 // Sign the message, normalize the signature and then compacts it
-                // serialize_compact is loaded as bytes for Secp256k1Sinaturere
+                // serialize_compact is loaded as bytes for Secp256k1Signature
                 let response = kms.sign(request).await?;
                 let sig_bytes_der = response
                     .signature
@@ -902,7 +886,6 @@ impl KeyToolCommand {
                     serialized_sig_base64: serialized_sig,
                 })
             }
-
             KeyToolCommand::Unpack { keypair } => {
                 let keypair = IotaKeyPair::decode_base64(&keypair)
                     .map_err(|_| anyhow!("Invalid Base64 encode keypair"))?;
@@ -919,254 +902,265 @@ impl KeyToolCommand {
                 fs::write(path, out_str).unwrap();
                 CommandOutput::Show(key)
             }
-
-            KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data } => {
-                let msg = PersonalMessage {
-                    message: data.as_bytes().to_vec(),
-                };
-                let intent_msg = IntentMessage::new(Intent::personal_message(), msg.clone());
-
-                let skp =
-                    IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
-                let s = Signature::new_secure(&intent_msg, &skp);
-
-                let sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
-                    get_zklogin_inputs(), // this is for the fixed keypair
-                    10,
-                    s,
-                ));
-                CommandOutput::ZkLoginInsecureSignPersonalMessage(
-                    ZkLoginInsecureSignPersonalMessage {
-                        sig: Base64::encode(sig.as_bytes()),
-                        bytes: Base64::encode(bcs::to_bytes(&msg).unwrap()),
-                    },
-                )
-            }
-            KeyToolCommand::ZkLoginSignAndExecuteTx {
-                max_epoch,
-                network,
-                fixed,
-                test_multisig,
-                sign_with_sk,
+            KeyToolCommand::UpdateAlias {
+                old_alias,
+                new_alias,
             } => {
-                let skp = if fixed {
-                    IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
-                } else {
-                    IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rand::thread_rng()))
-                };
-                println!("Ephemeral keypair: {:?}", skp.encode());
-                let pk = skp.public();
-                let ephemeral_key_identifier: IotaAddress = (&skp.public()).into();
-                println!("Ephemeral key identifier: {ephemeral_key_identifier}");
-                keystore.add_key(None, skp)?;
+                let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
+                CommandOutput::UpdateAlias(AliasUpdate {
+                    old_alias,
+                    new_alias,
+                })
+            } /* KeyToolCommand::ZkLoginEnterToken {
+               *     parsed_token,
+               *     max_epoch,
+               *     jwt_randomness,
+               *     kp_bigint,
+               *     ephemeral_key_identifier,
+               *     network,
+               *     test_multisig,
+               *     sign_with_sk,
+               * } => {
+               *     let tx_digest = perform_zk_login_test_tx(
+               *         &parsed_token,
+               *         max_epoch,
+               *         &jwt_randomness,
+               *         &kp_bigint,
+               *         ephemeral_key_identifier,
+               *         keystore,
+               *         &network,
+               *         test_multisig,
+               *         sign_with_sk,
+               *     )
+               *     .await?;
+               *     CommandOutput::ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx { tx_digest
+               * }) }
+               * #[cfg(insecure)]
+               * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data } => {
+               *     let msg = PersonalMessage {
+               *         message: data.as_bytes().to_vec(),
+               *     };
+               *     let intent_msg = IntentMessage::new(Intent::personal_message(),
+               * msg.clone()); */
 
-                let mut eph_pk_bytes = vec![pk.flag()];
-                eph_pk_bytes.extend(pk.as_ref());
-                let kp_bigint = BigUint::from_bytes_be(&eph_pk_bytes);
-                println!("Ephemeral pubkey (BigInt): {:?}", kp_bigint);
+              /*     let skp =
+               *         IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0;
+               * 32])));     let s = Signature::new_secure(&intent_msg, &skp); */
 
-                let jwt_randomness = if fixed {
-                    "100681567828351849884072155819400689117".to_string()
-                } else {
-                    let random_bytes = rand::thread_rng().gen::<[u8; 16]>();
-                    let jwt_random_bytes = BigUint::from_bytes_be(&random_bytes);
-                    jwt_random_bytes.to_string()
-                };
-                println!("Jwt randomness: {jwt_randomness}");
-                let url = get_oidc_url(
-                    OIDCProvider::Google,
-                    &eph_pk_bytes,
-                    max_epoch,
-                    "25769832374-famecqrhe2gkebt5fvqms2263046lj96.apps.googleusercontent.com",
-                    "https://iota.io/",
-                    &jwt_randomness,
-                )?;
-                let url_2 = get_oidc_url(
-                    OIDCProvider::Twitch,
-                    &eph_pk_bytes,
-                    max_epoch,
-                    "rs1bh065i9ya4ydvifixl4kss0uhpt",
-                    "https://iota.io/",
-                    &jwt_randomness,
-                )?;
-                let url_3 = get_oidc_url(
-                    OIDCProvider::Facebook,
-                    &eph_pk_bytes,
-                    max_epoch,
-                    "233307156352917",
-                    "https://iota.io/",
-                    &jwt_randomness,
-                )?;
-                let url_4 = get_oidc_url(
-                    OIDCProvider::Kakao,
-                    &eph_pk_bytes,
-                    max_epoch,
-                    "aa6bddf393b54d4e0d42ae0014edfd2f",
-                    "https://iota.io/",
-                    &jwt_randomness,
-                )?;
-                let url_5 = get_token_exchange_url(
-                    OIDCProvider::Kakao,
-                    "aa6bddf393b54d4e0d42ae0014edfd2f",
-                    "https://iota.io/",
-                    "$YOUR_AUTH_CODE",
-                    "", // not needed
-                )?;
-                let url_6 = get_oidc_url(
-                    OIDCProvider::Apple,
-                    &eph_pk_bytes,
-                    max_epoch,
-                    "nl.digkas.wallet.client",
-                    "https://iota.io/",
-                    &jwt_randomness,
-                )?;
-                let url_7 = get_oidc_url(
-                    OIDCProvider::Slack,
-                    &eph_pk_bytes,
-                    max_epoch,
-                    "2426087588661.5742457039348",
-                    "https://iota.io/",
-                    &jwt_randomness,
-                )?;
-                let url_8 = get_token_exchange_url(
-                    OIDCProvider::Slack,
-                    "2426087588661.5742457039348",
-                    "https://iota.io/",
-                    "$YOUR_AUTH_CODE",
-                    "39b955a118f2f21110939bf3dff1de90",
-                )?;
-                println!("Visit URL (Google): {url}");
-                println!("Visit URL (Twitch): {url_2}");
-                println!("Visit URL (Facebook): {url_3}");
-                println!("Visit URL (Kakao): {url_4}");
-                println!("Token exchange URL (Kakao): {url_5}");
-                println!("Visit URL (Apple): {url_6}");
-                println!("Visit URL (Slack): {url_7}");
-                println!("Token exchange URL (Slack): {url_8}");
+              /*     let sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
+               *         get_zklogin_inputs(), // this is for the fixed keypair
+               *         10,
+               *         s,
+               *     ));
+               *     CommandOutput::ZkLoginInsecureSignPersonalMessage(
+               *         ZkLoginInsecureSignPersonalMessage {
+               *             sig: Base64::encode(sig.as_bytes()),
+               *             bytes: Base64::encode(bcs::to_bytes(&msg).unwrap()),
+               *         },
+               *     )
+               * }
+               * KeyToolCommand::ZkLoginSignAndExecuteTx {
+               *     max_epoch,
+               *     network,
+               *     fixed,
+               *     test_multisig,
+               *     sign_with_sk,
+               * } => {
+               *     let skp = if fixed {
+               *         IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0;
+               * 32])))     } else {
+               *         IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rand::thread_rng()))
+               *     };
+               *     println!("Ephemeral keypair: {:?}", skp.encode());
+               *     let pk = skp.public();
+               *     let ephemeral_key_identifier: IotaAddress = (&skp.public()).into();
+               *     println!("Ephemeral key identifier: {ephemeral_key_identifier}");
+               *     keystore.add_key(None, skp)?; */
 
-                println!(
-                    "Finish login and paste the entire URL here (e.g. https://iota.io/#id_token=...):"
-                );
+              /*     let mut eph_pk_bytes = vec![pk.flag()];
+               *     eph_pk_bytes.extend(pk.as_ref());
+               *     let kp_bigint = BigUint::from_bytes_be(&eph_pk_bytes);
+               *     println!("Ephemeral pubkey (BigInt): {:?}", kp_bigint); */
 
-                let parsed_token = read_cli_line()?;
-                let tx_digest = perform_zk_login_test_tx(
-                    &parsed_token,
-                    max_epoch,
-                    &jwt_randomness,
-                    &kp_bigint.to_string(),
-                    ephemeral_key_identifier,
-                    keystore,
-                    &network,
-                    test_multisig,
-                    sign_with_sk,
-                )
-                .await?;
-                CommandOutput::ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx { tx_digest })
-            }
-            KeyToolCommand::ZkLoginEnterToken {
-                parsed_token,
-                max_epoch,
-                jwt_randomness,
-                kp_bigint,
-                ephemeral_key_identifier,
-                network,
-                test_multisig,
-                sign_with_sk,
-            } => {
-                let tx_digest = perform_zk_login_test_tx(
-                    &parsed_token,
-                    max_epoch,
-                    &jwt_randomness,
-                    &kp_bigint,
-                    ephemeral_key_identifier,
-                    keystore,
-                    &network,
-                    test_multisig,
-                    sign_with_sk,
-                )
-                .await?;
-                CommandOutput::ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx { tx_digest })
-            }
+              /*     let jwt_randomness = if fixed {
+               *         "100681567828351849884072155819400689117".to_string()
+               *     } else {
+               *         let random_bytes = rand::thread_rng().gen::<[u8; 16]>();
+               *         let jwt_random_bytes = BigUint::from_bytes_be(&random_bytes);
+               *         jwt_random_bytes.to_string()
+               *     };
+               *     println!("Jwt randomness: {jwt_randomness}");
+               *     let url = get_oidc_url(
+               *         OIDCProvider::Google,
+               *         &eph_pk_bytes,
+               *         max_epoch,
+               *         "25769832374-famecqrhe2gkebt5fvqms2263046lj96.apps.googleusercontent.
+               * com",         "https://iota.io/",
+               *         &jwt_randomness,
+               *     )?;
+               *     let url_2 = get_oidc_url(
+               *         OIDCProvider::Twitch,
+               *         &eph_pk_bytes,
+               *         max_epoch,
+               *         "rs1bh065i9ya4ydvifixl4kss0uhpt",
+               *         "https://iota.io/",
+               *         &jwt_randomness,
+               *     )?;
+               *     let url_3 = get_oidc_url(
+               *         OIDCProvider::Facebook,
+               *         &eph_pk_bytes,
+               *         max_epoch,
+               *         "233307156352917",
+               *         "https://iota.io/",
+               *         &jwt_randomness,
+               *     )?;
+               *     let url_4 = get_oidc_url(
+               *         OIDCProvider::Kakao,
+               *         &eph_pk_bytes,
+               *         max_epoch,
+               *         "aa6bddf393b54d4e0d42ae0014edfd2f",
+               *         "https://iota.io/",
+               *         &jwt_randomness,
+               *     )?;
+               *     let url_5 = get_token_exchange_url(
+               *         OIDCProvider::Kakao,
+               *         "aa6bddf393b54d4e0d42ae0014edfd2f",
+               *         "https://iota.io/",
+               *         "$YOUR_AUTH_CODE",
+               *         "", // not needed
+               *     )?;
+               *     let url_6 = get_oidc_url(
+               *         OIDCProvider::Apple,
+               *         &eph_pk_bytes,
+               *         max_epoch,
+               *         "nl.digkas.wallet.client",
+               *         "https://iota.io/",
+               *         &jwt_randomness,
+               *     )?;
+               *     let url_7 = get_oidc_url(
+               *         OIDCProvider::Slack,
+               *         &eph_pk_bytes,
+               *         max_epoch,
+               *         "2426087588661.5742457039348",
+               *         "https://iota.io/",
+               *         &jwt_randomness,
+               *     )?;
+               *     let url_8 = get_token_exchange_url(
+               *         OIDCProvider::Slack,
+               *         "2426087588661.5742457039348",
+               *         "https://iota.io/",
+               *         "$YOUR_AUTH_CODE",
+               *         "39b955a118f2f21110939bf3dff1de90",
+               *     )?;
+               *     println!("Visit URL (Google): {url}");
+               *     println!("Visit URL (Twitch): {url_2}");
+               *     println!("Visit URL (Facebook): {url_3}");
+               *     println!("Visit URL (Kakao): {url_4}");
+               *     println!("Token exchange URL (Kakao): {url_5}");
+               *     println!("Visit URL (Apple): {url_6}");
+               *     println!("Visit URL (Slack): {url_7}");
+               *     println!("Token exchange URL (Slack): {url_8}"); */
 
-            KeyToolCommand::ZkLoginSigVerify {
-                sig,
-                bytes,
-                intent_scope,
-                curr_epoch,
-                network,
-            } => {
-                match GenericSignature::from_bytes(
-                    &Base64::decode(&sig).map_err(|e| anyhow!("Invalid base64 sig: {:?}", e))?,
-                )? {
-                    GenericSignature::ZkLoginAuthenticator(zk) => {
-                        if bytes.is_none() || curr_epoch.is_none() {
-                            return Ok(CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
-                                data: None,
-                                parsed: Some(serde_json::to_string(&zk)?),
-                                res: None,
-                                jwks: None,
-                            }));
-                        }
+              /*     println!(
+               *         "Finish login and paste the entire URL here (e.g. https://iota.io/#id_token=...):"
+               *     ); */
 
-                        let client = reqwest::Client::new();
-                        let provider = OIDCProvider::from_iss(zk.get_iss())
-                            .map_err(|_| anyhow!("Invalid iss"))?;
-                        let jwks = fetch_jwks(&provider, &client).await?;
-                        let parsed: ImHashMap<JwkId, JWK> = jwks.clone().into_iter().collect();
-                        let env = match network.as_str() {
-                            "devnet" | "localnet" => ZkLoginEnv::Test,
-                            "mainnet" | "testnet" => ZkLoginEnv::Prod,
-                            _ => return Err(anyhow!("Invalid network")),
-                        };
-                        let aux_verify_data = VerifyParams::new(parsed, vec![], env, true, true);
+              /*     let parsed_token = read_cli_line()?;
+               *     let tx_digest = perform_zk_login_test_tx(
+               *         &parsed_token,
+               *         max_epoch,
+               *         &jwt_randomness,
+               *         &kp_bigint.to_string(),
+               *         ephemeral_key_identifier,
+               *         keystore,
+               *         &network,
+               *         test_multisig,
+               *         sign_with_sk,
+               *     )
+               *     .await?;
+               *     CommandOutput::ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx { tx_digest
+               * }) }
+               * KeyToolCommand::ZkLoginSigVerify {
+               *     sig,
+               *     bytes,
+               *     intent_scope,
+               *     curr_epoch,
+               *     network,
+               * } => {
+               *     match GenericSignature::from_bytes(
+               *         &Base64::decode(&sig).map_err(|e| anyhow!("Invalid base64 sig: {:?}",
+               * e))?,     )? {
+               *         GenericSignature::ZkLoginAuthenticator(zk) => {
+               *             if bytes.is_none() || curr_epoch.is_none() {
+               *                 return
+               * Ok(CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
+               *                     data: None,
+               *                     parsed: Some(serde_json::to_string(&zk)?),
+               *                     res: None,
+               *                     jwks: None,
+               *                 }));
+               *             } */
 
-                        let (serialized, res) = match IntentScope::try_from(intent_scope)
-                            .map_err(|_| anyhow!("Invalid scope"))?
-                        {
-                            IntentScope::TransactionData => {
-                                let tx_data: TransactionData = bcs::from_bytes(
-                                    &Base64::decode(&bytes.unwrap())
-                                        .map_err(|e| anyhow!("Invalid base64 tx data: {:?}", e))?,
-                                )?;
+              /*             let client = reqwest::Client::new();
+               *             let provider = OIDCProvider::from_iss(zk.get_iss())
+               *                 .map_err(|_| anyhow!("Invalid iss"))?;
+               *             let jwks = fetch_jwks(&provider, &client).await?;
+               *             let parsed: ImHashMap<JwkId, JWK> =
+               * jwks.clone().into_iter().collect();             let env = match
+               * network.as_str() {                 "devnet" | "localnet" =>
+               * ZkLoginEnv::Test,                 "mainnet" | "testnet" =>
+               * ZkLoginEnv::Prod,                 _ => return Err(anyhow!("Invalid
+               * network")),             };
+               *             let aux_verify_data = VerifyParams::new(parsed, vec![], env, true,
+               * true); */
 
-                                let res = zk.verify_authenticator(
-                                    &IntentMessage::new(
-                                        Intent::iota_transaction(),
-                                        tx_data.clone(),
-                                    ),
-                                    tx_data.execution_parts().1,
-                                    Some(curr_epoch.unwrap()),
-                                    &aux_verify_data,
-                                );
-                                (serde_json::to_string(&tx_data)?, res)
-                            }
-                            IntentScope::PersonalMessage => {
-                                let data: PersonalMessage = bcs::from_bytes(
-                                    &Base64::decode(&bytes.unwrap()).map_err(|e| {
-                                        anyhow!("Invalid base64 personal message data: {:?}", e)
-                                    })?,
-                                )?;
+              /*             let (serialized, res) = match IntentScope::try_from(intent_scope)
+               *                 .map_err(|_| anyhow!("Invalid scope"))?
+               *             {
+               *                 IntentScope::TransactionData => {
+               *                     let tx_data: TransactionData = bcs::from_bytes(
+               *                         &Base64::decode(&bytes.unwrap())
+               *                             .map_err(|e| anyhow!("Invalid base64 tx data: {:?}",
+               * e))?,                     )?; */
 
-                                let res = zk.verify_authenticator(
-                                    &IntentMessage::new(Intent::personal_message(), data.clone()),
-                                    (&zk).try_into()?,
-                                    Some(curr_epoch.unwrap()),
-                                    &aux_verify_data,
-                                );
-                                (serde_json::to_string(&data)?, res)
-                            }
-                            _ => return Err(anyhow!("Invalid intent scope")),
-                        };
-                        CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
-                            data: Some(serialized),
-                            parsed: Some(serde_json::to_string(&zk)?),
-                            jwks: Some(serde_json::to_string(&jwks)?),
-                            res: Some(res),
-                        })
-                    }
-                    _ => CommandOutput::Error("Not a zkLogin signature".to_string()),
-                }
-            }
+              /*                     let res = zk.verify_authenticator(
+               *                         &IntentMessage::new(
+               *                             Intent::iota_transaction(),
+               *                             tx_data.clone(),
+               *                         ),
+               *                         tx_data.execution_parts().1,
+               *                         Some(curr_epoch.unwrap()),
+               *                         &aux_verify_data,
+               *                     );
+               *                     (serde_json::to_string(&tx_data)?, res)
+               *                 }
+               *                 IntentScope::PersonalMessage => {
+               *                     let data: PersonalMessage = bcs::from_bytes(
+               *                         &Base64::decode(&bytes.unwrap()).map_err(|e| {
+               *                             anyhow!("Invalid base64 personal message data:
+               * {:?}", e)                         })?,
+               *                     )?; */
+
+              /*                     let res = zk.verify_authenticator(
+               *                         &IntentMessage::new(Intent::personal_message(),
+               * data.clone()),                         (&zk).try_into()?,
+               *                         Some(curr_epoch.unwrap()),
+               *                         &aux_verify_data,
+               *                     );
+               *                     (serde_json::to_string(&data)?, res)
+               *                 }
+               *                 _ => return Err(anyhow!("Invalid intent scope")),
+               *             };
+               *             CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
+               *                 data: Some(serialized),
+               *                 parsed: Some(serde_json::to_string(&zk)?),
+               *                 jwks: Some(serde_json::to_string(&jwks)?),
+               *                 res: Some(res),
+               *             })
+               *         }
+               *         _ => CommandOutput::Error("Not a zkLogin signature".to_string()),
+               *     }
+               * } */
         });
 
         cmd_result
@@ -1195,13 +1189,26 @@ impl From<PublicKey> for Key {
 
 impl Display for CommandOutput {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        fn table_display(
+            json_obj: serde_json::Value,
+            formatter: &mut Formatter<'_>,
+        ) -> Result<(), std::fmt::Error> {
+            let mut table = json_to_table(&json_obj);
+            let style = tabled::settings::Style::rounded().horizontals([]);
+
+            table.with(style);
+            table.array_orientation(Orientation::Column);
+
+            write!(formatter, "{}", table)
+        }
+
         match self {
-            CommandOutput::Alias(update) => {
-                write!(
-                    formatter,
-                    "Old alias {} was updated to {}",
-                    update.old_alias, update.new_alias
-                )
+            CommandOutput::List(keys) => {
+                if keys.is_empty() {
+                    writeln!(formatter, "No keys in the keystore")
+                } else {
+                    table_display(json![self], formatter)
+                }
             }
             // Sign needs to be manually built because we need to wrap the very long
             // rawTxData string and rawIntentMsg strings into multiple rows due to
@@ -1235,14 +1242,14 @@ impl Display for CommandOutput {
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(160).keep_words()));
                 write!(formatter, "{}", table)
             }
-            _ => {
-                let json_obj = json![self];
-                let mut table = json_to_table(&json_obj);
-                let style = tabled::settings::Style::rounded().horizontals([]);
-                table.with(style);
-                table.array_orientation(Orientation::Column);
-                write!(formatter, "{}", table)
+            CommandOutput::UpdateAlias(update) => {
+                write!(
+                    formatter,
+                    "Old alias {} was updated to {}",
+                    update.old_alias, update.new_alias
+                )
             }
+            _ => table_display(json![self], formatter),
         }
     }
 }
