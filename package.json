@@ -77,5 +77,6 @@
 	},
 	"dependencies": {
 		"copy-text-to-clipboard": "^3.2.0"
-	}
+	},
+	"packageManager": "pnpm@9.6.0"
 }

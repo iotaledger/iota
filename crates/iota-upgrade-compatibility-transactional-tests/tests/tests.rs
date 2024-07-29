@@ -140,7 +140,7 @@ fn check_all_compatibilities(
         .join("\n");
 
     results.push_str(&inclusion_results);
-    insta::assert_display_snapshot!(name, results);
+    insta::assert_snapshot!(name, results);
     Ok(())
 }
 

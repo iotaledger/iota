@@ -27,7 +27,10 @@ use move_binary_format::{
     normalized::{self, Type},
     CompiledModule,
 };
-use move_bytecode_utils::{layout::SerdeLayoutBuilder, module_cache::GetModule};
+use move_bytecode_utils::{
+    layout::{SerdeLayoutBuilder, YamlRegistry},
+    module_cache::GetModule,
+};
 use move_compiler::{
     compiled_unit::AnnotatedCompiledModule,
     diagnostics::{report_diagnostics_to_buffer, report_warnings, Diagnostics, FilesSourceText},
@@ -48,7 +51,6 @@ use move_package::{
     BuildConfig as MoveBuildConfig,
 };
 use move_symbol_pool::Symbol;
-use serde_reflection::Registry;
 
 #[cfg(test)]
 #[path = "unit_tests/build_tests.rs"]
@@ -456,7 +458,7 @@ impl CompiledPackage {
     /// These layout schemas can be consumed by clients (e.g., the TypeScript
     /// SDK) to enable BCS serialization/deserialization of the package's
     /// objects, tx arguments, and events.
-    pub fn generate_struct_layouts(&self) -> Registry {
+    pub fn generate_struct_layouts(&self) -> YamlRegistry {
         let mut package_types = BTreeSet::new();
         for m in self.get_modules() {
             let normalized_m = normalized::Module::new(m);

@@ -169,8 +169,6 @@ pub struct SystemEpochInfoEvent {
     pub protocol_version: u64,
     pub reference_gas_price: u64,
     pub total_stake: u64,
-    // TODO: remove(obsolete)
-    pub storage_fund_reinvestment: u64,
     pub storage_charge: u64,
     pub storage_rebate: u64,
     pub storage_fund_balance: u64,
