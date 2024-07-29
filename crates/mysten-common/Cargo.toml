@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 parking_lot.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 
 [dev-dependencies]
 futures.workspace = true
