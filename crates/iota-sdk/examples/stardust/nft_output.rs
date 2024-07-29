@@ -183,7 +183,7 @@ fn create_ptb(
             // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens and
             // related nft object.
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
-            let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
+            let mut extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
             let nft_asset = Argument::NestedResult(extracted_assets, 2);
 
             // Extract IOTA balance
@@ -212,6 +212,7 @@ fn create_ptb(
                     type_arguments,
                     vec![extracted_native_tokens_bag],
                 ) {
+                    extracted_native_tokens_bag = Argument::NestedResult(extracted_balance, 0);
                     let balance = Argument::NestedResult(extracted_balance, 1);
 
                     // Extract native token balance
