@@ -74,7 +74,7 @@ jobs:
   iota-sdk-changes:
     runs-on: [self-hosted-rust]
     outputs:
-      components: ${{ steps.filter.outputs }}
+      changed: ${{ steps.filter.outputs.iota-sdk }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: dorny/paths-filter@v3
@@ -86,7 +86,7 @@ jobs:
 
   test-iota-sdk:
     name: Test iota-sdk
-    if: needs.iota-sdk-changes.outputs.components.iota-sdk == 'true'
+    if: needs.iota-sdk-changes.outputs.changed == 'true'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
