@@ -30,7 +30,7 @@ use iota_storage::{mutex_table::RwLockTable, IndexStoreTables};
 use iota_types::base_types::{EpochId, ObjectID};
 use prometheus::Registry;
 use rocksdb::MultiThreaded;
-use strum_macros::EnumString;
+use strum::EnumString;
 use tracing::info;
 use typed_store::{
     rocks::{default_db_options, MetricConf},

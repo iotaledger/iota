@@ -38,8 +38,9 @@ use tracing::instrument;
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    get_balance_changes_from_effect, get_object_changes, with_tracing, IotaRpcModule,
-    ObjectProviderCache,
+    get_balance_changes_from_effect, get_object_changes,
+    logger::with_tracing,
+    IotaRpcModule, ObjectProviderCache,
 };
 
 pub struct TransactionExecutionApi {
@@ -282,10 +283,11 @@ impl WriteApiServer for TransactionExecutionApi {
         opts: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        with_tracing!(Duration::from_secs(10), async move {
-            self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
-                .await
-        })
+        with_tracing(
+            self.execute_transaction_block(tx_bytes, signatures, opts, request_type),
+            Duration::from_secs(10),
+        )
+        .await
     }
 
     #[instrument(skip(self))]
@@ -297,29 +299,33 @@ impl WriteApiServer for TransactionExecutionApi {
         _epoch: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
     ) -> RpcResult<DevInspectResults> {
-        with_tracing!(async move {
-            let DevInspectArgs {
-                gas_sponsor,
-                gas_budget,
-                gas_objects,
-                show_raw_txn_data_and_effects,
-                skip_checks,
-            } = additional_args.unwrap_or_default();
-            let tx_kind: TransactionKind = self.convert_bytes(tx_bytes)?;
-            self.state
-                .dev_inspect_transaction_block(
-                    sender_address,
-                    tx_kind,
-                    gas_price.map(|i| *i),
-                    gas_budget.map(|i| *i),
+        with_tracing(
+            async move {
+                let DevInspectArgs {
                     gas_sponsor,
+                    gas_budget,
                     gas_objects,
                     show_raw_txn_data_and_effects,
                     skip_checks,
-                )
-                .await
-                .map_err(Error::from)
-        })
+                } = additional_args.unwrap_or_default();
+                let tx_kind: TransactionKind = self.convert_bytes(tx_bytes)?;
+                self.state
+                    .dev_inspect_transaction_block(
+                        sender_address,
+                        tx_kind,
+                        gas_price.map(|i| *i),
+                        gas_budget.map(|i| *i),
+                        gas_sponsor,
+                        gas_objects,
+                        show_raw_txn_data_and_effects,
+                        skip_checks,
+                    )
+                    .await
+                    .map_err(Error::from)
+            },
+            None,
+        )
+        .await
     }
 
     #[instrument(skip(self))]
@@ -327,7 +333,7 @@ impl WriteApiServer for TransactionExecutionApi {
         &self,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        with_tracing!(async move { self.dry_run_transaction_block(tx_bytes).await })
+        with_tracing(self.dry_run_transaction_block(tx_bytes), None).await
     }
 }
 
