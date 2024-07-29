@@ -3,11 +3,11 @@ name: Build Wallet App (nightly)
 on:
   schedule:
     # At 20:58 on every day-of-week from Monday through Friday
-    - cron: '58 20 * * 1-5'
+    - cron: "58 20 * * 1-5"
   workflow_dispatch:
     inputs:
       iota_branch:
-        description: 'IOTA repo branch to build artifacts from (default: develop)'
+        description: "IOTA repo branch to build artifacts from (default: develop)"
         type: string
         required: false
 
@@ -41,8 +41,8 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc::IotaRpcModule;
-use iota_json_rpc_api::{validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS};
+use iota_json_rpc_api::{
+    internal_error, validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
+};
 use iota_json_rpc_types::{
     CheckpointedObjectID, EpochInfo, EpochPage, IotaObjectResponseQuery, Page, QueryObjectsPage,
 };
@@ -31,7 +33,8 @@ impl ExtendedApiServer for ExtendedApi {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EpochPage> {
-        let limit = validate_limit(limit, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS)?;
+        let limit =
+            validate_limit(limit, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS).map_err(internal_error)?;
         let mut epochs = self
             .inner
             .spawn_blocking(move |this| {
@@ -67,10 +70,7 @@ impl ExtendedApiServer for ExtendedApi {
         _cursor: Option<CheckpointedObjectID>,
         _limit: Option<usize>,
     ) -> RpcResult<QueryObjectsPage> {
-        Err(jsonrpsee::types::error::CallError::Custom(
-            jsonrpsee::types::error::ErrorCode::MethodNotFound.into(),
-        )
-        .into())
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>> {

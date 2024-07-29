@@ -20,7 +20,7 @@ use move_compiler::{
     Compiler,
 };
 use move_symbol_pool::Symbol;
-use toml_edit::{value, Document};
+use toml_edit::{value, DocumentMut};
 
 use super::{
     compiled_package::{DependencyInfo, ModuleFormat},
@@ -267,7 +267,7 @@ impl BuildPlan {
     pub fn record_package_edition(&self, edition: Edition) -> anyhow::Result<()> {
         let move_toml_path = resolve_move_manifest_path(&self.root_package_path());
         let mut toml = std::fs::read_to_string(move_toml_path.clone())?
-            .parse::<Document>()
+            .parse::<DocumentMut>()
             .expect("Failed to read TOML file to update edition");
         toml[PACKAGE_NAME][EDITION_NAME] = value(edition.to_string());
         std::fs::write(move_toml_path, toml.to_string())?;

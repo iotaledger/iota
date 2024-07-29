@@ -8,18 +8,24 @@ use std::{
 };
 
 use anyhow::anyhow;
+use aws_sdk_kms::{
+    primitives::Blob,
+    types::{MessageType, SigningAlgorithmSpec},
+    Client as KmsClient,
+};
 use bip32::DerivationPath;
 use clap::*;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding, Hex},
+    error::FastCryptoError,
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
     traits::{KeyPair, ToFromBytes},
 };
 use fastcrypto_zkp::bn254::{
     utils::{get_oidc_url, get_token_exchange_url},
-    zk_login::{fetch_jwks, JwkId, OIDCProvider, JWK},
+    zk_login::{JwkId, OIDCProvider, JWK},
     zk_login_api::ZkLoginEnv,
 };
 use im::hashmap::HashMap as ImHashMap;
@@ -49,8 +55,6 @@ use iota_types::{
 use json_to_table::{json_to_table, Orientation};
 use num_bigint::BigUint;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use rusoto_core::Region;
-use rusoto_kms::{Kms, KmsClient, SignRequest};
 use serde::Serialize;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope, PersonalMessage};
@@ -870,27 +874,24 @@ impl KeyToolCommand {
                 info!("Digest to sign: {:?}", Base64::encode(digest));
 
                 // Set up the KMS client in default region.
-                let region: Region = Region::default();
-                let kms: KmsClient = KmsClient::new(region);
-
-                // Construct the signing request.
-                let request: SignRequest = SignRequest {
-                    key_id: keyid.to_string(),
-                    message: digest.to_vec().into(),
-                    message_type: Some("RAW".to_string()),
-                    signing_algorithm: "ECDSA_SHA_256".to_string(),
-                    ..Default::default()
-                };
+                let config = aws_config::from_env().load().await;
+                let kms = KmsClient::new(&config);
 
                 // Sign the message, normalize the signature and then compacts it
                 // serialize_compact is loaded as bytes for Secp256k1Sinaturere
-                let response = kms.sign(request).await?;
+                let response = kms
+                    .sign()
+                    .key_id(keyid)
+                    .message_type(MessageType::Raw)
+                    .message(Blob::new(digest))
+                    .signing_algorithm(SigningAlgorithmSpec::EcdsaSha256)
+                    .send()
+                    .await?;
                 let sig_bytes_der = response
                     .signature
-                    .map(|b| b.to_vec())
                     .expect("Requires Asymmetric Key Generated in KMS");
 
-                let mut external_sig = Secp256k1Sig::from_der(&sig_bytes_der)?;
+                let mut external_sig = Secp256k1Sig::from_der(sig_bytes_der.as_ref())?;
                 external_sig.normalize_s();
                 let sig_compact = external_sig.serialize_compact();
 
@@ -1171,6 +1172,31 @@ impl KeyToolCommand {
 
         cmd_result
     }
+}
+
+pub async fn fetch_jwks(
+    provider: &OIDCProvider,
+    client: &reqwest::Client,
+) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
+    let response = client
+        .get(provider.get_config().jwk_endpoint)
+        .send()
+        .await
+        .map_err(|e| {
+            FastCryptoError::GeneralError(format!(
+                "Failed to get JWK {:?} {:?}",
+                e.to_string(),
+                provider
+            ))
+        })?;
+    let bytes = response.bytes().await.map_err(|e| {
+        FastCryptoError::GeneralError(format!(
+            "Failed to get bytes {:?} {:?}",
+            e.to_string(),
+            provider
+        ))
+    })?;
+    fastcrypto_zkp::bn254::zk_login::parse_jwks(&bytes, provider)
 }
 
 impl From<&IotaKeyPair> for Key {

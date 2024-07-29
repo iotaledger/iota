@@ -20,22 +20,22 @@ use async_graphql::{
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
-    extract::{connect_info::IntoMakeServiceWithConnectInfo, ConnectInfo, FromRef, State},
-    headers::Header,
+    body::Body,
+    extract::{ConnectInfo, FromRef, State},
     http::{HeaderMap, StatusCode},
     middleware::{self},
     response::IntoResponse,
     routing::{post, MethodRouter, Route},
     Router,
 };
+use axum_extra::headers::Header as _;
 use http::{HeaderValue, Method, Request};
-use hyper::{server::conn::AddrIncoming as HyperAddrIncoming, Body, Server as HyperServer};
 use iota_graphql_rpc_headers::{LIMITS_HEADER, VERSION_HEADER};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
 use iota_sdk::IotaClientBuilder;
 use mysten_metrics::spawn_monitored_task;
 use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
-use tokio::{join, sync::OnceCell};
+use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -70,7 +70,8 @@ use crate::{
 };
 
 pub(crate) struct Server {
-    pub server: HyperServer<HyperAddrIncoming, IntoMakeServiceWithConnectInfo<Router, SocketAddr>>,
+    address: SocketAddr,
+    router: Router,
     /// The following fields are internally used for background tasks
     checkpoint_watermark: CheckpointWatermark,
     state: AppState,
@@ -107,14 +108,21 @@ impl Server {
         let server_task = {
             info!("Starting graphql service");
             let cancellation_token = self.state.cancellation_token.clone();
+            let address = self.address;
+            let router = self.router;
             spawn_monitored_task!(async move {
-                self.server
-                    .with_graceful_shutdown(async {
-                        cancellation_token.cancelled().await;
-                        info!("Shutdown signal received, terminating graphql service");
-                    })
-                    .await
-                    .map_err(|e| Error::Internal(format!("Server run failed: {}", e)))
+                axum::serve(
+                    TcpListener::bind(address)
+                        .await
+                        .map_err(|e| Error::Internal(format!("listener bind failed: {}", e)))?,
+                    router.into_make_service_with_connect_info::<SocketAddr>(),
+                )
+                .with_graceful_shutdown(async move {
+                    cancellation_token.cancelled().await;
+                    info!("Shutdown signal received, terminating graphql service");
+                })
+                .await
+                .map_err(|e| Error::Internal(format!("Server run failed: {}", e)))
             })
         };
 
@@ -320,12 +328,10 @@ impl ServerBuilder {
             .layer(Self::cors()?);
 
         Ok(Server {
-            server: axum::Server::bind(
-                &address
-                    .parse()
-                    .map_err(|_| Error::Internal(format!("Failed to parse address {}", address)))?,
-            )
-            .serve(app.into_make_service_with_connect_info::<SocketAddr>()),
+            address: address
+                .parse()
+                .map_err(|_| Error::Internal(format!("Failed to parse address {}", address)))?,
+            router: app,
             checkpoint_watermark,
             state,
             db_reader,
