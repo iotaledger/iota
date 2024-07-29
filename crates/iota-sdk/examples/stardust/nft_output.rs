@@ -24,7 +24,7 @@ const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash po
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Build a iota client for a local network
+    // Build an iota client for a local network
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
     // Setup the temporary file based keystore
@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .next()
         .ok_or(anyhow!("No coins found"))?;
 
-    // Get nft Output object
+    // Get an NftOutput object
     let nft_output_object_id = ObjectID::from_hex_literal(
         "0xdf2c925251c2856f984e9e5b0970669a6c5a02fa4d4280b781a7eba3d9d77cdf",
     )?;
@@ -60,7 +60,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .data
         .into_iter()
         .next()
-        .ok_or(anyhow!("No coins found"))?;
+        .ok_or(anyhow!("Nft not found"))?;
 
     let nft_output_object_ref = nft_output_object.object_ref();
 
