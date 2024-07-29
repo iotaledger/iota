@@ -9,12 +9,23 @@ import {
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
     PLACEHOLDER_TEXT_CLASSES,
+    RESIZE_CLASSES,
 } from './text-field.classes';
 import cx from 'classnames';
+import { Resize } from './text-field.enums';
 
 type InputPickedProps = Pick<
     React.TextareaHTMLAttributes<HTMLTextAreaElement>,
-    'maxLength' | 'minLength' | 'rows' | 'cols' | 'autoFocus' | 'name' | 'required' | 'placeholder'
+    | 'maxLength'
+    | 'minLength'
+    | 'rows'
+    | 'cols'
+    | 'autoFocus'
+    | 'name'
+    | 'required'
+    | 'placeholder'
+    | 'disabled'
+    | 'id'
 >;
 
 interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
@@ -54,6 +65,10 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
      * Value of the input field
      */
     value?: string;
+    /**
+     * Resize property of the textarea
+     */
+    resize?: Resize;
 }
 
 export function TextArea({
@@ -66,9 +81,9 @@ export function TextArea({
     onChange,
     value,
     amountCounter,
-    id,
     isVisibilityToggleEnabled,
-    rows,
+    resize = Resize.Vertical,
+    rows = 3,
     cols,
     autoFocus,
     required,
@@ -76,6 +91,7 @@ export function TextArea({
     minLength,
     isContentVisible,
     ref,
+    id,
 }: TextFieldBaseProps) {
     const fallbackRef = useRef<HTMLTextAreaElement>(null);
     const inputRef = ref ?? fallbackRef;
@@ -92,12 +108,6 @@ export function TextArea({
         setIsInputContentVisible((prev) => !prev);
     }
 
-    function focusInput() {
-        if (inputRef?.current) {
-            inputRef?.current?.focus();
-        }
-    }
-
     function handleOnChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
         if (isInputContentVisible) {
             onChange?.(e.target.value, e.target.name);
@@ -111,50 +121,49 @@ export function TextArea({
             disabled={disabled}
             errorMessage={errorMessage}
             amountCounter={amountCounter}
-            id={id}
             required={required}
-            onFocusInputClick={focusInput}
         >
-            <div className="relative flex h-auto w-full">
-                <textarea
-                    disabled={disabled || !isInputContentVisible}
-                    placeholder={placeholder}
-                    required={required}
-                    id={id}
-                    name={name}
-                    rows={rows}
-                    cols={cols}
-                    autoFocus={autoFocus}
-                    ref={inputRef}
-                    onChange={handleOnChange}
-                    className={cx(
-                        'peer',
-                        BORDER_CLASSES,
-                        INPUT_CLASSES,
-                        INPUT_TEXT_CLASSES,
-                        PLACEHOLDER_TEXT_CLASSES,
-                        !isInputContentVisible &&
-                            'not-visible select-none resize-none text-transparent dark:text-transparent',
+            <div className="flex">
+                <span className="relative">
+                    <textarea
+                        disabled={disabled || !isInputContentVisible}
+                        placeholder={placeholder}
+                        required={required}
+                        id={id}
+                        name={name}
+                        rows={rows}
+                        cols={cols}
+                        autoFocus={autoFocus}
+                        ref={inputRef}
+                        onChange={handleOnChange}
+                        className={cx(
+                            'peer',
+                            BORDER_CLASSES,
+                            INPUT_CLASSES,
+                            INPUT_TEXT_CLASSES,
+                            PLACEHOLDER_TEXT_CLASSES,
+                            isInputContentVisible ? RESIZE_CLASSES[resize] : 'resize-none',
+                            !isInputContentVisible &&
+                                'not-visible select-none text-transparent dark:text-transparent',
+                        )}
+                        value={isInputContentVisible ? value : ''}
+                        maxLength={maxLength}
+                        minLength={minLength}
+                    />
+                    {!isInputContentVisible && (
+                        <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">
+                            <div className="h-full w-full rounded bg-neutral-92/60 dark:bg-neutral-10/60" />
+                        </div>
                     )}
-                    value={isInputContentVisible ? value : ''}
-                    maxLength={maxLength}
-                    minLength={minLength}
-                />
-
-                {!isInputContentVisible && (
-                    <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">
-                        <div className="h-full w-full rounded bg-neutral-92/60 dark:bg-neutral-10/60" />
-                    </div>
-                )}
-
-                {isVisibilityToggleEnabled && (
-                    <div className="absolute bottom-4 right-4 flex">
-                        <TextFieldTrailingElement
-                            onToggleButtonClick={onToggleButtonClick}
-                            isContentVisible={isInputContentVisible}
-                        />
-                    </div>
-                )}
+                    {isVisibilityToggleEnabled && (
+                        <div className="absolute bottom-4 right-4 flex">
+                            <TextFieldTrailingElement
+                                onToggleButtonClick={onToggleButtonClick}
+                                isContentVisible={isInputContentVisible}
+                            />
+                        </div>
+                    )}
+                </span>
             </div>
         </TextFieldWrapper>
     );

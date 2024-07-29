@@ -70,7 +70,7 @@ export const Default: Story = {
         }
 
         return (
-            <div className="w-[300px]">
+            <div className="w-[800px]">
                 <TextArea
                     onChange={handleOnChange}
                     value={inputValue}

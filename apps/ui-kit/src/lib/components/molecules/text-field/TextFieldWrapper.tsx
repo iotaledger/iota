@@ -3,13 +3,6 @@
 
 import cx from 'classnames';
 
-interface TextFieldWrapperOnlyProps {
-    /**
-     * Callback function that is called when the input field is clicked
-     */
-    onFocusInputClick?: () => void;
-}
-
 export interface TextFieldWrapperProps {
     /**
      * Shows a label with the text above the input field.
@@ -35,10 +28,6 @@ export interface TextFieldWrapperProps {
      * Is the input field disabled
      */
     disabled?: boolean;
-    /**
-     * The id of the input field
-     */
-    id?: string;
 }
 
 export function TextFieldWrapper({
@@ -47,11 +36,9 @@ export function TextFieldWrapper({
     disabled,
     errorMessage,
     amountCounter,
-    id,
     required,
     children,
-    onFocusInputClick,
-}: React.PropsWithChildren<TextFieldWrapperProps> & TextFieldWrapperOnlyProps) {
+}: React.PropsWithChildren<TextFieldWrapperProps>) {
     return (
         <div
             className={cx('group flex flex-col gap-y-2', {
@@ -61,17 +48,15 @@ export function TextFieldWrapper({
                 required: required,
             })}
         >
-            {label && (
-                <label
-                    onClick={onFocusInputClick}
-                    htmlFor={id}
-                    className="text-label-lg text-neutral-40 dark:text-neutral-60"
-                >
+            {label ? (
+                <label className="flex flex-col gap-y-2 text-label-lg text-neutral-40 dark:text-neutral-60">
                     {label}
+                    {children}
                 </label>
+            ) : (
+                children
             )}
 
-            {children}
             <div
                 className={cx(
                     'flex flex-row items-center',

@@ -5,6 +5,10 @@ import { TextFieldType } from './text-field.enums';
 
 type TextFieldTypePasswordProps = {
     type: TextFieldType.Password;
+    /**
+     * Shows toggle button to show/hide the content of the input field
+     */
+    isVisibilityToggleEnabled?: boolean;
 };
 
 type TextFieldTypeTextProps = {

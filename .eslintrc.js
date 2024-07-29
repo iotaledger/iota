@@ -45,6 +45,9 @@ module.exports = {
         '**/.swc/',
         '**/out/',
         '**/*.md',
+        '**/*.mdx',
+        '**/*.yml',
+        '**/*.yaml',
     ],
     rules: {
         'no-case-declarations': 'off',

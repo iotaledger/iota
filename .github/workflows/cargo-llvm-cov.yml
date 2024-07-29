@@ -1,4 +1,5 @@
 name: Code Coverage
+
 on:
   schedule:
     - cron: "0 9 * * *" # UTC timing is every day at 1am PST

@@ -14,6 +14,7 @@ type CustomStoryProps = {
 function TextFieldStory({
     withLeadingIcon,
     value,
+    onClearInput,
     ...props
 }: ComponentProps<typeof TextField> & CustomStoryProps): JSX.Element {
     const [inputValue, setInputValue] = useState(value ?? '');
@@ -22,7 +23,15 @@ function TextFieldStory({
         setInputValue(value ?? '');
     }, [value]);
 
-    return <TextField {...props} onChange={(value) => setInputValue(value)} value={inputValue} />;
+    return (
+        <TextField
+            {...props}
+            onChange={(value) => setInputValue(value)}
+            value={inputValue}
+            onClearInput={() => setInputValue('')}
+            leadingIcon={withLeadingIcon ? <PlaceholderReplace /> : undefined}
+        />
+    );
 }
 
 const meta = {
@@ -66,22 +75,23 @@ export const WithMaxTrailingButton: Story = {
         placeholder: 'Send IOTAs',
         amountCounter: 'Max 10 IOTA',
         caption: 'Enter token amount',
+        supportingText: 'IOTA',
         trailingElement: <PlaceholderReplace />,
     },
-    render: (props) => {
-        const [value, setValue] = useState(props.value ?? '');
+    render: ({ value, ...props }) => {
+        const [inputValue, setInputValue] = useState(value ?? '');
         const [error, setError] = useState<string | undefined>();
 
         useEffect(() => {
-            setValue(props.value ?? '');
-        }, [props.value]);
+            setInputValue(value ?? '');
+        }, [value]);
 
         function onMaxClick() {
-            setValue('10');
+            setInputValue('10');
         }
 
         const onChange = useCallback((value: string) => {
-            setValue(value);
+            setInputValue(value);
         }, []);
 
         function checkInputValidity(value: string) {
@@ -95,8 +105,8 @@ export const WithMaxTrailingButton: Story = {
         }
 
         useEffect(() => {
-            checkInputValidity(value);
-        }, [value]);
+            checkInputValidity(inputValue);
+        }, [inputValue]);
 
         const TrailingMaxButton = () => {
             return (
@@ -114,11 +124,11 @@ export const WithMaxTrailingButton: Story = {
                 {...props}
                 required
                 label="Send Tokens"
-                value={value}
+                value={inputValue}
                 trailingElement={<TrailingMaxButton />}
                 errorMessage={error}
                 onChange={onChange}
-                onClearInput={() => setValue('')}
+                onClearInput={() => setInputValue('')}
             />
         );
     },
