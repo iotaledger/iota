@@ -267,7 +267,7 @@ fn extract_native_tokens_from_bag(
                 .native_tokens()
                 .get(native_token_id)
                 .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
-            let token_type = foundry_ledger_data.canonical_coin_type();
+            let token_type = foundry_ledger_data.to_canonical_string(/* with_prefix */ true);
             let token_type_tag = token_type.parse::<TypeTag>()?;
             Ok((native_token, token_type, token_type_tag))
         })
