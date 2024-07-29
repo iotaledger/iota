@@ -16,11 +16,11 @@ gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 
 task 3 'run'. lines 65-65:
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 67-67:
 mutated: object(0,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 5 'create-checkpoint'. lines 69-69:
 Checkpoint created: 1
@@ -33,7 +33,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IMkiUr9JmuGrajTwMY007Pc6u6olcKf6Isx6CraXjeyKAQAAAAAAAAA=",
+            "cursor": "IM0WqQMXerbstkG+/XM/SmEehl5ALcBl9ysPtJr5Gk1bAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -41,7 +41,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+                    "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
                     "count": "0"
                   }
                 }
@@ -57,7 +57,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+              "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
               "count": "0"
             }
           }
@@ -69,7 +69,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IMkiUr9JmuGrajTwMY007Pc6u6olcKf6Isx6CraXjeyKAQAAAAAAAAA=",
+            "cursor": "IM0WqQMXerbstkG+/XM/SmEehl5ALcBl9ysPtJr5Gk1bAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -77,7 +77,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+                    "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
                     "count": "0"
                   }
                 }
@@ -93,7 +93,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+              "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
               "count": "0"
             }
           }
@@ -109,7 +109,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+              "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
               "count": "0"
             }
           }
@@ -126,7 +126,7 @@ Response: {
 task 7 'run'. lines 130-130:
 mutated: object(0,0), object(2,1)
 deleted: object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 8 'create-checkpoint'. lines 132-132:
 Checkpoint created: 2
@@ -157,7 +157,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+              "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
               "count": "0"
             }
           }
@@ -169,7 +169,7 @@ Response: {
 
 task 10 'run'. lines 187-187:
 mutated: object(0,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 11 'create-checkpoint'. lines 189-189:
 Checkpoint created: 3
@@ -208,7 +208,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x6e606833ddf973d80dacfe733d9a4f06b426096cd7882cec4642222e09c45c04",
+              "id": "0x5b6c512d7d9a9b07e07b3eead858200224a0dc808063045950e89f049feb17be",
               "count": "0"
             }
           }
