@@ -7,12 +7,16 @@ use std::{str::FromStr, sync::Arc};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
+use http_body_util::BodyExt;
 use hyper::{
-    client::HttpConnector,
     header::{HeaderValue, CONTENT_LENGTH},
-    Client, Uri,
+    Uri,
 };
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use hyper_util::{
+    client::legacy::{connect::HttpConnector, Client},
+    rt::TokioExecutor,
+};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
     digests::{
@@ -39,7 +43,7 @@ use crate::{
 
 pub struct HttpKVStore {
     base_url: Url,
-    client: Arc<Client<HttpsConnector<HttpConnector>>>,
+    client: Arc<Client<HttpsConnector<HttpConnector>, reqwest::Body>>,
 }
 
 pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
@@ -136,9 +140,9 @@ impl HttpKVStore {
             .enable_http2()
             .build();
 
-        let client = Client::builder()
+        let client = Client::builder(TokioExecutor::new())
             .http2_only(true)
-            .build::<_, hyper::Body>(http);
+            .build::<_, reqwest::Body>(http);
 
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
@@ -183,8 +187,10 @@ impl HttpKVStore {
         );
         // return None if 400
         if resp.status().is_success() {
-            hyper::body::to_bytes(resp.into_body())
+            resp.into_body()
+                .collect()
                 .await
+                .map(|c| c.to_bytes())
                 .map(Some)
                 .into_iota_result()
         } else {

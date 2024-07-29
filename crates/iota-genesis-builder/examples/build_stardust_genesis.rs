@@ -3,14 +3,11 @@
 
 //! Creating a genesis blob out of a local stardust objects snapshot.
 
-use std::{
-    fs::File,
-    io::{BufReader, Read},
-};
+use std::path::PathBuf;
 
 use clap::Parser;
 use iota_config::genesis::TokenDistributionScheduleBuilder;
-use iota_genesis_builder::{Builder, BROTLI_COMPRESSOR_BUFFER_SIZE, OBJECT_SNAPSHOT_FILE_PATH};
+use iota_genesis_builder::{Builder, SnapshotSource, OBJECT_SNAPSHOT_FILE_PATH};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
@@ -36,18 +33,15 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     // Prepare the reader for the objects snapshot
-    let input_file = File::open(cli.snapshot_path)?;
-    let object_snapshot_reader: Box<dyn Read> = if cli.decompress {
-        Box::new(brotli::Decompressor::new(
-            input_file,
-            BROTLI_COMPRESSOR_BUFFER_SIZE,
-        ))
+    let path = PathBuf::from(cli.snapshot_path);
+    let object_snapshot_source = if cli.decompress {
+        SnapshotSource::LocalBrotli(path)
     } else {
-        Box::new(BufReader::new(input_file))
+        SnapshotSource::Local(path)
     };
 
     // Start building
-    let mut builder = Builder::new().add_migration_objects(object_snapshot_reader)?;
+    let mut builder = Builder::new().add_migration_source(object_snapshot_source);
 
     // Create validators
     let mut validators = Vec::new();

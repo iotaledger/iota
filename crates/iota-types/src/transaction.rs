@@ -20,7 +20,6 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::TypeTag,
 };
-use nonempty::{nonempty, NonEmpty};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
@@ -1914,7 +1913,7 @@ pub trait TransactionDataAPI {
     fn into_kind(self) -> TransactionKind;
 
     /// Transaction signer and Gas owner
-    fn signers(&self) -> NonEmpty<IotaAddress>;
+    fn signers(&self) -> Vec<IotaAddress>;
 
     fn gas_data(&self) -> &GasData;
 
@@ -1981,8 +1980,8 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     /// Transaction signer and Gas owner
-    fn signers(&self) -> NonEmpty<IotaAddress> {
-        let mut signers = nonempty![self.sender];
+    fn signers(&self) -> Vec<IotaAddress> {
+        let mut signers = vec![self.sender];
         if self.gas_owner() != self.sender {
             signers.push(self.gas_owner());
         }

@@ -2,20 +2,12 @@ consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
-anemo-benchmark:
-  - "crates/anemo-benchmark/**"
-data-transform:
-  - "crates/data-transform/**"
 mysten-common:
   - "crates/mysten-common/**"
 mysten-metrics:
   - "crates/mysten-metrics/**"
 mysten-network:
   - "crates/mysten-network/**"
-mysten-service:
-  - "crates/mysten-service/**"
-mysten-service-boilerplate:
-  - "crates/mysten-service-boilerplate/**"
 mysten-util-mem:
   - "crates/mysten-util-mem/**"
 mysten-util-mem-derive:
@@ -42,12 +34,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
-iota-bridge:
-  - "crates/iota-bridge/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
-iota-common:
-  - "crates/iota-common/**"
 iota-config:
   - "crates/iota-config/**"
 iota-core:
@@ -112,8 +100,6 @@ iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
   - "crates/iota-open-rpc-macros/**"
-iota-oracle:
-  - "crates/iota-oracle/**"
 iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
@@ -122,8 +108,6 @@ iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
   - "crates/iota-protocol-config-macros/**"
-iota-proxy:
-  - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
 iota-rest-api:
@@ -150,14 +134,10 @@ iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
   - "crates/iota-swarm-config/**"
-iota-telemetry:
-  - "crates/iota-telemetry/**"
 iota-test-transaction-builder:
   - "crates/iota-test-transaction-builder/**"
 iota-test-validator:
   - "crates/iota-test-validator/**"
-iota-tls:
-  - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
 iota-transaction-builder:
@@ -174,8 +154,6 @@ iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 iotans-indexer:
   - "crates/iotans-indexer/**"
-iotaop-cli:
-  - "crates/iotaop-cli/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:

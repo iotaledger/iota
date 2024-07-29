@@ -6,7 +6,6 @@ use std::{
     collections::BTreeMap,
     ffi::OsString,
     fmt, fs,
-    net::TcpListener,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, RwLock},
@@ -18,12 +17,11 @@ use axum::{
     extract::{Query, State},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, IntoMakeService},
-    Extension, Json, Router, Server,
+    routing::get,
+    Extension, Json, Router,
 };
 use hyper::{
     http::{HeaderName, HeaderValue, Method},
-    server::conn::AddrIncoming,
     HeaderMap, StatusCode,
 };
 use iota_move::build::resolve_lock_file_path;
@@ -39,7 +37,7 @@ use jsonrpsee::{
         client::{Subscription, SubscriptionClientT},
         params::ArrayParams,
     },
-    ws_client::{WsClient, WsClientBuilder},
+    ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
@@ -47,7 +45,7 @@ use move_symbol_pool::Symbol;
 use mysten_metrics::RegistryService;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use serde::{Deserialize, Serialize};
-use tokio::sync::oneshot::Sender;
+use tokio::{net::TcpListener, sync::oneshot::Sender};
 use tower::ServiceBuilder;
 use tracing::{debug, error, info};
 use url::Url;
@@ -485,7 +483,7 @@ pub async fn watch_for_upgrades(
     };
 
     let client: WsClient = WsClientBuilder::default()
-        .ping_interval(WS_PING_INTERVAL)
+        .enable_ws_ping(PingConfig::new().ping_interval(WS_PING_INTERVAL))
         .build(websocket_url)
         .await?;
     let mut subscription: Subscription<IotaTransactionBlockEffects> = client
@@ -541,9 +539,9 @@ pub struct AppState {
     pub sources_list: NetworkLookup,
 }
 
-pub fn serve(
+pub async fn serve(
     app_state: Arc<RwLock<AppState>>,
-) -> anyhow::Result<Server<AddrIncoming, IntoMakeService<Router>>> {
+) -> anyhow::Result<tokio::task::JoinHandle<anyhow::Result<()>>> {
     let app = Router::new()
         .route("/api", get(api_route))
         .route("/api/list", get(list_route))
@@ -557,8 +555,10 @@ pub fn serve(
                 .layer(middleware::from_fn(check_version_header)),
         )
         .with_state(app_state);
-    let listener = TcpListener::bind(host_port())?;
-    Ok(Server::from_tcp(listener)?.serve(app.into_make_service()))
+    let listener = TcpListener::bind(host_port()).await?;
+    Ok(tokio::spawn(async {
+        Ok(axum::serve(listener, app.into_make_service()).await?)
+    }))
 }
 
 #[derive(Deserialize)]
@@ -631,10 +631,10 @@ async fn api_route(
     }
 }
 
-async fn check_version_header<B>(
+async fn check_version_header(
     headers: HeaderMap,
-    req: hyper::Request<B>,
-    next: Next<B>,
+    req: axum::extract::Request,
+    next: Next,
 ) -> Response {
     let version = headers
         .get(IOTA_SOURCE_VALIDATION_VERSION_HEADER)
@@ -645,8 +645,7 @@ async fn check_version_header<B>(
     match version {
         Some(v) if v != IOTA_SOURCE_VALIDATION_VERSION => {
             let error = format!(
-                "Unsupported version '{v}' specified in header \
-		 {IOTA_SOURCE_VALIDATION_VERSION_HEADER}"
+                "Unsupported version '{v}' specified in header {IOTA_SOURCE_VALIDATION_VERSION_HEADER}",
             );
             let mut headers = HeaderMap::new();
             headers.insert(
@@ -695,7 +694,7 @@ impl SourceServiceMetrics {
     }
 }
 
-pub fn start_prometheus_server(addr: TcpListener) -> RegistryService {
+pub fn start_prometheus_server(listener: TcpListener) -> RegistryService {
     let registry = Registry::new();
 
     let registry_service = RegistryService::new(registry);
@@ -705,9 +704,7 @@ pub fn start_prometheus_server(addr: TcpListener) -> RegistryService {
         .layer(Extension(registry_service.clone()));
 
     tokio::spawn(async move {
-        axum::Server::from_tcp(addr)
-            .unwrap()
-            .serve(app.into_make_service())
+        axum::serve(listener, app.into_make_service())
             .await
             .unwrap();
     });

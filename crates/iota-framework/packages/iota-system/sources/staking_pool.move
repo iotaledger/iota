@@ -43,7 +43,7 @@ module iota_system::staking_pool {
         /// The epoch at which this pool became active.
         /// The value is `None` if the pool is pre-active and `Some(<epoch_number>)` if active or inactive.
         activation_epoch: Option<u64>,
-        /// The epoch at which this staking pool ceased to be active. `None` = {pre-active, active},
+        /// The epoch at which this staking pool ceased to be active. `None` = \{pre-active, active},
         /// `Some(<epoch_number>)` if in-active, and it was de-activated at epoch `<epoch_number>`.
         deactivation_epoch: Option<u64>,
         /// The total number of IOTA tokens in this pool, including the IOTA in the rewards_pool, as well as in all the principal
