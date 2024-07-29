@@ -18,7 +18,7 @@ export function Tooltip({
 }: PropsWithChildren<TooltipProps>): React.JSX.Element {
     const tooltipPositionClass = TOOLTIP_POSITION[position];
     return (
-        <div className="group relative inline-block cursor-pointer">
+        <div className="group relative inline-block">
             {children}
             <div
                 className={cx(
