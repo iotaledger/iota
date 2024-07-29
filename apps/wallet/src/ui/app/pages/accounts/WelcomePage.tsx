@@ -26,16 +26,19 @@ export function WelcomePage() {
                     <IotaLogoWeb width={130} height={32} />
                 </div>
                 <div className={'flex flex-col items-center gap-8 text-center'}>
-                    <div className="flex flex-col items-center gap-4">
-                        <h4 className={'text-headline-sm text-neutral-40'}>Welcome to</h4>
-                        <h1 className={'text-display-md text-neutral-10'}>IOTA Wallet</h1>
-                        <h3 className={'text-title-md text-neutral-40'}>
-                            Connecting you to the decentralized
-                            <br />
-                            web and IOTA network
-                        </h3>
+                    <div className="flex flex-col items-center">
+                        <h4 className={'text-[38px] text-headline-sm text-neutral-40'}>
+                            Welcome to
+                        </h4>
+                        <h1 className={'text-[38px] text-display-md text-neutral-10'}>
+                            IOTA Wallet
+                        </h1>
                     </div>
-
+                    <h3 className={'text-title-md text-neutral-40'}>
+                        Connecting you to the decentralized
+                        <br />
+                        web and IOTA network
+                    </h3>
                     <div>
                         <Button
                             type={ButtonType.Primary}
