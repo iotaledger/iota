@@ -75,6 +75,3 @@ required-features = ["test-outputs"]
 name = "snapshot_only_test_outputs"
 path = "examples/snapshot_only_test_outputs.rs"
 required-features = ["test-outputs"]
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)'] }
