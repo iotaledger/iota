@@ -440,11 +440,11 @@ pub struct ValidatorWrapper {
 pub struct AdvanceEpochParams {
     pub epoch: u64,
     pub next_protocol_version: ProtocolVersion,
+    pub validator_target_reward: u64,
     pub storage_charge: u64,
     pub computation_charge: u64,
     pub storage_rebate: u64,
     pub non_refundable_storage_fee: u64,
-    pub storage_fund_reinvest_rate: u64,
     pub reward_slashing_rate: u64,
     pub epoch_start_timestamp_ms: u64,
 }

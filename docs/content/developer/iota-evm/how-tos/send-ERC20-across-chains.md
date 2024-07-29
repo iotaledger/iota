@@ -20,7 +20,7 @@ You need both the [OFT Adapter](https://docs.layerzero.network/v2/developers/evm
 
 #### Create New Cross-chain Fungible Tokens
 
-If you are about to launch a new ERC20 token, you can use the [OFT standard](https://docs.layerzero.network/v2/developers/evm/oft/quickstart)  to enable cross-chain sending without the OFT Adapter.
+If you are about to launch a new ERC20 token, you can use the [OFT standard](https://docs.layerzero.network/v2/developers/evm/oft/quickstart) to enable cross-chain sending without the OFT Adapter.
 
 ## How To Use IOTA's Utilities for LayerZero OFT V2
 
@@ -40,7 +40,7 @@ To send existing ERC20 tokens, you will need both the OFT Adapter contract on th
 
 The sender must approve their ERC20 tokens for the OFT Adapter contract.
 
-```typescript 
+```typescript
 const approveTx = await erc20TokenContract.approve(oftAdapterContractAddress, amountInWei);
 ```
 
@@ -69,27 +69,28 @@ The sender calls the function `quoteSend()` of the OFT Adapter contract to estim
 The sender calls the function `send()` of the OFT Adapter contract to transfer tokens from the source chain to the destination chain.
 
 ```typescript
-  const sendTx = await myOFTAdapterContract.send(
-    sendParam as any,
-    [nativeFee, 0] as any, // set 0 for lzTokenFee
-    sender.address, // refund address
-    {
-      value: nativeFee,
-    },
-  );
-  const sendTxReceipt = await sendTx.wait();
-  console.log("sendOFT - send tx on source chain:", sendTxReceipt?.hash);
+const sendTx = await myOFTAdapterContract.send(
+  sendParam as any,
+  [nativeFee, 0] as any, // set 0 for lzTokenFee
+  sender.address, // refund address
+  {
+    value: nativeFee,
+  },
+);
+const sendTxReceipt = await sendTx.wait();
+console.log("sendOFT - send tx on source chain:", sendTxReceipt?.hash);
 ```
 
 #### 4. (Optional) Wait for Finalization
 
 The sender can wait for transaction finalization on the destination chain using the library [@layerzerolabs/scan-client](https://www.npmjs.com/package/@layerzerolabs/scan-client#example-usage).
+
 ```typescript
-  const deliveredMsg = await waitForMessageReceived(
-    Number(lzEndpointIdOnDestChain),
-    sendTxReceipt?.hash as string,
-  );
-  console.log("sendOFT - received tx on destination chain:", deliveredMsg?.dstTxHash);
+const deliveredMsg = await waitForMessageReceived(
+  Number(lzEndpointIdOnDestChain),
+  sendTxReceipt?.hash as string,
+);
+console.log("sendOFT - received tx on destination chain:", deliveredMsg?.dstTxHash);
 ```
 
 ### Send the OFT-wrapped Tokens Back
@@ -118,7 +119,7 @@ The sender calls the function `quoteSend()` of the OFT contract to estimate the 
   // false is set for _payInLzToken Flag indicating whether the caller is paying in the LZ token
   const [nativeFee] = await myOFTContract.quoteSend(sendParam as any, false);
   console.log("sendOFTBack - estimated nativeFee:", ethers.formatEther(nativeFee));
-  ```
+```
 
 #### 2. Send the tokens
 
@@ -135,18 +136,19 @@ const sendTx = await myOFTContract.send(
   );
   const sendTxReceipt = await sendTx.wait();
   console.log("sendOFTBack - send tx on source chain:", sendTxReceipt?.hash);
-  ```
+```
 
 #### 3. (Optional) Wait for Finalization
 
 The sender can wait for transaction finalization on the destination chain using the library `@layerzerolabs/scan-client`.
+
 ```typescript
- const deliveredMsg = await waitForMessageReceived(
-    Number(lzEndpointIdOnDestChain),
-    sendTxReceipt?.hash as string,
-  );
-  console.log("sendOFTBack - received tx on destination chain:", deliveredMsg?.dstTxHash);
-  ```
+const deliveredMsg = await waitForMessageReceived(
+   Number(lzEndpointIdOnDestChain),
+   sendTxReceipt?.hash as string,
+ );
+ console.log("sendOFTBack - received tx on destination chain:", deliveredMsg?.dstTxHash);
+```
 
 ## Sample Solidity Code for OFT Adapter and OFT Contracts in the `contracts-standard` Folder
 
@@ -156,7 +158,7 @@ The [contracts-standard](https://github.com/iota-community/layerzero-oft-v2-util
 - [Set your trusted peers](#optional-set-the-trusted-peers).
 - Set enforced options.
 - [Send tokens from the source chain to the destination chain](#send-the-origin-tokens-from-the-source-chain-to-the-destination-chain),
-and [vice versa](#send-oft-wrapped-tokens-back-from-the-destination-chain-to-the-origin-chain).
+  and [vice versa](#send-oft-wrapped-tokens-back-from-the-destination-chain-to-the-origin-chain).
 
 ### Install the Library
 
@@ -168,11 +170,11 @@ yarn
 
 ### Compile the Contracts
 
-If you want to use the standard implementation for ERC20, copy the [`contracts-standard`](https://github.com/iota-community/layerzero-oft-v2-utils/tree/main/contracts-standard) folder to `contracts`. If you want to use a custom implementation, copy the  [`contracts-wiota`](https://github.com/iota-community/layerzero-oft-v2-utils/tree/main/contracts-wiota) to `contracts`. Then, run the following command to compile the contracts:
+If you want to use the standard implementation for ERC20, copy the [`contracts-standard`](https://github.com/iota-community/layerzero-oft-v2-utils/tree/main/contracts-standard) folder to `contracts`. If you want to use a custom implementation, copy the [`contracts-wiota`](https://github.com/iota-community/layerzero-oft-v2-utils/tree/main/contracts-wiota) to `contracts`. Then, run the following command to compile the contracts:
 
 ```bash
 yarn compile
-``` 
+```
 
 ### Set Your Configuration
 
@@ -208,7 +210,7 @@ You can use the following command to deploy OFT on destination chain (e.g. BNB T
 
 ```bash
 yarn deploy-oft-bnb-testnet
-``` 
+```
 
 Expected log output :
 
@@ -256,7 +258,6 @@ Done in 4.66s.
 
 ### Send the Origin Tokens from the Source Chain to the Destination Chain
 
-
 You can use the following command to send tokens from the source chain to the destination chain:
 
 ```bash
@@ -279,7 +280,6 @@ sendOFT - received tx on destination chain: 0xc2e5a4be8ae67718e817ff585a32765e39
 
 You can use the following command to send the OFT-wrapped tokens back to the origin chain:
 
-
 ```bash
 yarn send-oft-back-from-bnb-testnet
 ```
@@ -294,4 +294,3 @@ sendOFTBack - send tx on source chain: 0x41bcf78b310dc1bbf9b4005f7412d995011c781
 Wait for cross-chain tx finalization by LayerZero ...
 sendOFTBack - received tx on destination chain: 0xc1031694e92512a0189885ad6419e33196a65b8ae56baa9d555be8686d6d42fe
 ```
-

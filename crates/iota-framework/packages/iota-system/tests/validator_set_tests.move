@@ -433,11 +433,9 @@ module iota_system::validator_set_tests {
     fun advance_epoch_with_dummy_rewards(validator_set: &mut ValidatorSet, scenario: &mut Scenario) {
         scenario.next_epoch(@0x0);
         let mut dummy_computation_reward = balance::zero();
-        let mut dummy_storage_fund_reward = balance::zero();
 
         validator_set.advance_epoch(
             &mut dummy_computation_reward,
-            &mut dummy_storage_fund_reward,
             &mut vec_map::empty(),
             0, // reward_slashing_rate
             0, // low_stake_threshold
@@ -447,7 +445,6 @@ module iota_system::validator_set_tests {
         );
 
         dummy_computation_reward.destroy_zero();
-        dummy_storage_fund_reward.destroy_zero();
     }
 
     fun advance_epoch_with_low_stake_params(
@@ -459,10 +456,8 @@ module iota_system::validator_set_tests {
     ) {
         scenario.next_epoch(@0x0);
         let mut dummy_computation_reward = balance::zero();
-        let mut dummy_storage_fund_reward = balance::zero();
         validator_set.advance_epoch(
             &mut dummy_computation_reward,
-            &mut dummy_storage_fund_reward,
             &mut vec_map::empty(),
             0, // reward_slashing_rate
             low_stake_threshold * MICROS_PER_IOTA,
@@ -472,7 +467,6 @@ module iota_system::validator_set_tests {
         );
 
         dummy_computation_reward.destroy_zero();
-        dummy_storage_fund_reward.destroy_zero();
     }
 
     fun add_and_activate_validator(validator_set: &mut ValidatorSet, validator: Validator, scenario: &mut Scenario) {

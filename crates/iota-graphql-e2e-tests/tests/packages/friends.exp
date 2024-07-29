@@ -282,7 +282,7 @@ Response: {
 task 6 'upgrade'. lines 175-184:
 created: object(6,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 8139600,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 8139600,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 7 'create-checkpoint'. lines 186-186:
 Checkpoint created: 2
@@ -296,6 +296,11 @@ Response: {
           "effects": {
             "objectChanges": {
               "nodes": [
+                {
+                  "outputState": {
+                    "asMovePackage": null
+                  }
+                },
                 {
                   "outputState": {
                     "asMovePackage": {
@@ -330,11 +335,6 @@ Response: {
                         }
                       }
                     }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMovePackage": null
                   }
                 },
                 {
