@@ -11,6 +11,7 @@ use async_graphql::{
 };
 use diesel::{CombineDsl, ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
+use futures::Future;
 use iota_indexer::{
     models::checkpoints::StoredCheckpoint,
     schema::{checkpoints, objects_snapshot},
@@ -465,106 +466,118 @@ impl Checkpointed for Cursor {
     }
 }
 
-#[async_trait::async_trait]
+#[allow(clippy::manual_async_fn)]
 impl Loader<SeqNumKey> for Db {
     type Value = Checkpoint;
     type Error = Error;
 
-    async fn load(&self, keys: &[SeqNumKey]) -> Result<HashMap<SeqNumKey, Checkpoint>, Error> {
-        use checkpoints::dsl;
+    fn load(
+        &self,
+        keys: &[SeqNumKey],
+    ) -> impl Future<Output = Result<HashMap<SeqNumKey, Self::Value>, Self::Error>> + Send {
+        async {
+            use checkpoints::dsl;
 
-        let checkpoint_ids: BTreeSet<_> = keys
-            .iter()
-            .filter_map(|key| {
-                if let Some(viewed_at) = key.checkpoint_viewed_at {
-                    // Filter out keys querying for checkpoints after their own consistency cursor.
-                    (viewed_at >= key.sequence_number).then_some(key.sequence_number as i64)
-                } else {
-                    Some(key.sequence_number as i64)
-                }
-            })
-            .collect();
-
-        let checkpoints: Vec<StoredCheckpoint> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    dsl::checkpoints
-                        .filter(dsl::sequence_number.eq_any(checkpoint_ids.iter().cloned()))
+            let checkpoint_ids: BTreeSet<_> = keys
+                .iter()
+                .filter_map(|key| {
+                    if let Some(viewed_at) = key.checkpoint_viewed_at {
+                        // Filter out keys querying for checkpoints after their own consistency
+                        // cursor.
+                        (viewed_at >= key.sequence_number).then_some(key.sequence_number as i64)
+                    } else {
+                        Some(key.sequence_number as i64)
+                    }
                 })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch checkpoints: {e}")))?;
+                .collect();
 
-        let checkpoint_id_to_stored: BTreeMap<_, _> = checkpoints
-            .into_iter()
-            .map(|stored| (stored.sequence_number as u64, stored))
-            .collect();
+            let checkpoints: Vec<StoredCheckpoint> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        dsl::checkpoints
+                            .filter(dsl::sequence_number.eq_any(checkpoint_ids.iter().cloned()))
+                    })
+                })
+                .await
+                .map_err(|e| Error::Internal(format!("Failed to fetch checkpoints: {e}")))?;
 
-        Ok(keys
-            .iter()
-            .filter_map(|key| {
-                let stored = checkpoint_id_to_stored.get(&key.sequence_number).cloned()?;
-                let checkpoint = Checkpoint {
-                    stored,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
-                };
+            let checkpoint_id_to_stored: BTreeMap<_, _> = checkpoints
+                .into_iter()
+                .map(|stored| (stored.sequence_number as u64, stored))
+                .collect();
 
-                let digest = &checkpoint.stored.checkpoint_digest;
-                if matches!(key.digest, Some(d) if d.as_slice() != digest) {
-                    None
-                } else {
-                    Some((*key, checkpoint))
-                }
-            })
-            .collect())
+            Ok(keys
+                .iter()
+                .filter_map(|key| {
+                    let stored = checkpoint_id_to_stored.get(&key.sequence_number).cloned()?;
+                    let checkpoint = Checkpoint {
+                        stored,
+                        checkpoint_viewed_at: key.checkpoint_viewed_at,
+                    };
+
+                    let digest = &checkpoint.stored.checkpoint_digest;
+                    if matches!(key.digest, Some(d) if d.as_slice() != digest) {
+                        None
+                    } else {
+                        Some((*key, checkpoint))
+                    }
+                })
+                .collect())
+        }
     }
 }
 
-#[async_trait::async_trait]
+#[allow(clippy::manual_async_fn)]
 impl Loader<DigestKey> for Db {
     type Value = Checkpoint;
     type Error = Error;
 
-    async fn load(&self, keys: &[DigestKey]) -> Result<HashMap<DigestKey, Checkpoint>, Error> {
-        use checkpoints::dsl;
+    fn load(
+        &self,
+        keys: &[DigestKey],
+    ) -> impl Future<Output = Result<HashMap<DigestKey, Self::Value>, Self::Error>> + Send {
+        async {
+            use checkpoints::dsl;
 
-        let digests: BTreeSet<_> = keys.iter().map(|key| key.digest.to_vec()).collect();
+            let digests: BTreeSet<_> = keys.iter().map(|key| key.digest.to_vec()).collect();
 
-        let checkpoints: Vec<StoredCheckpoint> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    dsl::checkpoints.filter(dsl::checkpoint_digest.eq_any(digests.iter().cloned()))
+            let checkpoints: Vec<StoredCheckpoint> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        dsl::checkpoints
+                            .filter(dsl::checkpoint_digest.eq_any(digests.iter().cloned()))
+                    })
                 })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch checkpoints: {e}")))?;
+                .await
+                .map_err(|e| Error::Internal(format!("Failed to fetch checkpoints: {e}")))?;
 
-        let checkpoint_id_to_stored: BTreeMap<_, _> = checkpoints
-            .into_iter()
-            .map(|stored| (stored.checkpoint_digest.clone(), stored))
-            .collect();
+            let checkpoint_id_to_stored: BTreeMap<_, _> = checkpoints
+                .into_iter()
+                .map(|stored| (stored.checkpoint_digest.clone(), stored))
+                .collect();
 
-        Ok(keys
-            .iter()
-            .filter_map(|key| {
-                let stored = checkpoint_id_to_stored
-                    .get(key.digest.as_slice())
-                    .cloned()?;
-                let checkpoint = Checkpoint {
-                    stored,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
-                };
+            Ok(keys
+                .iter()
+                .filter_map(|key| {
+                    let stored = checkpoint_id_to_stored
+                        .get(key.digest.as_slice())
+                        .cloned()?;
+                    let checkpoint = Checkpoint {
+                        stored,
+                        checkpoint_viewed_at: key.checkpoint_viewed_at,
+                    };
 
-                // Filter by key's checkpoint viewed at here. Doing this in memory because it
-                // should be quite rare that this query actually filters
-                // something, but encoding it in SQL is complicated.
-                let seq_num = checkpoint.stored.sequence_number as u64;
-                if matches!(key.checkpoint_viewed_at, Some(cp) if cp < seq_num) {
-                    None
-                } else {
-                    Some((*key, checkpoint))
-                }
-            })
-            .collect())
+                    // Filter by key's checkpoint viewed at here. Doing this in memory because it
+                    // should be quite rare that this query actually filters
+                    // something, but encoding it in SQL is complicated.
+                    let seq_num = checkpoint.stored.sequence_number as u64;
+                    if matches!(key.checkpoint_viewed_at, Some(cp) if cp < seq_num) {
+                        None
+                    } else {
+                        Some((*key, checkpoint))
+                    }
+                })
+                .collect())
+        }
     }
 }
