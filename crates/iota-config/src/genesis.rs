@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 use anyhow::{Context, Result};
 use fastcrypto::{
@@ -18,7 +23,6 @@ use iota_types::{
     deny_list::{get_coin_deny_list, PerTypeDenyList},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::{
         get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
         IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
@@ -93,6 +97,10 @@ impl Genesis {
             events,
             objects,
         }
+    }
+
+    pub fn into_objects(self) -> Vec<Object> {
+        self.objects
     }
 
     pub fn objects(&self) -> &[Object] {
@@ -174,17 +182,17 @@ impl Genesis {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
         trace!("Reading Genesis from {}", path.display());
-        let bytes = fs::read(path)
+        let read = File::open(path)
             .with_context(|| format!("Unable to load Genesis from {}", path.display()))?;
-        bcs::from_bytes(&bytes)
+        bcs::from_reader(BufReader::new(read))
             .with_context(|| format!("Unable to parse Genesis from {}", path.display()))
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
         trace!("Writing Genesis to {}", path.display());
-        let bytes = bcs::to_bytes(&self)?;
-        fs::write(path, bytes)
+        let mut write = BufWriter::new(File::create(path)?);
+        bcs::serialize_into(&mut write, &self)
             .with_context(|| format!("Unable to save Genesis to {}", path.display()))?;
         Ok(())
     }
@@ -229,13 +237,12 @@ impl Serialize for Genesis {
             objects: &self.objects,
         };
 
-        let bytes = bcs::to_bytes(&raw_genesis).map_err(|e| Error::custom(e.to_string()))?;
-
         if serializer.is_human_readable() {
-            let s = Base64::encode(&bytes);
+            let bytes = bcs::to_bytes(&raw_genesis).map_err(|e| Error::custom(e.to_string()))?;
+            let s = Base64::encode(bytes);
             serializer.serialize_str(&s)
         } else {
-            serializer.serialize_bytes(&bytes)
+            raw_genesis.serialize(serializer)
         }
     }
 }
@@ -257,30 +264,21 @@ impl<'de> Deserialize<'de> for Genesis {
             objects: Vec<Object>,
         }
 
-        let bytes = if deserializer.is_human_readable() {
+        let raw_genesis = if deserializer.is_human_readable() {
             let s = String::deserialize(deserializer)?;
-            Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?
+            let bytes = Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+            bcs::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))?
         } else {
-            let data: Vec<u8> = Vec::deserialize(deserializer)?;
-            data
+            RawGenesis::deserialize(deserializer)?
         };
 
-        let RawGenesis {
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
-        } = bcs::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))?;
-
         Ok(Genesis {
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
+            checkpoint: raw_genesis.checkpoint,
+            checkpoint_contents: raw_genesis.checkpoint_contents,
+            transaction: raw_genesis.transaction,
+            effects: raw_genesis.effects,
+            events: raw_genesis.events,
+            objects: raw_genesis.objects,
         })
     }
 }
@@ -381,7 +379,7 @@ pub struct GenesisCeremonyParameters {
     pub epoch_duration_ms: u64,
 
     /// The starting epoch in which stake subsidies start being paid out.
-    #[serde(default)]
+    #[serde(default = "GenesisCeremonyParameters::default_stake_subsidy_start_epoch")]
     pub stake_subsidy_start_epoch: u64,
 
     /// The amount of stake subsidy to be drawn down per distribution.
@@ -408,7 +406,7 @@ impl GenesisCeremonyParameters {
             chain_start_timestamp_ms: Self::default_timestamp_ms(),
             protocol_version: ProtocolVersion::MAX,
             allow_insertion_of_extra_objects: true,
-            stake_subsidy_start_epoch: 0,
+            stake_subsidy_start_epoch: Self::default_stake_subsidy_start_epoch(),
             epoch_duration_ms: Self::default_epoch_duration_ms(),
             stake_subsidy_initial_distribution_amount:
                 Self::default_initial_stake_subsidy_distribution_amount(),
@@ -433,19 +431,28 @@ impl GenesisCeremonyParameters {
         24 * 60 * 60 * 1000
     }
 
+    fn default_stake_subsidy_start_epoch() -> u64 {
+        // Set to highest possible value so that the stake subsidy fund never pays out
+        // rewards.
+        u64::MAX
+    }
+
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
-        // 1M Iota
-        1_000_000 * iota_types::gas_coin::NANOS_PER_IOTA
+        // 0 IOTA in nanos
+        0
     }
 
     fn default_stake_subsidy_period_length() -> u64 {
-        // 10 distributions or epochs
-        10
+        // Set to highest possible value so that the "decrease stake subsidy amount"
+        // code path is never entered which makes it easier to reason about the
+        // stake subsidy fund.
+        u64::MAX
     }
 
     fn default_stake_subsidy_decrease_rate() -> u16 {
-        // 10% in basis points
-        1000
+        // Due to how stake_subsidy_period_length is set, this values is not important,
+        // since the distribution amount is never decreased.
+        0
     }
 
     pub fn to_genesis_chain_parameters(&self) -> GenesisChainParameters {
@@ -479,33 +486,32 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_nanos: u64,
+    pub pre_minted_supply: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
+    pub fn contains_timelocked_stake(&self) -> bool {
+        self.allocations
+            .iter()
+            .find_map(|allocation| allocation.staked_with_timelock_expiration)
+            .is_some()
+    }
+
     pub fn validate(&self) {
-        let mut total_nanos = self.stake_subsidy_fund_nanos;
+        let mut total_nanos = self.pre_minted_supply;
 
         for allocation in &self.allocations {
-            total_nanos += allocation.amount_nanos;
-        }
-
-        if total_nanos != TOTAL_SUPPLY_NANOS {
-            panic!(
-                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}"
-            );
+            total_nanos = total_nanos
+                .checked_add(allocation.amount_nanos)
+                .expect("TokenDistributionSchedule allocates more than the maximum supply which equals u64::MAX", );
         }
     }
 
-    pub fn check_all_stake_operations_are_for_valid_validators<
-        I: IntoIterator<Item = IotaAddress>,
-    >(
+    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = IotaAddress>>(
         &self,
         validators: I,
-    ) {
-        use std::collections::HashMap;
-
+    ) -> Result<()> {
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
@@ -525,33 +531,31 @@ impl TokenDistributionSchedule {
         let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                panic!(
+                anyhow::bail!(
                     "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
                 );
             }
         }
+        Ok(())
     }
 
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
-        let mut supply = TOTAL_SUPPLY_NANOS;
         let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
 
         let allocations = validators
             .into_iter()
-            .map(|a| {
-                supply -= default_allocation;
-                TokenAllocation {
-                    recipient_address: a,
-                    amount_nanos: default_allocation,
-                    staked_with_validator: Some(a),
-                }
+            .map(|a| TokenAllocation {
+                recipient_address: a,
+                amount_nanos: default_allocation,
+                staked_with_validator: Some(a),
+                staked_with_timelock_expiration: None,
             })
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_nanos: supply,
+            pre_minted_supply: 0,
             allocations,
         };
 
@@ -565,33 +569,27 @@ impl TokenDistributionSchedule {
     /// denote the allocation to the stake subsidy fund. It must be in the
     /// following format:
     /// `0x0000000000000000000000000000000000000000000000000000000000000000,
-    /// <amount to stake subsidy fund>,`
+    /// <pre>minted supply</pre>,`
     ///
     /// All entries in a token distribution schedule must add up to 10B Iota.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::Reader::from_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
-        assert_eq!(
-            TOTAL_SUPPLY_NANOS,
-            allocations.iter().map(|a| a.amount_nanos).sum::<u64>(),
-            "Token Distribution Schedule must add up to 10B Iota",
-        );
-        let stake_subsidy_fund_allocation = allocations.pop().unwrap();
+
+        let pre_minted_supply = allocations.pop().unwrap();
         assert_eq!(
             IotaAddress::default(),
-            stake_subsidy_fund_allocation.recipient_address,
-            "Final allocation must be for stake subsidy fund",
+            pre_minted_supply.recipient_address,
+            "Final allocation must be for the pre-minted supply amount",
         );
         assert!(
-            stake_subsidy_fund_allocation
-                .staked_with_validator
-                .is_none(),
-            "Can't stake the stake subsidy fund",
+            pre_minted_supply.staked_with_validator.is_none(),
+            "Can't stake the pre-minted supply amount",
         );
 
         let schedule = Self {
-            stake_subsidy_fund_nanos: stake_subsidy_fund_allocation.amount_nanos,
+            pre_minted_supply: pre_minted_supply.amount_nanos,
             allocations,
         };
 
@@ -608,8 +606,9 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_nanos: self.stake_subsidy_fund_nanos,
+            amount_nanos: self.pre_minted_supply,
             staked_with_validator: None,
+            staked_with_timelock_expiration: None,
         })?;
 
         Ok(())
@@ -625,11 +624,14 @@ pub struct TokenAllocation {
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
     pub staked_with_validator: Option<IotaAddress>,
+    /// Indicates if this allocation should be staked with timelock at genesis
+    /// and contains its timelock_expiration
+    pub staked_with_timelock_expiration: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenDistributionScheduleBuilder {
-    pool: u64,
+    pre_minted_supply: u64,
     allocations: Vec<TokenAllocation>,
 }
 
@@ -637,9 +639,13 @@ impl TokenDistributionScheduleBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            pool: TOTAL_SUPPLY_NANOS,
+            pre_minted_supply: 0,
             allocations: vec![],
         }
+    }
+
+    pub fn set_pre_minted_supply(&mut self, pre_minted_supply: u64) {
+        self.pre_minted_supply = pre_minted_supply;
     }
 
     pub fn default_allocation_for_validators<I: IntoIterator<Item = IotaAddress>>(
@@ -653,18 +659,18 @@ impl TokenDistributionScheduleBuilder {
                 recipient_address: validator,
                 amount_nanos: default_allocation,
                 staked_with_validator: Some(validator),
+                staked_with_timelock_expiration: None,
             });
         }
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
-        self.pool = self.pool.checked_sub(allocation.amount_nanos).unwrap();
         self.allocations.push(allocation);
     }
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_nanos: self.pool,
+            pre_minted_supply: self.pre_minted_supply,
             allocations: self.allocations.clone(),
         };
 

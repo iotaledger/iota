@@ -46,7 +46,9 @@ anemo.workspace = true
 reqwest.workspace = true
 
 [dev-dependencies]
+move-bytecode-utils.workspace = true
 pretty_assertions.workspace = true
+serde.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }

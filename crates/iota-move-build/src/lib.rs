@@ -19,7 +19,7 @@ use iota_types::{
     is_system_package,
     move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
     DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
-    STARDUST_ADDRESS, TIMELOCK_ADDRESS,
+    STARDUST_ADDRESS,
 };
 use iota_verifier::{default_verifier_config, verifier as iota_bytecode_verifier};
 use move_binary_format::{
@@ -27,7 +27,10 @@ use move_binary_format::{
     normalized::{self, Type},
     CompiledModule,
 };
-use move_bytecode_utils::{layout::SerdeLayoutBuilder, module_cache::GetModule};
+use move_bytecode_utils::{
+    layout::{SerdeLayoutBuilder, YamlRegistry},
+    module_cache::GetModule,
+};
 use move_compiler::{
     compiled_unit::AnnotatedCompiledModule,
     diagnostics::{report_diagnostics_to_buffer, report_warnings, Diagnostics, FilesSourceText},
@@ -48,7 +51,6 @@ use move_package::{
     BuildConfig as MoveBuildConfig,
 };
 use move_symbol_pool::Symbol;
-use serde_reflection::Registry;
 
 #[cfg(test)]
 #[path = "unit_tests/build_tests.rs"]
@@ -450,19 +452,13 @@ impl CompiledPackage {
             .filter(|m| *m.self_id().address() == STARDUST_ADDRESS)
     }
 
-    /// Get bytecode modules from Timelock that are used by this package
-    pub fn get_timelock_modules(&self) -> impl Iterator<Item = &CompiledModule> {
-        self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == TIMELOCK_ADDRESS)
-    }
-
     /// Generate layout schemas for all types declared by this package, as well
     /// as all struct types passed into `entry` functions declared by
     /// modules in this package (either directly or by reference).
     /// These layout schemas can be consumed by clients (e.g., the TypeScript
     /// SDK) to enable BCS serialization/deserialization of the package's
     /// objects, tx arguments, and events.
-    pub fn generate_struct_layouts(&self) -> Registry {
+    pub fn generate_struct_layouts(&self) -> YamlRegistry {
         let mut package_types = BTreeSet::new();
         for m in self.get_modules() {
             let normalized_m = normalized::Module::new(m);

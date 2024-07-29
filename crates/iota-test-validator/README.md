@@ -22,6 +22,7 @@ latest successful run, scroll down to the bottom and download the artifacts. Thi
 4. To check your local db, if you use the default db url `postgres://postgres:postgres@localhost:5432/iota_indexer`, you can login to the `postgres` database and run `\dt` to show all tables.
 
 ## Run with a persisted state
+
 You can combine this with indexer runs as well to save a persisted state on local development.
 
 1. Generate a config to store db and genesis configs `iota genesis -f --with-faucet --working-dir=[some-directory]`

@@ -29,14 +29,14 @@ module examples::lock_and_key {
     const ELockIsFull: u64 = 2;
 
     /// Lock that stores any content inside it.
-    struct Lock<T: store + key> has key {
+    public struct Lock<T: store + key> has key {
         id: UID,
         locked: Option<T>
     }
 
     /// A key that is created with a Lock; is transferable
     /// and contains all the needed information to open the Lock.
-    struct Key<phantom T: store + key> has key, store {
+    public struct Key<phantom T: store + key> has key, store {
         id: UID,
         for: ID,
     }

@@ -17,7 +17,7 @@ To check whether a type could be used as a OTW, pass an instance of it to `iota:
 module examples::mycoin {
 
     /// Name matches the module name
-    struct MYCOIN has drop {}
+    public struct MYCOIN has drop {}
 
     /// The instance is received as the first argument
     fun init(witness: MYCOIN, ctx: &mut TxContext) {
@@ -53,7 +53,7 @@ module examples::one_time_witness_registry {
 
     /// An object of this type will mark that there's a type,
     /// and there can be only one record per type.
-    struct UniqueTypeRecord<phantom T> has key {
+    public struct UniqueTypeRecord<phantom T> has key {
         id: UID,
         name: String
     }
@@ -84,7 +84,7 @@ module examples::my_otw {
     use examples::one_time_witness_registry as registry;
 
     /// Type is named after the module but uppercased
-    struct MY_OTW has drop {}
+    public struct MY_OTW has drop {}
 
     /// To get it, use the first argument of the module initializer.
     /// It is a full instance and not a reference type.

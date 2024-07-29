@@ -70,7 +70,7 @@ The `UpgradeCap` is the central type responsible for coordinating package upgrad
 
 ```move
 module iota::package {
-    struct UpgradeCap has key, store {
+    public struct UpgradeCap has key, store {
         id: UID,
         package: ID,
         version: u64,
@@ -96,7 +96,7 @@ And its API guarantees the following properties:
 
 ```move
 module iota::package {
-    struct UpgradeTicket {
+    public struct UpgradeTicket {
         cap: ID,
         package: ID,
         policy: u8,
@@ -132,7 +132,7 @@ Refer to the [implementation for digest calculation](https://github.com/iotaledg
 ```bash
 iota move build --dump-bytecode-as-base64
 FETCHING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY IOTA
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING test
 {"modules":[<MODULE-BYTES-BASE64>],"dependencies":[<DEPENDENCY-IDS>],"digest":[59,43,173,195,216,88,176,182,18,8,24,200,200,192,196,197,248,35,118,184,207,205,33,59,228,109,184,230,50,31,235,201]}
@@ -142,7 +142,7 @@ BUILDING test
 
 ```move
 module iota::package {
-    struct UpgradeReceipt {
+    public struct UpgradeReceipt {
         cap: ID,
         package: ID,
     }
@@ -188,7 +188,7 @@ module policy::day_of_week {
     use iota::package;
     use iota::tx_context::TxContext;
 
-    struct UpgradeCap has key, store {
+    public struct UpgradeCap has key, store {
         id: UID,
         cap: package::UpgradeCap,
         day: u8,
@@ -275,7 +275,7 @@ module policy::day_of_week {
     use iota::package;
     use iota::tx_context::TxContext;
 
-    struct UpgradeCap has key, store {
+    public struct UpgradeCap has key, store {
         id: UID,
         cap: package::UpgradeCap,
         day: u8,
@@ -512,7 +512,7 @@ In the `example/sources` directory, create an `example.move` file with the follo
 
 ```move
 module example::example {
-    struct Event has copy, drop { x: u64 }
+    public struct Event has copy, drop { x: u64 }
     entry fun nudge() {
         iota::event::emit(Event { x: 41 })
     }

@@ -2,11 +2,11 @@ name: Build nightly IOTA binaries
 
 on:
   schedule:
-    - cron: '0 4 * * *' # Runs every day at 4 AM
+    - cron: "0 4 * * *" # Runs every day at 4 AM
   workflow_dispatch:
     inputs:
       iota_branch:
-        description: 'IOTA repo branch to build artifacts from (default: develop)'
+        description: "IOTA repo branch to build artifacts from (default: develop)"
         type: string
         required: false
 
@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 80
     strategy:
       matrix:
-        os: [ self-hosted-rust ]
+        os: [self-hosted-rust]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:

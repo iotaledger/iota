@@ -48,7 +48,7 @@ Move on IOTA addresses the scaling issue by not having global storage, or its re
 
 In Move on Diem, there is a 16-byte `address` type used to represent account addresses in global storage. A 16 byte address is sufficient for the Move on Diem security model.
 
-IOTA doesn't have global storage, so `address` is re-purposed as a 32-byte identifier used for both objects and accounts. Each transaction is signed by an account (the "sender") that is accessible from the transaction context, and each object stores its `address` wrapped in its `id: UID` field. (Refer to [object.move](https://github.com/iotaledger/iota/tree/main/crates/iota-framework/packages/iota-framework/sources/object.move) in the IOTA framework for details).
+IOTA doesn't have global storage, so `address` is re-purposed as a 32-byte identifier used for both objects and accounts. Each transaction is signed by an account (the "sender") that is accessible from the transaction context, and each object stores its `address` wrapped in its `id: UID` field. (Refer to [object.move](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/packages/iota-framework/sources/object.move) in the IOTA framework for details).
 
 ### Object with key ability, globally unique IDs
 
@@ -62,7 +62,7 @@ As described in [Object-centric global storage](#object-centric-global-storage),
 
 ### Entry points take object references as input
 
-You can call public functions from IOTA transactions (called programmable transaction blocks). These functions can take objects by value, by immutable reference, or by mutable reference. If taken by value, you can destroy the object, wrap it (in another object), or transfer it (to a IOTA ID specified by an address). If taken by mutable reference, the modified version of the object saves to storage without any change in ownership. In any case, the IOTA network authenticates the object and declares it's usage as a part of the transaction.
+You can call public functions from IOTA transactions (called programmable transaction blocks). These functions can take objects by value, by immutable reference, or by mutable reference. If taken by value, you can destroy the object, wrap it (in another object), or transfer it (to an IOTA ID specified by an address). If taken by mutable reference, the modified version of the object saves to storage without any change in ownership. In any case, the IOTA network authenticates the object and declares its usage as a part of the transaction.
 
 In addition to calling public functions, you can call a function that is marked [entry](entry-functions.mdx) even if it is private as long as other non-`entry` functions have not used its inputs.
 

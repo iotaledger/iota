@@ -2,7 +2,7 @@
 title: Capabilities
 ---
 
-A capability is a pattern that allows authorizing actions with an object. For example, the [`UpgradeCap`](../packages/upgrade.mdx#requirements) authorizes the action of upgrading packages. One of the most common capabilities you might encounter is `TreasuryCap`, which is defined in [`iota::coin`](https://github.com/iotaledger/iota/tree/main/crates/iota-framework/packages/iota-framework/sources/coin.move).
+A capability is a pattern that allows authorizing actions with an object. For example, the [`UpgradeCap`](../packages/upgrade.mdx#upgrade-requirements) authorizes the action of upgrading packages. One of the most common capabilities you might encounter is `TreasuryCap`, which is defined in [`iota::coin`](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/packages/iota-framework/sources/coin.move).
 
 
 ```move
@@ -13,10 +13,10 @@ module examples::item {
     use iota::tx_context::{Self, TxContext};
 
     /// Type that marks Capability to create new `Item`s.
-    struct AdminCap has key { id: UID }
+    public struct AdminCap has key { id: UID }
 
     /// Custom NFT-like type.
-    struct Item has key, store { id: UID, name: String }
+    public struct Item has key, store { id: UID, name: String }
 
     /// Module initializer is called once on module publish.
     /// Here we create only one instance of `AdminCap` and send it to the publisher.

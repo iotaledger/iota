@@ -21,9 +21,9 @@ As Wasp is an INX plugin, you must run the wasp node alongside your _hornet node
 
 We recommend that you run the docker image on a server with:
 
-* **CPU**: 8 core.
-* **RAM**: 16 GB.
-* **Disk space**: ~ 250 GB SSD, depending on your pruning configuration. 
+- **CPU**: 8 core.
+- **RAM**: 16 GB.
+- **Disk space**: ~ 250 GB SSD, depending on your pruning configuration.
 
 ## Set Up
 

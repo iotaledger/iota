@@ -18,21 +18,17 @@ const STDLIB_PATH = path.join(
   __dirname,
   "../../../../../crates/iota-framework/docs/move-stdlib",
 );
-const DEEPBOOK_PATH = path.join(
-  __dirname,
-  "../../../../../crates/iota-framework/docs/deepbook",
-);
 const IOTASYS_PATH = path.join(
   __dirname,
   "../../../../../crates/iota-framework/docs/iota-system",
 );
+const DEEPBOOK_PATH = path.join(
+    __dirname,
+    "../../../../../crates/iota-framework/docs/deepbook",
+);
 const STARDUST_PATH = path.join(
     __dirname,
     "../../../../../crates/iota-framework/docs/stardust",
-);
-const TIMELOCK_PATH = path.join(
-    __dirname,
-    "../../../../../crates/iota-framework/docs/timelock",
 );
 const DOCS_PATH = path.join(
   __dirname,
@@ -63,7 +59,7 @@ const frameworkPlugin = (context, options) => {
           const fp = path.join(dirPath, file.name);
           if (file.isDirectory()) {
             recurseFiles(fp, files);
-          } else if (file.isFile() && path.extname(file.name) === ".md") {
+          } else if (file.isFile() && path.extname(file.name) === ".mdx") {
             files.push(fp);
           }
         });
@@ -76,19 +72,17 @@ const frameworkPlugin = (context, options) => {
       const deepbookFiles = recurseFiles(DEEPBOOK_PATH);
       const iotasysFiles = recurseFiles(IOTASYS_PATH);
       const stardustFiles = recurseFiles(STARDUST_PATH);
-      const timelockFiles = recurseFiles(TIMELOCK_PATH);
       const allFiles = [
         frameworkFiles,
         stdlibFiles,
         // deepbookFiles, Disable deepbook docs for now.
         iotasysFiles,
         stardustFiles,
-        timelockFiles,
       ];
       allFiles.forEach((theseFiles) => {
         theseFiles.forEach((file) => {
           const markdown = fs.readFileSync(file, "utf8");
-          // .md extension in links messes up routing.
+          // .mdx extension in links messes up routing.
           // Removing here so linking still works in github crates/docs.
           // Remove the backticks from title.
           // Remove code blocks without pre's. Render automatically adds
@@ -97,10 +91,10 @@ const frameworkPlugin = (context, options) => {
           const filename = file.replace(/.*\/docs\/(.*)$/, `$1`);
           const parts = filename.split("/");
           const reMarkdown = markdown
-            .replace(/<a\s+(.*?)\.md(.*?)>/g, `<a $1$2>`)
+            .replace(/<a\s+(.*?)\.mdx(.*?)>/g, `<a $1$2>`)
             .replace(
               /(title: .*)Module `(0x[0-9a-f]{1,4}::)(.*)`/g,
-              `$1 Module $2$3\nsidebar_label: $3\nslug: `+parts[parts.length-1].replace('\.md',''),
+              `$1 Module $2$3\nsidebar_label: $3\n`,
             )
             .replace(/(?<!<pre>)<code>(.*?)<\/code>/gs, `$1`)
             .replace(/<pre><code><\/code><\/pre>/g, "");
@@ -109,7 +103,7 @@ const frameworkPlugin = (context, options) => {
 
           // Should work for nested docs, but is currently flat tree.
           parts.forEach((part) => {
-            if (!part.match(/\.md$/)) {
+            if (!part.match(/\.mdx$/)) {
               // Capitalize lib name for nav.
               let styledPart = part
                 .split("-")

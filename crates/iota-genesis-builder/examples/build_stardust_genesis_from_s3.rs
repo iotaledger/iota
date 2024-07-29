@@ -3,9 +3,7 @@
 
 //! Creating a genesis blob out of a remote stardust objects snapshots.
 
-use iota_genesis_builder::{
-    Builder, SnapshotUrl, IOTA_OBJECT_SNAPSHOT_URL, SHIMMER_OBJECT_SNAPSHOT_URL,
-};
+use iota_genesis_builder::{Builder, SnapshotUrl};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 use tracing::{info, Level};
@@ -18,20 +16,11 @@ fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    info!("Reading IOTA snapshot from {}", IOTA_OBJECT_SNAPSHOT_URL);
-    let iota_snapshot_reader = Builder::read_snapshot_from_s3(SnapshotUrl::Iota)?;
-
-    info!(
-        "Reading Shimmer snapshot from {}",
-        SHIMMER_OBJECT_SNAPSHOT_URL
-    );
-    let shimmer_snapshot_reader = Builder::read_snapshot_from_s3(SnapshotUrl::Shimmer)?;
-
     // Start building
     info!("Building the genesis..");
     let mut builder = Builder::new()
-        .add_migration_objects(iota_snapshot_reader)?
-        .add_migration_objects(shimmer_snapshot_reader)?;
+        .add_migration_source(SnapshotUrl::Iota.into())
+        .add_migration_source(SnapshotUrl::Shimmer.into());
 
     let mut key_pairs = Vec::new();
     let mut rng = OsRng;
@@ -46,8 +35,7 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
 
-    let genesis = builder.build();
-    println!("{:?}", genesis);
+    let _genesis = builder.build();
 
     info!("Genesis built successfully");
 

@@ -9,7 +9,7 @@ Each IOTA validator maintains its own staking pool to track the amount of stake 
 When IOTA is deposited to the staking pool in epoch `E`, those IOTA are converted into liquidity tokens at the epoch `E` exchange rate. As the staking pool earns rewards, the exchange rate appreciates. At epoch `E'`, those liquidity tokens are worth more and translate into more IOTA.
 The only difference between IOTA staking pools and typical liquidity pools is that in IOTA the liquidity tokens do not exist. Rather, the global exchange rate table is used to track the accounting. Because all IOTA tokens in the staking pool are treated the same, regardless of whether they were originally deposited as new stake or as stake rewards, all IOTA tokens immediately count as stake and thus compound rewards immediately.
 
-The staking pool is implemented in a system-level smart contract ([staking_pool.move](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-system/sources/staking_pool.move)) and is part of the IOTA framework.
+The staking pool is implemented in a system-level smart contract ([staking_pool.move](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-system/sources/staking_pool.move)) and is part of the IOTA framework.
 
 ## Validator pool exchange rate 
 

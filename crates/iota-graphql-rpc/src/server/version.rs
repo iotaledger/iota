@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    extract::State,
-    headers,
-    http::{HeaderName, HeaderValue, Request, StatusCode},
+    extract::{Request, State},
+    http::{HeaderName, HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    TypedHeader,
 };
+use axum_extra::{headers, TypedHeader};
 
 use crate::{
     config::Version,
@@ -51,11 +50,11 @@ impl headers::Header for IotaRpcVersion {
 /// constraint.  Each RPC instance only supports one version of the RPC
 /// software, and it is the responsibility of the load balancer to make sure
 /// version constraints are met.
-pub(crate) async fn check_version_middleware<B>(
+pub(crate) async fn check_version_middleware(
     user_version: Option<TypedHeader<IotaRpcVersion>>,
     State(version): State<Version>,
-    request: Request<B>,
-    next: Next<B>,
+    request: Request,
+    next: Next,
 ) -> Response {
     if let Some(TypedHeader(IotaRpcVersion(req_version, rest))) = user_version {
         if !rest.is_empty() {
@@ -111,10 +110,10 @@ pub(crate) async fn check_version_middleware<B>(
 
 /// Mark every outgoing response with a header indicating the precise version of
 /// the RPC that was used (including the patch version and sha).
-pub(crate) async fn set_version_middleware<B>(
+pub(crate) async fn set_version_middleware(
     State(version): State<Version>,
-    request: Request<B>,
-    next: Next<B>,
+    request: Request,
+    next: Next,
 ) -> Response {
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
@@ -146,6 +145,7 @@ mod tests {
 
     use axum::{body::Body, middleware, routing::get, Router};
     use expect_test::expect;
+    use http_body_util::BodyExt;
     use mysten_metrics;
     use tokio_util::sync::CancellationToken;
     use tower::ServiceExt;
@@ -202,8 +202,8 @@ mod tests {
     }
 
     async fn response_body(response: Response) -> String {
-        let bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        let value: serde_json::Value = serde_json::from_slice(bytes.as_ref()).unwrap();
+        let bytes = response.into_body().collect().await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(bytes.to_bytes().as_ref()).unwrap();
         serde_json::to_string_pretty(&value).unwrap()
     }
 

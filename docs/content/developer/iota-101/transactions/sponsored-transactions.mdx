@@ -2,7 +2,7 @@
 title: Sponsored Transactions
 ---
 
-A IOTA sponsored transaction is one where a IOTA address (the sponsor's) pays the gas fees for a transaction that another address (the user's) initializes. You can use sponsored transactions to cover the fees for users on your site or app so that they don't get charged for them. This removes a significant obstacle that web 2.0 users encounter when entering web3, as they often have to purchase tokens to perform a transaction on chain. For example, you could sponsor gamers' early transactions to increase conversion rates.
+An IOTA sponsored transaction is one where an IOTA address (the sponsor's) pays the gas fees for a transaction that another address (the user's) initializes. You can use sponsored transactions to cover the fees for users on your site or app so that they don't get charged for them. This removes a significant obstacle that web 2.0 users encounter when entering web3, as they often have to purchase tokens to perform a transaction on chain. For example, you could sponsor gamers' early transactions to increase conversion rates.
 
 Sponsored transactions also facilitate asset management as you don't need to maintain multiple accounts with IOTA tokens to transfer funds.
 
@@ -36,7 +36,7 @@ The following example constructs a `GasLessTransactionData`  object.
 ```rust
 pub struct GasLessTransactionData {
     pub kind: TransactionKind,
-    sender: IOTAAddress,
+    sender: IotaAddress,
     …
 }
 ```
@@ -61,7 +61,7 @@ To use a `GasData` object to sponsor the gas fees for a transaction, create a `G
  1. The sponsor confirms the `TransactionData` and then signs it.
  1. The sponsor submits the dual-signed `TransactionData` to a Full node to execute the transaction.
 
-## Create a IOTA gas station
+## Create an IOTA gas station
 
 On IOTA, a gas station is a concept to describe where you set up processes to sponsor user transactions. You can customize a IOTA gas station to support the specific user-facing functionality you need. Some example use cases for a IOTA gas station include:
 

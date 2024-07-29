@@ -3,66 +3,66 @@ processed 16 tasks
 init:
 A: object(0,0), B: object(0,1)
 
-task 1 'publish'. lines 13-26:
+task 1 'publish'. lines 14-27:
 created: object(1,0)
 mutated: object(0,2)
 gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'run'. lines 28-28:
+task 2 'run'. lines 29-29:
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3 'run'. lines 30-30:
+task 3 'run'. lines 31-31:
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 4 'run'. lines 32-32:
+task 4 'run'. lines 33-33:
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 5 'run'. lines 34-34:
+task 5 'run'. lines 35-35:
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 6 'create-checkpoint'. lines 36-36:
+task 6 'create-checkpoint'. lines 37-37:
 Checkpoint created: 1
 
-task 7 'run'. lines 38-38:
+task 7 'run'. lines 39-39:
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 8 'run'. lines 40-40:
+task 8 'run'. lines 41-41:
 created: object(8,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 9 'run'. lines 42-42:
+task 9 'run'. lines 43-43:
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 10 'create-checkpoint'. lines 44-44:
+task 10 'create-checkpoint'. lines 45-45:
 Checkpoint created: 2
 
-task 11 'run'. lines 46-46:
+task 11 'run'. lines 47-47:
 created: object(11,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 12 'run'. lines 48-48:
+task 12 'run'. lines 49-49:
 created: object(12,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
-task 13 'create-checkpoint'. lines 50-50:
+task 13 'create-checkpoint'. lines 51-51:
 Checkpoint created: 3
 
-task 14 'run-graphql'. lines 52-76:
+task 14 'run-graphql'. lines 53-77:
 Response: {
   "data": {
     "checkpoints": {
@@ -80,12 +80,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjoyLCJ0YyI6MX0",
                 "node": {
-                  "digest": "53z7D9NC9j48pcuSCKiGiTfvXB9XMuEC6US1jVaBew2R",
+                  "digest": "DQvw3KciYBfuwrE3bkigj2VF3Cm5VPioW9BghnA8JiLh",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -95,12 +95,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjozLCJ0YyI6MX0",
                 "node": {
-                  "digest": "6XwCmc4ddTZk1dZZP6fQ1VXi2y9zc26TRLex8d6PwCwY",
+                  "digest": "14kqgGoNZmmHur2gRfkeKKxeDfNg1jSWMD8ECafucJUt",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -110,12 +110,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo0LCJ0YyI6MX0",
                 "node": {
-                  "digest": "5jp9iTt8zAT9fYJJait6afMGJjo4u9Me2tmieJbYEq16",
+                  "digest": "AoDK91DAEPKFEWXtxUBiFAL5f4T9jNbprEMspRvz58Ny",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -125,12 +125,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo1LCJ0YyI6MX0",
                 "node": {
-                  "digest": "6GFwipPrpmccG4e8z6qn5Q5EcRhwnKTmfXXxJx6EcJCE",
+                  "digest": "85J1W2L8fUHUrfd4gqcC4Efh9YTtcw9QFU8axJNAska8",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -147,12 +147,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo2LCJ0YyI6Mn0",
                 "node": {
-                  "digest": "2S6c9vnmiXnQKyKD34dWRh9h2268Tcj5EGpeSYKareLv",
+                  "digest": "AKzEtZ8TQr2sVHNjXDGW5Pi4979Zde1VbN5EjDseCLg5",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -162,12 +162,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo3LCJ0YyI6Mn0",
                 "node": {
-                  "digest": "HKnKYo4U3KYeVvpoiBMg8LjVNAev3dkyHZLUmBk6jipe",
+                  "digest": "9hhgKKLBAKxD5i7Fvt5SUtmb6bjQdZHPUzNkwmVUqQU",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -177,12 +177,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo4LCJ0YyI6Mn0",
                 "node": {
-                  "digest": "HhfpQJFygNVgedQdgb6dn1GBQhC6gv78sXSy7EEbMo6",
+                  "digest": "7xmvGPMvTt9QjC7JQ3BF1gAud4xoEwoGM3p7SFzE2zga",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -199,12 +199,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0Ijo5LCJ0YyI6M30",
                 "node": {
-                  "digest": "DFAywa3HrFM5ymJg14DF7BJMknqRf6S4UAdMsgGrKv7E",
+                  "digest": "4dUys4sDpSWWN1wq1kwUhoWUnmmh8A3RTo1hWjBx1bDn",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -214,12 +214,12 @@ Response: {
               {
                 "cursor": "eyJjIjozLCJ0IjoxMCwidGMiOjN9",
                 "node": {
-                  "digest": "XvxGtgPJuzs1G8nBPuW7ZqKzjrjXDzZp5wLKkp9XXTL",
+                  "digest": "H64u7PyedHkNmLUtrPXBVjWdTKFPdqg5LNduVtmfV3Vk",
                   "sender": {
                     "objects": {
                       "edges": [
                         {
-                          "cursor": "IPxiG9wW9tStCaPycxLhRxeakzIOSOFP8+b0tk477GtnAwAAAAAAAAA="
+                          "cursor": "IN4kW39Kfal3t/YQHpWUJgpLlPPhIbZfGudG5I65MGocAwAAAAAAAAA="
                         }
                       ]
                     }
@@ -234,7 +234,7 @@ Response: {
   }
 }
 
-task 15 'run-graphql'. lines 78-95:
+task 15 'run-graphql'. lines 79-96:
 Response: {
   "data": {
     "checkpoints": {

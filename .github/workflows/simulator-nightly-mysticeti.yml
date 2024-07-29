@@ -5,7 +5,7 @@ concurrency:
 
 on:
   schedule:
-    - cron: '0 13 * * *' # UTC timing is every day at 5am PST
+    - cron: "0 13 * * *" # UTC timing is every day at 5am PST
   workflow_dispatch:
     inputs:
       iota_ref:
@@ -55,13 +55,13 @@ jobs:
 
       # Cargo clean and git restore on any left over files from git checkout, and deletes all remote tracking branches
       - name: Environment clean
-        run: | 
+        run: |
           tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && rm -rf ~/iota"
           tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && cd ~/ && git clone git@github.com:MystenLabs/iota.git"
- 
+
       # Deleting files in tmpfs that usually fill up pretty quickly after each run. Cargo clean to free up space as well.
       - name: Tmpfs and cargo clean
-        run: |  
+        run: |
           tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "sudo rm -rf /tmp/*"
           tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && cd ~/iota && cargo clean"
 
@@ -79,4 +79,3 @@ jobs:
       - name: Run simtest
         run: |
           tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 120 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && cd ~/iota && RUSTUP_MAX_RETRIES=10 CARGO_TERM_COLOR=always CARGO_INCREMENTAL=0 CARGO_NET_RETRY=10 RUST_BACKTRACE=short RUST_LOG=off NUM_CPUS=24 TEST_NUM=${{ env.TEST_NUM }} ./scripts/simtest/simtest-run.sh"
-

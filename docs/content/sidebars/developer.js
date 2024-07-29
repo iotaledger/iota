@@ -19,7 +19,7 @@ const developer = [
             'developer/getting-started/local-network',
             'developer/getting-started/get-address',
             'developer/getting-started/get-coins',
-            'developer/getting-started/graphql-rpc',
+            //'developer/getting-started/graphql-rpc',
             {
                 type: 'category',
                 label: 'Your First IOTA dApp',
@@ -104,7 +104,7 @@ const developer = [
                     'developer/iota-101/iota-move-concepts/conventions',
                 ],
             },
-            'developer/graphql-rpc',
+            //'developer/graphql-rpc',
             {
                 type: 'category',
                 label: 'Object Model',
@@ -227,15 +227,6 @@ const developer = [
                             'developer/cryptography/explanations/transaction-auth/intent-signing',
                         ],
                     },
-                    {
-                        type: 'category',
-                        label: 'zkLogin',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/cryptography/explanations/zklogin',
-                        },
-                        items: ['developer/cryptography/explanations/zklogin/zklogin-example'],
-                    },
                     'developer/cryptography/explanations/system/checkpoint-verification',
                 ],
             },
@@ -269,40 +260,11 @@ const developer = [
 						},
 						items: ['developer/advanced/min-gas-fees'],
 					},*/
-            'developer/advanced/graphql-migration',
+            //'developer/advanced/graphql-migration',
             'developer/advanced/move-2024-migration',
             'developer/advanced/asset-tokenization',
             'developer/advanced/custom-indexer',
             'developer/advanced/stardust-on-move',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'App Examples',
-        link: {
-            type: 'doc',
-            id: 'developer/app-examples',
-        },
-        items: [
-            'developer/app-examples/blackjack',
-            'developer/app-examples/coin-flip',
-            'developer/app-examples/e2e-counter',
-            'developer/app-examples/plinko',
-            'developer/app-examples/recaptcha',
-            'developer/app-examples/tic-tac-toe',
-            {
-                type: 'category',
-                label: 'Trustless Token Swap',
-                link: {
-                    type: 'doc',
-                    id: 'developer/app-examples/trustless-token-swap',
-                },
-                items: [
-                    'developer/app-examples/trustless-token-swap/backend',
-                    'developer/app-examples/trustless-token-swap/indexer-api',
-                    'developer/app-examples/trustless-token-swap/frontend',
-                ],
-            },
         ],
     },
     {
@@ -329,22 +291,6 @@ const developer = [
             },
             'developer/standards/kiosk',
             'developer/standards/kiosk-apps',
-            {
-                type: 'category',
-                label: 'DeepBook',
-                link: {
-                    type: 'doc',
-                    id: 'developer/standards/deepbook',
-                },
-                items: [
-                    'developer/standards/deepbook/design',
-                    'developer/standards/deepbook/orders',
-                    'developer/standards/deepbook/pools',
-                    'developer/standards/deepbook/query-the-pool',
-                    'developer/standards/deepbook/routing-a-swap',
-                    'developer/standards/deepbook/trade-and-swap',
-                ],
-            },
             'developer/standards/display',
             'developer/standards/wallet-standard',
         ],
@@ -771,112 +717,33 @@ const developer = [
             },
         ],
     },
+
     {
         type: 'category',
-        label: 'Decentralized Identity',
+        label: 'Migrating from IOTA/Shimmer Stardust',
         link: {
             type: 'doc',
-            id: 'developer/iota-identity/welcome',
+            id: 'developer/stardust/stardust-migration',
         },
         items: [
-            {
-                type: 'doc',
-                id: 'developer/iota-identity/welcome',
-                label: 'Welcome',
-            },
-            {
-                type: 'category',
-                label: 'Getting Started',
-                collapsed: false,
-                items: [
-                    'developer/iota-identity/getting-started/rust',
-                    'developer/iota-identity/getting-started/wasm',
-                ],
-            },
-            {
-                type: 'category',
-                label: 'Explanations',
-                items: [
-                    'developer/iota-identity/explanations/decentralized-identifiers',
-                    'developer/iota-identity/explanations/verifiable-credentials',
-                    'developer/iota-identity/explanations/verifiable-presentations',
-                    'developer/iota-identity/explanations/about-alias-outputs',
-                ],
-            },
-            {
-                type: 'category',
-                label: 'How To',
-                items: [
-                    {
-                        type: 'category',
-                        label: 'Decentralized Identifiers (DID)',
-                        items: [
-                            'developer/iota-identity/how-tos/decentralized-identifiers/create',
-                            'developer/iota-identity/how-tos/decentralized-identifiers/update',
-                            'developer/iota-identity/how-tos/decentralized-identifiers/resolve',
-                            'developer/iota-identity/how-tos/decentralized-identifiers/delete',
-                        ],
-                    },
-                    {
-                        type: 'category',
-                        label: 'Verifiable Credentials',
-                        items: [
-                            'developer/iota-identity/how-tos/verifiable-credentials/create',
-                            'developer/iota-identity/how-tos/verifiable-credentials/revocation',
-                            'developer/iota-identity/how-tos/verifiable-credentials/selective-disclosure',
-                            'developer/iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure',
-                        ],
-                    },
-                    {
-                        type: 'category',
-                        label: 'Verifiable Presentations',
-                        items: [
-                            'developer/iota-identity/how-tos/verifiable-presentations/create-and-validate',
-                        ],
-                    },
-                    {
-                        type: 'category',
-                        label: 'Domain Linkage',
-                        items: ['developer/iota-identity/how-tos/domain-linkage/create-and-verify'],
-                    },
-                    'developer/iota-identity/how-tos/key-storage',
-                ],
-            },
-            'developer/iota-identity/glossary',
-            'developer/iota-identity/contribute',
-            'developer/iota-identity/workflow',
-            'developer/iota-identity/contact',
-            'developer/iota-identity/faq',
+            'developer/stardust/exchanges',
+            'developer/stardust/move-models',
+            'developer/stardust/addresses',
+            'developer/stardust/units',
+            'developer/stardust/migration-process',
+            'developer/stardust/claiming',
+            'developer/stardust/vested',
+            'developer/stardust/testing',
+            'developer/stardust/if-tools',
+            'developer/stardust/faq',
+            'developer/stardust/advanced',
         ],
     },
+
     {
         type: 'category',
-        label: 'Integrate Your Exchange',
-        items: [
-            'developer/exchange-integration/exchange-integration',
-
-            {
-                type: 'category',
-                label: 'Migrating IOTA/Shimmer Stardust',
-                link: {
-                    type: 'doc',
-                    id: 'developer/stardust/stardust-migration',
-                },
-                items: [
-                    'developer/stardust/exchanges',
-                    'developer/stardust/move-models',
-                    'developer/stardust/addresses',
-                    'developer/stardust/units',
-                    'developer/stardust/migration-process',
-                    'developer/stardust/claiming',
-                    'developer/stardust/vested',
-                    'developer/stardust/testing',
-                    'developer/stardust/if-tools',
-                    'developer/stardust/faq',
-                    'developer/stardust/advanced',
-                ],
-            },
-        ],
+        label: 'Exchange integration',
+        items: ['developer/exchange-integration/exchange-integration'],
     },
 ];
 module.exports = developer;

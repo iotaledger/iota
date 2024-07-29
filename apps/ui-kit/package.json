@@ -10,8 +10,8 @@
         "dist"
     ],
     "scripts": {
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
@@ -32,6 +32,8 @@
     },
     "dependencies": {
         "@fontsource/inter": "^5.0.17",
+        "@iota/ui-icons": "workspace:*",
+        "@radix-ui/react-dialog": "^1.0.4",
         "classnames": "^2.5.1",
         "lodash.merge": "^4.6.2",
         "react": "^18.3.1",
@@ -49,7 +51,7 @@
         "@storybook/test": "^8.1.11",
         "@types/lodash.merge": "^4.6.9",
         "@types/node": "^20.4.2",
-        "@types/react": "^18.2.15",
+        "@types/react": "^18.3.3",
         "@vitejs/plugin-react-swc": "^3.3.2",
         "autoprefixer": "^10.4.14",
         "cross-env": "^7.0.3",

@@ -12,9 +12,9 @@ serialization and deserialization in various environments. The main target for t
 
 This package is a perfect fit for the following applications:
 
--   Publishing new Coins
--   Publishing TransferPolicies
--   Initializing any base type with a custom sub-type
+- Publishing new Coins
+- Publishing TransferPolicies
+- Initializing any base type with a custom sub-type
 
 ## Example of a Template Module
 

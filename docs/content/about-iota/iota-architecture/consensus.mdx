@@ -1,10 +1,10 @@
 ---
 title: IOTA Mempool and Consensus Engines
-sidebar_label: Mempool and Consensus Engines 
+sidebar_label: Mempool and Consensus
 description: Overview of the IOTA mempool and consensus engines, Narwhal and Bullshark.
 ---
 
-This is a brief introduction to [Narwhal](https://github.com/iotaledger/iota/tree/main/narwhal), and [Bullshark](https://arxiv.org/abs/2209.05633), the high-throughput mempool and consensus engines offered by Mysten Labs. IOTA uses Narwhal as the mempool and Bullshark as the consensus engine by default, to sequence transactions that require a total ordering, synchronize transactions between validators and periodically checkpoint the network's state.
+This is a brief introduction to [Narwhal](https://github.com/iotaledger/iota/tree/develop/narwhal), and [Bullshark](https://arxiv.org/abs/2209.05633), the high-throughput mempool and consensus engines developed by Mysten Labs. IOTA uses Narwhal as the mempool and Bullshark as the consensus engine by default, to sequence transactions that require a total ordering, synchronize transactions between validators, and periodically checkpoint the network's state.
 
 The names highlight that the components split the responsibilities of:
 
@@ -22,11 +22,9 @@ The IOTA consensus engine approach can offer dramatic scalability benefits in th
 
 The Narwhal mempool offers:
 
-- a high-throughput data availability engine, with cryptographic proofs of data availability at a [primary node](https://github.com/iotaledger/iota/blob/main/narwhal/primary)
+- a high-throughput data availability engine, with cryptographic proofs of data availability at a [primary node](https://github.com/iotaledger/iota/blob/develop/narwhal/primary)
 - a structured graph data structure for traversing this information
-- a scaled architecture, splitting the disk I/O and networking requirements across several [workers](https://github.com/iotaledger/iota/blob/main/narwhal/worker)
-
-The [consensus](https://github.com/iotaledger/iota/blob/main/narwhal/consensus) component offers a zero-message overhead consensus algorithm, leveraging graph traversals.
+- a scaled architecture, splitting the disk I/O and networking requirements across several [workers](https://github.com/iotaledger/iota/blob/develop/narwhal/worker)
 
 ## Architecture
 
@@ -82,7 +80,7 @@ Narwhal is implemented using [Tokio](https://github.com/tokio-rs/tokio), [RocksD
 
 ## Configuration
 
-To conduct a fresh deployment of IOTA Consensus Engine, follow the instructions at [Running Benchmarks](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark).
+To conduct a fresh deployment of IOTA Consensus Engine, follow the instructions at [Running Benchmarks](https://github.com/iotaledger/iota/blob/develop/narwhal/benchmark).
 
 ## Further reading
 
