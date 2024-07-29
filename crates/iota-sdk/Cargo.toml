@@ -81,6 +81,10 @@ name = "sign_tx_guide"
 path = "examples/sign_tx_guide.rs"
 
 [[example]]
+name = "nft_output"
+path = "examples/stardust/nft_output.rs"
+
+[[example]]
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
