@@ -4,7 +4,8 @@
 import React, { PropsWithChildren } from 'react';
 import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmented-button.classes';
 import cx from 'classnames';
-import { SegmentedButtonShape, SegmentedButtonType } from './segmented-button.enums';
+import { SegmentedButtonType } from './segmented-button.enums';
+import { ButtonSegmentType } from '../../atoms';
 
 interface SegmentedButtonProps {
     /**
@@ -14,17 +15,17 @@ interface SegmentedButtonProps {
     /**
      * The shape of the button
      */
-    shape?: SegmentedButtonShape;
+    shape?: ButtonSegmentType;
 }
 
 export function SegmentedButton({
     type = SegmentedButtonType.Filled,
     children,
-    shape = SegmentedButtonShape.Rounded,
+    shape = ButtonSegmentType.Rounded,
 }: PropsWithChildren<SegmentedButtonProps>): React.JSX.Element {
     const backgroundColors = BACKGROUND_COLORS[type];
     const borderColors = type === SegmentedButtonType.Outlined ? OUTLINED_BORDER : '';
-    const borderShape = shape === SegmentedButtonShape.Rounded ? 'rounded-full gap-1 p-xxs' : '';
+    const borderShape = shape === ButtonSegmentType.Rounded ? 'rounded-full gap-1 p-xxs' : '';
     return (
         <div className={cx('flex flex-row', backgroundColors, borderColors, borderShape)}>
             {children}

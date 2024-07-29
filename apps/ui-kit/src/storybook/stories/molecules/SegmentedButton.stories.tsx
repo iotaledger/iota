@@ -7,9 +7,8 @@ import {
     ButtonSegment,
     ButtonSegmentType,
     SegmentedButton,
-    SegmentedButtonShape,
+    SegmentedButtonType,
 } from '@/components';
-import { SegmentedButtonType } from '@/lib/components';
 import { ComponentProps, useState } from 'react';
 import { PlaceholderReplace } from '@iota/ui-icons';
 
@@ -34,10 +33,15 @@ const meta = {
 
         return (
             <div className="flex flex-col items-start">
-                <SegmentedButton type={props.type}>
+                <SegmentedButton type={props.type} shape={props.shape}>
                     {elements.map((element, index) => (
                         <ButtonSegment
                             key={element.label}
+                            type={
+                                props.shape === ButtonSegmentType.Underlined
+                                    ? ButtonSegmentType.Underlined
+                                    : ButtonSegmentType.Rounded
+                            }
                             onClick={() => handleElementClick(index)}
                             {...element}
                         />
@@ -63,7 +67,7 @@ export const Default: Story = {
         shape: {
             control: {
                 type: 'select',
-                options: Object.values(SegmentedButtonShape),
+                options: Object.values(ButtonSegmentType),
             },
         },
     },
@@ -72,7 +76,7 @@ export const Default: Story = {
 export const Underlined: Story = {
     args: {
         type: SegmentedButtonType.Transparent,
-        shape: SegmentedButtonShape.Underlined,
+        shape: ButtonSegmentType.Underlined,
     },
     render: (props) => {
         const [elements, setElements] = useState<ComponentProps<typeof ButtonSegment>[]>([
