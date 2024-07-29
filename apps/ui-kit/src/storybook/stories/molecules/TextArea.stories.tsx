@@ -49,7 +49,7 @@ export const Default: Story = {
                 <TextArea
                     onChange={handleOnChange}
                     value={inputValue}
-                    isToggleButtonVisible
+                    isVisibilityToggleEnabled
                     {...storyProps}
                 />
                 <div className="flex w-full justify-end">

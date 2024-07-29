@@ -49,7 +49,7 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
     /**
      * Shows toggle button to show/hide the content of the input field
      */
-    isToggleButtonVisible?: boolean;
+    isVisibilityToggleEnabled?: boolean;
     /**
      * Trailing element that is shown after the input field
      */
@@ -88,7 +88,7 @@ export function TextField({
     amountCounter,
     id,
     pattern,
-    isToggleButtonVisible,
+    isVisibilityToggleEnabled,
     autoFocus,
     trailingElement,
     required,
@@ -169,7 +169,7 @@ export function TextField({
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
 
                 {trailingElement ||
-                    ((isToggleButtonVisible ?? type === TextFieldType.Password) && (
+                    ((isVisibilityToggleEnabled ?? type === TextFieldType.Password) && (
                         <TextFieldTrailingElement
                             onClearInput={onClearInput}
                             onToggleButtonClick={onToggleButtonClick}

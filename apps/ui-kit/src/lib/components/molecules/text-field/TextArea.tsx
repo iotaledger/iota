@@ -41,7 +41,7 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
     /**
      * Shows toggle button to show/hide the content of the input field
      */
-    isToggleButtonVisible?: boolean;
+    isVisibilityToggleEnabled?: boolean;
     /**
      * Ref for the input field
      */
@@ -67,7 +67,7 @@ export function TextArea({
     value,
     amountCounter,
     id,
-    isToggleButtonVisible,
+    isVisibilityToggleEnabled,
     rows,
     cols,
     autoFocus,
@@ -147,7 +147,7 @@ export function TextArea({
                     </div>
                 )}
 
-                {isToggleButtonVisible && (
+                {isVisibilityToggleEnabled && (
                     <div className="absolute bottom-4 right-4 flex">
                         <TextFieldTrailingElement
                             onToggleButtonClick={onToggleButtonClick}
