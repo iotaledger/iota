@@ -11,36 +11,36 @@ gas summary: computation_cost: 1000000, storage_cost: 6194000,  storage_rebate: 
 task 2 'run'. lines 36-36:
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'run'. lines 38-38:
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 40-40:
 created: object(4,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 5 'run'. lines 42-42:
 created: object(5,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 6 'run'. lines 44-44:
 created: object(6,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 7 'programmable'. lines 46-50:
 created: object(7,0)
 mutated: object(0,0), object(2,0), object(3,0), object(4,0), object(5,0), object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 8876800,  storage_rebate: 6508260, non_refundable_storage_fee: 65740
+gas summary: computation_cost: 1000000, storage_cost: 8876800,  storage_rebate: 6574000, non_refundable_storage_fee: 0
 
 task 8 'run'. lines 52-52:
 mutated: object(0,0), object(7,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 9 'create-checkpoint'. lines 54-54:
 Checkpoint created: 1
@@ -51,7 +51,7 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "43zi2Mn9y66s87fZiCGPSyxitYN9oizTUcn8nYS5hmXp",
+          "digest": "GzZUKCFQWXgcuDZmZXTXrLZQf2nuGkyyQFkWbeWELduC",
           "effects": {
             "dependencies": {
               "pageInfo": {
@@ -64,7 +64,7 @@ Response: {
                 {
                   "cursor": "eyJpIjowLCJjIjoxfQ",
                   "node": {
-                    "digest": "CiQPRuDt7LZrY3c3uEL221qTu7wURUwyzi9uiNwpCsEw",
+                    "digest": "9CvFWVZiRbNqwGumDXWAY5yRRk2Kvy8rZKfsq3AxgP8U",
                     "kind": {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
@@ -82,7 +82,7 @@ Response: {
                 {
                   "cursor": "eyJpIjoxLCJjIjoxfQ",
                   "node": {
-                    "digest": "E4KeQKewqMb7o6FjK4XdtGZvgNh9JsTPvWXcUjiw35Lm",
+                    "digest": "CdCiVCGme3gR2TByfuP39wewLtWRBuAjLFzcbSzuXZoB",
                     "kind": {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
@@ -123,7 +123,7 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "43zi2Mn9y66s87fZiCGPSyxitYN9oizTUcn8nYS5hmXp",
+          "digest": "GzZUKCFQWXgcuDZmZXTXrLZQf2nuGkyyQFkWbeWELduC",
           "effects": {
             "dependencies": {
               "pageInfo": {
@@ -136,7 +136,7 @@ Response: {
                 {
                   "cursor": "eyJpIjoxLCJjIjoxfQ",
                   "node": {
-                    "digest": "E4KeQKewqMb7o6FjK4XdtGZvgNh9JsTPvWXcUjiw35Lm",
+                    "digest": "CdCiVCGme3gR2TByfuP39wewLtWRBuAjLFzcbSzuXZoB",
                     "kind": {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
