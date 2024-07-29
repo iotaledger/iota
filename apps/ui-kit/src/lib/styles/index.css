@@ -80,4 +80,10 @@
             @apply bg-primary-80;
         }
     }
+
+    .icon-size-outside {
+        svg {
+            @apply h-full w-full;
+        }
+    }
 }

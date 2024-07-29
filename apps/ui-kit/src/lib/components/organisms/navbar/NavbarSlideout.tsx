@@ -8,13 +8,7 @@ import { NavbarItem } from '@/components/molecules/navbar-item/NavbarItem';
 import { NavbarProps } from './Navbar';
 import { NavbarItemType } from '@/components/molecules/navbar-item/navbarItem.enums';
 
-function NavbarSlideout({
-    items,
-    activeId,
-    onClick,
-    isOpen,
-    className,
-}: NavbarProps & { isOpen: boolean }) {
+function NavbarSlideout({ items, activeId, onClick, isOpen }: NavbarProps & { isOpen: boolean }) {
     const handleBackClick = () => {
         console.info('Back button clicked');
     };
@@ -24,7 +18,6 @@ function NavbarSlideout({
             <div className="z-998 fixed left-0 top-0 h-full w-full bg-shader-neutral-light-72"></div>
             <div
                 className={cx(
-                    className,
                     'z-999 rounded-tb-3xl fixed left-0 top-0 h-full w-9/12 rounded-tr-3xl bg-white py-lg transition-transform duration-300 ease-out',
                     {
                         'translate-x-0': isOpen,

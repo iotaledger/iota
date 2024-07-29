@@ -41,9 +41,9 @@ export function NavbarItemHorizontal({
                     backgroundColors,
                 )}
             >
-                {React.cloneElement(icon as React.ReactElement, {
-                    className: cx('w-6 h-6', fillClasses),
-                })}
+                <div className={cx('icon-size-outside inline-flex h-6 w-6', fillClasses)}>
+                    {icon}
+                </div>
                 {hasBadge && (
                     <div className={cx('absolute', badgePositionClasses)}>
                         <Badge type={BadgeType.PrimarySolid} />

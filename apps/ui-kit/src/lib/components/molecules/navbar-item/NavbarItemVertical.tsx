@@ -32,10 +32,8 @@ export function NavbarItemVertical({
             )}
         >
             <div className="flex items-center gap-3">
-                <div className={cx('inline-flex')}>
-                    {React.cloneElement(icon as React.ReactElement, {
-                        className: cx('w-6 h-6', fillClasses),
-                    })}
+                <div className={cx('icon-size-outside inline-flex h-6 w-6', fillClasses)}>
+                    {icon}
                 </div>
                 {text && (
                     <span className={cx('text-center text-label-md', textClasses)}>{text}</span>
