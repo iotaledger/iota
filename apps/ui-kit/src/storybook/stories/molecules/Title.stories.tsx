@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-
-import { Title } from '@/components/molecules/title/Title';
 import * as ButtonStory from '../atoms/Button.stories';
+import { Title, TooltipPosition } from '@/lib/components';
 
 const meta = {
     component: Title,
@@ -33,11 +32,17 @@ export const Default: Story = {
         subtitle: {
             control: 'text',
         },
-        info: {
+        tooltipText: {
             control: 'text',
         },
         button: {
             control: 'object',
+        },
+        tooltipPosition: {
+            control: {
+                type: 'select',
+                options: Object.values(TooltipPosition),
+            },
         },
     },
 };
