@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import cx from 'classnames';
-import { Address, Box, TitleSize } from '@/components';
+import { Address, Box, BoxTitleSize } from '@/components';
 
 const meta = {
     component: Box,
@@ -36,7 +36,7 @@ export const Default: Story = {
         size: {
             control: {
                 type: 'select',
-                options: Object.values(TitleSize),
+                options: Object.values(BoxTitleSize),
             },
         },
     },
