@@ -251,19 +251,7 @@ const developer = [
             id: 'developer/advanced',
         },
         items: [
-            /*{
-						type: 'category',
-						label: 'Efficient Smart Contracts',
-						link: {
-							type: 'doc',
-							id: 'developer/advanced/efficient-smart-contracts',
-						},
-						items: ['developer/advanced/min-gas-fees'],
-					},*/
-            //'developer/advanced/graphql-migration',
-            'developer/advanced/move-2024-migration',
             'developer/advanced/asset-tokenization',
-            'developer/advanced/custom-indexer',
             'developer/advanced/stardust-on-move',
         ],
     },
