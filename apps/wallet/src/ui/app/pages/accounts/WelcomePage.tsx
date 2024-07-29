@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { Button } from '_app/shared/ButtonUI';
 import Loading from '_components/loading';
+import { useNavigate } from 'react-router-dom';
 import { useFullscreenGuard, useInitializedGuard } from '_hooks';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { IotaLogoWeb } from '@iota/icons';
@@ -17,6 +17,8 @@ export function WelcomePage() {
         false,
         !(createAccountsMutation.isPending || createAccountsMutation.isSuccess),
     );
+    const navigate = useNavigate();
+
     return (
         <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
             <div className="flex h-full w-full flex-col items-center justify-between overflow-auto rounded-20 bg-white px-xl py-2xl shadow-wallet-content">
@@ -35,7 +37,16 @@ export function WelcomePage() {
                     </div>
 
                     <div>
-                        <Button type={ButtonType.Primary} text={'Add Profile'} />
+                        <Button
+                            type={ButtonType.Primary}
+                            text={'Add Profile'}
+                            onClick={() => {
+                                navigate('/accounts/add-account?sourceFlow=Onboarding');
+                            }}
+                            disabled={
+                                createAccountsMutation.isPending || createAccountsMutation.isSuccess
+                            }
+                        />
                     </div>
                 </div>
 
