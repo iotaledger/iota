@@ -20,30 +20,10 @@ use iota_sdk::{
     },
     IotaClientBuilder,
 };
-use iota_types::base_types::IotaAddress;
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
-
-/// Creates a temporary keystore
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read iota keystore
-    Ok(FileBasedKeystore::new(&keystore_path)?)
-}
-
-fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove files
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-    Ok(())
-}
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -239,4 +219,22 @@ async fn main() -> Result<(), anyhow::Error> {
 
 fn type_tag(type_key: String) -> Result<TypeTag, anyhow::Error> {
     TypeTag::from_str(&format!("0x{type_key}"))
+}
+
+fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
+    // Create a temporary keystore
+    let keystore_path = PathBuf::from("iotatempdb");
+    if !keystore_path.exists() {
+        let keystore = FileBasedKeystore::new(&keystore_path)?;
+        keystore.save()?;
+    }
+    // Read iota keystore
+    Ok(FileBasedKeystore::new(&keystore_path)?)
+}
+
+fn clean_keystore() -> Result<(), anyhow::Error> {
+    // Remove files
+    fs::remove_file("iotatempdb")?;
+    fs::remove_file("iotatempdb.aliases")?;
+    Ok(())
 }
