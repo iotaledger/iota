@@ -4,11 +4,12 @@
 
 use fastcrypto::error::FastCryptoError;
 use iota_json_rpc::name_service::NameServiceError;
+use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_types::{
     base_types::ObjectIDParseError,
     error::{IotaError, IotaObjectResponseError, UserInputError},
 };
-use jsonrpsee::{core::Error as RpcError, types::error::CallError};
+use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -146,7 +147,13 @@ impl<T> Context<T> for Result<T, IndexerError> {
 
 impl From<IndexerError> for RpcError {
     fn from(e: IndexerError) -> Self {
-        RpcError::Call(CallError::Failed(e.into()))
+        RpcError::Call(internal_error(e))
+    }
+}
+
+impl From<IndexerError> for ErrorObjectOwned {
+    fn from(value: IndexerError) -> Self {
+        error_object_from_rpc(value.into())
     }
 }
 

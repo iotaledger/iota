@@ -8,27 +8,27 @@ gas summary: computation_cost: 1000000, storage_cost: 5175600,  storage_rebate: 
 task 2 'run'. lines 22-22:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'run'. lines 24-24:
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 26-26:
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 5 'run'. lines 28-28:
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 6 'run'. lines 30-30:
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 7 'create-checkpoint'. lines 32-32:
 Checkpoint created: 1
@@ -43,8 +43,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x17c2a9b2af8c0dbcf9560bf3b611f071f0468c193f11c95ed512d44b92fdfcce",
-                  "value": "4"
+                  "id": "0x433b74dc5f5c3303caaaa8cb4e59d3cddc5e5ee52206aa991424d2742489a12b",
+                  "value": "3"
                 }
               }
             }
@@ -53,27 +53,7 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
-                  "value": "1"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
-                  "value": "2"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
+                  "id": "0x9fc6e62e9629eb929b5468594c9747fd172a95009fc81e6d7579ed391046cfb6",
                   "value": "0"
                 }
               }
@@ -83,8 +63,28 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
-                  "value": "3"
+                  "id": "0xb106d35476a4fccc87dc626900cd9964d6f3be471ebd844fb12e50b0e53839cd",
+                  "value": "2"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xcca329883e455295eceb1c9dc070b0fcbd3ecea833f9cb09176b101e1b9bfc80",
+                  "value": "4"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xea0115d43d55970f1024d13c8b61b3928a007b56922795792668becbd79fc82b",
+                  "value": "1"
                 }
               }
             }
@@ -105,8 +105,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x17c2a9b2af8c0dbcf9560bf3b611f071f0468c193f11c95ed512d44b92fdfcce",
-                  "value": "4"
+                  "id": "0x433b74dc5f5c3303caaaa8cb4e59d3cddc5e5ee52206aa991424d2742489a12b",
+                  "value": "3"
                 }
               }
             }
@@ -115,8 +115,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
-                  "value": "1"
+                  "id": "0x9fc6e62e9629eb929b5468594c9747fd172a95009fc81e6d7579ed391046cfb6",
+                  "value": "0"
                 }
               }
             }
@@ -137,18 +137,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x23010d8726bad4a2e38b04f640753c9ebcf12e1c6607f8cd48e80d417120a27e",
+                  "id": "0xea0115d43d55970f1024d13c8b61b3928a007b56922795792668becbd79fc82b",
                   "value": "1"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
-                  "value": "2"
                 }
               }
             }
@@ -169,8 +159,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
+                  "id": "0xcca329883e455295eceb1c9dc070b0fcbd3ecea833f9cb09176b101e1b9bfc80",
+                  "value": "4"
                 }
               }
             }
@@ -179,8 +169,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
-                  "value": "3"
+                  "id": "0xea0115d43d55970f1024d13c8b61b3928a007b56922795792668becbd79fc82b",
+                  "value": "1"
                 }
               }
             }
@@ -196,28 +186,7 @@ Response: {
   "data": {
     "address": {
       "objects": {
-        "edges": [
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x41fa2fe0fe047495d0c78324c064fdfc55c948725ef9340ab3156152904bf828",
-                  "value": "2"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "contents": {
-                "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
-                }
-              }
-            }
-          }
-        ]
+        "edges": []
       }
     }
   }
@@ -233,8 +202,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x9771c7810cc037b4e4d1baec167de7778c04bedcd582bdd87b2491dc2005b5ab",
-                  "value": "0"
+                  "id": "0xcca329883e455295eceb1c9dc070b0fcbd3ecea833f9cb09176b101e1b9bfc80",
+                  "value": "4"
                 }
               }
             }
@@ -243,8 +212,8 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0xad66deb5983570f1da76f73db5798f98f7ad5780a8d4d48a7465d1bffffa08df",
-                  "value": "3"
+                  "id": "0xea0115d43d55970f1024d13c8b61b3928a007b56922795792668becbd79fc82b",
+                  "value": "1"
                 }
               }
             }

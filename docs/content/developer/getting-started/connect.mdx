@@ -4,8 +4,11 @@ description: Besides Mainnet, IOTA offers Testnet, Devnet, and local networks th
 ---
 
 import DataWipe from "../../_snippets/data-wipe.mdx";
+import AlphaNet from "../../_snippets/alphanet.mdx";
 
 IOTA has Mainnet, Devnet, and Testnet networks available. You can use one of the test networks, Devnet or Testnet, to experiment with the version of IOTA running on that network. You can also spin up a [local IOTA network](local-network.mdx) for local development. 
+
+<AlphaNet />
 
 The IOTA Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. Clients send transactions and read requests via this endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443` using [JSON-RPC](/references/iota-api/json-rpc-format.mdx).
 
@@ -88,6 +91,8 @@ Secret Recovery Phrase : [cap wheat many line human lazy few solid bored proud s
 
 ### Connect to a custom RPC endpoint
 
+<AlphaNet />
+
 If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet` at `https://fullnode.devnet.iota.io:443`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
 
 If you previously installed a IOTA client that connected to a IOTA network, or created a local network, you can modify your existing client.yaml file to change the configured RPC endpoint. The `iota client` commands that relate to environments read from and write to the client.yaml file.
@@ -97,6 +102,8 @@ To check currently available environment aliases, run the following command:
 ```sh
 iota client envs
 ```
+
+<AlphaNet />
 
 The command outputs the available environment aliases, with `(active)` denoting the currently active network.
 ```sh

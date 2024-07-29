@@ -15,11 +15,11 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 17-19:
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [224, 254, 135, 74, 173, 170, 72, 210, 205, 206, 11, 96, 21, 79, 25, 36, 170, 113, 10, 64, 232, 245, 75, 115, 20, 97, 24, 171, 22, 151, 46, 165, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [212, 87, 108, 251, 56, 39, 131, 80, 243, 226, 24, 38, 212, 155, 194, 14, 147, 80, 75, 129, 235, 34, 120, 3, 145, 155, 56, 192, 29, 182, 130, 250, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 15108800,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
+gas summary: computation_cost: 1000000, storage_cost: 15412800,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
 task 5 'create-checkpoint'. lines 20-20:
 Checkpoint created: 3
@@ -30,7 +30,7 @@ Epoch advanced: 1
 task 7 'programmable'. lines 25-29:
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 8 'create-checkpoint'. lines 30-30:
 Checkpoint created: 5
@@ -43,7 +43,7 @@ Response: {
   "data": {
     "epoch": {
       "validatorSet": {
-        "totalStake": "20000010002000000",
+        "totalStake": "3034010000000000",
         "activeValidators": {
           "nodes": [
             {
@@ -52,28 +52,28 @@ Response: {
           ]
         },
         "validatorCandidatesSize": 0,
-        "inactivePoolsId": "0x639a8d0c0184732a062c7b28b209f06d547a8068810b5ee10c812c37e32ce38b"
+        "inactivePoolsId": "0xd4a9ede0b4418386db6fb0efa05aca2bc36c8b87c06bfe98ab08709988dc18e7"
       },
       "totalGasFees": "1000000",
-      "totalStakeRewards": "1000000",
+      "totalStakeRewards": "767000000000000",
       "totalStakeSubsidies": "0",
-      "fundSize": "15128560",
+      "fundSize": "15412800",
       "fundInflow": "1976000",
-      "fundOutflow": "978120",
-      "netInflow": "997880",
+      "fundOutflow": "988000",
+      "netInflow": "988000",
       "transactionBlocks": {
         "nodes": [
           {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "8nVFtU1w1VkNugCrgymKQXK8skh8tHrMxntNGCp5Yqvb"
+            "digest": "4QHtybfsbce7DxceYeMi1pDxr3QLdDh99YcN9Y26sApi"
           },
           {
             "kind": {
               "__typename": "EndOfEpochTransaction"
             },
-            "digest": "CsopuAJW1Hr37ReAqnbhNBoHsxisos8F8zcSFdgRkq9z"
+            "digest": "HA6PvtnNKdSJrXojWzBBL9x7W15YwSh3wWpvwNSsYAeQ"
           }
         ]
       }

@@ -212,9 +212,8 @@ async fn start_faucet(cluster: &LocalNewCluster, port: u16) -> Result<()> {
 
     println!("Faucet URL: http://{}", addr);
 
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }

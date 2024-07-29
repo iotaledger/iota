@@ -7,10 +7,11 @@ use iota_json_rpc::{
     name_service::{Domain, NameRecord, NameServiceConfig},
     IotaRpcModule,
 };
-use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
+use iota_json_rpc_api::{cap_page_limit, internal_error, IndexerApiServer};
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, ObjectsPage,
+    Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -22,11 +23,7 @@ use iota_types::{
     object::ObjectRead,
     TypeTag,
 };
-use jsonrpsee::{
-    core::RpcResult,
-    types::{SubscriptionEmptyError, SubscriptionResult},
-    RpcModule, SubscriptionSink,
-};
+use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, RpcModule};
 
 use crate::{indexer_reader::IndexerReader, IndexerError};
 
@@ -70,52 +67,65 @@ impl IndexerApi {
         objects.truncate(limit);
 
         let next_cursor = objects.last().map(|o_read| o_read.object_id());
-        let mut parallel_tasks = vec![];
-        for o in objects {
-            let inner_clone = self.inner.clone();
-            let options = options.clone();
-            parallel_tasks.push(tokio::task::spawn(async move {
-                match o {
-                    ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                        IotaObjectResponseError::NotExists { object_id: id },
-                    )),
-                    ObjectRead::Exists(object_ref, o, layout) => {
-                        if options.show_display {
-                            match inner_clone.get_display_fields(&o, &layout).await {
-                                Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
-                                    (object_ref, o, layout, options, Some(rendered_fields))
-                                        .try_into()?,
-                                )),
-                                Err(e) => Ok(IotaObjectResponse::new(
-                                    Some((object_ref, o, layout, options, None).try_into()?),
-                                    Some(IotaObjectResponseError::DisplayError {
-                                        error: e.to_string(),
-                                    }),
-                                )),
+        let mut parallel_tasks = Vec::with_capacity(objects.len());
+        async fn check_read_obj(
+            obj: ObjectRead,
+            reader: IndexerReader,
+            options: IotaObjectDataOptions,
+        ) -> anyhow::Result<IotaObjectResponse> {
+            match obj {
+                ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::NotExists { object_id: id },
+                )),
+                ObjectRead::Exists(object_ref, o, layout) => {
+                    if options.show_display {
+                        match reader.get_display_fields(&o, &layout).await {
+                            Ok(rendered_fields) => {
+                                Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                                    object_ref,
+                                    o,
+                                    layout,
+                                    options,
+                                    rendered_fields,
+                                )?))
                             }
-                        } else {
-                            Ok(IotaObjectResponse::new_with_data(
-                                (object_ref, o, layout, options, None).try_into()?,
-                            ))
+                            Err(e) => Ok(IotaObjectResponse::new(
+                                Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
+                                Some(IotaObjectResponseError::DisplayError {
+                                    error: e.to_string(),
+                                }),
+                            )),
                         }
+                    } else {
+                        Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                            object_ref, o, layout, options, None,
+                        )?))
                     }
-                    ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                        IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                            object_id,
-                            version,
-                            digest,
-                        }),
-                    ),
                 }
-            }));
+                ObjectRead::Deleted((object_id, version, digest)) => Ok(
+                    IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
+                        object_id,
+                        version,
+                        digest,
+                    }),
+                ),
+            }
+        }
+        for obj in objects {
+            parallel_tasks.push(tokio::task::spawn(check_read_obj(
+                obj,
+                self.inner.clone(),
+                options.clone(),
+            )));
         }
         let data = futures::future::join_all(parallel_tasks)
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e: tokio::task::JoinError| anyhow::anyhow!(e))?
+            .map_err(internal_error)?
             .into_iter()
-            .collect::<Result<Vec<_>, anyhow::Error>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(internal_error)?;
 
         Ok(Page {
             data,
@@ -162,8 +172,7 @@ impl IndexerApiServer for IndexerApi {
                 limit + 1,
                 descending_order.unwrap_or(false),
             )
-            .await
-            .map_err(|e: IndexerError| anyhow::anyhow!(e))?;
+            .await?;
 
         let has_next_page = results.len() > limit;
         results.truncate(limit);
@@ -252,7 +261,8 @@ impl IndexerApiServer for IndexerApi {
             | iota_types::object::ObjectRead::Deleted(_) => {}
             iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
-                    (object_ref, o, layout, options, None).try_into()?,
+                    IotaObjectData::new(object_ref, o, layout, options, None)
+                        .map_err(internal_error)?,
                 ));
             }
         }
@@ -276,7 +286,8 @@ impl IndexerApiServer for IndexerApi {
             | iota_types::object::ObjectRead::Deleted(_) => {}
             iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
-                    (object_ref, o, layout, options, None).try_into()?,
+                    IotaObjectData::new(object_ref, o, layout, options, None)
+                        .map_err(internal_error)?,
                 ));
             }
         }
@@ -286,16 +297,13 @@ impl IndexerApiServer for IndexerApi {
         ))
     }
 
-    fn subscribe_event(&self, _sink: SubscriptionSink, _filter: EventFilter) -> SubscriptionResult {
-        Err(SubscriptionEmptyError)
-    }
+    async fn subscribe_event(&self, _sink: PendingSubscriptionSink, _filter: EventFilter) {}
 
-    fn subscribe_transaction(
+    async fn subscribe_transaction(
         &self,
-        _sink: SubscriptionSink,
+        _sink: PendingSubscriptionSink,
         _filter: TransactionFilter,
-    ) -> SubscriptionResult {
-        Err(SubscriptionEmptyError)
+    ) {
     }
 
     async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
