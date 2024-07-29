@@ -100,77 +100,12 @@ async fn main() -> Result<(), anyhow::Error> {
         );
     }
 
-    // Setup gas budget and gas price
-    let gas_budget = 10_000_000;
-    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
-
-    let pt = create_ptb(
-        sender,
-        ObjectArg::ImmOrOwnedObject(nft_output_object_ref),
-        df_type_keys,
-    )?;
-    // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_coin.object_ref()],
-        pt,
-        gas_budget,
-        gas_price,
-    );
-
-    // Sign the transaction
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-
-    // Execute transaction
-    let transaction_response = iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-
-    println!("Transaction digest: {:?}", transaction_response);
-    println!("Transaction digest: {}", transaction_response.digest);
-
-    // Finish and clean the temporary keystore file
-    clean_keystore()
-}
-
-fn type_tag(type_key: String) -> Result<TypeTag, anyhow::Error> {
-    TypeTag::from_str(&format!("0x{type_key}"))
-}
-
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read iota keystore
-    Ok(FileBasedKeystore::new(&keystore_path)?)
-}
-
-fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove files
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-    Ok(())
-}
-
-fn create_ptb(
-    sender: IotaAddress,
-    nft_output_object_arg: ObjectArg,
-    df_type_keys: Vec<String>,
-) -> anyhow::Result<ProgrammableTransaction> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         // Extract nft assets(base token, native tokens bag, nft asset itself).
         let type_arguments = vec![GAS::type_tag()];
-        let arguments = vec![builder.obj(nft_output_object_arg)?];
+        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(nft_output_object_ref))?];
         // Finally call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_ADDRESS.into(),
@@ -246,5 +181,58 @@ fn create_ptb(
         }
         builder.finish()
     };
-    Ok(pt)
+
+    // Setup gas budget and gas price
+    let gas_budget = 10_000_000;
+    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+
+    // Create the transaction data that will be sent to the network
+    let tx_data = TransactionData::new_programmable(
+        sender,
+        vec![gas_coin.object_ref()],
+        pt,
+        gas_budget,
+        gas_price,
+    );
+
+    // Sign the transaction
+    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+
+    // Execute transaction
+    let transaction_response = iota_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_data(tx_data, vec![signature]),
+            IotaTransactionBlockResponseOptions::full_content(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+
+    println!("Transaction digest: {:?}", transaction_response);
+    println!("Transaction digest: {}", transaction_response.digest);
+
+    // Finish and clean the temporary keystore file
+    clean_keystore()
+}
+
+fn type_tag(type_key: String) -> Result<TypeTag, anyhow::Error> {
+    TypeTag::from_str(&format!("0x{type_key}"))
+}
+
+fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
+    // Create a temporary keystore
+    let keystore_path = PathBuf::from("iotatempdb");
+    if !keystore_path.exists() {
+        let keystore = FileBasedKeystore::new(&keystore_path)?;
+        keystore.save()?;
+    }
+    // Read iota keystore
+    Ok(FileBasedKeystore::new(&keystore_path)?)
+}
+
+fn clean_keystore() -> Result<(), anyhow::Error> {
+    // Remove files
+    fs::remove_file("iotatempdb")?;
+    fs::remove_file("iotatempdb.aliases")?;
+    Ok(())
 }
