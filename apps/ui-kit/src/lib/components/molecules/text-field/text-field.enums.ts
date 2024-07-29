@@ -8,7 +8,5 @@ export enum TextFieldType {
 
 export enum Resize {
     None = 'none',
-    Both = 'both',
-    Horizontal = 'horizontal',
     Vertical = 'vertical',
 }
