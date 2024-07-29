@@ -4,14 +4,14 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { PaginatedObjectsResponse, type IotaObjectDataFilter } from '@iota/iota.js/client';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { TIMELOCK_PACKAGE_ID } from '../constants';
+import { TIMELOCK_TYPE } from '../constants';
 
 const MAX_OBJECTS_PER_REQ = 6;
 
 export function useGetTimelockedObjects(address: string, maxObjectRequests = MAX_OBJECTS_PER_REQ) {
     const client = useIotaClient();
     const filter: IotaObjectDataFilter = {
-        Package: TIMELOCK_PACKAGE_ID,
+        StructType: TIMELOCK_TYPE,
     };
     return useInfiniteQuery<PaginatedObjectsResponse>({
         initialPageParam: null,
