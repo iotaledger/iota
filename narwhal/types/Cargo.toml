@@ -10,7 +10,7 @@ publish = false
 base64.workspace = true
 bcs.workspace = true
 bytes.workspace = true
-derive_builder.workspace = true
+derive_builder = "0.20"
 enum_dispatch.workspace = true
 futures.workspace = true
 indexmap.workspace = true
@@ -44,15 +44,15 @@ store = { path = "../../crates/typed-store", package = "typed-store" }
 
 [dev-dependencies]
 criterion.workspace = true
-serde_test.workspace = true
+serde_test = "1.0"
 test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 
 [target.'cfg(not(target_env = "msvc"))'.build-dependencies]
-protobuf-src.workspace = true
+protobuf-src = "1.1"
 
 [build-dependencies]
 prost-build.workspace = true
-rustversion.workspace = true
+rustversion = "1.0"
 tonic-build.workspace = true
 anemo-build.workspace = true
 

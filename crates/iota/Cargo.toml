@@ -12,7 +12,7 @@ anyhow.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
 aws-config.workspace = true
-aws-sdk-kms.workspace = true
+aws-sdk-kms = "1.35"
 bcs.workspace = true
 bip32.workspace = true
 camino.workspace = true
@@ -24,7 +24,7 @@ im.workspace = true
 inquire.workspace = true
 insta.workspace = true
 json_to_table.workspace = true
-miette.workspace = true
+miette = { version = "7.2", features = ["fancy"] }
 num-bigint.workspace = true
 prometheus.workspace = true
 rand.workspace = true
@@ -33,7 +33,7 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-shlex.workspace = true
+shlex = "1.3"
 signature.workspace = true
 tabled.workspace = true
 tap.workspace = true
@@ -65,9 +65,9 @@ fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 
 colored.workspace = true
-rustyline.workspace = true
-rustyline-derive.workspace = true
-shell-words.workspace = true
+rustyline = "9.1"
+rustyline-derive = "0.7"
+shell-words = "1.1"
 unescape.workspace = true
 
 telemetry-subscribers.workspace = true
@@ -80,7 +80,7 @@ move-package.workspace = true
 move-vm-profiler.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemalloc-ctl.workspace = true
+jemalloc-ctl = "0.5"
 
 [dev-dependencies]
 assert_cmd.workspace = true
@@ -96,9 +96,6 @@ test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true
-
-[package.metadata.cargo-udeps.ignore]
-normal = ["jemalloc-ctl"]
 
 [[example]]
 name = "generate-genesis-checkpoint"

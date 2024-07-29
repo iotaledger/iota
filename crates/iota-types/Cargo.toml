@@ -19,7 +19,7 @@ eyre.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
-iota-stardust-sdk = { version = "1.1.4", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
+iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 itertools.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
@@ -32,15 +32,15 @@ move-vm-test-utils.workspace = true
 move-vm-types.workspace = true
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 num-rational = "0.4"
-num-traits = "0.2.18"
+num-traits = "0.2"
 once_cell.workspace = true
-packable = { version = "0.8.3", default-features = false, features = ["io"] }
+packable = { version = "0.8", default-features = false, features = ["io"] }
 prometheus.workspace = true
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
 serde.workspace = true
-serde-name.workspace = true
+serde-name = "0.2"
 serde_json.workspace = true
 serde_with.workspace = true
 signature.workspace = true
@@ -64,7 +64,7 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-tbls.workspace = true
 fastcrypto-zkp.workspace = true
 
-derive_more.workspace = true
+derive_more = "0.99"
 proptest.workspace = true
 proptest-derive.workspace = true
 typed-store-error.workspace = true

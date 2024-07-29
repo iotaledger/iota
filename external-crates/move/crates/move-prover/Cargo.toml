@@ -29,6 +29,6 @@ toml.workspace = true
 [dev-dependencies]
 datatest-stable.workspace = true
 move-prover-test-utils.workspace = true
-shell-words.workspace = true
+shell-words = "1.1"
 walkdir.workspace = true
 tempfile.workspace = true

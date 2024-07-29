@@ -43,5 +43,5 @@ tonic-build.workspace = true
 [dev-dependencies]
 ed25519-consensus.workspace = true
 telemetry-subscribers.workspace = true
-tempfile = "3.3.0"
+tempfile = "3.3"
 tokio = { workspace = true, features = ["test-util"] }

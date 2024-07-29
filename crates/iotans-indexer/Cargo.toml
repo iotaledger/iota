@@ -13,7 +13,7 @@ backoff.workspace = true
 base64-url.workspace = true
 bcs.workspace = true
 bytes.workspace = true
-diesel = { version = "2.1.4", features = ["postgres", "r2d2", "serde_json"] }
+diesel = { version = "2.1", features = ["postgres", "r2d2", "serde_json"] }
 dotenvy = "0.15"
 futures.workspace = true
 iota-data-ingestion-core.workspace = true

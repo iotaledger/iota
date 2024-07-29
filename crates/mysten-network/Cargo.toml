@@ -16,7 +16,7 @@ futures.workspace = true
 http.workspace = true
 hyper-util = { workspace = true, features = ["tokio"] }
 multiaddr.workspace = true
-pin-project-lite = "0.2.14"
+pin-project-lite = "0.2"
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }

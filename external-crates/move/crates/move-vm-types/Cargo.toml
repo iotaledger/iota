@@ -29,4 +29,3 @@ fuzzing = ["proptest", "move-binary-format/fuzzing"]
 gas-profiler = [
     "move-vm-profiler/gas-profiler"
 ]
-

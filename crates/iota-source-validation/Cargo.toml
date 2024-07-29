@@ -30,9 +30,9 @@ move-package.workspace = true
 move-symbol-pool.workspace = true
 
 flate2.workspace = true
-tar.workspace = true
+tar = "0.4"
 tempfile.workspace = true
-ureq.workspace = true
+ureq = "2.9"
 
 [dev-dependencies]
 expect-test.workspace = true

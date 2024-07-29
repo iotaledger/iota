@@ -15,12 +15,12 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel.workspace = true
-diesel-derive-enum.workspace = true
+diesel-derive-enum = { version = "2.1", features = ["postgres"] }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
-rayon.workspace = true
+rayon = "1.5"
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -51,7 +51,7 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 
 cached.workspace = true
-diesel_migrations.workspace = true
+diesel_migrations = "2.2"
 
 [features]
 pg_integration = []
@@ -61,7 +61,7 @@ criterion.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-test-transaction-builder.workspace = true
-ntest.workspace = true
+ntest = "0.9"
 simulacrum.workspace = true
 test-cluster.workspace = true
 

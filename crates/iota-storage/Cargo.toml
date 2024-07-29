@@ -20,7 +20,7 @@ fastcrypto.workspace = true
 futures.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
-hyper-rustls.workspace = true
+hyper-rustls = { version = "0.27", features = ["webpki-roots", "http2"] }
 hyper-util = { workspace = true, features = ["http2", "client-legacy", "tokio"] }
 indicatif.workspace = true
 integer-encoding.workspace = true
@@ -28,7 +28,7 @@ itertools.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
-percent-encoding = "2.2.0"
+percent-encoding = "2.2"
 prometheus.workspace = true
 reqwest.workspace = true
 rocksdb.workspace = true
@@ -40,7 +40,7 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["full", "tracing"] }
 tracing.workspace = true
 url.workspace = true
-zstd.workspace = true
+zstd = "0.13"
 
 eyre.workspace = true
 iota-config.workspace = true

@@ -11,4 +11,4 @@ bcs.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 serde.workspace = true
-serde_repr.workspace = true
+serde_repr = "0.1"
