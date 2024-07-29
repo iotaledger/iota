@@ -408,7 +408,9 @@ impl Executor {
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
-                let token_type = foundry_ledger_data.canonical_coin_type();
+                let token_type =
+                    foundry_ledger_data.to_canonical_string(/* with_prefix */ true);
+                let bag_key = foundry_ledger_data.to_canonical_string(/* with_prefix */ false);
 
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
@@ -425,7 +427,7 @@ impl Executor {
                     token_type.parse()?,
                     adjusted_amount,
                 )?;
-                pt::bag_add(&mut builder, bag, balance, token_type)?;
+                pt::bag_add(&mut builder, bag, bag_key, balance, token_type)?;
             }
 
             // The `Bag` object does not have the `drop` ability so we have to use it
@@ -764,18 +766,19 @@ mod pt {
     pub fn bag_add(
         builder: &mut ProgrammableTransactionBuilder,
         bag: Argument,
+        bag_key: String,
         balance: Argument,
         token_type: String,
     ) -> Result<()> {
         let key_type: StructTag = NATIVE_TOKEN_BAG_KEY_TYPE.parse()?;
         let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
-        let token_name = builder.pure(token_type)?;
+        let bag_key_arg = builder.pure(bag_key)?;
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
             ident_str!("add").into(),
             vec![key_type.into(), value_type.into()],
-            vec![bag, token_name, balance],
+            vec![bag, bag_key_arg, balance],
         );
         Ok(())
     }
@@ -823,10 +826,12 @@ impl FoundryLedgerData {
         }
     }
 
-    pub(crate) fn canonical_coin_type(&self) -> String {
+    pub(crate) fn to_canonical_string(&self, with_prefix: bool) -> String {
         format!(
             "{}::{}::{}",
-            self.coin_type_origin.package,
+            self.coin_type_origin
+                .package
+                .to_canonical_string(with_prefix),
             self.coin_type_origin.module_name,
             self.coin_type_origin.struct_name
         )
