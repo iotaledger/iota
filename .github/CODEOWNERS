@@ -41,3 +41,6 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
+
+# Disable code ownership as it is generated and does not need review
+./Cargo.lock
