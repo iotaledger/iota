@@ -10,7 +10,7 @@ edition = "2018"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys.workspace = true
+libfuzzer-sys = "0.4"
 arbitrary.workspace = true
 move-bytecode-verifier.workspace = true
 move-core-types = { workspace = true, features = ["fuzzing"] }

@@ -51,7 +51,7 @@ test-utils = { path = "../test-utils", package = "narwhal-test-utils" }
 protobuf-src = "1.1"
 
 [build-dependencies]
-prost-build.workspace = true
+prost-build = "0.13"
 rustversion = "1.0"
 tonic-build.workspace = true
 anemo-build.workspace = true

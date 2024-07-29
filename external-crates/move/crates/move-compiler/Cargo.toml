@@ -17,10 +17,10 @@ clap.workspace = true
 petgraph.workspace = true
 tempfile.workspace = true
 once_cell.workspace = true
-pathdiff.workspace = true
+pathdiff = "0.2"
 serde.workspace = true
-similar.workspace = true
-stacker.workspace = true
+similar = "2.4"
+stacker = "0.1"
 vfs.workspace = true
 
 bcs.workspace = true

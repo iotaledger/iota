@@ -16,8 +16,8 @@ regex.workspace = true
 rayon.workspace = true
 clap.workspace = true
 tempfile.workspace = true
-async-trait.workspace = true
-tokio.workspace = true
+async-trait = "0.1"
+tokio = { version = "1.39", features = ["macros", "rt-multi-thread"] }
 
 move-bytecode-source-map.workspace = true
 move-disassembler.workspace = true

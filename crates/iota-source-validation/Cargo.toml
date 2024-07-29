@@ -22,7 +22,7 @@ iota-sdk.workspace = true
 iota-types.workspace = true
 
 move-binary-format.workspace = true
-move-bytecode-source-map.workspace = true
+move-bytecode-source-map = { path = "../../external-crates/move/crates/move-bytecode-source-map" }
 move-command-line-common.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true

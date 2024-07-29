@@ -21,7 +21,7 @@ const-str.workspace = true
 datatest-stable.workspace = true
 git-version.workspace = true
 im.workspace = true
-inquire.workspace = true
+inquire = "0.7"
 insta.workspace = true
 json_to_table.workspace = true
 miette = { version = "7.2", features = ["fancy"] }

@@ -22,7 +22,7 @@ codespan-reporting.workspace = true
 itertools.workspace = true
 log.workspace = true
 serde.workspace = true
-simplelog.workspace = true
+simplelog = "0.9"
 once_cell.workspace = true
 toml.workspace = true
 

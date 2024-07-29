@@ -15,7 +15,7 @@ eyre.workspace = true
 futures.workspace = true
 http.workspace = true
 hyper-util = { workspace = true, features = ["tokio"] }
-multiaddr.workspace = true
+multiaddr = "0.18"
 pin-project-lite = "0.2"
 serde.workspace = true
 snap.workspace = true

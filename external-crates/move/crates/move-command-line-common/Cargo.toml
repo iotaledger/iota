@@ -15,10 +15,10 @@ difference.workspace = true
 walkdir.workspace = true
 sha2.workspace = true
 hex.workspace = true
-num-bigint.workspace = true
+num-bigint = "0.4"
 once_cell.workspace = true
 serde.workspace = true
-dirs-next.workspace = true
+dirs-next = "2.0"
 vfs.workspace = true
 
 move-core-types.workspace = true

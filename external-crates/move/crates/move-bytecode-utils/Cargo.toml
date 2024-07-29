@@ -16,4 +16,4 @@ move-core-types.workspace = true
 petgraph.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
-serde-reflection.workspace = true
+serde-reflection = "0.3"
