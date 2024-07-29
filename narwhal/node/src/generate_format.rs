@@ -10,9 +10,10 @@ use fastcrypto::{
     hash::Hash,
     traits::{KeyPair as _, Signer},
 };
+use move_bytecode_utils::layout::YamlRegistry;
 use mysten_network::Multiaddr;
 use rand::{prelude::StdRng, SeedableRng};
-use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
+use serde_reflection::{Result, Samples, Tracer, TracerConfig};
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, Header, HeaderDigest, HeaderV1Builder,
     MetadataV1, VersionedMetadata, WorkerOthersBatchMessage, WorkerOwnBatchMessage,
@@ -20,7 +21,7 @@ use types::{
 };
 
 #[allow(clippy::mutable_key_type)]
-fn get_registry() -> Result<Registry> {
+fn get_registry() -> Result<YamlRegistry> {
     let mut tracer = Tracer::new(TracerConfig::default());
     let mut samples = Samples::new();
     // 1. Record samples for types with custom deserializers.
@@ -141,7 +142,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<HeaderDigest>(&samples)?;
     tracer.trace_type::<CertificateDigest>(&samples)?;
 
-    tracer.registry()
+    Ok(YamlRegistry(tracer.registry()?))
 }
 
 #[derive(Debug, clap::ValueEnum, Clone, Copy)]
@@ -181,7 +182,7 @@ fn main() {
             // cargo -q run --example narwhal-generate-format -- print >
             // tests/staged/narwhal.yaml
             let reference = std::fs::read_to_string(FILE_PATH).unwrap();
-            let reference: Registry = serde_yaml::from_str(&reference).unwrap();
+            let reference: YamlRegistry = serde_yaml::from_str(&reference).unwrap();
             pretty_assertions::assert_eq!(reference, registry);
         }
     }

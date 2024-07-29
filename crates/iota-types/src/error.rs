@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fmt::Debug};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::{AsRefStr, IntoStaticStr};
+use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
 use tonic::Status;
 use typed_store_error::TypedStoreError;

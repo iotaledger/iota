@@ -1,25 +1,24 @@
 name: Build Wallet App (nightly)
 
-env:
-  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
-  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
-
 on:
   schedule:
     # At 20:58 on every day-of-week from Monday through Friday
-    - cron: '58 20 * * 1-5'
+    - cron: "58 20 * * 1-5"
   workflow_dispatch:
     inputs:
       iota_branch:
-        description: 'IOTA repo branch to build artifacts from (default: develop)'
+        description: "IOTA repo branch to build artifacts from (default: develop)"
         type: string
         required: false
 
 env:
+  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_NIGHTLY_BUILD_APPS_BACKEND }}
   TAG_NAME: "${{ github.event.inputs.iota_branch || 'develop' }}"
 
 jobs:
-  deploy-preview:
+  wallet-nightly-build:
     permissions:
       contents: read
       pull-requests: write
@@ -42,8 +41,8 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache

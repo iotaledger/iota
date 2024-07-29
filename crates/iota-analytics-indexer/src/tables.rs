@@ -6,7 +6,7 @@
 use iota_analytics_indexer_derive::SerializeParquet;
 use iota_types::dynamic_field::DynamicFieldType;
 use serde::Serialize;
-use strum_macros::Display;
+use strum::Display;
 
 use crate::{ParquetSchema, ParquetValue};
 

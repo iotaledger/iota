@@ -16,27 +16,27 @@ gas summary: computation_cost: 1000000, storage_cost: 4924800,  storage_rebate: 
 task 3 'run'. lines 65-65:
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 67-67:
 mutated: object(0,0), object(2,0), object(2,1)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 5 'run'. lines 69-69:
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(2,2)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 6 'run'. lines 71-71:
 mutated: object(0,0), object(2,0), object(2,2)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 7 'run'. lines 73-73:
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 8 'create-checkpoint'. lines 75-75:
 Checkpoint created: 1
@@ -49,7 +49,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IFh5hz0ds0lWhYarDSBdB5EBjrtz5qUpxDrBmMW717d1AQAAAAAAAAA=",
+            "cursor": "ILUFsB08DDmZGDCkhfbl2QxEZwoAFsUR1snmwKPTj2riAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -57,7 +57,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+                    "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
                     "count": "0"
                   }
                 }
@@ -73,7 +73,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+              "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
               "count": "0"
             }
           }
@@ -84,7 +84,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IFh5hz0ds0lWhYarDSBdB5EBjrtz5qUpxDrBmMW717d1AQAAAAAAAAA=",
+            "cursor": "ILUFsB08DDmZGDCkhfbl2QxEZwoAFsUR1snmwKPTj2riAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -92,7 +92,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+                    "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
                     "count": "0"
                   }
                 }
@@ -108,7 +108,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+              "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
               "count": "0"
             }
           }
@@ -127,7 +127,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IFh5hz0ds0lWhYarDSBdB5EBjrtz5qUpxDrBmMW717d1AQAAAAAAAAA=",
+            "cursor": "ILUFsB08DDmZGDCkhfbl2QxEZwoAFsUR1snmwKPTj2riAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -135,7 +135,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+                    "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
                     "count": "0"
                   }
                 }
@@ -151,7 +151,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+              "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
               "count": "0"
             }
           }
@@ -170,7 +170,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IFh5hz0ds0lWhYarDSBdB5EBjrtz5qUpxDrBmMW717d1AQAAAAAAAAA=",
+            "cursor": "ILUFsB08DDmZGDCkhfbl2QxEZwoAFsUR1snmwKPTj2riAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -178,7 +178,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+                    "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
                     "count": "0"
                   }
                 }
@@ -194,7 +194,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x053c82f272507577ba01d338d294ad0e5d625c9eb6b26f6b69e3c6c92303a46b",
+              "id": "0x5716784f217ff8477b24dd74ca0dc6e65b9c0e3388c5cb1502ac6cb96045bd9e",
               "count": "0"
             }
           }

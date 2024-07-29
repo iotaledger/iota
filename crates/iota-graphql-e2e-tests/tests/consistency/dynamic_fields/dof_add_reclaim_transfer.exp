@@ -16,7 +16,7 @@ gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 
 task 3 'run'. lines 65-65:
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 4 'create-checkpoint'. lines 67-67:
 Checkpoint created: 1
@@ -29,7 +29,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IExVvS4Z9k4RvEehE4+nEby4FOvM+e1vaVRHE1xiLWPQAQAAAAAAAAA=",
+            "cursor": "II5/Y/F1LfZvTdPg59w8Exxo7JkPGjMUV2KWboFisfxeAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -37,7 +37,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+                    "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
                     "count": "0"
                   }
                 }
@@ -53,7 +53,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+              "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
               "count": "0"
             }
           }
@@ -64,7 +64,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IExVvS4Z9k4RvEehE4+nEby4FOvM+e1vaVRHE1xiLWPQAQAAAAAAAAA=",
+            "cursor": "II5/Y/F1LfZvTdPg59w8Exxo7JkPGjMUV2KWboFisfxeAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -72,7 +72,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+                    "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
                     "count": "0"
                   }
                 }
@@ -88,7 +88,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+              "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
               "count": "0"
             }
           }
@@ -100,7 +100,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IExVvS4Z9k4RvEehE4+nEby4FOvM+e1vaVRHE1xiLWPQAQAAAAAAAAA=",
+            "cursor": "II5/Y/F1LfZvTdPg59w8Exxo7JkPGjMUV2KWboFisfxeAQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -108,7 +108,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+                    "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
                     "count": "0"
                   }
                 }
@@ -124,7 +124,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+              "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
               "count": "0"
             }
           }
@@ -144,7 +144,7 @@ Response: {
 task 6 'run'. lines 133-133:
 mutated: object(0,0), object(2,0), object(2,1)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 7 'create-checkpoint'. lines 135-135:
 Checkpoint created: 2
@@ -174,7 +174,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x729ff187397b1fd46ec9b819c7801fcde006e5c57dc3f1277ab6bd2ed1e43413",
+              "id": "0xf4cd5fe4d5ba7c5e586af85c322d15c7060afd3d3fa61505e60836208ca00054",
               "count": "0"
             }
           }
