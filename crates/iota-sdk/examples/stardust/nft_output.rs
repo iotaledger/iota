@@ -16,7 +16,6 @@ use iota_sdk::{
     },
     IotaClientBuilder,
 };
-use iota_types::{base_types::IotaAddress, transaction::ProgrammableTransaction};
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
