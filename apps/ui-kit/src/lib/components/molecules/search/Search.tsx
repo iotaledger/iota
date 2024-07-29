@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import React from 'react';
 import cx from 'classnames';
 import { Search as SearchIcon } from '@iota/ui-icons';
 import { Divider, ListItem, SearchBarType } from '@/components';
@@ -11,23 +11,40 @@ import {
     SEARCH_WRAPPER_STYLE,
 } from './search.classes';
 
+export interface Suggestion {
+    id: string;
+    label: string;
+}
+
 export interface SearchProps {
+    /**
+     * The value of the search input.
+     */
+    searchValue: string;
+    /**
+     * Callback when the search input value changes.
+     */
+    onSearchValueChange: (value: string) => void;
+    /**
+     * Callback when the suggestions change.
+     */
+    onSuggestionsChange: (suggestions: Suggestion[]) => void;
     /**
      * List of suggestions to display (optional).
      */
-    suggestions?: string[];
+    suggestions?: Suggestion[];
     /**
      * Callback when a suggestion is clicked.
      */
-    onSuggestionClick?: (suggestion: string) => void;
+    onSuggestionClick?: (suggestion: Suggestion) => void;
     /**
      * Placeholder text for the search input.
      */
     placeholder: string;
     /**
-     * Callback when the search input value changes.
+     * Callback when a key is pressed.
      */
-    onChange?: (value: string) => void;
+    onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
     /**
      * The type of the search bar. Can be 'outlined' or 'filled'.
      */
@@ -35,37 +52,27 @@ export interface SearchProps {
 }
 
 export function Search({
-    suggestions = [],
-    onSuggestionClick,
+    searchValue,
+    suggestions,
+    onSearchValueChange,
+    onSuggestionsChange,
     placeholder,
-    onChange,
+    onSuggestionClick,
+    onKeyDown,
     type = SearchBarType.Outlined,
 }: SearchProps): React.JSX.Element {
-    const [searchValue, setSearchValue] = useState<string>('');
-    const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
-
     function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
         const value = event.target.value;
-        setSearchValue(value);
-        onChange && onChange(value);
-
-        if (value) {
-            const filtered = suggestions?.filter((suggestion) =>
-                suggestion.toLowerCase().includes(value.toLowerCase()),
-            );
-            setFilteredSuggestions(filtered);
-        } else {
-            setFilteredSuggestions([]);
-        }
+        onSearchValueChange(value);
     }
 
-    function handleSuggestionClick(suggestion: string) {
-        setSearchValue(suggestion);
-        setFilteredSuggestions([]);
-        onSuggestionClick && onSuggestionClick(suggestion);
+    function handleSuggestionClick(suggestion: Suggestion) {
+        onSearchValueChange(suggestion.label);
+        onSuggestionsChange([]);
+        onSuggestionClick?.(suggestion);
     }
 
-    const showSuggestions = filteredSuggestions.length > 0;
+    const showSuggestions = suggestions && suggestions.length > 0;
 
     const roundedStyleWithSuggestions = showSuggestions
         ? 'rounded-t-3xl border-b-0'
@@ -73,6 +80,7 @@ export function Search({
     const searchTypeClass = SEARCH_WRAPPER_STYLE[type];
     const backgroundColorClass = BACKGROUND_COLORS[type];
     const suggestionsStyle = SUGGESTIONS_WRAPPER_STYLE[type];
+
     return (
         <div className="relative w-full">
             <div
@@ -86,6 +94,7 @@ export function Search({
                     type="text"
                     value={searchValue}
                     onChange={handleChange}
+                    onKeyDown={onKeyDown}
                     placeholder={placeholder}
                     className={cx(
                         'flex-1 text-neutral-10 outline-none placeholder:text-neutral-40 dark:text-neutral-92 placeholder:dark:text-neutral-60',
@@ -102,14 +111,14 @@ export function Search({
                     )}
                 >
                     <Divider width="w-11/12" />
-                    {filteredSuggestions.map((suggestion, index) => (
+                    {suggestions.map((suggestion) => (
                         <ListItem
-                            key={index}
+                            key={suggestion.id}
                             showRightIcon={false}
                             onClick={() => handleSuggestionClick(suggestion)}
                             hideBottomBorder
                         >
-                            {suggestion}
+                            {suggestion.label}
                         </ListItem>
                     ))}
                 </div>
