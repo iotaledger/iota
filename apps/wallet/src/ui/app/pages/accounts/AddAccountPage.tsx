@@ -66,25 +66,23 @@ export function AddAccountPage() {
                         <span className="text-label-lg text-neutral-60">
                             Create a new mnemonic profile
                         </span>
-                        <div className="group-hover:cursor-pointer">
-                            <Card
-                                type={CardType.Filled}
-                                onClick={() => {
-                                    setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                                    ampli.clickedCreateNewAccount({ sourceFlow });
-                                    navigate(
-                                        `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
-                                    );
-                                }}
-                                isDisabled={createAccountsMutation.isPending}
-                            >
-                                <CardImage>
-                                    <Create className="h-5 w-5 text-primary-30" />
-                                </CardImage>
-                                <CardBody title="Create New" />
-                                <CardAction type={CardActionType.Link} />
-                            </Card>
-                        </div>
+                        <Card
+                            type={CardType.Filled}
+                            onClick={() => {
+                                setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
+                                ampli.clickedCreateNewAccount({ sourceFlow });
+                                navigate(
+                                    `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
+                                );
+                            }}
+                            isDisabled={createAccountsMutation.isPending}
+                        >
+                            <CardImage>
+                                <Create className="h-5 w-5 text-primary-30" />
+                            </CardImage>
+                            <CardBody title="Create New" />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
                     </div>
                     <div className="flex flex-col gap-y-2">
                         <span className="text-label-lg text-neutral-60">Import</span>

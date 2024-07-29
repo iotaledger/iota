@@ -773,6 +773,9 @@ importers:
       '@iota/ledgerjs-hw-app-iota':
         specifier: workspace:*
         version: link:../../sdk/ledgerjs-hw-app-iota
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../../sdk/wallet-standard
