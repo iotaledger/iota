@@ -66,6 +66,7 @@
     "@docusaurus/types": "3.4.0",
     "@metamask/providers": "^10.2.1",
     "@types/react": "^18.3.3",
+    "remark-code-import": "^1.2.0",
     "typescript": "^5.3.3"
   },
   "resolutions": {
