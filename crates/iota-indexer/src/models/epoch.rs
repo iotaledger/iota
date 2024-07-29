@@ -22,14 +22,16 @@ pub struct StoredEpochInfo {
     pub epoch_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
-    pub storage_fund_reinvestment: Option<i64>,
     pub storage_charge: Option<i64>,
     pub storage_rebate: Option<i64>,
+    // TODO: remove(obsolete)
     pub stake_subsidy_amount: Option<i64>,
     pub total_gas_fees: Option<i64>,
     pub total_stake_rewards_distributed: Option<i64>,
-    pub leftover_storage_fund_inflow: Option<i64>,
+    pub burnt_leftover_amount: Option<i64>,
     pub epoch_commitments: Option<Vec<u8>>,
+    pub burnt_tokens_amount: Option<i64>,
+    pub minted_tokens_amount: Option<i64>,
 }
 
 #[derive(Queryable, Selectable, Clone)]
@@ -45,14 +47,16 @@ pub struct QueryableEpochInfo {
     pub epoch_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
-    pub storage_fund_reinvestment: Option<i64>,
     pub storage_charge: Option<i64>,
     pub storage_rebate: Option<i64>,
+    // TODO: remove(obsolete)
     pub stake_subsidy_amount: Option<i64>,
     pub total_gas_fees: Option<i64>,
     pub total_stake_rewards_distributed: Option<i64>,
-    pub leftover_storage_fund_inflow: Option<i64>,
+    pub burnt_leftover_amount: Option<i64>,
     pub epoch_commitments: Option<Vec<u8>>,
+    pub burnt_tokens_amount: Option<i64>,
+    pub minted_tokens_amount: Option<i64>,
 }
 
 #[derive(Queryable)]
@@ -82,13 +86,12 @@ impl StoredEpochInfo {
             epoch_total_transactions: e.epoch_total_transactions.map(|v| v as i64),
             last_checkpoint_id: e.last_checkpoint_id.map(|v| v as i64),
             epoch_end_timestamp: e.epoch_end_timestamp.map(|v| v as i64),
-            storage_fund_reinvestment: e.storage_fund_reinvestment.map(|v| v as i64),
             storage_charge: e.storage_charge.map(|v| v as i64),
             storage_rebate: e.storage_rebate.map(|v| v as i64),
             stake_subsidy_amount: e.stake_subsidy_amount.map(|v| v as i64),
             total_gas_fees: e.total_gas_fees.map(|v| v as i64),
             total_stake_rewards_distributed: e.total_stake_rewards_distributed.map(|v| v as i64),
-            leftover_storage_fund_inflow: e.leftover_storage_fund_inflow.map(|v| v as i64),
+            burnt_leftover_amount: e.burnt_leftover_amount.map(|v| v as i64),
             epoch_commitments: e
                 .epoch_commitments
                 .as_ref()
@@ -104,6 +107,8 @@ impl StoredEpochInfo {
             protocol_version: 0,
             total_stake: 0,
             storage_fund_balance: 0,
+            burnt_tokens_amount: e.burnt_tokens_amount.map(|v| v as i64),
+            minted_tokens_amount: e.minted_tokens_amount.map(|v| v as i64),
         }
     }
 }
@@ -117,7 +122,6 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
             total_stake: info.total_stake as u64,
             storage_fund_balance: info.storage_fund_balance as u64,
             epoch_end_timestamp: info.epoch_end_timestamp.map(|v| v as u64)?,
-            storage_fund_reinvestment: info.storage_fund_reinvestment.map(|v| v as u64)?,
             storage_charge: info.storage_charge.map(|v| v as u64)?,
             storage_rebate: info.storage_rebate.map(|v| v as u64)?,
             stake_subsidy_amount: info.stake_subsidy_amount.map(|v| v as u64)?,
@@ -125,7 +129,9 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
             total_stake_rewards_distributed: info
                 .total_stake_rewards_distributed
                 .map(|v| v as u64)?,
-            leftover_storage_fund_inflow: info.leftover_storage_fund_inflow.map(|v| v as u64)?,
+            burnt_leftover_amount: info.burnt_leftover_amount.map(|v| v as u64)?,
+            burnt_tokens_amount: info.burnt_tokens_amount.map(|v| v as u64)?,
+            minted_tokens_amount: info.minted_tokens_amount.map(|v| v as u64)?,
         })
     }
 }

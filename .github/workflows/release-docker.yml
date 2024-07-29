@@ -7,17 +7,17 @@ on:
     inputs:
       iota_node:
         type: boolean
-        description: 'Release iota-node image'
+        description: "Release iota-node image"
         required: false
         default: false
       iota_indexer:
         type: boolean
-        description: 'Release iota-indexer image'
+        description: "Release iota-indexer image"
         required: false
         default: false
       iota_tools:
         type: boolean
-        description: 'Release iota-tools image'
+        description: "Release iota-tools image"
         required: false
         default: false
 
@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -42,13 +42,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-node
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -86,13 +86,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-indexer
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -130,13 +130,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-tools
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3

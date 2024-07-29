@@ -248,19 +248,19 @@ module iota::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelock::split(&mut original, 3, scenario.ctx());
+        let split = timelock::split(&mut original, 3, scenario.ctx());
     
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
         assert_eq(original.locked().value(), 7);
 
-        // Check the splitted timelock.
-        assert_eq(splitted.expiration_timestamp_ms(), 100);
-        assert_eq(splitted.locked().value(), 3);
+        // Check the split timelock.
+        assert_eq(split.expiration_timestamp_ms(), 100);
+        assert_eq(split.locked().value(), 3);
 
         // Cleanup.
         test_utils::destroy(original);
-        test_utils::destroy(splitted);
+        test_utils::destroy(split);
 
         scenario.end();
     }
@@ -278,22 +278,22 @@ module iota::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split and transfer the timelock.
-        let splitted = timelock::split(&mut original, 3, scenario.ctx());
-        splitted.transfer_to_sender(scenario.ctx());
+        let split = timelock::split(&mut original, 3, scenario.ctx());
+        split.transfer_to_sender(scenario.ctx());
         scenario.next_tx(sender);
 
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
         assert_eq(original.locked().value(), 7);
 
-        // Check the splitted timelock.
-        let splitted = scenario.take_from_address<TimeLock<Balance<IOTA>>>(sender);
-        assert_eq(splitted.expiration_timestamp_ms(), 100);
-        assert_eq(splitted.locked().value(), 3);
+        // Check the split timelock.
+        let split = scenario.take_from_address<TimeLock<Balance<IOTA>>>(sender);
+        assert_eq(split.expiration_timestamp_ms(), 100);
+        assert_eq(split.locked().value(), 3);
 
         // Cleanup.
         test_utils::destroy(original);
-        test_utils::destroy(splitted);
+        test_utils::destroy(split);
 
         scenario.end();
     }
@@ -311,19 +311,19 @@ module iota::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelock::split(&mut original, 0, scenario.ctx());
+        let split = timelock::split(&mut original, 0, scenario.ctx());
     
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
         assert_eq(original.locked().value(), 10);
 
-        // Check the splitted timelock.
-        assert_eq(splitted.expiration_timestamp_ms(), 100);
-        assert_eq(splitted.locked().value(), 0);
+        // Check the split timelock.
+        assert_eq(split.expiration_timestamp_ms(), 100);
+        assert_eq(split.locked().value(), 0);
 
         // Cleanup.
         test_utils::destroy(original);
-        test_utils::destroy(splitted);
+        test_utils::destroy(split);
 
         scenario.end();
     }
@@ -341,19 +341,19 @@ module iota::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelock::split(&mut original, 10, scenario.ctx());
+        let split = timelock::split(&mut original, 10, scenario.ctx());
 
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
         assert_eq(original.locked().value(), 0);
 
-        // Check the splitted timelock.
-        assert_eq(splitted.expiration_timestamp_ms(), 100);
-        assert_eq(splitted.locked().value(), 10);
+        // Check the split timelock.
+        assert_eq(split.expiration_timestamp_ms(), 100);
+        assert_eq(split.locked().value(), 10);
 
         // Cleanup.
         test_utils::destroy(original);
-        test_utils::destroy(splitted);
+        test_utils::destroy(split);
 
         scenario.end();
     }
@@ -380,21 +380,21 @@ module iota::timelocked_balance_tests {
         let mut original = timelock::lock_with_label(&labeler_one, iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelock::split(&mut original, 3, scenario.ctx());
+        let split = timelock::split(&mut original, 3, scenario.ctx());
     
         // Check the original timelock.
         assert_eq(original.locked().value(), 7);
         assert_eq(original.expiration_timestamp_ms(), 100);
         assert_eq(original.is_labeled_with<Balance<IOTA>, TEST_LABEL_ONE>(), true);
 
-        // Check the splitted timelock.
-        assert_eq(splitted.locked().value(), 3);
-        assert_eq(splitted.expiration_timestamp_ms(), 100);
-        assert_eq(splitted.is_labeled_with<Balance<IOTA>, TEST_LABEL_ONE>(), true);
+        // Check the split timelock.
+        assert_eq(split.locked().value(), 3);
+        assert_eq(split.expiration_timestamp_ms(), 100);
+        assert_eq(split.is_labeled_with<Balance<IOTA>, TEST_LABEL_ONE>(), true);
 
         // Cleanup.
         test_utils::destroy(original);
-        test_utils::destroy(splitted);
+        test_utils::destroy(split);
 
         scenario.return_to_sender(labeler_one);
 
@@ -415,11 +415,11 @@ module iota::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelock::split(&mut original, 11, scenario.ctx());
+        let split = timelock::split(&mut original, 11, scenario.ctx());
 
         // Cleanup.
         test_utils::destroy(original);
-        test_utils::destroy(splitted);
+        test_utils::destroy(split);
 
         scenario.end();
     }

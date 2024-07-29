@@ -18,7 +18,7 @@ prometheus-http-query.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_yaml = "0.9.21"
-strum_macros.workspace = true
+strum.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
