@@ -2,16 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { Text } from '_app/shared/text';
-import Overlay from '_components/overlay';
 import { ampli } from '_src/shared/analytics/ampli';
-import { LedgerLogo17 as LedgerLogo } from '@iota/icons';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
-import { Header } from '@iota/apps-ui-kit';
+import {
+    Header,
+    Card,
+    CardType,
+    CardImage,
+    CardBody,
+    CardActionType,
+    CardAction,
+} from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
     useAccountsFormContext,
@@ -21,6 +25,7 @@ import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector } from '../../hooks';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { AppType } from '../../redux/slices/app/AppType';
+import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -46,69 +51,108 @@ export function AddAccountPage() {
     const createAccountsMutation = useCreateAccountsMutation();
 
     return (
-        <Overlay showModal title="Add Account" closeOverlay={() => navigate('/')}>
-            <Header title="Add Account" />
-            <div className="flex w-full flex-col gap-8">
+        <div className="h-full w-full">
+            <Header
+                title="Add Profile"
+                hasLeftIcon
+                hasRightIcon
+                titleCentered
+                onClose={() => navigate('/')}
+                onBack={() => navigate('/')}
+            />
+            <div className="flex h-full w-full flex-col gap-4 bg-white p-md">
                 <div className="flex flex-col gap-3">
-                    <Button
-                        variant="outline"
-                        size="tall"
-                        text="Set up Ledger"
-                        before={<LedgerLogo className="text-gray-90 h-4 w-4" />}
-                        onClick={async () => {
-                            ampli.openedConnectLedgerFlow({ sourceFlow });
-                            if (isPopup) {
-                                await openTabWithSearchParam('showLedger', 'true');
-                                window.close();
-                            } else {
-                                setConnectLedgerModalOpen(true);
-                            }
-                        }}
-                        disabled={createAccountsMutation.isPending}
-                    />
+                    <div className="group/item flex flex-col gap-y-2">
+                        <span className="text-label-lg text-neutral-60">
+                            Create a new mnemonic profile
+                        </span>
+                        <div className="group-hover:cursor-pointer">
+                            <Card
+                                type={CardType.Filled}
+                                onClick={() => {
+                                    setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
+                                    ampli.clickedCreateNewAccount({ sourceFlow });
+                                    navigate(
+                                        `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
+                                    );
+                                }}
+                                isDisabled={createAccountsMutation.isPending}
+                            >
+                                <CardImage>
+                                    <Create className="h-5 w-5 text-primary-30" />
+                                </CardImage>
+                                <CardBody title="Create New" />
+                                <CardAction type={CardActionType.Link} />
+                            </Card>
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-y-2">
+                        <span className="text-label-lg text-neutral-60">Import</span>
+                        <Card
+                            type={CardType.Filled}
+                            onClick={() => {
+                                ampli.clickedImportPassphrase({ sourceFlow });
+                                navigate('/accounts/import-passphrase');
+                            }}
+                            isDisabled={createAccountsMutation.isPending}
+                        >
+                            <CardImage>
+                                <ImportPass className="h-5 w-5 text-primary-30" />
+                            </CardImage>
+                            <CardBody title="Mnemonic" />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
+                        <Card
+                            type={CardType.Filled}
+                            onClick={() => {
+                                ampli.clickedImportPrivateKey({ sourceFlow });
+                                navigate('/accounts/import-private-key');
+                            }}
+                            isDisabled={createAccountsMutation.isPending}
+                        >
+                            <CardImage>
+                                <Key className="h-5 w-5 text-primary-30" />
+                            </CardImage>
+                            <CardBody title="Private Key" />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
+                        <Card
+                            type={CardType.Filled}
+                            onClick={() => {
+                                navigate('/accounts/import-seed');
+                            }}
+                            isDisabled={createAccountsMutation.isPending}
+                        >
+                            <CardImage>
+                                <Seed className="h-5 w-5 text-primary-30" />
+                            </CardImage>
+                            <CardBody title="Seed" />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
+                    </div>
+                    <div className="flex flex-col gap-y-2">
+                        <span className="text-label-lg text-neutral-60">Import from Legder</span>
+                        <Card
+                            type={CardType.Filled}
+                            onClick={async () => {
+                                ampli.openedConnectLedgerFlow({ sourceFlow });
+                                if (isPopup) {
+                                    await openTabWithSearchParam('showLedger', 'true');
+                                    window.close();
+                                } else {
+                                    setConnectLedgerModalOpen(true);
+                                }
+                            }}
+                            isDisabled={createAccountsMutation.isPending}
+                        >
+                            <CardImage>
+                                <Ledger className="h-5 w-5 text-primary-30" />
+                            </CardImage>
+                            <CardBody title="Ledger" />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
+                    </div>
                 </div>
-                <Section title="Create New">
-                    <Button
-                        variant="outline"
-                        size="tall"
-                        text="Create a new Passphrase Account"
-                        to={`/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`}
-                        onClick={() => {
-                            setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                            ampli.clickedCreateNewAccount({ sourceFlow });
-                        }}
-                        disabled={createAccountsMutation.isPending}
-                    />
-                </Section>
-                <Section title="Import Existing Accounts">
-                    <Button
-                        variant="outline"
-                        size="tall"
-                        text="Import Passphrase"
-                        to="/accounts/import-passphrase"
-                        onClick={() => {
-                            ampli.clickedImportPassphrase({ sourceFlow });
-                        }}
-                        disabled={createAccountsMutation.isPending}
-                    />
-                    <Button
-                        variant="outline"
-                        size="tall"
-                        text="Import Seed"
-                        to="/accounts/import-seed"
-                        disabled={createAccountsMutation.isPending}
-                    />
-                    <Button
-                        variant="outline"
-                        size="tall"
-                        text="Import Private Key"
-                        to="/accounts/import-private-key"
-                        onClick={() => {
-                            ampli.clickedImportPrivateKey({ sourceFlow });
-                        }}
-                        disabled={createAccountsMutation.isPending}
-                    />
-                </Section>
             </div>
             {isConnectLedgerModalOpen && (
                 <ConnectLedgerModal
@@ -127,26 +171,6 @@ export function AddAccountPage() {
                     }}
                 />
             )}
-        </Overlay>
-    );
-}
-
-type SectionProps = {
-    title: string;
-    children: ReactNode;
-};
-
-function Section({ title, children }: SectionProps) {
-    return (
-        <section className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-                <div className="border-gray-40 grow border-0 border-t border-solid"></div>
-                <Text variant="caption" weight="semibold" color="steel">
-                    {title}
-                </Text>
-                <div className="border-gray-40 grow border-0 border-t border-solid"></div>
-            </div>
-            {children}
-        </section>
+        </div>
     );
 }
