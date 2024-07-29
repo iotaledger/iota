@@ -11,7 +11,7 @@ gas summary: computation_cost: 1000000, storage_cost: 7014800,  storage_rebate: 
 task 2 'run'. lines 59-59:
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'create-checkpoint'. lines 61-61:
 Checkpoint created: 1
@@ -25,7 +25,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "0"
           }
         }
@@ -36,7 +36,7 @@ Response: {
 
 task 5 'run'. lines 78-78:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1301652, non_refundable_storage_fee: 13148
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 1314800, non_refundable_storage_fee: 0
 
 task 6 'create-checkpoint'. lines 80-80:
 Checkpoint created: 2
@@ -50,7 +50,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "1"
           }
         }
@@ -62,7 +62,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "0"
           }
         }
@@ -75,7 +75,7 @@ task 8 'run'. lines 110-110:
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2553600,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2553600,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 9 'create-checkpoint'. lines 112-112:
 Checkpoint created: 3
@@ -94,7 +94,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "1"
           }
         }
@@ -107,7 +107,7 @@ task 11 'run'. lines 142-142:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(8,0)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2528064, non_refundable_storage_fee: 25536
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2553600, non_refundable_storage_fee: 0
 
 task 12 'create-checkpoint'. lines 144-144:
 Checkpoint created: 4
@@ -121,7 +121,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "1"
           }
         }
@@ -138,7 +138,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "0"
           }
         }
@@ -150,7 +150,7 @@ Response: {
 task 14 'run'. lines 186-186:
 mutated: object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 15 'create-checkpoint'. lines 188-188:
 Checkpoint created: 5
@@ -186,7 +186,7 @@ Response: {
       "asMoveObject": {
         "contents": {
           "json": {
-            "id": "0x4748e84ced24877b436882136fc7175ce591bc24a43807d1bdfb13d796012045",
+            "id": "0xa1eda120c49761b27476e3e5e5f24b672aeb2e98c49776970ab59a3b0373ac1f",
             "value": "1"
           }
         }
