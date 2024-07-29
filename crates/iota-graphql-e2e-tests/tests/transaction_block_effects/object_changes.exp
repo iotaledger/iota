@@ -11,7 +11,7 @@ gas summary: computation_cost: 1000000, storage_cost: 5570800,  storage_rebate: 
 task 2 'run'. lines 28-28:
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'create-checkpoint'. lines 30-30:
 Checkpoint created: 1

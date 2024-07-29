@@ -1,8 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use iota_json_rpc_api::error_object_from_rpc;
 pub use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
-use jsonrpsee::types::{error::UNKNOWN_ERROR_CODE, ErrorObjectOwned};
+use jsonrpsee::types::error::UNKNOWN_ERROR_CODE;
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
@@ -51,16 +53,17 @@ impl Error {
     }
 }
 
-impl From<jsonrpsee::core::Error> for Error {
-    fn from(err: jsonrpsee::core::Error) -> Self {
-        // The following code relies on jsonrpsee's From<Error> for ErrorObjectOwned
-        // implementation It converts any variant that is not Error::Call into
+impl From<jsonrpsee::core::ClientError> for Error {
+    fn from(err: jsonrpsee::core::ClientError) -> Self {
+        // The following code converts any variant that is not Error::Call into
         // an ErrorObject with UNKNOWN_ERROR_CODE
-        let error_object_owned: ErrorObjectOwned = err.into();
+        let error_object_owned = error_object_from_rpc(err);
         Error {
             code: error_object_owned.code(),
             message: error_object_owned.message().to_string(),
-            data: None,
+            data: error_object_owned
+                .data()
+                .map(|v| serde_json::from_str(v.get()).expect("raw json is always valid")),
         }
     }
 }

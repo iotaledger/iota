@@ -146,7 +146,7 @@ This operation cannot be reverted.
 
 :::warning Deprecated
 
-This function is deprecated, please use [`nativeTokenCreate`](#nativetokencreatet-tokenscheme-s-serialnumber) instead
+This function is deprecated, please use [`nativeTokenCreate`](#nativetokencreatet-tokenscheme-tn-tokenname-ts-tokensymbol-td-tokendecimal-s-serialnumber) instead
 
 :::
 

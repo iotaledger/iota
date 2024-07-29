@@ -9,8 +9,8 @@ on:
     branches:
       - develop
     paths:
-      - 'apps/explorer/**'
-      - '.github/workflows/apps-explorer-production.deploy.yml'
+      - "apps/explorer/**"
+      - ".github/workflows/apps-explorer-production.deploy.yml"
 
 jobs:
   deploy-prod:
@@ -24,8 +24,8 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache
@@ -48,4 +48,3 @@ jobs:
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
         run: vercel deploy --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
-

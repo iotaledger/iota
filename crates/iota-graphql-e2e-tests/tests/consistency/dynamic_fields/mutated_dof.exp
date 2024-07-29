@@ -16,11 +16,11 @@ gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 
 task 3 'run'. lines 69-69:
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 71-71:
 mutated: object(0,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2279772, non_refundable_storage_fee: 23028
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
 
 task 5 'create-checkpoint'. lines 73-73:
 Checkpoint created: 1
@@ -33,7 +33,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IGGDr+qnwzCZtQmVURNtadBa4q5cRTw0ylZ+v5tPA4QzAQAAAAAAAAA=",
+            "cursor": "IMHjEEGIDIq4+DdTSaavvx4EpZ7nsRmjRaBTunTw/CA4AQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -41,7 +41,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+                    "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
                     "count": "0"
                   }
                 }
@@ -57,7 +57,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "0"
             }
           }
@@ -69,7 +69,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IGGDr+qnwzCZtQmVURNtadBa4q5cRTw0ylZ+v5tPA4QzAQAAAAAAAAA=",
+            "cursor": "IMHjEEGIDIq4+DdTSaavvx4EpZ7nsRmjRaBTunTw/CA4AQAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -77,7 +77,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+                    "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
                     "count": "0"
                   }
                 }
@@ -93,7 +93,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "0"
             }
           }
@@ -109,7 +109,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "0"
             }
           }
@@ -126,7 +126,7 @@ Response: {
 task 7 'run'. lines 134-134:
 mutated: object(0,0), object(2,0), object(2,1)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6004152, non_refundable_storage_fee: 60648
+gas summary: computation_cost: 1000000, storage_cost: 3610000,  storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 8 'create-checkpoint'. lines 136-136:
 Checkpoint created: 2
@@ -157,7 +157,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "0"
             }
           }
@@ -169,12 +169,12 @@ Response: {
 
 task 10 'run'. lines 191-191:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 2272248, non_refundable_storage_fee: 22952
+gas summary: computation_cost: 1000000, storage_cost: 2295200,  storage_rebate: 2295200, non_refundable_storage_fee: 0
 
 task 11 'run'. lines 193-193:
 created: object(3,0)
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3573900, non_refundable_storage_fee: 36100
+gas summary: computation_cost: 1000000, storage_cost: 6064800,  storage_rebate: 3610000, non_refundable_storage_fee: 0
 
 task 12 'create-checkpoint'. lines 195-195:
 Checkpoint created: 3
@@ -187,7 +187,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IGGDr+qnwzCZtQmVURNtadBa4q5cRTw0ylZ+v5tPA4QzAwAAAAAAAAA=",
+            "cursor": "IMHjEEGIDIq4+DdTSaavvx4EpZ7nsRmjRaBTunTw/CA4AwAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -195,7 +195,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+                    "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
                     "count": "1"
                   }
                 }
@@ -211,7 +211,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "1"
             }
           }
@@ -223,7 +223,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IGGDr+qnwzCZtQmVURNtadBa4q5cRTw0ylZ+v5tPA4QzAwAAAAAAAAA=",
+            "cursor": "IMHjEEGIDIq4+DdTSaavvx4EpZ7nsRmjRaBTunTw/CA4AwAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -231,7 +231,7 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+                    "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
                     "count": "1"
                   }
                 }
@@ -247,7 +247,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "1"
             }
           }
@@ -268,7 +268,7 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0x41fe153fd506a88a950947a21b39e10b7efb1e6b2204cce114a0d369d23eebfc",
+              "id": "0xbfc8ca62de14d1de709423aea91d1370004f089834fd31b9a7fd75464a2adbc7",
               "count": "0"
             }
           }

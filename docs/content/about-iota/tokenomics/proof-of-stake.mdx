@@ -36,7 +36,7 @@ $$
 ValidatorRewards_v \ = \ \Bigg[\alpha\Big(\beta_v+\delta_v(1-\beta_v)\Big)\mu_v\sigma_v+(1-\alpha)\frac{\gamma}{N}\Bigg] \times StakeRewards
 $$
 
-The $\mu_v$ variable captures the output of the [tallying rule](gas-pricing.mdx#tallying-rule) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v\geq1$ for performant validators and $\mu_v<1$ for non-performant validators. This variable ensures that validators have "skin in the game" and are incentivized to operate IOTA efficiently. The $\sigma_v$ parameter captures each validator's share of total stake.
+The $\mu_v$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v\geq1$ for performant validators and $\mu_v<1$ for non-performant validators. This variable ensures that validators have "skin in the game" and are incentivized to operate IOTA efficiently. The $\sigma_v$ parameter captures each validator's share of total stake.
 
 Consequently, validators with more stake earn more stake rewards and the joint $\mu_v\sigma_v$ term incentivizes validators to increase their share of stake while also operating the network performantly. In the long-run, this incentive encourages users to shift the stake distribution towards the network's most efficient validators, delivering a cost-efficient and decentralized network.
 

@@ -1,5 +1,6 @@
 name: TS End-to-end Tests
-on: 
+
+on:
   pull_request:
 
 concurrency:
@@ -16,12 +17,12 @@ jobs:
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
       isRust: ${{ steps.diff.outputs.isRust }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Detect Changes (turbo)
-        uses: './.github/actions/turbo-diffs'
+        uses: "./.github/actions/turbo-diffs"
         id: turbo
       - name: Detect Changes (diff)
-        uses: './.github/actions/diffs'
+        uses: "./.github/actions/diffs"
         id: diff
 
   # Run e2e test against localnet built on the main branch
@@ -46,7 +47,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       # Disabled for now as it makes test runs take longer
       # - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
@@ -54,8 +55,8 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: '18'
-          cache: 'pnpm'
+          node-version: "18"
+          cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Playwright Browsers
@@ -130,9 +131,9 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Run E2E Test Runner with devnet branch
-        uses: './.github/actions/ts-e2e'
+        uses: "./.github/actions/ts-e2e"
         with:
           ref: devnet
 
@@ -159,8 +160,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Run E2E Test Runner with testnet branch
-        uses: './.github/actions/ts-e2e'
+        uses: "./.github/actions/ts-e2e"
         with:
           ref: testnet

@@ -16,7 +16,7 @@ Smart contracts are programs that are immutably stored in the chain.
 
 Through _VM abstraction_, the ISC virtual machine is agnostic about the interpreter used to execute each smart contract.
 It can support different _VM types_ (i.e., interpreters) simultaneously on the same chain.
-For example, it is possible to have [Wasm](../getting-started/languages-and-vms.mdx#wasm-vm-for-isc) and [EVM/Solidity](../getting-started/languages-and-vms.mdx#evmsolidity-based-smart-contracts) smart
+For example, it is possible to have [Wasm](../getting-started/languages-and-vms.mdx#wasm-vm-for-isc) and [EVM/Solidity](../getting-started/languages-and-vms.mdx#what-is-evmsolidity) smart
 contracts coexisting on the same chain.
 
 ![Smart Contract Structure](/img/iota-evm/tutorial/SC-structure.png)

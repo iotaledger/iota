@@ -1,4 +1,5 @@
 import Faucet from '@site/../content/_snippets/faucet.mdx';
+import AlphaNet from "../../../_snippets/alphanet.mdx";
 
 # Hello IOTA
 
@@ -10,8 +11,8 @@ projects.
 ## Before you begin
 
 You need an address on a IOTA development network (Devnet, Testnet, local). If you don't already have
-an address, use the [IOTA Client CLI](https://docs.iota.io/references/cli/client) or the
-[IOTA Wallet browser extension](https://docs.mystenlabs.com) to create one.
+an address, use the [IOTA Client CLI](../../../references/cli/client.mdx) or the
+IOTA Wallet browser extension to create one.
 
 You also need [Node.js](https://nodejs.org/en/download/current) and a package manager like
 [pnpm](https://pnpm.io/installation) to follow this example, so install them on your system if you
@@ -50,6 +51,8 @@ Instead of a 'Hello World' output to your console, this example introduces some 
 address. You must be on Devnet, Testnet, or a local network to use a faucet for minting IOTA.
 
 Create a new `index.js` file in the root of your project with the following code.
+
+<AlphaNet/>
 
 ```js
 import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
@@ -105,5 +108,5 @@ the faucet. You can check the total IOTA for your address using the IOTA Wallet 
 
 <Faucet/>
 
-You can also use the [IOTA Client CLI](https://docs.iota.io/references/cli/client) to perform client
+You can also use the [IOTA Client CLI](../../cli/client.mdx) to perform client
 calls on a IOTA network.
