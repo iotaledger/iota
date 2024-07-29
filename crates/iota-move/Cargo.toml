@@ -34,9 +34,6 @@ move-prover = { path = "../../external-crates/move/crates/move-prover" }
 move-unit-test.workspace = true
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemalloc-ctl = "0.5"
-
 [dev-dependencies]
 assert_cmd.workspace = true
 futures.workspace = true

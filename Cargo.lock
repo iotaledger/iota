@@ -3280,18 +3280,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diesel-derive-enum"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81c5131a2895ef64741dad1d483f358c2a229a3a2d1b256778cdc5e146db64d4"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2 1.0.86",
- "quote 1.0.36",
- "syn 2.0.72",
-]
-
-[[package]]
 name = "diesel_derives"
 version = "2.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5141,7 +5129,6 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-transaction-builder",
  "iota-types",
- "jemalloc-ctl",
  "json_to_table",
  "miette",
  "move-binary-format",
@@ -5432,7 +5419,6 @@ dependencies = [
  "derivative",
  "fastcrypto",
  "futures",
- "iota",
  "iota-config",
  "iota-core",
  "iota-faucet",
@@ -5583,7 +5569,6 @@ dependencies = [
  "test-fuzz",
  "thiserror",
  "tokio",
- "tokio-retry",
  "tokio-stream",
  "tracing",
  "twox-hash",
@@ -5700,7 +5685,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tap",
- "telemetry-subscribers",
  "tempfile",
  "tokio",
  "tracing",
@@ -5931,7 +5915,6 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "rand_pcg",
- "rand_regex",
  "rand_seeder",
  "regex",
  "reqwest 0.12.5",
@@ -6069,7 +6052,6 @@ dependencies = [
  "clap",
  "criterion",
  "diesel",
- "diesel-derive-enum",
  "diesel_migrations",
  "fastcrypto",
  "futures",
@@ -6083,7 +6065,6 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 1.22.0",
  "iota-test-transaction-builder",
  "iota-transaction-builder",
  "iota-types",
@@ -6095,7 +6076,6 @@ dependencies = [
  "mysten-metrics",
  "ntest",
  "prometheus",
- "rayon",
  "regex",
  "serde",
  "serde_json",
@@ -6356,7 +6336,6 @@ dependencies = [
  "iota-protocol-config",
  "iota-simulator",
  "iota-types",
- "jemalloc-ctl",
  "jsonrpsee",
  "move-binary-format",
  "move-cli",
@@ -6572,7 +6551,6 @@ dependencies = [
  "hyper 1.4.1",
  "insta",
  "iota-move-build",
- "iota-rest-api",
  "iota-types",
  "lru 0.10.1",
  "move-binary-format",
@@ -6589,7 +6567,6 @@ dependencies = [
 name = "iota-proc-macros"
 version = "0.7.0"
 dependencies = [
- "iota-enum-compat-util",
  "msim-macros",
  "proc-macro2 1.0.86",
  "quote 1.0.36",
@@ -6633,7 +6610,6 @@ dependencies = [
  "iota-core",
  "iota-execution",
  "iota-framework",
- "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-protocol-config",
@@ -6734,7 +6710,6 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "futures",
- "iota-json-rpc",
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk 1.22.0",
@@ -7526,27 +7501,6 @@ name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
-
-[[package]]
-name = "jemalloc-ctl"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cffc705424a344c054e135d12ee591402f4539245e8bbd64e6c9eaa9458b63c"
-dependencies = [
- "jemalloc-sys",
- "libc",
- "paste",
-]
-
-[[package]]
-name = "jemalloc-sys"
-version = "0.5.4+5.3.0-patched"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6c1946e1cea1788cbfde01c993b52a10e2da07f4bac608228d1bed20bfebf2"
-dependencies = [
- "cc",
- "libc",
-]
 
 [[package]]
 name = "jni"
@@ -9465,7 +9419,6 @@ dependencies = [
  "fastcrypto",
  "futures",
  "indexmap 2.2.6",
- "iota-protocol-config",
  "mockall",
  "mysten-common",
  "mysten-metrics",
@@ -9510,7 +9463,6 @@ dependencies = [
  "fastcrypto",
  "futures",
  "governor",
- "iota-protocol-config",
  "itertools 0.13.0",
  "mysten-metrics",
  "mysten-network",
@@ -11278,16 +11230,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand_regex"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bfbd599a8c757f89100e3ae559fb1ef9efa1cfd9276136862e3089dec627b31"
-dependencies = [
- "rand 0.8.5",
- "regex-syntax 0.8.4",
-]
-
-[[package]]
 name = "rand_seeder"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12756,7 +12698,6 @@ dependencies = [
  "iota-genesis-builder",
  "iota-keys",
  "iota-protocol-config",
- "iota-storage",
  "iota-swarm-config",
  "iota-transaction-checks",
  "iota-types",
@@ -13676,17 +13617,6 @@ dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.36",
  "syn 2.0.72",
-]
-
-[[package]]
-name = "tokio-retry"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f57eb36ecbe0fc510036adff84824dd3c24bb781e21bfa67b69d556aa85214f"
-dependencies = [
- "pin-project",
- "rand 0.8.5",
- "tokio",
 ]
 
 [[package]]

@@ -21,7 +21,6 @@ move-package.workspace = true
 move-vm-runtime-v0 = { path = "../../external-crates/move/move-execution/v0/crates/move-vm-runtime" }
 prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
-rand_regex = "0.17"
 regex.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -76,3 +75,6 @@ required-features = ["test-outputs"]
 name = "snapshot_only_test_outputs"
 path = "examples/snapshot_only_test_outputs.rs"
 required-features = ["test-outputs"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)'] }
