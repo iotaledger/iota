@@ -44,3 +44,4 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 
 # Disable code ownership as it is generated and does not need review
 ./Cargo.lock
+./pnpm-lock.yaml
