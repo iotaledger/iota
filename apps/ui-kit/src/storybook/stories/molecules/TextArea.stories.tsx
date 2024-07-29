@@ -27,6 +27,31 @@ export const Default: Story = {
                 type: 'text',
             },
         },
+        cols: {
+            control: {
+                type: 'number',
+            },
+        },
+        rows: {
+            control: {
+                type: 'number',
+            },
+        },
+        maxLength: {
+            control: {
+                type: 'number',
+            },
+        },
+        minLength: {
+            control: {
+                type: 'number',
+            },
+        },
+        autoFocus: {
+            control: {
+                type: 'boolean',
+            },
+        },
     },
     render: (props) => {
         const { onChange, value, ...storyProps } = props;
