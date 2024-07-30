@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Example demonstrating the claim of a basic output.
+//! In order to work, it requires a network with test objects
+//! generated from iota-genesis-builder/src/stardust/test_outputs.
 
 use std::{fs, path::PathBuf, str::FromStr};
 
@@ -25,7 +27,7 @@ use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
-const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
+const MAIN_ADDRESS_MNEMONIC: &str = "rain flip mad lamp owner siren tower buddy wolf shy tray exit glad come dry tent they pond wrist web cliff mixed seek drum";
 
 /// Creates a temporary keystore
 fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
@@ -65,11 +67,11 @@ async fn main() -> Result<(), anyhow::Error> {
         .data
         .into_iter()
         .next()
-        .ok_or(anyhow!("No coins found for sponsor"))?;
+        .ok_or(anyhow!("No coins found for sender"))?;
 
     // Get Basic Output object
     let basic_output_object_id = ObjectID::from_hex_literal(
-        "0xe0624f0a78a02dd8070ffe74c6b7fcaefe7514fdcbf4deb962419fb3b14b23dc",
+        "0xde09139ed46b9f5f876671e4403f312fad867c5ae5d300a252e4b6a6f1fa1fbd",
     )?;
     let basic_output_object = iota_client
         .read_api()
@@ -102,7 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
         // Get the dynamic fields owned by the native tokens bag
         let dynamic_field_page = iota_client
             .read_api()
-            .get_dynamic_fields(native_token_bag.id.object_id().clone(), None, None)
+            .get_dynamic_fields(*native_token_bag.id.object_id(), None, None)
             .await?;
         // should have only one page
         assert!(!dynamic_field_page.has_next_page);
