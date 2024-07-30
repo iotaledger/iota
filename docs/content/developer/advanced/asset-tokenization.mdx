@@ -423,21 +423,9 @@ Select a module to view its details:
 
 </Tabs>
 
-### template package
+### template module
 
-An example use case package that enables utilization of Rust WASM functionality to support seamless asset creation on the browser.
-
-This is similar to the launchpad approach and serves as the template package whenever a new asset requires representation as a tokenized asset.
-
-Effectively allowing users to edit fields of this template contract on the fly and publish it with the edits included.
-This package implements two essential modules, each catering to distinct functionalities required for asset tokenization.
-More details regarding how Rust WASM was implemented can be found in the [Web Assembly](#webassembly-wasm-and-template-package) section.
-
-- **Modules**
-
-- `template`
-
-This is the module that supports defining a new asset.
+An template that allows for seamless asset creation.
 
 When you need to represent a new asset as a fractional asset, modify this module to `<template>::<TEMPLATE>`, with the `<template>` (in capitals) being the OTW of this new asset.
 
@@ -450,10 +438,6 @@ When you need to represent a new asset as a fractional asset, modify this module
     - `description`: The description of the asset
     - `icon_url`: The URL for the asset logo (optional)
     - `burnable`: Boolean that defines if the asset can be burned by an admin
-
-    - `genesis`
-
-    A genesis type of module that includes a OTW so that the sender can claim the publisher.
 
     ### Publish and mint tokenized sequence diagram
 
