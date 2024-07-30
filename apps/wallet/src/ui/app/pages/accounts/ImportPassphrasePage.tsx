@@ -50,7 +50,7 @@ export function ImportPassphrasePage() {
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-3 p-md">
+                <div className="flex flex-col items-center gap-3 p-md pb-0 ">
                     <div>
                         <Button
                             text={isTextVisible ? 'Hide Text' : 'Show Text'}
@@ -66,8 +66,9 @@ export function ImportPassphrasePage() {
                         />
                     </div>
                     <ImportRecoveryPhraseForm
-                        cancelButtonText="Cancel"
-                        submitButtonText="Add Account"
+                        cancelButtonText="Back"
+                        submitButtonText="Add Profile"
+                        isTextVisible={isTextVisible}
                         onSubmit={({ recoveryPhrase }) => {
                             setFormValues({
                                 type: AccountsFormType.ImportMnemonic,

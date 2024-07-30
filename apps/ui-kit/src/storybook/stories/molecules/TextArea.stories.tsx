@@ -27,11 +27,6 @@ export const Default: Story = {
                 type: 'text',
             },
         },
-        cols: {
-            control: {
-                type: 'number',
-            },
-        },
         rows: {
             control: {
                 type: 'number',
@@ -65,8 +60,8 @@ export const Default: Story = {
             alert(inputValue);
         }
 
-        function handleOnChange(value: string) {
-            setInputValue(value);
+        function handleOnChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+            setInputValue(e.target.value);
         }
 
         return (

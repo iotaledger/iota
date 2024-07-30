@@ -39,6 +39,10 @@ interface ButtonProps {
      * The onClick event of the button.
      */
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    /**
+     * Whether the button should have the full width.
+     */
+    fullWidth?: boolean;
 }
 
 export function Button({
@@ -46,6 +50,7 @@ export function Button({
     text,
     disabled,
     onClick,
+    fullWidth,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
@@ -57,16 +62,15 @@ export function Button({
         <button
             onClick={onClick}
             className={cx(
-                'state-layer relative flex rounded-full disabled:opacity-40',
+                'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
+                fullWidth && 'w-full',
             )}
             disabled={disabled}
         >
-            <div className="flex flex-row items-center justify-center gap-2">
-                {icon && <span className={cx(textColors)}>{icon}</span>}
-                {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
-            </div>
+            {icon && <span className={cx(textColors)}>{icon}</span>}
+            {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
         </button>
     );
 }
