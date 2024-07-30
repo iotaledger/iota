@@ -11,13 +11,13 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
-difference.workspace = true
 walkdir.workspace = true
 sha2.workspace = true
 hex.workspace = true
 num-bigint.workspace = true
 once_cell.workspace = true
 serde.workspace = true
+similar.workspace = true
 dirs-next.workspace = true
 vfs.workspace = true
 
