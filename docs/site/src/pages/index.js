@@ -165,7 +165,7 @@ export default function Home() {
           <HomeCardCTA>
             <Link
               className={styles.cardCTALink}
-              to="/developer/getting-started/write-package"
+              to="/developer/getting-started/create-a-package"
             >
               <span>Build your dApp on IOTA</span>
               <svg
