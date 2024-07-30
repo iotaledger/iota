@@ -31,7 +31,7 @@ env:
 jobs:
   end-to-end-tests:
     name: Narwhal run long-running end-to-end tests
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
