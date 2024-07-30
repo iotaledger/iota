@@ -37,11 +37,7 @@ const meta = {
                     {elements.map((element, index) => (
                         <ButtonSegment
                             key={element.label}
-                            type={
-                                props.shape === ButtonSegmentType.Underlined
-                                    ? ButtonSegmentType.Underlined
-                                    : ButtonSegmentType.Rounded
-                            }
+                            type={props.shape}
                             onClick={() => handleElementClick(index)}
                             {...element}
                         />
