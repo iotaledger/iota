@@ -70,7 +70,9 @@ export function Search({
 
     const roundedStyleWithSuggestions = showSuggestions
         ? 'rounded-t-3xl border-b-0'
-        : 'rounded-full border-b';
+        : type === SearchBarType.Outlined
+          ? 'rounded-3xl border-b'
+          : 'rounded-full';
     const searchTypeClass = SEARCH_WRAPPER_STYLE[type];
     const backgroundColorClass = BACKGROUND_COLORS[type];
     const suggestionsStyle = SUGGESTIONS_WRAPPER_STYLE[type];
