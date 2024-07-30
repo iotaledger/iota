@@ -113,11 +113,12 @@ export function ImportRecoveryPhraseForm({
                     );
                 })}
             </div>
-            <div className="bg-iota-lightest sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 px-6 pb-7.5 pt-3">
+
+            <div className="sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 bg-neutral-100 px-6 pb-7.5 pt-3">
                 {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
                     <Alert>{errors.recoveryPhrase.message}</Alert>
                 )}
-                <div className="flex gap-2.5">
+                <div className="flex gap-2.5 px-md">
                     {cancelButtonText ? (
                         <Button
                             variant="outline"

@@ -10,11 +10,20 @@ import {
     useAccountsFormContext,
 } from '../../components/accounts/AccountsFormContext';
 import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
-import { Header } from '@iota/apps-ui-kit';
+import { Button, ButtonType, Header } from '@iota/apps-ui-kit';
+import { useState } from 'react';
+import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();
     const [, setFormValues] = useAccountsFormContext();
+    const [isTextVisible, setIsTextVisible] = useState(false);
+
+    function handleShowTextClick() {
+        setIsTextVisible(!isTextVisible);
+    }
+
+    const BUTTON_ICON_CLASSES = 'w-5 h-5 text-neutral-10';
     return (
         <>
             <Header
@@ -30,7 +39,7 @@ export function ImportPassphrasePage() {
                 }
             />
 
-            <div className="flex flex-col items-center overflow-auto bg-neutral-100">
+            <div className="flex flex-col overflow-auto bg-neutral-100">
                 <div className="px-md py-xs">
                     <div className="flex flex-col items-center justify-center gap-y-2 p-md text-center">
                         <p className="text-label-lg text-neutral-40">Wallet Setup</p>
@@ -41,7 +50,21 @@ export function ImportPassphrasePage() {
                     </div>
                 </div>
 
-                <div className="flex grow flex-col gap-3 p-md">
+                <div className="flex flex-col items-center gap-3 p-md">
+                    <div>
+                        <Button
+                            text={isTextVisible ? 'Hide Text' : 'Show Text'}
+                            icon={
+                                isTextVisible ? (
+                                    <VisibilityOff className={BUTTON_ICON_CLASSES} />
+                                ) : (
+                                    <VisibilityOn className={BUTTON_ICON_CLASSES} />
+                                )
+                            }
+                            onClick={handleShowTextClick}
+                            type={ButtonType.Secondary}
+                        />
+                    </div>
                     <ImportRecoveryPhraseForm
                         cancelButtonText="Cancel"
                         submitButtonText="Add Account"
@@ -60,8 +83,6 @@ export function ImportPassphrasePage() {
                         }}
                     />
                 </div>
-
-                <div className="px-md"></div>
             </div>
         </>
     );
