@@ -559,7 +559,7 @@ To represent a new asset as a fractional asset, modify this module to `<template
 
                 kiosk::list<TokenizedAsset<T>>(kiosk, kiosk_cap, ta2_id, 0);
                 let (ta1, promise_ta1) = kiosk::borrow_val(kiosk, kiosk_cap, ta1_id);
-                let coin = coin::zero<SUI>(ctx);
+                let coin = coin::zero<IOTA>(ctx);
                 let (ta2, request) = kiosk::purchase(kiosk, ta2_id, coin);
 
                 let tp_ref = proxy::transfer_policy(protected_tp);
@@ -580,7 +580,7 @@ To represent a new asset as a fractional asset, modify this module to `<template
 
             The following example splits (effectively replacing) the `AssetCap<T>` into two new objects: the `Treasury<T>` and the `AdminCap<T>`. The access to methods defined in the original package, should now be carefully re-designed as this change can introduce unwanted effects. This required re-design is not entirely contained in this example and only some methods are changed for demonstration purposes (or as a thorough exercise).
 
-            :::
+                :::
 
                 Assume you want to allow the users to also burn assets, not only admins. This still needs to be an authorized operation but it would allow the flexibility of consuming tokenized assets for a use case specific purpose (for example, burning all of the collectibles you've gathered to combine them). To achieve this, the admin can mint tickets that contain the ID of the asset they are allowed to burn. To support this functionality you must redesign the smart contract and separate the admin from the asset's treasury of each asset, which now holds only supply related information. Sample changes that need to happen follow:
 
