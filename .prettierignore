@@ -1,5 +1,5 @@
 # ignore everything by default
-# /*
+/*
 # Enable prettier for apps, dapps and sdk
 !/apps
 !/sdk
@@ -7,8 +7,11 @@
 !/.config
 !/*.js
 
-# ignore markdown files
+# ignore markdown and yml files because they are covered by dprint
 **/*.md
+**/*.mdx
+**/*.yml
+**/*.yaml
 
 # ignore generated files
 /apps/icons/src
@@ -25,4 +28,3 @@ out/
 generated/
 playwright-report/
 storybook-static/
-pnpm-lock.yaml

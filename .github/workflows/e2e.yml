@@ -1,4 +1,5 @@
 name: TS End-to-end Tests
+
 on:
   pull_request:
 
@@ -8,7 +9,7 @@ concurrency:
 
 jobs:
   diff:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     outputs:
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
@@ -29,7 +30,7 @@ jobs:
     name: Localnet
     needs: diff
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true'
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     services:
       postgres:
         image: postgres
@@ -50,8 +51,6 @@ jobs:
       # Disabled for now as it makes test runs take longer
       # - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
-        with:
-          version: 9
       - run: cargo build --bin iota-test-validator --bin iota --profile dev
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
@@ -115,7 +114,7 @@ jobs:
     needs: diff
     # TODO: add wallet e2e to the `if` condition when available
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     services:
       postgres:
         image: postgres
@@ -144,7 +143,7 @@ jobs:
     needs: diff
     # TODO: add wallet e2e to the `if` condition when available
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     services:
       postgres:
         image: postgres

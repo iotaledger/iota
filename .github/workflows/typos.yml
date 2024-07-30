@@ -1,4 +1,5 @@
 name: Typos
+
 on: [pull_request]
 
 jobs:

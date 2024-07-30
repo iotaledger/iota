@@ -31,7 +31,7 @@ const icons = {
     ),
     Unstaked: <Unstaked className="text-heading3 text-gradient-blue-start" />,
     Rewards: <Iota className="text-body text-gradient-blue-start" />,
-    Failed: <Info16 className="text-heading6 text-issue-dark" />,
+    Failed: <Info16 className="text-issue-dark text-heading6" />,
     Loading: <LoadingIndicator />,
     PersonalMessage: (
         <Account24 fill="currentColor" className="text-body text-gradient-blue-start" />
