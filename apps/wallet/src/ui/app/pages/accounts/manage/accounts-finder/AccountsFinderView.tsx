@@ -67,7 +67,7 @@ export function AccountsFinderView(): JSX.Element {
                       type: 'software',
                       sourceID: accountSourceId!,
                   },
-        [password, accountSourceId],
+        [password, accountSourceId, accountSourceType],
     );
     const { find } = useAccountsFinder({
         accountSourceType,
