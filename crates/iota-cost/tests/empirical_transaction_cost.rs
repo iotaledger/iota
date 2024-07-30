@@ -19,7 +19,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumString};
+use strum::{Display, EnumString};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[derive(

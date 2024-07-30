@@ -8,25 +8,23 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'apps/wallet-dashboard/**'
-      - '.github/workflows/apps-wallet-dashboard-preview.deploy.yml'
+      - "apps/wallet-dashboard/**"
+      - ".github/workflows/apps-wallet-dashboard-preview.deploy.yml"
 
 jobs:
   deploy-preview:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [tooling-runners]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
-        with:
-          version: 9
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Turbo Cache
@@ -65,4 +63,3 @@ jobs:
               repo: context.repo.repo,
               body: `This pull request has been deployed to Vercel.\n\n\nLatest commit: ${COMMIT_SHA}\n\n:white_check_mark: Preview: ${DEPLOY_URL}`
             })
-

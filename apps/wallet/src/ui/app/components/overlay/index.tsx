@@ -28,7 +28,7 @@ function Overlay({
     showModal,
     closeOverlay,
     setShowModal,
-    closeIcon = <X32 fill="currentColor" className="h-8 w-8 text-iota-light" />,
+    closeIcon = <X32 fill="currentColor" className="text-iota-light h-8 w-8" />,
     background,
 }: OverlayProps) {
     const closeModal = useCallback(
@@ -49,10 +49,10 @@ function Overlay({
                 })}
             >
                 {title && (
-                    <div className="h-12 w-full bg-gray-40">
+                    <div className="bg-gray-40 h-12 w-full">
                         <div
                             data-testid="overlay-title"
-                            className="flex h-12 items-center justify-center bg-gray-40 text-heading4 font-semibold text-steel-darker"
+                            className="bg-gray-40 text-steel-darker flex h-12 items-center justify-center text-heading4 font-semibold"
                         >
                             {title}
                         </div>

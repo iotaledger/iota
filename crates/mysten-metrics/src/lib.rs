@@ -375,10 +375,8 @@ pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
         .layer(Extension(registry_service.clone()));
 
     tokio::spawn(async move {
-        axum::Server::bind(&addr)
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(listener, app.into_make_service()).await
     });
 
     registry_service
@@ -462,12 +460,12 @@ mod tests {
         assert_eq!(metric_default.get_help(), "counter_desc");
 
         let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "narwhal_counter_1");
-        assert_eq!(metric_1.get_help(), "counter_1_desc");
+        assert_eq!(metric_1.get_name(), "iota_counter_2");
+        assert_eq!(metric_1.get_help(), "counter_2_desc");
 
         let metric_2 = metrics.remove(0);
-        assert_eq!(metric_2.get_name(), "iota_counter_2");
-        assert_eq!(metric_2.get_help(), "counter_2_desc");
+        assert_eq!(metric_2.get_name(), "narwhal_counter_1");
+        assert_eq!(metric_2.get_help(), "counter_1_desc");
 
         // AND remove first registry
         assert!(registry_service.remove(registry_1_id));

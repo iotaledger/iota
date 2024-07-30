@@ -1,15 +1,16 @@
 name: Typos
+
 on: [pull_request]
 
 jobs:
-    run:
-        name: Spell Check with Typos
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout Actions Repository
-              uses: actions/checkout@v4
+  run:
+    name: Spell Check with Typos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
 
-            - name: Check spelling
-              uses: crate-ci/typos@master
-              with:
-                  config: ./.typos.toml
+      - name: Check spelling
+        uses: crate-ci/typos@master
+        with:
+          config: ./.typos.toml
