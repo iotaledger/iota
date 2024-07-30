@@ -66,7 +66,7 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
     /**
      * If true the textarea is resizable vertically
      */
-    isResizeEabled?: boolean;
+    isResizeEnabled?: boolean;
 }
 
 export function TextArea({
@@ -80,7 +80,7 @@ export function TextArea({
     value,
     amountCounter,
     isVisibilityToggleEnabled,
-    isResizeEabled,
+    isResizeEnabled,
     rows = 3,
     cols,
     autoFocus,
@@ -139,7 +139,7 @@ export function TextArea({
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,
                         PLACEHOLDER_TEXT_CLASSES,
-                        isInputContentVisible ? 'resize-y' : 'resize-none',
+                        isInputContentVisible && isResizeEnabled ? 'resize-y' : 'resize-none',
                         !isInputContentVisible &&
                             'not-visible select-none text-transparent dark:text-transparent',
                     )}
