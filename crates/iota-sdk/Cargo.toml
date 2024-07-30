@@ -82,6 +82,10 @@ name = "sign_tx_guide"
 path = "examples/sign_tx_guide.rs"
 
 [[example]]
+name = "alias-output-claim"
+path = "examples/stardust/alias-output-claim.rs"
+
+[[example]]
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
