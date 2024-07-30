@@ -38,7 +38,7 @@ fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
         keystore.save()?;
     }
     // Read iota keystore
-    Ok(FileBasedKeystore::new(&keystore_path)?)
+    FileBasedKeystore::new(&keystore_path)
 }
 
 fn clean_keystore() -> Result<(), anyhow::Error> {
