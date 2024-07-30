@@ -267,9 +267,11 @@ fn extract_native_tokens_from_bag(
                 .native_tokens()
                 .get(native_token_id)
                 .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
-            let token_type = foundry_ledger_data.canonical_coin_type();
-            let token_type_tag = token_type.parse::<TypeTag>()?;
-            Ok((native_token, token_type, token_type_tag))
+            let bag_key = foundry_ledger_data.to_canonical_string(/* with_prefix */ false);
+            let token_type_tag = foundry_ledger_data
+                .to_canonical_string(/* with_prefix */ true)
+                .parse::<TypeTag>()?;
+            Ok((native_token, bag_key, token_type_tag))
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
@@ -307,8 +309,8 @@ fn extract_native_tokens_from_bag(
 
         builder.transfer_arg(IotaAddress::default(), gas_coin_arg);
 
-        for (_, token_type, token_type_tag) in &native_tokens {
-            let token_type_arg = builder.pure(token_type.clone())?;
+        for (_, bag_key, token_type_tag) in &native_tokens {
+            let bag_key_arg = builder.pure(bag_key.clone())?;
             let token_balance_arg = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("bag").into(),
@@ -319,7 +321,7 @@ fn extract_native_tokens_from_bag(
                         .expect("should be a valid type tag"),
                     Balance::type_(token_type_tag.clone()).into(),
                 ],
-                vec![bag_arg, token_type_arg],
+                vec![bag_arg, bag_key_arg],
             );
 
             let minted_coin_arg = builder.programmable_move_call(
