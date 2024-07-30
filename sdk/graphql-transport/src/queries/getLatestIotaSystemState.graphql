@@ -31,6 +31,7 @@ query getLatestIotaSystemState {
             totalObjectStorageRebates
         }
         systemStateVersion
+        iotaTotalSupply
         systemParameters {
             minValidatorCount
             maxValidatorCount
@@ -57,7 +58,7 @@ query getLatestIotaSystemState {
 
             inactivePoolsSize
             pendingActiveValidatorsSize
-            stakePoolMappingsSize
+            stakingPoolMappingsSize
             validatorCandidatesSize
             pendingRemovals
             totalStake
