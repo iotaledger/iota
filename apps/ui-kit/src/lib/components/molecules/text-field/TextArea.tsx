@@ -17,7 +17,6 @@ type InputPickedProps = Pick<
     | 'maxLength'
     | 'minLength'
     | 'rows'
-    | 'cols'
     | 'autoFocus'
     | 'name'
     | 'required'
@@ -82,7 +81,6 @@ export function TextArea({
     isVisibilityToggleEnabled,
     isResizeEnabled,
     rows = 3,
-    cols,
     autoFocus,
     required,
     maxLength,
@@ -129,7 +127,6 @@ export function TextArea({
                     id={id}
                     name={name}
                     rows={rows}
-                    cols={cols}
                     autoFocus={autoFocus}
                     ref={inputRef}
                     onChange={handleOnChange}
