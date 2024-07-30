@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [tooling-runners]
+    runs-on: [self-hosted]
     steps:
       - name: Clean up tag name '${{ env.TAG_NAME }}' and create artifact name
         shell: bash
