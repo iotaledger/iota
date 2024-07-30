@@ -146,8 +146,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let extracted_alias = Argument::NestedResult(extracted_assets, 2);
 
             // Extract the IOTA balance
-            let arguments = vec![extracted_base_token];
             let type_arguments = vec![GAS::type_tag()];
+            let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_ADDRESS.into(),
                 ident_str!("coin").to_owned(),
@@ -161,37 +161,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract the native tokens from the bag.
             for type_key in df_type_keys {
-                let type_tag = TypeTag::from_str(&type_key)?;
-                let type_arguments = vec![type_tag.clone()];
+                let type_arguments = vec![TypeTag::from_str(&type_key)?];
+                let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
 
-                if let Argument::Result(extracted_balance) = builder.programmable_move_call(
+                // Extract a native token balance
+                extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_ADDRESS.into(),
                     ident_str!("utilities").to_owned(),
-                    ident_str!("extract").to_owned(),
+                    ident_str!("extract_and_send_to").to_owned(),
                     type_arguments,
-                    vec![extracted_native_tokens_bag],
-                ) {
-                    extracted_native_tokens_bag = Argument::NestedResult(extracted_balance, 0);
-                    let balance = Argument::NestedResult(extracted_balance, 1);
-
-                    // Extract a native token balance
-                    let arguments = vec![balance];
-                    let type_arguments = vec![type_tag];
-                    let coin = builder.programmable_move_call(
-                        IOTA_FRAMEWORK_ADDRESS.into(),
-                        ident_str!("coin").to_owned(),
-                        ident_str!("from_balance").to_owned(),
-                        type_arguments,
-                        arguments,
-                    );
-
-                    // Transfer the native token balance
-                    builder.transfer_arg(sender, coin);
-                }
+                    arguments,
+                );
             }
-
-            // Transfer the alias asset
-            builder.transfer_arg(sender, extracted_alias);
 
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
@@ -202,6 +183,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 vec![],
                 arguments,
             );
+
+            // Transfer the alias asset
+            builder.transfer_arg(sender, extracted_alias);
         }
         builder.finish()
     };
