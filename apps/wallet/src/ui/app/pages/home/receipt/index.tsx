@@ -77,7 +77,7 @@ function ReceiptPage() {
                 setShowModal={setShowModal}
                 title={pageTitle}
                 closeOverlay={closeReceipt}
-                closeIcon={<Check32 fill="currentColor" className="h-8 w-8 text-iota-light" />}
+                closeIcon={<Check32 fill="currentColor" className="text-iota-light h-8 w-8" />}
             >
                 {isError ? (
                     <div className="mb-2 h-fit">
