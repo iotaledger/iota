@@ -5,9 +5,14 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+bcs.workspace = true
 tokio.workspace = true
 
 iota-keys.workspace = true
 iota-sdk.workspace = true
 move-core-types.workspace = true
 shared-crypto.workspace = true
+
+[[example]]
+name = "alias-output-claim"
+path = "examples/alias-output-claim.rs"

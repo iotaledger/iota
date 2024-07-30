@@ -3462,6 +3462,7 @@ name = "docs-examples"
 version = "0.1.1"
 dependencies = [
  "anyhow",
+ "bcs",
  "iota-keys",
  "iota-sdk 0.1.1",
  "move-core-types",
