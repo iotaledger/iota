@@ -43,7 +43,7 @@ fn clean_keystore() -> Result<(), anyhow::Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Build a iota client for a local network
+    // Build an iota client for a local network
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
     // Setup the temporary file based keystore
@@ -51,8 +51,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
-
-    println!("{:?}", sender);
 
     // Get a gas coin
     let gas_coin = iota_client
@@ -92,11 +90,11 @@ async fn main() -> Result<(), anyhow::Error> {
     )?;
 
     // Extract the keys of the native_tokens bag if this is not empty; here the keys
-    // are the type_arg of each native token, sothey can be used later in the PTB.
+    // are the type_arg of each native token, so they can be used later in the PTB.
     let mut df_type_keys = vec![];
     let native_token_bag = basic_output.native_tokens;
     if native_token_bag.size > 0 {
-        // Get the dynamic fieldss of the native tokens bag
+        // Get the dynamic fields owned by the native tokens bag
         let dynamic_field_page = iota_client
             .read_api()
             .get_dynamic_fields(native_token_bag.id.object_id().clone(), None, None)
@@ -114,7 +112,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         .value
                         .as_str()
                         .expect("should be a string")
-                        .to_string()
+                        .to_owned()
                 })
                 .collect::<Vec<_>>(),
         );
@@ -173,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Type argument for the IOTA coin
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
-            let new_iota_coin= builder.programmable_move_call(
+            let new_iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_ADDRESS.into(),
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
@@ -212,7 +210,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
-    println!("Transaction digest: {:?}", transaction_response);
+
     println!("Transaction digest: {}", transaction_response.digest);
 
     // Finish and clean the temporary keystore file
