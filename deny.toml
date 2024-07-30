@@ -44,8 +44,6 @@ yanked = "warn"
 ignore = [
   # difference 2.0.0 is unmaintained
   "RUSTSEC-2020-0095",
-  # `tui` is unmaintained; use `ratatui` instead
-  "RUSTSEC-2023-0049",
   # we don't do RSA signing on Iota (only verifying for zklogin)
   "RUSTSEC-2023-0071",
 ]

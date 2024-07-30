@@ -4,9 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
-use tui::{
+use ratatui::{
     style::Style,
-    text::{Span, Spans},
+    text::{Line, Span},
 };
 
 /// A `TextBuilder` is used to build up a paragraph, where some parts of it may
@@ -14,10 +14,8 @@ use tui::{
 /// line boundaries.
 #[derive(Debug, Clone, Default)]
 pub struct TextBuilder<'a> {
-    // A vec of "lines" each line is a vector of spans.
-    // We use Vec<Span> here instead of Spans since otherwise we wouldn't be able to join lines in
-    // the `add` function.
-    chunks: Vec<Vec<Span<'a>>>,
+    // A vec of "lines" where each line is a vector of spans.
+    chunks: Vec<Line<'a>>,
 }
 
 impl<'a> TextBuilder<'a> {
@@ -36,14 +34,15 @@ impl<'a> TextBuilder<'a> {
             string
                 .split('\n')
                 .map(|x| x.to_string())
-                .map(|x| vec![Span::styled(x, style)])
-                .collect::<Vec<Vec<Span>>>()
+                .map(|x| Line::styled(x, style))
+                .collect::<Vec<_>>()
         };
         let last_chunk_ends_with_nl = self
             .chunks
             .last()
             .map(|last_span| {
                 last_span
+                    .spans
                     .last()
                     .map(|last_span| last_span.content.ends_with('\n'))
                     .unwrap_or(false)
@@ -56,7 +55,7 @@ impl<'a> TextBuilder<'a> {
                 self.chunks
                     .last_mut()
                     .unwrap()
-                    .push(Span::styled(line_continuation.to_string(), style));
+                    .push_span(Span::styled(line_continuation.to_string(), style));
             });
             iter.next().into_iter().for_each(|remainder| {
                 self.chunks.extend(chunk(remainder.to_string()));
@@ -68,7 +67,7 @@ impl<'a> TextBuilder<'a> {
 
     /// Return back the final Spans, each `Spans` represents a line in the
     /// paragraph.
-    pub fn finish(self) -> Vec<Spans<'a>> {
-        self.chunks.into_iter().map(Spans::from).collect()
+    pub fn finish(self) -> Vec<Line<'a>> {
+        self.chunks
     }
 }
