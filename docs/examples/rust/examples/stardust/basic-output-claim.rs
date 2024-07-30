@@ -1,3 +1,8 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Example demonstrating the claim of a basic output.
+
 use std::{fs, path::PathBuf, str::FromStr};
 
 use anyhow::anyhow;
