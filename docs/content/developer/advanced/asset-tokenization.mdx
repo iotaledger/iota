@@ -423,9 +423,9 @@ Select a module to view its details:
 
 </Tabs>
 
-### template module
+### template package
 
-An template that allows for seamless asset creation.
+The [template package](https://github.com/iotaledger/iota/blob/main/examples/move/asset_tokenization/template) allows for seamless asset creation. It makes use of the previous explained `asset_tokenization` module.
 
 When you need to represent a new asset as a fractional asset, modify this module to `<template>::<TEMPLATE>`, with the `<template>` (in capitals) being the OTW of this new asset.
 
@@ -438,6 +438,10 @@ When you need to represent a new asset as a fractional asset, modify this module
     - `description`: The description of the asset
     - `icon_url`: The URL for the asset logo (optional)
     - `burnable`: Boolean that defines if the asset can be burned by an admin
+
+    - `genesis`
+
+    The template package also contains a genesis type of module that includes a OTW so that the sender can claim the publisher.
 
     ### Publish and mint tokenized sequence diagram
 
