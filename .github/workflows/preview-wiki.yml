@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   wiki-preview:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
