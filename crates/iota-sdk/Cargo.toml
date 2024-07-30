@@ -82,7 +82,3 @@ path = "examples/sign_tx_guide.rs"
 name = "utils"
 path = "examples/utils.rs"
 crate-type = ["staticlib"]
-
-[[example]]
-name = "basic-output-claim"
-path = "examples/stardust/basic-output-claim.rs"
