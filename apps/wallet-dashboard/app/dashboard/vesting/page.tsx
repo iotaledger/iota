@@ -3,15 +3,29 @@
 
 'use client';
 
+import { Button } from '@/components';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
-import { useGetAllTimelockedObjects } from '@iota/core';
+import { useCollectUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
+    const collect = useCollectUnlockTimelockedObjects(account?.address || '');
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const vestingSchedule = getVestingOverview(timelockedMapped);
+
+    const handleCollect = () => {
+        // Update Date.now() when #1217 is merged
+        const unlockTimelockedObjects = timelockedMapped?.filter(
+            (timelockedObject) => timelockedObject.expirationTimestampMs <= Date.now(),
+        );
+        console.log('unlockTimelockedObjects', unlockTimelockedObjects);
+        collect();
+    };
+    const handleStake = () => {
+        console.log('Stake');
+    };
 
     return (
         <div className="flex flex-col items-center justify-center space-y-4 pt-12">
@@ -44,6 +58,16 @@ function VestingDashboardPage(): JSX.Element {
                     <span>{vestingSchedule.availableStaking}</span>
                 </div>
             </div>
+            {account?.address && (
+                <div className="flex flex-row space-x-4">
+                    {vestingSchedule.availableClaiming && (
+                        <Button onClick={handleCollect}>Collect</Button>
+                    )}
+                    {vestingSchedule.availableStaking && (
+                        <Button onClick={handleStake}>Stake</Button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
