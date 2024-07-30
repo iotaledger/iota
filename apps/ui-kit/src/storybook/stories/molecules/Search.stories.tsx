@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { Search, SearchBarType, Suggestion } from '@/components';
 
@@ -21,10 +21,6 @@ const meta: Meta<typeof Search> = {
             setFilteredSuggestions(filtered);
         };
 
-        const handleSuggestionsChange = (suggestions: Suggestion[]) => {
-            setFilteredSuggestions(suggestions);
-        };
-
         const handleSuggestionClick = (suggestion: Suggestion) => {
             setSearchValue(suggestion.label);
             setFilteredSuggestions([]);
@@ -37,7 +33,6 @@ const meta: Meta<typeof Search> = {
                     searchValue={searchValue}
                     suggestions={filteredSuggestions}
                     onSearchValueChange={handleSearchValueChange}
-                    onSuggestionsChange={handleSuggestionsChange}
                     onSuggestionClick={handleSuggestionClick}
                 />
             </div>
@@ -71,9 +66,6 @@ export const Default: Story = {
         },
         onSearchValueChange: {
             action: 'searchValueChanged',
-        },
-        onSuggestionsChange: {
-            action: 'suggestionsChanged',
         },
         type: {
             control: {

@@ -26,10 +26,6 @@ export interface SearchProps {
      */
     onSearchValueChange: (value: string) => void;
     /**
-     * Callback when the suggestions change.
-     */
-    onSuggestionsChange: (suggestions: Suggestion[]) => void;
-    /**
      * List of suggestions to display (optional).
      */
     suggestions?: Suggestion[];
@@ -55,7 +51,6 @@ export function Search({
     searchValue,
     suggestions,
     onSearchValueChange,
-    onSuggestionsChange,
     placeholder,
     onSuggestionClick,
     onKeyDown,
@@ -68,7 +63,6 @@ export function Search({
 
     function handleSuggestionClick(suggestion: Suggestion) {
         onSearchValueChange(suggestion.label);
-        onSuggestionsChange([]);
         onSuggestionClick?.(suggestion);
     }
 
