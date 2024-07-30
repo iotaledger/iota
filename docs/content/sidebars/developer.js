@@ -251,8 +251,8 @@ const developer = [
             id: 'developer/advanced',
         },
         items: [
-            'developer/advanced/asset-tokenization',
             'developer/advanced/stardust-on-move',
+            'developer/advanced/asset-tokenization',
         ],
     },
     {
