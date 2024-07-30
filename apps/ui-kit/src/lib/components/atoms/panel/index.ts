@@ -1,5 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './Box';
-export * from './box.enums';
+export * from './Panel';
+export * from './panel.enums';

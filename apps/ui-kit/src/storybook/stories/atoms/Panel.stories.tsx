@@ -2,24 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import cx from 'classnames';
-import { Address, Box, BoxTitleSize } from '@/components';
+import { Address, BadgeType, Panel, PanelTitleSize } from '@/components';
 
 const meta = {
-    component: Box,
+    component: Panel,
     tags: ['autodocs'],
     render: (props) => {
         return (
-            <Box {...props}>
-                <div className={cx('flex flex-col items-start gap-2', { 'mt-4': props.title })}>
+            <Panel {...props}>
+                <div className="flex flex-col items-start gap-2">
                     <Address text="0x0d7...3f34" isCopyable />
                     <Address text="0x0d7...3f35" isCopyable />
                     <Address text="0x0d7...3f36" isCopyable />
                 </div>
-            </Box>
+            </Panel>
         );
     },
-} satisfies Meta<typeof Box>;
+} satisfies Meta<typeof Panel>;
 
 export default meta;
 
@@ -36,8 +35,18 @@ export const Default: Story = {
         size: {
             control: {
                 type: 'select',
-                options: Object.values(BoxTitleSize),
+                options: Object.values(PanelTitleSize),
             },
+        },
+        badgeType: {
+            control: 'select',
+            options: Object.values(BadgeType),
+        },
+        badgeText: {
+            control: 'text',
+        },
+        hasBorder: {
+            control: 'boolean',
         },
     },
 };
