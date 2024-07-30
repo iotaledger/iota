@@ -63,6 +63,7 @@ $ git push # either to the shared workspace or another branch followed by a PR
 ```
 
 Example:
+
 ```
 $ iota genesis-ceremony add-validator \
     --name validator0 \
@@ -116,6 +117,7 @@ $ git push
 ```
 
 Example:
+
 ```
 $ iota genesis-ceremony verify-and-sign \
     --key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key
