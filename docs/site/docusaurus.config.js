@@ -6,6 +6,7 @@ import { themes } from "prism-react-renderer";
 import path from "path";
 import math from "remark-math";
 import katex from "rehype-katex";
+import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
@@ -26,7 +27,8 @@ const config = {
   },
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -86,7 +88,7 @@ const config = {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/iotaledger/iota/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -105,6 +107,7 @@ const config = {
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
             ],
+            [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
           rehypePlugins: [katex],
         },
@@ -173,17 +176,16 @@ const config = {
           autoCollapseCategories: false,
         },
       },
-      colorMode:{
-        defaultMode: 'dark'
+      colorMode: {
+        defaultMode: "dark",
       },
-      announcementBar:{
-        id: 'integrate_your_exchange',
+      announcementBar: {
+        id: "integrate_your_exchange",
         content:
-            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+          '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
         isCloseable: false,
-        backgroundColor: '#0101ff',
-        textColor: '#FFFFFF',
-
+        backgroundColor: "#0101ff",
+        textColor: "#FFFFFF",
       },
       navbar: {
         title: "",
@@ -197,21 +199,21 @@ const config = {
             to: "about-iota",
           },
           {
-              label: "Developers",
-              to: "developer",
+            label: "Developers",
+            to: "developer",
           },
           {
-              label: "Node Operators",
-              to: "operator",
+            label: "Node Operators",
+            to: "operator",
           },
           {
-              label: "References",
-              to: "references",
+            label: "References",
+            to: "references",
           },
         ],
       },
       colorMode: {
-        defaultMode: 'dark',
+        defaultMode: "dark",
         disableSwitch: false,
       },
       footer: {

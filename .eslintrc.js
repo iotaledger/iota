@@ -44,6 +44,10 @@ module.exports = {
         '**/.next/',
         '**/.swc/',
         '**/out/',
+        '**/*.md',
+        '**/*.mdx',
+        '**/*.yml',
+        '**/*.yaml',
     ],
     rules: {
         'no-case-declarations': 'off',

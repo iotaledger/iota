@@ -78,7 +78,10 @@ where
 mod tests {
     use std::str::FromStr;
 
-    use axum::{extract::FromRequest, http::Request};
+    use axum::{
+        body::Body,
+        extract::{FromRequest, Request},
+    };
     use http::header;
 
     use super::*;
@@ -90,7 +93,7 @@ mod tests {
                 header::ACCEPT,
                 "text/html, text/yaml;q=0.5, application/xhtml+xml, application/xml;q=0.9, */*;q=0.1",
             )
-            .body(())
+            .body(Body::empty())
             .unwrap();
         let accept = Accept::from_request(req, &()).await.unwrap();
         assert_eq!(
@@ -109,14 +112,14 @@ mod tests {
     async fn test_accept_format() {
         let req = Request::builder()
             .header(header::ACCEPT, "*/*, application/bcs")
-            .body(())
+            .body(Body::empty())
             .unwrap();
         let accept = AcceptFormat::from_request(req, &()).await.unwrap();
         assert_eq!(accept, AcceptFormat::Bcs);
 
         let req = Request::builder()
             .header(header::ACCEPT, "*/*")
-            .body(())
+            .body(Body::empty())
             .unwrap();
         let accept = AcceptFormat::from_request(req, &()).await.unwrap();
         assert_eq!(accept, AcceptFormat::Json);

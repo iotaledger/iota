@@ -80,7 +80,7 @@ jobs:
         with:
           filters: |
             iota-sdk:
-              - 'crates/iota-sdk/**'
+              - "crates/iota-sdk/**"
 
   test-iota-sdk:
     name: Test iota-sdk
@@ -112,6 +112,7 @@ jobs:
 
   license-check:
     name: license-check
+    if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -186,26 +187,27 @@ jobs:
       - run: scripts/changed-files.sh
         shell: bash
 
-  simtest:
-    name: Simtest ${{ matrix.components }}
-    needs: changes
-    timeout-minutes: 45
-    runs-on: [self-hosted-rust]
-    strategy:
-      matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
-    env:
-      MSIM_WATCHDOG_TIMEOUT_MS: 60000
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
-      - name: cargo simtest
-        run: |
-          scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
-      - name: check new tests for flakiness
-        run: |
-          scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  # TODO: Disabled until we can get an updated fork of msim with tokio 1.38 https://github.com/iotaledger/iota/issues/1212
+  # simtest:
+  #     name: Simtest ${{ matrix.components }}
+  #     needs: changes
+  #     timeout-minutes: 45
+  #     runs-on: [self-hosted-rust]
+  #     strategy:
+  #         matrix:
+  #             components: ${{ fromJson(needs.changes.outputs.components) }}
+  #         fail-fast: false
+  #     env:
+  #         MSIM_WATCHDOG_TIMEOUT_MS: 60000
+  #     steps:
+  #         - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+  #         - uses: taiki-e/install-action@nextest
+  #         - name: cargo simtest
+  #           run: |
+  #               scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  #         - name: check new tests for flakiness
+  #           run: |
+  #               scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   # This job ensures that Move unit tests are run if there are changes
   # to Move code but not Rust code (If there are Rust changes, they
@@ -278,7 +280,7 @@ jobs:
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
-        run: cargo ci-clippy
+        run: cargo +stable ci-clippy
 
   rustfmt:
     needs: diff
@@ -327,33 +329,33 @@ jobs:
       - name: Check execution builds
         run: cargo build -p iota-execution
 
-  #indexer:
-  #  name: indexer
-  #  needs: diff
-  #  if: needs.diff.outputs.isRust == 'true'
-  #  timeout-minutes: 45
-  #  runs-on: [self-hosted-rust]
-  #  services:
-  #    postgres:
-  #      image: postgres
-  #      env:
-  #        POSTGRES_PASSWORD: postgrespw
-  #      options: >-
-  #        --health-cmd pg_isready
-  #        --health-interval 10s
-  #        --health-timeout 5s
-  #        --health-retries 5
-  #      ports:
-  #        - 5432:5432
-  #  steps:
-  #    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-  #    - name: integration-test-with-postgres
-  #      #We only have 1 instance of postgres DB, can only run test in single thread
-  #      run: |
-  #        cargo test --package iota-indexer --test integration_tests --features pg_integration -- --test-threads=1
-  #      env:
-  #        POSTGRES_HOST: localhost
-  #        POSTGRES_PORT: 5432
+    #indexer:
+    #  name: indexer
+    #  needs: diff
+    #  if: needs.diff.outputs.isRust == 'true'
+    #  timeout-minutes: 45
+    #  runs-on: [self-hosted-rust]
+    #  services:
+    #    postgres:
+    #      image: postgres
+    #      env:
+    #        POSTGRES_PASSWORD: postgrespw
+    #      options: >-
+    #        --health-cmd pg_isready
+    #        --health-interval 10s
+    #        --health-timeout 5s
+    #        --health-retries 5
+    #      ports:
+    #        - 5432:5432
+    #  steps:
+    #    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+    #    - name: integration-test-with-postgres
+    #      #We only have 1 instance of postgres DB, can only run test in single thread
+    #      run: |
+    #        cargo test --package iota-indexer --test integration_tests --features pg_integration -- --test-threads=1
+    #      env:
+    #        POSTGRES_HOST: localhost
+    #        POSTGRES_PORT: 5432
 
   graphql-rpc:
     name: graphql-rpc
@@ -364,9 +366,13 @@ jobs:
     env:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespw
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
     services:
       postgres:
         image: postgres
+        env:
+          POSTGRES_PASSWORD: postgrespw
         options: >-
           --health-cmd pg_isready
           --health-interval 10s

@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 async-trait.workspace = true
 aws-config.workspace = true
+aws-runtime.workspace = true
 aws-sdk-ec2.workspace = true
 aws-smithy-http.workspace = true
 aws-smithy-runtime-api.workspace = true

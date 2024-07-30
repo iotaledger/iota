@@ -1,9 +1,9 @@
 ---
 title: Collections
-description: The Iota framework provides several modules you can use to work with groups of data.
+description: The IOTA framework provides several modules you can use to work with groups of data.
 ---
 
-Collections provide a convenient way to work with groups of data. The Iota framework provides several modules that provide collection logic:
+Collections provide a convenient way to work with groups of data. The IOTA framework provides several modules that provide collection logic:
 
 ## bag
 
@@ -13,7 +13,7 @@ To learn more, see [Table and Bag](../objects/dynamic-fields/tables-bags.mdx) or
 
 ## dynamic_field
 
-In addition to the fields declared in its type definition, a Iota object can have dynamic fields that can be added after the object has been constructed. Unlike ordinary field names (which are always statically declared identifiers) a dynamic field name can be any value with the copy, drop, and store abilities (for example, an integer, a boolean, or a string). This gives IOTA programmers the flexibility to extend objects on-the-fly, and it also serves as a building block for core collection types.
+In addition to the fields declared in its type definition, a IOTA object can have dynamic fields that can be added after the object has been constructed. Unlike ordinary field names (which are always statically declared identifiers) a dynamic field name can be any value with the copy, drop, and store abilities (for example, an integer, a boolean, or a string). This gives IOTA programmers the flexibility to extend objects on-the-fly, and it also serves as a building block for core collection types.
 
 To learn more, see [Dynamic Fields](../objects/dynamic-fields/dynamic-fields.mdx) or the [framework definition](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/dynamic_field.md) on GitHub.
 
@@ -49,7 +49,7 @@ To learn more, see the [framework definition](https://github.com/iotaledger/iota
 
 ## table
 
-A table is a map-like collection. But unlike a traditional collection, its keys and values are not stored within the Table value, but instead are stored using Iota's object system. The Table struct acts only as a handle into the object system to retrieve those keys and values. Note that this means that Table values with exactly the same key-value mapping will not be equal, with ==, at runtime.
+A table is a map-like collection. But unlike a traditional collection, its keys and values are not stored within the Table value, but instead are stored using IOTA's object system. The Table struct acts only as a handle into the object system to retrieve those keys and values. Note that this means that Table values with exactly the same key-value mapping will not be equal, with ==, at runtime.
 
 To learn more, see [Table and Bag](../objects/dynamic-fields/tables-bags.mdx) or the [framework definition](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/table.md) on GitHub.
 

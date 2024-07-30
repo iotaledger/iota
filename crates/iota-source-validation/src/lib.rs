@@ -304,7 +304,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
             .map_err(SourceVerificationError::IotaObjectRefFailure)?
             .bcs
             .ok_or_else(|| {
-                SourceVerificationError::DependencyObjectReadFailure(Error::DataError(
+                SourceVerificationError::DependencyObjectReadFailure(Error::Data(
                     "Bcs field is not found".to_string(),
                 ))
             })?;
