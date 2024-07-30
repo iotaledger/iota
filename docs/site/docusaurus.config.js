@@ -6,6 +6,7 @@ import { themes } from "prism-react-renderer";
 import path from "path";
 import math from "remark-math";
 import katex from "rehype-katex";
+import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
@@ -106,6 +107,7 @@ const config = {
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
             ],
+            [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
           rehypePlugins: [katex],
         },
@@ -174,17 +176,16 @@ const config = {
           autoCollapseCategories: false,
         },
       },
-      colorMode:{
-        defaultMode: 'dark'
+      colorMode: {
+        defaultMode: "dark",
       },
-      announcementBar:{
-        id: 'integrate_your_exchange',
+      announcementBar: {
+        id: "integrate_your_exchange",
         content:
-            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+          '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
         isCloseable: false,
-        backgroundColor: '#0101ff',
-        textColor: '#FFFFFF',
-
+        backgroundColor: "#0101ff",
+        textColor: "#FFFFFF",
       },
       navbar: {
         title: "",
@@ -198,21 +199,21 @@ const config = {
             to: "about-iota",
           },
           {
-              label: "Developers",
-              to: "developer",
+            label: "Developers",
+            to: "developer",
           },
           {
-              label: "Node Operators",
-              to: "operator",
+            label: "Node Operators",
+            to: "operator",
           },
           {
-              label: "References",
-              to: "references",
+            label: "References",
+            to: "references",
           },
         ],
       },
       colorMode: {
-        defaultMode: 'dark',
+        defaultMode: "dark",
         disableSwitch: false,
       },
       footer: {
