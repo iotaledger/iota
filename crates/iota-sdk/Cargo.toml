@@ -42,6 +42,7 @@ tracing.workspace = true
 async-recursion.workspace = true
 dirs.workspace = true
 rand.workspace = true
+rustls.workspace = true
 tempfile.workspace = true
 
 [[example]]
