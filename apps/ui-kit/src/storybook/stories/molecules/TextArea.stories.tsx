@@ -27,11 +27,6 @@ export const Default: Story = {
                 type: 'text',
             },
         },
-        cols: {
-            control: {
-                type: 'number',
-            },
-        },
         rows: {
             control: {
                 type: 'number',
