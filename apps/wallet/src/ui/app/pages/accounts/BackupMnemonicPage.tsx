@@ -115,7 +115,7 @@ export function BackupMnemonicPage() {
                             <div className="flex-1" />
                             {isOnboardingFlow ? (
                                 <div className="mb- mt-5 flex w-full text-left">
-                                    <label className="relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25 text-iota-dark">
+                                    <label className="text-iota-dark relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25">
                                         <input
                                             type="checkbox"
                                             name="agree"
@@ -123,7 +123,7 @@ export function BackupMnemonicPage() {
                                             className="peer/agree invisible ml-2"
                                             onChange={() => setPasswordCopied(!passwordCopied)}
                                         />
-                                        <span className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-gray-50 bg-white shadow-button peer-checked/agree:bg-success peer-checked/agree:shadow-none">
+                                        <span className="peer-checked/agree:bg-success absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-gray-50 bg-white shadow-button peer-checked/agree:shadow-none">
                                             <Check12 className="text-body font-semibold text-white" />
                                         </span>
 

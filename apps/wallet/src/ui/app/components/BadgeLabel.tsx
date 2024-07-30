@@ -11,7 +11,7 @@ interface BadgeLabelProps {
 
 export function BadgeLabel({ label }: BadgeLabelProps) {
     return (
-        <div className="rounded-2xl border border-solid border-gray-45 bg-gray-40 px-1.5 py-1">
+        <div className="border-gray-45 bg-gray-40 rounded-2xl border border-solid px-1.5 py-1">
             <Text variant="captionSmallExtra" color="steel-dark">
                 {label}
             </Text>
