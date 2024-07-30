@@ -81,9 +81,7 @@ async fn main() -> Result<(), anyhow::Error> {
         )
         .await?
         .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found for sponsor"))?;
+        .ok_or(anyhow!("Basic output not found"))?;
     let basic_output_object_ref = basic_output_object.object_ref();
 
     // Convert the basic output object into its Rust representation
