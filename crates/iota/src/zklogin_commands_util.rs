@@ -105,18 +105,18 @@ pub async fn perform_zk_login_test_tx(
     let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud)?;
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed)?;
 
-    let skp1 = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([1; 32])));
+    let ikp1 = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([1; 32])));
     let multisig_pk = MultiSigPublicKey::new(
         vec![
             PublicKey::from_zklogin_inputs(&zk_login_inputs)?,
-            skp1.public(),
+            ikp1.public(),
         ],
         vec![1, 1],
         1,
     )?;
 
     let sender = if test_multisig {
-        keystore.add_key(None, skp1)?;
+        keystore.add_key(None, ikp1)?;
         println!("Use multisig address as sender");
         IotaAddress::from(&multisig_pk)
     } else {
