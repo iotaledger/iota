@@ -57,7 +57,7 @@ query getLatestIotaSystemState {
 
             inactivePoolsSize
             pendingActiveValidatorsSize
-            stakePoolMappingsSize
+            stakingPoolMappingsSize
             validatorCandidatesSize
             pendingRemovals
             totalStake

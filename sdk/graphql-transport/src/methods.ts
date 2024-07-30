@@ -822,7 +822,7 @@ export const RPC_METHODS: {
             ),
             stakeSubsidyPeriodLength: String(systemState.systemStakeSubsidy?.periodLength),
             stakeSubsidyStartEpoch: String(systemState.systemParameters?.stakeSubsidyStartEpoch),
-            stakingPoolMappingsSize: String(systemState.validatorSet?.stakePoolMappingsSize),
+            stakingPoolMappingsSize: String(systemState.validatorSet?.stakingPoolMappingsSize),
             storageFundNonRefundableBalance: String(systemState.storageFund?.nonRefundableBalance),
             storageFundTotalObjectStorageRebates: String(
                 systemState.storageFund?.totalObjectStorageRebates,
