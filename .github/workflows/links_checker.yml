@@ -11,7 +11,7 @@ on:
 jobs:
   link_checker:
     name: Check links and create automated issue if needed
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     env:
       LYCHEE_OUT: ./lychee/links-report
     steps:

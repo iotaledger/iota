@@ -75,7 +75,7 @@ jobs:
   notify:
     name: Notify
     needs: [cargo-llvm-cov]
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     if: always() # always notify
 
     steps:

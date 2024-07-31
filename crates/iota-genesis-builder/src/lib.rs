@@ -799,7 +799,7 @@ impl Builder {
 
             let path = entry.path();
             let sigs: AuthoritySignInfo = bcs::from_bytes(&fs::read(path)?)
-                .with_context(|| format!("unable to load validator signatrue for {path}"))?;
+                .with_context(|| format!("unable to load validator signature for {path}"))?;
             signatures.insert(sigs.authority, sigs);
         }
 

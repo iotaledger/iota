@@ -3,16 +3,16 @@
 
 import { TextFieldType } from './text-field.enums';
 
-type PasswordTextFieldProps = {
+type TextFieldTypePasswordProps = {
     type: TextFieldType.Password;
     /**
-     * Whether the password toggle button should be hidden
+     * Shows toggle button to show/hide the content of the input field
      */
-    hidePasswordToggle?: boolean;
+    isVisibilityToggleEnabled?: boolean;
 };
 
-type TextTextFieldProps = {
+type TextFieldTypeTextProps = {
     type: TextFieldType.Text;
 };
 
-export type TextFieldPropsByType = PasswordTextFieldProps | TextTextFieldProps;
+export type TextFieldPropsByType = TextFieldTypePasswordProps | TextFieldTypeTextProps;
