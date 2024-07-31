@@ -3,8 +3,12 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { PanelTitleSize } from './panel.enums';
-import { PADDING_BOTTOM_TITLE, PADDING_CHILDREN, PADDING_WITH_TITLE } from './panel.classes';
+import { PanelSize, PanelTitleSize } from './panel.enums';
+import {
+    PADDING_BOTTOM_TITLE,
+    PADDING_TOP_CHILDREN_WITH_TITLE,
+    PADDING_TOP_WITH_TITLE,
+} from './panel.classes';
 import { Badge, BadgeType } from '../badge';
 
 interface PanelProps {
@@ -15,7 +19,7 @@ interface PanelProps {
     /**
      * The size of the title.
      */
-    size?: PanelTitleSize;
+    titleSize?: PanelTitleSize;
     /**
      * The type of the badge.
      */
@@ -28,42 +32,54 @@ interface PanelProps {
      * Show or hide border around the panel.
      */
     hasBorder?: boolean;
+    /**
+     * The size of the panel.
+     */
+    size?: PanelSize;
 }
 
 export function Panel({
     title,
-    size = PanelTitleSize.Medium,
+    titleSize = PanelTitleSize.Large,
     children,
     badgeType,
     badgeText,
     hasBorder,
+    size = PanelSize.Medium,
 }: React.PropsWithChildren<PanelProps>): React.JSX.Element {
-    const titleSize = size === PanelTitleSize.Medium ? 'text-title-md' : 'text-title-lg';
-    const padding = title ? PADDING_WITH_TITLE[size] : 'py-md';
-    const paddingBottom = PADDING_BOTTOM_TITLE[size];
-    const paddingChildren = title ? PADDING_CHILDREN[size] : '';
-    const border = hasBorder
+    const titleSizeClass = titleSize === PanelTitleSize.Medium ? 'text-title-md' : 'text-title-lg';
+    const borderClass = hasBorder
         ? 'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8'
         : 'border border-transparent';
+    const panelPaddingClass =
+        size === PanelSize.Medium ? 'px-md pb-md md:px-lg md:pb-lg' : 'px-md pb-md';
+    const PADDING_TOP_WITHOUT_TITLE = size === PanelSize.Medium ? 'pt-md md:pt-lg' : 'pt-md';
+    const paddingTopClass = title ? PADDING_TOP_WITH_TITLE[size] : PADDING_TOP_WITHOUT_TITLE;
+    const paddingTopChildren = title ? PADDING_TOP_CHILDREN_WITH_TITLE[size] : 'pt-0';
+    const paddingBottomTitleClass = PADDING_BOTTOM_TITLE[size];
     return (
         <div
             className={cx(
-                'flex w-full flex-col rounded-xl  bg-neutral-100 px-md dark:bg-neutral-10',
-                padding,
-                border,
+                'flex flex-col rounded-xl bg-neutral-100 px-md dark:bg-neutral-10',
+                borderClass,
+                panelPaddingClass,
+                paddingTopClass,
             )}
         >
             {title && (
-                <div className={cx('flex items-center gap-0.5', paddingBottom)}>
+                <div className={cx('flex items-center gap-0.5', paddingBottomTitleClass)}>
                     <span
-                        className={cx('font-inter text-neutral-10 dark:text-neutral-92', titleSize)}
+                        className={cx(
+                            'font-inter text-neutral-10 dark:text-neutral-92',
+                            titleSizeClass,
+                        )}
                     >
                         {title}
                     </span>
                     {badgeType && badgeText && <Badge type={badgeType} label={badgeText} />}
                 </div>
             )}
-            <div className={cx(paddingChildren)}>{children}</div>
+            <div className={cx(paddingTopChildren)}>{children}</div>
         </div>
     );
 }

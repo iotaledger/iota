@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { Address, BadgeType, Panel, PanelTitleSize } from '@/components';
+import { Address, BadgeType, Panel, PanelSize, PanelTitleSize } from '@/components';
 
 const meta = {
     component: Panel,
@@ -32,7 +32,7 @@ export const Default: Story = {
         title: {
             control: 'text',
         },
-        size: {
+        titleSize: {
             control: {
                 type: 'select',
                 options: Object.values(PanelTitleSize),
@@ -47,6 +47,12 @@ export const Default: Story = {
         },
         hasBorder: {
             control: 'boolean',
+        },
+        size: {
+            control: {
+                type: 'select',
+                options: Object.values(PanelSize),
+            },
         },
     },
 };
