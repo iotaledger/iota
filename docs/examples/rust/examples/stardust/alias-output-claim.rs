@@ -73,7 +73,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get an AliasOutput object.
     let alias_output_object_id = ObjectID::from_hex_literal(
-        "0x1a6929ddbc28130fc7dc63a1a192325dd7ffa07b0da96da1edd3434fbce1c984",
+        "0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554",
     )?;
     let alias_output_object = iota_client
         .read_api()
@@ -145,9 +145,9 @@ async fn main() -> Result<(), anyhow::Error> {
             type_arguments,
             arguments,
         ) {
-            // If the alias output can be unlocked, the command will be successful and will
-            // return a `base_token` (i.e., IOTA) balance, a `Bag` of the related native
-            // tokens and the related Alias object.
+            // The alias output can always be unlocked by the governor address. So the
+            // command will be successful and will return a `base_token` (i.e., IOTA)
+            // balance, a `Bag` of the related native tokens and the related Alias object.
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
             let mut extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
             let extracted_alias = Argument::NestedResult(extracted_assets, 2);
@@ -168,7 +168,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract the native tokens from the bag.
             for type_key in df_type_keys {
-                let type_arguments = vec![TypeTag::from_str(&type_key)?];
+                let type_arguments = vec![TypeTag::from_str(&format!("0x{type_key}"))?];
                 let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
 
                 // Extract a native token balance.
@@ -222,7 +222,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
-    println!("Transaction digest: {transaction_response:?}");
+
     println!("Transaction digest: {}", transaction_response.digest);
 
     // Finish and clean the temporary keystore file.
