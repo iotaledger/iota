@@ -3,6 +3,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use colored::Colorize;
+
 use crate::env::read_bool_env_var;
 
 /// Extension for raw output files
@@ -36,6 +38,15 @@ pub fn add_update_baseline_fix(s: impl AsRef<str>) -> String {
 }
 
 pub fn format_diff(expected: impl AsRef<str>, actual: impl AsRef<str>) -> String {
+    use similar::ChangeTag::*;
     let diff = similar::TextDiff::from_lines(expected.as_ref(), actual.as_ref());
-    diff.unified_diff().to_string()
+
+    diff.iter_all_changes()
+        .map(|change| match change.tag() {
+            Delete => format!("{}{}", "-".bold(), change.value()).red(),
+            Insert => format!("{}{}", "+".bold(), change.value()).green(),
+            Equal => format!("{}", change.value()).dimmed(),
+        })
+        .map(|s| s.to_string())
+        .collect()
 }

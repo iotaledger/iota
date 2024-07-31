@@ -8431,6 +8431,7 @@ name = "move-command-line-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "colored",
  "dirs-next",
  "hex",
  "move-core-types",
