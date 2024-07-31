@@ -96,7 +96,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: cargo test
-        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.1
+        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.2
 
   diff:
     runs-on: [self-hosted]
