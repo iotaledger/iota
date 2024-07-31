@@ -1,8 +1,5 @@
 name: Simulator Tests
 
-concurrency:
-  group: ${{ github.workflow }}
-
 on:
   schedule:
     - cron: "0 9 * * *" # UTC timing is every day at 1am PST
@@ -19,6 +16,9 @@ on:
         required: false
         default: "30"
 
+concurrency:
+  group: ${{ github.workflow }}
+
 env:
   IOTA_REF: "${{ github.event.inputs.iota_ref || 'main' }}"
   TEST_NUM: "${{ github.event.inputs.test_num || '30' }}"
@@ -31,7 +31,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
 
     steps:
       - name: Install Teleport
@@ -80,7 +80,7 @@ jobs:
   notify:
     name: Notify
     needs: [simtest]
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     if: github.event_name == 'schedule' && failure()
 
     steps:

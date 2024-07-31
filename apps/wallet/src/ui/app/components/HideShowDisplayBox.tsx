@@ -55,7 +55,7 @@ export function HideShowDisplayBox({
         };
     }, [valueHidden]);
     return (
-        <div className="flex flex-col flex-nowrap items-stretch gap-2 overflow-hidden rounded-lg border border-solid border-gray-60 bg-white px-5 py-4">
+        <div className="border-gray-60 flex flex-col flex-nowrap items-stretch gap-2 overflow-hidden rounded-lg border border-solid bg-white px-5 py-4">
             <div className="relative break-all">
                 {valueHidden ? null : (
                     <Text variant="pBody" weight="medium" color="steel-darker">
@@ -67,10 +67,10 @@ export function HideShowDisplayBox({
                     </Text>
                 )}
                 <div className={cx('flex flex-col gap-1.5', valueHidden ? '' : 'hidden')}>
-                    <div className="h-3.5 rounded-md bg-gray-40" />
-                    <div className="h-3.5 rounded-md bg-gray-40" />
-                    <div className="h-3.5 rounded-md bg-gray-40" />
-                    <div className="h-4.5 w-1/2 rounded-md bg-gray-40" />
+                    <div className="bg-gray-40 h-3.5 rounded-md" />
+                    <div className="bg-gray-40 h-3.5 rounded-md" />
+                    <div className="bg-gray-40 h-3.5 rounded-md" />
+                    <div className="bg-gray-40 h-4.5 w-1/2 rounded-md" />
                 </div>
             </div>
             <div className="flex flex-row flex-nowrap items-center justify-between">

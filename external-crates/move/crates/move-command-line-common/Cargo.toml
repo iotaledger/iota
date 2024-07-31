@@ -11,15 +11,16 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
-difference.workspace = true
-walkdir.workspace = true
-sha2.workspace = true
+colored.workspace = true
+dirs-next = "2.0"
 hex.workspace = true
 num-bigint = "0.4"
 once_cell.workspace = true
 serde.workspace = true
-dirs-next = "2.0"
+sha2.workspace = true
+similar.workspace = true
 vfs.workspace = true
+walkdir.workspace = true
 
 move-core-types.workspace = true
 

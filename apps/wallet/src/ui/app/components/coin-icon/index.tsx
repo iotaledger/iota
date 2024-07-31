@@ -40,7 +40,7 @@ interface NonIotaCoinProps {
 function NonIotaCoin({ coinType }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <div className="flex h-full w-full items-center justify-center rounded-full bg-steel text-white">
+        <div className="bg-steel flex h-full w-full items-center justify-center rounded-full text-white">
             {coinMeta?.iconUrl ? (
                 <ImageIcon
                     src={coinMeta.iconUrl}

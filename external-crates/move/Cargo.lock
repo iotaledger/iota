@@ -838,12 +838,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "difference"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
-
-[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1679,7 +1673,6 @@ dependencies = [
  "codespan-reporting",
  "colored",
  "datatest-stable",
- "difference",
  "move-binary-format",
  "move-bytecode-utils",
  "move-bytecode-verifier",
@@ -1702,6 +1695,7 @@ dependencies = [
  "move-vm-test-utils",
  "move-vm-types",
  "serde_yaml",
+ "similar",
  "tempfile",
  "toml_edit 0.22.15",
  "walkdir",
@@ -1712,7 +1706,7 @@ name = "move-command-line-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "difference",
+ "colored",
  "dirs-next",
  "hex",
  "move-core-types",
@@ -1721,6 +1715,7 @@ dependencies = [
  "proptest",
  "serde",
  "sha2",
+ "similar",
  "vfs",
  "walkdir",
 ]
@@ -2168,7 +2163,6 @@ dependencies = [
  "async-trait",
  "clap 4.4.1",
  "datatest-stable",
- "difference",
  "move-binary-format",
  "move-bytecode-source-map",
  "move-cli",
@@ -2202,7 +2196,6 @@ dependencies = [
  "codespan-reporting",
  "colored",
  "datatest-stable",
- "difference",
  "itertools 0.13.0",
  "move-binary-format",
  "move-bytecode-utils",
