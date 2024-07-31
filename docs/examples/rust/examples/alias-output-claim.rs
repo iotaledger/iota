@@ -38,7 +38,7 @@ fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
         keystore.save()?;
     }
     // Read the iota keystore.
-    Ok(FileBasedKeystore::new(&keystore_path)?)
+    FileBasedKeystore::new(&keystore_path)
 }
 
 fn clean_keystore() -> Result<(), anyhow::Error> {
@@ -106,7 +106,7 @@ async fn main() -> Result<(), anyhow::Error> {
         // Get the dynamic fields owned by the native tokens bag.
         let dynamic_field_page = iota_client
             .read_api()
-            .get_dynamic_fields(native_token_bag.id.object_id().clone(), None, None)
+            .get_dynamic_fields(*native_token_bag.id.object_id(), None, None)
             .await?;
         // Only one page should exist.
         assert!(!dynamic_field_page.has_next_page);
