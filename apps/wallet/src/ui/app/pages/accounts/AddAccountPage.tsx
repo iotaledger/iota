@@ -15,6 +15,7 @@ import {
     CardBody,
     CardActionType,
     CardAction,
+    ImageType,
 } from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
@@ -61,30 +62,26 @@ export function AddAccountPage() {
                 onBack={() => navigate('/')}
             />
             <div className="flex h-full w-full flex-col gap-4 bg-white p-md">
-                <div className="flex flex-col gap-3">
-                    <div className="group/item flex flex-col gap-y-2">
+                <div className="flex flex-col gap-y-4">
+                    <div className="flex flex-col gap-y-2">
                         <span className="text-label-lg text-neutral-60">
                             Create a new mnemonic profile
                         </span>
-                        <div className="group-hover:cursor-pointer">
-                            <Card
-                                type={CardType.Filled}
-                                onClick={() => {
-                                    setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                                    ampli.clickedCreateNewAccount({ sourceFlow });
-                                    navigate(
-                                        `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
-                                    );
-                                }}
-                                isDisabled={createAccountsMutation.isPending}
-                            >
-                                <CardImage>
-                                    <Create className="h-5 w-5 text-primary-30" />
-                                </CardImage>
-                                <CardBody title="Create New" />
-                                <CardAction type={CardActionType.Link} />
-                            </Card>
-                        </div>
+                        <Card
+                            type={CardType.Filled}
+                            onClick={() => {
+                                setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
+                                ampli.clickedCreateNewAccount({ sourceFlow });
+                                navigate(
+                                    `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
+                                );
+                            }}
+                            isDisabled={createAccountsMutation.isPending}
+                        >
+                            <CardIcon Icon={Create} />
+                            <CardBody title="Create New" />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
                     </div>
                     <div className="flex flex-col gap-y-2">
                         <span className="text-label-lg text-neutral-60">Import</span>
@@ -96,9 +93,7 @@ export function AddAccountPage() {
                             }}
                             isDisabled={createAccountsMutation.isPending}
                         >
-                            <CardImage>
-                                <ImportPass className="h-5 w-5 text-primary-30" />
-                            </CardImage>
+                            <CardIcon Icon={ImportPass} />
                             <CardBody title="Mnemonic" />
                             <CardAction type={CardActionType.Link} />
                         </Card>
@@ -110,9 +105,7 @@ export function AddAccountPage() {
                             }}
                             isDisabled={createAccountsMutation.isPending}
                         >
-                            <CardImage>
-                                <Key className="h-5 w-5 text-primary-30" />
-                            </CardImage>
+                            <CardIcon Icon={Key} />
                             <CardBody title="Private Key" />
                             <CardAction type={CardActionType.Link} />
                         </Card>
@@ -123,9 +116,7 @@ export function AddAccountPage() {
                             }}
                             isDisabled={createAccountsMutation.isPending}
                         >
-                            <CardImage>
-                                <Seed className="h-5 w-5 text-primary-30" />
-                            </CardImage>
+                            <CardIcon Icon={Seed} />
                             <CardBody title="Seed" />
                             <CardAction type={CardActionType.Link} />
                         </Card>
@@ -145,9 +136,7 @@ export function AddAccountPage() {
                             }}
                             isDisabled={createAccountsMutation.isPending}
                         >
-                            <CardImage>
-                                <Ledger className="h-5 w-5 text-primary-30" />
-                            </CardImage>
+                            <CardIcon Icon={Ledger} />
                             <CardBody title="Ledger" />
                             <CardAction type={CardActionType.Link} />
                         </Card>
@@ -174,3 +163,9 @@ export function AddAccountPage() {
         </div>
     );
 }
+
+const CardIcon = ({ Icon }: { Icon: React.ComponentType<{ className: string }> }) => (
+    <CardImage type={ImageType.BgTransparent}>
+        <Icon className="h-5 w-5 text-primary-30" />
+    </CardImage>
+);

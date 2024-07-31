@@ -94,7 +94,7 @@ export function NFTDisplayCard({
                         <Heading variant="heading6" color="gray-90" truncate>
                             {nftName}
                         </Heading>
-                        <div className="text-body font-medium text-gray-75">
+                        <div className="text-gray-75 text-body font-medium">
                             {nftImageUrl ? (
                                 `${fileExtensionType.name} ${fileExtensionType.type}`
                             ) : (
@@ -107,7 +107,7 @@ export function NFTDisplayCard({
                 )}
 
                 {orientation === 'horizontal' ? (
-                    <div className="ml-2 max-w-full flex-1 overflow-hidden text-steel-dark">
+                    <div className="text-steel-dark ml-2 max-w-full flex-1 overflow-hidden">
                         {nftName}
                     </div>
                 ) : !isOwnerToken && !hideLabel ? (

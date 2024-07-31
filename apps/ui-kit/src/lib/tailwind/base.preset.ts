@@ -6,7 +6,7 @@ import { IOTA_PRIMITIVES_COLOR_PALETTE, SHADER_COLOR_PALETTE } from './constants
 import { CUSTOM_FONT_SIZES, BORDER_RADIUS, PADDINGS, OPACITY } from './constants';
 
 export const BASE_CONFIG: Config = {
-    content: ['./src/**/*.{html,js,jsx,ts,tsx,md,mdx}'],
+    content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
     darkMode: 'class',
     plugins: [],
     theme: {
