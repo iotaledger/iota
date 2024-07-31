@@ -15,4 +15,4 @@ shared-crypto.workspace = true
 
 [[example]]
 name = "nft-output-claim"
-path = "src/stardust/nft-output-claim.rs"
+path = "stardust/nft-output-claim.rs"
