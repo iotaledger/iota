@@ -198,7 +198,6 @@ async fn main() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    println!("Transaction digest: {:?}", transaction_response);
     println!("Transaction digest: {}", transaction_response.digest);
 
     // Finish and clean the temporary keystore file
