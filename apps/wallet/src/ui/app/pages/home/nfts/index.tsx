@@ -89,7 +89,7 @@ function NftsPage() {
                         <VisualAssets items={filteredNFTs} />
                     )
                 ) : (
-                    <div className="flex flex-1 items-center self-center text-caption font-semibold text-steel-darker">
+                    <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
                         No Assets found
                     </div>
                 )}

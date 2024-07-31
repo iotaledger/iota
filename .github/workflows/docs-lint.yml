@@ -6,9 +6,13 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
 jobs:
   diff:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isOldDoc: ${{ steps.diff.outputs.isOldDoc }}
@@ -22,7 +26,7 @@ jobs:
     name: Lint documentation
     needs: diff
     if: needs.diff.outputs.isDoc == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1

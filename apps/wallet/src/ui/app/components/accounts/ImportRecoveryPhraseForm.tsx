@@ -113,7 +113,7 @@ export function ImportRecoveryPhraseForm({
                     );
                 })}
             </div>
-            <div className="sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 bg-iota-lightest px-6 pb-7.5 pt-3">
+            <div className="bg-iota-lightest sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 px-6 pb-7.5 pt-3">
                 {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
                     <Alert>{errors.recoveryPhrase.message}</Alert>
                 )}

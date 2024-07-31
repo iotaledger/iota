@@ -356,8 +356,8 @@ fn multisig_zklogin_scenarios() {
     // iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
-    let skp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
-    let pk1 = skp.public();
+    let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
+    let pk1 = ikp.public();
 
     let (_, _, inputs) =
         &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json").unwrap()[0];
@@ -388,7 +388,7 @@ fn multisig_zklogin_scenarios() {
     let intent_msg = &IntentMessage::new(Intent::iota_transaction(), tx.clone());
     assert_eq!(Base64::encode(zklogin_sig.as_ref()), "BQNNMTczMTgwODkxMjU5NTI0MjE3MzYzNDIyNjM3MTc5MzI3MTk0Mzc3MTc4NDQyODI0MTAxODc5NTc5ODQ3NTE5Mzk5NDI4OTgyNTEyNTBNMTEzNzM5NjY2NDU0NjkxMjI1ODIwNzQwODIyOTU5ODUzODgyNTg4NDA2ODE2MTgyNjg1OTM5NzY2OTczMjU4OTIyODA5MTU2ODEyMDcBMQMCTDU5Mzk4NzExNDczNDg4MzQ5OTczNjE3MjAxMjIyMzg5ODAxNzcxNTIzMDMyNzQzMTEwNDcyNDk5MDU5NDIzODQ5MTU3Njg2OTA4OTVMNDUzMzU2ODI3MTEzNDc4NTI3ODczMTIzNDU3MDM2MTQ4MjY1MTk5Njc0MDc5MTg4ODI4NTg2NDk2Njg4NDAzMjcxNzA0OTgxMTcwOAJNMTA1NjQzODcyODUwNzE1NTU0Njk3NTM5OTA2NjE0MTA4NDAxMTg2MzU5MjU0NjY1OTcwMzcwMTgwNTg3NzAwNDEzNDc1MTg0NjEzNjhNMTI1OTczMjM1NDcyNzc1NzkxNDQ2OTg0OTYzNzIyNDI2MTUzNjgwODU4MDEzMTMzNDMxNTU3MzU1MTEzMzAwMDM4ODQ3Njc5NTc4NTQCATEBMANNMTU3OTE1ODk0NzI1NTY4MjYyNjMyMzE2NDQ3Mjg4NzMzMzc2MjkwMTUyNjk5ODQ2OTk0MDQwNzM2MjM2MDMzNTI1Mzc2Nzg4MTMxNzFMNDU0Nzg2NjQ5OTI0ODg4MTQ0OTY3NjE2MTE1ODAyNDc0ODA2MDQ4NTM3MzI1MDAyOTQyMzkwNDExMzAxNzQyMjUzOTAzNzE2MjUyNwExMXdpYVhOeklqb2lhSFIwY0hNNkx5OXBaQzUwZDJsMFkyZ3VkSFl2YjJGMWRHZ3lJaXcCMmV5SmhiR2NpT2lKU1V6STFOaUlzSW5SNWNDSTZJa3BYVkNJc0ltdHBaQ0k2SWpFaWZRTTIwNzk0Nzg4NTU5NjIwNjY5NTk2MjA2NDU3MDIyOTY2MTc2OTg2Njg4NzI3ODc2MTI4MjIzNjI4MTEzOTE2MzgwOTI3NTAyNzM3OTExCgAAAAAAAABhAByO/w3Sx37grqQmD71zEnxhUCJIoToLNT4DuCqFQMn+juOya4YoatAMPzzyNAbrinj9d0rNi/EYE2i1uEFuTQy5xu4WMO8+cRFEpkjbBruyKE9ydM++5T/87lA8waSSAA==".to_string());
 
-    let single_sig = GenericSignature::Signature(Signature::new_secure(intent_msg, &skp));
+    let single_sig = GenericSignature::Signature(Signature::new_secure(intent_msg, &ikp));
     let multisig = GenericSignature::MultiSig(
         MultiSig::combine(vec![single_sig, zklogin_sig], multisig_pk.clone()).unwrap(),
     );
@@ -399,7 +399,7 @@ fn multisig_zklogin_scenarios() {
 fn zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
-    let skp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
+    let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
 
     // create a new multisig address based on pk1 and pk2 where pk1 is a zklogin
     // public identifier, with a crafted unpadded bytes.
@@ -413,7 +413,7 @@ fn zklogin_in_multisig_works_with_both_addresses() {
     bytes.extend(address_seed.unpadded());
 
     let pk1 = PublicKey::ZkLogin(ZkLoginPublicIdentifier(bytes));
-    let pk2 = skp.public();
+    let pk2 = ikp.public();
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2.clone()], vec![1; 2], 1).unwrap();
     let multisig_address = IotaAddress::from(&multisig_pk);
 

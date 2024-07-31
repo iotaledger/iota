@@ -26,7 +26,7 @@ export function GasFees({ sender, transaction }: GasFeesProps) {
             header="Estimated Gas Fees"
             badge={
                 isSponsored ? (
-                    <div className="rounded-full bg-white px-1.5 py-0.5 text-captionSmallExtra font-medium uppercase text-success">
+                    <div className="text-success rounded-full bg-white px-1.5 py-0.5 text-captionSmallExtra font-medium uppercase">
                         Sponsored
                     </div>
                 ) : null
