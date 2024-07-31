@@ -298,7 +298,8 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
                     let title_type = caps.get(1).unwrap().as_str();
                     let name = caps.get(2).unwrap().as_str();
                     let anchor = name.replace("::", "_");
-                    format!("---\ntitle: {}`{}`\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, anchor)
+                    // Remove backticks from title and add module name as sidebar label
+                    format!("---\ntitle: {}{}\nsidebar_label: {}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, name.split("::").last().unwrap(), anchor)
         }).to_string()
         });
     }
