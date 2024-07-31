@@ -11,7 +11,7 @@ edition = "2021"
 clap.workspace = true
 anyhow.workspace = true
 regex.workspace = true
-tui = "0.19"
+ratatui.workspace = true
 crossterm = "0.25"
 
 move-bytecode-source-map.workspace = true
