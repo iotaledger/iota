@@ -9,7 +9,7 @@ on:
 
 jobs:
   wiki-release:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
