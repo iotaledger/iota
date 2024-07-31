@@ -2,20 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Config } from 'tailwindcss';
-import type { ScreenBreakpoints } from './types';
-import { ScreenSize } from '../enums';
 import { getTailwindScreens, pxToRem } from './helpers';
 import { BASE_CONFIG } from './base.preset';
 import merge from 'lodash.merge';
+import { SCREEN_BREAKPOINTS } from './constants';
 
-const BREAKPOINTS: ScreenBreakpoints = {
-    [ScreenSize.Sm]: 768,
-    [ScreenSize.Md]: 1024,
-    [ScreenSize.Lg]: 1400,
-    [ScreenSize.Xl]: 1920,
-};
-
-const screens = getTailwindScreens(BREAKPOINTS);
+const screens = getTailwindScreens(SCREEN_BREAKPOINTS);
 
 const responsivePreset: Config = merge({}, BASE_CONFIG, {
     theme: {

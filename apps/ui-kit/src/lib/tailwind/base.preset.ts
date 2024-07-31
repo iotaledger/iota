@@ -3,7 +3,13 @@
 
 import { Config } from 'tailwindcss';
 import { IOTA_PRIMITIVES_COLOR_PALETTE, SHADER_COLOR_PALETTE } from './constants/colors.constants';
-import { CUSTOM_FONT_SIZES, BORDER_RADIUS, PADDINGS, OPACITY } from './constants';
+import {
+    CUSTOM_FONT_SIZES,
+    BORDER_RADIUS,
+    CUSTOM_SPACING,
+    OPACITY,
+    responsiveSpacing,
+} from './constants';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
@@ -17,8 +23,9 @@ export const BASE_CONFIG: Config = {
             borderRadius: {
                 ...BORDER_RADIUS,
             },
-            padding: {
-                ...PADDINGS,
+            spacing: {
+                ...CUSTOM_SPACING,
+                ...responsiveSpacing,
             },
             opacity: {
                 ...OPACITY,
