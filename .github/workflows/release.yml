@@ -40,11 +40,11 @@ jobs:
     strategy:
       matrix:
         os: [
-            windows-ghcloud, # windows-x86_64
-            self-hosted, # ubuntu-x86_64
-            macos-latest-xl, # macos-x86_64
-            macos-arm64-self-hosted, # macos-arm64
-          ]
+          windows-ghcloud, # windows-x86_64
+          self-hosted, # ubuntu-x86_64
+          macos-latest-xl, # macos-x86_64
+          macos-arm64-self-hosted, # macos-arm64
+        ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
