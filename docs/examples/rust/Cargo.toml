@@ -1,7 +1,7 @@
 [package]
 name = "docs-examples"
-edition = "2021"
 version.workspace = true
+edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
@@ -15,4 +15,4 @@ shared-crypto.workspace = true
 
 [[example]]
 name = "alias-output-claim"
-path = "examples/stardust/alias-output-claim.rs"
+path = "stardust/alias-output-claim.rs"
