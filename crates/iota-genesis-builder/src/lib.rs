@@ -756,7 +756,7 @@ impl Builder {
         // Load migration objects if any
         let migration_sources_file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
         let migration_sources: Vec<SnapshotSource> = if migration_sources_file.exists() {
-            serde_yaml::from_slice(
+            serde_json::from_slice(
                 &fs::read(migration_sources_file)
                     .context("unable to read migration sources file")?,
             )
@@ -886,7 +886,7 @@ impl Builder {
 
         if !self.migration_sources.is_empty() {
             let file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
-            fs::write(file, serde_yaml::to_string(&self.migration_sources)?)?;
+            fs::write(file, serde_json::to_string(&self.migration_sources)?)?;
         }
 
         Ok(())
