@@ -29,20 +29,20 @@ use shared_crypto::intent::Intent;
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 
-/// Creates a temporary keystore
+/// Creates a temporary keystore.
 fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
+    // Create a temporary keystore.
     let keystore_path = PathBuf::from("iotatempdb");
     if !keystore_path.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
         keystore.save()?;
     }
-    // Read the iota keystore
+    // Read the iota keystore.
     Ok(FileBasedKeystore::new(&keystore_path)?)
 }
 
 fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove the keystore files
+    // Remove the keystore files.
     fs::remove_file("iotatempdb")?;
     fs::remove_file("iotatempdb.aliases")?;
     Ok(())
@@ -50,18 +50,18 @@ fn clean_keystore() -> Result<(), anyhow::Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Build an iota client for a local network
+    // Build an IOTA client for a local network.
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
-    // Setup a temporary file based keystore
+    // Setup a temporary file based keystore.
     let mut keystore = setup_keystore()?;
 
-    // Derive the address of the first account and set it as default
+    // Derive the address of the first account and set it as default.
     let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
 
     println!("{sender:?}");
 
-    // Get a gas coin
+    // Get a gas coin.
     let gas_coin = iota_client
         .coin_read_api()
         .get_coins(sender, None, None, None)
@@ -71,7 +71,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .next()
         .ok_or(anyhow!("No coins found for sponsor"))?;
 
-    // Get an AliasOutput object
+    // Get an AliasOutput object.
     let alias_output_object_id = ObjectID::from_hex_literal(
         "0x1a6929ddbc28130fc7dc63a1a192325dd7ffa07b0da96da1edd3434fbce1c984",
     )?;
@@ -88,7 +88,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("alias not found"))?;
     let alias_output_object_ref = alias_output_object.object_ref();
 
-    // Convert the AliasOutput object into its Rust representation
+    // Convert the AliasOutput object into its Rust representation.
     let alias_output = bcs::from_bytes::<AliasOutput>(
         &alias_output_object
             .bcs
@@ -103,15 +103,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut df_type_keys = vec![];
     let native_token_bag = alias_output.native_tokens;
     if native_token_bag.size > 0 {
-        // Get the dynamic fields owned by the native tokens bag
+        // Get the dynamic fields owned by the native tokens bag.
         let dynamic_field_page = iota_client
             .read_api()
             .get_dynamic_fields(native_token_bag.id.object_id().clone(), None, None)
             .await?;
-        // Only one page should exist
+        // Only one page should exist.
         assert!(!dynamic_field_page.has_next_page);
 
-        // Extract the dynamic fields keys, i.e., the native token type
+        // Extract the dynamic fields keys, i.e., the native token type.
         df_type_keys.extend(
             dynamic_field_page
                 .data
@@ -127,17 +127,17 @@ async fn main() -> Result<(), anyhow::Error> {
         );
     }
 
-    // Create a PTB to claim the assets of the alias output
+    // Create a PTB to claim the assets related to the alias output.
     let pt = {
-        // Init a programmable transaction builder
+        // Init a programmable transaction builder.
         let mut builder = ProgrammableTransactionBuilder::new();
 
         // Type argument for an AliasOutput coming from the IOTA network, i.e., the
-        // IOTA token or the Gas type tag
+        // IOTA token or the Gas type tag.
         let type_arguments = vec![GAS::type_tag()];
-        // Then pass the AliasOutput object as an input
+        // Then pass the AliasOutput object as an input.
         let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
-        // Finally call the alias_output::extract_assets function
+        // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_ADDRESS.into(),
             ident_str!("alias_output").to_owned(),
@@ -147,12 +147,12 @@ async fn main() -> Result<(), anyhow::Error> {
         ) {
             // If the alias output can be unlocked, the command will be successful and will
             // return a `base_token` (i.e., IOTA) balance, a `Bag` of the related native
-            // tokens and the related Alias object
+            // tokens and the related Alias object.
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
             let mut extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
             let extracted_alias = Argument::NestedResult(extracted_assets, 2);
 
-            // Extract the IOTA balance
+            // Extract the IOTA balance.
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
@@ -163,7 +163,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 arguments,
             );
 
-            // Transfer the IOTA balance to the sender
+            // Transfer the IOTA balance to the sender.
             builder.transfer_arg(sender, iota_coin);
 
             // Extract the native tokens from the bag.
@@ -171,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 let type_arguments = vec![TypeTag::from_str(&type_key)?];
                 let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
 
-                // Extract a native token balance
+                // Extract a native token balance.
                 extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_ADDRESS.into(),
                     ident_str!("utilities").to_owned(),
@@ -191,17 +191,17 @@ async fn main() -> Result<(), anyhow::Error> {
                 arguments,
             );
 
-            // Transfer the alias asset
+            // Transfer the alias asset.
             builder.transfer_arg(sender, extracted_alias);
         }
         builder.finish()
     };
 
-    // Setup a gas budget and a gas price
+    // Setup a gas budget and a gas price.
     let gas_budget = 10_000_000;
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
-    // Create a transaction data that will be sent to the network
+    // Create a transaction data that will be sent to the network.
     let tx_data = TransactionData::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
@@ -210,10 +210,10 @@ async fn main() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    // Sign the transaction
+    // Sign the transaction.
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    // Execute the transaction
+    // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
@@ -225,6 +225,6 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Transaction digest: {transaction_response:?}");
     println!("Transaction digest: {}", transaction_response.digest);
 
-    // Finish and clean the temporary keystore file
+    // Finish and clean the temporary keystore file.
     clean_keystore()
 }
