@@ -12,7 +12,7 @@ import {
 } from './constants';
 
 export const BASE_CONFIG: Config = {
-    content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
+    content: ['./src/**/*.{html,js,jsx,ts,tsx,mdx}'],
     darkMode: 'class',
     theme: {
         extend: {

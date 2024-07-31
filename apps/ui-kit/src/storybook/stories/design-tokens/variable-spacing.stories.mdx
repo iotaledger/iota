@@ -1,0 +1,62 @@
+import { Meta, Typeset, Unstyled } from '@storybook/blocks';
+import { Showcase } from '../../blocks/Showcase'
+import { Button } from '../../../lib/components'
+
+<Meta title="Design Tokens/Variable Spacing" />
+
+# Variable Spacing
+
+<Unstyled>
+    <div className='flex flex-col gap-y-6'>
+        <p className='text-neutral-10 text-headline-sm'>The variable spacing changes based on the screen size.</p>
+
+        <hr className='-my-2' />
+
+        <h2 className='text-neutral-10 text-headline-md'>Gap</h2>
+
+        <div className='flex flex-row gap-x-10 flex-wrap'>
+            <Showcase title="gap-xs--rs">
+                <div className='flex flex-row gap-xs--rs'>
+                    <Button text="Button 1" />
+                    <Button text="Button 2" />
+                </div>
+            </Showcase>
+            <Showcase title="gap-sm--rs">
+                <div className='flex flex-row gap-sm--rs'>
+                    <Button text="Button 1" />
+                    <Button text="Button 2" />
+                </div>
+            </Showcase>
+            <Showcase title="gap-md--rs">
+                <div className='flex flex-row gap-md--rs'>
+                    <Button text="Button 1" />
+                    <Button text="Button 2" />
+                </div>
+            </Showcase>
+        </div>
+        
+        <hr className='-my-2' />
+
+                <h2 className='text-neutral-10 text-headline-md'>Padding</h2>
+
+                <div className='flex flex-row gap-x-10 flex-wrap'>
+                    <Showcase title="p-xs--rs">
+                        <div className='flex flex-row p-xs--rs'>
+                            <Button text="Button 1" />
+                        </div>
+                    </Showcase>
+
+                    <Showcase title="p-sm--rs">
+                        <div className='flex flex-row p-sm--rs'>
+                            <Button text="Button 1" />
+                        </div>
+                    </Showcase>
+
+                    <Showcase title="p-md--rs">
+                        <div className='flex flex-row p-md--rs'>
+                            <Button text="Button 1" />
+                        </div>
+                    </Showcase>
+                </div>
+    </div>
+</Unstyled>
