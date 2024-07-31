@@ -45,7 +45,7 @@ pub fn format_diff(expected: impl AsRef<str>, actual: impl AsRef<str>) -> String
         .map(|change| match change.tag() {
             Delete => format!("{}{}", "-".bold(), change.value()).red(),
             Insert => format!("{}{}", "+".bold(), change.value()).green(),
-            Equal => format!("{}", change.value()).dimmed(),
+            Equal => change.value().dimmed(),
         })
         .map(|s| s.to_string())
         .collect()
