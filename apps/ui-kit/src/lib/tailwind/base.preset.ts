@@ -8,13 +8,12 @@ import {
     BORDER_RADIUS,
     CUSTOM_SPACING,
     OPACITY,
-    responsiveSpacing,
+    getResponsiveSpacing,
 } from './constants';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
     darkMode: 'class',
-    plugins: [],
     theme: {
         extend: {
             fontSize: {
@@ -23,9 +22,13 @@ export const BASE_CONFIG: Config = {
             borderRadius: {
                 ...BORDER_RADIUS,
             },
-            spacing: {
-                ...CUSTOM_SPACING,
-                ...responsiveSpacing,
+            spacing: (utils) => {
+                const screens = utils.theme('screens');
+                const responsiveSpacing = getResponsiveSpacing(screens);
+                return {
+                    ...CUSTOM_SPACING,
+                    ...responsiveSpacing,
+                };
             },
             opacity: {
                 ...OPACITY,
