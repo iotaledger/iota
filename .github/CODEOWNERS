@@ -1,11 +1,17 @@
 # Default fallback, if no other path below this matches someone from the `move` team has to review
 * @iotaledger/l1-core
 
-# Everything within the SDK folder 
+# Everything within the SDK folder
 /sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
 
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
+
+# l1-core-infra team
+/crates/iota-json-rpc*/ @iotaledger/l1-core-infra
+/crates/iota-graphql*/ @iotaledger/l1-core-infra
+/crates/iota-indexer/ @iotaledger/l1-core-infra
+/crates/iota-rest-api/ @iotaledger/l1-core-infra
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
