@@ -87,7 +87,7 @@ export function ImportLedgerAccountsPage() {
     if (areLedgerAccountsLoading) {
         summaryCardBody = (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <SpinnerIcon className="h-4 w-4 animate-spin text-steel" />
+                <SpinnerIcon className="text-steel h-4 w-4 animate-spin" />
                 <Text variant="pBodySmall" color="steel-darker">
                     Looking for accounts
                 </Text>
@@ -96,7 +96,7 @@ export function ImportLedgerAccountsPage() {
     } else if (areAllAccountsImported) {
         summaryCardBody = (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <ThumbUpIcon className="h-8 w-8 text-steel" />
+                <ThumbUpIcon className="text-steel h-8 w-8" />
                 <Text variant="pBodySmall" color="steel-darker">
                     All Ledger accounts have been imported.
                 </Text>
@@ -105,7 +105,7 @@ export function ImportLedgerAccountsPage() {
     } else if (!encounteredDerviceAccountsError) {
         const selectedLedgerAddresses = selectedLedgerAccounts.map(({ address }) => address);
         summaryCardBody = (
-            <div className="custom-scrollbar -mr-2 mt-1 max-h-[272px] overflow-auto pr-2">
+            <div className="custom-scrollbar pr-2 -mr-2 mt-1 max-h-[272px] overflow-auto">
                 <LedgerAccountList
                     accounts={ledgerAccounts.map((ledgerAccount) => ({
                         ...ledgerAccount,
@@ -126,16 +126,16 @@ export function ImportLedgerAccountsPage() {
             }}
         >
             <div className="flex h-full w-full flex-col gap-5">
-                <div className="flex h-full max-h-[368px] flex-col rounded-2xl border border-solid border-gray-45 bg-white">
-                    <div className="rounded-t-2xl bg-gray-40 py-2.5 text-center">
+                <div className="border-gray-45 flex h-full max-h-[368px] flex-col rounded-2xl border border-solid bg-white">
+                    <div className="bg-gray-40 py-2.5 rounded-t-2xl text-center">
                         <Text variant="captionSmall" weight="bold" color="steel-darker" truncate>
                             {areAllAccountsImported
                                 ? 'Ledger Accounts '
                                 : 'Connect Ledger Accounts'}
                         </Text>
                     </div>
-                    <div className="grow px-4 py-2">{summaryCardBody}</div>
-                    <div className="w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid border-gray-40 pb-4 pt-3 text-center">
+                    <div className="px-4 py-2 grow">{summaryCardBody}</div>
+                    <div className="border-gray-40 pb-4 pt-3 w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid text-center">
                         <div className="ml-auto mr-auto w-fit">
                             <Link
                                 text="Select All Accounts"

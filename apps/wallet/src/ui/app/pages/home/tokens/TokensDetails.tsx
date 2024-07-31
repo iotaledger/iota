@@ -60,7 +60,7 @@ function PinButton({ unpin, onClick }: PinButtonProps) {
     return (
         <button
             type="button"
-            className="cursor-pointer border-none bg-transparent text-transparent hover:!text-hero group-hover/coin:text-steel"
+            className="hover:!text-hero group-hover/coin:text-steel cursor-pointer border-none bg-transparent text-transparent"
             aria-label={unpin ? 'Unpin Coin' : 'Pin Coin'}
             onClick={(e) => {
                 e.preventDefault();
@@ -86,7 +86,7 @@ function TokenRowButton({ coinBalance, children, to, onClick }: TokenRowButtonPr
             to={to}
             key={coinBalance.coinType}
             onClick={onClick}
-            className="text-subtitle font-medium text-steel no-underline hover:font-semibold hover:text-hero"
+            className="text-steel hover:text-hero text-subtitle font-medium no-underline hover:font-semibold"
         >
             {children}
         </ButtonOrLink>
@@ -112,7 +112,7 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
     return (
         <Tag
             className={clsx(
-                'group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2 hover:bg-iota/10',
+                'hover:bg-iota/10 py-3 pl-1.5 pr-2 group flex items-center rounded border-transparent bg-transparent',
                 onClick && 'hover:cursor-pointer',
             )}
             onClick={onClick}
@@ -373,7 +373,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     return (
         <>
             {isMainnet && data?.degraded && (
-                <div className="mb-4 flex items-center rounded-2xl border border-solid border-warning-dark/20 bg-warning-light px-3 py-2 text-warning-dark">
+                <div className="border-warning-dark/20 bg-warning-light text-warning-dark px-3 py-2 mb-4 flex items-center rounded-2xl border border-solid">
                     <Info12 className="shrink-0" />
                     <div className="ml-2">
                         <Text variant="pBodySmall" weight="medium">
@@ -405,7 +405,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                 <div
                                     data-testid="coin-balance"
                                     className={clsx(
-                                        'mt-4 flex w-full flex-col items-center gap-3 rounded-2xl px-4 py-5',
+                                        'px-4 py-5 mt-4 flex w-full flex-col items-center gap-3 rounded-2xl',
                                         isDefiWalletEnabled
                                             ? 'bg-gradients-graph-cards'
                                             : 'bg-hero/5',
@@ -417,7 +417,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
                                     {!accountHasIota ? (
                                         <div className="flex flex-col gap-5">
-                                            <div className="flex flex-col flex-nowrap items-center justify-center px-2.5 text-center">
+                                            <div className="px-2.5 flex flex-col flex-nowrap items-center justify-center text-center">
                                                 <Text
                                                     variant="pBodySmall"
                                                     color="gray-80"

@@ -21,7 +21,7 @@ export function WelcomePage() {
     );
     return (
         <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
-            <div className="flex h-full flex-col items-center overflow-auto rounded-20 bg-iota-lightest px-7 py-6 shadow-wallet-content">
+            <div className="bg-iota-lightest px-7 py-6 flex h-full flex-col items-center overflow-auto rounded-20 shadow-wallet-content">
                 <div className="shrink-0">
                     <Logo />
                 </div>

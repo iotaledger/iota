@@ -11,8 +11,8 @@ export interface NoActivityCardProps {
 
 export function NoActivityCard({ message }: NoActivityCardProps) {
     return (
-        <div className="flex h-full flex-col items-center justify-center gap-4 px-10 text-center">
-            <TransferObject16 className="text-3xl text-gray-45" />
+        <div className="px-10 flex h-full flex-col items-center justify-center gap-4 text-center">
+            <TransferObject16 className="text-gray-45 text-3xl" />
             <Text variant="pBody" weight="medium" color="steel">
                 {message}
             </Text>

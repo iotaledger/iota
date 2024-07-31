@@ -35,7 +35,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
 
     if (isPending) {
         return (
-            <div className="flex h-full w-full items-center justify-center p-2">
+            <div className="p-2 flex h-full w-full items-center justify-center">
                 <LoadingIndicator />
             </div>
         );
@@ -53,7 +53,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
                     <Text variant="subtitle" weight="medium" color="steel-darker">
                         % APY
                     </Text>
-                    <div className="flex items-baseline text-body text-steel">
+                    <div className="text-steel flex items-baseline text-body">
                         <IconTooltip
                             tip="The average APY of all validators you are currently staking your IOTA on."
                             placement="top"

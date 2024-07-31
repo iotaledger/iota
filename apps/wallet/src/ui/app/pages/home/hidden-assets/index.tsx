@@ -81,12 +81,12 @@ function HiddenNftsPage() {
                     </Alert>
                 ) : null}
                 {filteredAndSortedNfts?.length ? (
-                    <div className="flex w-full flex-col gap-2 divide-x-0 divide-y divide-solid divide-gray-40">
+                    <div className="divide-gray-40 flex w-full flex-col gap-2 divide-x-0 divide-y divide-solid">
                         {filteredAndSortedNfts.map((nft) => {
                             const { objectId, type } = nft.data!;
                             return (
                                 <div
-                                    className="flex items-center justify-between pr-1 pt-2"
+                                    className="pr-1 pt-2 flex items-center justify-between"
                                     key={objectId}
                                 >
                                     <Link
@@ -130,7 +130,7 @@ function HiddenNftsPage() {
                         })}
                     </div>
                 ) : (
-                    <div className="flex flex-1 items-center self-center text-caption font-semibold text-steel-darker">
+                    <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
                         No Assets found
                     </div>
                 )}

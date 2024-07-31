@@ -31,8 +31,8 @@ function MenuListItem({
     const MenuItemContent = (
         <>
             <div className="flex flex-1 basis-3/5 flex-nowrap items-center gap-2 overflow-hidden">
-                <div className="flex flex-none text-2xl text-steel">{icon}</div>
-                <div className="flex flex-1 text-body font-semibold text-gray-90">{title}</div>
+                <div className="text-steel text-2xl flex flex-none">{icon}</div>
+                <div className="text-gray-90 flex flex-1 text-body font-semibold">{title}</div>
             </div>
             {subtitle || iconAfter || to ? (
                 <div
@@ -42,11 +42,11 @@ function MenuListItem({
                     )}
                 >
                     {subtitle ? (
-                        <div className="text-bodySmall font-medium text-steel-dark transition group-hover:text-steel-darker">
+                        <div className="text-steel-dark group-hover:text-steel-darker text-bodySmall font-medium transition">
                             {subtitle}
                         </div>
                     ) : null}
-                    <div className="flex flex-none text-base text-steel transition group-hover:text-steel-darker">
+                    <div className="text-steel group-hover:text-steel-darker text-base flex flex-none transition">
                         {iconAfter || (to && <ChevronRight16 />) || null}
                     </div>
                 </div>
@@ -60,7 +60,7 @@ function MenuListItem({
                 href={href}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden px-1 py-4.5 no-underline first:pb-3 first:pt-3 last:pb-3"
+                className="px-1 py-4.5 first:pb-3 first:pt-3 last:pb-3 group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden no-underline"
             >
                 {MenuItemContent}
             </a>
@@ -69,7 +69,7 @@ function MenuListItem({
     return (
         <Component
             data-testid={title}
-            className="group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden px-1 py-5 no-underline first:pb-3 first:pt-3 last:pb-3"
+            className="px-1 py-5 first:pb-3 first:pt-3 last:pb-3 group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden no-underline"
             to={to}
             onClick={onClick}
         >

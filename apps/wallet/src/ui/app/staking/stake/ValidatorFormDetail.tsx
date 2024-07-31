@@ -92,7 +92,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 
     if (isPending || loadingValidators) {
         return (
-            <div className="flex h-full w-full items-center justify-center p-2">
+            <div className="p-2 flex h-full w-full items-center justify-center">
                 <LoadingIndicator />
             </div>
         );
@@ -116,7 +116,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                 <Card
                     titleDivider
                     header={
-                        <div className="flex items-center gap-2 px-3.75 py-2.5">
+                        <div className="px-3.75 py-2.5 flex items-center gap-2">
                             <ValidatorLogo
                                 validatorAddress={validatorAddress}
                                 iconSize="sm"
@@ -138,7 +138,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                 >
                     <div className="flex flex-col gap-3.5">
                         <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1 text-steel">
+                            <div className="text-steel flex items-center gap-1">
                                 <Text variant="body" weight="medium" color="steel-darker">
                                     Staking APY
                                 </Text>
@@ -153,7 +153,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                             </Text>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1 text-steel">
+                            <div className="text-steel flex items-center gap-1">
                                 <Text variant="body" weight="medium" color="steel-darker">
                                     Stake Share
                                 </Text>
@@ -170,7 +170,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 
                         {!unstake && (
                             <div className="mb-3.5 flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1 text-steel">
+                                <div className="text-steel flex items-center gap-1">
                                     <Text variant="body" weight="medium" color="steel-darker">
                                         Total Staked
                                     </Text>

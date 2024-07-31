@@ -55,17 +55,17 @@ export const LargeButton = forwardRef(
                 ref={ref}
                 {...otherProps}
                 className={clsx(
-                    'group flex items-center justify-between rounded-md border border-solid border-transparent px-8 py-2 no-underline',
+                    'px-8 py-2 group flex items-center justify-between rounded-md border border-solid border-transparent no-underline',
                     disabled
-                        ? 'pointer-events-none bg-hero-darkest/5'
-                        : 'bg-white/80 hover:border-iota/10',
+                        ? 'bg-hero-darkest/5 pointer-events-none'
+                        : 'hover:border-iota/10 bg-white/80',
                     primary ? '!bg-iota-primaryBlue2023' : '',
                     spacing === 'sm' && '!p-3',
                     className,
                 )}
             >
                 {loading && (
-                    <div className="flex h-full w-full items-center justify-center p-2">
+                    <div className="p-2 flex h-full w-full items-center justify-center">
                         <LoadingIndicator />
                     </div>
                 )}

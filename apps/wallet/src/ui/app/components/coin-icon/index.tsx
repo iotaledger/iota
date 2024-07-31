@@ -29,7 +29,7 @@ const imageStyle = cva(['rounded-full flex'], {
 
 function IotaCoin() {
     return (
-        <Iota className="flex h-full w-full items-center justify-center rounded-full p-1.5 text-body text-white" />
+        <Iota className="p-1.5 flex h-full w-full items-center justify-center rounded-full text-body text-white" />
     );
 }
 
@@ -40,7 +40,7 @@ interface NonIotaCoinProps {
 function NonIotaCoin({ coinType }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <div className="flex h-full w-full items-center justify-center rounded-full bg-steel text-white">
+        <div className="bg-steel flex h-full w-full items-center justify-center rounded-full text-white">
             {coinMeta?.iconUrl ? (
                 <ImageIcon
                     src={coinMeta.iconUrl}

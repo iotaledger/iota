@@ -27,11 +27,11 @@ export function RecoverAccountsGroup({
 }: RecoverAccountsGroupProps) {
     return (
         <div className="flex w-full flex-col items-stretch gap-4">
-            <div className="flex flex-nowrap items-center gap-1 px-2">
+            <div className="px-2 flex flex-nowrap items-center gap-1">
                 <Text variant="caption" weight="semibold" color="steel-dark">
                     {title}
                 </Text>
-                <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
+                <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
                 <div>
                     {showRecover && !recoverDone ? (
                         <Link
@@ -44,7 +44,7 @@ export function RecoverAccountsGroup({
                     ) : null}
                     {recoverDone ? (
                         <Tooltip tip="Recovery process done">
-                            <CheckFill16 className="h-4 w-4 text-success" />
+                            <CheckFill16 className="text-success h-4 w-4" />
                         </Tooltip>
                     ) : null}
                 </div>

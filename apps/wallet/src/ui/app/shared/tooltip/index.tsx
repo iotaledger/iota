@@ -127,7 +127,7 @@ export function Tooltip({ tip, children, noFullWidth, placement = 'top' }: Toolt
                             }}
                             {...getFloatingProps({ ref: refs.setFloating })}
                         >
-                            <div className="flex flex-col flex-nowrap gap-px rounded-md bg-gray-100 p-2">
+                            <div className="p-2 flex flex-col flex-nowrap gap-px rounded-md bg-gray-100">
                                 {tip}
                             </div>
                             <div
@@ -148,7 +148,7 @@ export type IconTooltipProps = Omit<TooltipProps, 'children'>;
 export function IconTooltip(props: IconTooltipProps) {
     return (
         <Tooltip {...props}>
-            <Info16 className="shrink-0 font-normal text-steel" />
+            <Info16 className="text-steel shrink-0 font-normal" />
         </Tooltip>
     );
 }

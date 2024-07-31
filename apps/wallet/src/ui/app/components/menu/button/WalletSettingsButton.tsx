@@ -16,7 +16,7 @@ export function WalletSettingsButton() {
     return (
         <ButtonOrLink
             className={cx(
-                'ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent hover:text-hero-dark',
+                'hover:text-hero-dark ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent',
                 { 'text-steel': !isOpen, 'text-gray-90': isOpen },
             )}
             aria-label={isOpen ? 'Close settings menu' : 'Open settings menu'}

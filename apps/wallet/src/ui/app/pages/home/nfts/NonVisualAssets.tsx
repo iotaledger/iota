@@ -16,11 +16,11 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
     return (
         <div className="flex w-full flex-1 flex-col items-center gap-4">
             {items?.length ? (
-                <div className="flex w-full flex-col flex-wrap gap-3 divide-x-0 divide-y divide-solid divide-gray-40">
+                <div className="divide-gray-40 flex w-full flex-col flex-wrap gap-3 divide-x-0 divide-y divide-solid">
                     {items.map((item) => {
                         const { address, module, name } = parseStructTag(item.type!);
                         return (
-                            <div className="grid grid-cols-3 pt-3" key={item.objectId}>
+                            <div className="pt-3 grid grid-cols-3" key={item.objectId}>
                                 <ExplorerLink
                                     className="text-hero-dark no-underline"
                                     objectID={item.objectId!}
@@ -45,7 +45,7 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                     })}
                 </div>
             ) : (
-                <div className="flex flex-1 items-center self-center text-caption font-semibold text-steel-darker">
+                <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
                     No Assets found
                 </div>
             )}
