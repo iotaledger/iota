@@ -127,7 +127,7 @@ export function Tooltip({ tip, children, noFullWidth, placement = 'top' }: Toolt
                             }}
                             {...getFloatingProps({ ref: refs.setFloating })}
                         >
-                            <div className="p-2 flex flex-col flex-nowrap gap-px rounded-md bg-gray-100">
+                            <div className="flex flex-col flex-nowrap gap-px rounded-md bg-gray-100 p-2">
                                 {tip}
                             </div>
                             <div

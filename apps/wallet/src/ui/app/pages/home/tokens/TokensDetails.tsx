@@ -112,7 +112,7 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
     return (
         <Tag
             className={clsx(
-                'hover:bg-iota/10 py-3 pl-1.5 pr-2 group flex items-center rounded border-transparent bg-transparent',
+                'hover:bg-iota/10 group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2',
                 onClick && 'hover:cursor-pointer',
             )}
             onClick={onClick}
@@ -373,7 +373,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     return (
         <>
             {isMainnet && data?.degraded && (
-                <div className="border-warning-dark/20 bg-warning-light text-warning-dark px-3 py-2 mb-4 flex items-center rounded-2xl border border-solid">
+                <div className="border-warning-dark/20 bg-warning-light text-warning-dark mb-4 flex items-center rounded-2xl border border-solid px-3 py-2">
                     <Info12 className="shrink-0" />
                     <div className="ml-2">
                         <Text variant="pBodySmall" weight="medium">
@@ -405,7 +405,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                 <div
                                     data-testid="coin-balance"
                                     className={clsx(
-                                        'px-4 py-5 mt-4 flex w-full flex-col items-center gap-3 rounded-2xl',
+                                        'mt-4 flex w-full flex-col items-center gap-3 rounded-2xl px-4 py-5',
                                         isDefiWalletEnabled
                                             ? 'bg-gradients-graph-cards'
                                             : 'bg-hero/5',
@@ -417,7 +417,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
                                     {!accountHasIota ? (
                                         <div className="flex flex-col gap-5">
-                                            <div className="px-2.5 flex flex-col flex-nowrap items-center justify-center text-center">
+                                            <div className="flex flex-col flex-nowrap items-center justify-center px-2.5 text-center">
                                                 <Text
                                                     variant="pBodySmall"
                                                     color="gray-80"

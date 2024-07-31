@@ -105,7 +105,7 @@ export function ImportLedgerAccountsPage() {
     } else if (!encounteredDerviceAccountsError) {
         const selectedLedgerAddresses = selectedLedgerAccounts.map(({ address }) => address);
         summaryCardBody = (
-            <div className="custom-scrollbar pr-2 -mr-2 mt-1 max-h-[272px] overflow-auto">
+            <div className="custom-scrollbar -mr-2 mt-1 max-h-[272px] overflow-auto pr-2">
                 <LedgerAccountList
                     accounts={ledgerAccounts.map((ledgerAccount) => ({
                         ...ledgerAccount,
@@ -127,15 +127,15 @@ export function ImportLedgerAccountsPage() {
         >
             <div className="flex h-full w-full flex-col gap-5">
                 <div className="border-gray-45 flex h-full max-h-[368px] flex-col rounded-2xl border border-solid bg-white">
-                    <div className="bg-gray-40 py-2.5 rounded-t-2xl text-center">
+                    <div className="bg-gray-40 rounded-t-2xl py-2.5 text-center">
                         <Text variant="captionSmall" weight="bold" color="steel-darker" truncate>
                             {areAllAccountsImported
                                 ? 'Ledger Accounts '
                                 : 'Connect Ledger Accounts'}
                         </Text>
                     </div>
-                    <div className="px-4 py-2 grow">{summaryCardBody}</div>
-                    <div className="border-gray-40 pb-4 pt-3 w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid text-center">
+                    <div className="grow px-4 py-2">{summaryCardBody}</div>
+                    <div className="border-gray-40 w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid pb-4 pt-3 text-center">
                         <div className="ml-auto mr-auto w-fit">
                             <Link
                                 text="Select All Accounts"

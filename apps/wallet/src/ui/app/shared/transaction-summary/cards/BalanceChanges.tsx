@@ -70,14 +70,14 @@ function BalanceChangeEntries({ changes }: { changes: BalanceChange[] }) {
 
     return (
         <div className="flex flex-col gap-2">
-            <div className="pb-3 flex flex-col gap-4">
+            <div className="flex flex-col gap-4 pb-3">
                 {recognizedTokenChanges.map((change) => (
                     <BalanceChangeEntry change={change} key={change.coinType + change.amount} />
                 ))}
                 {unRecognizedTokenChanges.length > 0 && (
                     <div
                         className={classNames(
-                            'pt-2 flex flex-col gap-2',
+                            'flex flex-col gap-2 pt-2',
                             recognizedTokenChanges?.length && 'border-gray-45 border-t',
                         )}
                     >
@@ -97,7 +97,7 @@ export function BalanceChanges({ changes }: BalanceChangesProps) {
         <>
             {Object.entries(changes).map(([owner, changes]) => (
                 <Card heading="Balance Changes" key={owner} footer={<OwnerFooter owner={owner} />}>
-                    <div className="pb-3 flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 pb-3">
                         <BalanceChangeEntries changes={changes} />
                     </div>
                 </Card>

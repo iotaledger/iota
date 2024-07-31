@@ -29,7 +29,7 @@ export function PreviewTransfer({
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
 
     return (
-        <div className="divide-steel/20 px-2.5 flex w-full flex-col divide-x-0 divide-y divide-solid">
+        <div className="divide-steel/20 flex w-full flex-col divide-x-0 divide-y divide-solid px-2.5">
             <TxnAmount
                 amount={amountWithoutDecimals.toString()}
                 label="Sending"
@@ -38,7 +38,7 @@ export function PreviewTransfer({
             />
             <TxnAddress address={accountAddress || ''} label="From" />
             <TxnAddress address={to} label="To" />
-            <div className="pt-3.5 mb-5 flex w-full justify-between gap-2">
+            <div className="mb-5 flex w-full justify-between gap-2 pt-3.5">
                 <div className="flex gap-1">
                     <Text variant="body" color="gray-80" weight="medium">
                         Estimated Gas Fees

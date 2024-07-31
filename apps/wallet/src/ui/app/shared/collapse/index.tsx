@@ -37,7 +37,7 @@ export function Collapsible({
             open={isOpen ?? open}
             onOpenChange={handleOpenChange}
         >
-            <CollapsiblePrimitive.Trigger className="p-0 group flex w-full cursor-pointer items-center gap-2 border-none bg-transparent">
+            <CollapsiblePrimitive.Trigger className="group flex w-full cursor-pointer items-center gap-2 border-none bg-transparent p-0">
                 <div
                     className={cn(
                         'group-hover:text-hero text-captionSmall font-semibold uppercase',

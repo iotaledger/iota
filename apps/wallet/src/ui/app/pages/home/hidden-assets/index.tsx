@@ -86,7 +86,7 @@ function HiddenNftsPage() {
                             const { objectId, type } = nft.data!;
                             return (
                                 <div
-                                    className="pr-1 pt-2 flex items-center justify-between"
+                                    className="flex items-center justify-between pr-1 pt-2"
                                     key={objectId}
                                 >
                                     <Link

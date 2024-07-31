@@ -72,7 +72,7 @@ export function ValidatorsCard() {
 
     if (isPending) {
         return (
-            <div className="p-2 flex h-full w-full items-center justify-center">
+            <div className="flex h-full w-full items-center justify-center p-2">
                 <LoadingIndicator />
             </div>
         );
@@ -80,7 +80,7 @@ export function ValidatorsCard() {
 
     if (isError) {
         return (
-            <div className="p-2 mb-2 flex h-full w-full items-center justify-center">
+            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
                 <Alert>
                     <strong>{error?.message}</strong>
                 </Alert>
@@ -117,7 +117,7 @@ export function ValidatorsCard() {
                         <Card
                             padding="none"
                             header={
-                                <div className="px-3.75 py-2.5 flex w-full justify-center">
+                                <div className="flex w-full justify-center px-3.75 py-2.5">
                                     <Text
                                         variant="captionSmall"
                                         weight="semibold"
@@ -157,7 +157,7 @@ export function ValidatorsCard() {
                         </div>
                     </div>
                 </Content>
-                <Menu stuckClass="staked-cta" className="px-0 pb-0 mx-0 w-full">
+                <Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
                     <Button
                         size="tall"
                         variant="secondary"

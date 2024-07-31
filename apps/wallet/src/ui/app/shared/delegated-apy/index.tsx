@@ -35,7 +35,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
 
     if (isPending) {
         return (
-            <div className="p-2 flex h-full w-full items-center justify-center">
+            <div className="flex h-full w-full items-center justify-center p-2">
                 <LoadingIndicator />
             </div>
         );

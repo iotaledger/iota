@@ -80,7 +80,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                 variant="gray"
                 titleDivider
                 header={
-                    <div className="p-2.5 flex w-full bg-white">
+                    <div className="flex w-full bg-white p-2.5">
                         <Field
                             data-testid="stake-amount-input"
                             component={NumberInput}
@@ -93,7 +93,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                         />
                         {!HIDE_MAX ? (
                             <button
-                                className="border-gray-60 text-steel-darker hover:border-steel-dark hover:text-steel-darker disabled:opacity-50 flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid bg-white text-bodySmall font-medium disabled:cursor-auto"
+                                className="border-gray-60 text-steel-darker hover:border-steel-dark hover:text-steel-darker flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid bg-white text-bodySmall font-medium disabled:cursor-auto disabled:opacity-50"
                                 onClick={setMaxToken}
                                 disabled={queryResult.isPending}
                                 type="button"
@@ -104,7 +104,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     </div>
                 }
                 footer={
-                    <div className="py-px flex w-full justify-between">
+                    <div className="flex w-full justify-between py-px">
                         <Text variant="body" weight="medium" color="steel-darker">
                             Gas Fees
                         </Text>
@@ -114,7 +114,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     </div>
                 }
             >
-                <div className="pb-3.75 flex w-full justify-between">
+                <div className="flex w-full justify-between pb-3.75">
                     <Text variant="body" weight="medium" color="steel-darker">
                         Staking Rewards Start
                     </Text>
@@ -133,7 +133,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                         </Text>
                     )}
                 </div>
-                <div className="item-center pb-3.75 flex w-full justify-between">
+                <div className="item-center flex w-full justify-between pb-3.75">
                     <div className="flex-1">
                         <Text variant="pBody" weight="medium" color="steel-darker">
                             Staking Rewards Redeemable

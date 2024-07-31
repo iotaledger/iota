@@ -31,7 +31,7 @@ export function AccountItemApproveConnection({
     return (
         <div
             className={clsx(
-                'border-hero/10 px-4 py-3 group cursor-pointer rounded-xl border border-solid',
+                'border-hero/10 group cursor-pointer rounded-xl border border-solid px-4 py-3',
                 'flex items-center justify-start gap-3',
                 selected ? 'bg-white/80 shadow-card-soft' : 'bg-white/40 hover:bg-white/60',
                 disabled ? '!bg-hero-darkest/10 border-transparent' : 'hover:shadow',

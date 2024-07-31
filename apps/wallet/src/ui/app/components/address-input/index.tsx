@@ -102,7 +102,7 @@ export function AddressInput({
                     hasWarningOrError ? 'border-issue' : 'border-gray-45',
                 )}
             >
-                <div className="py-2 pl-3 flex min-h-[42px] w-full items-center">
+                <div className="flex min-h-[42px] w-full items-center py-2 pl-3">
                     <TextareaAutosize
                         data-testid="address-input"
                         maxRows={3}

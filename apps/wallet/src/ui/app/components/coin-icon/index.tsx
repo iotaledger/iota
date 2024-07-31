@@ -29,7 +29,7 @@ const imageStyle = cva(['rounded-full flex'], {
 
 function IotaCoin() {
     return (
-        <Iota className="p-1.5 flex h-full w-full items-center justify-center rounded-full text-body text-white" />
+        <Iota className="flex h-full w-full items-center justify-center rounded-full p-1.5 text-body text-white" />
     );
 }
 

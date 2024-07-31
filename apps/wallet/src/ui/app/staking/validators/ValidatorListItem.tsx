@@ -25,7 +25,7 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
                 <div
                     className={cx(
                         selected ? 'bg-iota/10' : '',
-                        'hover:bg-iota/10 px-2 py-3.5 group flex w-full items-center justify-between gap-1 rounded-lg',
+                        'hover:bg-iota/10 group flex w-full items-center justify-between gap-1 rounded-lg px-2 py-3.5',
                     )}
                     role="button"
                 >

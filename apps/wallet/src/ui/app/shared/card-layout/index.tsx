@@ -17,9 +17,9 @@ export interface CardLayoutProps {
 
 export function CardLayout({ children, title, subtitle, headerCaption, icon }: CardLayoutProps) {
     return (
-        <div className="bg-iota-lightest p-7.5 pt-10 flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col flex-nowrap items-center overflow-auto rounded-20 shadow-wallet-content">
+        <div className="bg-iota-lightest flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col flex-nowrap items-center overflow-auto rounded-20 p-7.5 pt-10 shadow-wallet-content">
             {icon === 'success' ? (
-                <div className="border-success p-1 mb-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dotted">
+                <div className="border-success mb-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dotted p-1">
                     <div className="bg-success flex h-8 w-8 items-center justify-center rounded-full">
                         <ThumbUpFill32 className="text-2xl text-white" />
                     </div>

@@ -219,7 +219,7 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
                         autoFocus
                         type={type}
                         className={clsx(
-                            'text-steel-darker caret-hero p-0 z-10 h-6 border-none bg-transparent text-heading5 font-semibold',
+                            'text-steel-darker caret-hero z-10 h-6 border-none bg-transparent p-0 text-heading5 font-semibold',
                             loading && 'text-transparent',
                         )}
                         disabled={disabled}

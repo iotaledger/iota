@@ -13,9 +13,9 @@ type CheckboxProps = {
 
 export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
     ({ label, ...props }, forwardedRef) => (
-        <div className="pl-2.5 flex items-center gap-2">
+        <div className="flex items-center gap-2 pl-2.5">
             <RadixCheckbox.Root
-                className="p-0 group peer m-0 appearance-none border-0 bg-transparent"
+                className="group peer m-0 appearance-none border-0 bg-transparent p-0"
                 ref={forwardedRef}
                 id={props.name}
                 {...props}

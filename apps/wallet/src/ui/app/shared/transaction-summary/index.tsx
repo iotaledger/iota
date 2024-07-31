@@ -29,7 +29,7 @@ export function TransactionSummary({
     return (
         <section className="bg-iota/10 -mx-6 min-h-full">
             {isLoading ? (
-                <div className="p-10 flex items-center justify-center">
+                <div className="flex items-center justify-center p-10">
                     <LoadingIndicator />
                 </div>
             ) : (

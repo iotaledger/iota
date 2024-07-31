@@ -92,7 +92,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 
     if (isPending || loadingValidators) {
         return (
-            <div className="p-2 flex h-full w-full items-center justify-center">
+            <div className="flex h-full w-full items-center justify-center p-2">
                 <LoadingIndicator />
             </div>
         );
@@ -116,7 +116,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                 <Card
                     titleDivider
                     header={
-                        <div className="px-3.75 py-2.5 flex items-center gap-2">
+                        <div className="flex items-center gap-2 px-3.75 py-2.5">
                             <ValidatorLogo
                                 validatorAddress={validatorAddress}
                                 iconSize="sm"

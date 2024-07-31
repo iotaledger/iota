@@ -45,7 +45,7 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                     <TxnAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} label="Total" />
                 )}
 
-                <div className="py-3.5 flex w-full justify-between">
+                <div className="flex w-full justify-between py-3.5">
                     <div className="text-steel flex items-baseline gap-1">
                         <Text variant="body" weight="medium" color="steel-darker">
                             Your IOTA Stake
@@ -59,7 +59,7 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                     </div>
                 </div>
 
-                <div className="py-3.5 flex w-full justify-between">
+                <div className="flex w-full justify-between py-3.5">
                     <div className="text-steel flex items-baseline gap-1">
                         <Text variant="body" weight="medium" color="steel-darker">
                             Staking Rewards Earned

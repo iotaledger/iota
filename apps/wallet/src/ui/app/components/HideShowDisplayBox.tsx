@@ -55,7 +55,7 @@ export function HideShowDisplayBox({
         };
     }, [valueHidden]);
     return (
-        <div className="border-gray-60 px-5 py-4 flex flex-col flex-nowrap items-stretch gap-2 overflow-hidden rounded-lg border border-solid bg-white">
+        <div className="border-gray-60 flex flex-col flex-nowrap items-stretch gap-2 overflow-hidden rounded-lg border border-solid bg-white px-5 py-4">
             <div className="relative break-all">
                 {valueHidden ? null : (
                     <Text variant="pBody" weight="medium" color="steel-darker">

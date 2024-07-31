@@ -100,7 +100,7 @@ export function Command({ command }: CommandProps) {
         <div>
             <button
                 onClick={() => setExpanded((expanded) => !expanded)}
-                className="p-0 flex w-full items-center gap-2 border-none bg-transparent"
+                className="flex w-full items-center gap-2 border-none bg-transparent p-0"
             >
                 <Text variant="body" weight="semibold" color="steel-darker">
                     {command.kind}

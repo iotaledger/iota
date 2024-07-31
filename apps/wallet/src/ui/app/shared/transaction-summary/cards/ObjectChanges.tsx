@@ -51,7 +51,7 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
             {({ open }) => (
                 <div className="flex flex-col gap-1">
                     <div className="grid cursor-pointer grid-cols-2 overflow-auto">
-                        <Disclosure.Button className="ouline-none text-steel-dark hover:text-steel-darker p-0 flex cursor-pointer select-none items-center gap-1 border-none bg-transparent">
+                        <Disclosure.Button className="ouline-none text-steel-dark hover:text-steel-darker flex cursor-pointer select-none items-center gap-1 border-none bg-transparent p-0">
                             <Text variant="pBody" weight="medium">
                                 Object
                             </Text>
@@ -152,7 +152,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                     >
                         <Disclosure defaultOpen>
                             {({ open }) => (
-                                <div className={cx({ 'gap-4': open }, 'pb-3 flex flex-col')}>
+                                <div className={cx({ 'gap-4': open }, 'flex flex-col pb-3')}>
                                     <Disclosure.Button
                                         as="div"
                                         className="flex w-full cursor-pointer flex-col gap-2"

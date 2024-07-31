@@ -16,7 +16,7 @@ const SelectTrigger = forwardRef<
 >(({ className, children, ...props }, ref) => (
     <SelectPrimitive.Trigger
         ref={ref}
-        className="border-gray-45 text-steel-dark hover:border-steel hover:text-steel-darker active:bg-hero/5 active:text-steel-dark disabled:border-gray-45 disabled:text-gray-60 px-4 py-3 group flex cursor-pointer items-center gap-0.5 rounded-lg border border-solid bg-white shadow-sm transition focus:outline-none disabled:cursor-default disabled:bg-white"
+        className="border-gray-45 text-steel-dark hover:border-steel hover:text-steel-darker active:bg-hero/5 active:text-steel-dark disabled:border-gray-45 disabled:text-gray-60 group flex cursor-pointer items-center gap-0.5 rounded-lg border border-solid bg-white px-4 py-3 shadow-sm transition focus:outline-none disabled:cursor-default disabled:bg-white"
         {...props}
     >
         {children}
@@ -37,7 +37,7 @@ const SelectContent = forwardRef<
             className="z-[99999] min-w-[112px] bg-transparent"
             {...props}
         >
-            <SelectPrimitive.Viewport className="border-gray-45 p-2 rounded-lg border border-solid bg-white shadow-sm">
+            <SelectPrimitive.Viewport className="border-gray-45 rounded-lg border border-solid bg-white p-2 shadow-sm">
                 {children}
             </SelectPrimitive.Viewport>
         </SelectPrimitive.Content>
@@ -51,7 +51,7 @@ const SelectItem = forwardRef<
 >(({ className, children, ...props }, ref) => (
     <SelectPrimitive.Item
         ref={ref}
-        className="text-steel-dark hover:bg-hero/5 hover:text-steel-darker p-2 flex cursor-pointer items-center rounded-md outline-none transition"
+        className="text-steel-dark hover:bg-hero/5 hover:text-steel-darker flex cursor-pointer items-center rounded-md p-2 outline-none transition"
         {...props}
     >
         <SelectPrimitive.ItemText>

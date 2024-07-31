@@ -17,7 +17,7 @@ interface TransactionDetailsProps {
 
 const Tab = (props: TabProps<'div'>) => (
     <HeadlessTab
-        className="text-steel-darker ui-selected:border-hero ui-selected:text-hero-dark p-0 pb-2 -mb-px cursor-pointer border-0 border-b border-solid border-transparent bg-transparent text-body font-semibold outline-none"
+        className="text-steel-darker ui-selected:border-hero ui-selected:text-hero-dark -mb-px cursor-pointer border-0 border-b border-solid border-transparent bg-transparent p-0 pb-2 text-body font-semibold outline-none"
         {...props}
     />
 );

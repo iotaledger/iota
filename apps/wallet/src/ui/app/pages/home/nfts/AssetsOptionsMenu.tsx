@@ -21,14 +21,14 @@ const AssetsOptionsMenu = () => {
                 <Ooo24 className="text-gray-90 h-full w-full" />
             </Menu.Button>
             <Menu.Items className="absolute right-0 top-4 z-50 mt-2 w-50 divide-y divide-gray-200 rounded-md bg-white">
-                <div className="p-2 h-full w-full rounded-md shadow-card-soft">
+                <div className="h-full w-full rounded-md p-2 shadow-card-soft">
                     <Menu.Item>
                         {({ active }) => (
                             <Link
                                 to="/nfts/hidden-assets"
                                 className="text-steel-darker hover:text-steel-darker focus:text-steel-darker disabled:text-steel-darker text-bodySmall font-medium no-underline"
                             >
-                                <div className="hover:bg-iota-light bg-opacity-50 p-3 rounded-md">
+                                <div className="hover:bg-iota-light rounded-md bg-opacity-50 p-3">
                                     View Hidden Assets
                                 </div>
                             </Link>

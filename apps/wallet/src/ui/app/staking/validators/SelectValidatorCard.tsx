@@ -97,7 +97,7 @@ export function SelectValidatorCard() {
 
     if (isPending) {
         return (
-            <div className="p-2 flex h-full w-full items-center justify-center">
+            <div className="flex h-full w-full items-center justify-center p-2">
                 <LoadingIndicator />
             </div>
         );
@@ -116,7 +116,7 @@ export function SelectValidatorCard() {
     return (
         <div className="-my-5 flex h-full w-full flex-col">
             <Content className="flex w-full flex-col items-center">
-                <div className="pb-2.5 pt-5 sticky -top-5 z-50 mt-0 flex w-full flex-col items-center bg-white">
+                <div className="sticky -top-5 z-50 mt-0 flex w-full flex-col items-center bg-white pb-2.5 pt-5">
                     <div className="mb-2 flex w-full items-start">
                         <Text variant="subtitle" weight="medium" color="steel-darker">
                             Sort by:
@@ -126,7 +126,7 @@ export function SelectValidatorCard() {
                                 return (
                                     <button
                                         key={key}
-                                        className="p-0 flex cursor-pointer gap-1 border-0 bg-transparent"
+                                        className="flex cursor-pointer gap-1 border-0 bg-transparent p-0"
                                         onClick={() => handleSortByKey(key as SortKeys)}
                                     >
                                         <Text
@@ -178,7 +178,7 @@ export function SelectValidatorCard() {
                 </div>
             </Content>
             {selectedValidator && (
-                <Menu stuckClass="staked-cta" className="px-0 pb-5 -bottom-5 mx-0 w-full">
+                <Menu stuckClass="staked-cta" className="-bottom-5 mx-0 w-full px-0 pb-5">
                     <Button
                         data-testid="select-validator-cta"
                         size="tall"

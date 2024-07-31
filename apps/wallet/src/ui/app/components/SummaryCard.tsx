@@ -34,7 +34,7 @@ export function SummaryCard({
             )}
         >
             {header ? (
-                <div className="bg-gray-40 px-3.75 py-2.5 flex flex-row flex-nowrap items-center justify-center rounded-t-2xl uppercase">
+                <div className="bg-gray-40 flex flex-row flex-nowrap items-center justify-center rounded-t-2xl px-3.75 py-2.5 uppercase">
                     <Text variant="captionSmall" weight="bold" color="steel-darker" truncate>
                         {header}
                     </Text>
@@ -42,7 +42,7 @@ export function SummaryCard({
             ) : null}
             <div
                 className={clsx(
-                    'px-4 flex flex-1 flex-col flex-nowrap items-stretch overflow-y-auto',
+                    'flex flex-1 flex-col flex-nowrap items-stretch overflow-y-auto px-4',
                     minimalPadding ? 'py-2' : 'py-4',
                     showDivider ? 'divide-gray-40 divide-x-0 divide-y divide-solid' : '',
                 )}
@@ -50,7 +50,7 @@ export function SummaryCard({
                 {body}
             </div>
             {footer ? (
-                <div className="border-gray-40 p-4 pt-3 border-x-0 border-b-0 border-t border-solid">
+                <div className="border-gray-40 border-x-0 border-b-0 border-t border-solid p-4 pt-3">
                     {footer}
                 </div>
             ) : null}

@@ -52,7 +52,7 @@ function AppsPlayGround() {
             <AppsPageBanner />
 
             {filteredEcosystemApps?.length ? (
-                <div className="bg-gray-40 p-4 rounded-xl">
+                <div className="bg-gray-40 rounded-xl p-4">
                     <Text variant="pBodySmall" color="gray-75" weight="normal">
                         Apps below are actively curated but do not indicate any endorsement or
                         relationship with Iota Wallet. Please DYOR.

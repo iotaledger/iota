@@ -70,7 +70,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                     <TxnAmount amount={stakedAmount} coinType={IOTA_TYPE_ARG} label="Stake" />
                 )}
                 <div className="flex flex-col">
-                    <div className="py-3.5 flex w-full justify-between">
+                    <div className="flex w-full justify-between py-3.5">
                         <div className="text-steel flex items-baseline justify-center gap-1">
                             <Text variant="body" weight="medium" color="steel-darker">
                                 APY
@@ -83,7 +83,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                     </div>
                 </div>
                 <div className="flex flex-col">
-                    <div className="py-3.5 flex w-full justify-between">
+                    <div className="flex w-full justify-between py-3.5">
                         <div className="text-steel flex items-baseline gap-1">
                             <Text variant="body" weight="medium" color="steel-darker">
                                 {timeBeforeStakeRewardsStarts > 0

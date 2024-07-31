@@ -21,12 +21,12 @@ export function GasSummary({ gasSummary }: GasSummaryProps) {
 
     return (
         <div className="relative flex flex-col rounded-2xl bg-white shadow-card-soft">
-            <div className="bg-gray-40 px-4 py-2.5 rounded-t-2xl">
+            <div className="bg-gray-40 rounded-t-2xl px-4 py-2.5">
                 <Text color="steel-darker" variant="captionSmall" weight="semibold">
                     Gas Fees
                 </Text>
             </div>
-            <div className="px-4 py-3 flex w-full flex-col items-center gap-2">
+            <div className="flex w-full flex-col items-center gap-2 px-4 py-3">
                 <div className="flex w-full items-center justify-start">
                     {address === gasSummary?.owner && (
                         <div className="mr-auto">

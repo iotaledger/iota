@@ -67,7 +67,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
             <div
                 ref={ref}
                 className={cn(
-                    'border-hero/10 px-4 py-3 group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid bg-white/40',
+                    'border-hero/10 group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid bg-white/40 px-4 py-3',
                     'hover:border-hero/20 hover:bg-white/80',
                     { 'cursor-auto bg-white/80 shadow-card-soft': selected },
                     { 'bg-white/80': isActiveAccount },

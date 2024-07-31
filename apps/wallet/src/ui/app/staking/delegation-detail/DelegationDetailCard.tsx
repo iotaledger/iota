@@ -107,7 +107,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
     if (isPending || loadingValidators) {
         return (
-            <div className="p-2 flex h-full w-full items-center justify-center">
+            <div className="flex h-full w-full items-center justify-center p-2">
                 <LoadingIndicator />
             </div>
         );

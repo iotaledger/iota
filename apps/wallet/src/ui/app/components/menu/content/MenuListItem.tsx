@@ -31,7 +31,7 @@ function MenuListItem({
     const MenuItemContent = (
         <>
             <div className="flex flex-1 basis-3/5 flex-nowrap items-center gap-2 overflow-hidden">
-                <div className="text-steel text-2xl flex flex-none">{icon}</div>
+                <div className="text-steel flex flex-none text-2xl">{icon}</div>
                 <div className="text-gray-90 flex flex-1 text-body font-semibold">{title}</div>
             </div>
             {subtitle || iconAfter || to ? (
@@ -46,7 +46,7 @@ function MenuListItem({
                             {subtitle}
                         </div>
                     ) : null}
-                    <div className="text-steel group-hover:text-steel-darker text-base flex flex-none transition">
+                    <div className="text-steel group-hover:text-steel-darker flex flex-none text-base transition">
                         {iconAfter || (to && <ChevronRight16 />) || null}
                     </div>
                 </div>
@@ -60,7 +60,7 @@ function MenuListItem({
                 href={href}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="px-1 py-4.5 first:pb-3 first:pt-3 last:pb-3 group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden no-underline"
+                className="group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden px-1 py-4.5 no-underline first:pb-3 first:pt-3 last:pb-3"
             >
                 {MenuItemContent}
             </a>
@@ -69,7 +69,7 @@ function MenuListItem({
     return (
         <Component
             data-testid={title}
-            className="px-1 py-5 first:pb-3 first:pt-3 last:pb-3 group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden no-underline"
+            className="group flex cursor-pointer flex-nowrap items-center gap-5 overflow-hidden px-1 py-5 no-underline first:pb-3 first:pt-3 last:pb-3"
             to={to}
             onClick={onClick}
         >

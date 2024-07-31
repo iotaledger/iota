@@ -20,7 +20,7 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                     {items.map((item) => {
                         const { address, module, name } = parseStructTag(item.type!);
                         return (
-                            <div className="pt-3 grid grid-cols-3" key={item.objectId}>
+                            <div className="grid grid-cols-3 pt-3" key={item.objectId}>
                                 <ExplorerLink
                                     className="text-hero-dark no-underline"
                                     objectID={item.objectId!}

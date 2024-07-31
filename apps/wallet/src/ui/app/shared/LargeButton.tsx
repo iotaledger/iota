@@ -55,7 +55,7 @@ export const LargeButton = forwardRef(
                 ref={ref}
                 {...otherProps}
                 className={clsx(
-                    'px-8 py-2 group flex items-center justify-between rounded-md border border-solid border-transparent no-underline',
+                    'group flex items-center justify-between rounded-md border border-solid border-transparent px-8 py-2 no-underline',
                     disabled
                         ? 'bg-hero-darkest/5 pointer-events-none'
                         : 'hover:border-iota/10 bg-white/80',
@@ -65,7 +65,7 @@ export const LargeButton = forwardRef(
                 )}
             >
                 {loading && (
-                    <div className="p-2 flex h-full w-full items-center justify-center">
+                    <div className="flex h-full w-full items-center justify-center p-2">
                         <LoadingIndicator />
                     </div>
                 )}

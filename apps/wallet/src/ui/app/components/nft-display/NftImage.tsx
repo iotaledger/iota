@@ -104,7 +104,7 @@ export function NftImage({
                     )}
                     title={title}
                 >
-                    <Image32 className="text-steel text-3xl h-6 w-6" />
+                    <Image32 className="text-steel h-6 w-6 text-3xl" />
                     {showLabel ? (
                         <span className="text-captionSmall font-medium">No media</span>
                     ) : null}

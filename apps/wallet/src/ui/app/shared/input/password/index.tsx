@@ -23,7 +23,7 @@ export function PasswordInputField({ ...props }: PasswordInputProps) {
                 {...props}
                 {...field}
                 className={
-                    'border-gray-45 text-steel-dark placeholder-gray-65 focus:border-steel py-2.5 pl-3 pr-0 peer flex h-11 w-full items-center gap-5 rounded-2lg border  border-solid bg-white text-body font-medium shadow-button focus:shadow-none'
+                    'border-gray-45 text-steel-dark placeholder-gray-65 focus:border-steel peer flex h-11 w-full items-center gap-5 rounded-2lg border border-solid bg-white py-2.5  pl-3 pr-0 text-body font-medium shadow-button focus:shadow-none'
                 }
             />
             <IconComponent

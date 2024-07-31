@@ -60,7 +60,7 @@ function MenuList() {
             <div className="mt-2.5 flex flex-col items-stretch">
                 <FaucetRequestButton variant="outline" />
             </div>
-            <div className="px-2.5 mt-3.75 flex flex-col items-center justify-center gap-3.75 no-underline">
+            <div className="mt-3.75 flex flex-col items-center justify-center gap-3.75 px-2.5 no-underline">
                 <Link
                     href={ToS_LINK}
                     text="Terms of service"

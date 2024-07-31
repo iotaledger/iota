@@ -111,8 +111,8 @@ export function NFTDisplayCard({
                         {nftName}
                     </div>
                 ) : !isOwnerToken && !hideLabel ? (
-                    <div className="bg-white/90 absolute bottom-2 left-1/2 flex w-10/12 -translate-x-1/2 items-center justify-center rounded-lg opacity-0 group-hover:opacity-100">
-                        <div className="px-2 py-1 mt-0.5 overflow-hidden">
+                    <div className="absolute bottom-2 left-1/2 flex w-10/12 -translate-x-1/2 items-center justify-center rounded-lg bg-white/90 opacity-0 group-hover:opacity-100">
+                        <div className="mt-0.5 overflow-hidden px-2 py-1">
                             <Text
                                 variant="subtitleSmall"
                                 weight="semibold"

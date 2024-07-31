@@ -27,7 +27,7 @@ export function RecoverAccountsGroup({
 }: RecoverAccountsGroupProps) {
     return (
         <div className="flex w-full flex-col items-stretch gap-4">
-            <div className="px-2 flex flex-nowrap items-center gap-1">
+            <div className="flex flex-nowrap items-center gap-1 px-2">
                 <Text variant="caption" weight="semibold" color="steel-dark">
                     {title}
                 </Text>
