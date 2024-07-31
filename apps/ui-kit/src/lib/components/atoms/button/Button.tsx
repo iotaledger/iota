@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { ButtonSize, ButtonType } from './button.enums';
+import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
     PADDINGS_ONLY_ICON,
@@ -43,6 +43,10 @@ interface ButtonProps {
      * Whether the button should have the full width.
      */
     fullWidth?: boolean;
+    /**
+     * The type of the button. Available options are 'button', 'submit', 'reset'.
+     */
+    htmlType?: ButtonHtmlType;
 }
 
 export function Button({
@@ -51,6 +55,7 @@ export function Button({
     disabled,
     onClick,
     fullWidth,
+    htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
@@ -68,6 +73,7 @@ export function Button({
                 fullWidth && 'w-full',
             )}
             disabled={disabled}
+            type={htmlType}
         >
             {icon && <span className={cx(textColors)}>{icon}</span>}
             {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}

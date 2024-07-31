@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import Alert from '../alert';
-import { TextField, TextFieldType, Button, ButtonType } from '@iota/apps-ui-kit';
+import { TextField, TextFieldType, Button, ButtonType, ButtonHtmlType } from '@iota/apps-ui-kit';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 
@@ -56,7 +56,7 @@ export function ImportRecoveryPhraseForm({
     const navigate = useNavigate();
     const recoveryPhrase = getValues('recoveryPhrase');
 
-    async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>, index: number) {
         const inputText = e.clipboardData.getData('text');
         const words = inputText
             .trim()
@@ -66,18 +66,20 @@ export function ImportRecoveryPhraseForm({
 
         if (words.length > 1) {
             e.preventDefault();
+            const pasteIndex = words.length === recoveryPhrase.length ? 0 : index;
+            const wordsToPaste = words.slice(0, recoveryPhrase.length - pasteIndex);
             const newRecoveryPhrase = [...recoveryPhrase];
             newRecoveryPhrase.splice(
-                0,
-                words.length,
-                ...words.slice(0, RECOVERY_PHRASE_WORD_COUNT),
+                pasteIndex,
+                wordsToPaste.length,
+                ...words.slice(0, recoveryPhrase.length - pasteIndex),
             );
             setValue('recoveryPhrase', newRecoveryPhrase);
             trigger('recoveryPhrase');
         }
     }
 
-    function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
         if (e.key === ' ') {
             e.preventDefault();
             const nextInput = document.getElementsByName(
@@ -92,7 +94,7 @@ export function ImportRecoveryPhraseForm({
             className="relative flex h-full flex-col justify-between"
             onSubmit={handleSubmit(onSubmit)}
         >
-            <div className="grid grid-cols-2 gap-x-2 gap-y-2.5 pb-md">
+            <div className="grid grid-cols-2 gap-2 pb-md">
                 {recoveryPhrase.map((_, index) => {
                     const recoveryPhraseId = `recoveryPhrase.${index}` as const;
                     return (
@@ -104,8 +106,9 @@ export function ImportRecoveryPhraseForm({
                             disabled={isSubmitting}
                             placeholder="Word"
                             isContentVisible={isTextVisible}
-                            onKeyDown={handleKeyDown}
-                            onPaste={handlePaste}
+                            onKeyDown={handleInputKeyDown}
+                            onPaste={(e) => handlePaste(e, index)}
+                            id={recoveryPhraseId}
                             {...register(recoveryPhraseId)}
                         />
                     );
@@ -130,7 +133,7 @@ export function ImportRecoveryPhraseForm({
                         disabled={isSubmitting || isSubmitting || !isValid}
                         text={submitButtonText}
                         fullWidth
-                        onClick={handleSubmit(onSubmit)}
+                        htmlType={ButtonHtmlType.Submit}
                     />
                 </div>
             </div>
