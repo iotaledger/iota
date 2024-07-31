@@ -5,4 +5,4 @@ export * from './colors.constants';
 export * from './scaling.constants';
 export * from './fontSizes.constants';
 export * from './screens.constants';
-export * from './responsive-spacing.constants';
+export * from './variable-spacing.constants';

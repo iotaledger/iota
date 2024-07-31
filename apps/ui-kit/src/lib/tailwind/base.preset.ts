@@ -8,7 +8,7 @@ import {
     BORDER_RADIUS,
     CUSTOM_SPACING,
     OPACITY,
-    getResponsiveSpacing,
+    generateVariableSpacing,
 } from './constants';
 
 export const BASE_CONFIG: Config = {
@@ -24,10 +24,10 @@ export const BASE_CONFIG: Config = {
             },
             spacing: (utils) => {
                 const screens = utils.theme('screens');
-                const responsiveSpacing = getResponsiveSpacing(screens);
+                const variableSpacing = generateVariableSpacing(screens);
                 return {
                     ...CUSTOM_SPACING,
-                    ...responsiveSpacing,
+                    ...variableSpacing,
                 };
             },
             opacity: {
