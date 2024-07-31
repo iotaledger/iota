@@ -11,6 +11,10 @@ on:
       - "apps/explorer/**"
       - ".github/workflows/apps-explorer-preview.deploy.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy-preview:
     permissions:

@@ -1,8 +1,5 @@
 name: Simulator Tests with Mysticeti Enabled
 
-concurrency:
-  group: ${{ github.workflow }}
-
 on:
   schedule:
     - cron: "0 13 * * *" # UTC timing is every day at 5am PST
@@ -19,6 +16,9 @@ on:
         required: false
         default: "30"
 
+concurrency:
+  group: ${{ github.workflow }}
+
 env:
   # Enable Mysticeti in tests.
   CONSENSUS: "mysticeti"
@@ -34,7 +34,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
 
     steps:
       - name: Install Teleport

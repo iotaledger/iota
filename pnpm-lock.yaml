@@ -752,6 +752,9 @@ importers:
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@iota/apps-ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@iota/core':
         specifier: workspace:*
         version: link:../core
@@ -770,6 +773,9 @@ importers:
       '@iota/ledgerjs-hw-app-iota':
         specifier: workspace:*
         version: link:../../sdk/ledgerjs-hw-app-iota
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../../sdk/wallet-standard

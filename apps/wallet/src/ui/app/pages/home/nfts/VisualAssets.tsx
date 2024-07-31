@@ -44,7 +44,7 @@ export default function VisualAssets({ items }: VisualAssetsProps) {
                     className="relative no-underline"
                 >
                     <div className="group">
-                        <div className="pointer-events-auto absolute z-10 h-full w-full justify-center p-0 text-gray-60 transition-colors duration-200">
+                        <div className="text-gray-60 pointer-events-auto absolute z-10 h-full w-full justify-center p-0 transition-colors duration-200">
                             {!isKioskOwnerToken(kioskClient.network, object) ? (
                                 <div className="absolute right-3 top-2 h-8 w-8 rounded-md opacity-0 group-hover:opacity-100">
                                     <Button

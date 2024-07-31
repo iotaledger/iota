@@ -30,7 +30,7 @@ function CardView({ name, link, icon }: CardViewProps) {
     const appUrl = getDAppUrl(link);
     const originLabel = appUrl.hostname;
     return (
-        <div className="box-border flex h-32 w-full flex-col rounded-2xl border border-solid border-gray-45 bg-white p-3.75 hover:border-iota/30 hover:bg-iota/10">
+        <div className="border-gray-45 hover:border-iota/30 hover:bg-iota/10 box-border flex h-32 w-full flex-col rounded-2xl border border-solid bg-white p-3.75">
             <div className="mb-1 flex">
                 <ImageIcon src={icon || null} label={name} fallback={name} size="lg" rounded="lg" />
             </div>
@@ -58,7 +58,7 @@ interface ListViewProps {
 
 function ListView({ name, icon, description, tags }: ListViewProps) {
     return (
-        <div className="item-center box-border flex gap-3 rounded bg-white px-1.25 py-3.5 hover:bg-iota/10">
+        <div className="item-center hover:bg-iota/10 box-border flex gap-3 rounded bg-white px-1.25 py-3.5">
             <ImageIcon src={icon || null} label={name} fallback={name} size="xxl" rounded="lg" />
             <div className="flex flex-col justify-center gap-1">
                 <Text variant="body" weight="semibold" color="iota-dark">
@@ -71,7 +71,7 @@ function ListView({ name, icon, description, tags }: ListViewProps) {
                     <div className="mt-0.5 flex flex-wrap gap-1">
                         {tags?.map((tag) => (
                             <div
-                                className="item-center flex justify-center rounded border border-solid border-steel px-1.5 py-0.5"
+                                className="item-center border-steel flex justify-center rounded border border-solid px-1.5 py-0.5"
                                 key={tag}
                             >
                                 <Text variant="captionSmall" weight="medium" color="steel-dark">
