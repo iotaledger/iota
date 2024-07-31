@@ -59,7 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the first account and set it as default.
     let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
 
-    println!("{sender:?}");
+    println!("Sender address: {sender:?}");
 
     // Get a gas coin.
     let gas_coin = iota_client
