@@ -1,7 +1,7 @@
 [package]
 name = "docs-examples"
-edition = "2021"
 version.workspace = true
+edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
