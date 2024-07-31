@@ -1,0 +1,13 @@
+[package]
+name = "docs-examples"
+edition = "2021"
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+
+iota-keys.workspace = true
+iota-sdk.workspace = true
+move-core-types.workspace = true
+shared-crypto.workspace = true

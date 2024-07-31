@@ -5,3 +5,8 @@ export enum TextFieldType {
     Text = 'text',
     Password = 'password',
 }
+
+export enum Resize {
+    None = 'none',
+    Vertical = 'vertical',
+}

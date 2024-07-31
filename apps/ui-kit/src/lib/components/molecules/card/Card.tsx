@@ -43,6 +43,7 @@ export function Card({
                 {
                     'state-layer': !isDisabled,
                     [CARD_DISABLED_CLASSES]: isDisabled,
+                    'cursor-pointer': onClick,
                 },
             )}
         >
