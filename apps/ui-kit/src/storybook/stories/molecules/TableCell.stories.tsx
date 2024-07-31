@@ -8,7 +8,15 @@ const meta = {
     component: TableCell,
     tags: ['autodocs'],
     render: (props) => {
-        return <TableCell {...props} />;
+        return (
+            <table>
+                <thead>
+                    <tr>
+                        <TableCell {...props} />
+                    </tr>
+                </thead>
+            </table>
+        );
     },
 } satisfies Meta<typeof TableCell>;
 

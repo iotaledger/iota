@@ -99,9 +99,9 @@ export function TableCell(props: TableCellProps): JSX.Element {
             case TableCellType.AvatarText:
                 const { leadingElement } = props;
                 return (
-                    <div className="flex items-center gap-x-2.5">
+                    <div className={cx('flex items-center gap-x-2.5', textColorClass)}>
                         {leadingElement}
-                        <span className={cx('text-label-lg', textColorClass)}>{label}</span>
+                        <span className="text-label-lg">{label}</span>
                     </div>
                 );
             default:
@@ -112,7 +112,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
     return (
         <td
             className={cx(
-                'inline-flex h-14 flex-row items-center border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
+                'h-14 border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
                 { 'last:border-none': hasLastBorderNoneClass },
             )}
         >
