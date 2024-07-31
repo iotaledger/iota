@@ -181,7 +181,7 @@ export function StakeCard({
                         activeEpoch={extendedStake.stakeRequestEpoch}
                     />
 
-                    <div className="text-pBody text-steel opacity-0 group-hover:opacity-100">
+                    <div className="text-steel text-pBody opacity-0 group-hover:opacity-100">
                         <IconTooltip
                             tip="Object containing the delegated staked IOTA tokens, owned by each delegator"
                             placement="top"

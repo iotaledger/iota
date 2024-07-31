@@ -17,7 +17,7 @@ const BREAKPOINTS: ScreenBreakpoints = {
 
 const screens = getTailwindScreens(BREAKPOINTS);
 
-const responsivePreset: Partial<Config> = merge({}, BASE_CONFIG, {
+const responsivePreset: Config = merge({}, BASE_CONFIG, {
     theme: {
         screens,
         container: {

@@ -9,12 +9,13 @@ on:
 
 jobs:
   wiki-release:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
           run_install: false
 
       - name: Set up Node.js
