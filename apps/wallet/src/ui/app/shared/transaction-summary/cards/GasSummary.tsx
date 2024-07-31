@@ -21,7 +21,7 @@ export function GasSummary({ gasSummary }: GasSummaryProps) {
 
     return (
         <div className="relative flex flex-col rounded-2xl bg-white shadow-card-soft">
-            <div className="rounded-t-2xl bg-gray-40 px-4 py-2.5">
+            <div className="bg-gray-40 rounded-t-2xl px-4 py-2.5">
                 <Text color="steel-darker" variant="captionSmall" weight="semibold">
                     Gas Fees
                 </Text>

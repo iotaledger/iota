@@ -40,7 +40,7 @@ export function ResetWarningPage() {
                     password reset process. You will need to connect/import them again.
                 </Text>
             </div>
-            <div className="mb-10 mt-5 flex w-full flex-1 flex-col gap-8 overflow-auto rounded-lg bg-hero-darkest/5 px-4 py-6">
+            <div className="bg-hero-darkest/5 mb-10 mt-5 flex w-full flex-1 flex-col gap-8 overflow-auto rounded-lg px-4 py-6">
                 {accountGroupsToRemove.map(([sourceID, accounts]) => (
                     <RecoverAccountsGroup
                         key={sourceID}

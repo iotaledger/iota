@@ -25,7 +25,7 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
                 <div
                     className={cx(
                         selected ? 'bg-iota/10' : '',
-                        'group flex w-full items-center justify-between gap-1 rounded-lg px-2 py-3.5 hover:bg-iota/10',
+                        'hover:bg-iota/10 group flex w-full items-center justify-between gap-1 rounded-lg px-2 py-3.5',
                     )}
                     role="button"
                 >
@@ -34,7 +34,7 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
                             {selected && (
                                 <CheckFill16
                                     fill="fillCurrent"
-                                    className="absolute -translate-y-1 translate-x-4 rounded-full bg-white text-heading6 text-success"
+                                    className="text-success absolute -translate-y-1 translate-x-4 rounded-full bg-white text-heading6"
                                 />
                             )}
                             <ValidatorLogo
@@ -54,7 +54,7 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
                             <div
                                 className={cx(
                                     selected ? '!opacity-100' : '',
-                                    'flex h-3 items-baseline text-subtitle text-steel opacity-0 group-hover:opacity-100',
+                                    'text-steel flex h-3 items-baseline text-subtitle opacity-0 group-hover:opacity-100',
                                 )}
                             ></div>
                         </div>
