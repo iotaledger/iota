@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
+// import { Button } from '_app/shared/ButtonUI';
 import { CardLayout } from '_app/shared/card-layout';
-import { Text } from '_app/shared/text';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
-import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
-import { ArrowLeft16, Check12 } from '@iota/icons';
+import { ThumbUpFill32 } from '@iota/icons';
+import { Button, ButtonType, Checkbox, TextArea } from '@iota/apps-ui-kit';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -72,28 +71,48 @@ export function BackupMnemonicPage() {
                     />
                 </CardLayout>
             ) : (
-                <CardLayout
-                    icon={isOnboardingFlow ? 'success' : undefined}
-                    title={
-                        isOnboardingFlow ? 'Wallet Created Successfully!' : 'Backup Recovery Phrase'
-                    }
-                >
-                    <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-                        <div className="mb-5 flex flex-grow flex-col flex-nowrap">
-                            <div className="mb-1 mt-7.5 text-center">
-                                <Text variant="caption" color="steel-darker" weight="bold">
-                                    Recovery phrase
-                                </Text>
+                <div className="flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col items-center justify-between gap-4 bg-white p-md text-center">
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col items-center gap-6 px-md py-sm">
+                            {isOnboardingFlow && (
+                                <div className="flex w-fit rounded-lg bg-tertiary-90 p-[10px]">
+                                    <ThumbUpFill32
+                                        width={20}
+                                        height={20}
+                                        className="text-tertiary-30"
+                                    />
+                                </div>
+                            )}
+                            <h3 className="text-[24px] text-headline-md text-neutral-10">
+                                {isOnboardingFlow
+                                    ? 'Wallet Created Successfully!'
+                                    : 'Backup Recovery Phrase'}
+                            </h3>
+                        </div>
+                        <div className="flex flex-col items-center gap-1 text-center">
+                            <div className="text-[14px] text-title-sm text-neutral-60">
+                                Mnemonic
                             </div>
-                            <div className="mb-3.5 mt-2 text-center">
-                                <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                    Your recovery phrase makes it easy to back up and restore your
-                                    account.
-                                </Text>
+                            <div className="text-[14px] text-title-sm text-neutral-60">
+                                Your recovery phrase makes it easy to
+                                <br />
+                                back up and restore your account.
                             </div>
+                        </div>
+
+                        <div className="flex flex-grow flex-col flex-nowrap">
                             <Loading loading={passphraseMutation.isPending}>
                                 {passphraseMutation.data ? (
-                                    <HideShowDisplayBox value={passphraseMutation.data} hideCopy />
+                                    <>
+                                        <TextArea
+                                            value={passphraseMutation.data.join(' ')}
+                                            isVisibilityToggleEnabled
+                                        />
+                                        {/*<HideShowDisplayBox*/}
+                                        {/*    value={passphraseMutation.data}*/}
+                                        {/*    hideCopy*/}
+                                        {/*/>*/}
+                                    </>
                                 ) : (
                                     <Alert>
                                         {(passphraseMutation.error as Error)?.message ||
@@ -101,56 +120,35 @@ export function BackupMnemonicPage() {
                                     </Alert>
                                 )}
                             </Loading>
-                            <div className="mb-1 mt-3.75 text-center">
-                                <Text variant="caption" color="steel-dark" weight="semibold">
-                                    Warning
-                                </Text>
-                            </div>
-                            <div className="mb-1 text-center">
-                                <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                    Never disclose your secret recovery phrase. Anyone can take over
-                                    your account with it.
-                                </Text>
-                            </div>
-                            <div className="flex-1" />
-                            {isOnboardingFlow ? (
-                                <div className="mb- mt-5 flex w-full text-left">
-                                    <label className="text-iota-dark relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25">
-                                        <input
-                                            type="checkbox"
-                                            name="agree"
-                                            id="agree"
-                                            className="peer/agree invisible ml-2"
-                                            onChange={() => setPasswordCopied(!passwordCopied)}
-                                        />
-                                        <span className="peer-checked/agree:bg-success absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-gray-50 bg-white shadow-button peer-checked/agree:shadow-none">
-                                            <Check12 className="text-body font-semibold text-white" />
-                                        </span>
-
-                                        <Text
-                                            variant="bodySmall"
-                                            color="steel-dark"
-                                            weight="normal"
-                                        >
-                                            I saved my recovery phrase
-                                        </Text>
-                                    </label>
-                                </div>
-                            ) : null}
                         </div>
+                        <div>
+                            <div className="mb-1 text-[14px] text-title-sm text-neutral-60">
+                                Warning
+                            </div>
+                            <div className="text-[14px] text-title-sm text-neutral-60">
+                                Never disclose your secret recovery phrase.
+                                <br />
+                                Anyone can take over your account with it.
+                            </div>
+                        </div>
+                    </div>
+                    <div className={'flex w-full flex-col gap-2'}>
+                        {isOnboardingFlow ? (
+                            <div className="flex w-full text-left">
+                                <Checkbox
+                                    label={'I saved my recovery phrase'}
+                                    onChange={() => setPasswordCopied(!passwordCopied)}
+                                />
+                            </div>
+                        ) : null}
                         <Button
-                            type="button"
-                            size="tall"
-                            variant="primary"
+                            onClick={() => navigate('/')}
+                            type={ButtonType.Primary}
                             disabled={!passwordCopied && isOnboardingFlow}
-                            to="/"
-                            text="Open Iota Wallet"
-                            after={
-                                <ArrowLeft16 className="rotate-135 text-pBodySmall font-normal" />
-                            }
+                            text="Open Wallet"
                         />
                     </div>
-                </CardLayout>
+                </div>
             )}
         </Loading>
     );

@@ -28,7 +28,11 @@ export function TextFieldTrailingElement({
                 onClick={onToggleButtonClick}
                 className={cx('text-neutral-10 dark:text-neutral-92')}
             >
-                {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+                {isContentVisible ? (
+                    <VisibilityOn width={20} height={20} />
+                ) : (
+                    <VisibilityOff width={20} height={20} />
+                )}
             </button>
         );
     }
