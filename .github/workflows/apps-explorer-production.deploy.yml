@@ -1,0 +1,50 @@
+name: Deploy Explorer Prod
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.EXPLORER_VERCEL_PROJECT_ID }}
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - "apps/explorer/**"
+      - ".github/workflows/apps-explorer-production.deploy.yml"
+
+jobs:
+  deploy-prod:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@v3
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Install Vercel CLI
+        run: pnpm add --global vercel@canary
+      - name: Pull Vercel Env variables (network configs)
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Copy the .env file
+        run: cp ./.vercel/.env.production.local ./sdk/.env
+      - name: Build Explorer
+        run: pnpm explorer build
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy Project Artifacts to Vercel
+        run: vercel deploy --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }}

@@ -80,7 +80,7 @@ impl PgManager {
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await?;
 
-        if epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch) {
+        if epoch_id.is_none() || epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch) {
             Ok(latest_iota_system_state)
         } else {
             Ok(self

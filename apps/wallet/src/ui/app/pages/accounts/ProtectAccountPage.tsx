@@ -4,7 +4,6 @@
 
 import { Text } from '_app/shared/text';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
-import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -18,6 +17,9 @@ import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutati
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { Heading } from '../../shared/heading';
 import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { AllowedAccountSourceTypes } from '../../accounts-finder';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -32,6 +34,7 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
 const REDIRECT_TO_ACCOUNTS_FINDER: AccountsFormType[] = [
     AccountsFormType.ImportMnemonic,
     AccountsFormType.ImportSeed,
+    AccountsFormType.ImportLedger,
 ];
 
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
@@ -89,6 +92,14 @@ export function ProtectAccountPage() {
                             type: type,
                         },
                     });
+                } else if (isLedgerAccountSerializedUI(createdAccounts[0])) {
+                    const path = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
+                    navigate(path, {
+                        replace: true,
+                        state: {
+                            type: type,
+                        },
+                    });
                 } else {
                     navigate(successRedirect, { replace: true });
                 }
@@ -104,7 +115,7 @@ export function ProtectAccountPage() {
     }
 
     return (
-        <div className="flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 bg-iota-lightest px-6 py-10 shadow-wallet-content">
+        <div className="bg-iota-lightest flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 px-6 py-10 shadow-wallet-content">
             <Loading loading={showVerifyPasswordView === null}>
                 {showVerifyPasswordView ? (
                     <VerifyPasswordModal

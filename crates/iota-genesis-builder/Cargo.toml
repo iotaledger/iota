@@ -30,6 +30,7 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 
 bigdecimal = "0.4.3"
@@ -68,6 +69,11 @@ tokio = { workspace = true, features = ["macros"] }
 test-outputs = ["iota-sdk/client"]
 
 [[example]]
-name = "snapshot_test_outputs"
-path = "examples/snapshot_test_outputs.rs"
+name = "snapshot_add_test_outputs"
+path = "examples/snapshot_add_test_outputs.rs"
+required-features = ["test-outputs"]
+
+[[example]]
+name = "snapshot_only_test_outputs"
+path = "examples/snapshot_only_test_outputs.rs"
 required-features = ["test-outputs"]

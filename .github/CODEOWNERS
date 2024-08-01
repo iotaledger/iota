@@ -7,6 +7,12 @@
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
 
+# dev-tools team
+/crates/iota/ @iotaledger/dev-tools
+/crates/iota-sdk/ @iotaledger/dev-tools
+/crates/iota-open-rpc/ @iotaledger/dev-tools
+/crates/iota-open-rpc-macros/ @iotaledger/dev-tools
+
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
 /apps/ @iotaledger/boxfish @iotaledger/tooling
 /dapps/ @iotaledger/boxfish @iotaledger/tooling
@@ -19,7 +25,6 @@
 .prettierignore @iotaledger/boxfish @iotaledger/tooling
 graphql.config.ts @iotaledger/boxfish @iotaledger/tooling
 package.json @iotaledger/boxfish @iotaledger/tooling
-pnpm-lock.yaml @iotaledger/boxfish @iotaledger/tooling
 pnpm-workspace.yaml @iotaledger/boxfish @iotaledger/tooling
 prettier.config.js @iotaledger/boxfish @iotaledger/tooling
 turbo.json @iotaledger/boxfish @iotaledger/tooling
@@ -31,5 +36,13 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 /docs/**/package.json @iotaledger/devx
 /docs/**/vercel.json @iotaledger/devx
 
+# CI Taskforce
+/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @fijter @Dr-Electron
+
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
+
+# Disable code ownership for these auto-generated files
+/Cargo.lock
+/pnpm-lock.yaml

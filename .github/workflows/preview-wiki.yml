@@ -13,15 +13,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'docs/**'
+      - "docs/**"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   wiki-preview:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -29,18 +29,17 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
           run_install: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
-        
+
       - name: Build wiki
         run: pnpm iota-docs build
 
@@ -70,7 +69,7 @@ jobs:
             const body = `✅ Vercel Preview Deployment is ready!
 
             [View Preview](${deploymentUrl})`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

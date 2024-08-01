@@ -4,10 +4,10 @@
 
 ## Features
 
-- **Easily extendable** to support any read/write endpoint
+- **Easily extendable** to support any read/write endpoint.
 - **Concurrent load generation** with multiple threads, making it suitable for load testing high-traffic RPC servers.
 - **Cross-verifying** results across multiple RPC Servers, ensuring data consistency and accuracy.
-- **Performance comparison** between vanilla Full node RPC and Enhanced Full node RPC
+- **Performance comparison** between vanilla Full node RPC and Enhanced Full node RPC.
 
 ## Getting Started
 
@@ -35,9 +35,9 @@ cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0
 
 Both commands achieve the same outcome: fetching all checkpoints using one thread, without repeating the operation.
 
-By default, this command also verify all the transactions in the checkpoint, specify `--skip-verify-transactions` to disable fetching transactions. Note that this must used with `--skip-verify-objects` as we do need to fetch transactions to get objects for the checkpoint.
+By default, this command also verifies all the transactions in the checkpoint, specify `--skip-verify-transactions` to disable fetching transactions. Note that this must used with `--skip-verify-objects` as we do need to fetch transactions to get objects for the checkpoint.
 
-**Note** you must put `--num-threads ` after the urls, otherwise the command will not be parsed correctly
+**Note** you must put `--num-threads` after the urls, otherwise the command will not be parsed correctly.
 
 ### Example 2: (WIP) Execute PayIota Transaction
 
@@ -45,7 +45,7 @@ By default, this command also verify all the transactions in the checkpoint, spe
 cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" --num-threads 1 pay-iota --repeat 100
 ```
 
-**NOTE**: right now `pay-iota` only supports 1 thread but multi-threading support can be added pretty easily by assigning different gas coins to different threads
+**NOTE**: right now `pay-iota` only supports 1 thread but multi-threading support can be added pretty easily by assigning different gas coins to different threads.
 
 ### Example 3: Query Transaction Blocks
 
@@ -54,6 +54,7 @@ cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0
 ```
 
 ### Multi Get Transaction Blocks
+
 ```bash
 cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0.0.1:9000" --num-threads 4 multi-get-transaction-blocks
 ```
@@ -65,17 +66,19 @@ cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0
 ```
 
 ### Get Object
+
 ```bash
 cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0.0.1:9000" --num-threads 2 get-object --chunk-size 20
 ```
 
 ### Get All Balances
+
 ```bash
 cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0.0.1:9000" --num-threads 2 get-all-balances --chunk-size 20
 ```
 
-
 ### Get Reference Gas Price
+
 ```bash
 cargo run --bin iota-rpc-loadgen -- --urls "http://127.0.0.1:9000" "http://127.0.0.1:9000" --num-threads 2 get-reference-gas-price --num-chunks-per-thread 10
 ```

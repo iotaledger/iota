@@ -17,7 +17,7 @@ export function LockUnlockButton({ isLocked, onClick, isLoading }: LockUnlockBut
     return (
         <Tooltip tip={isLocked ? 'Unlock Account' : 'Lock Account'}>
             <button
-                className="ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-0 text-steel hover:text-hero-dark"
+                className="text-steel hover:text-hero-dark ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent p-0"
                 onClick={onClick}
                 data-testid={isLocked ? 'unlock-account-button' : 'lock-account-button'}
             >

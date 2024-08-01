@@ -37,7 +37,7 @@ pub fn start_admin_server(
     // Spawn a task to shutdown server.
     handles.push(spawn_monitored_task!(async move {
         _ = tr_shutdown.receiver.recv().await;
-        handle.clone().shutdown();
+        handle.shutdown();
     }));
 
     handles.push(spawn_logged_monitored_task!(

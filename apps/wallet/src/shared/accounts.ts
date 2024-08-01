@@ -4,7 +4,7 @@
 import { type CoinBalance } from '@iota/iota.js/client';
 
 export interface AddressFromFinder {
-    pubKeyHash: string;
+    publicKey: string;
     bipPath: Bip44Path;
     // TODO: extend this balance in the future to include eg staking, vesting schedules, assets, ...
     balance: CoinBalance;

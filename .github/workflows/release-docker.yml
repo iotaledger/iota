@@ -7,29 +7,29 @@ on:
     inputs:
       iota_node:
         type: boolean
-        description: 'Release iota-node image'
+        description: "Release iota-node image"
         required: false
         default: false
       iota_indexer:
         type: boolean
-        description: 'Release iota-indexer image'
+        description: "Release iota-indexer image"
         required: false
         default: false
       iota_tools:
         type: boolean
-        description: 'Release iota-tools image'
+        description: "Release iota-tools image"
         required: false
         default: false
 
 jobs:
   build-iota-node:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_node == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -42,13 +42,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-node
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -65,10 +65,11 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
+          pull: true
 
   build-iota-indexer:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -86,13 +87,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-indexer
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -109,10 +110,11 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
+          pull: true
 
   build-iota-tools:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -130,13 +132,13 @@ jobs:
         with:
           images: docker-registry.iota.org/iota-tools
           tags: |
-              type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-              type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-              type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
-              type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
+            type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-alpha,group=1,enable=${{ contains(github.ref, '-alpha') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-beta,group=1,enable=${{ contains(github.ref, '-beta') && github.event_name == 'release' }}
+            type=match,pattern=v(\d+.\d+),suffix=-rc,group=1,enable=${{ contains(github.ref, '-rc') && github.event_name == 'release' }}
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -153,3 +155,4 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
+          pull: true

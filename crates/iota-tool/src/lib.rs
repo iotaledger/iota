@@ -170,10 +170,10 @@ impl std::fmt::Display for GroupedObjectOutput {
                 Ord::cmp(&b.2, &a.2)
                     .then_with(|| Ord::cmp(&format!("{:?}", &b.5), &format!("{:?}", &a.5)))
             })
-            .group_by(|(_, _, seq_num, _r, _ts, _)| **seq_num);
+            .chunk_by(|(_, _, seq_num, _r, _ts, _)| **seq_num);
         for (seq_num, group) in &responses {
             writeln!(f, "seq num: {}", seq_num.opt_debug("latest-seq-num"))?;
-            let cur_version_resp = group.group_by(|(_, _, _, r, _, _)| match r {
+            let cur_version_resp = group.chunk_by(|(_, _, _, r, _, _)| match r {
                 Ok(result) => {
                     let parent_tx_digest = result.object.previous_transaction;
                     let obj_digest = result.object.compute_object_reference().2;
@@ -395,7 +395,7 @@ pub async fn get_transaction_block(
         .sorted_by(|(k1, err1, _), (k2, err2, _)| {
             Ord::cmp(k1, k2).then_with(|| Ord::cmp(err1, err2))
         })
-        .group_by(|(_, _err, r)| {
+        .chunk_by(|(_, _err, r)| {
             r.2.as_ref().map(|ok_result| match &ok_result.status {
                 TransactionStatus::Signed(_) => None,
                 TransactionStatus::Executed(_, effects, _) => Some((

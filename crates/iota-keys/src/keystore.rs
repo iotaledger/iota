@@ -398,8 +398,8 @@ impl FileBasedKeystore {
             let aliases = keys
                 .iter()
                 .zip(names)
-                .map(|((iota_address, skp), alias)| {
-                    let public_key_base64 = skp.public().encode_base64();
+                .map(|((iota_address, ikp), alias)| {
+                    let public_key_base64 = ikp.public().encode_base64();
                     (
                         *iota_address,
                         Alias {
@@ -625,8 +625,8 @@ impl InMemKeystore {
         let aliases = keys
             .iter()
             .zip(random_names(HashSet::new(), keys.len()))
-            .map(|((iota_address, skp), alias)| {
-                let public_key_base64 = skp.public().encode_base64();
+            .map(|((iota_address, ikp), alias)| {
+                let public_key_base64 = ikp.public().encode_base64();
                 (
                     *iota_address,
                     Alias {

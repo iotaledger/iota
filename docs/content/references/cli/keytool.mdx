@@ -1,11 +1,11 @@
 ---
 title: IOTA Keytool CLI
-description: The IOTA Keytool CLI has commands for managing and generating addresses, working with private keys, signatures, or zkLogin.
+description: The IOTA Keytool CLI has commands for managing and generating addresses, working with private keys, or signatures.
 ---
 
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
-The IOTA CLI `keytool` command provides several command-level access for the management and generation of addresses, as well as working with private keys, signatures, or zkLogin. For example, a user could export a private key from the IOTA Wallet and import it into the local IOTA CLI wallet using the `iota keytool import [...]` command.
+The IOTA CLI `keytool` command provides several command-level access for the management and generation of addresses, as well as working with private keys, or signatures. For example, a user could export a private key from the IOTA Wallet and import it into the local IOTA CLI wallet using the `iota keytool import [...]` command.
 
 <CliCheckInstall />
 
@@ -26,7 +26,7 @@ Commands:
                                         	secp256k1 | secp256r1} and an optional derivation path, default to m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
                                         	or m/74'/4218'/0'/0/0 for secp256r1. Supports mnemonic phrase of word length 12, 15, 18`, 21, 24
   list                              	List all keys by its IOTA address, Base64 encoded public key, key scheme name in iota.keystore
-  load-keypair                      	This reads the content at the provided file path. The accepted format can be [enum IOTAKeyPair] (Base64 encoded of 33-byte `flag ||
+  load-keypair                      	This reads the content at the provided file path. The accepted format can be [enum IotaKeyPair] (Base64 encoded of 33-byte `flag ||
                                         	privkey`) or `type AuthorityKeyPair` (Base64 encoded `privkey`). This prints out the account keypair as Base64 encoded `flag ||
                                         	privkey`, the network keypair, worker keypair, protocol keypair as Base64 encoded `privkey`
   multi-sig-address                 	To MultiSig IOTA Address. Pass in a list of all public keys `flag || pk` in Base64. See `keytool list` for example public keys
@@ -34,7 +34,7 @@ Commands:
                                         	their weights that define the MultiSig address. Returns a valid MultiSig signature and its sender address. The result can be used as
                                         	signature field for `iota client execute-signed-tx`. The sum of weights of all signatures must be >= the threshold
   multi-sig-combine-partial-sig-legacy
-  show                              	Read the content at the provided file path. The accepted format can be [enum IOTAKeyPair] (Base64 encoded of 33-byte `flag || privkey`)
+  show                              	Read the content at the provided file path. The accepted format can be [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`)
                                         	or `type AuthorityKeyPair` (Base64 encoded `privkey`). It prints its Base64 encoded public key and the key scheme flag
   sign                              	Create signature using the private key for for the given address in iota keystore. Any signature commits to a [struct IntentMessage]
                                         	consisting of the Base64 encoded of the BCS serialized transaction bytes itself and its intent. If intent is absent, default will be
@@ -42,16 +42,9 @@ Commands:
   sign-kms                          	Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage Amazon KMS to sign a message and the base64 pubkey. Generate
                                         	PubKey from pem using MystenLabs/base64pemkey Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded of the
                                         	BCS serialized transaction bytes itself and its intent. If intent is absent, default will be used
-  unpack                            	This takes [enum IOTAKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It outputs the keypair into a file at the current
+  unpack                            	This takes [enum IotaKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It outputs the keypair into a file at the current
                                         	directory where the address is the filename, and prints out its IOTA address, Base64 encoded public key, the key scheme, and the key
-                                        	scheme flag
-  zk-login-sign-and-execute-tx      	Given the max_epoch, generate an OAuth url, ask user to paste the redirect with id_token, call salt server, then call the prover
-                                        	server, create a test transaction, use the ephemeral key to sign and execute it by assembling to a serialized zkLogin signature
-  zk-login-enter-token              	A workaround to the above command because sometimes token pasting does not work. All the inputs required here are printed from the
-                                        	command above
-  zk-login-sig-verify               	Given a zkLogin signature, parse it if valid. If tx_bytes provided, it verifies the zkLogin signature based on provider and its latest
-                                        	JWK fetched. Example request: iota keytool zk-login-sig-verify --sig $SERIALIZED_ZKLOGIN_SIG --tx-bytes $TX_BYTES --provider Google
-                                        	--curr-epoch 10
+                                        	scheme flag  
   help                              	Print this message or the help of the given subcommand(s)
 
 Options:

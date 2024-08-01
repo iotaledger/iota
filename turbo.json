@@ -1,7 +1,9 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"pipeline": {
-		"lint": {},
+		"lint": {
+			"dependsOn": ["^build"]
+		},
 		"prettier:fix": {
 			"cache": false
 		},
@@ -34,5 +36,5 @@
 		"IOTA_NETWORKS"
 	],
 	"globalDotEnv": ["sdk/.env", "sdk/.env.defaults"],
-	"globalDependencies": [".eslintrc.js"]
+	"globalDependencies": [".eslintrc.js", "prettier.config.js", ".prettierignore"]
 }

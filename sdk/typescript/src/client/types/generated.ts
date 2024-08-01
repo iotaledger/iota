@@ -1056,8 +1056,8 @@ export interface IotaSystemStateSummary {
     safeModeNonRefundableStorageFee: string;
     /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
     safeModeStorageRebates: string;
-    /** Amount of storage rewards accumulated (and not yet distributed) during safe mode. */
-    safeModeStorageRewards: string;
+    /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */
+    safeModeStorageCharges: string;
     /** Balance of IOTA set aside for stake subsidies that will be drawn down over time. */
     stakeSubsidyBalance: string;
     /** The amount of stake subsidy to be drawn down per epoch. This amount decays and decreases over time. */

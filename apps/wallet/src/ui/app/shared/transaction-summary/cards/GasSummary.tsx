@@ -4,9 +4,8 @@
 import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { useActiveAddress } from '_src/ui/app/hooks';
-import { GAS_TYPE_ARG } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { useFormatCoin, type GasSummaryType } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 import { Text } from '../../text';
 
@@ -15,14 +14,14 @@ interface GasSummaryProps {
 }
 
 export function GasSummary({ gasSummary }: GasSummaryProps) {
-    const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, GAS_TYPE_ARG);
+    const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, IOTA_TYPE_ARG);
     const address = useActiveAddress();
 
     if (!gasSummary) return null;
 
     return (
         <div className="relative flex flex-col rounded-2xl bg-white shadow-card-soft">
-            <div className="rounded-t-2xl bg-gray-40 px-4 py-2.5">
+            <div className="bg-gray-40 rounded-t-2xl px-4 py-2.5">
                 <Text color="steel-darker" variant="captionSmall" weight="semibold">
                     Gas Fees
                 </Text>
