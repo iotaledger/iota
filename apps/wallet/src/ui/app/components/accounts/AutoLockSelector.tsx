@@ -52,7 +52,7 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
         return unsubscribe;
     }, [watch, trigger]);
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
             <CheckboxField
                 name="autoLock.enabled"
                 label="Auto-lock after I am inactive for"

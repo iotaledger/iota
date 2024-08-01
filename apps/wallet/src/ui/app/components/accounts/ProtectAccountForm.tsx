@@ -101,24 +101,26 @@ export function ProtectAccountForm({
         return unsubscribe;
     }, [watch, trigger, getValues]);
     return (
-        <Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
-            <TextField
-                autoFocus
-                type={TextFieldType.Password}
-                isVisibilityToggleEnabled
-                label="Create Password"
-                placeholder="Password"
-                {...register('password.input')}
-            />
-            <TextField
-                type={TextFieldType.Password}
-                isVisibilityToggleEnabled
-                label="Confirm Password"
-                placeholder="Password"
-                {...register('password.confirmation')}
-            />
-            <AutoLockSelector />
-            <div className="flex-1" />
+        <Form className="flex h-full flex-col justify-between" form={form} onSubmit={onSubmit}>
+            <div className="flex h-full flex-col gap-6">
+                <TextField
+                    autoFocus
+                    type={TextFieldType.Password}
+                    isVisibilityToggleEnabled
+                    label="Create Password"
+                    placeholder="Password"
+                    {...register('password.input')}
+                />
+                <TextField
+                    type={TextFieldType.Password}
+                    isVisibilityToggleEnabled
+                    label="Confirm Password"
+                    placeholder="Password"
+                    errorMessage={form.formState.errors.password?.confirmation?.message}
+                    {...register('password.confirmation')}
+                />
+                <AutoLockSelector />
+            </div>
             <div className="flex flex-col gap-4">
                 {displayToS ? null : (
                     <CheckboxField
