@@ -2,17 +2,12 @@
 title: Hot Potato
 ---
 
-import ExampleImport from '@site/src/components/ExampleImport';
-
 A hot potato is a struct that has no capabilities, therefore you can only pack and unpack it in its module. In this struct, you must call function B after function A in the case where function A returns a hot potato and function B consumes it. A hot potato pattern is useful when implementing flash loans, for example.
 
 ```move
 module examples::trade_in {
-    use iota::transfer;
     use iota::iota::IOTA;
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, UID};
-    use iota::tx_context::{TxContext};
 
     /// Price for the first phone model in series
     const MODEL_ONE_PRICE: u64 = 10000;

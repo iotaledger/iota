@@ -8,8 +8,6 @@ A witness is a type with `drop` that proves that its owner was present at the ti
 /// Module that defines a generic type `Guardian<T>` which can only be
 /// instantiated with a witness.
 module examples::guardian {
-    use iota::object::{Self, UID};
-    use iota::tx_context::TxContext;
 
     /// Phantom parameter T can only be initialized in the `create_guardian`
     /// function. But the types passed here must have `drop`.
@@ -28,8 +26,6 @@ module examples::guardian {
 
 /// Custom module that makes use of the `guardian`.
 module examples::peace_guardian {
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     // Use the `guardian` as a dependency.
     use 0x0::guardian;
