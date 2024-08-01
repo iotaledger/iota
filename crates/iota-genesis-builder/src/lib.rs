@@ -715,7 +715,7 @@ impl Builder {
         }
     }
 
-    pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self, anyhow::Error> {
+    pub async fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self, anyhow::Error> {
         let path = path.as_ref();
         let path: &Utf8Path = path.try_into()?;
         trace!("Reading Genesis Builder from {}", path);
@@ -734,7 +734,7 @@ impl Builder {
         // Load migration objects if any
         let migration_sources_file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
         let migration_sources: Vec<SnapshotSource> = if migration_sources_file.exists() {
-            serde_yaml::from_slice(
+            serde_json::from_slice(
                 &fs::read(migration_sources_file)
                     .context("unable to read migration sources file")?,
             )
@@ -795,8 +795,9 @@ impl Builder {
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
         if unsigned_genesis_file.exists() {
+            let reader = BufReader::new(File::open(unsigned_genesis_file)?);
             let loaded_genesis: UnsignedGenesis =
-                bcs::from_reader(BufReader::new(File::open(unsigned_genesis_file)?))?;
+                tokio::task::spawn_blocking(move || bcs::from_reader(reader)).await??;
 
             // If we have a built genesis, then we must have a token_distribution_schedule
             // present as well.
@@ -806,10 +807,14 @@ impl Builder {
             );
 
             // Verify loaded genesis matches one build from the constituent parts
-            let built = builder.get_or_build_unsigned_genesis();
+            builder = tokio::task::spawn_blocking(move || {
+                builder.get_or_build_unsigned_genesis();
+                builder
+            })
+            .await?;
             loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
             assert!(
-                *built == loaded_genesis,
+                *builder.get_or_build_unsigned_genesis() == loaded_genesis,
                 "loaded genesis does not match built genesis"
             );
 
@@ -864,7 +869,7 @@ impl Builder {
 
         if !self.migration_sources.is_empty() {
             let file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
-            fs::write(file, serde_yaml::to_string(&self.migration_sources)?)?;
+            fs::write(file, serde_json::to_string(&self.migration_sources)?)?;
         }
 
         Ok(())
@@ -1555,9 +1560,9 @@ mod test {
         std::io::Write::write_all(&mut std::io::stdout(), &output).unwrap();
     }
 
-    #[test]
+    #[tokio::test]
     #[cfg_attr(msim, ignore)]
-    fn ceremony() {
+    async fn ceremony() {
         let dir = tempfile::TempDir::new().unwrap();
 
         let key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
@@ -1588,6 +1593,6 @@ mod test {
             println!("ObjectID: {} Type: {:?}", object.id(), object.type_());
         }
         builder.save(dir.path()).unwrap();
-        Builder::load(dir.path()).unwrap();
+        Builder::load(dir.path()).await.unwrap();
     }
 }
