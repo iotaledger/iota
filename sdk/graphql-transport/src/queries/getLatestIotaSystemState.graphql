@@ -18,14 +18,6 @@ query getLatestIotaSystemState {
             }
         }
 
-        systemStakeSubsidy {
-            balance
-            currentDistributionAmount
-            decreaseRate
-            distributionCounter
-            periodLength
-        }
-
         storageFund {
             nonRefundableBalance
             totalObjectStorageRebates
@@ -39,7 +31,6 @@ query getLatestIotaSystemState {
             validatorLowStakeThreshold
             validatorLowStakeGracePeriod
             validatorVeryLowStakeThreshold
-            stakeSubsidyStartEpoch
         }
         protocolConfigs {
             protocolVersion
@@ -57,7 +48,7 @@ query getLatestIotaSystemState {
 
             inactivePoolsSize
             pendingActiveValidatorsSize
-            stakePoolMappingsSize
+            stakingPoolMappingsSize
             validatorCandidatesSize
             pendingRemovals
             totalStake
