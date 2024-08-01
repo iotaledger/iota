@@ -23,6 +23,7 @@ query getLatestIotaSystemState {
             totalObjectStorageRebates
         }
         systemStateVersion
+        iotaTotalSupply
         systemParameters {
             minValidatorCount
             maxValidatorCount
