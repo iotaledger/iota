@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
 import { ToS_LINK } from '_src/shared/constants';
 import { useZodForm } from '@iota/core';
 import { useEffect } from 'react';
@@ -10,13 +9,12 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import zxcvbn from 'zxcvbn';
-
 import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinutes';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
-import { TextField } from '../../shared/forms/TextField';
 import { Link } from '../../shared/Link';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
+import { Button, ButtonHtmlType, ButtonType, TextField, TextFieldType } from '@iota/apps-ui-kit';
 
 function addDot(str: string | undefined) {
     if (str && !str.endsWith('.')) {
@@ -103,22 +101,27 @@ export function ProtectAccountForm({
         });
         return unsubscribe;
     }, [watch, trigger, getValues]);
+
     return (
         <Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
             <TextField
                 autoFocus
-                type="password"
-                label="Create Account Password"
+                type={TextFieldType.Password}
+                isVisibilityToggleEnabled
+                label="Create Password"
+                placeholder="Password"
                 {...register('password.input')}
             />
             <TextField
-                type="password"
-                label="Confirm Account Password"
+                type={TextFieldType.Password}
+                isVisibilityToggleEnabled
+                label="Confirm Password"
+                placeholder="Password"
                 {...register('password.confirmation')}
             />
             <AutoLockSelector />
             <div className="flex-1" />
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4">
                 {displayToS ? null : (
                     <CheckboxField
                         name="acceptedTos"
@@ -137,22 +140,22 @@ export function ProtectAccountForm({
                         }
                     />
                 )}
-                <div className="flex gap-2.5">
+
+                <div className="flex flex-row justify-stretch gap-2.5">
                     {cancelButtonText ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
                             text={cancelButtonText}
                             onClick={() => navigate(-1)}
+                            fullWidth
                         />
                     ) : null}
                     <Button
-                        type="submit"
+                        type={ButtonType.Primary}
                         disabled={isSubmitting || !isValid}
-                        variant="primary"
-                        size="tall"
-                        loading={isSubmitting}
                         text={submitButtonText}
+                        fullWidth
+                        htmlType={ButtonHtmlType.Submit}
                     />
                 </div>
             </div>
