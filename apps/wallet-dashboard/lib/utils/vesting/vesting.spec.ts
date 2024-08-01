@@ -65,7 +65,7 @@ describe('build supply increase staker vesting portfolio', () => {
 
         expect(lastPayout).toBeDefined();
 
-        const vestingPortfolio = buildVestingPortfolio(lastPayout!);
+        const vestingPortfolio = buildVestingPortfolio(lastPayout!, Date.now());
 
         expect(vestingPortfolio.length).toEqual(
             getSupplyIncreaseVestingPayoutsCount(SupplyIncreaseUserType.Staker),
@@ -79,7 +79,7 @@ describe('build supply increase staker vesting portfolio', () => {
 
         expect(lastPayout).toBeDefined();
 
-        const vestingPortfolio = buildVestingPortfolio(lastPayout!);
+        const vestingPortfolio = buildVestingPortfolio(lastPayout!, Date.now());
 
         expect(vestingPortfolio.length).toEqual(
             getSupplyIncreaseVestingPayoutsCount(SupplyIncreaseUserType.Staker),
@@ -93,7 +93,7 @@ describe('build supply increase staker vesting portfolio', () => {
 
         expect(lastPayout).toBeDefined();
 
-        const vestingPortfolio = buildVestingPortfolio(lastPayout!);
+        const vestingPortfolio = buildVestingPortfolio(lastPayout!, Date.now());
 
         expect(vestingPortfolio.length).toEqual(
             getSupplyIncreaseVestingPayoutsCount(SupplyIncreaseUserType.Staker),
@@ -110,13 +110,16 @@ describe('vesting overview', () => {
             SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
             lastPayout.locked.value;
 
-        const vestingOverview = getVestingOverview(timelockedObjects);
+        const vestingOverview = getVestingOverview(timelockedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
-        const vestingPortfolio = buildVestingPortfolio({
-            amount: lastPayout.locked.value,
-            expirationTimestampMs: lastPayout.expirationTimestampMs,
-        });
+        const vestingPortfolio = buildVestingPortfolio(
+            {
+                amount: lastPayout.locked.value,
+                expirationTimestampMs: lastPayout.expirationTimestampMs,
+            },
+            Date.now(),
+        );
 
         const lockedAmount = vestingPortfolio.reduce(
             (acc, current) =>
@@ -153,13 +156,16 @@ describe('vesting overview', () => {
             SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
             lastPayout.stakedIota.principal.value;
 
-        const vestingOverview = getVestingOverview(timelockedStakedObjects);
+        const vestingOverview = getVestingOverview(timelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
-        const vestingPortfolio = buildVestingPortfolio({
-            amount: lastPayout.stakedIota.principal.value,
-            expirationTimestampMs: lastPayout.expirationTimestampMs,
-        });
+        const vestingPortfolio = buildVestingPortfolio(
+            {
+                amount: lastPayout.stakedIota.principal.value,
+                expirationTimestampMs: lastPayout.expirationTimestampMs,
+            },
+            Date.now(),
+        );
 
         const lockedAmount = vestingPortfolio.reduce(
             (acc, current) =>
@@ -189,13 +195,16 @@ describe('vesting overview', () => {
             SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
             lastPayout.amount;
 
-        const vestingOverview = getVestingOverview(mixedObjects);
+        const vestingOverview = getVestingOverview(mixedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
-        const vestingPortfolio = buildVestingPortfolio({
-            amount: lastPayout.amount,
-            expirationTimestampMs: lastPayout.expirationTimestampMs,
-        });
+        const vestingPortfolio = buildVestingPortfolio(
+            {
+                amount: lastPayout.amount,
+                expirationTimestampMs: lastPayout.expirationTimestampMs,
+            },
+            Date.now(),
+        );
 
         const lockedAmount = vestingPortfolio.reduce(
             (acc, current) =>
