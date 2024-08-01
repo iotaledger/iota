@@ -1,15 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import cx from 'classnames';
 import { Dash, Checkmark } from '@iota/ui-icons';
 
+type CheckedState = boolean | 'indeterminate';
 interface CheckboxProps {
     /**
      * The label of the checkbox.
      */
-    label?: string;
+    label?: string | React.ReactNode;
     /**
      * The state of the checkbox.
      */
@@ -29,50 +30,122 @@ interface CheckboxProps {
     /**
      * The callback to call when the checkbox is clicked.
      */
-    onChange?: (checked: boolean) => void;
+    onCheckedChange?: (checked: CheckedState) => void;
+    /**
+     * The name of the checkbox.
+     */
+    name?: string;
 }
 
-export function Checkbox({
-    isChecked,
-    isIndeterminate,
-    label,
-    isLabelFirst,
-    isDisabled,
-    onChange,
-}: CheckboxProps) {
-    const inputRef = useRef<HTMLInputElement>(null);
+export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
+    (
+        {
+            isChecked,
+            isIndeterminate,
+            label,
+            isLabelFirst,
+            isDisabled,
+            onCheckedChange,
+            name,
+        }: CheckboxProps,
+        ref,
+    ) => {
+        const inputRef = useRef<HTMLInputElement | null>(null);
 
-    useEffect(() => {
-        if (inputRef.current) {
-            inputRef.current.indeterminate = isIndeterminate ?? false;
+        useEffect(() => {
+            if (inputRef.current) {
+                inputRef.current.indeterminate = isIndeterminate ?? false;
+            }
+        }, [isIndeterminate, inputRef]);
+
+        const CheckmarkIcon = isIndeterminate ? Dash : Checkmark;
+
+        function assignRefs(element: HTMLInputElement) {
+            if (ref) {
+                if (typeof ref === 'function') {
+                    ref(element);
+                } else {
+                    ref.current = element;
+                }
+            }
+            inputRef.current = element;
         }
-    }, [isIndeterminate, inputRef]);
 
-    const CheckmarkIcon = isIndeterminate ? Dash : Checkmark;
+        return (
+            <label
+                htmlFor={name}
+                id={name}
+                className={cx(
+                    'group flex gap-x-2',
+                    isLabelFirst ? 'flex-row' : 'flex-row-reverse',
+                    {
+                        disabled: isDisabled,
+                    },
+                )}
+            >
+                <LabelText label={label} />
+                <div className="relative h-5 w-5">
+                    <input
+                        type="checkbox"
+                        className="enabled:state-layer peer h-full w-full appearance-none rounded border border-neutral-80 disabled:opacity-40 dark:border-neutral-20 [&:is(:checked,:indeterminate)]:border-primary-30 [&:is(:checked,:indeterminate)]:bg-primary-30 disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 dark:disabled:[&:is(:checked,:indeterminate)]:bg-neutral-40 disabled:[&:not(:checked,:indeterminate)]:border-neutral-70 dark:disabled:[&:not(:checked,:indeterminate)]:border-neutral-30"
+                        checked={isChecked}
+                        ref={assignRefs}
+                        disabled={isDisabled}
+                        onChange={(e) => onCheckedChange?.(e.target.checked)}
+                    />
+                    <span className="absolute inset-0 flex h-full w-full items-center justify-center text-neutral-40 peer-disabled:text-neutral-70 peer-disabled:text-opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:text-opacity-40">
+                        <CheckmarkIcon width={16} height={16} />
+                    </span>
+                </div>
+            </label>
+        );
+    },
+);
 
-    return (
-        <label
-            className={cx('group flex gap-x-2', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
-                disabled: isDisabled,
-            })}
-        >
-            <LabelText label={label} />
-            <div className="relative h-5 w-5">
-                <input
-                    type="checkbox"
-                    className="enabled:state-layer peer h-full w-full appearance-none rounded border border-neutral-80 disabled:opacity-40 dark:border-neutral-20 [&:is(:checked,:indeterminate)]:border-primary-30 [&:is(:checked,:indeterminate)]:bg-primary-30 disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 dark:disabled:[&:is(:checked,:indeterminate)]:bg-neutral-40 disabled:[&:not(:checked,:indeterminate)]:border-neutral-70 dark:disabled:[&:not(:checked,:indeterminate)]:border-neutral-30"
-                    checked={isChecked}
-                    ref={inputRef}
-                    disabled={isDisabled}
-                    onChange={(e) => onChange?.(e.target.checked)}
-                />
-                <span className="absolute inset-0 flex h-full w-full items-center justify-center text-neutral-40 peer-disabled:text-neutral-70 peer-disabled:text-opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:text-opacity-40">
-                    <CheckmarkIcon width={16} height={16} />
-                </span>
-            </div>
-        </label>
-    );
-}
+// export function Checkbox({
+//     isChecked,
+//     isIndeterminate,
+//     label,
+//     isLabelFirst,
+//     isDisabled,
+//     onCheckedChange,
+//     name,
+// }: CheckboxProps) {
+//     const inputRef = useRef<HTMLInputElement>(null);
+
+//     useEffect(() => {
+//         if (inputRef.current) {
+//             inputRef.current.indeterminate = isIndeterminate ?? false;
+//         }
+//     }, [isIndeterminate, inputRef]);
+
+//     const CheckmarkIcon = isIndeterminate ? Dash : Checkmark;
+
+//     return (
+//         <label
+//             htmlFor={name}
+//             id={name}
+//             className={cx('group flex gap-x-2', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
+//                 disabled: isDisabled,
+//             })}
+//         >
+//             <LabelText label={label} />
+//             <div className="relative h-5 w-5">
+//                 <input
+//                     type="checkbox"
+//                     className="enabled:state-layer peer h-full w-full appearance-none rounded border border-neutral-80 disabled:opacity-40 dark:border-neutral-20 [&:is(:checked,:indeterminate)]:border-primary-30 [&:is(:checked,:indeterminate)]:bg-primary-30 disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 dark:disabled:[&:is(:checked,:indeterminate)]:bg-neutral-40 disabled:[&:not(:checked,:indeterminate)]:border-neutral-70 dark:disabled:[&:not(:checked,:indeterminate)]:border-neutral-30"
+//                     checked={isChecked}
+//                     ref={inputRef}
+//                     disabled={isDisabled}
+//                     onChange={(e) => onCheckedChange?.(e.target.checked)}
+//                 />
+//                 <span className="absolute inset-0 flex h-full w-full items-center justify-center text-neutral-40 peer-disabled:text-neutral-70 peer-disabled:text-opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:text-opacity-40">
+//                     <CheckmarkIcon width={16} height={16} />
+//                 </span>
+//             </div>
+//         </label>
+//     );
+// }
 
 function LabelText({ label }: Pick<CheckboxProps, 'label'>) {
     return (
