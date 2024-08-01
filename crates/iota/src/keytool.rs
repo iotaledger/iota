@@ -656,8 +656,11 @@ impl KeyToolCommand {
                         )?;
                         if iota_address.is_err() {
                             if let Ok(seed) = Hex::decode(&input_string) {
-                                info!("Importing mnemonic to keystore failed, importing from seed now");
-                                iota_address = keystore.import_from_seed(&seed, key_scheme, derivation_path);
+                                info!(
+                                    "Importing mnemonic to keystore failed, importing from seed now"
+                                );
+                                iota_address =
+                                    keystore.import_from_seed(&seed, key_scheme, derivation_path);
                             }
                         }
                         let ikp = keystore.get_key(&iota_address)?;
