@@ -644,7 +644,7 @@ impl KeyToolCommand {
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
-                        info!("Importing mneomonics to keystore");
+                        info!("Importing mnemonic to keystore");
                         let mut iota_address = keystore.import_from_mnemonic(
                             &input_string,
                             key_scheme,
