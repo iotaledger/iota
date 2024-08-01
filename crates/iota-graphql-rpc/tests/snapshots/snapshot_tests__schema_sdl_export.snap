@@ -84,7 +84,7 @@ type Address implements IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this address.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -485,7 +485,7 @@ type Coin implements IMoveObject & IObject & IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -567,7 +567,7 @@ type Coin implements IMoveObject & IObject & IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -578,14 +578,14 @@ type Coin implements IMoveObject & IObject & IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -652,7 +652,7 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -734,7 +734,7 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -745,14 +745,14 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -1113,6 +1113,10 @@ type Epoch {
 	systemStateVersion: Int
 	"""
 	Details of the system that are decided during genesis.
+    The total IOTA supply.
+	"""
+	iotaTotalSupply: Int
+	"""
 	"""
 	systemParameters: SystemParameters
 	"""
@@ -1162,7 +1166,7 @@ type Event {
 	data: MoveData!
 	"""
 	Representation of a Move value in JSON, where:
-	
+
 	- Addresses, IDs, and UIDs are represented in canonical form, as JSON
 	strings.
 	- Bools are represented by JSON boolean literals.
@@ -1171,7 +1175,7 @@ type Event {
 	- Vectors are represented by JSON arrays.
 	- Structs are represented by JSON objects.
 	- Empty optional values are represented by `null`.
-	
+
 	This form is offered as a less verbose convenience in cases where the
 	layout of the type is known by the client.
 	"""
@@ -1214,16 +1218,16 @@ input EventFilter {
 	Events emitted by a particular module. An event is emitted by a
 	particular module if some function in the module is called by a
 	PTB and emits an event.
-	
+
 	Modules can be filtered by their package, or package::module.
 	"""
 	emittingModule: String
 	"""
 	This field is used to specify the type of event emitted.
-	
+
 	Events can be filtered by their type's package, package::module,
 	or their fully qualified type name.
-	
+
 	Generic types can be queried by either the generic type name, e.g.
 	`0x2::coin::Coin`, or by the full type name, such as
 	`0x2::coin::Coin<0x2::iota::IOTA>`.
@@ -1399,19 +1403,19 @@ interface IMoveObject {
 	display: [DisplayEntry!]
 	"""
 	Access a dynamic field on an object using its name. Names are arbitrary Move values whose type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API under the Ownertype.
 	"""
 	dynamicField(name: DynamicFieldName!): DynamicField
 	"""
 	Access a dynamic object field on an object using its name. Names are arbitrary Move values whose type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS contents, Base64 encoded. The value of a dynamic object field can also be accessed off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API under the Owner type.
 	"""
 	dynamicFields(first: Int, after: String, last: Int, before: String): DynamicFieldConnection!
@@ -1441,7 +1445,7 @@ interface IObject {
 	"""
 	previousTransactionBlock: TransactionBlock
 	"""
-	
+
 	"""
 	storageRebate: BigInt
 	"""
@@ -1477,7 +1481,7 @@ interface IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object or address.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
 	"""
 	coins(first: Int, after: String, last: Int, before: String, type: String): CoinConnection!
@@ -1537,7 +1541,7 @@ type IotansRegistration implements IMoveObject & IObject & IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -1619,7 +1623,7 @@ type IotansRegistration implements IMoveObject & IObject & IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -1630,14 +1634,14 @@ type IotansRegistration implements IMoveObject & IObject & IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -1980,7 +1984,7 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -2062,7 +2066,7 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -2073,14 +2077,14 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -2142,7 +2146,7 @@ type MovePackage implements IObject & IOwner {
 	address: IotaAddress!
 	"""
 	Objects owned by this package, optionally `filter`-ed.
-	
+
 	Note that objects owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
 	"""
@@ -2150,31 +2154,31 @@ type MovePackage implements IObject & IOwner {
 	"""
 	Total balance of all coins with marker type owned by this package. If
 	type is not supplied, it defaults to `0x2::iota::IOTA`.
-	
+
 	Note that coins owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
 	"""
 	balance(type: String): Balance
 	"""
 	The balances of all coin types owned by this package.
-	
+
 	Note that coins owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
 	"""
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects owned by this package.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
-	
+
 	Note that coins owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
 	"""
 	coins(first: Int, after: String, last: Int, before: String, type: String): CoinConnection!
 	"""
 	The `0x3::staking_pool::StakedIota` objects owned by this package.
-	
+
 	Note that objects owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
 	"""
@@ -2187,7 +2191,7 @@ type MovePackage implements IObject & IOwner {
 	"""
 	The IotansRegistration NFTs owned by this package. These grant the owner
 	the capability to manage the associated domain.
-	
+
 	Note that objects owned by a package are inaccessible, because packages
 	are immutable and cannot be owned by an address.
 	"""
@@ -2223,14 +2227,14 @@ type MovePackage implements IObject & IOwner {
 	The amount of IOTA we would rebate if this object gets deleted or
 	mutated. This number is recalculated based on the present storage
 	gas price.
-	
+
 	Note that packages cannot be deleted or mutated, so this number is
 	provided purely for reference.
 	"""
 	storageRebate: BigInt
 	"""
 	The transaction blocks that sent objects to this package.
-	
+
 	Note that objects that have been sent to a package become inaccessible.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter): TransactionBlockConnection!
@@ -2429,7 +2433,7 @@ type MoveValue {
 	data: MoveData!
 	"""
 	Representation of a Move value in JSON, where:
-	
+
 	- Addresses, IDs, and UIDs are represented in canonical form, as JSON
 	strings.
 	- Bools are represented by JSON boolean literals.
@@ -2438,7 +2442,7 @@ type MoveValue {
 	- Vectors are represented by JSON arrays.
 	- Structs are represented by JSON objects.
 	- Empty optional values are represented by `null`.
-	
+
 	This form is offered as a less verbose convenience in cases where the
 	layout of the type is known by the client.
 	"""
@@ -2473,17 +2477,17 @@ Mutations are used to write to the Iota network.
 type Mutation {
 	"""
 	Execute a transaction, committing its effects on chain.
-	
+
 	- `txBytes` is a `TransactionData` struct that has been BCS-encoded and
 	then Base64-encoded.
 	- `signatures` are a list of `flag || signature || pubkey` bytes,
 	Base64-encoded.
-	
+
 	Waits until the transaction has reached finality on chain to return its
 	transaction digest, or returns the error that prevented finality if
 	that was not possible. A transaction is final when its effects are
 	guaranteed on chain (it cannot be revoked).
-	
+
 	There may be a delay between transaction finality and when GraphQL
 	requests (including the request that issued the transaction) reflect
 	its effects. As a result, queries that depend on indexing the state
@@ -2518,7 +2522,7 @@ type Object implements IObject & IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -2588,7 +2592,7 @@ type Object implements IObject & IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -2599,14 +2603,14 @@ type Object implements IObject & IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -2718,10 +2722,10 @@ input ObjectFilter {
 	"""
 	This field is used to specify the type of objects that should be
 	included in the query results.
-	
+
 	Objects can be filtered by their type's package, package::module, or
 	their fully qualified type name.
-	
+
 	Generic types can be queried by either the generic type name, e.g.
 	`0x2::coin::Coin`, or by the full type name, such as
 	`0x2::coin::Coin<0x2::iota::IOTA>`.
@@ -2876,7 +2880,7 @@ type Owner implements IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object or address.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -2902,7 +2906,7 @@ type Owner implements IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	This field exists as a convenience when accessing a dynamic field on a
 	wrapped object.
 	"""
@@ -2913,14 +2917,14 @@ type Owner implements IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	This field exists as a convenience when accessing a dynamic field on a
 	wrapped object.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	This field exists as a convenience when accessing a dynamic field on a
 	wrapped object.
 	"""
@@ -3104,17 +3108,17 @@ type Query {
 	"""
 	Simulate running a transaction to inspect its effects without
 	committing to them on-chain.
-	
+
 	`txBytes` either a `TransactionData` struct or a `TransactionKind`
 	struct, BCS-encoded and then Base64-encoded.  The expected
 	type is controlled by the presence or absence of `txMeta`: If
 	present, `txBytes` is assumed to be a `TransactionKind`, if
 	absent, then `TransactionData`.
-	
+
 	`txMeta` the data that is missing from a `TransactionKind` to make
 	a `TransactionData` (sender address and gas information).  All
 	its fields are nullable.
-	
+
 	`skipChecks` optional flag to disable the usual verification
 	checks that prevent access to objects that are owned by
 	addresses other than the sender, and calling non-public,
@@ -3151,7 +3155,7 @@ type Query {
 	transactionBlock(digest: String!): TransactionBlock
 	"""
 	The coin objects that exist in the network.
-	
+
 	The type field is a string of the inner type of the coin by which to
 	filter (e.g. `0x2::iota::IOTA`). If no type is provided, it will
 	default to `0x2::iota::IOTA`.
@@ -3193,7 +3197,7 @@ type Query {
 	`ZkLoginVerifyResult` with success as true and an empty list of
 	errors. If the signature is invalid, the function returns
 	a `ZkLoginVerifyResult` with success as false with a list of errors.
-	
+
 	- `bytes` is either the personal message in raw bytes or transaction
 	data bytes in BCS-encoded and then Base64-encoded.
 	- `signature` is a serialized zkLogin signature that is Base64-encoded.
@@ -3314,12 +3318,12 @@ type ServiceConfig {
 	maxQueryNodes: Int!
 	"""
 	The maximum number of output nodes in a GraphQL response.
-	
+
 	Non-connection nodes have a count of 1, while connection nodes are
 	counted as the specified 'first' or 'last' number of items, or the
 	default_page_size as set by the server if those arguments are not
 	set.
-	
+
 	Counts accumulate multiplicatively down the query tree. For example, if
 	a query starts with a connection of first: 10 and has a field to a
 	connection with last: 20, the count at the second level would be 200
@@ -3498,7 +3502,7 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
 	"""
 	The coin objects for this object.
-	
+
 	`type` is a filter on the coin's type parameter, defaulting to
 	`0x2::iota::IOTA`.
 	"""
@@ -3580,7 +3584,7 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	Access a dynamic field on an object using its name. Names are arbitrary
 	Move values whose type have `copy`, `drop`, and `store`, and are
 	specified using their type, and their BCS contents, Base64 encoded.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -3591,14 +3595,14 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	and are specified using their type, and their BCS contents, Base64
 	encoded. The value of a dynamic object field can also be accessed
 	off-chain directly via its address (e.g. using `Query.object`).
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
 	dynamicObjectField(name: DynamicFieldName!): DynamicField
 	"""
 	The dynamic fields and dynamic object fields on an object.
-	
+
 	Dynamic fields on wrapped objects can be accessed by using the same API
 	under the Owner type.
 	"""
@@ -3625,15 +3629,15 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	principal: BigInt
 	"""
 	The estimated reward for this stake object, calculated as:
-	
+
 	principal * (initial_stake_rate / current_stake_rate - 1.0)
-	
+
 	Or 0, if this value is negative, where:
-	
+
 	- `initial_stake_rate` is the stake rate at the epoch this stake was
 	activated at.
 	- `current_stake_rate` is the stake rate in the current epoch.
-	
+
 	This value is only available if the stake is active.
 	"""
 	estimatedReward: BigInt
@@ -3679,7 +3683,7 @@ type StorageFund {
 	"""
 	The portion of the storage fund that will never be refunded through
 	storage rebates.
-	
+
 	The system maintains an invariant that the sum of all storage fees into
 	the storage fund is equal to the sum of of all storage rebates out,
 	the total storage rebates remaining, and the non-refundable balance.
@@ -3748,7 +3752,7 @@ type TransactionBlock {
 	The gas input field provides information on what objects were used as
 	gas as well as the owner of the gas object(s) and information on the
 	gas price and budget.
-	
+
 	If the owner of the gas object(s) is not the same as the sender, the
 	transaction block is a sponsored transaction block.
 	"""
