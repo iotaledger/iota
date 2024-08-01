@@ -20,22 +20,27 @@ const developer = [
             'developer/getting-started/get-address',
             'developer/getting-started/get-coins',
             //'developer/getting-started/graphql-rpc',
-            {
-                type: 'category',
-                label: 'Your First IOTA dApp',
-                collapsed: false,
-                link: {
-                    type: 'doc',
-                    id: 'developer/getting-started/first-app/first-app',
-                },
-                items: [
-                    'developer/getting-started/first-app/write-package',
-                    'developer/getting-started/first-app/build-test',
-                    'developer/getting-started/first-app/publish',
-                    'developer/getting-started/first-app/debug',
-                    'developer/getting-started/first-app/client-tssdk',
-                ],
-            },
+            'developer/getting-started/create-a-package',
+            'developer/getting-started/create-a-module',
+            'developer/getting-started/build-test',
+            'developer/getting-started/publish',
+            'developer/getting-started/debug',
+            'developer/getting-started/client-tssdk',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'From Solidity/EVM to Move',
+        collapsed: true,
+        link: {
+            type: 'doc',
+            id: 'developer/evm-to-move',
+        },
+        items: [
+            'developer/evm-to-move/why-move',
+            'developer/evm-to-move/tooling-apis',
+            'developer/evm-to-move/creating-token',
+            'developer/evm-to-move/creating-nft',
         ],
     },
     {

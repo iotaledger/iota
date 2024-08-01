@@ -1,0 +1,143 @@
+---
+description: How to create a Move package in IOTA
+tags: [Move, Package Creation, .toml, manifest]
+---
+
+# Create a Move Package
+
+Once you have [installed IOTA](iota-install.mdx), you are ready to create your first IOTA Move [package](../iota-101/iota-move-concepts/packages/packages.mdx). Use the following command to create a standard package:
+
+```shell
+iota move new <PACKAGE_NAME>
+```
+
+* **Where** `<PACKAGE_NAME>` is the name you want for your package. This guide uses `my_first_package`.
+
+The command will create and populate the `my_first_package` directory with a skeleton for an IOTA Move project, consisting of the following files and directories:
+
+## `Move.toml`
+
+The `Move.toml` file is the package's manifest. It describes the package and its dependencies.
+
+:::tip Comments in `.toml` files
+In `.toml` files, use the hash mark (`#`) to denote a comment.
+:::
+
+```move title="my_first_package/Move.toml"
+[package]
+name = "my_first_package"
+
+# edition = "2024.beta " # To use the Move 2024 edition, currently in beta
+# license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
+# authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
+
+[dependencies]
+IOTA = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+
+# For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
+# Revision can be a branch, a tag, and a commit hash.
+# MyRemotePackage = { git = "https://some.remote/host.git", subdir = "remote/path", rev = "main" }
+
+# For local dependencies use `local = path`. Path is relative to the package root
+# Local = { local = "../path/to" }
+
+# To resolve a version conflict and force a specific version for dependency
+# override use `override = true`
+# Override = { local = "../conflicting/version", override = true }
+
+[addresses]
+my_first_package = "0x0"
+
+# Named addresses will be accessible in Move as `@name`. They're also exported:
+# for example, `std = "0x1"` is exported by the Standard Library.
+# alice = "0xA11CE"
+
+[dev-dependencies]
+# The dev-dependencies section allows overriding dependencies for `--test` and
+# `--dev` modes. You can introduce test-only dependencies here.
+# Local = { local = "../path/to/dev-build" }
+
+[dev-addresses]
+# The dev-addresses section allows overwriting named addresses for the `--test`
+# and `--dev` modes.
+# alice = "0xB0B"
+```
+
+### Package
+
+The `[package]` section describes the package. By default, the `iota move new` command populates only the `name` value of the metadata.
+
+- `name`: The package name when it is imported.
+- `version`: The package version. It can be used in release management.
+- `edition`: The edition of the Move language; currently, the only valid value is `2024`.
+
+### Dependencies
+
+The `[dependencies]` section specifies the dependencies of the project. The dependency specification can be a git repository URL or a path to the local directory.
+
+```toml
+# git repository
+iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+
+# local directory
+MyPackage = { local = "../my-package" }
+```
+
+Packages also import addresses from other packages. For example, the IOTA dependency adds the `std` and `iota` addresses to the project. These addresses can be used in the code as aliases for the addresses.
+
+### Resolving Version Conflicts with `override`
+
+If you have two dependencies that use different versions of the same package, you can override the dependency in the `[dependencies]` section. To do so, add the `override` field to the dependency. The version specified in the `[dependencies]` section will be used instead of the one specified in the dependency itself.
+
+```toml
+[dependencies]
+iota = { override = true, git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+```
+
+### Dev-dependencies
+
+You can also add a `[dev-dependencies]` section to the manifest to override dependencies in the dev and test modes. For example, if you want to use a different version of the IOTA package in dev mode, you can add a custom dependency specification to the `[dev-dependencies]` section.
+
+### Addresses
+
+The `[addresses]` section is used to add aliases for the addresses you use in your package. You can add any address in this section, and then use its alias in the code instead of the actual address. For example, if you add `alice = "0xA11CE"` to this section, you can use `alice` as `0xA11CE` in the code.
+
+### Dev-addresses
+
+Much like the `[dev-dependencies]` section, you can also define `[dev-addresses]` to override the addresses you defined in the `[addresses]` section for test and dev modes.
+
+:::note Override Only
+You cannot introduce new aliases in this section, only override the ones you defined in [`[addresses]`](#addresses).
+:::
+
+## TOML Styles
+
+The TOML format supports two styles for tables: inline and multiline. The examples above use the inline style, but it is also possible to use the multiline style. You wouldn't want to use it for the `[package]` section, but it can be useful for the dependencies.
+
+<Tabs groupId="toml-style">
+<TabItem label="Inline" value="inline">
+
+```toml
+# Inline style
+[dependencies]
+iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+MyPackage = { local = "../my-package" }
+```
+
+</TabItem>
+<TabItem label="Multiline" value="multiline">
+```toml
+# Multiline style
+[dependencies.iota]
+override = true
+git = "https://github.com/iotaledger/iota.git"
+subdir = "crates/iota-framework/packages/iota-framework"
+rev = "framework
+
+/testnet"
+
+[dependencies.MyPackage]
+local = "../my-package"
+```
+</TabItem>
+</Tabs>

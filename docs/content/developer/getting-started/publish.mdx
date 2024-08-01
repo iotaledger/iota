@@ -1,22 +1,25 @@
 ---
-title: Publish a Package
+description: Learn how to publish your Move package on the IOTA network and interact with it using programmable transaction blocks.
+tags: [Move, Package Publishing,  Programmable Transactions]
 ---
 
-import AddressPrefix from "../../../_snippets/address-prefix.mdx";
+import AddressPrefix from "../../_snippets/address-prefix.mdx";
 
-Before you can call functions in a Move package (beyond an emulated IOTA execution scenario), that package must be available on the IOTA network. When you publish a package, you are actually creating an immutable IOTA object on the network that anyone can access.
+# Publish a Package
 
-To publish your package to the IOTA network, use the `publish` CLI command in the root of your package. Use the `--gas-budget` flag to set a value for the maximum amount of gas the transaction can cost. If the cost of the transaction is more than the budget you set, the transaction fails and your package doesn't publish.  
+After you have successfully [created](create-a-package.mdx) and [tested](build-test.mdx) your package, the next step is to publish it so you can start using its functions on the IOTA network. When you publish a package, it becomes a permanent and immutable public object on the IOTA network.
+
+## Publishing Your Package
+
+To publish your package, use the IOTA client's `publish` command. Execute this command from your package's root directory, and include the `--gas-budget` parameter to set the maximum gas you're willing to spend on this transaction. If the transaction requires more gas than your budget, it will fail.
 
 ```shell
-$ iota client publish --gas-budget 100000000
+iota client publish --gas-budget 5000000
 ```
 
-If the publish transaction is successful, your terminal or console responds with the details of the publish transaction separated into sections, including transaction data, transaction effects, transaction block events, object changes, and balance changes. 
+Once the transaction succeeds, you will receive a response similar to the following, detailing the transaction data, effects, and any changes to objects and balances:
 
-In the **Object Changes** table, you can find the information about the package you just published in the **Published Objects** section. Your response has the actual `PackageID` that identifies the package (instead of `<PACKAGE-ID>`) in the form `0x123...ABC`.  
-
-```shell
+```
 ╭─────────────────────────────────────────────────────────────────────╮
 │ Object Changes                                                      │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -36,10 +39,30 @@ In the **Object Changes** table, you can find the information about the package 
 ╰─────────────────────────────────────────────────────────────────────╯
 ```
 
-Your currently active address now has three objects (or more, if you had objects prior to this example). Assuming you are using a new address, running the `iota objects` command reveals what those objects are.
+The **Object Changes** section includes information about the package you just published, under **Published Objects**. Your actual `PackageID` will appear as an address, like `0x123...ABC`.
 
+### Understanding Your Address's Object List
+
+If this is your first time publishing a package, your active address should now hold three objects:
+
+1. **Coin**: A `Coin` object that you obtained from the [Testnet faucet](get-coins.mdx).
+2. **Forge**: The `Forge` created when you published this package. The `init` function was executed during the publishing process, creating the `Forge` and assigning it to you (the sender).
+3. **UpgradeCap**: An `UpgradeCap` associated with the package. This object is used if you need to [upgrade your package](../iota-101/iota-move-concepts/packages/upgrade.mdx) or destroy it to make the package immutable.
+
+```mermaid
+flowchart TB
+subgraph IOTA Blockchain
+direction TB
+address --> Forge
+address --> UpgradeCap
+address --> Coin
+end
 ```
-$ iota client objects
+
+You can retrieve the complete list of objects associated with your address using the `iota client objects` command:
+
+```shell
+iota client objects
 
 ╭───────────────────────────────────────────────────────────────────────────────────────╮
 │ ╭────────────┬──────────────────────────────────────────────────────────────────────╮ │
@@ -63,26 +86,9 @@ $ iota client objects
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-The `objectId` field is the unique identifier of each object. 
+### Accessing Your Package
 
-- `Coin` object: You received the Coin object from the Testnet faucet. It's value is slightly less than when you received it because of the cost of gas for the publish transaction. 
-- `Forge` object: Recall that the `init` function runs when the package gets published. The `init` function for this example package creates a `Forge` object and transfers it to the publisher (you).
-- `UpgradeCap` object: Each package you publish results in the receipt of an `UpgradeCap` object. You use this object to upgrade the package later or to burn it so the package cannot be upgraded.
-
-```mermaid
-flowchart TB
-
-    subgraph IOTA Blockchain
-        direction TB
-        address --> Forge
-	address --> UpgradeCap
-	address --> Coin
-    end
-```
-
-### Interact with the package
-
-Now that the package is on chain, you can call its functions to interact with the package. You can use the `iota client call` command to make individual calls to package functions, or you can construct more advanced blocks of transactions using the `iota client ptb` command. The `ptb` part of the command stands for [programmable transaction blocks](../../iota-101/transactions/ptb/prog-txn-blocks.mdx). In basic terms, PTBs allow you to group commands together in a single transaction for more efficient and cost-effective network activity.
+After successfully publishing the package, you can use the `iota client call` command to execute individual functions or create sophisticated [programmable transaction blocks](../iota-101/transactions/ptb/prog-txn-blocks.mdx) that group multiple commands into a single, cost-effective transaction with the `iota client ptb` command.
 
 ```mermaid
 flowchart TB
@@ -98,7 +104,9 @@ flowchart TB
     IOTA_client --"PTB"--> my_module
 ```
 
-For example, you can create a new `Sword` object defined in the package by calling the `new_sword` function in the `my_module` package, and then transfer the `Sword` object to any address:
+#### Programmable Transaction Example
+
+The following example demonstrates how to call the `new_sword` function from your package to create a new `Sword` and then transfer it to a specified address.
 
 ```shell
 $ iota client ptb \
@@ -110,15 +118,15 @@ $ iota client ptb \
 	--gas-budget 100000000
 ```
 
-:::info 
+:::info
 
 <AddressPrefix />
 
 :::
 
-Make sure to replace `<FORGE-ID>`, `<TO-ADDRESS>`, and `<PACKAGE-ID>` with the actual `objectId` of the `Forge` object, the address of the recipient (your address in this case), and the `packageID` of the package, respectively. 
+Note how the command uses `--assign` to define variables for `<FORGE-ID>`, `<TO-ADDRESS>`, and `<PACKAGE-ID>`. This approach helps maintain clarity in your PTBs. Ensure you replace `<FORGE-ID>`, `<TO-ADDRESS>`, and `<PACKAGE-ID>` with the actual `objectId` of the `Forge` object, the recipient's address (your address, for instance), and the `packageID`, respectively.
 
-After the transaction executes, you can check the status of the `Sword` object by using the `iota client objects` command again. Provided you used your address as the `<TO-ADDRESS>`, you should now see a total of four objects:
+After executing the transaction, verify the status of the `Sword` object using the `iota client objects` command again. If you set your address as the `<TO-ADDRESS>`, you should now see a total of four objects:
 
 ```
 ╭───────────────────────────────────────────────────────────────────────────────────────╮
@@ -149,12 +157,4 @@ After the transaction executes, you can check the status of the `Sword` object b
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-Congratulations! You have successfully published a package to the IOTA network and modified the blockchain state by using a programmable transaction block. 
-
-## Related links
-
-- [Debugging](debug.mdx): Print values to aid in logic debugging.
-- [Package Upgrades](../../iota-101/iota-move-concepts/packages/packages.mdx): Upgrading packages published on the IOTA network.
-- [Publish a Move Package](../../../references/cli/client.mdx#publish-a-move-package): More details about using the CLI to publish a package.
-- [Programmable Transaction Blocks](../../iota-101/transactions/ptb/prog-txn-blocks.mdx): PTBs are collections of transactions that are executed together.
-- [IOTA Client PTB CLI](../../../references/cli/ptb.mdx): The `client ptb` command allows you to specify the transactions for execution in a programmable transaction block directly from your CLI or through bash scripts.
+Congratulations! You have successfully published a package to the IOTA network and modified the blockchain state using a programmable transaction block.
