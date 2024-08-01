@@ -7,19 +7,19 @@ import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
 import {
     Navbar,
     NavbarSlideout,
-    NavbarItemWithID,
+    NavbarItemWithId,
     NavbarProps,
     NavbarProvider,
 } from '@/components';
 import { useState } from 'react';
 
-const NAVBAR_ITEMS: NavbarItemWithID[] = [
+const NAVBAR_ITEMS: NavbarItemWithId[] = [
     { id: 'home', icon: <Home /> },
     { id: 'assets', icon: <Assets /> },
     { id: 'apps', icon: <Apps /> },
     { id: 'activity', icon: <Activity /> },
 ];
-const NAVBAR_ITEMS_WITH_TEXT: NavbarItemWithID[] = [
+const NAVBAR_ITEMS_WITH_TEXT: NavbarItemWithId[] = [
     { id: 'home', icon: <Home />, text: 'Home' },
     { id: 'assets', icon: <Assets />, text: 'Assets' },
     { id: 'apps', icon: <Apps />, text: 'Apps' },

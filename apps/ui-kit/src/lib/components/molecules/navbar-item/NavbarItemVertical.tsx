@@ -32,9 +32,7 @@ export function NavbarItemVertical({
             )}
         >
             <div className="flex items-center gap-3">
-                <div className={cx('icon-size-outside inline-flex h-6 w-6', fillClasses)}>
-                    {icon}
-                </div>
+                <div className={cx('inline-flex [&_svg]:h-6 [&_svg]:w-6', fillClasses)}>{icon}</div>
                 {text && (
                     <span className={cx('text-center text-label-lg', textClasses)}>{text}</span>
                 )}

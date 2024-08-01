@@ -41,9 +41,7 @@ export function NavbarItemHorizontal({
                     backgroundColors,
                 )}
             >
-                <div className={cx('icon-size-outside inline-flex h-6 w-6', fillClasses)}>
-                    {icon}
-                </div>
+                <div className={cx('inline-flex [&_svg]:h-6 [&_svg]:w-6', fillClasses)}>{icon}</div>
                 {hasBadge && (
                     <div className={cx('absolute', badgePositionClasses)}>
                         <Badge type={BadgeType.PrimarySolid} />

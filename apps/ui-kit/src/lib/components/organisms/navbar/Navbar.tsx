@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import cx from 'classnames';
 import { IotaLogoMark, Menu } from '@iota/ui-icons';
 import { NavbarItem, NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
 import { ActionType, NavbarContext } from './NavbarContext';
 
-export type NavbarItemWithID = NavbarItemProps & { id: string };
+export type NavbarItemWithId = NavbarItemProps & { id: string };
 
 export interface NavbarProps {
     /**
@@ -18,7 +18,7 @@ export interface NavbarProps {
     /**
      * List of elements to be displayed in the navbar.
      */
-    items: NavbarItemWithID[];
+    items: NavbarItemWithId[];
 
     /**
      * The id of the active element.
@@ -27,14 +27,8 @@ export interface NavbarProps {
 
     /**
      * Callback when an element is clicked.
-     * @param id
      */
     onClickItem: (id: string) => void;
-
-    /**
-     * Callback when the menu is clicked.
-     */
-    onMenuClick?: () => void;
 }
 
 export function Navbar({ items, activeId, onClickItem, isCollapsable = false }: NavbarProps) {
@@ -56,7 +50,11 @@ export function Navbar({ items, activeId, onClickItem, isCollapsable = false }: 
             {isCollapsable && (
                 <div className="flex w-full justify-between sm:mb-[48px] sm:flex-col">
                     <div className="flex justify-center">
-                        <IotaLogoMark width={38} height={38} className="dark:text-neutral-92" />
+                        <IotaLogoMark
+                            width={38}
+                            height={38}
+                            className="text-neutral-10 dark:text-neutral-92"
+                        />
                     </div>
                     <div
                         className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden"
