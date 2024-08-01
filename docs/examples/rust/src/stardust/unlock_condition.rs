@@ -5,18 +5,18 @@ use bip32::DerivationPath;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::{
-        IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+        IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::{ObjectID},
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        stardust::output::{Alias, AliasOutput, BasicOutput, NftOutput},
-        transaction::{Argument, ObjectArg, Transaction, TransactionData, TransactionKind},
-        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
+        stardust::output::{NftOutput},
+        transaction::{Argument, ObjectArg, Transaction, TransactionData},
+        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
     IotaClientBuilder,
 };
@@ -256,8 +256,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Finish and clean the temporary keystore file
-    clean_keystore();
-    Ok(())
+    clean_keystore()
 }
 
 fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
@@ -268,7 +267,7 @@ fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
         keystore.save()?;
     }
     // Read iota keystore
-    Ok(FileBasedKeystore::new(&keystore_path)?)
+    FileBasedKeystore::new(&keystore_path)
 }
 
 fn clean_keystore() -> Result<(), anyhow::Error> {
