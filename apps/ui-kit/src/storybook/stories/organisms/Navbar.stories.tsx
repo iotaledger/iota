@@ -4,7 +4,13 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
-import { Navbar, NavbarSlideout, NavbarItemWithID, NavbarProps } from '@/components';
+import {
+    Navbar,
+    NavbarSlideout,
+    NavbarItemWithID,
+    NavbarProps,
+    NavbarProvider,
+} from '@/components';
 import { useState } from 'react';
 
 const NAVBAR_ITEMS: NavbarItemWithID[] = [
@@ -31,11 +37,11 @@ const meta: Meta<NavbarCustomProps> = {
         const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
 
         return (
-            <div className="flex w-1/3 border">
+            <div className="flex border">
                 <Navbar
                     items={NAVBAR_ITEMS}
                     activeId={activeId}
-                    onClick={(id) => setActiveId(id)}
+                    onClickItem={(id) => setActiveId(id)}
                 />
             </div>
         );
@@ -55,40 +61,21 @@ export const Collapsable: Story = {
         const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
 
         return (
-            <div className="flex border border-gray-200">
-                <Navbar
-                    isCollapsable
-                    items={NAVBAR_ITEMS}
-                    activeId={activeId}
-                    onClick={(id) => setActiveId(id)}
-                />
-            </div>
-        );
-    },
-};
-export const SlideOut: Story = {
-    args: {
-        isOpen: true,
-    },
-    argTypes: {
-        isOpen: {
-            control: 'boolean',
-        },
-    },
-    render: (args) => {
-        const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
-
-        return (
-            <div>
-                <div className="relative flex h-[500px] w-1/3 border border-gray-200">
+            <NavbarProvider>
+                <div className="flex border border-gray-200">
+                    <Navbar
+                        isCollapsable
+                        items={NAVBAR_ITEMS}
+                        activeId={activeId}
+                        onClickItem={(id) => setActiveId(id)}
+                    />
                     <NavbarSlideout
-                        isOpen={args.isOpen}
                         items={NAVBAR_ITEMS_WITH_TEXT}
                         activeId={activeId}
-                        onClick={(id) => setActiveId(id)}
+                        onClickItem={(id) => setActiveId(id)}
                     />
                 </div>
-            </div>
+            </NavbarProvider>
         );
     },
 };

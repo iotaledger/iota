@@ -35,11 +35,11 @@ export interface NavbarItemProps {
 }
 
 export function NavbarItem(props: NavbarItemProps): React.JSX.Element {
-    const { type } = props;
+    const { type, text } = props;
 
-    if (type === NavbarItemType.Horizontal) {
-        return <NavbarItemHorizontal {...props} />;
+    if (type === NavbarItemType.Vertical && !!text) {
+        return <NavbarItemVertical {...props} />;
     }
 
-    return <NavbarItemVertical {...props} />;
+    return <NavbarItemHorizontal {...props} />;
 }

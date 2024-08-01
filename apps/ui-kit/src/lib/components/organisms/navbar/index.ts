@@ -3,3 +3,4 @@
 
 export * from './Navbar';
 export * from './NavbarSlideout';
+export * from './NavbarContext';

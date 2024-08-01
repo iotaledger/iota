@@ -36,7 +36,7 @@ export function NavbarItemVertical({
                     {icon}
                 </div>
                 {text && (
-                    <span className={cx('text-center text-label-md', textClasses)}>{text}</span>
+                    <span className={cx('text-center text-label-lg', textClasses)}>{text}</span>
                 )}
             </div>
             {hasBadge && <Badge type={BadgeType.PrimarySolid} />}

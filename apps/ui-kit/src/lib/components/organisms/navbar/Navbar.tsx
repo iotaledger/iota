@@ -1,10 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { useContext } from 'react';
 import cx from 'classnames';
 import { IotaLogoMark, Menu } from '@iota/ui-icons';
 import { NavbarItem, NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
+import { ActionType, NavbarContext } from './NavbarContext';
 
 export type NavbarItemWithID = NavbarItemProps & { id: string };
 
@@ -28,30 +29,38 @@ export interface NavbarProps {
      * Callback when an element is clicked.
      * @param id
      */
-    onClick: (id: string) => void;
+    onClickItem: (id: string) => void;
+
+    /**
+     * Callback when the menu is clicked.
+     */
+    onMenuClick?: () => void;
 }
 
-export function Navbar({ items, activeId, onClick, isCollapsable = false }: NavbarProps) {
-    const handleMenuClick = () => {
-        console.info('Menu clicked');
+export function Navbar({ items, activeId, onClickItem, isCollapsable = false }: NavbarProps) {
+    const { dispatch } = useContext(NavbarContext);
+
+    const onMenuClick = () => {
+        dispatch({
+            type: ActionType.ToggleNavbarOpen,
+        });
     };
 
     return (
         <div
             className={cx({
                 'flex w-full': !isCollapsable,
-                'w-full flex-col justify-between gap-2 px-sm py-xs sm:w-auto sm:py-xl':
-                    isCollapsable,
+                'flex w-full flex-col px-md py-xs sm:w-auto sm:px-none sm:py-xl': isCollapsable,
             })}
         >
             {isCollapsable && (
                 <div className="flex w-full justify-between sm:mb-[48px] sm:flex-col">
                     <div className="flex justify-center">
-                        <IotaLogoMark width={38} height={38} />
+                        <IotaLogoMark width={38} height={38} className="dark:text-neutral-92" />
                     </div>
                     <div
-                        className="state-layer relative rounded-full p-xs hover:cursor-pointer sm:hidden"
-                        onClick={handleMenuClick}
+                        className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden"
+                        onClick={onMenuClick}
                     >
                         <Menu width={24} height={24} />
                     </div>
@@ -59,16 +68,22 @@ export function Navbar({ items, activeId, onClick, isCollapsable = false }: Navb
             )}
             <div
                 className={cx({
-                    'flex w-full justify-between': !isCollapsable,
-                    'hidden sm:flex sm:flex-col': isCollapsable,
+                    'flex w-full justify-between px-sm py-xxs': !isCollapsable,
+                    'hidden sm:flex sm:flex-col sm:gap-2': isCollapsable,
                 })}
             >
                 {items.map((item) => (
-                    <div key={item.id} className="px-xs py-xxs">
+                    <div
+                        key={item.id}
+                        className={cx({
+                            'px-xs py-xxs': !isCollapsable,
+                            'py-xxs pl-xs pr-sm': isCollapsable,
+                        })}
+                    >
                         <NavbarItem
                             {...item}
                             isSelected={item.id === activeId}
-                            onClick={() => onClick(item.id)}
+                            onClick={() => onClickItem(item.id)}
                         />
                     </div>
                 ))}
