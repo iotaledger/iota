@@ -130,14 +130,18 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
 
-    tokio::time::timeout(Duration::from_secs(10), 
-            IotaCommand::Start {
-                config_dir: Some(working_dir.to_path_buf()),
-                no_full_node: false,
-            }
-            .execute())
-            .await
-            .unwrap();
+    if let Ok(res) = tokio::time::timeout(
+        Duration::from_secs(10),
+        IotaCommand::Start {
+            config_dir: Some(working_dir.to_path_buf()),
+            no_full_node: false,
+        }
+        .execute(),
+    )
+    .await
+    {
+        res.unwrap();
+    };
 
     // Get all the new file names
     let files = read_dir(working_dir)?
