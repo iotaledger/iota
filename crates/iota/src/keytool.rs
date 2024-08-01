@@ -62,7 +62,7 @@ use tabled::{
     builder::Builder,
     settings::{object::Rows, Modify, Rotate, Width},
 };
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{
     key_identity::{get_identity_address_from_keystore, KeyIdentity},
