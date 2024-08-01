@@ -130,24 +130,14 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
 
-    // Stop the network after 10 seconds so the test doesn't run forever
-    let sleep = tokio::time::sleep(Duration::from_secs(10));
-    tokio::pin!(sleep);
-    loop {
-        tokio::select! {
-            _ = &mut sleep => {
-                break;
-            }
-            res =  IotaCommand::Start {
+    tokio::time::timeout(Duration::from_secs(10), 
+            IotaCommand::Start {
                 config_dir: Some(working_dir.to_path_buf()),
                 no_full_node: false,
             }
-            .execute()
-             => {
-                 res.unwrap()
-            }
-        }
-    }
+            .execute())
+            .await
+            .unwrap();
 
     // Get all the new file names
     let files = read_dir(working_dir)?
