@@ -12,7 +12,6 @@ bcs.workspace = true
 bip32.workspace = true
 tokio.workspace = true
 
-bcs.workspace = true
 iota-keys.workspace = true
 iota-sdk.workspace = true
 move-core-types.workspace = true

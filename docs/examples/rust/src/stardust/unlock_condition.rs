@@ -88,7 +88,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let owned_objects_query_filter =
         IotaObjectDataFilter::StructType(NftOutput::tag(GAS::type_tag()));
     let owned_objects_query = IotaObjectResponseQuery::new(Some(owned_objects_query_filter), None);
-    
+
     // Get NftOutput only
     if let Some(nft_output_object_owned_by_alias) = iota_client
         .read_api()
@@ -110,7 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
-            //Extract alias output assets
+            // Extract alias output assets
             let type_arguments = vec![GAS::type_tag()];
             let arguments =
                 vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
