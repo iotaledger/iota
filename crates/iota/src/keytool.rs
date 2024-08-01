@@ -124,7 +124,7 @@ pub enum KeyToolCommand {
 
     /// Add a new key to Iota CLI Keystore using either the input mnemonic
     /// phrase, a Bech32 encoded 33-byte `flag || privkey` starting with
-    /// "iotaprivkey" or the seed, the key scheme flag {ed25519 | secp256k1 |
+    /// "iotaprivkey" or a seed, the key scheme flag {ed25519 | secp256k1 |
     /// secp256r1} and an optional derivation path, default to
     /// m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
     /// or m/74'/4218'/0'/0/0 for secp256r1. Supports mnemonic phrase of
