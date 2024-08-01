@@ -34,7 +34,7 @@ const developer = [
         collapsed: true,
         link: {
             type: 'doc',
-            id: 'developer/evm-to-move',
+            id: 'developer/evm-to-move/evm-to-move',
         },
         items: [
             'developer/evm-to-move/why-move',
