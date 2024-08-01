@@ -8,11 +8,10 @@
 pub mod text_builder;
 pub mod tui_interface;
 
-use std::{error::Error, io::Write};
+use std::error::Error;
 
 use crossterm::event::{self, Event, KeyCode as Key, KeyEvent};
-use tui::{
-    backend::CrosstermBackend,
+use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::Style,
     widgets::{Block, Borders, Paragraph},
@@ -36,7 +35,7 @@ impl<Interface: TUIInterface> TUI<Interface> {
         }
     }
 
-    pub fn redraw<W: Write>(&mut self, f: &mut Frame<CrosstermBackend<W>>) {
+    pub fn redraw(&mut self, f: &mut Frame) {
         // Create a split window, each pane using 50% of the screen
         let window = Layout::default()
             .direction(Direction::Horizontal)

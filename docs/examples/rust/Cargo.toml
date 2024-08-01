@@ -1,7 +1,10 @@
 [package]
 name = "docs-examples"
 version.workspace = true
+authors = ["IOTA Stiftung"]
 edition = "2021"
+license = "Apache-2.0"
+publish = false
 
 [dependencies]
 anyhow.workspace = true
@@ -9,6 +12,7 @@ bcs.workspace = true
 bip32.workspace = true
 tokio.workspace = true
 
+bcs.workspace = true
 iota-keys.workspace = true
 iota-sdk.workspace = true
 move-core-types.workspace = true
@@ -17,3 +21,11 @@ shared-crypto.workspace = true
 [[example]]
 name = "unlock_condition"
 path = "src/stardust/unlock_condition.rs"
+
+[[example]]
+name = "nft-output-claim"
+path = "stardust/nft-output-claim.rs"
+
+[[example]]
+name = "alias-output-claim"
+path = "stardust/alias-output-claim.rs"
