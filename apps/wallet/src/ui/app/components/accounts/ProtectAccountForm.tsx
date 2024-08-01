@@ -12,7 +12,6 @@ import zxcvbn from 'zxcvbn';
 import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinutes';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
-import { Link } from '../../shared/Link';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
 import { Button, ButtonHtmlType, ButtonType, TextField, TextFieldType } from '@iota/apps-ui-kit';
 
@@ -101,7 +100,6 @@ export function ProtectAccountForm({
         });
         return unsubscribe;
     }, [watch, trigger, getValues]);
-
     return (
         <Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
             <TextField
@@ -126,16 +124,11 @@ export function ProtectAccountForm({
                     <CheckboxField
                         name="acceptedTos"
                         label={
-                            <div className="whitespace-nowrap text-bodySmall">
-                                I read and agreed to the{' '}
-                                <span className="inline-block">
-                                    <Link
-                                        href={ToS_LINK}
-                                        beforeColor="steelDarker"
-                                        color="iotaDark"
-                                        text="Terms of Services"
-                                    />
-                                </span>
+                            <div className="flex items-center gap-x-0.5 whitespace-nowrap">
+                                <span>I read and agreed to the</span>
+                                <a href={ToS_LINK} className="text-label-lg text-primary-30">
+                                    Terms of Services
+                                </a>
                             </div>
                         }
                     />
