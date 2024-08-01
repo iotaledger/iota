@@ -16,6 +16,7 @@
     "crates/iota-framework/docs/**/*.{md}",
     "crates/iota-graphql-rpc/docs/examples.md",
     "crates/iota-light-client/example_config/20873329.yaml",
+    "narwhal/node/tests/staged/narwhal.yaml",
     "**/pnpm-lock.yaml"
   ],
   "toml": {
