@@ -1,15 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
 import { useZodForm } from '@iota/core';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-
 import { seedValidation } from '../../helpers/validation/seedValidation';
 import { Form } from '../../shared/forms/Form';
-import { TextAreaField } from '../../shared/forms/TextAreaField';
+import { Button, ButtonType, TextArea, ButtonHtmlType } from '@iota/apps-ui-kit';
 
 const formSchema = z.object({
     seed: seedValidation,
@@ -33,17 +31,25 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
     const navigate = useNavigate();
 
     return (
-        <Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
-            <TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
-            <div className="mt-auto flex gap-2.5">
-                <Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
+        <Form
+            className="flex h-full flex-col justify-between gap-2"
+            form={form}
+            onSubmit={onSubmit}
+        >
+            <TextArea label="Enter Seed" rows={5} {...register('seed')} />
+            <div className="flex flex-row justify-stretch gap-2.5">
                 <Button
-                    type="submit"
+                    type={ButtonType.Secondary}
+                    text="Cancel"
+                    onClick={() => navigate(-1)}
+                    fullWidth
+                />
+                <Button
+                    type={ButtonType.Primary}
                     disabled={isSubmitting || !isValid}
-                    variant="primary"
-                    size="tall"
-                    loading={isSubmitting}
-                    text="Add Account"
+                    text="Add Profile"
+                    fullWidth
+                    htmlType={ButtonHtmlType.Submit}
                 />
             </div>
         </Form>
