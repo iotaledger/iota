@@ -10,6 +10,7 @@ publish = false
 anyhow.workspace = true
 bcs.workspace = true
 bip32.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 
 iota-keys.workspace = true
@@ -33,3 +34,7 @@ path = "stardust/alias-output-claim.rs"
 [[example]]
 name = "basic-output-claim"
 path = "stardust/basic-output-claim.rs"
+
+[[example]]
+name = "foundry-output-claim"
+path = "stardust/foundry-output-claim.rs"
