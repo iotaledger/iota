@@ -64,7 +64,7 @@ owned the original foundry.
 After this process, the minted coin sits on the `0x0` address with the entire minted supply. When other output types are
 migrated that contain a balance of _this_ native token, then that balance is split off of the minted coin into a new
 `Coin` object, which is then owned by the migrated output. If, by the end of this process, a non-zero balance remains on
-the minted coin, it is left at the zero address. This means they were burned in stardust and, therefore, are effectively
+the minted coin, it is left at the zero address. This means they were burned in Stardust and, therefore, are effectively
 also burned on the Move ledger, as no one controls the `0x0` address.
 
 In Move, the `TreasuryCap` type uses a `u64` representation (within
@@ -76,7 +76,7 @@ actually minted (the circulating supply). However, if the circulating supply exc
 would cause problems in the migration, since there would not be enough minted supply to distribute. In this case, all
 migrated tokens are multiplied by `MAX_U64_SUPPLY / stardust_circulating_supply`, which means they are adjusted
 proportionally to fit within the maximum supply of `MAX_U64_SUPPLY`. This maintains the token ratio of the Native Token
-in stardust with the `TreasuryCap` constraints. Note that in cases where the ratio is very small, this might result in a
+in Stardust with the `TreasuryCap` constraints. Note that in cases where the ratio is very small, this might result in a
 Native Token balance of 0.
 
 ## Output Migration Design
@@ -109,7 +109,7 @@ Every Basic Output has an `Address Unlock` and some `coin` balance (`u64`). Depe
 different objects are created. The most common case is that any output without special unlock conditions (or an expired
 `Timelock`) are migrated to a `Coin<IOTA>` object which can be directly used as a gas object.
 
-The migrated objects are owned by the address in the stardust output's `Address Unlock Condition`, except when an
+The migrated objects are owned by the address in the Stardust output's `Address Unlock Condition`, except when an
 `Expiration Unlock Condition` is present, in which case the object is a _shared_ one.
 
 A special case is vesting reward outputs, that is, those Basic Outputs whose `OutputId` begins with
@@ -135,20 +135,20 @@ Other noteworthy points:
 concept of a state controller on the Move side, and so the `State Controller` address from Stardust is functionally
 discarded, although it can be accessed in the `Alias` object.
 - The `AliasOutput` object has a freshly generated `UID` while the `Alias` has its `UID` set to the `Alias ID` of the
-stardust output. If the `Alias ID` was zeroed in the stardust output, it is computed according to the protocol rules
-from [TIP-18](https://wiki.iota.org/tips/tips/TIP-0018/) and then set. Hence, no `Alias` object in Move has a zeroed
+Stardust output. If the `Alias ID` was zeroed in the Stardust output, it is computed according to the protocol rules
+from [TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Alias` object in Move has a zeroed
 `UID`.
 - The Foundry Counter in Stardust is used to give foundries a unique ID. The Foundry ID is the concatenation of
 `Address || Serial Number || Token Scheme Type`. In Move the foundries are represented by unique packages that define
 the corresponding Coin Type (a one-time witness) of the Native Token. Because the foundry counter can no longer be
 enforced to be incremented when a new package is deployed, which defines a native token and is owned by that Alias,
 the Foundry Counter becomes meaningless. Hence, it is not migrated and has no equivalent field in Move. The same count
-can be determined (off-chain) by counting the number of `TreasuryCap`s the Alias owns. The stardust constraint that
+can be determined (off-chain) by counting the number of `TreasuryCap`s the Alias owns. The Stardust constraint that
 foundries can only be owned by aliases is no longer enforced in the Move version.
 
 ## NFT Outputs
 
-Much like Alias Outputs, Nft Outputs are migrated to two Move objects:
+Much like Alias Outputs, NFT Outputs are migrated to two Move objects:
 
 - `NftOutput` object, containing the `Balance<IOTA>` and a `Bag` of native tokens in a static field.
 - `Nft` object that is owned by `NftOutput` in a dynamic object field.
@@ -160,7 +160,7 @@ Other noteworthy points:
 - The `NftOutput` object has a freshly generated `UID` while the `Nft` has its `UID` set to the `Nft ID` of the Stardust
 output. If the `Nft ID` was zeroed in the Stardust output, it is computed according to the protocol rules from
 [TIP-18](https://wiki.iota.org/tips/tips/TIP-0018/) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
-- The `Nft` move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the stardust
-NFT, if possible. If the stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis. The
+- The `Nft` move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the Stardust
+NFT, if possible. If the Stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis. The
 interested reader is invited to examine the `convert_immutable_metadata` function in the migration code for more
 details.
