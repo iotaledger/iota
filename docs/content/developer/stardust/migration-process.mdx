@@ -40,11 +40,11 @@ A unique coin type, `Coin<XYZ>,` is represented by the one-time witness `XYZ` de
 corresponding package must be created for each foundry defining the native token's one-time witness and initial minting
 operations. To that end, a
 [move package template](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust/native_token/package_template/sources/native_token_template.move)
-is populated with the native token's metadata, e.g., its symbol, circulating supply, and description, as well as other
+is populated with the native token's metadata, e.g., its symbol, circulating supply, and description, as well as any other
 metadata.
 
-To collect this metadata, the foundry output's IRC-30 Metadata is extracted. In the majority of cases, this is possible,
-but if, for example, if the metadata does not follow the IRC-30 standard or the symbol of the token is not a valid move
+To collect this metadata, the foundry output's IRC-30 Metadata is extracted. In the majority of cases, this is possible.
+However, for example, if the metadata does not follow the IRC-30 standard or the symbol of the token is not a valid move
 identifier (e.g., containing UTF-8 characters), a random identifier for the token package is generated, and the metadata
 uses generic defaults. As much as possible, though, the migration attempts to do as little modifications to the UTXO as
 possible. The package template is filled with the extracted data, compiled, and published.
@@ -82,7 +82,7 @@ Native Token balance of 0.
 ## Output Migration Design
 
 Outputs that are not foundries are migrated using a common pattern. Their Move smart contract has a function called
-`extract_assets`, which returns all of the migrated assets. Generally, these outputs are migrated to an object that
+`extract_assets`, which returns all the migrated assets. Generally, these outputs are migrated to an object that
 contains the other associated assets in static or dynamic fields. Those assets can be the `Coin<IOTA>`,
 `Coin<NativeTokenOneTimeWitness>` or another object. In particular, Native Tokens are stored in a `Bag` where the token
 is behind a key of its own name (`<package_id>::<token_name>::NativeTokenOneTimeWitness`) and the stored value is of
@@ -107,7 +107,7 @@ equivalent unlock functions for the other possible variants of object ownership.
 
 Every Basic Output has an `Address Unlock` and some `coin` balance (`u64`). Depending on what other fields it has,
 different objects are created. The most common case is that any output without special unlock conditions (or an expired
-`Timelock`) are migrated to a `Coin<IOTA>` object which can be directly used as a gas object.
+`Timelock`) is migrated to a `Coin<IOTA>` object which can be directly used as a gas object.
 
 The migrated objects are owned by the address in the Stardust output's `Address Unlock Condition`, except when an
 `Expiration Unlock Condition` is present, in which case the object is a _shared_ one.
@@ -131,7 +131,7 @@ Alias Outputs are migrated to two Move objects:
 
 Other noteworthy points:
 
-- The `AliasOutput` is owned by the address in the stardust output's `Governor Address Unlock Condition`. There is no
+- The `AliasOutput` is owned by the address in the Stardust output's `Governor Address Unlock Condition`. There is no
 concept of a state controller on the Move side, and so the `State Controller` address from Stardust is functionally
 discarded, although it can be accessed in the `Alias` object.
 - The `AliasOutput` object has a freshly generated `UID` while the `Alias` has its `UID` set to the `Alias ID` of the
@@ -159,8 +159,9 @@ Other noteworthy points:
 `Expiration Unlock Condition` is present, by either of the two addresses in that unlock condition.
 - The `NftOutput` object has a freshly generated `UID` while the `Nft` has its `UID` set to the `Nft ID` of the Stardust
 output. If the `Nft ID` was zeroed in the Stardust output, it is computed according to the protocol rules from
-[TIP-18](https://wiki.iota.org/tips/tips/TIP-0018/) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
+[TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
 - The `Nft` move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the Stardust
-NFT, if possible. If the Stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis. The
-interested reader is invited to examine the `convert_immutable_metadata` function in the migration code for more
+NFT, if possible. If the Stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis.
+
+You can examine the `convert_immutable_metadata` function in the migration code for more
 details.
