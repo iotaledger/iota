@@ -13,5 +13,6 @@ export function useGetCurrentEpochStartTimestamp() {
             const iotaSystemState = await client.getLatestIotaSystemState();
             return iotaSystemState.epochStartTimestampMs;
         },
+        staleTime: 10 * 60 * 1000, // 10 minutes
     });
 }

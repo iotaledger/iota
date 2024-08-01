@@ -12,8 +12,8 @@
 
 # Move build directory
 build/
-!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build/
-!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build/
+!crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build/
+!crates/iota-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build/
 
 # Move-related files
 .trace
@@ -50,7 +50,7 @@ playwright/.cache/
 
 # logs
 wallet.log.*
-sui.log.*
+iota.log.*
 .vercel
 npm-debug.log*
 yarn-debug.log*
