@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-// import { ButtonSize } from '@/lib/components';
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
