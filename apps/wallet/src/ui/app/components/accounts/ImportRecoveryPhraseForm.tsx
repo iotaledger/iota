@@ -130,7 +130,7 @@ export function ImportRecoveryPhraseForm({
                     ) : null}
                     <Button
                         type={ButtonType.Primary}
-                        disabled={isSubmitting || isSubmitting || !isValid}
+                        disabled={isSubmitting || !isValid}
                         text={submitButtonText}
                         fullWidth
                         htmlType={ButtonHtmlType.Submit}
