@@ -21,33 +21,28 @@ export function WelcomePage() {
 
     return (
         <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
-            <div className="flex h-full w-full flex-col items-center justify-between overflow-auto rounded-20 bg-white px-xl py-2xl shadow-wallet-content">
+            <div className="flex h-full w-full flex-col items-center justify-between bg-white px-md py-2xl shadow-wallet-content">
                 <IotaLogoWeb width={130} height={32} />
                 <div className="flex flex-col items-center gap-8 text-center">
-                    <div className="flex flex-col items-center">
-                        <h4 className="text-[38px] text-headline-sm text-neutral-40">Welcome to</h4>
-                        <h1 className="text-[38px] text-display-md text-neutral-10">IOTA Wallet</h1>
+                    <div className="flex flex-col items-center gap-4">
+                        <span className="text-headline-sm text-neutral-40">Welcome to</span>
+                        <h1 className="text-display-lg text-neutral-10">IOTA Wallet</h1>
+                        <span className="text-title-lg text-neutral-40">
+                            Connecting you to the decentralized web and IOTA network
+                        </span>
                     </div>
-                    <h3 className="text-title-md text-neutral-40">
-                        Connecting you to the decentralized
-                        <br />
-                        web and IOTA network
-                    </h3>
-                    <div>
-                        <Button
-                            type={ButtonType.Primary}
-                            text={'Add Profile'}
-                            onClick={() => {
-                                navigate('/accounts/add-account?sourceFlow=Onboarding');
-                            }}
-                            disabled={
-                                createAccountsMutation.isPending || createAccountsMutation.isSuccess
-                            }
-                        />
-                    </div>
+                    <Button
+                        type={ButtonType.Primary}
+                        text="Add Profile"
+                        onClick={() => {
+                            navigate('/accounts/add-account?sourceFlow=Onboarding');
+                        }}
+                        disabled={
+                            createAccountsMutation.isPending || createAccountsMutation.isSuccess
+                        }
+                    />
                 </div>
-
-                <div className="text-body-lg text-neutral-80">&copy; IOTA Foundation 2024</div>
+                <div className="text-body-lg text-neutral-60">&copy; IOTA Foundation 2024</div>
             </div>
         </Loading>
     );
