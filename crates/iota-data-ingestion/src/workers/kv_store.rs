@@ -106,7 +106,7 @@ impl KVStoreWorker {
                             "bcs",
                             AttributeValue::B(Blob::new(bcs::to_bytes(value.borrow())?)),
                         )
-                        .build(),
+                        .build()?,
                 ))
                 .build();
             items.push(item);

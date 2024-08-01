@@ -16,7 +16,6 @@ futures.workspace = true
 itertools.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tonic.workspace = true
 tracing.workspace = true
 
 shellexpand.workspace = true
@@ -29,11 +28,7 @@ iota-types = { workspace = true, features = ["test-utils"] }
 serde_json.workspace = true
 shared-crypto.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 telemetry-subscribers.workspace = true
-
-[dev-dependencies]
-test-cluster.workspace = true
 
 [[bin]]
 name = "iota-rpc-loadgen"

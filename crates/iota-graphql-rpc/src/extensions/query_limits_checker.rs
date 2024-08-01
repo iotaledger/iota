@@ -17,10 +17,8 @@ use async_graphql::{
     value, Name, Pos, Positioned, Response, ServerResult, Value, Variables,
 };
 use async_graphql_value::Value as GqlValue;
-use axum::{
-    headers,
-    http::{HeaderName, HeaderValue},
-};
+use axum::http::{HeaderName, HeaderValue};
+use axum_extra::headers;
 use iota_graphql_rpc_headers::LIMITS_HEADER;
 use once_cell::sync::Lazy;
 use tokio::sync::Mutex;

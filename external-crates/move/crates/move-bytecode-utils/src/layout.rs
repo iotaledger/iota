@@ -18,6 +18,7 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
 };
+use serde::{Deserialize, Serialize};
 use serde_reflection::{ContainerFormat, Format, Named, Registry};
 
 use crate::module_cache::GetModule;
@@ -47,9 +48,21 @@ macro_rules! check_depth {
 /// the serde-generate tool to create struct bindings for Move types in source
 /// languages that use Move-based services.
 pub struct SerdeLayoutBuilder<'a, T> {
-    registry: Registry,
+    registry: YamlRegistry,
     module_resolver: &'a T,
     config: SerdeLayoutConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct YamlRegistry(#[serde(with = "serde_yaml::with::singleton_map_recursive")] pub Registry);
+
+impl core::ops::Deref for YamlRegistry {
+    type Target = Registry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Default)]
@@ -104,7 +117,7 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
 
     /// Return a registry containing layouts for all the Move ground types
     /// (e.g., address)
-    pub fn default_registry() -> Registry {
+    pub fn default_registry() -> YamlRegistry {
         let mut registry = BTreeMap::new();
         // add Move ground types to registry (address, signer)
         let address_layout = Box::new(Format::TupleArray {
@@ -120,16 +133,16 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
             ContainerFormat::NewTypeStruct(address_layout),
         );
 
-        registry
+        YamlRegistry(registry)
     }
 
     /// Get the registry of layouts generated so far
-    pub fn registry(&self) -> &Registry {
+    pub fn registry(&self) -> &YamlRegistry {
         &self.registry
     }
 
     /// Get the registry of layouts generated so far
-    pub fn into_registry(self) -> Registry {
+    pub fn into_registry(self) -> YamlRegistry {
         self.registry
     }
 
@@ -290,7 +303,7 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
             // not found--generate and update registry
             let serde_struct =
                 self.generate_serde_struct(normalized_struct, type_arguments, depth)?;
-            self.registry.insert(struct_key.clone(), serde_struct);
+            self.registry.0.insert(struct_key.clone(), serde_struct);
         }
 
         Ok(Format::TypeName(struct_key))

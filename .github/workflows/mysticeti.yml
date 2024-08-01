@@ -3,11 +3,11 @@ name: Mysticeti tests
 on:
   push:
     branches:
-      - 'develop'
-      - 'devnet'
-      - 'testnet'
-      - 'mainnet'
-      - 'releases/iota-*-release'
+      - "develop"
+      - "devnet"
+      - "testnet"
+      - "mainnet"
+      - "releases/iota-*-release"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
@@ -16,14 +16,14 @@ on:
         description: "Branch / commit to test"
         type: string
         required: false
-        default: ''
+        default: ""
   # Triggers the workflow every day at 05:00 UTC.
   schedule:
-    - cron: '0 5 * * *'
+    - cron: "0 5 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
   # Enable Mysticeti in tests.
@@ -57,7 +57,7 @@ env:
 
 jobs:
   changes:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -65,9 +65,9 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          list-files: 'json'
+          list-files: "json"
           filters: .github/crates-filters.yml
-  
+
   test:
     name: Test ${{ matrix.components }}
     timeout-minutes: 45
@@ -77,10 +77,10 @@ jobs:
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
     strategy:
-      matrix: 
+      matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -89,13 +89,13 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   diff:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
       - name: Detect Changes
@@ -115,10 +115,10 @@ jobs:
     strategy:
       matrix:
         os:
-          - [self-hosted-rust]
+          - [self-hosted]
       fail-fast: false
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
       - uses: taiki-e/install-action@nextest
@@ -145,24 +145,25 @@ jobs:
       - run: scripts/changed-files.sh
         shell: bash
 
-  simtest:
-    name: Simtest ${{ matrix.components }}
-    needs: changes
-    runs-on: [self-hosted-rust]
-    strategy:
-      matrix: 
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
-    env:
-      MSIM_WATCHDOG_TIMEOUT_MS: 60000
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-        with:
-          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-      - uses: taiki-e/install-action@nextest
-      - name: cargo simtest
-        run: |
-          scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
-      - name: check new tests for flakiness
-        run: |
-          scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  # TODO: Disabled until we can get an updated fork of msim with tokio 1.38 https://github.com/iotaledger/iota/issues/1212
+  # simtest:
+  #   name: Simtest ${{ matrix.components }}
+  #   needs: changes
+  #   runs-on: [self-hosted]
+  #   strategy:
+  #     matrix:
+  #       components: ${{ fromJson(needs.changes.outputs.components) }}
+  #     fail-fast: false
+  #   env:
+  #     MSIM_WATCHDOG_TIMEOUT_MS: 60000
+  #   steps:
+  #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+  #       with:
+  #         ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
+  #     - uses: taiki-e/install-action@nextest
+  #     - name: cargo simtest
+  #       run: |
+  #         scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  #     - name: check new tests for flakiness
+  #       run: |
+  #         scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}

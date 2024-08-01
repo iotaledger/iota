@@ -49,10 +49,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // 2) split coin
     // the amount we want in the new coin, 1000 MICROS
-    let split_coint_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
+    let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
     ptb.command(Command::SplitCoins(
         Argument::GasCoin,
-        vec![split_coint_amount],
+        vec![split_coin_amount],
     ));
 
     // 3) transfer the new coin to a different address

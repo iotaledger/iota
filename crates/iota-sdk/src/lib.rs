@@ -96,7 +96,7 @@ use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
     rpc_params,
-    ws_client::{WsClient, WsClientBuilder},
+    ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::language_storage::StructTag;
 use serde_json::Value;
@@ -218,13 +218,13 @@ impl IotaClientBuilder {
 
         let ws = if let Some(url) = self.ws_url {
             let mut builder = WsClientBuilder::default()
-                .max_request_body_size(2 << 30)
+                .max_request_size(2 << 30)
                 .max_concurrent_requests(self.max_concurrent_requests)
                 .set_headers(headers.clone())
                 .request_timeout(self.request_timeout);
 
             if let Some(duration) = self.ws_ping_interval {
-                builder = builder.ping_interval(duration)
+                builder = builder.enable_ws_ping(PingConfig::new().ping_interval(duration))
             }
 
             Some(builder.build(url).await?)
@@ -233,8 +233,7 @@ impl IotaClientBuilder {
         };
 
         let http = HttpClientBuilder::default()
-            .max_request_body_size(2 << 30)
-            .max_concurrent_requests(self.max_concurrent_requests)
+            .max_request_size(2 << 30)
             .set_headers(headers.clone())
             .request_timeout(self.request_timeout)
             .build(http)?;
@@ -340,7 +339,7 @@ impl IotaClientBuilder {
             .pointer("/info/version")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                Error::DataError("Fail parsing server version from rpc.discover endpoint.".into())
+                Error::Data("Fail parsing server version from rpc.discover endpoint.".into())
             })?;
         let rpc_methods = Self::parse_methods(&rpc_spec)?;
 
@@ -362,9 +361,7 @@ impl IotaClientBuilder {
             .pointer("/methods")
             .and_then(|methods| methods.as_array())
             .ok_or_else(|| {
-                Error::DataError(
-                    "Fail parsing server information from rpc.discover endpoint.".into(),
-                )
+                Error::Data("Fail parsing server information from rpc.discover endpoint.".into())
             })?;
 
         Ok(methods

@@ -54,7 +54,7 @@ export function RecoverManyPage() {
                     </Text>
                 </div>
                 {mnemonicAccounts.length > 0 ? (
-                    <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
+                    <div className="bg-hero-darkest/5 flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg px-4 py-6">
                         {mnemonicAccounts.map(([sourceID, accounts], index) => {
                             const recoveryData = value.find(
                                 ({ accountSourceID }) => accountSourceID === sourceID,
@@ -80,7 +80,7 @@ export function RecoverManyPage() {
                     </div>
                 ) : null}
                 {seedAccounts.length > 0 ? (
-                    <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
+                    <div className="bg-hero-darkest/5 flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg px-4 py-6">
                         {seedAccounts.map(([sourceID, accounts], index) => {
                             const recoveryData = value.find(
                                 ({ accountSourceID }) => accountSourceID === sourceID,

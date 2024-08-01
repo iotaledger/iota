@@ -440,6 +440,7 @@ impl TransactionEffectsV2 {
                 .unwrap() as u32
         });
 
+        #[allow(clippy::let_and_return)]
         let result = Self {
             status,
             executed_epoch,

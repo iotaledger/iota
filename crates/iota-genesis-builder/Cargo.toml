@@ -30,6 +30,7 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 
 bigdecimal = "0.4.3"
