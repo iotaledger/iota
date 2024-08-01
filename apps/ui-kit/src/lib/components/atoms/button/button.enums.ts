@@ -13,3 +13,9 @@ export enum ButtonType {
     Outlined = 'outlined',
     Destructive = 'destructive',
 }
+
+export enum ButtonHtmlType {
+    Button = 'button',
+    Submit = 'submit',
+    Reset = 'reset',
+}
