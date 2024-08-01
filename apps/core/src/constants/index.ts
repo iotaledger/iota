@@ -4,3 +4,4 @@
 export * from './staking.constants';
 export * from './recognizedPackages.constants';
 export * from './coins.constants';
+export * from './timelock.constants';

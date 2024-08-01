@@ -32,7 +32,7 @@ env:
 jobs:
   cargo-llvm-cov:
     name: Generate code coverage
-    runs-on: [ubuntu-ghcloud]
+    runs-on: [self-hosted]
     timeout-minutes: 120
     env:
       CARGO_TERM_COLOR: always
@@ -75,7 +75,7 @@ jobs:
   notify:
     name: Notify
     needs: [cargo-llvm-cov]
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     if: always() # always notify
 
     steps:
@@ -135,7 +135,7 @@ jobs:
 
       - name: Get slack id for the oncall
         run: |
-          export slack_id=$(aws s3 cp s3://mysten-employees-dir/employees.json - | jq --arg ONCALL "${{ env.current_oncall }}" '.[] | if .name == $ONCALL then .slack_id else empty end')
+          export slack_id=$(aws s3 cp s3://iota-employees-dir/employees.json - | jq --arg ONCALL "${{ env.current_oncall }}" '.[] | if .name == $ONCALL then .slack_id else empty end')
           echo "slack_id=$(echo ${slack_id} | tr -d '"')" >> $GITHUB_ENV
 
       - name: Post to slack

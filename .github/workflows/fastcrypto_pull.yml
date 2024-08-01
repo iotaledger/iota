@@ -9,7 +9,7 @@ on:
 
 jobs:
   update-dep:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     # Important settings as we don't want to open a PR when the update fails
     continue-on-error: false
     strategy:

@@ -42,7 +42,6 @@ pub(crate) mod protocol_config;
 pub(crate) mod query;
 pub(crate) mod safe_mode;
 pub(crate) mod stake;
-pub(crate) mod stake_subsidy;
 pub(crate) mod storage_fund;
 pub(crate) mod string_input;
 pub(crate) mod system_parameters;

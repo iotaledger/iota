@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import * as Mocha from 'mocha';
 import * as vscode from 'vscode';
 
-Mocha.iotate('ext', () => {
+Mocha.suite('ext', () => {
     Mocha.test('ext_exists', () => {
         const ext = vscode.extensions.getExtension('move.move-analyzer');
         assert.ok(ext);
