@@ -19,7 +19,7 @@ Usage: iota client ptb [OPTIONS]
 Options:
       --assign <NAME> <VALUE>                                         Assign a value to a variable name to use later in the PTB.
       --gas-coin <ID>                                                 The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
-      --gas-budget <MICROS>                                             The gas budget for the transaction, in MICROS.
+      --gas-budget <NANOS>                                             The gas budget for the transaction, in NANOS.
       --make-move-vec <TYPE> <[VALUES]>                               Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
       --merge-coins <INTO_COIN> <[COIN OBJECTS]>                      Merge N coins into the provided coin.
       --move-call <PACKAGE::MODULE::FUNCTION> <TYPE> <FUNCTION_ARGS>  Make a move call to a function.
@@ -78,7 +78,7 @@ CLI PTB uses name resolution for common packages like `iota`, `std`, so you can 
 
 :::
 
-In the second case, if a previous command outputs some result, you can bound it to a variable for later access. Let's see an example where you want a new coin with 1000 MICROS, which you can achieve by using the `split-coins` command. After you do that, you want to transfer the new coin to another address. Without the `--assign` argument, you couldn't instruct the CLI to transfer that new coin object as you would not have a way to refer to it.
+In the second case, if a previous command outputs some result, you can bound it to a variable for later access. Let's see an example where you want a new coin with 1000 NANOS, which you can achieve by using the `split-coins` command. After you do that, you want to transfer the new coin to another address. Without the `--assign` argument, you couldn't instruct the CLI to transfer that new coin object as you would not have a way to refer to it.
 
 ```bash
 iota client ptb \
