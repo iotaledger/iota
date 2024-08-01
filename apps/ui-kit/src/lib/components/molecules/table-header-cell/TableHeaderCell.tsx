@@ -46,7 +46,7 @@ export function TableHeaderCell({
     };
 
     const textColorClass = 'text-neutral-10 dark:text-neutral-92';
-    const textSizeClass = 'text-lablel-lg';
+    const textSizeClass = 'text-label-lg';
 
     return (
         <th

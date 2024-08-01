@@ -9,7 +9,7 @@ import { ArrowLeft, DoubleArrowLeft, ArrowRight } from '@iota/ui-icons';
 
 export type TableProps = {
     /**
-     * Does the table hava pagination buttons.
+     * Does the table have pagination buttons.
      */
     hasPagination?: boolean;
     /**
