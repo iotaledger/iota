@@ -34,7 +34,7 @@ To run a Iota Validator a machine with the following is required:
 
 Iota Node can be deployed in a number of ways.
 
-There are pre-built container images available in [Docker Hub](https://hub.docker.com/r/mysten/iota-node/tags).
+There are pre-built container images available in [Docker Hub](https://hub.docker.com/r/iotaledger/iota-node/tags).
 
 And pre built `linux/amd64` binaries available in S3 that can be fetched using one of the following methods:
 
@@ -326,7 +326,7 @@ After the validator is removed at the next epoch change, the staking pool will b
 
 ## Private Security Fixes
 
-There may be instances where urgent security fixes need to be rolled out before publicly announcing it's presence (Issues affecting liveliness, invariants such as IOTA supply, governance etc). In order to not be actively exploited MystenLabs will release signed security binaries incorporating such fixes with a delay in publishing the source code until a large % of our validators have patched the vulnerability.
+There may be instances where urgent security fixes need to be rolled out before publicly announcing it's presence (Issues affecting liveliness, invariants such as IOTA supply, governance etc). In order to not be actively exploited the IOTA Foundation will release signed security binaries incorporating such fixes with a delay in publishing the source code until a large % of our validators have patched the vulnerability.
 
 This release process will be different and we expect us to announce the directory for such binaries out of band.
 Our public key to verify these binaries would be stored [here](https://iota-private.s3.us-west-2.amazonaws.com/iota_security_release.pem)

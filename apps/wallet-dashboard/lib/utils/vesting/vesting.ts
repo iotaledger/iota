@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { IotaObjectData } from '@iota/iota.js/client';
 import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
@@ -15,6 +16,7 @@ import {
     SupplyIncreaseVestingPortfolio,
     Timelocked,
     TimelockedStakedIota,
+    UID,
     VestingOverview,
 } from '../../interfaces';
 import { isTimelocked, isTimelockedStakedIota, isVesting } from '../timelock';
@@ -89,10 +91,11 @@ export function getSupplyIncreaseVestingUserType(
 
 export function buildSupplyIncreaseVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
+    currentEpochTimestamp: number,
 ): SupplyIncreaseVestingPortfolio {
     const userType = getSupplyIncreaseVestingUserType([referencePayout]);
 
-    if (!userType || Date.now() >= referencePayout.expirationTimestampMs) {
+    if (!userType || currentEpochTimestamp >= referencePayout.expirationTimestampMs) {
         // if the latest payout has already been unlocked, we cant build a vesting schedule
         return [];
     }
@@ -109,6 +112,7 @@ export function buildSupplyIncreaseVestingSchedule(
 
 export function getVestingOverview(
     objects: (Timelocked | TimelockedStakedIota)[],
+    currentEpochTimestamp: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isVesting);
     const latestPayout = getLastSupplyIncreaseVestingPayout(vestingObjects);
@@ -127,9 +131,13 @@ export function getVestingOverview(
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     const totalVestedAmount = vestingPayoutsCount * latestPayout.amount;
-    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout);
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
+        latestPayout,
+        currentEpochTimestamp,
+    );
     const totalLockedAmount = vestingPortfolio.reduce(
-        (acc, current) => (current.expirationTimestampMs > Date.now() ? acc + current.amount : acc),
+        (acc, current) =>
+            current.expirationTimestampMs > currentEpochTimestamp ? acc + current.amount : acc,
         0,
     );
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
@@ -144,12 +152,16 @@ export function getVestingOverview(
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
+            current.expirationTimestampMs <= currentEpochTimestamp
+                ? acc + current.locked.value
+                : acc,
         0,
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > Date.now() ? acc + current.locked.value : acc,
+            current.expirationTimestampMs > currentEpochTimestamp
+                ? acc + current.locked.value
+                : acc,
         0,
     );
 
@@ -171,4 +183,29 @@ export function getSupplyIncreaseVestingPayoutsCount(userType: SupplyIncreaseUse
             : SUPPLY_INCREASE_INVESTOR_VESTING_DURATION;
 
     return SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * vestingDuration;
+}
+
+export function mapTimelockObjects(iotaObjects: IotaObjectData[]): Timelocked[] {
+    return iotaObjects.map((iotaObject) => {
+        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
+            return {
+                id: { id: '' },
+                locked: { value: 0 },
+                expirationTimestampMs: 0,
+                label: '0',
+            };
+        }
+        const fields = iotaObject.content.fields as unknown as {
+            id: UID;
+            locked: string;
+            expiration_timestamp_ms: string;
+            label: string;
+        };
+        return {
+            id: fields.id,
+            locked: { value: Number(fields.locked) },
+            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
+            label: fields.label,
+        };
+    });
 }
