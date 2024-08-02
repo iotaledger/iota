@@ -107,11 +107,8 @@ export function BackupMnemonicPage() {
                                         <TextArea
                                             value={passphraseMutation.data.join(' ')}
                                             isVisibilityToggleEnabled
+                                            rows={5}
                                         />
-                                        {/*<HideShowDisplayBox*/}
-                                        {/*    value={passphraseMutation.data}*/}
-                                        {/*    hideCopy*/}
-                                        {/*/>*/}
                                     </>
                                 ) : (
                                     <Alert>
