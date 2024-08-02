@@ -113,11 +113,9 @@ export function ProtectAccountPage() {
     }
 
     return (
-        <div className="flex h-screen w-full flex-col items-center bg-white shadow-wallet-content">
+        <div className="flex h-screen w-full flex-col items-center bg-white">
             <Header
                 title="Create Password"
-                hasLeftIcon
-                hasRightIcon
                 titleCentered
                 onClose={() => navigate(-1)}
                 onBack={() => navigate(-1)}

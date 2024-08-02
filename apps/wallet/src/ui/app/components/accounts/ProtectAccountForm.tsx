@@ -121,7 +121,7 @@ export function ProtectAccountForm({
                 />
                 <AutoLockSelector />
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 pt-xxxs">
                 {displayToS ? null : (
                     <CheckboxField
                         name="acceptedTos"

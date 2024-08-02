@@ -55,7 +55,7 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
         <div className="flex flex-col gap-2">
             <CheckboxField
                 name="autoLock.enabled"
-                label="Auto-lock after I am inactive for"
+                label="Auto-lock after I'm inactive for"
                 disabled={disabled}
             />
             <FormField name="autoLock.timer">
