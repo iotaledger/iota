@@ -19,12 +19,13 @@ export function ImportPrivateKeyPage() {
         <>
             <Header
                 title="Import Private Key"
+                titleCentered
                 onBack={() => {
                     navigate(-1);
                 }}
             />
             <div className="flex h-full w-full flex-col items-center bg-neutral-100 p-md">
-                <div className="mt-6 w-full grow">
+                <div className="w-full grow">
                     <ImportPrivateKeyForm
                         onSubmit={({ privateKey }) => {
                             setAccountsFormValues({

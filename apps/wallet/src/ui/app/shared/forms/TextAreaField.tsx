@@ -14,8 +14,8 @@ type TextAreaFieldProps = {
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(
     ({ label, ...props }, forwardedRef) => (
-        <FormField name={props.name} label={label}>
-            <TextArea {...props} ref={forwardedRef} />
+        <FormField name={props.name}>
+            <TextArea {...props} label={label} ref={forwardedRef} />
         </FormField>
     ),
 );
