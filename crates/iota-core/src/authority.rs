@@ -65,7 +65,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID},
+    event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -2972,10 +2972,19 @@ impl AuthorityState {
             cur_epoch_store.epoch()
         );
 
-        if let Err(err) = self
-            .execution_cache
-            .expensive_check_iota_conservation(cur_epoch_store)
-        {
+        let last_checkpoint = self
+            .checkpoint_store
+            .get_epoch_last_checkpoint(cur_epoch_store.epoch())
+            .expect("reading from DB should succeed")
+            .expect("the last checkpoint must be available to check system consistency");
+        let (_, last_checkpoint_summary) = last_checkpoint.into_summary_and_sequence();
+
+        if let Err(err) = self.execution_cache.expensive_check_iota_conservation(
+            cur_epoch_store,
+            last_checkpoint_summary
+                .end_of_epoch_data
+                .map(|data| data.epoch_supply_change),
+        ) {
             if cfg!(debug_assertions) {
                 panic!("{}", err);
             } else {
@@ -4446,7 +4455,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, TransactionEffects)> {
+    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent, TransactionEffects)> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4588,6 +4597,17 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
+        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
+        let system_epoch_info_event = temporary_store
+            .events
+            .data
+            .iter()
+            .find(|event| event.is_system_epoch_info_event())
+            .expect("end of epoch tx must emit system epoch info event");
+        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEvent>(
+            &system_epoch_info_event.contents,
+        )
+        .expect("deserialization should succeed since we asserted that the event is of this type");
 
         // We must write tx and effects to the state sync tables so that state sync is
         // able to deliver to the transaction to CheckpointExecutor after it is
@@ -4606,7 +4626,7 @@ impl AuthorityState {
         epoch_store.record_checkpoint_builder_is_safe_mode_metric(system_obj.safe_mode());
         // The change epoch transaction cannot fail to execute.
         assert!(effects.status().is_ok());
-        Ok((system_obj, effects))
+        Ok((system_obj, system_epoch_info_event, effects))
     }
 
     /// This function is called at the very end of the epoch.

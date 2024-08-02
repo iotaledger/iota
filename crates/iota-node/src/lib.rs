@@ -489,7 +489,7 @@ impl IotaNode {
             // an epoch and the IOTA conservation check will fail. This also initialize
             // the expected_network_iota_amount table.
             execution_cache
-                .expensive_check_iota_conservation(&epoch_store)
+                .expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
         }
 
