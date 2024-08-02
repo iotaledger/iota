@@ -29,13 +29,12 @@ export function ImportPassphrasePage() {
             <Header
                 title="Add Existing Account"
                 titleCentered
-                hasLeftIcon
                 onBack={() => {
                     navigate(-1);
                 }}
             />
             <div className="flex flex-col overflow-auto bg-neutral-100">
-                <div className="flex flex-col items-end gap-3 p-md pb-0 ">
+                <div className="flex flex-col items-end gap-4 p-md pb-0 ">
                     <div>
                         <Button
                             text={isTextVisible ? 'Hide Text' : 'Show Text'}
