@@ -530,7 +530,7 @@ export class IotaClient {
     ): Promise<DelegatedTimelockedStake[]> {
         input.timelockedStakedIotaIds.forEach((id) => {
             if (!id || !isValidIotaObjectId(normalizeIotaObjectId(id))) {
-                throw new Error(`Invalid Iota Stake id ${id}`);
+                throw new Error(`Invalid Iota Timelocked Stake id ${id}`);
             }
         });
         return await this.transport.request({
