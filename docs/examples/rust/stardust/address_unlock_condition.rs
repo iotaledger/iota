@@ -68,7 +68,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .next()
         .ok_or(anyhow!("No coins found"))?;
 
-    // Get an AliasOutput object
+    // This object id was fetched manually. It refers to an Alias Output object that
+    // owns a NftOutput.
     let alias_output_object_id = ObjectID::from_hex_literal(
         "0x3b35e67750b8e4ccb45b2fc4a6a26a6d97e74c37a532f17177e6324ab93eaca6",
     )?;
@@ -87,17 +88,22 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let alias_output_object_ref = alias_output_object.object_ref();
 
-    let alias_dynamic_fields = iota_client
+    // Get the dynamic field owned by the Alias Output, i.e., only the Alias
+    // object.
+    // The dynamic field name for the Alias object is "alias", of type vector<u8>
+    let df_name = DynamicFieldName {
+        type_: TypeTag::Vector(Box::new(TypeTag::U8)),
+        value: serde_json::Value::String("alias".to_string()),
+    };
+    let alias_object = iota_client
         .read_api()
-        .get_dynamic_fields(alias_output_object_id, None, None)
+        .get_dynamic_field_object(alias_output_object_id, df_name)
         .await?
         .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("Alias output dynamic fields not found"))?;
+        .ok_or(anyhow!("alias not found"))?;
+    let alias_object_address = alias_object.object_ref().0;
 
-    let alias_object_address = alias_dynamic_fields.object_id;
-
+    // Some objects are owned by the Alias object. In this case we filter them by type using the NftOutput type.
     let owned_objects_query_filter =
         IotaObjectDataFilter::StructType(NftOutput::tag(GAS::type_tag()));
     let owned_objects_query = IotaObjectResponseQuery::new(Some(owned_objects_query_filter), None);
