@@ -1,11 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useContext } from 'react';
 import cx from 'classnames';
 import { IotaLogoMark, Menu } from '@iota/ui-icons';
 import { NavbarItem, NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
-import { ActionType, NavbarContext } from './NavbarContext';
 
 export type NavbarItemWithId = NavbarItemProps & { id: string };
 
@@ -29,17 +27,25 @@ export interface NavbarProps {
      * Callback when an element is clicked.
      */
     onClickItem: (id: string) => void;
+
+    /**
+     * If the navbar is collapsable, this flag indicates if it is open or not.
+     */
+    isOpen?: boolean;
+
+    /**
+     * Callback when the navbar is toggled.
+     */
+    onToggleNavbar?: () => void;
 }
 
-export function Navbar({ items, activeId, onClickItem, isCollapsable = false }: NavbarProps) {
-    const { dispatch } = useContext(NavbarContext);
-
-    const onMenuClick = () => {
-        dispatch({
-            type: ActionType.ToggleNavbarOpen,
-        });
-    };
-
+export function Navbar({
+    items,
+    activeId,
+    onClickItem,
+    isCollapsable = false,
+    onToggleNavbar,
+}: NavbarProps) {
     return (
         <div
             className={cx({
@@ -58,7 +64,7 @@ export function Navbar({ items, activeId, onClickItem, isCollapsable = false }: 
                     </div>
                     <div
                         className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden"
-                        onClick={onMenuClick}
+                        onClick={onToggleNavbar}
                     >
                         <Menu width={24} height={24} />
                     </div>

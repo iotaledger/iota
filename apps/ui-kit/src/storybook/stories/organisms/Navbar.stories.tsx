@@ -3,13 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
-import {
-    Navbar,
-    NavbarSlideout,
-    NavbarItemWithId,
-    NavbarProps,
-    NavbarProvider,
-} from '@/components';
+import { Navbar, NavbarSlideout, NavbarItemWithId, NavbarProps } from '@/components';
 import { useState } from 'react';
 
 const NAVBAR_ITEMS: NavbarItemWithId[] = [
@@ -58,23 +52,26 @@ export const Collapsable: Story = {
     argTypes: {},
     render: (args) => {
         const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
+        const [isOpen, setIsOpen] = useState<boolean>(false);
 
         return (
-            <NavbarProvider>
-                <div className="flex border border-gray-200">
-                    <Navbar
-                        isCollapsable
-                        items={NAVBAR_ITEMS}
-                        activeId={activeId}
-                        onClickItem={(id) => setActiveId(id)}
-                    />
-                    <NavbarSlideout
-                        items={NAVBAR_ITEMS_WITH_TEXT}
-                        activeId={activeId}
-                        onClickItem={(id) => setActiveId(id)}
-                    />
-                </div>
-            </NavbarProvider>
+            <div className="flex border border-gray-200">
+                <Navbar
+                    isCollapsable
+                    items={NAVBAR_ITEMS}
+                    activeId={activeId}
+                    onClickItem={(id) => setActiveId(id)}
+                    isOpen={isOpen}
+                    onToggleNavbar={() => setIsOpen(!isOpen)}
+                />
+                <NavbarSlideout
+                    items={NAVBAR_ITEMS_WITH_TEXT}
+                    activeId={activeId}
+                    onClickItem={(id) => setActiveId(id)}
+                    isOpen={isOpen}
+                    onToggleNavbar={() => setIsOpen(!isOpen)}
+                />
+            </div>
         );
     },
 };
