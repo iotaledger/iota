@@ -216,7 +216,7 @@ fn mnemonic_test() {
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
     let expected_address = IotaAddress::from_str(
-        "0x936accb491f0facaac668baaedcf4d0cfc6da1120b66f77fa6a43af718669973",
+        "0x61d6b774051d92c8c4863782933e915f88c433e9542ca534b233dc8ef1155137",
     )?;
 
     let temp_dir = TempDir::new().unwrap();
@@ -231,7 +231,6 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     assert_eq!(pubkey.flag(), Ed25519IotaSignature::SCHEME.flag());
 
     let mut hasher = DefaultHash::default();
-    hasher.update([pubkey.flag()]);
     hasher.update(pubkey);
     let g_arr = hasher.finalize();
     let mut res = [0u8; IOTA_ADDRESS_LENGTH];

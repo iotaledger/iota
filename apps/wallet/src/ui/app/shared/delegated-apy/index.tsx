@@ -53,7 +53,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
                     <Text variant="subtitle" weight="medium" color="steel-darker">
                         % APY
                     </Text>
-                    <div className="flex items-baseline text-body text-steel">
+                    <div className="text-steel flex items-baseline text-body">
                         <IconTooltip
                             tip="The average APY of all validators you are currently staking your IOTA on."
                             placement="top"

@@ -4,16 +4,19 @@
 'use client';
 
 import { Button } from '@/components';
+import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
 import { useCollectUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+
+    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
     const collect = useCollectUnlockTimelockedObjects(account?.address || '');
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
-    const vestingSchedule = getVestingOverview(timelockedMapped);
+    const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
 
     const handleCollect = () => {
         // Update Date.now() when #1217 is merged

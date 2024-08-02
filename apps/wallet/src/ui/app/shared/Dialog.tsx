@@ -17,7 +17,7 @@ const DialogOverlay = React.forwardRef<
     <RadixDialog.Overlay
         ref={ref}
         className={cx(
-            'bg-background/80 absolute inset-0 z-[99998] bg-gray-95/10 backdrop-blur-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+            'bg-background/80 bg-gray-95/10 absolute inset-0 z-[99998] backdrop-blur-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
             className,
         )}
         {...props}
@@ -41,7 +41,7 @@ const DialogContent = React.forwardRef<
                     className,
                     background === 'white'
                         ? 'bg-white'
-                        : 'border border-solid border-hero/10 bg-avocado-200',
+                        : 'border-hero/10 bg-avocado-200 border border-solid',
                 )}
                 {...props}
             />
@@ -64,7 +64,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <RadixDialog.Title
         ref={ref}
-        className={cx('text-semibold m-0 text-heading6 text-gray-90', className)}
+        className={cx('text-semibold text-gray-90 m-0 text-heading6', className)}
         {...props}
     />
 ));
@@ -76,7 +76,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <RadixDialog.Description
         ref={ref}
-        className={cx('text-pBodySmall text-steel', className)}
+        className={cx('text-steel text-pBodySmall', className)}
         {...props}
     />
 ));
