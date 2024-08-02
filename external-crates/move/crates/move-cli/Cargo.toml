@@ -12,8 +12,8 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 colored.workspace = true
-difference.workspace = true
 serde_yaml.workspace = true
+similar.workspace = true
 clap.workspace = true
 tempfile.workspace = true
 walkdir.workspace = true

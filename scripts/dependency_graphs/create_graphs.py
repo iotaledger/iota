@@ -7,6 +7,43 @@
 import re, pathlib, os, io, subprocess
 from bs4 import BeautifulSoup
 
+# holds all possible codeowners
+class CodeOwners(object):
+    def __init__(self, file_path):
+        self.codeowners = {}
+        with open(file_path, 'r') as file:
+            for line in file:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    pattern, *owners = line.split()
+                    self.codeowners[pattern] = owners
+
+    def get_code_owner(self, crate_path):
+        for pattern, owners in self.codeowners.items():
+            if pattern == "*":
+                # skip the fallback here, we want to check all other patterns first
+                continue
+
+            # Check if the pattern matches the relative path of the crate
+            regex_pattern = '^' + re.escape(pattern).replace(r'\*', '.*')
+            if re.match(regex_pattern, crate_path) or re.match(regex_pattern, crate_path+'/'):
+                return ", ".join(owners)
+        
+        return ", ".join(self.codeowners.get('*', ["No owners specified"]))
+
+# holds infos about a crate
+class Crate(object):
+    def __init__(self, name, owner):
+        self.name = name
+        self.owner = owner
+        self.dependencies = {}
+
+# holds infos about a dependency
+class Dependency(object):
+    def __init__(self, name, is_dev_dependency):
+        self.name = name
+        self.is_dev_dependency = is_dev_dependency
+
 # runs the cargo tree command and returns the result
 def run_cargo_tree(skip_dev_dependencies, save_to_file=False):
     tree_edges = '--edges=no-build'
@@ -34,39 +71,41 @@ def calculate_graph_depth(line):
     return depth
 
 # returns None if not an internal crate
-def get_internal_crate_name(base_path, line):
+def get_internal_package_info(base_path, line):
     package_info = re.sub(r'^[├─└─│ ]+\s*', '', line.strip())
-    crate_name = None
     if f'({base_path}' in package_info and not 'external-crates/' in package_info:
-        crate_name = re.sub(r' v[0-9]+\.[0-9]+\.[0-9]+.*', '', package_info).strip()
-    return crate_name
+        return package_info
+    return None
 
-# holds infos about a dependency
-class Dependency(object):
-    def __init__(self, name, is_dev_dependency):
-        self.name               = name
-        self.is_dev_dependency  = is_dev_dependency
+def get_crate_name_by_package_info(package_info):
+    return re.sub(r' v[0-9]+\.[0-9]+\.[0-9]+.*', '', package_info).strip()
+
+def get_code_owner_by_package_info(code_owners, base_path, package_info):
+    crate_path = re.search(r'\((.*?)\)', package_info).group(1).replace(str(base_path), '')
+    return code_owners.get_code_owner(crate_path)
 
 # parse the cargo tree from a file into a map of dependencies
-def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
-    dependencies_dict = {}
-
+def parse_cargo_tree(cargo_tree_output, base_path, code_owners, skip_dev_dependencies):
     lines = cargo_tree_output.split('\n')
 
     # get all internal crates first
+    crates_dict = {}
     for line in lines:
         depth = calculate_graph_depth(line)
         if depth != 0:
             continue
 
-        crate_name = get_internal_crate_name(base_path, line)
-        if crate_name == None:
+        package_info = get_internal_package_info(base_path, line)
+        if package_info == None:
             continue
+
+        crate_name = get_crate_name_by_package_info(package_info)
+        code_owner = get_code_owner_by_package_info(code_owners, base_path, package_info)
         
-        dependencies_dict[crate_name] = {}
+        crates_dict[crate_name] = Crate(crate_name, code_owner)
     
     # loop again to determine the dependencies
-    stack = []
+    crate_names_stack = []
     depth_dev_dependencies = None
     for line in lines:
         depth = calculate_graph_depth(line)
@@ -88,30 +127,35 @@ def parse_cargo_tree(cargo_tree_output, base_path, skip_dev_dependencies):
             # we are inside a dev-dependencies branch, which we want to skip
             continue
 
-        crate_name = get_internal_crate_name(base_path, line)
-        if crate_name == None:
+        package_info = get_internal_package_info(base_path, line)
+        if package_info == None:
             continue
 
+        crate_name = get_crate_name_by_package_info(package_info)
+        
         if depth == 0:
-            stack = [crate_name]
+            crate_names_stack = [crate_name]
         else:
-            parent = stack[depth - 1]
+            parent_name = crate_names_stack[depth - 1]
             
             is_dev_dependency = depth_dev_dependencies!=None
-            if not crate_name in dependencies_dict[parent] or not is_dev_dependency and dependencies_dict[parent][crate_name].is_dev_dependency:
-                # only set the dependency if it didn't exist, or if it was a dev_dependency before but now it's not
-                dependencies_dict[parent][crate_name] = Dependency(crate_name, is_dev_dependency)
-            if depth < len(stack):
-                stack[depth] = crate_name
-            else:
-                stack.append(crate_name)
-        
-    return dependencies_dict
 
-def get_node_color(dependencies_dict, dependency):
+            parent_crate = crates_dict[parent_name]
+
+            if not crate_name in parent_crate.dependencies or not is_dev_dependency and parent_crate.dependencies[crate_name].is_dev_dependency:
+                # only set the dependency if it didn't exist, or if it was a dev_dependency before but now it's not
+                parent_crate.dependencies[crate_name] = Dependency(crate_name, is_dev_dependency)
+            if depth < len(crate_names_stack):
+                crate_names_stack[depth] = crate_name
+            else:
+                crate_names_stack.append(crate_name)
+        
+    return crates_dict
+
+def get_node_color(crates_dict, dependency):
     if dependency.is_dev_dependency:
         return 'orange'
-    if len(dependencies_dict[dependency.name]) == 0:
+    if len(crates_dict[dependency.name].dependencies) == 0:
         return 'red'
     return 'black'
 
@@ -147,58 +191,71 @@ def generate_dot_file(file_path, content):
 }""")
 
 # create one file to rule them all
-def generate_dot_all(output_folder, dependencies_dict):
+def generate_dot_all(output_folder, crates_dict):
     buffer = io.StringIO()
-    for crate_name, sub_dependencies_dict in dependencies_dict.items():
-        for dependency in sub_dependencies_dict.values():
-            buffer.write(f'    "{crate_name}" -> "{dependency.name}" [fontcolor={get_node_color(dependencies_dict, dependency)}];\n')
+
+    visited = {}
+    for crate in crates_dict.values():
+        if crate.name not in visited:
+            visited[crate.name] = True
+            buffer.write(f'    "{crate.name}" [label="{crate.name}\n({crate.owner})"];\n')
+
+        for dependency in crate.dependencies.values():
+            dependency_crate = crates_dict[dependency.name]
+            if dependency_crate.name not in visited:
+                visited[dependency_crate.name] = True
+                buffer.write(f'    "{dependency_crate.name}" [label="{dependency_crate.name}\n({dependency_crate.owner})", fontcolor={get_node_color(crates_dict, dependency)}];\n')
+            
+            buffer.write(f'    "{crate.name}" -> "{dependency_crate.name}";\n')
 
     generate_dot_file('%s/all.dot' % (output_folder), buffer.getvalue())
 
 # but there are too many of them, so let's go into detail
-def generate_dot_per_crate(output_folder, dependencies_dict, traverse_all):
+def generate_dot_per_crate(output_folder, crates_dict, traverse_all):
     # Create a reverse dependency map
-    reverse_dependencies = {}
-    for crate_name, sub_dependencies_dict in dependencies_dict.items():
-        for dependency in sub_dependencies_dict.values():
-            if dependency.name not in reverse_dependencies:
-                reverse_dependencies[dependency.name] = []
-            reverse_dependencies[dependency.name].append(crate_name)
+    reverse_dependency_names = {}
+    for crate in crates_dict.values():
+        for dependency in crate.dependencies.values():
+            if dependency.name not in reverse_dependency_names:
+                reverse_dependency_names[dependency.name] = []
+            reverse_dependency_names[dependency.name].append(crate.name)
     
     # root level
-    for crate_name, sub_dependencies_dict in dependencies_dict.items():
+    for crate in crates_dict.values():
         buffer = io.StringIO()        
 
         # Set the text color of the current crate to green
-        buffer.write(f'    "{crate_name}" [fontcolor=green];\n')
+        buffer.write(f'    "{crate.name}" [label="{crate.name}\n({crate.owner})", fontcolor=green];\n')
         
         # Add reverse dependencies
-        if crate_name in reverse_dependencies:
-            for reverse_parent in reverse_dependencies[crate_name]:
-                buffer.write(f'    "{reverse_parent}" [fontcolor=blue];\n')
-                buffer.write(f'    "{reverse_parent}" -> "{crate_name}";\n')
+        if crate.name in reverse_dependency_names:
+            for reverse_parent_name in reverse_dependency_names[crate.name]:
+                parent_crate = crates_dict[reverse_parent_name]
+                buffer.write(f'    "{parent_crate.name}" [label="{parent_crate.name}\n({parent_crate.owner})", fontcolor=blue];\n')
+                buffer.write(f'    "{parent_crate.name}" -> "{crate.name}";\n')
         
-        def write_crate_dependencies(crate_name, sub_dependencies_dict, traversed_dict = {}):
-            for dependency in sub_dependencies_dict.values():
-                buffer.write(f'    "{dependency.name}" [fontcolor={get_node_color(dependencies_dict, dependency)}];\n')
-                buffer.write(f'    "{crate_name}" -> "{dependency.name}";\n')
+        def write_crate_dependencies(crate, traversed_dict):
+            for dependency in crate.dependencies.values():
+                dependency_crate = crates_dict[dependency.name]
+                buffer.write(f'    "{dependency_crate.name}" [label="{dependency_crate.name}\n({dependency_crate.owner})", fontcolor={get_node_color(crates_dict, dependency)}];\n')
+                buffer.write(f'    "{crate.name}" -> "{dependency_crate.name}";\n')
             
             if traverse_all:
-                for dependency in sub_dependencies_dict.values():
+                for dependency in crate.dependencies.values():
                     if dependency.name in traversed_dict:
                         continue
                     
                     traversed_dict[dependency.name] = True                        
-                    write_crate_dependencies(dependency.name, dependencies_dict[dependency.name])
+                    write_crate_dependencies(crates_dict[dependency.name], traversed_dict)
         
         # Add direct dependencies
-        write_crate_dependencies(crate_name, sub_dependencies_dict)
+        write_crate_dependencies(crate, {})
 
-        file_name = f'{output_folder}/{crate_name}_full.dot' if traverse_all else f'{output_folder}/{crate_name}.dot' 
+        file_name = f'{output_folder}/{crate.name}_full.dot' if traverse_all else f'{output_folder}/{crate.name}.dot' 
         generate_dot_file(file_name, buffer.getvalue())
 
 # the dot command line tool didn't convert URL or href to hyperlinks, so we have to do it ourselves
-def add_hyperlinks_to_svg(svg_file, dependencies_dict):
+def add_hyperlinks_to_svg(svg_file, crates_dict):
     with open(svg_file, 'r') as file:
         svg_content = file.read()
 
@@ -207,14 +264,18 @@ def add_hyperlinks_to_svg(svg_file, dependencies_dict):
 
     for i, node in enumerate(nodes):
         title = node.find('title')
-        if title and title.string in dependencies_dict:
+        if not title:
+            continue
+
+        crate_name = title.string
+        if crate_name in crates_dict:
             link = None
             if i == 0:
                 # add a way to go back on root level
                 link = soup.new_tag('a', href=f"javascript:history.back()")
             else:
                 # add the hyperlink to other svg files
-                link = soup.new_tag('a', href=f"{title.string}_full.svg" if "_full" in str(svg_file) else f"{title.string}.svg")
+                link = soup.new_tag('a', href=f"{crate_name}_full.svg" if "_full" in str(svg_file) else f"{crate_name}.svg")
             for element in node.find_all():
                 link.append(element.extract())
             node.append(link)
@@ -265,25 +326,31 @@ def convert_dot_files(output_folder, file_type):
 if __name__ == '__main__':  
     output_folder = "output"
     skip_dev_dependencies = False            # whether or not to include the `dev-dependencies`
+    base_path = pathlib.Path("../../").absolute().resolve()
 
-    # Create the output folder if it doesn't exist
-    pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
-
+    # parse the code owners file
+    code_owners = CodeOwners(os.path.join(base_path, '.github', 'CODEOWNERS'))
+    
+    # run the cargo tree binary
     cargo_tree_output = run_cargo_tree(skip_dev_dependencies)
     
-    # Parse the cargo tree and generate the DOT file
-    dependencies_dict = parse_cargo_tree(cargo_tree_output, pathlib.Path("../../").absolute().resolve(), skip_dev_dependencies)
+    # parse the cargo tree
+    crates_dict = parse_cargo_tree(cargo_tree_output, base_path, code_owners, skip_dev_dependencies)
     
-    generate_dot_all(output_folder, dependencies_dict)
-    generate_dot_per_crate(output_folder, dependencies_dict, False)
-    generate_dot_per_crate(output_folder, dependencies_dict, True)
+    # create the output folder if it doesn't exist
+    pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
+
+    # generate the DOT files
+    generate_dot_all(output_folder, crates_dict)
+    generate_dot_per_crate(output_folder, crates_dict, False)
+    generate_dot_per_crate(output_folder, crates_dict, True)
 
     # Convert DOT files to SVG
     convert_dot_files(output_folder, "svg")
 
     # Add hyperlinks to all SVG files for easier navigation
     for svg_file in pathlib.Path(output_folder).glob('*.svg'):
-        add_hyperlinks_to_svg(svg_file, dependencies_dict)
+        add_hyperlinks_to_svg(svg_file, crates_dict)
 
     # Create index.html for better overview
     create_index_html(output_folder)

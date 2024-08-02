@@ -29,7 +29,7 @@ function MenuList() {
 
     return (
         <MenuLayout title="Wallet Settings">
-            <div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
+            <div className="divide-gray-45 flex flex-col divide-x-0 divide-y divide-solid">
                 <MenuListItem
                     to={networkUrl}
                     icon={<Domain24 />}

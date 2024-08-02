@@ -24,7 +24,7 @@ on:
 jobs:
   build-iota-node:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_node == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -65,10 +65,11 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta-node.outputs.tags }}
           push: true
+          pull: true
 
   build-iota-indexer:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -109,10 +110,11 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta-indexer.outputs.tags }}
           push: true
+          pull: true
 
   build-iota-tools:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release' }}
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     environment: release
     steps:
       - name: Checkout code
@@ -153,3 +155,4 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta-tools.outputs.tags }}
           push: true
+          pull: true

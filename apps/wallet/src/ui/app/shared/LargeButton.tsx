@@ -57,8 +57,8 @@ export const LargeButton = forwardRef(
                 className={clsx(
                     'group flex items-center justify-between rounded-md border border-solid border-transparent px-8 py-2 no-underline',
                     disabled
-                        ? 'pointer-events-none bg-hero-darkest/5'
-                        : 'bg-white/80 hover:border-iota/10',
+                        ? 'bg-hero-darkest/5 pointer-events-none'
+                        : 'hover:border-iota/10 bg-white/80',
                     primary ? '!bg-iota-primaryBlue2023' : '',
                     spacing === 'sm' && '!p-3',
                     className,

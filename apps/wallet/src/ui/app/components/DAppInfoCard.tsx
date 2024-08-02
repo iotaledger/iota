@@ -40,7 +40,7 @@ export function DAppInfoCard({
     return (
         <div className="flex flex-col gap-5 bg-white p-6">
             <div className="flex flex-row flex-nowrap items-center gap-3.75 py-3">
-                <div className="flex h-15 w-15 shrink-0 grow-0 items-stretch overflow-hidden rounded-2xl bg-steel/20">
+                <div className="bg-steel/20 flex h-15 w-15 shrink-0 grow-0 items-stretch overflow-hidden rounded-2xl">
                     {iconUrl ? <img className="flex-1" src={iconUrl} alt={name} /> : null}
                 </div>
                 <div className="flex flex-col flex-nowrap items-start gap-1 overflow-hidden">
