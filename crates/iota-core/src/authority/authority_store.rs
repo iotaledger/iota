@@ -1789,6 +1789,10 @@ impl AuthorityStore {
             .expect("DB read cannot fail");
 
         match total_supply.zip(epoch_supply_change) {
+            // Only execute the check if both are set and the supply value was set in the last
+            // epoch. We have to assume the supply changes every epoch and therefore we
+            // cannot run the check with a supply value from any epoch earlier than the
+            // last one. This can happen if the check was disabled for some time.
             Some((old_supply, epoch_supply_change))
                 if old_supply.last_check_epoch + 1 == old_epoch_store.epoch() =>
             {
