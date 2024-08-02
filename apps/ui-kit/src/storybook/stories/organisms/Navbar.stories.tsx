@@ -30,7 +30,7 @@ const meta: Meta<NavbarCustomProps> = {
         const [activeId, setActiveId] = useState<string>(NAVBAR_ITEMS[0].id);
 
         return (
-            <div className="flex border">
+            <div className="flex">
                 <Navbar
                     items={NAVBAR_ITEMS}
                     activeId={activeId}
@@ -55,7 +55,7 @@ export const Collapsable: Story = {
         const [isOpen, setIsOpen] = useState<boolean>(false);
 
         return (
-            <div className="flex border border-gray-200">
+            <div className="flex h-96">
                 <Navbar
                     isCollapsable
                     items={NAVBAR_ITEMS}

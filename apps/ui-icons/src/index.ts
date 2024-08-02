@@ -45,7 +45,7 @@ export { default as ListViewSmall } from './ListViewSmall';
 export { default as LockLocked } from './LockLocked';
 export { default as LockUnlocked } from './LockUnlocked';
 export { default as Logout } from './Logout';
-export { default as Menu } from './Menu';
+export { default as MenuIcon } from './MenuIcon';
 export { default as Migration } from './Migration';
 export { default as MoreHoriz } from './MoreHoriz';
 export { default as MoreVert } from './MoreVert';

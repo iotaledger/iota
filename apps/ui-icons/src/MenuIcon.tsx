@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { SVGProps } from 'react';
-export default function SvgMenu(props: SVGProps<SVGSVGElement>) {
+export default function SvgMenuIcon(props: SVGProps<SVGSVGElement>) {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
