@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { seedValidation } from '../../helpers/validation/seedValidation';
 import { Form } from '../../shared/forms/Form';
-import { Button, ButtonType, TextArea, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { Button, ButtonType, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { TextAreaField } from '../../shared/forms/TextAreaField';
 
 const formSchema = z.object({
     seed: seedValidation,
@@ -36,7 +37,7 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
             form={form}
             onSubmit={onSubmit}
         >
-            <TextArea label="Enter Seed" rows={5} {...register('seed')} />
+            <TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
             <div className="flex flex-row justify-stretch gap-2.5">
                 <Button
                     type={ButtonType.Secondary}

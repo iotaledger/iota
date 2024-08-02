@@ -71,6 +71,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
         minLength,
         isContentVisible,
         id,
+        ...restProps
     }: TextFieldBaseProps,
     ref,
 ) {
@@ -118,6 +119,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
                     value={isInputContentVisible ? value : ''}
                     maxLength={maxLength}
                     minLength={minLength}
+                    {...restProps}
                 />
                 {!isInputContentVisible && (
                     <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">
