@@ -51,9 +51,8 @@ export function Panel({
     const borderClass = hasBorder
         ? 'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8'
         : 'border border-transparent';
-    const panelPaddingClass =
-        size === PanelSize.Medium ? 'px-md pb-md md:px-lg md:pb-lg' : 'px-md pb-md';
-    const PADDING_TOP_WITHOUT_TITLE = size === PanelSize.Medium ? 'pt-md md:pt-lg' : 'pt-md';
+    const panelPaddingClass = size === PanelSize.Medium ? 'px-md--rs pb-md--rs' : 'px-md pb-md';
+    const PADDING_TOP_WITHOUT_TITLE = size === PanelSize.Medium ? 'pt-md--rs' : 'pt-md';
     const paddingTopClass = title ? PADDING_TOP_WITH_TITLE[size] : PADDING_TOP_WITHOUT_TITLE;
     const paddingTopChildren = title ? PADDING_TOP_CHILDREN_WITH_TITLE[size] : 'pt-0';
     const paddingBottomTitleClass = PADDING_BOTTOM_TITLE[size];
