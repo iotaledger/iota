@@ -1,14 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { Snackbar, SnackbarProps, SnackbarType } from '@/components/atoms';
 
-const meta: Meta<
-    SnackbarProps & {
-        actionLabel: string;
-    }
-> = {
+const meta: Meta<SnackbarProps> = {
     component: Snackbar,
     tags: ['autodocs'],
 } satisfies Meta<typeof Snackbar>;
@@ -21,27 +18,21 @@ export const Default: Story = {
     args: {
         type: SnackbarType.Default,
         isOpen: true,
-        message: 'Test message',
-        actionLabel: 'Action title',
+        text: 'Test message',
     },
-    argTypes: {
-        actionLabel: {
-            control: 'text',
-        },
-    },
+    argTypes: {},
     render: (props) => {
+        const [isOpen, setIsOpen] = useState(false);
+
+        const onClose = () => {
+            setIsOpen(false);
+        };
+
         return (
-            <Snackbar
-                {...props}
-                action={
-                    props.actionLabel
-                        ? {
-                              label: props.actionLabel,
-                              onClick: () => {},
-                          }
-                        : undefined
-                }
-            />
+            <>
+                <button onClick={() => setIsOpen(true)}>Open Snackbar</button>
+                <Snackbar {...props} isOpen={isOpen} onClose={onClose} />
+            </>
         );
     },
 };

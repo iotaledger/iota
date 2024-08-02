@@ -3,6 +3,5 @@
 
 export enum SnackbarType {
     Default = 'default',
-    Success = 'success',
     Error = 'error',
 }

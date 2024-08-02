@@ -4,14 +4,13 @@
 import React, { useEffect } from 'react';
 import cx from 'classnames';
 import { Close } from '@iota/ui-icons';
-import { ButtonType, SnackbarType } from '@/lib';
-import { Button } from '../button';
+import { SnackbarType } from './snackbar.enums';
 
 export interface SnackbarProps {
     /**
      * The message to display in the snackbar.
      */
-    message: string;
+    text: string;
 
     /**
      * State for the snackbar.
@@ -19,17 +18,12 @@ export interface SnackbarProps {
     isOpen: boolean;
 
     /**
-     * Change UI if the message is multiline.
-     */
-    isMultiline?: boolean;
-
-    /**
      * Type of the snackbar.
      */
     type: SnackbarType;
 
     /**
-     * Duration in milliseconds for the snackbar to auto close.
+     * Duration in milliseconds for the snackbar to auto close. `0` will make the component not close automatically.
      */
     duration?: number;
 
@@ -39,23 +33,18 @@ export interface SnackbarProps {
     onClose: () => void;
 
     /**
-     * Optional action to display in the snackbar.
-     * If action is provided - label & onClick are required.
+     * Show the close button.
      */
-    action?: {
-        label: string;
-        onClick: () => void;
-    };
+    showClose?: boolean;
 }
 
-function Snackbar({
-    message,
+export function Snackbar({
+    text,
     isOpen = true,
-    duration = 0, // 0 means it will not auto close
+    duration = 2000,
     onClose,
-    isMultiline,
+    showClose,
     type = SnackbarType.Default,
-    action,
 }: SnackbarProps) {
     useEffect(() => {
         if (isOpen && duration) {
@@ -64,56 +53,31 @@ function Snackbar({
         }
     }, [isOpen, duration, onClose]);
 
-    // Using classnames to manage dynamic classes
-    const snackbarClasses = cx(
-        'bottom-0 flex w-full z-99 gap-1 justify-between items-center',
-        'rounded-md text-left',
-        'transition-opacity transition-transform duration-300 ease-out',
-        {
-            'bg-neutral-80 dark:bg-neutral-30': type === SnackbarType.Default,
-            'bg-tertiary-90 dark:bg-tertiary-10': type === SnackbarType.Success,
-            'bg-error-90 dark:bg-error-10': type === SnackbarType.Error,
-            'translate-y-0 opacity-100': isOpen,
-            'translate-y-full opacity-0': !isOpen,
-            'py-[14px] px-md': !action && !onClose,
-            'py-[6px] pl-md pr-xs': action || onClose,
-            'pr-none': !isMultiline,
-            'pr-none pb-none': isMultiline,
-            'flex-col': isMultiline,
-        },
-    );
-
     return (
-        <div className={snackbarClasses}>
-            <div className={cx({ 'w-full': isMultiline })}>
-                <p
-                    className={cx('text-left text-body-md text-neutral-10 dark:text-neutral-60', {
-                        'dark:text-neutral-92': type === SnackbarType.Default,
-                        'dark:text-tertiary-90': type === SnackbarType.Success,
-                        'dark:text-error-90': type === SnackbarType.Error,
-                    })}
-                >
-                    {message}
-                </p>
-            </div>
-            <div
-                className={cx('flex gap-1 whitespace-nowrap', {
-                    'w-full justify-end': isMultiline,
+        <div
+            className={cx(
+                'transition-all duration-300 ease-out',
+                'z-99 bottom-0',
+                'flex w-full items-center justify-between gap-1 rounded-md px-md py-sm',
+                {
+                    'bg-neutral-80 dark:bg-neutral-30': type === SnackbarType.Default,
+                    'bg-error-90 dark:bg-error-10': type === SnackbarType.Error,
+                    'translate-y-0 opacity-100': isOpen,
+                    'translate-y-full opacity-0': !isOpen,
+                },
+            )}
+        >
+            <p
+                className={cx('text-left text-body-md dark:text-neutral-60', {
+                    'text-neutral-10 dark:text-neutral-92': type === SnackbarType.Default,
+                    'text-error-20 dark:text-error-90': type === SnackbarType.Error,
                 })}
             >
-                {action && (
-                    <Button type={ButtonType.Ghost} onClick={action.onClick} text={action.label} />
-                )}
-                {onClose && (
-                    <Button
-                        type={ButtonType.Ghost}
-                        onClick={onClose}
-                        icon={<Close width={16} height={16} />}
-                    />
-                )}
-            </div>
+                {text}
+            </p>
+            {showClose && (
+                <Close className={'h-5 w-5 cursor-pointer text-neutral-6'} onClick={onClose} />
+            )}
         </div>
     );
 }
-
-export { Snackbar };
