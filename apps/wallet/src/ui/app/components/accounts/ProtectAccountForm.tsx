@@ -109,6 +109,7 @@ export function ProtectAccountForm({
                     isVisibilityToggleEnabled
                     label="Create Password"
                     placeholder="Password"
+                    errorMessage={form.formState.errors.password?.input?.message}
                     {...register('password.input')}
                 />
                 <TextField
