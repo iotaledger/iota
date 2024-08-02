@@ -42,7 +42,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let sender =
         keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, Some(derivation_path))?;
 
-    // let addresses = keystore.addresses();
     println!("Sender address - {sender:?}");
 
     // Get a gas coin
