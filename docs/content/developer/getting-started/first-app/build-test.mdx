@@ -16,7 +16,7 @@ A successful build returns a response similar to the following:
 
 ```shell
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY IOTA
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING my_first_package
 ```
@@ -38,7 +38,7 @@ $ iota move test
 If you execute this command for the package created in [Write a Package](write-package.mdx), you see the following output. Unsurprisingly, the test result has an `OK` status because there are no tests written yet to fail.
 
 ```shell
-BUILDING IOTA
+BUILDING Iota
 BUILDING MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
@@ -82,7 +82,7 @@ After running the `test` command, however, you get a compilation error instead o
 error[E06001]: unused value without 'drop'
    ┌─ ./sources/my_module.move:60:65
    │
- 4 │       struct Sword has key, store {
+ 4 │       public struct Sword has key, store {
    │              ----- To satisfy the constraint, the 'drop' ability would need to be added here
    ·
 27 │           let sword = Sword {
@@ -104,13 +104,7 @@ The `Sword` struct represents a game asset that digitally mimics a real-world it
 
 One of the solutions (as suggested in the error message), is to add the `drop` ability to the definition of the `Sword` struct, which would allow instances of this struct to disappear (be dropped). The ability to drop a valuable asset is not a desirable asset property in this case, so another solution is needed. Another way to solve this problem is to transfer ownership of the `sword`.
 
-To get the test to work, add the following line to the beginning of the testing function to import the `Transfer` module:
-
-```move
-use iota::transfer;
-```
-
-With the `Transfer` module imported, add the following lines to the end of the test function (after the `!assert` call) to transfer ownership of the `sword` to a freshly created dummy address:
+We now transfer ownership of the `sword` to a freshly created dummy address:
 
 ```move
 // Create a dummy address and transfer the sword
@@ -122,7 +116,7 @@ Run the test command again. Now the output shows a single successful test has ru
 
 ```shell
 BUILDING MoveStdlib
-BUILDING IOTA
+BUILDING Iota
 BUILDING my_first_package
 Running Move unit tests
 [ PASS    ] 0x0::my_module::test_sword_create
@@ -198,7 +192,7 @@ With the new entry functions included, add another test function to make sure th
         let final_owner = @0xFACE;
 
         // first transaction to emulate module initialization
-        let scenario_val = test_scenario::begin(admin);
+        let mut scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
         {
             init(test_scenario::ctx(scenario));
@@ -251,7 +245,7 @@ In the pure Move testing function, the function transfers the `sword` object to 
 Run the test command again to see two successful tests for our module:
 
 ```shell
-BUILDING IOTA
+BUILDING Iota
 BUILDING MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
