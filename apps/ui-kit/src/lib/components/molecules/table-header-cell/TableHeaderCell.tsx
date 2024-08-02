@@ -7,9 +7,21 @@ import { Checkbox } from '@/lib';
 
 export interface TableHeaderCellProps {
     /**
+     * The column key.
+     */
+    columnKey: string | number;
+    /**
      * The label of the Header cell.
      */
-    label: string;
+    label?: string;
+    /**
+     * Action component to be rendered on the left side.
+     */
+    actionLeft?: React.ReactNode;
+    /**
+     * Action component to be rendered on the right side.
+     */
+    actionRight?: React.ReactNode;
     /**
      * Has Sort icon.
      */
@@ -17,7 +29,7 @@ export interface TableHeaderCellProps {
     /**
      * On Sort icon click.
      */
-    onSortClick?: (order: 'asc' | 'desc') => void;
+    onSortClick?: (columnKey: string | number, sortOrder: 'asc' | 'desc') => void;
     /**
      * Has Checkbox.
      */
@@ -30,6 +42,7 @@ export interface TableHeaderCellProps {
 
 export function TableHeaderCell({
     label,
+    columnKey,
     hasSort,
     hasCheckbox,
     onSortClick,
@@ -41,7 +54,7 @@ export function TableHeaderCell({
         const newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
         setSortOrder(newSortOrder);
         if (onSortClick) {
-            onSortClick(newSortOrder);
+            onSortClick(columnKey, newSortOrder);
         }
     };
 
@@ -56,7 +69,7 @@ export function TableHeaderCell({
         >
             <div className={cx('flex flex-row items-center gap-1', textColorClass, textSizeClass)}>
                 {hasCheckbox && <Checkbox onChange={onCheckboxClick} />}
-                <span>{label}</span>
+                {label && <span>{label}</span>}
                 {hasSort && sortOrder === 'asc' && (
                     <SortByUp className="ml-auto h-4 w-4 cursor-pointer" onClick={handleSort} />
                 )}

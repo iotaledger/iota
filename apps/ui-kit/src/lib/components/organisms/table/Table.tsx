@@ -5,7 +5,7 @@ import React, { PropsWithChildren } from 'react';
 import cx from 'classnames';
 
 import { Button, ButtonSize, ButtonType } from '@/lib';
-import { ArrowLeft, DoubleArrowLeft, ArrowRight } from '@iota/ui-icons';
+import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/ui-icons';
 
 export type TableProps = {
     /**
@@ -21,9 +21,21 @@ export type TableProps = {
      */
     onPreviousPageClick?: () => void;
     /**
-     * On Previous page button click.
+     * On First page button click.
      */
     onFirstPageClick?: () => void;
+    /**
+     * On Last page button click.
+     */
+    onLastPageClick?: () => void;
+    /**
+     * The label of the action button.
+     */
+    actionLabel?: string;
+    /**
+     * On Action button click.
+     */
+    onActionClick?: () => void;
     /**
      * The supporting label of the table.
      */
@@ -32,9 +44,12 @@ export type TableProps = {
 
 export function Table({
     hasPagination,
+    actionLabel,
     onNextPageClick,
     onPreviousPageClick,
     onFirstPageClick,
+    onLastPageClick,
+    onActionClick,
     supportingLabel,
     children,
 }: PropsWithChildren<TableProps>): JSX.Element {
@@ -44,8 +59,8 @@ export function Table({
                 <table className="w-full table-auto">{children}</table>
             </div>
             <div
-                className={cx('flex w-full items-center justify-between pt-md', {
-                    hidden: !supportingLabel && !hasPagination,
+                className={cx('flex w-full items-center justify-between gap-2 pt-md', {
+                    hidden: !supportingLabel && !hasPagination && !actionLabel,
                 })}
             >
                 {hasPagination && (
@@ -68,10 +83,26 @@ export function Table({
                             icon={<ArrowRight />}
                             onClick={onNextPageClick}
                         />
+                        <Button
+                            type={ButtonType.Secondary}
+                            size={ButtonSize.Small}
+                            icon={<DoubleArrowRight />}
+                            onClick={onLastPageClick}
+                        />
+                    </div>
+                )}
+                {actionLabel && (
+                    <div className="flex">
+                        <Button
+                            type={ButtonType.Secondary}
+                            size={ButtonSize.Small}
+                            text={actionLabel}
+                            onClick={onActionClick}
+                        />
                     </div>
                 )}
                 {supportingLabel && (
-                    <span className="ml-auto text-label-sm text-neutral-40 dark:text-neutral-60">
+                    <span className="ml-auto text-label-md text-neutral-40 dark:text-neutral-60">
                         {supportingLabel}
                     </span>
                 )}

@@ -52,8 +52,9 @@ export function Checkbox({
 
     return (
         <label
-            className={cx('group flex gap-x-2', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
+            className={cx('group flex', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
                 disabled: isDisabled,
+                'gap-x-2': label,
             })}
         >
             <LabelText label={label} />

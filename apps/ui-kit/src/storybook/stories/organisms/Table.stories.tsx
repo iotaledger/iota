@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React from 'react';
 
 import type { Meta, StoryObj } from '@storybook/react';
 
@@ -23,16 +22,18 @@ const meta = {
     tags: ['autodocs'],
     render: (props) => {
         const headers = [
-            { label: 'Name', hasCheckbox: true, hasSort: true },
-            { label: 'Age', hasSort: true },
-            { label: 'Ocupation' },
-            { label: 'Email' },
-            { label: 'Start Date' },
-            { label: 'End Date' },
+            { hasCheckbox: true, columnKey: 1 },
+            { label: 'Name', columnKey: 2, hasSort: true },
+            { label: 'Age', columnKey: 3, hasSort: true },
+            { label: 'Ocupation', columnKey: 4 },
+            { label: 'Email', columnKey: 5 },
+            { label: 'Start Date', columnKey: 6 },
+            { label: 'End Date', columnKey: 7 },
         ];
 
         const rows: TableCellProps[][] = [
             [
+                { type: TableCellType.Text, label: '1.' },
                 {
                     type: TableCellType.AvatarText,
                     leadingElement: <IotaLogoSmall />,
@@ -45,6 +46,7 @@ const meta = {
                 { type: TableCellType.Text, label: '12.03.2019' },
             ],
             [
+                { type: TableCellType.Text, label: '2.' },
                 { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Jane Smith' },
                 { type: TableCellType.Badge, badgeType: BadgeType.Neutral, label: '25' },
                 { type: TableCellType.Text, label: 'Graphic Designer' },
@@ -53,6 +55,7 @@ const meta = {
                 { type: TableCellType.Text, label: '12.03.2019' },
             ],
             [
+                { type: TableCellType.Text, label: '3.' },
                 { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Sam Johnson' },
                 { type: TableCellType.Badge, badgeType: BadgeType.PrimarySoft, label: '40' },
                 { type: TableCellType.Text, label: 'Project Manager' },
@@ -95,5 +98,6 @@ export const Default: Story = {
     args: {
         supportingLabel: '10.7k records',
         hasPagination: true,
+        actionLabel: 'Action',
     },
 };
