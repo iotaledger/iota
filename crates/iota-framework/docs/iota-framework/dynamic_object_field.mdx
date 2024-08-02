@@ -5,10 +5,10 @@ sidebar_label: dynamic_object_field
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_dynamic_object_field"/>
-Similar to <code>
-iota::dynamic_field</code>, this module allows for the access of dynamic fields. But
-unlike, <code>
-iota::dynamic_field</code> the values bound to these dynamic fields _must_ be objects
+Similar to 
+iota::dynamic_field, this module allows for the access of dynamic fields. But
+unlike, 
+iota::dynamic_field the values bound to these dynamic fields _must_ be objects
 themselves. This allows for the objects to still exist within in storage, which may be important
 for external tools. The difference is otherwise not observable from within Move.
 
@@ -49,8 +49,8 @@ for external tools. The difference is otherwise not observable from within Move.
 
 <dl>
 <dt>
-<code>
-name: Name</code>
+
+name: Name
 </dt>
 <dd>
 
@@ -64,11 +64,11 @@ name: Name</code>
 
 ## Function `add`
 
-Adds a dynamic object field to the object <code>
-<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID</code> at field specified by <code>
-name: Name</code>.
-Aborts with <code>
-EFieldAlreadyExists</code> if the object already has that field with that name.
+Adds a dynamic object field to the object 
+<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID at field specified by 
+name: Name.
+Aborts with 
+EFieldAlreadyExists if the object already has that field with that name.
 
 
 <pre><code>
@@ -104,13 +104,13 @@ EFieldAlreadyExists</code> if the object already has that field with that name.
 
 ## Function `borrow`
 
-Immutably borrows the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic object field with the name specified by <code>
-name: Name</code>.
-Aborts with <code>
-EFieldDoesNotExist</code> if the object does not have a field with that name.
-Aborts with <code>
-EFieldTypeMismatch</code> if the field exists, but the value object does not have the
+Immutably borrows the 
+<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic object field with the name specified by 
+name: Name.
+Aborts with 
+EFieldDoesNotExist if the object does not have a field with that name.
+Aborts with 
+EFieldTypeMismatch if the field exists, but the value object does not have the
 specified type.
 
 
@@ -143,13 +143,13 @@ specified type.
 
 ## Function `borrow_mut`
 
-Mutably borrows the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic object field with the name specified by <code>
-name: Name</code>.
-Aborts with <code>
-EFieldDoesNotExist</code> if the object does not have a field with that name.
-Aborts with <code>
-EFieldTypeMismatch</code> if the field exists, but the value object does not have the
+Mutably borrows the 
+<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic object field with the name specified by 
+name: Name.
+Aborts with 
+EFieldDoesNotExist if the object does not have a field with that name.
+Aborts with 
+EFieldTypeMismatch if the field exists, but the value object does not have the
 specified type.
 
 
@@ -182,14 +182,14 @@ specified type.
 
 ## Function `remove`
 
-Removes the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic object field with the name specified by <code>
-name: Name</code> and returns
+Removes the 
+<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic object field with the name specified by 
+name: Name and returns
 the bound object.
-Aborts with <code>
-EFieldDoesNotExist</code> if the object does not have a field with that name.
-Aborts with <code>
-EFieldTypeMismatch</code> if the field exists, but the value object does not have the
+Aborts with 
+EFieldDoesNotExist if the object does not have a field with that name.
+Aborts with 
+EFieldTypeMismatch if the field exists, but the value object does not have the
 specified type.
 
 
@@ -224,10 +224,10 @@ specified type.
 
 ## Function `exists_`
 
-Returns true if and only if the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code> has a dynamic object field with the name specified by
-<code>
-name: Name</code>.
+Returns true if and only if the 
+<Link to="../iota-framework/object#0x2_object">object</Link> has a dynamic object field with the name specified by
+
+name: Name.
 
 
 <pre><code>
@@ -258,11 +258,11 @@ name: Name</code>.
 
 ## Function `exists_with_type`
 
-Returns true if and only if the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code> has a dynamic field with the name specified by
-<code>
-name: Name</code> with an assigned value of type <code>
-Value</code>.
+Returns true if and only if the 
+<Link to="../iota-framework/object#0x2_object">object</Link> has a dynamic field with the name specified by
+
+name: Name with an assigned value of type 
+Value.
 
 
 <pre><code>

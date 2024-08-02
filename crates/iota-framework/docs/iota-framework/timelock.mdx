@@ -55,8 +55,8 @@ A timelock implementation.
 
 ## Resource `TimeLock`
 
-<code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> struct that holds a locked object.
+
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> struct that holds a locked object.
 
 
 <pre><code>
@@ -71,29 +71,29 @@ A timelock implementation.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-locked: T</code>
+
+locked: T
 </dt>
 <dd>
  The locked object.
 </dd>
 <dt>
-<code>
-expiration_timestamp_ms: u64</code>
+
+expiration_timestamp_ms: u64
 </dt>
 <dd>
  This is the epoch time stamp of when the lock expires.
 </dd>
 <dt>
-<code>
-label: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+label: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
  Timelock related label.
@@ -107,10 +107,10 @@ label: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&
 
 ## Struct `SystemTimelockCap`
 
-<code>
-<Link to="../iota-framework/timelock#0x2_timelock_SystemTimelockCap">SystemTimelockCap</Link></code> allows to <code>
-pack</code> and <code>
-unpack</code> TimeLocks
+
+<Link to="../iota-framework/timelock#0x2_timelock_SystemTimelockCap">SystemTimelockCap</Link> allows to 
+pack and 
+unpack TimeLocks
 
 
 <pre><code>
@@ -125,8 +125,8 @@ unpack</code> TimeLocks
 
 <dl>
 <dt>
-<code>
-dummy_field: bool</code>
+
+dummy_field: bool
 </dt>
 <dd>
 
@@ -187,8 +187,8 @@ Expiration timestamp of the lock is in the past.
 
 <Link id="0x2_timelock_ENotCalledAtGenesis"></Link>
 
-The <code>
-new</code> function was called at a non-genesis epoch.
+The 
+new function was called at a non-genesis epoch.
 
 
 <pre><code>
@@ -282,12 +282,12 @@ Function to lock a labeled object till a unix timestamp in milliseconds.
 
 ## Function `lock_and_transfer`
 
-Function to lock an object <code>
-obj</code> until <code>
-expiration_timestamp_ms</code> and transfer it to address <code>
-<b>to</b></code>.
-Since <code>
-Timelock&lt;T&gt;</code> does not support public transfer, use this function to lock an object to an address.
+Function to lock an object 
+obj until 
+expiration_timestamp_ms and transfer it to address 
+<b>to</b>.
+Since 
+Timelock&lt;T&gt; does not support public transfer, use this function to lock an object to an address.
 
 
 <pre><code>
@@ -319,12 +319,12 @@ Timelock&lt;T&gt;</code> does not support public transfer, use this function to 
 
 ## Function `lock_with_label_and_transfer`
 
-Function to lock a labeled object <code>
-obj</code> until <code>
-expiration_timestamp_ms</code> and transfer it to address <code>
-<b>to</b></code>.
-Since <code>
-Timelock&lt;T&gt;</code> does not support public transfer, use this function to lock a labeled object to an address.
+Function to lock a labeled object 
+obj until 
+expiration_timestamp_ms and transfer it to address 
+<b>to</b>.
+Since 
+Timelock&lt;T&gt; does not support public transfer, use this function to lock a labeled object to an address.
 
 
 <pre><code>
@@ -357,8 +357,8 @@ Timelock&lt;T&gt;</code> does not support public transfer, use this function to 
 
 ## Function `unlock`
 
-Function to unlock the object from a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+Function to unlock the object from a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 
 
 <pre><code>
@@ -391,8 +391,8 @@ Function to unlock the object from a <code>
 
 ## Function `join`
 
-Join two <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>&lt;Balance&lt;T&gt;&gt;</code> together.
+Join two 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>&lt;Balance&lt;T&gt;&gt; together.
 
 
 <pre><code>
@@ -427,9 +427,9 @@ Join two <code>
 
 ## Function `join_vec`
 
-Join everything in <code>
-others</code> with <code>
-self</code>.
+Join everything in 
+others with 
+self.
 
 
 <pre><code>
@@ -467,8 +467,8 @@ self</code>.
 
 ## Function `split`
 
-Split a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>&lt;Balance&lt;T&gt;&gt;</code> and take a sub balance from it.
+Split a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>&lt;Balance&lt;T&gt;&gt; and take a sub balance from it.
 
 
 <pre><code>
@@ -499,9 +499,9 @@ Split a <code>
 
 ## Function `split_balance`
 
-Split the given <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>&lt;Balance&lt;T&gt;&gt;</code> into two parts, one with principal <code>
-value</code>,
+Split the given 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>&lt;Balance&lt;T&gt;&gt; into two parts, one with principal 
+value,
 and transfer the newly split part to the sender address.
 
 
@@ -529,8 +529,8 @@ and transfer the newly split part to the sender address.
 
 ## Function `transfer_to_sender`
 
-A utility function to transfer a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> to the sender.
+A utility function to transfer a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> to the sender.
 
 
 <pre><code>
@@ -557,8 +557,8 @@ A utility function to transfer a <code>
 
 ## Function `system_pack`
 
-A utility function to pack a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> that can be invoked only by a system package.
+A utility function to pack a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> that can be invoked only by a system package.
 
 
 <pre><code>
@@ -591,8 +591,8 @@ A utility function to pack a <code>
 
 ## Function `system_unpack`
 
-An utility function to unpack a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> that can be invoked only by a system package.
+An utility function to unpack a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> that can be invoked only by a system package.
 
 
 <pre><code>
@@ -647,8 +647,8 @@ that is used as type related a label value.
 
 ## Function `expiration_timestamp_ms`
 
-Function to get the expiration timestamp of a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+Function to get the expiration timestamp of a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 
 
 <pre><code>
@@ -675,8 +675,8 @@ Function to get the expiration timestamp of a <code>
 
 ## Function `is_locked`
 
-Function to check if a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> is locked.
+Function to check if a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> is locked.
 
 
 <pre><code>
@@ -703,8 +703,8 @@ Function to check if a <code>
 
 ## Function `remaining_time`
 
-Function to get the remaining time of a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+Function to get the remaining time of a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 Returns 0 if the lock has expired.
 
 
@@ -741,8 +741,8 @@ Returns 0 if the lock has expired.
 
 ## Function `locked`
 
-Function to get the locked object of a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+Function to get the locked object of a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 
 
 <pre><code>
@@ -769,8 +769,8 @@ Function to get the locked object of a <code>
 
 ## Function `label`
 
-Function to get the label of a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+Function to get the label of a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 
 
 <pre><code>
@@ -797,9 +797,9 @@ Function to get the label of a <code>
 
 ## Function `is_labeled_with`
 
-Check if a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> is labeled with the type <code>
-L</code>.
+Check if a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> is labeled with the type 
+L.
 
 
 <pre><code>
@@ -831,8 +831,8 @@ L</code>.
 
 ## Function `pack`
 
-A utility function to pack a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+A utility function to pack a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 
 
 <pre><code>
@@ -870,8 +870,8 @@ A utility function to pack a <code>
 
 ## Function `unpack`
 
-An utility function to unpack a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code>.
+An utility function to unpack a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link>.
 
 
 <pre><code>
@@ -909,8 +909,8 @@ An utility function to unpack a <code>
 
 ## Function `transfer`
 
-A utility function to transfer a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link></code> to a receiver.
+A utility function to transfer a 
+<Link to="../iota-framework/timelock#0x2_timelock_TimeLock">TimeLock</Link> to a receiver.
 
 
 <pre><code>
@@ -937,8 +937,8 @@ A utility function to transfer a <code>
 
 ## Function `check_expiration_timestamp_ms`
 
-An utility function to check that the <code>
-expiration_timestamp_ms</code> value is valid.
+An utility function to check that the 
+expiration_timestamp_ms value is valid.
 
 
 <pre><code>
@@ -969,8 +969,8 @@ expiration_timestamp_ms</code> value is valid.
 
 ## Function `new_system_timelock_cap`
 
-Create a <code>
-<Link to="../iota-framework/timelock#0x2_timelock_SystemTimelockCap">SystemTimelockCap</Link></code>.
+Create a 
+<Link to="../iota-framework/timelock#0x2_timelock_SystemTimelockCap">SystemTimelockCap</Link>.
 This should be called only once during genesis creation.
 
 

@@ -55,8 +55,8 @@ zero or one because Move bytecode does not have ADTs.
 
 <dl>
 <dt>
-<code>
-vec: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;</code>
+
+vec: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
 </dt>
 <dd>
 
@@ -73,12 +73,12 @@ vec: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;</c
 
 <Link id="0x1_option_EOPTION_IS_SET"></Link>
 
-The <code>
-<Link to="../move-stdlib/option#0x1_option_Option">Option</Link></code> is in an invalid state for the operation attempted.
-The <code>
-<Link to="../move-stdlib/option#0x1_option_Option">Option</Link></code> is <code>
-Some</code> while it should be <code>
-None</code>.
+The 
+<Link to="../move-stdlib/option#0x1_option_Option">Option</Link> is in an invalid state for the operation attempted.
+The 
+<Link to="../move-stdlib/option#0x1_option_Option">Option</Link> is 
+Some while it should be 
+None.
 
 
 <pre><code>
@@ -89,12 +89,12 @@ None</code>.
 
 <Link id="0x1_option_EOPTION_NOT_SET"></Link>
 
-The <code>
-<Link to="../move-stdlib/option#0x1_option_Option">Option</Link></code> is in an invalid state for the operation attempted.
-The <code>
-<Link to="../move-stdlib/option#0x1_option_Option">Option</Link></code> is <code>
-None</code> while it should be <code>
-Some</code>.
+The 
+<Link to="../move-stdlib/option#0x1_option_Option">Option</Link> is in an invalid state for the operation attempted.
+The 
+<Link to="../move-stdlib/option#0x1_option_Option">Option</Link> is 
+None while it should be 
+Some.
 
 
 <pre><code>
@@ -107,8 +107,8 @@ Some</code>.
 
 ## Function `none`
 
-Return an empty <code>
-<Link to="../move-stdlib/option#0x1_option_Option">Option</Link></code>
+Return an empty 
+<Link to="../move-stdlib/option#0x1_option_Option">Option</Link>
 
 
 <pre><code>
@@ -135,9 +135,9 @@ Return an empty <code>
 
 ## Function `some`
 
-Return an <code>
-<Link to="../move-stdlib/option#0x1_option_Option">Option</Link></code> containing <code>
-e</code>
+Return an 
+<Link to="../move-stdlib/option#0x1_option_Option">Option</Link> containing 
+e
 
 
 <pre><code>
@@ -164,8 +164,8 @@ e</code>
 
 ## Function `is_none`
 
-Return true if <code>
-t</code> does not hold a value
+Return true if 
+t does not hold a value
 
 
 <pre><code>
@@ -192,8 +192,8 @@ t</code> does not hold a value
 
 ## Function `is_some`
 
-Return true if <code>
-t</code> holds a value
+Return true if 
+t holds a value
 
 
 <pre><code>
@@ -220,12 +220,12 @@ t</code> holds a value
 
 ## Function `contains`
 
-Return true if the value in <code>
-t</code> is equal to <code>
-e_ref</code>
-Always returns <code>
-<b>false</b></code> if <code>
-t</code> does not hold a value
+Return true if the value in 
+t is equal to 
+e_ref
+Always returns 
+<b>false</b> if 
+t does not hold a value
 
 
 <pre><code>
@@ -252,10 +252,10 @@ t</code> does not hold a value
 
 ## Function `borrow`
 
-Return an immutable reference to the value inside <code>
-t</code>
-Aborts if <code>
-t</code> does not hold a value
+Return an immutable reference to the value inside 
+t
+Aborts if 
+t does not hold a value
 
 
 <pre><code>
@@ -283,11 +283,11 @@ t</code> does not hold a value
 
 ## Function `borrow_with_default`
 
-Return a reference to the value inside <code>
-t</code> if it holds one
-Return <code>
-default_ref</code> if <code>
-t</code> does not hold a value
+Return a reference to the value inside 
+t if it holds one
+Return 
+default_ref if 
+t does not hold a value
 
 
 <pre><code>
@@ -316,11 +316,11 @@ t</code> does not hold a value
 
 ## Function `get_with_default`
 
-Return the value inside <code>
-t</code> if it holds one
-Return <code>
-default</code> if <code>
-t</code> does not hold a value
+Return the value inside 
+t if it holds one
+Return 
+default if 
+t does not hold a value
 
 
 <pre><code>
@@ -352,11 +352,11 @@ t</code> does not hold a value
 
 ## Function `fill`
 
-Convert the none option <code>
-t</code> to a some option by adding <code>
-e</code>.
-Aborts if <code>
-t</code> already holds a value
+Convert the none option 
+t to a some option by adding 
+e.
+Aborts if 
+t already holds a value
 
 
 <pre><code>
@@ -385,12 +385,12 @@ t</code> already holds a value
 
 ## Function `extract`
 
-Convert a <code>
-some</code> option to a <code>
-none</code> by removing and returning the value stored inside <code>
-t</code>
-Aborts if <code>
-t</code> does not hold a value
+Convert a 
+some option to a 
+none by removing and returning the value stored inside 
+t
+Aborts if 
+t does not hold a value
 
 
 <pre><code>
@@ -418,10 +418,10 @@ t</code> does not hold a value
 
 ## Function `borrow_mut`
 
-Return a mutable reference to the value inside <code>
-t</code>
-Aborts if <code>
-t</code> does not hold a value
+Return a mutable reference to the value inside 
+t
+Aborts if 
+t does not hold a value
 
 
 <pre><code>
@@ -449,11 +449,11 @@ t</code> does not hold a value
 
 ## Function `swap`
 
-Swap the old value inside <code>
-t</code> with <code>
-e</code> and return the old value
-Aborts if <code>
-t</code> does not hold a value
+Swap the old value inside 
+t with 
+e and return the old value
+Aborts if 
+t does not hold a value
 
 
 <pre><code>
@@ -484,13 +484,13 @@ t</code> does not hold a value
 
 ## Function `swap_or_fill`
 
-Swap the old value inside <code>
-t</code> with <code>
-e</code> and return the old value;
-or if there is no old value, fill it with <code>
-e</code>.
-Different from swap(), swap_or_fill() allows for <code>
-t</code> not holding a value.
+Swap the old value inside 
+t with 
+e and return the old value;
+or if there is no old value, fill it with 
+e.
+Different from swap(), swap_or_fill() allows for 
+t not holding a value.
 
 
 <pre><code>
@@ -521,10 +521,10 @@ t</code> not holding a value.
 
 ## Function `destroy_with_default`
 
-Destroys <code>
-t.</code> If <code>
-t</code> holds a value, return it. Returns <code>
-default</code> otherwise
+Destroys 
+t. If 
+t holds a value, return it. Returns 
+default otherwise
 
 
 <pre><code>
@@ -553,10 +553,10 @@ default</code> otherwise
 
 ## Function `destroy_some`
 
-Unpack <code>
-t</code> and return its contents
-Aborts if <code>
-t</code> does not hold a value
+Unpack 
+t and return its contents
+Aborts if 
+t does not hold a value
 
 
 <pre><code>
@@ -587,10 +587,10 @@ t</code> does not hold a value
 
 ## Function `destroy_none`
 
-Unpack <code>
-t</code>
-Aborts if <code>
-t</code> holds a value
+Unpack 
+t
+Aborts if 
+t holds a value
 
 
 <pre><code>
@@ -619,9 +619,9 @@ t</code> holds a value
 
 ## Function `to_vec`
 
-Convert <code>
-t</code> into a vector of length 1 if it is <code>
-Some</code>,
+Convert 
+t into a vector of length 1 if it is 
+Some,
 and an empty vector otherwise
 
 

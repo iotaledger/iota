@@ -47,9 +47,9 @@ HEX (Base16) encoding utility.
 
 <Link id="0x2_hex_HEX"></Link>
 
-Vector of Base16 values from <code>
-00</code> to <code>
-FF</code>
+Vector of Base16 values from 
+00 to 
+FF
 
 
 <pre><code>
@@ -62,8 +62,8 @@ FF</code>
 
 ## Function `encode`
 
-Encode <code>
-bytes</code> in lowercase hex
+Encode 
+bytes in lowercase hex
 
 
 <pre><code>
@@ -96,11 +96,11 @@ bytes</code> in lowercase hex
 
 ## Function `decode`
 
-Decode hex into <code>
-bytes</code>
+Decode hex into 
+bytes
 Takes a hex string (no 0x prefix) (e.g. b"0f3a")
-Returns vector of <code>
-bytes</code> that represents the hex string (e.g. x"0f3a")
+Returns vector of 
+bytes that represents the hex string (e.g. x"0f3a")
 Hex string can be case insensitive (e.g. b"0F3A" and b"0f3a" both return x"0f3a")
 Aborts if the hex string does not have an even number of characters (as each hex character is 2 characters long)
 Aborts if the hex string contains non-valid hex characters (valid characters are 0 - 9, a - f, A - F)

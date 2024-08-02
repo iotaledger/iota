@@ -33,13 +33,13 @@ import Link from '@docusaurus/Link';
 A basic output that has unlock conditions/features.
 - basic outputs with expiration unlock condition must be a shared object, since that's the only
 way to handle the two possible addresses that can unlock the output.
-- notice that there is no <code>
-store</code> ability and there is no custom transfer function:
--  you can call <code>
-extract_assets</code>,
--  or you can call <code>
-receive</code> in other models to receive a <code>
-<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link></code>.
+- notice that there is no 
+store ability and there is no custom transfer function:
+-  you can call 
+extract_assets,
+-  or you can call 
+receive in other models to receive a 
+<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link>.
 
 
 <pre><code>
@@ -54,67 +54,67 @@ receive</code> in other models to receive a <code>
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
- Hash of the <code>
-outputId</code> that was migrated.
+ Hash of the 
+outputId that was migrated.
 </dd>
 <dt>
-<code>
-<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+
+<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </dt>
 <dd>
  The amount of coins held by the output.
 </dd>
 <dt>
-<code>
-native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
- The <code>
-Bag</code> holds native tokens, key-ed by the stringified type of the asset.
+ The 
+Bag holds native tokens, key-ed by the stringified type of the asset.
  Example: key: "0xabcded::soon::SOON", value: `Balance<0xabcded::soon::SOON>`.
 </dd>
 <dt>
-<code>
-storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;</code>
+
+storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;
 </dt>
 <dd>
  The storage deposit return unlock condition.
 </dd>
 <dt>
-<code>
-timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;</code>
+
+timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;
 </dt>
 <dd>
  The timelock unlock condition.
 </dd>
 <dt>
-<code>
-expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;</code>
+
+expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;
 </dt>
 <dd>
  The expiration unlock condition.
 </dd>
 <dt>
-<code>
-metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
  The metadata feature.
 </dd>
 <dt>
-<code>
-tag: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+tag: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
  The tag feature.
 </dd>
 <dt>
-<code>
-sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
+
+sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
 </dt>
 <dd>
  The sender feature.
@@ -130,8 +130,8 @@ sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>
 
 Extract the assets stored inside the output, respecting the unlock conditions.
 - The object will be deleted.
-- The <code>
-StorageDepositReturnUnlockCondition</code> will return the deposit.
+- The 
+StorageDepositReturnUnlockCondition will return the deposit.
 - Remaining assets (coins and native tokens) will be returned.
 
 
@@ -196,10 +196,10 @@ StorageDepositReturnUnlockCondition</code> will return the deposit.
 ## Function `receive`
 
 Utility function to receive a basic output in other stardust modules.
-Since <code>
-<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link></code> only has <code>
-key</code>, it can not be received via <code>
-public_receive</code>.
+Since 
+<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link> only has 
+key, it can not be received via 
+public_receive.
 The private receiver must be implemented in its defining module (here).
 Other modules in the Stardust package can call this function to receive a basic output (alias, NFT).
 

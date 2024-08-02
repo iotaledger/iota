@@ -32,8 +32,8 @@ import Link from '@docusaurus/Link';
 
 The persisted Alias object from Stardust, without tokens and assets.
 Outputs owned the AliasID/Address in Stardust will be sent to this object and
-have to be received via this object once extracted from <code>
-AliasOutput</code>.
+have to be received via this object once extracted from 
+AliasOutput.
 
 
 <pre><code>
@@ -48,58 +48,58 @@ AliasOutput</code>.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  The ID of the Alias = hash of the Output ID that created the Alias Output in Stardust.
  This is the AliasID from Stardust.
 </dd>
 <dt>
-<code>
-legacy_state_controller: <b>address</b></code>
+
+legacy_state_controller: <b>address</b>
 </dt>
 <dd>
  The last State Controller address assigned before the migration.
 </dd>
 <dt>
-<code>
-state_index: u32</code>
+
+state_index: u32
 </dt>
 <dd>
  A counter increased by 1 every time the alias was state transitioned.
 </dd>
 <dt>
-<code>
-state_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+state_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
  State metadata that can be used to store additional information.
 </dd>
 <dt>
-<code>
-sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
+
+sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
 </dt>
 <dd>
  The sender feature.
 </dd>
 <dt>
-<code>
-metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
  The metadata feature.
 </dd>
 <dt>
-<code>
-immutable_issuer: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
+
+immutable_issuer: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
 </dt>
 <dd>
  The immutable issuer feature.
 </dd>
 <dt>
-<code>
-immutable_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+immutable_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
  The immutable metadata feature.
@@ -113,9 +113,9 @@ immutable_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::O
 
 ## Function `destroy`
 
-Destroy the <code>
-<Link to="alias#0x107a_alias_Alias">Alias</Link></code> object, equivalent to <code>
-burning</code> an Alias Output in Stardust.
+Destroy the 
+<Link to="alias#0x107a_alias_Alias">Alias</Link> object, equivalent to 
+burning an Alias Output in Stardust.
 
 
 <pre><code>
@@ -153,8 +153,8 @@ burning</code> an Alias Output in Stardust.
 
 ## Function `legacy_state_controller`
 
-Get the Alias's <code>
-legacy_state_controller</code>.
+Get the Alias's 
+legacy_state_controller.
 
 
 <pre><code>
@@ -181,8 +181,8 @@ legacy_state_controller</code>.
 
 ## Function `state_index`
 
-Get the Alias's <code>
-state_index</code>.
+Get the Alias's 
+state_index.
 
 
 <pre><code>
@@ -209,8 +209,8 @@ state_index</code>.
 
 ## Function `state_metadata`
 
-Get the Alias's <code>
-state_metadata</code>.
+Get the Alias's 
+state_metadata.
 
 
 <pre><code>
@@ -237,8 +237,8 @@ state_metadata</code>.
 
 ## Function `sender`
 
-Get the Alias's <code>
-sender</code>.
+Get the Alias's 
+sender.
 
 
 <pre><code>
@@ -265,8 +265,8 @@ sender</code>.
 
 ## Function `metadata`
 
-Get the Alias's <code>
-metadata</code>.
+Get the Alias's 
+metadata.
 
 
 <pre><code>
@@ -293,8 +293,8 @@ metadata</code>.
 
 ## Function `immutable_issuer`
 
-Get the Alias's <code>
-immutable_sender</code>.
+Get the Alias's 
+immutable_sender.
 
 
 <pre><code>
@@ -321,8 +321,8 @@ immutable_sender</code>.
 
 ## Function `immutable_metadata`
 
-Get the Alias's <code>
-immutable_metadata</code>.
+Get the Alias's 
+immutable_metadata.
 
 
 <pre><code>

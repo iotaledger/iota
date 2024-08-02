@@ -9,14 +9,14 @@ This module implements the Kiosk Extensions functionality. It allows
 exposing previously protected (only-owner) methods to third-party apps.
 
 A Kiosk Extension is a module that implements any functionality on top of
-the <code>
-Kiosk</code> without discarding nor blocking the base. Given that <code>
-Kiosk</code>
+the 
+Kiosk without discarding nor blocking the base. Given that 
+Kiosk
 itself is a trading primitive, most of the extensions are expected to be
 related to trading. However, there's no limit to what can be built using the
-<code>
-<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> module, as it gives certain benefits such as using <code>
-Kiosk</code>
+
+<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link> module, as it gives certain benefits such as using 
+Kiosk
 as the storage for any type of data / assets.
 
 
@@ -25,19 +25,19 @@ as the storage for any type of data / assets.
 #### Flow:
 
 - An extension can only be installed by the Kiosk Owner and requires an
-authorization via the <code>
-KioskOwnerCap</code>.
+authorization via the 
+KioskOwnerCap.
 - When installed, the extension is given a permission bitmap that allows it
-to perform certain protected actions (eg <code>
-place</code>, <code>
-lock</code>). However, it is
+to perform certain protected actions (eg 
+place, 
+lock). However, it is
 possible to install an extension that does not have any permissions.
-- Kiosk Owner can <code>
-disable</code> the extension at any time, which prevents it
+- Kiosk Owner can 
+disable the extension at any time, which prevents it
 from performing any protected actions. The storage is still available to the
 extension until it is completely removed.
-- A disabled extension can be <code>
-enable</code>d at any time giving the permissions
+- A disabled extension can be 
+enabled at any time giving the permissions
 back to the extension.
 - An extension permissions follow the all-or-nothing policy. Either all of
 the requested permissions are granted or none of them (can't install).
@@ -48,8 +48,8 @@ the requested permissions are granted or none of them (can't install).
 #### Examples:
 
 - An Auction extension can utilize the storage to store Auction-related data
-while utilizing the same <code>
-Kiosk</code> object that the items are stored in.
+while utilizing the same 
+Kiosk object that the items are stored in.
 - A Marketplace extension that implements custom events and fees for the
 default trading functionality.
 
@@ -58,19 +58,19 @@ default trading functionality.
 
 #### Notes:
 
-- Trading functionality can utilize the <code>
-PurchaseCap</code> to build a custom
+- Trading functionality can utilize the 
+PurchaseCap to build a custom
 logic around the purchase flow. However, it should be carefully managed to
 prevent asset locking.
-- <code>
-<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> is a friend module to <code>
-<Link to="kiosk#0x2_kiosk">kiosk</Link></code> and has access to its
-internal functions (such as <code>
-place_internal</code> and <code>
-lock_internal</code> to
-implement custom authorization scheme for <code>
-place</code> and <code>
-lock</code> respectively).
+- 
+<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link> is a friend module to 
+<Link to="kiosk#0x2_kiosk">kiosk</Link> and has access to its
+internal functions (such as 
+place_internal and 
+lock_internal to
+implement custom authorization scheme for 
+place and 
+lock respectively).
 
 
         -  [Flow:](#@Flow:_0)
@@ -111,8 +111,8 @@ lock</code> respectively).
 ## Struct `Extension`
 
 The Extension struct contains the data used by the extension and the
-configuration for this extension. Stored under the <code>
-<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code>
+configuration for this extension. Stored under the 
+<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>
 dynamic field.
 
 
@@ -128,8 +128,8 @@ dynamic field.
 
 <dl>
 <dt>
-<code>
-storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Storage for the extension, an isolated Bag. By putting the extension
@@ -138,40 +138,40 @@ storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link></code>
  the ability to store any data they want.
 </dd>
 <dt>
-<code>
-permissions: u128</code>
+
+permissions: u128
 </dt>
 <dd>
  Bitmap of permissions that the extension has (can be revoked any
  moment). It's all or nothing policy - either the extension has the
  required permissions or no permissions at all.
 
- 1st bit - <code>
-place</code> - allows to place items for sale
- 2nd bit - <code>
-lock</code> and <code>
-place</code> - allows to lock items (and place)
+ 1st bit - 
+place - allows to place items for sale
+ 2nd bit - 
+lock and 
+place - allows to lock items (and place)
 
  For example:
- - <code>
-10</code> - allows to place items and lock them.
- - <code>
-11</code> - allows to place items and lock them (<code>
-lock</code> includes <code>
-place</code>).
- - <code>
-01</code> - allows to place items, but not lock them.
- - <code>
-00</code> - no permissions.
+ - 
+10 - allows to place items and lock them.
+ - 
+11 - allows to place items and lock them (
+lock includes 
+place).
+ - 
+01 - allows to place items, but not lock them.
+ - 
+00 - no permissions.
 </dd>
 <dt>
-<code>
-is_enabled: bool</code>
+
+is_enabled: bool
 </dt>
 <dd>
  Whether the extension can call protected actions. By default, all
- extensions are enabled (on <code>
-add</code> call), however the Kiosk
+ extensions are enabled (on 
+add call), however the Kiosk
  owner can disable them at any time.
 
  Disabling the extension does not limit its access to the storage.
@@ -185,10 +185,10 @@ add</code> call), however the Kiosk
 
 ## Struct `ExtensionKey`
 
-The <code>
-<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code> is a typed dynamic field key used to store the
-extension configuration and data. <code>
-Ext</code> is a phantom type that is used
+The 
+<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link> is a typed dynamic field key used to store the
+extension configuration and data. 
+Ext is a phantom type that is used
 to identify the extension witness.
 
 
@@ -204,8 +204,8 @@ to identify the extension witness.
 
 <dl>
 <dt>
-<code>
-dummy_field: bool</code>
+
+dummy_field: bool
 </dt>
 <dd>
 
@@ -256,9 +256,9 @@ Extension is not installed in the Kiosk.
 
 <Link id="0x2_kiosk_extension_LOCK"></Link>
 
-Value that represents the <code>
-lock</code> and <code>
-place</code> permission in the
+Value that represents the 
+lock and 
+place permission in the
 permissions bitmap.
 
 
@@ -270,8 +270,8 @@ permissions bitmap.
 
 <Link id="0x2_kiosk_extension_PLACE"></Link>
 
-Value that represents the <code>
-place</code> permission in the permissions bitmap.
+Value that represents the 
+place permission in the permissions bitmap.
 
 
 <pre><code>
@@ -286,8 +286,8 @@ place</code> permission in the permissions bitmap.
 
 Add an extension to the Kiosk. Can only be performed by the owner. The
 extension witness is required to allow extensions define their set of
-permissions in the custom <code>
-add</code> call.
+permissions in the custom 
+add call.
 
 
 <pre><code>
@@ -364,11 +364,11 @@ The storage is still available to the extension (until it's removed).
 ## Function `enable`
 
 Re-enable the extension allowing it to call protected actions (eg
-<code>
-place</code>, <code>
-lock</code>). By default, all added extensions are enabled. Kiosk
-owner can disable them via <code>
-disable</code> call.
+
+place, 
+lock). By default, all added extensions are enabled. Kiosk
+owner can disable them via 
+disable call.
 
 
 <pre><code>
@@ -512,15 +512,15 @@ aware of the risks.
 ## Function `place`
 
 Protected action: place an item into the Kiosk. Can be performed by an
-authorized extension. The extension must have the <code>
-place</code> permission or
-a <code>
-lock</code> permission.
+authorized extension. The extension must have the 
+place permission or
+a 
+lock permission.
 
-To prevent non-tradable items from being placed into <code>
-Kiosk</code> the method
-requires a <code>
-TransferPolicy</code> for the placed type to exist.
+To prevent non-tradable items from being placed into 
+Kiosk the method
+requires a 
+TransferPolicy for the placed type to exist.
 
 
 <pre><code>
@@ -553,8 +553,8 @@ TransferPolicy</code> for the placed type to exist.
 ## Function `lock`
 
 Protected action: lock an item in the Kiosk. Can be performed by an
-authorized extension. The extension must have the <code>
-lock</code> permission.
+authorized extension. The extension must have the 
+lock permission.
 
 
 <pre><code>
@@ -586,8 +586,8 @@ lock</code> permission.
 
 ## Function `is_installed`
 
-Check whether an extension of type <code>
-Ext</code> is installed.
+Check whether an extension of type 
+Ext is installed.
 
 
 <pre><code>
@@ -614,8 +614,8 @@ Ext</code> is installed.
 
 ## Function `is_enabled`
 
-Check whether an extension of type <code>
-Ext</code> is enabled.
+Check whether an extension of type 
+Ext is enabled.
 
 
 <pre><code>
@@ -642,9 +642,9 @@ Ext</code> is enabled.
 
 ## Function `can_place`
 
-Check whether an extension of type <code>
-Ext</code> can <code>
-place</code> into Kiosk.
+Check whether an extension of type 
+Ext can 
+place into Kiosk.
 
 
 <pre><code>
@@ -671,11 +671,11 @@ place</code> into Kiosk.
 
 ## Function `can_lock`
 
-Check whether an extension of type <code>
-Ext</code> can <code>
-lock</code> items in Kiosk.
-Locking also enables <code>
-place</code>.
+Check whether an extension of type 
+Ext can 
+lock items in Kiosk.
+Locking also enables 
+place.
 
 
 <pre><code>

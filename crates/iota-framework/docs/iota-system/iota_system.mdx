@@ -6,46 +6,46 @@ import Link from '@docusaurus/Link';
 
 <Link id="0x3_iota_system"/>
 Iota System State Type Upgrade Guide
-<code>
-<Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link></code> is a thin wrapper around <code>
-IotaSystemStateInner</code> that provides a versioned interface.
-The <code>
-<Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link></code> object has a fixed ID 0x5, and the <code>
-IotaSystemStateInner</code> object is stored as a dynamic field.
-There are a few different ways to upgrade the <code>
-IotaSystemStateInner</code> type:
 
-The simplest and one that doesn't involve a real upgrade is to just add dynamic fields to the <code>
-extra_fields</code> field
-of <code>
-IotaSystemStateInner</code> or any of its sub type. This is useful when we are in a rush, or making a small change,
+<Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link> is a thin wrapper around 
+IotaSystemStateInner that provides a versioned interface.
+The 
+<Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link> object has a fixed ID 0x5, and the 
+IotaSystemStateInner object is stored as a dynamic field.
+There are a few different ways to upgrade the 
+IotaSystemStateInner type:
+
+The simplest and one that doesn't involve a real upgrade is to just add dynamic fields to the 
+extra_fields field
+of 
+IotaSystemStateInner or any of its sub type. This is useful when we are in a rush, or making a small change,
 or still experimenting a new field.
 
-To properly upgrade the <code>
-IotaSystemStateInner</code> type, we need to ship a new framework that does the following:
-1. Define a new <code>
-IotaSystemStateInner</code>type (e.g. <code>
-IotaSystemStateInnerV2</code>).
-2. Define a data migration function that migrates the old <code>
-IotaSystemStateInner</code> to the new one (i.e. IotaSystemStateInnerV2).
-3. Replace all uses of <code>
-IotaSystemStateInner</code> with <code>
-IotaSystemStateInnerV2</code> in both iota_system.move and iota_system_state_inner.move,
-with the exception of the <code>
-<Link to="iota_system_state_inner#0x3_iota_system_state_inner_create">iota_system_state_inner::create</Link></code> function, which should always return the genesis type.
-4. Inside <code>
-load_inner_maybe_upgrade</code> function, check the current version in the wrapper, and if it's not the latest version,
+To properly upgrade the 
+IotaSystemStateInner type, we need to ship a new framework that does the following:
+1. Define a new 
+IotaSystemStateInnertype (e.g. 
+IotaSystemStateInnerV2).
+2. Define a data migration function that migrates the old 
+IotaSystemStateInner to the new one (i.e. IotaSystemStateInnerV2).
+3. Replace all uses of 
+IotaSystemStateInner with 
+IotaSystemStateInnerV2 in both iota_system.move and iota_system_state_inner.move,
+with the exception of the 
+<Link to="iota_system_state_inner#0x3_iota_system_state_inner_create">iota_system_state_inner::create</Link> function, which should always return the genesis type.
+4. Inside 
+load_inner_maybe_upgrade function, check the current version in the wrapper, and if it's not the latest version,
 call the data migration function to upgrade the inner object. Make sure to also update the version in the wrapper.
 A detailed example can be found in iota/tests/framework_upgrades/mock_iota_systems/shallow_upgrade.
 Along with the Move change, we also need to update the Rust code to support the new type. This includes:
-1. Define a new <code>
-IotaSystemStateInner</code> struct type that matches the new Move type, and implement the IotaSystemStateTrait.
-2. Update the <code>
-<Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link></code> struct to include the new version as a new enum variant.
-3. Update the <code>
-get_iota_system_state</code> function to handle the new version.
-To test that the upgrade will be successful, we need to modify <code>
-iota_system_state_production_upgrade_test</code> test in
+1. Define a new 
+IotaSystemStateInner struct type that matches the new Move type, and implement the IotaSystemStateTrait.
+2. Update the 
+<Link to="iota_system#0x3_iota_system_IotaSystemState">IotaSystemState</Link> struct to include the new version as a new enum variant.
+3. Update the 
+get_iota_system_state function to handle the new version.
+To test that the upgrade will be successful, we need to modify 
+iota_system_state_production_upgrade_test test in
 protocol_version_tests and trigger a real upgrade using the new framework. We will need to keep this directory as old version,
 put the new framework in a new directory, and run the test to exercise the upgrade.
 
@@ -55,8 +55,8 @@ To upgrade Validator type, besides everything above, we also need to:
 3. Replace all uses of Validator with ValidatorV2 except the genesis creation function.
 4. In validator_wrapper::upgrade_to_latest, check the current version in the wrapper, and if it's not the latest version,
 call the data migration function to upgrade it.
-In Rust, we also need to add a new case in <code>
-get_validator_from_table</code>.
+In Rust, we also need to add a new case in 
+get_validator_from_table.
 Note that it is possible to upgrade IotaSystemStateInner without upgrading Validator, but not the other way around.
 And when we only upgrade IotaSystemStateInner, the version of Validator in the wrapper will not be updated, and hence may become
 inconsistent with the version of IotaSystemStateInner. This is fine as long as we don't use the Validator version to determine
@@ -148,15 +148,15 @@ the IotaSystemStateInner version, or vice versa.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-version: u64</code>
+
+version: u64
 </dt>
 <dd>
 
@@ -262,13 +262,13 @@ This function will be called only once in genesis.
 ## Function `request_add_validator_candidate`
 
 Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
-stakes in their staking pool. Once they have at least <code>
-MIN_VALIDATOR_JOINING_STAKE</code> amount of stake they
-can call <code>
-request_add_validator</code> to officially become an active validator at the next epoch.
+stakes in their staking pool. Once they have at least 
+MIN_VALIDATOR_JOINING_STAKE amount of stake they
+can call 
+request_add_validator to officially become an active validator at the next epoch.
 Aborts if the caller is already a pending or active validator, or a validator candidate.
-Note: <code>
-proof_of_possession</code> MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+Note: 
+proof_of_possession MUST be a valid signature using iota_address and protocol_pubkey_bytes.
 To produce a valid PoP, run [fn test_proof_of_possession].
 
 
@@ -397,11 +397,11 @@ epoch has already reached the maximum.
 ## Function `request_remove_validator`
 
 A validator can call this function to request a removal in the next epoch.
-We use the sender of <code>
-ctx</code> to look up the validator
+We use the sender of 
+ctx to look up the validator
 (i.e. sender must match the iota_address in the validator).
-At the end of the epoch, the <code>
-<Link to="validator#0x3_validator">validator</Link></code> object will be returned to the iota_address
+At the end of the epoch, the 
+<Link to="validator#0x3_validator">validator</Link> object will be returned to the iota_address
 of the validator.
 
 
@@ -596,8 +596,8 @@ Add stake to a validator's staking pool.
 
 ## Function `request_add_stake_non_entry`
 
-The non-entry version of <code>
-request_add_stake</code>, which returns the staked IOTA instead of transferring it to the sender.
+The non-entry version of 
+request_add_stake, which returns the staked IOTA instead of transferring it to the sender.
 
 
 <pre><code>
@@ -697,8 +697,8 @@ Withdraw stake from a validator's staking pool.
 
 ## Function `request_withdraw_stake_non_entry`
 
-Non-entry version of <code>
-request_withdraw_stake</code> that returns the withdrawn IOTA instead of transferring it to the sender.
+Non-entry version of 
+request_withdraw_stake that returns the withdrawn IOTA instead of transferring it to the sender.
 
 
 <pre><code>
@@ -732,9 +732,9 @@ request_withdraw_stake</code> that returns the withdrawn IOTA instead of transfe
 
 Report a validator as a bad or non-performant actor in the system.
 Succeeds if all the following are satisfied:
-1. both the reporter in <code>
-cap</code> and the input <code>
-reportee_addr</code> are active validators.
+1. both the reporter in 
+cap and the input 
+reportee_addr are active validators.
 2. reporter and reportee not the same address.
 3. the cap object is still valid.
 This function is idempotent.
@@ -769,11 +769,11 @@ This function is idempotent.
 
 ## Function `undo_report_validator`
 
-Undo a <code>
-report_validator</code> action. Aborts if
+Undo a 
+report_validator action. Aborts if
 1. the reportee is not a currently active validator or
-2. the sender has not previously reported the <code>
-reportee_addr</code>, or
+2. the sender has not previously reported the 
+reportee_addr, or
 3. the cap is not valid
 
 
@@ -806,8 +806,8 @@ reportee_addr</code>, or
 
 ## Function `rotate_operation_cap`
 
-Create a new <code>
-UnverifiedValidatorOperationCap</code>, transfer it to the
+Create a new 
+UnverifiedValidatorOperationCap, transfer it to the
 validator and registers it. The original object is thus revoked.
 
 

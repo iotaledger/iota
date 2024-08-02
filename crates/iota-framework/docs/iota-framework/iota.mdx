@@ -51,8 +51,8 @@ Name of the coin
 
 <dl>
 <dt>
-<code>
-dummy_field: bool</code>
+
+dummy_field: bool
 </dt>
 <dd>
 
@@ -82,8 +82,8 @@ Protects the token from unauthorized changes.
 
 <dl>
 <dt>
-<code>
-inner: <Link to="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+inner: <Link to="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
@@ -123,9 +123,9 @@ Sender is not @0x0 the system address.
 
 ## Function `new`
 
-Register the <code>
-<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link></code> Coin to acquire <code>
-<Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link></code>.
+Register the 
+<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link> Coin to acquire 
+<Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>.
 This should be called only once during genesis creation.
 
 
@@ -196,9 +196,9 @@ This should be called only once during genesis creation.
 
 ## Function `mint`
 
-Create an IOTA coin worth <code>
-value</code> and increase the total supply in <code>
-cap</code> accordingly.
+Create an IOTA coin worth 
+value and increase the total supply in 
+cap accordingly.
 
 
 <pre><code>
@@ -227,12 +227,12 @@ cap</code> accordingly.
 
 ## Function `mint_balance`
 
-Mint some amount of IOTA as a <code>
-Balance</code> and increase the total supply in <code>
-cap</code> accordingly.
-Aborts if <code>
-value</code> + <code>
-cap.inner.total_supply</code> >= U64_MAX
+Mint some amount of IOTA as a 
+Balance and increase the total supply in 
+cap accordingly.
+Aborts if 
+value + 
+cap.inner.total_supply >= U64_MAX
 
 
 <pre><code>
@@ -261,9 +261,9 @@ cap.inner.total_supply</code> >= U64_MAX
 
 ## Function `burn`
 
-Destroy the IOTA coin <code>
-c</code> and decrease the total supply in <code>
-cap</code> accordingly.
+Destroy the IOTA coin 
+c and decrease the total supply in 
+cap accordingly.
 
 
 <pre><code>
@@ -292,9 +292,9 @@ cap</code> accordingly.
 
 ## Function `burn_balance`
 
-Destroy the IOTA balance <code>
-b</code> and decrease the total supply in <code>
-cap</code> accordingly.
+Destroy the IOTA balance 
+b and decrease the total supply in 
+cap accordingly.
 
 
 <pre><code>

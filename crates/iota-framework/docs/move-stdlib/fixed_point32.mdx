@@ -51,8 +51,8 @@ decimal.
 
 <dl>
 <dt>
-<code>
-value: u64</code>
+
+value: u64
 </dt>
 <dd>
 
@@ -80,8 +80,8 @@ The denominator provided was zero
 
 <Link id="0x1_fixed_point32_EDIVISION"></Link>
 
-The quotient value would be too large to be held in a <code>
-u64</code>
+The quotient value would be too large to be held in a 
+u64
 
 
 <pre><code>
@@ -103,8 +103,8 @@ A division by zero was encountered
 
 <Link id="0x1_fixed_point32_EMULTIPLICATION"></Link>
 
-The multiplied value would be too large to be held in a <code>
-u64</code>
+The multiplied value would be too large to be held in a 
+u64
 
 
 <pre><code>
@@ -115,8 +115,8 @@ u64</code>
 
 <Link id="0x1_fixed_point32_ERATIO_OUT_OF_RANGE"></Link>
 
-The computed ratio when converting to a <code>
-<Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link></code> would be unrepresentable
+The computed ratio when converting to a 
+<Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> would be unrepresentable
 
 
 <pre><code>
@@ -219,8 +219,8 @@ is zero or if the quotient overflows.
 
 Create a fixed-point value from a rational number specified by its
 numerator and denominator. Calling this function should be preferred
-for using <code>
-<Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_raw_value">Self::create_from_raw_value</Link></code> which is also available.
+for using 
+<Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_raw_value">Self::create_from_raw_value</Link> which is also available.
 This will abort if the denominator is zero. It will also
 abort if the numerator is nonzero and the ratio is not in the range
 2^-32 .. 2^32-1. When specifying decimal fractions, be careful about

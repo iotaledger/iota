@@ -5,8 +5,8 @@ sidebar_label: ascii
 import Link from '@docusaurus/Link';
 
 <Link id="0x1_ascii"/>
-The <code>
-ASCII</code> module defines basic string and char newtypes in Move that verify
+The 
+ASCII module defines basic string and char newtypes in Move that verify
 that characters are valid ASCII, and that strings consist of only valid ASCII characters.
 
 
@@ -37,13 +37,13 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 
 ## Struct `String`
 
-The <code>
-<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code> struct holds a vector of bytes that all represent
+The 
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link> struct holds a vector of bytes that all represent
 valid ASCII characters. Note that these ASCII characters may not all
-be printable. To determine if a <code>
-<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code> contains only "printable"
-characters you should use the <code>
-all_characters_printable</code> predicate
+be printable. To determine if a 
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link> contains only "printable"
+characters you should use the 
+all_characters_printable predicate
 defined in this module.
 
 
@@ -59,8 +59,8 @@ defined in this module.
 
 <dl>
 <dt>
-<code>
-bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
 
@@ -89,8 +89,8 @@ An ASCII character.
 
 <dl>
 <dt>
-<code>
-byte: u8</code>
+
+byte: u8
 </dt>
 <dd>
 
@@ -120,9 +120,9 @@ An invalid ASCII character was encountered when creating an ASCII string.
 
 ## Function `char`
 
-Convert a <code>
-byte</code> into a <code>
-<Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link></code> that is checked to make sure it is valid ASCII.
+Convert a 
+byte into a 
+<Link to="../move-stdlib/ascii#0x1_ascii_Char">Char</Link> that is checked to make sure it is valid ASCII.
 
 
 <pre><code>
@@ -150,11 +150,11 @@ byte</code> into a <code>
 
 ## Function `string`
 
-Convert a vector of bytes <code>
-bytes</code> into an <code>
-<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>. Aborts if
-<code>
-bytes</code> contains non-ASCII characters.
+Convert a vector of bytes 
+bytes into an 
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>. Aborts if
+
+bytes contains non-ASCII characters.
 
 
 <pre><code>
@@ -183,14 +183,14 @@ bytes</code> contains non-ASCII characters.
 
 ## Function `try_string`
 
-Convert a vector of bytes <code>
-bytes</code> into an <code>
-<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>. Returns
-<code>
-Some(&lt;ascii_string&gt;)</code> if the <code>
-bytes</code> contains all valid ASCII
-characters. Otherwise returns <code>
-None</code>.
+Convert a vector of bytes 
+bytes into an 
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>. Returns
+
+Some(&lt;ascii_string&gt;) if the 
+bytes contains all valid ASCII
+characters. Otherwise returns 
+None.
 
 
 <pre><code>
@@ -224,12 +224,12 @@ None</code>.
 
 ## Function `all_characters_printable`
 
-Returns <code>
-<b>true</b></code> if all characters in <code>
-<Link to="../move-stdlib/string#0x1_string">string</Link></code> are printable characters
-Returns <code>
-<b>false</b></code> otherwise. Not all <code>
-<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link></code>s are printable strings.
+Returns 
+<b>true</b> if all characters in 
+<Link to="../move-stdlib/string#0x1_string">string</Link> are printable characters
+Returns 
+<b>false</b> otherwise. Not all 
+<Link to="../move-stdlib/ascii#0x1_ascii_String">String</Link>s are printable strings.
 
 
 <pre><code>
@@ -341,8 +341,8 @@ Returns <code>
 
 ## Function `as_bytes`
 
-Get the inner bytes of the <code>
-<Link to="../move-stdlib/string#0x1_string">string</Link></code> as a reference
+Get the inner bytes of the 
+<Link to="../move-stdlib/string#0x1_string">string</Link> as a reference
 
 
 <pre><code>
@@ -369,8 +369,8 @@ Get the inner bytes of the <code>
 
 ## Function `into_bytes`
 
-Unpack the <code>
-<Link to="../move-stdlib/string#0x1_string">string</Link></code> to get its backing bytes
+Unpack the 
+<Link to="../move-stdlib/string#0x1_string">string</Link> to get its backing bytes
 
 
 <pre><code>
@@ -398,8 +398,8 @@ Unpack the <code>
 
 ## Function `byte`
 
-Unpack the <code>
-char</code> into its underlying byte.
+Unpack the 
+char into its underlying byte.
 
 
 <pre><code>
@@ -427,10 +427,10 @@ char</code> into its underlying byte.
 
 ## Function `is_valid_char`
 
-Returns <code>
-<b>true</b></code> if <code>
-b</code> is a valid ASCII character. Returns <code>
-<b>false</b></code> otherwise.
+Returns 
+<b>true</b> if 
+b is a valid ASCII character. Returns 
+<b>false</b> otherwise.
 
 
 <pre><code>
@@ -457,10 +457,10 @@ b</code> is a valid ASCII character. Returns <code>
 
 ## Function `is_printable_char`
 
-Returns <code>
-<b>true</b></code> if <code>
-byte</code> is an printable ASCII character. Returns <code>
-<b>false</b></code> otherwise.
+Returns 
+<b>true</b> if 
+byte is an printable ASCII character. Returns 
+<b>false</b> otherwise.
 
 
 <pre><code>

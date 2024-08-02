@@ -9,12 +9,12 @@ The Token module which implements a Closed Loop Token with a configurable
 policy. The policy is defined by a set of rules that must be satisfied for
 an action to be performed on the token.
 
-The module is designed to be used with a <code>
-TreasuryCap</code> to allow for minting
-and burning of the <code>
-<Link to="token#0x2_token_Token">Token</Link></code>s. And can act as a replacement / extension or a
-companion to existing open-loop (<code>
-Coin</code>) systems.
+The module is designed to be used with a 
+TreasuryCap to allow for minting
+and burning of the 
+<Link to="token#0x2_token_Token">Token</Link>s. And can act as a replacement / extension or a
+companion to existing open-loop (
+Coin) systems.
 
 ```
 Module:      iota::balance       iota::coin             iota::token
@@ -103,11 +103,11 @@ control over the currency which a simple open-loop system can't provide.
 
 ## Resource `Token`
 
-A single <code>
-<Link to="token#0x2_token_Token">Token</Link></code> with <code>
-Balance</code> inside. Can only be owned by an address,
-and actions performed on it must be confirmed in a matching <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+A single 
+<Link to="token#0x2_token_Token">Token</Link> with 
+Balance inside. Can only be owned by an address,
+and actions performed on it must be confirmed in a matching 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -122,19 +122,19 @@ and actions performed on it must be confirmed in a matching <code>
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-<Link to="balance#0x2_balance">balance</Link>: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+
+<Link to="balance#0x2_balance">balance</Link>: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </dt>
 <dd>
- The Balance of the <code>
-<Link to="token#0x2_token_Token">Token</Link></code>.
+ The Balance of the 
+<Link to="token#0x2_token_Token">Token</Link>.
 </dd>
 </dl>
 
@@ -145,12 +145,12 @@ id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 
 ## Resource `TokenPolicyCap`
 
-A Capability that manages a single <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> specified in the <code>
-for</code>
-field. Created together with <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> in the <code>
-new</code> function.
+A Capability that manages a single 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> specified in the 
+for
+field. Created together with 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> in the 
+new function.
 
 
 <pre><code>
@@ -165,15 +165,15 @@ new</code> function.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-for: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+for: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -187,25 +187,25 @@ for: <Link to="object#0x2_object_ID">object::ID</Link></code>
 
 ## Resource `TokenPolicy`
 
-<code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> represents a set of rules that define what actions can be
-performed on a <code>
-<Link to="token#0x2_token_Token">Token</Link></code> and which <code>
-Rules</code> must be satisfied for the
+
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> represents a set of rules that define what actions can be
+performed on a 
+<Link to="token#0x2_token_Token">Token</Link> and which 
+Rules must be satisfied for the
 action to succeed.
 
-- For the sake of availability, <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is a <code>
-key</code>-only object.
-- Each <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is managed by a matching <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code>.
+- For the sake of availability, 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> is a 
+key-only object.
+- Each 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> is managed by a matching 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>.
 - For an action to become available, there needs to be a record in the
-<code>
-rules</code> VecMap. To allow an action to be performed freely, there's an
-<code>
-allow</code> function that can be called by the <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> owner.
+
+rules VecMap. To allow an action to be performed freely, there's an
+
+allow function that can be called by the 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> owner.
 
 
 <pre><code>
@@ -220,36 +220,36 @@ allow</code> function that can be called by the <code>
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-spent_balance: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+
+spent_balance: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </dt>
 <dd>
  The balance that is effectively spent by the user on the "spend"
  action. However, actual decrease of the supply can only be done by
- the <code>
-TreasuryCap</code> owner when <code>
-flush</code> is called.
+ the 
+TreasuryCap owner when 
+flush is called.
 
  This balance is effectively spent and cannot be accessed by anyone
- but the <code>
-TreasuryCap</code> owner.
+ but the 
+TreasuryCap owner.
 </dd>
 <dt>
-<code>
-rules: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;&gt;</code>
+
+rules: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;&gt;
 </dt>
 <dd>
  The set of rules that define what actions can be performed on the
  token. For each "action" there's a set of Rules that must be
- satisfied for the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> to be confirmed.
+ satisfied for the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> to be confirmed.
 </dd>
 </dl>
 
@@ -261,10 +261,10 @@ rules: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to=
 ## Struct `ActionRequest`
 
 A request to perform an "Action" on a token. Stores the information
-about the action to be performed and must be consumed by the <code>
-confirm_request</code>
-or <code>
-confirm_request_mut</code> functions when the Rules are satisfied.
+about the action to be performed and must be consumed by the 
+confirm_request
+or 
+confirm_request_mut functions when the Rules are satisfied.
 
 
 <pre><code>
@@ -279,59 +279,59 @@ confirm_request_mut</code> functions when the Rules are satisfied.
 
 <dl>
 <dt>
-<code>
-name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  Name of the Action to look up in the Policy. Name can be one of the
- default actions: <code>
-<Link to="transfer#0x2_transfer">transfer</Link></code>, <code>
-spend</code>, <code>
-to_coin</code>, <code>
-from_coin</code> or a
+ default actions: 
+<Link to="transfer#0x2_transfer">transfer</Link>, 
+spend, 
+to_coin, 
+from_coin or a
  custom action.
 </dd>
 <dt>
-<code>
-amount: u64</code>
+
+amount: u64
 </dt>
 <dd>
  Amount is present in all of the txs
 </dd>
 <dt>
-<code>
-sender: <b>address</b></code>
+
+sender: <b>address</b>
 </dt>
 <dd>
  Sender is a permanent field always
 </dd>
 <dt>
-<code>
-recipient: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
+
+recipient: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
 </dt>
 <dd>
- Recipient is only available in <code>
-<Link to="transfer#0x2_transfer">transfer</Link></code> action.
+ Recipient is only available in 
+<Link to="transfer#0x2_transfer">transfer</Link> action.
 </dd>
 <dt>
-<code>
-spent_balance: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;&gt;</code>
+
+spent_balance: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;&gt;
 </dt>
 <dd>
- The balance to be "spent" in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>, only available
- in the <code>
-spend</code> action.
+ The balance to be "spent" in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>, only available
+ in the 
+spend action.
 </dd>
 <dt>
-<code>
-approvals: <Link to="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;</code>
+
+approvals: <Link to="vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>&gt;
 </dt>
 <dd>
- Collected approvals (stamps) from completed <code>
-Rules</code>. They're matched
- against <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code> to determine if the request can be
+ Collected approvals (stamps) from completed 
+Rules. They're matched
+ against 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules to determine if the request can be
  confirmed.
 </dd>
 </dl>
@@ -343,14 +343,14 @@ Rules</code>. They're matched
 
 ## Struct `RuleKey`
 
-Dynamic field key for the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> to store the <code>
-Config</code> for a
-specific action <code>
-Rule</code>. There can be only one configuration per
-<code>
-Rule</code> per <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Dynamic field key for the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> to store the 
+Config for a
+specific action 
+Rule. There can be only one configuration per
+
+Rule per 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -365,8 +365,8 @@ Rule</code> per <code>
 
 <dl>
 <dt>
-<code>
-is_protected: bool</code>
+
+is_protected: bool
 </dt>
 <dd>
 
@@ -380,12 +380,12 @@ is_protected: bool</code>
 
 ## Struct `TokenPolicyCreated`
 
-An event emitted when a <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is created and shared. Because
-<code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> can only be shared (and potentially frozen in the future),
-we emit this event in the <code>
-share_policy</code> function and mark it as mutable.
+An event emitted when a 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> is created and shared. Because
+
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> can only be shared (and potentially frozen in the future),
+we emit this event in the 
+share_policy function and mark it as mutable.
 
 
 <pre><code>
@@ -400,20 +400,20 @@ share_policy</code> function and mark it as mutable.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- ID of the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> that was created.
+ ID of the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> that was created.
 </dd>
 <dt>
-<code>
-is_mutable: bool</code>
+
+is_mutable: bool
 </dt>
 <dd>
- Whether the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> is "shared" (mutable) or "frozen"
+ Whether the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> is "shared" (mutable) or "frozen"
  (immutable) - TBD.
 </dd>
 </dl>
@@ -450,8 +450,8 @@ The balance is too low to perform the action.
 
 <Link id="0x2_token_ECantConsumeBalance"></Link>
 
-The balance is not zero when trying to confirm with <code>
-TransferPolicyCap</code>.
+The balance is not zero when trying to confirm with 
+TransferPolicyCap.
 
 
 <pre><code>
@@ -506,9 +506,9 @@ The action is not allowed (defined) in the policy.
 
 <Link id="0x2_token_EUseImmutableConfirm"></Link>
 
-Using <code>
-confirm_request_mut</code> without <code>
-spent_balance</code>. Immutable version
+Using 
+confirm_request_mut without 
+spent_balance. Immutable version
 of the function must be used instead.
 
 
@@ -520,8 +520,8 @@ of the function must be used instead.
 
 <Link id="0x2_token_FROM_COIN"></Link>
 
-A Tag for the <code>
-from_coin</code> action.
+A Tag for the 
+from_coin action.
 
 
 <pre><code>
@@ -532,8 +532,8 @@ from_coin</code> action.
 
 <Link id="0x2_token_SPEND"></Link>
 
-A Tag for the <code>
-spend</code> action.
+A Tag for the 
+spend action.
 
 
 <pre><code>
@@ -544,8 +544,8 @@ spend</code> action.
 
 <Link id="0x2_token_TO_COIN"></Link>
 
-A Tag for the <code>
-to_coin</code> action.
+A Tag for the 
+to_coin action.
 
 
 <pre><code>
@@ -556,8 +556,8 @@ to_coin</code> action.
 
 <Link id="0x2_token_TRANSFER"></Link>
 
-A Tag for the <code>
-<Link to="transfer#0x2_transfer">transfer</Link></code> action.
+A Tag for the 
+<Link to="transfer#0x2_transfer">transfer</Link> action.
 
 
 <pre><code>
@@ -570,15 +570,15 @@ A Tag for the <code>
 
 ## Function `new_policy`
 
-Create a new <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and a matching <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code>.
-The <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> must then be shared using the <code>
-share_policy</code> method.
+Create a new 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> and a matching 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link>.
+The 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> must then be shared using the 
+share_policy method.
 
-<code>
-TreasuryCap</code> guarantees full ownership over the currency, and is unique,
+
+TreasuryCap guarantees full ownership over the currency, and is unique,
 hence it is safe to use it for authorization.
 
 
@@ -619,9 +619,9 @@ hence it is safe to use it for authorization.
 
 ## Function `share_policy`
 
-Share the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Due to <code>
-key</code>-only restriction, it must be
+Share the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>. Due to 
+key-only restriction, it must be
 shared after initialization.
 
 
@@ -654,13 +654,13 @@ shared after initialization.
 
 ## Function `transfer`
 
-Transfer a <code>
-<Link to="token#0x2_token_Token">Token</Link></code> to a <code>
-recipient</code>. Creates an <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> for the
-"transfer" action. The <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> contains the <code>
-recipient</code> field
+Transfer a 
+<Link to="token#0x2_token_Token">Token</Link> to a 
+recipient. Creates an 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> for the
+"transfer" action. The 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> contains the 
+recipient field
 to be used in verification.
 
 
@@ -699,19 +699,19 @@ to be used in verification.
 
 ## Function `spend`
 
-Spend a <code>
-<Link to="token#0x2_token_Token">Token</Link></code> by unwrapping it and storing the <code>
-Balance</code> in the
-<code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> for the "spend" action. The <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> contains
-the <code>
-spent_balance</code> field to be used in verification.
+Spend a 
+<Link to="token#0x2_token_Token">Token</Link> by unwrapping it and storing the 
+Balance in the
 
-Spend action requires <code>
-confirm_request_mut</code> to be called to confirm the
-request and join the spent balance with the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance</code>.
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> for the "spend" action. The 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> contains
+the 
+spent_balance field to be used in verification.
+
+Spend action requires 
+confirm_request_mut to be called to confirm the
+request and join the spent balance with the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance.
 
 
 <pre><code>
@@ -747,10 +747,10 @@ request and join the spent balance with the <code>
 
 ## Function `to_coin`
 
-Convert <code>
-<Link to="token#0x2_token_Token">Token</Link></code> into an open <code>
-Coin</code>. Creates an <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> for the
+Convert 
+<Link to="token#0x2_token_Token">Token</Link> into an open 
+Coin. Creates an 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> for the
 "to_coin" action.
 
 
@@ -793,10 +793,10 @@ Coin</code>. Creates an <code>
 
 ## Function `from_coin`
 
-Convert an open <code>
-Coin</code> into a <code>
-<Link to="token#0x2_token_Token">Token</Link></code>. Creates an <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> for
+Convert an open 
+Coin into a 
+<Link to="token#0x2_token_Token">Token</Link>. Creates an 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> for
 the "from_coin" action.
 
 
@@ -841,8 +841,8 @@ the "from_coin" action.
 
 ## Function `join`
 
-Join two <code>
-<Link to="token#0x2_token_Token">Token</Link></code>s into one, always available.
+Join two 
+<Link to="token#0x2_token_Token">Token</Link>s into one, always available.
 
 
 <pre><code>
@@ -871,12 +871,12 @@ Join two <code>
 
 ## Function `split`
 
-Split a <code>
-<Link to="token#0x2_token_Token">Token</Link></code> with <code>
-amount</code>.
-Aborts if the <code>
-<Link to="token#0x2_token_Token">Token</Link>.<Link to="balance#0x2_balance">balance</Link></code> is lower than <code>
-amount</code>.
+Split a 
+<Link to="token#0x2_token_Token">Token</Link> with 
+amount.
+Aborts if the 
+<Link to="token#0x2_token_Token">Token</Link>.<Link to="balance#0x2_balance">balance</Link> is lower than 
+amount.
 
 
 <pre><code>
@@ -909,8 +909,8 @@ amount</code>.
 
 ## Function `zero`
 
-Create a zero <code>
-<Link to="token#0x2_token_Token">Token</Link></code>.
+Create a zero 
+<Link to="token#0x2_token_Token">Token</Link>.
 
 
 <pre><code>
@@ -940,10 +940,10 @@ Create a zero <code>
 
 ## Function `destroy_zero`
 
-Destroy an empty <code>
-<Link to="token#0x2_token_Token">Token</Link></code>, fails if the balance is non-zero.
-Aborts if the <code>
-<Link to="token#0x2_token_Token">Token</Link>.<Link to="balance#0x2_balance">balance</Link></code> is not zero.
+Destroy an empty 
+<Link to="token#0x2_token_Token">Token</Link>, fails if the balance is non-zero.
+Aborts if the 
+<Link to="token#0x2_token_Token">Token</Link>.<Link to="balance#0x2_balance">balance</Link> is not zero.
 
 
 <pre><code>
@@ -973,8 +973,8 @@ Aborts if the <code>
 
 ## Function `keep`
 
-Transfer the <code>
-<Link to="token#0x2_token_Token">Token</Link></code> to the transaction sender.
+Transfer the 
+<Link to="token#0x2_token_Token">Token</Link> to the transaction sender.
 
 
 <pre><code>
@@ -1001,8 +1001,8 @@ Transfer the <code>
 
 ## Function `new_request`
 
-Create a new <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Create a new 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 Publicly available method to allow for custom actions.
 
 
@@ -1043,26 +1043,26 @@ Publicly available method to allow for custom actions.
 
 ## Function `confirm_request`
 
-Confirm the request against the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and return the parameters
+Confirm the request against the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> and return the parameters
 of the request: (Name, Amount, Sender, Recipient).
 
-Cannot be used for <code>
-spend</code> and similar actions that deliver <code>
-spent_balance</code>
-to the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. For those actions use <code>
-confirm_request_mut</code>.
+Cannot be used for 
+spend and similar actions that deliver 
+spent_balance
+to the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>. For those actions use 
+confirm_request_mut.
 
 Aborts if:
-- the action is not allowed (missing record in <code>
-rules</code>)
-- action contains <code>
-spent_balance</code> (use <code>
-confirm_request_mut</code>)
-- the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> does not meet the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> rules for the action
+- the action is not allowed (missing record in 
+rules)
+- action contains 
+spent_balance (use 
+confirm_request_mut)
+- the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> does not meet the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> rules for the action
 
 
 <pre><code>
@@ -1114,20 +1114,20 @@ confirm_request_mut</code>)
 
 ## Function `confirm_request_mut`
 
-Confirm the request against the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and return the parameters
+Confirm the request against the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> and return the parameters
 of the request: (Name, Amount, Sender, Recipient).
 
-Unlike <code>
-confirm_request</code> this function requires mutable access to the
-<code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and must be used on <code>
-spend</code> action. After dealing with the
-spent balance it calls <code>
-confirm_request</code> internally.
+Unlike 
+confirm_request this function requires mutable access to the
 
-See <code>
-confirm_request</code> for the list of abort conditions.
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> and must be used on 
+spend action. After dealing with the
+spent balance it calls 
+confirm_request internally.
+
+See 
+confirm_request for the list of abort conditions.
 
 
 <pre><code>
@@ -1163,21 +1163,21 @@ confirm_request</code> for the list of abort conditions.
 
 ## Function `confirm_with_policy_cap`
 
-Confirm an <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> as the <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> owner. This function
-allows <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner to perform Capability-gated actions ignoring
-the ruleset specified in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Confirm an 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> as the 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> owner. This function
+allows 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> owner to perform Capability-gated actions ignoring
+the ruleset specified in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
-Aborts if request contains <code>
-spent_balance</code> due to inability of the
-<code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> to decrease supply. For scenarios like this a
-<code>
-TreasuryCap</code> is required (see <code>
-confirm_with_treasury_cap</code>).
+Aborts if request contains 
+spent_balance due to inability of the
+
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> to decrease supply. For scenarios like this a
+
+TreasuryCap is required (see 
+confirm_with_treasury_cap).
 
 
 <pre><code>
@@ -1216,20 +1216,20 @@ confirm_with_treasury_cap</code>).
 
 ## Function `confirm_with_treasury_cap`
 
-Confirm an <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> as the <code>
-TreasuryCap</code> owner. This function
-allows <code>
-TreasuryCap</code> owner to perform Capability-gated actions ignoring
-the ruleset specified in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Confirm an 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> as the 
+TreasuryCap owner. This function
+allows 
+TreasuryCap owner to perform Capability-gated actions ignoring
+the ruleset specified in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
-Unlike <code>
-confirm_with_policy_cap</code> this function allows <code>
-spent_balance</code>
-to be consumed, decreasing the <code>
-total_supply</code> of the <code>
-<Link to="token#0x2_token_Token">Token</Link></code>.
+Unlike 
+confirm_with_policy_cap this function allows 
+spent_balance
+to be consumed, decreasing the 
+total_supply of the 
+<Link to="token#0x2_token_Token">Token</Link>.
 
 
 <pre><code>
@@ -1271,12 +1271,12 @@ total_supply</code> of the <code>
 
 ## Function `add_approval`
 
-Add an "approval" to the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code> by providing a Witness.
+Add an "approval" to the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link> by providing a Witness.
 Intended to be used by Rules to add their own approvals, however, can
 be used to add arbitrary approvals to the request (not only the ones
-required by the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>).
+required by the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>).
 
 
 <pre><code>
@@ -1305,25 +1305,25 @@ required by the <code>
 
 ## Function `add_rule_config`
 
-Add a <code>
-Config</code> for a <code>
-Rule</code> in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Rule configuration is
-independent from the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code> and needs to be managed by the
-Rule itself. Configuration is stored per <code>
-Rule</code> and not per <code>
-Rule</code> per
-<code>
-Action</code> to allow reuse in different actions.
+Add a 
+Config for a 
+Rule in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>. Rule configuration is
+independent from the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules and needs to be managed by the
+Rule itself. Configuration is stored per 
+Rule and not per 
+Rule per
 
-- Rule witness guarantees that the <code>
-Config</code> is approved by the Rule.
-- <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> guarantees that the <code>
-Config</code> setup is initiated by
-the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner.
+Action to allow reuse in different actions.
+
+- Rule witness guarantees that the 
+Config is approved by the Rule.
+- 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> guarantees that the 
+Config setup is initiated by
+the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> owner.
 
 
 <pre><code>
@@ -1357,15 +1357,15 @@ the <code>
 
 ## Function `rule_config`
 
-Get a <code>
-Config</code> for a <code>
-Rule</code> in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Requires <code>
-Rule</code>
-witness, hence can only be read by the <code>
-Rule</code> itself. This requirement
-guarantees safety of the stored <code>
-Config</code> and allows for simpler dynamic
+Get a 
+Config for a 
+Rule in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>. Requires 
+Rule
+witness, hence can only be read by the 
+Rule itself. This requirement
+guarantees safety of the stored 
+Config and allows for simpler dynamic
 field management inside the Rule Config (custom type keys are not needed
 for access gating).
 
@@ -1399,24 +1399,24 @@ Aborts if the Config is not present.
 
 ## Function `rule_config_mut`
 
-Get mutable access to the <code>
-Config</code> for a <code>
-Rule</code> in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
-Requires <code>
-Rule</code> witness, hence can only be read by the <code>
-Rule</code> itself,
-as well as <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> to guarantee that the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner
-is the one who initiated the <code>
-Config</code> modification.
+Get mutable access to the 
+Config for a 
+Rule in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
+Requires 
+Rule witness, hence can only be read by the 
+Rule itself,
+as well as 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> to guarantee that the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> owner
+is the one who initiated the 
+Config modification.
 
 Aborts if:
 - the Config is not present
-- <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>
+- 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> is not matching the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>
 
 
 <pre><code>
@@ -1447,26 +1447,26 @@ Aborts if:
 
 ## Function `remove_rule_config`
 
-Remove a <code>
-Config</code> for a <code>
-Rule</code> in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
-Unlike the <code>
-add_rule_config</code>, this function does not require a <code>
-Rule</code>
-witness, hence can be performed by the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> owner on their own.
+Remove a 
+Config for a 
+Rule in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
+Unlike the 
+add_rule_config, this function does not require a 
+Rule
+witness, hence can be performed by the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> owner on their own.
 
-Rules need to make sure that the <code>
-Config</code> is present when performing
-verification of the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Rules need to make sure that the 
+Config is present when performing
+verification of the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 Aborts if:
 - the Config is not present
-- <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>
+- 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> is not matching the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>
 
 
 <pre><code>
@@ -1499,11 +1499,11 @@ Aborts if:
 
 ## Function `has_rule_config`
 
-Check if a config for a <code>
-Rule</code> is set in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> without
-checking the type of the <code>
-Config</code>.
+Check if a config for a 
+Rule is set in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> without
+checking the type of the 
+Config.
 
 
 <pre><code>
@@ -1530,10 +1530,10 @@ Config</code>.
 
 ## Function `has_rule_config_with_type`
 
-Check if a <code>
-Config</code> for a <code>
-Rule</code> is set in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code> and that
+Check if a 
+Config for a 
+Rule is set in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link> and that
 it matches the type provided.
 
 
@@ -1563,16 +1563,16 @@ it matches the type provided.
 
 ## Function `allow`
 
-Allows an <code>
-action</code> to be performed on the <code>
-<Link to="token#0x2_token_Token">Token</Link></code> freely by adding an
-empty set of <code>
-Rules</code> for the <code>
-action</code>.
+Allows an 
+action to be performed on the 
+<Link to="token#0x2_token_Token">Token</Link> freely by adding an
+empty set of 
+Rules for the 
+action.
 
-Aborts if the <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Aborts if the 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> is not matching the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -1605,15 +1605,15 @@ Aborts if the <code>
 
 ## Function `disallow`
 
-Completely disallows an <code>
-action</code> on the <code>
-<Link to="token#0x2_token_Token">Token</Link></code> by removing the record
-from the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules</code>.
+Completely disallows an 
+action on the 
+<Link to="token#0x2_token_Token">Token</Link> by removing the record
+from the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.rules.
 
-Aborts if the <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Aborts if the 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> is not matching the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -1646,13 +1646,13 @@ Aborts if the <code>
 
 ## Function `add_rule_for_action`
 
-Adds a Rule for an action with <code>
-name</code> in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Adds a Rule for an action with 
+name in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
-Aborts if the <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Aborts if the 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> is not matching the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -1689,14 +1689,14 @@ Aborts if the <code>
 
 ## Function `remove_rule_for_action`
 
-Removes a rule for an action with <code>
-name</code> in the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>. Returns
+Removes a rule for an action with 
+name in the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>. Returns
 the config object to be handled by the sender (or a Rule itself).
 
-Aborts if the <code>
-<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link></code> is not matching the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Aborts if the 
+<Link to="token#0x2_token_TokenPolicyCap">TokenPolicyCap</Link> is not matching the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -1730,10 +1730,10 @@ Aborts if the <code>
 
 ## Function `mint`
 
-Mint a <code>
-<Link to="token#0x2_token_Token">Token</Link></code> with a given <code>
-amount</code> using the <code>
-TreasuryCap</code>.
+Mint a 
+<Link to="token#0x2_token_Token">Token</Link> with a given 
+amount using the 
+TreasuryCap.
 
 
 <pre><code>
@@ -1763,9 +1763,9 @@ TreasuryCap</code>.
 
 ## Function `burn`
 
-Burn a <code>
-<Link to="token#0x2_token_Token">Token</Link></code> using the <code>
-TreasuryCap</code>.
+Burn a 
+<Link to="token#0x2_token_Token">Token</Link> using the 
+TreasuryCap.
 
 
 <pre><code>
@@ -1794,11 +1794,11 @@ TreasuryCap</code>.
 
 ## Function `flush`
 
-Flush the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance</code> into the <code>
-TreasuryCap</code>. This
-action is only available to the <code>
-TreasuryCap</code> owner.
+Flush the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.spent_balance into the 
+TreasuryCap. This
+action is only available to the 
+TreasuryCap owner.
 
 
 <pre><code>
@@ -1887,9 +1887,9 @@ Returns the rules required for a specific action.
 
 ## Function `spent_balance`
 
-Returns the <code>
-spent_balance</code> of the <code>
-<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link></code>.
+Returns the 
+spent_balance of the 
+<Link to="token#0x2_token_TokenPolicy">TokenPolicy</Link>.
 
 
 <pre><code>
@@ -1916,9 +1916,9 @@ spent_balance</code> of the <code>
 
 ## Function `value`
 
-Returns the <code>
-<Link to="balance#0x2_balance">balance</Link></code> of the <code>
-<Link to="token#0x2_token_Token">Token</Link></code>.
+Returns the 
+<Link to="balance#0x2_balance">balance</Link> of the 
+<Link to="token#0x2_token_Token">Token</Link>.
 
 
 <pre><code>
@@ -1973,8 +1973,8 @@ Name of the Transfer action.
 
 ## Function `spend_action`
 
-Name of the <code>
-Spend</code> action.
+Name of the 
+Spend action.
 
 
 <pre><code>
@@ -2002,8 +2002,8 @@ Spend</code> action.
 
 ## Function `to_coin_action`
 
-Name of the <code>
-ToCoin</code> action.
+Name of the 
+ToCoin action.
 
 
 <pre><code>
@@ -2031,8 +2031,8 @@ ToCoin</code> action.
 
 ## Function `from_coin_action`
 
-Name of the <code>
-FromCoin</code> action.
+Name of the 
+FromCoin action.
 
 
 <pre><code>
@@ -2060,8 +2060,8 @@ FromCoin</code> action.
 
 ## Function `action`
 
-The Action in the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+The Action in the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 
 <pre><code>
@@ -2086,8 +2086,8 @@ The Action in the <code>
 
 ## Function `amount`
 
-Amount of the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Amount of the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 
 <pre><code>
@@ -2112,8 +2112,8 @@ Amount of the <code>
 
 ## Function `sender`
 
-Sender of the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Sender of the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 
 <pre><code>
@@ -2138,8 +2138,8 @@ Sender of the <code>
 
 ## Function `recipient`
 
-Recipient of the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Recipient of the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 
 <pre><code>
@@ -2166,8 +2166,8 @@ Recipient of the <code>
 
 ## Function `approvals`
 
-Approvals of the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Approvals of the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 
 <pre><code>
@@ -2194,8 +2194,8 @@ Approvals of the <code>
 
 ## Function `spent`
 
-Burned balance of the <code>
-<Link to="token#0x2_token_ActionRequest">ActionRequest</Link></code>.
+Burned balance of the 
+<Link to="token#0x2_token_ActionRequest">ActionRequest</Link>.
 
 
 <pre><code>
@@ -2226,16 +2226,16 @@ Burned balance of the <code>
 
 ## Function `key`
 
-Create a new <code>
-<Link to="token#0x2_token_RuleKey">RuleKey</Link></code> for a <code>
-Rule</code>. The <code>
-is_protected</code> field is kept
+Create a new 
+<Link to="token#0x2_token_RuleKey">RuleKey</Link> for a 
+Rule. The 
+is_protected field is kept
 for potential future use, if Rules were to have a freely modifiable
-storage as addition / replacement for the <code>
-Config</code> system.
+storage as addition / replacement for the 
+Config system.
 
-The goal of <code>
-is_protected</code> is to potentially allow Rules store a mutable
+The goal of 
+is_protected is to potentially allow Rules store a mutable
 version of their configuration and mutate state on user action.
 
 

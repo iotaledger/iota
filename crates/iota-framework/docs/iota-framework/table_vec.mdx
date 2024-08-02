@@ -5,8 +5,8 @@ sidebar_label: table_vec
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_table_vec"/>
-A basic scalable vector library implemented using <code>
-Table</code>.
+A basic scalable vector library implemented using 
+Table.
 
 
 -  [Struct `TableVec`](#0x2_table_vec_TableVec)
@@ -50,8 +50,8 @@ Table</code>.
 
 <dl>
 <dt>
-<code>
-contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, Element&gt;</code>
+
+contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, Element&gt;
 </dt>
 <dd>
  The contents of the table vector.
@@ -119,8 +119,8 @@ Create an empty TableVec.
 
 ## Function `singleton`
 
-Return a TableVec of size one containing element <code>
-e</code>.
+Return a TableVec of size one containing element 
+e.
 
 
 <pre><code>
@@ -203,11 +203,11 @@ Return if the TableVec is empty or not.
 
 ## Function `borrow`
 
-Acquire an immutable reference to the <code>
-i</code>th element of the TableVec <code>
-t</code>.
-Aborts if <code>
-i</code> is out of bounds.
+Acquire an immutable reference to the 
+ith element of the TableVec 
+t.
+Aborts if 
+i is out of bounds.
 
 
 <pre><code>
@@ -235,9 +235,9 @@ i</code> is out of bounds.
 
 ## Function `push_back`
 
-Add element <code>
-e</code> to the end of the TableVec <code>
-t</code>.
+Add element 
+e to the end of the TableVec 
+t.
 
 
 <pre><code>
@@ -265,11 +265,11 @@ t</code>.
 
 ## Function `borrow_mut`
 
-Return a mutable reference to the <code>
-i</code>th element in the TableVec <code>
-t</code>.
-Aborts if <code>
-i</code> is out of bounds.
+Return a mutable reference to the 
+ith element in the TableVec 
+t.
+Aborts if 
+i is out of bounds.
 
 
 <pre><code>
@@ -297,10 +297,10 @@ i</code> is out of bounds.
 
 ## Function `pop_back`
 
-Pop an element from the end of TableVec <code>
-t</code>.
-Aborts if <code>
-t</code> is empty.
+Pop an element from the end of TableVec 
+t.
+Aborts if 
+t is empty.
 
 
 <pre><code>
@@ -329,10 +329,10 @@ t</code> is empty.
 
 ## Function `destroy_empty`
 
-Destroy the TableVec <code>
-t</code>.
-Aborts if <code>
-t</code> is not empty.
+Destroy the TableVec 
+t.
+Aborts if 
+t is not empty.
 
 
 <pre><code>
@@ -361,11 +361,11 @@ t</code> is not empty.
 
 ## Function `drop`
 
-Drop a possibly non-empty TableVec <code>
-t</code>.
-Usable only if the value type <code>
-Element</code> has the <code>
-drop</code> ability
+Drop a possibly non-empty TableVec 
+t.
+Usable only if the value type 
+Element has the 
+drop ability
 
 
 <pre><code>
@@ -393,13 +393,13 @@ drop</code> ability
 
 ## Function `swap`
 
-Swaps the elements at the <code>
-i</code>th and <code>
-j</code>th indices in the TableVec <code>
-t</code>.
-Aborts if <code>
-i</code> or <code>
-j</code> is out of bounds.
+Swaps the elements at the 
+ith and 
+jth indices in the TableVec 
+t.
+Aborts if 
+i or 
+j is out of bounds.
 
 
 <pre><code>
@@ -432,12 +432,12 @@ j</code> is out of bounds.
 
 ## Function `swap_remove`
 
-Swap the <code>
-i</code>th element of the TableVec <code>
-t</code> with the last element and then pop the TableVec.
+Swap the 
+ith element of the TableVec 
+t with the last element and then pop the TableVec.
 This is O(1), but does not preserve ordering of elements in the TableVec.
-Aborts if <code>
-i</code> is out of bounds.
+Aborts if 
+i is out of bounds.
 
 
 <pre><code>

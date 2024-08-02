@@ -52,8 +52,8 @@ than insertion order iteration should be handwritten.
 
 <dl>
 <dt>
-<code>
-contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;</code>
+
+contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;
 </dt>
 <dd>
 
@@ -94,8 +94,8 @@ This key does not exist in the map
 
 ## Function `empty`
 
-Create an empty <code>
-<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link></code>
+Create an empty 
+<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>
 
 
 <pre><code>
@@ -122,8 +122,8 @@ Create an empty <code>
 
 ## Function `singleton`
 
-Create a singleton <code>
-<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link></code> that only contains one element.
+Create a singleton 
+<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> that only contains one element.
 
 
 <pre><code>
@@ -150,11 +150,11 @@ Create a singleton <code>
 
 ## Function `insert`
 
-Insert a <code>
-key</code> into self.
-Aborts if <code>
-key</code> is already present in <code>
-self</code>.
+Insert a 
+key into self.
+Aborts if 
+key is already present in 
+self.
 
 
 <pre><code>
@@ -182,10 +182,10 @@ self</code>.
 
 ## Function `remove`
 
-Remove the entry <code>
-key</code> from self. Aborts if <code>
-key</code> is not present in <code>
-self</code>.
+Remove the entry 
+key from self. Aborts if 
+key is not present in 
+self.
 
 
 <pre><code>
@@ -213,9 +213,9 @@ self</code>.
 
 ## Function `contains`
 
-Return true if <code>
-self</code> contains an entry for <code>
-key</code>, false otherwise
+Return true if 
+self contains an entry for 
+key, false otherwise
 
 
 <pre><code>
@@ -242,8 +242,8 @@ key</code>, false otherwise
 
 ## Function `size`
 
-Return the number of entries in <code>
-self</code>
+Return the number of entries in 
+self
 
 
 <pre><code>
@@ -270,8 +270,8 @@ self</code>
 
 ## Function `is_empty`
 
-Return true if <code>
-self</code> has 0 elements, false otherwise
+Return true if 
+self has 0 elements, false otherwise
 
 
 <pre><code>
@@ -298,8 +298,8 @@ self</code> has 0 elements, false otherwise
 
 ## Function `into_keys`
 
-Unpack <code>
-self</code> into vectors of keys.
+Unpack 
+self into vectors of keys.
 The output keys are stored in insertion order, *not* sorted.
 
 
@@ -328,9 +328,9 @@ The output keys are stored in insertion order, *not* sorted.
 
 ## Function `keys`
 
-Borrow the <code>
-contents</code> of the <code>
-<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link></code> to access content by index
+Borrow the 
+contents of the 
+<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> to access content by index
 without unpacking. The contents are stored in insertion order,
 *not* sorted.
 
@@ -359,12 +359,12 @@ without unpacking. The contents are stored in insertion order,
 
 ## Function `get_idx_opt`
 
-Find the index of <code>
-key</code> in <code>
-self</code>. Return <code>
-None</code> if <code>
-key</code> is not in <code>
-self</code>.
+Find the index of 
+key in 
+self. Return 
+None if 
+key is not in 
+self.
 Note that keys are stored in insertion order, *not* sorted.
 
 
@@ -400,11 +400,11 @@ Note that keys are stored in insertion order, *not* sorted.
 
 ## Function `get_idx`
 
-Find the index of <code>
-key</code> in <code>
-self</code>. Aborts if <code>
-key</code> is not in <code>
-self</code>.
+Find the index of 
+key in 
+self. Aborts if 
+key is not in 
+self.
 Note that map entries are stored in insertion order, *not* sorted.
 
 

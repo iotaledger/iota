@@ -129,159 +129,159 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-<code>
-iota_address: <b>address</b></code>
+
+iota_address: <b>address</b>
 </dt>
 <dd>
  The Iota Address of the validator. This is the sender that created the Validator object,
  and also the address to send validator/coins to during withdraws.
 </dd>
 <dt>
-<code>
-protocol_pubkey_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+protocol_pubkey_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
  The public key bytes corresponding to the private key that the validator
  holds to sign transactions. For now, this is the same as AuthorityName.
 </dd>
 <dt>
-<code>
-network_pubkey_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+network_pubkey_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
  The public key bytes corresponding to the private key that the validator
  uses to establish TLS connections
 </dd>
 <dt>
-<code>
-worker_pubkey_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+worker_pubkey_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
  The public key bytes correstponding to the Narwhal Worker
 </dd>
 <dt>
-<code>
-proof_of_possession: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+proof_of_possession: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
  This is a proof that the validator has ownership of the private key
 </dd>
 <dt>
-<code>
-name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  A unique human-readable name of this validator.
 </dd>
 <dt>
-<code>
-description: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+description: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-image_url: <Link to="../iota-framework/url#0x2_url_Url">url::Url</Link></code>
+
+image_url: <Link to="../iota-framework/url#0x2_url_Url">url::Url</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-project_url: <Link to="../iota-framework/url#0x2_url_Url">url::Url</Link></code>
+
+project_url: <Link to="../iota-framework/url#0x2_url_Url">url::Url</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-net_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+net_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The network address of the validator (could also contain extra info such as port, DNS and etc.).
 </dd>
 <dt>
-<code>
-p2p_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+p2p_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The address of the validator used for p2p activities such as state sync (could also contain extra info such as port, DNS and etc.).
 </dd>
 <dt>
-<code>
-primary_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+primary_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The address of the narwhal primary
 </dd>
 <dt>
-<code>
-worker_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+worker_address: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The address of the narwhal worker
 </dd>
 <dt>
-<code>
-next_epoch_protocol_pubkey_bytes: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+next_epoch_protocol_pubkey_bytes: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
  "next_epoch" metadata only takes effects in the next epoch.
  If none, current value will stay unchanged.
 </dd>
 <dt>
-<code>
-next_epoch_proof_of_possession: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+next_epoch_proof_of_possession: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_epoch_network_pubkey_bytes: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+next_epoch_network_pubkey_bytes: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_epoch_worker_pubkey_bytes: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
+
+next_epoch_worker_pubkey_bytes: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_epoch_net_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+next_epoch_net_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_epoch_p2p_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+next_epoch_p2p_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_epoch_primary_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+next_epoch_primary_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_epoch_worker_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+next_epoch_worker_address: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -309,73 +309,73 @@ extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code
 
 <dl>
 <dt>
-<code>
-metadata: <Link to="validator#0x3_validator_ValidatorMetadata">validator::ValidatorMetadata</Link></code>
+
+metadata: <Link to="validator#0x3_validator_ValidatorMetadata">validator::ValidatorMetadata</Link>
 </dt>
 <dd>
  Summary of the validator.
 </dd>
 <dt>
-<code>
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
+
+<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
 </dt>
 <dd>
  The voting power of this validator, which might be different from its
  stake amount.
 </dd>
 <dt>
-<code>
-operation_cap_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+operation_cap_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- The ID of this validator's current valid <code>
-UnverifiedValidatorOperationCap</code>
+ The ID of this validator's current valid 
+UnverifiedValidatorOperationCap
 </dd>
 <dt>
-<code>
-gas_price: u64</code>
+
+gas_price: u64
 </dt>
 <dd>
  Gas price quote, updated only at end of epoch.
 </dd>
 <dt>
-<code>
-<Link to="staking_pool#0x3_staking_pool">staking_pool</Link>: <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link></code>
+
+<Link to="staking_pool#0x3_staking_pool">staking_pool</Link>: <Link to="staking_pool#0x3_staking_pool_StakingPool">staking_pool::StakingPool</Link>
 </dt>
 <dd>
  Staking pool for this validator.
 </dd>
 <dt>
-<code>
-commission_rate: u64</code>
+
+commission_rate: u64
 </dt>
 <dd>
  Commission rate of the validator, in basis point.
 </dd>
 <dt>
-<code>
-next_epoch_stake: u64</code>
+
+next_epoch_stake: u64
 </dt>
 <dd>
  Total amount of stake that would be active in the next epoch.
 </dd>
 <dt>
-<code>
-next_epoch_gas_price: u64</code>
+
+next_epoch_gas_price: u64
 </dt>
 <dd>
  This validator's gas price quote for the next epoch.
 </dd>
 <dt>
-<code>
-next_epoch_commission_rate: u64</code>
+
+next_epoch_commission_rate: u64
 </dt>
 <dd>
  The commission rate of the validator starting the next epoch, in basis point.
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -404,36 +404,36 @@ Event emitted when a new stake request is received.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-validator_address: <b>address</b></code>
+
+validator_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-staker_address: <b>address</b></code>
+
+staker_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-amount: u64</code>
+
+amount: u64
 </dt>
 <dd>
 
@@ -462,50 +462,50 @@ Event emitted when a new unstake request is received.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-validator_address: <b>address</b></code>
+
+validator_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-staker_address: <b>address</b></code>
+
+staker_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-stake_activation_epoch: u64</code>
+
+stake_activation_epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-unstaking_epoch: u64</code>
+
+unstaking_epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-principal_amount: u64</code>
+
+principal_amount: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-reward_amount: u64</code>
+
+reward_amount: u64
 </dt>
 <dd>
 
@@ -1141,8 +1141,8 @@ Request to withdraw stake from the validator's staking pool, processed at the en
 ## Function `request_set_gas_price`
 
 Request to set new gas price for the next epoch.
-Need to present a <code>
-ValidatorOperationCap</code>.
+Need to present a 
+ValidatorOperationCap.
 
 
 <pre><code>
@@ -2383,8 +2383,8 @@ Set the voting power of this validator, called only from validator_set.
 
 ## Function `new_unverified_validator_operation_cap_and_transfer`
 
-Create a new <code>
-UnverifiedValidatorOperationCap</code>, transfer to the validator,
+Create a new 
+UnverifiedValidatorOperationCap, transfer to the validator,
 and registers it, thus revoking the previous cap's permission.
 
 
@@ -3121,10 +3121,10 @@ Aborts if validator metadata is valid
 
 ## Function `new_from_metadata`
 
-Create a new validator from the given <code>
-<Link to="validator#0x3_validator_ValidatorMetadata">ValidatorMetadata</Link></code>, called by both <code>
-new</code> and <code>
-new_for_testing</code>.
+Create a new validator from the given 
+<Link to="validator#0x3_validator_ValidatorMetadata">ValidatorMetadata</Link>, called by both 
+new and 
+new_for_testing.
 
 
 <pre><code>

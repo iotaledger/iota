@@ -5,8 +5,8 @@ sidebar_label: pay
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_pay"/>
-This module provides handy functionality for wallets and <code>
-iota::Coin</code> management.
+This module provides handy functionality for wallets and 
+iota::Coin management.
 
 
 -  [Constants](#@Constants_0)
@@ -48,8 +48,8 @@ For when empty vector is supplied into join function.
 
 ## Function `keep`
 
-Transfer <code>
-c</code> to the sender of the current transaction
+Transfer 
+c to the sender of the current transaction
 
 
 <pre><code>
@@ -76,11 +76,11 @@ c</code> to the sender of the current transaction
 
 ## Function `split`
 
-Split coin <code>
-self</code> to two coins, one with balance <code>
-split_amount</code>,
-and the remaining balance is left is <code>
-self</code>.
+Split coin 
+self to two coins, one with balance 
+split_amount,
+and the remaining balance is left is 
+self.
 
 
 <pre><code>
@@ -109,11 +109,11 @@ self</code>.
 
 ## Function `split_vec`
 
-Split coin <code>
-self</code> into multiple coins, each with balance specified
-in <code>
-split_amounts</code>. Remaining balance is left in <code>
-self</code>.
+Split coin 
+self into multiple coins, each with balance specified
+in 
+split_amounts. Remaining balance is left in 
+self.
 
 
 <pre><code>
@@ -146,14 +146,14 @@ self</code>.
 
 ## Function `split_and_transfer`
 
-Send <code>
-amount</code> units of <code>
-c</code> to <code>
-recipient</code>
-Aborts with <code>
-EVALUE</code> if <code>
-amount</code> is greater than or equal to <code>
-amount</code>
+Send 
+amount units of 
+c to 
+recipient
+Aborts with 
+EVALUE if 
+amount is greater than or equal to 
+amount
 
 
 <pre><code>
@@ -182,12 +182,12 @@ amount</code>
 
 ## Function `divide_and_keep`
 
-Divide coin <code>
-self</code> into <code>
-n - 1</code> coins with equal balances. If the balance is
-not evenly divisible by <code>
-n</code>, the remainder is left in <code>
-self</code>.
+Divide coin 
+self into 
+n - 1 coins with equal balances. If the balance is
+not evenly divisible by 
+n, the remainder is left in 
+self.
 
 
 <pre><code>
@@ -222,12 +222,12 @@ self</code>.
 
 ## Function `join`
 
-Join <code>
-<Link to="../iota-framework/coin#0x2_coin">coin</Link></code> into <code>
-self</code>. Re-exports <code>
-<Link to="../iota-framework/coin#0x2_coin_join">coin::join</Link></code> function.
-Deprecated: you should call <code>
-<Link to="../iota-framework/coin#0x2_coin">coin</Link>.<Link to="../iota-framework/pay#0x2_pay_join">join</Link>(other)</code> directly.
+Join 
+<Link to="../iota-framework/coin#0x2_coin">coin</Link> into 
+self. Re-exports 
+<Link to="../iota-framework/coin#0x2_coin_join">coin::join</Link> function.
+Deprecated: you should call 
+<Link to="../iota-framework/coin#0x2_coin">coin</Link>.<Link to="../iota-framework/pay#0x2_pay_join">join</Link>(other) directly.
 
 
 <pre><code>
@@ -254,9 +254,9 @@ Deprecated: you should call <code>
 
 ## Function `join_vec`
 
-Join everything in <code>
-coins</code> with <code>
-self</code>
+Join everything in 
+coins with 
+self
 
 
 <pre><code>
@@ -290,9 +290,9 @@ self</code>
 
 ## Function `join_vec_and_transfer`
 
-Join a vector of <code>
-Coin</code> into a single object and transfer it to <code>
-receiver</code>.
+Join a vector of 
+Coin into a single object and transfer it to 
+receiver.
 
 
 <pre><code>

@@ -28,8 +28,8 @@ import Link from '@docusaurus/Link';
 
 Information about the transaction currently being executed.
 This cannot be constructed by a transaction--it is a privileged object created by
-the VM and passed in to the entrypoint of the transaction as <code>
-&<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link></code>.
+the VM and passed in to the entrypoint of the transaction as 
+&<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">TxContext</Link>.
 
 
 <pre><code>
@@ -44,36 +44,36 @@ the VM and passed in to the entrypoint of the transaction as <code>
 
 <dl>
 <dt>
-<code>
-sender: <b>address</b></code>
+
+sender: <b>address</b>
 </dt>
 <dd>
  The address of the user that signed the current transaction
 </dd>
 <dt>
-<code>
-tx_hash: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+tx_hash: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
  Hash of the current transaction
 </dd>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
  The current epoch number
 </dd>
 <dt>
-<code>
-epoch_timestamp_ms: u64</code>
+
+epoch_timestamp_ms: u64
 </dt>
 <dd>
  Timestamp that the epoch started at
 </dd>
 <dt>
-<code>
-ids_created: u64</code>
+
+ids_created: u64
 </dt>
 <dd>
  Counter recording the number of fresh id's created while executing
@@ -198,8 +198,8 @@ Return the epoch start time as a unix timestamp in milliseconds.
 
 ## Function `fresh_object_address`
 
-Create an <code>
-<b>address</b></code> that has not been used. As it is an object address, it will never
+Create an 
+<b>address</b> that has not been used. As it is an object address, it will never
 occur as the address for a user.
 In other words, the generated address is a globally unique object ID.
 

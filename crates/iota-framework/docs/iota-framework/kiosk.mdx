@@ -7,8 +7,8 @@ import Link from '@docusaurus/Link';
 <Link id="0x2_kiosk"/>
 Kiosk is a primitive for building safe, decentralized and trustless trading
 experiences. It allows storing and trading any types of assets as long as
-the creator of these assets implements a <code>
-TransferPolicy</code> for them.
+the creator of these assets implements a 
+TransferPolicy for them.
 
 
 <Link id="@Principles_and_philosophy:_0"></Link>
@@ -18,24 +18,24 @@ TransferPolicy</code> for them.
 
 - Kiosk provides guarantees of "true ownership"; - just like single owner
 objects, assets stored in the Kiosk can only be managed by the Kiosk owner.
-Only the owner can <code>
-place</code>, <code>
-take</code>, <code>
-list</code>, perform any other actions on
+Only the owner can 
+place, 
+take, 
+list, perform any other actions on
 assets in the Kiosk.
 
 - Kiosk aims to be generic - allowing for a small set of default behaviors
 and not imposing any restrictions on how the assets can be traded. The only
-default scenario is a <code>
-list</code> + <code>
-purchase</code> flow; any other trading logic can
-be implemented on top using the <code>
-list_with_purchase_cap</code> (and a matching
-<code>
-purchase_with_cap</code>) flow.
+default scenario is a 
+list + 
+purchase flow; any other trading logic can
+be implemented on top using the 
+list_with_purchase_cap (and a matching
 
-- For every transaction happening with a third party a <code>
-TransferRequest</code> is
+purchase_with_cap) flow.
+
+- For every transaction happening with a third party a 
+TransferRequest is
 created - this way creators are fully in control of the trading experience.
 
 
@@ -44,69 +44,69 @@ created - this way creators are fully in control of the trading experience.
 #### Asset states in the Kiosk:
 
 
-- <code>
-placed</code> -  An asset is <code>
-place</code>d into the Kiosk and can be <code>
-take</code>n out by
-the Kiosk owner; it's freely tradable and modifiable via the <code>
-borrow_mut</code>
-and <code>
-borrow_val</code> functions.
+- 
+placed -  An asset is 
+placed into the Kiosk and can be 
+taken out by
+the Kiosk owner; it's freely tradable and modifiable via the 
+borrow_mut
+and 
+borrow_val functions.
 
-- <code>
-locked</code> - Similar to <code>
-placed</code> except that <code>
-take</code> is disabled and the only
-way to move the asset out of the Kiosk is to <code>
-list</code> it or
-<code>
-list_with_purchase_cap</code> therefore performing a trade (isiotang a
-<code>
-TransferRequest</code>). The check on the <code>
-lock</code> function makes sure that the
-<code>
-TransferPolicy</code> exists to not lock the item in a <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> forever.
+- 
+locked - Similar to 
+placed except that 
+take is disabled and the only
+way to move the asset out of the Kiosk is to 
+list it or
 
-- <code>
-listed</code> - A <code>
-place</code>d or a <code>
-lock</code>ed item can be <code>
-list</code>ed for a fixed price
-allowing anyone to <code>
-purchase</code> it from the Kiosk. While listed, an item can
-not be taken or modified. However, an immutable borrow via <code>
-<Link to="borrow#0x2_borrow">borrow</Link></code> call is
-still available. The <code>
-delist</code> function returns the asset to the previous
+list_with_purchase_cap therefore performing a trade (isiotang a
+
+TransferRequest). The check on the 
+lock function makes sure that the
+
+TransferPolicy exists to not lock the item in a 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> forever.
+
+- 
+listed - A 
+placed or a 
+locked item can be 
+listed for a fixed price
+allowing anyone to 
+purchase it from the Kiosk. While listed, an item can
+not be taken or modified. However, an immutable borrow via 
+<Link to="borrow#0x2_borrow">borrow</Link> call is
+still available. The 
+delist function returns the asset to the previous
 state.
 
-- <code>
-listed_exclusively</code> - An item is listed via the <code>
-list_with_purchase_cap</code>
-function (and a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> is created). While listed this way, an item
-can not be <code>
-delist</code>-ed unless a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> is returned. All actions
-available at this item state require a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>:
+- 
+listed_exclusively - An item is listed via the 
+list_with_purchase_cap
+function (and a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> is created). While listed this way, an item
+can not be 
+delist-ed unless a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> is returned. All actions
+available at this item state require a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>:
 
-1. <code>
-purchase_with_cap</code> - to purchase the item for a price equal or higher
-than the <code>
-min_price</code> set in the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
-2. <code>
-return_purchase_cap</code> - to return the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> and return the asset
+1. 
+purchase_with_cap - to purchase the item for a price equal or higher
+than the 
+min_price set in the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
+2. 
+return_purchase_cap - to return the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> and return the asset
 into the previous state.
 
 When an item is listed exclusively it cannot be modified nor taken and
-losing a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> would lock the item in the Kiosk forever. Therefore,
-it is recommended to only use <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> functionality in trusted
+losing a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> would lock the item in the Kiosk forever. Therefore,
+it is recommended to only use 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> functionality in trusted
 applications and not use it for direct trading (eg sending to another
 account).
 
@@ -116,16 +116,16 @@ account).
 #### Using multiple Transfer Policies for different 'tracks':
 
 
-Every <code>
-purchase</code> or <code>
-purchase_with_purchase_cap</code> creates a <code>
-TransferRequest</code>
-hot potato which must be resolved in a matching <code>
-TransferPolicy</code> for the
+Every 
+purchase or 
+purchase_with_purchase_cap creates a 
+TransferRequest
+hot potato which must be resolved in a matching 
+TransferPolicy for the
 transaction to pass. While the default scenario implies that there should be
-a single <code>
-TransferPolicy&lt;T&gt;</code> for <code>
-T</code>; it is possible to have multiple, each
+a single 
+TransferPolicy&lt;T&gt; for 
+T; it is possible to have multiple, each
 one having its own set of rules.
 
 
@@ -134,15 +134,15 @@ one having its own set of rules.
 #### Examples:
 
 
-- I create one <code>
-TransferPolicy</code> with "Royalty Rule" for everyone
-- I create a special <code>
-TransferPolicy</code> for bearers of a "Club Membership"
+- I create one 
+TransferPolicy with "Royalty Rule" for everyone
+- I create a special 
+TransferPolicy for bearers of a "Club Membership"
 object so they don't have to pay anything
-- I create and wrap a <code>
-TransferPolicy</code> so that players of my game can
-transfer items between <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>s in game without any charge (and maybe not
+- I create and wrap a 
+TransferPolicy so that players of my game can
+transfer items between 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>s in game without any charge (and maybe not
 even paying the price with a 0 IOTA PurchaseCap)
 
 ```
@@ -152,8 +152,8 @@ Kiosk -> (Item, TransferRequest)
 ... TransferRequest ------> Club Membership Transfer Policy
 ```
 
-See <code>
-<Link to="transfer_policy#0x2_transfer_policy">transfer_policy</Link></code> module for more details on how they function.
+See 
+<Link to="transfer_policy#0x2_transfer_policy">transfer_policy</Link> module for more details on how they function.
 
 
         -  [Principles and philosophy:](#@Principles_and_philosophy:_0)
@@ -237,8 +237,8 @@ See <code>
 An object which allows selling collectibles within "kiosk" ecosystem.
 By default gives the functionality to list an item openly - for anyone
 to purchase providing the guarantees for creators that every transfer
-needs to be approved via the <code>
-TransferPolicy</code>.
+needs to be approved via the 
+TransferPolicy.
 
 
 <pre><code>
@@ -253,53 +253,53 @@ TransferPolicy</code>.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-profits: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+profits: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
  Balance of the Kiosk - all profits from sales go here.
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- Always point to <code>
-sender</code> of the transaction.
- Can be changed by calling <code>
-set_owner</code> with Cap.
+ Always point to 
+sender of the transaction.
+ Can be changed by calling 
+set_owner with Cap.
 </dd>
 <dt>
-<code>
-item_count: u32</code>
+
+item_count: u32
 </dt>
 <dd>
  Number of items stored in a Kiosk. Used to allow unpacking
  an empty Kiosk if it was wrapped or has a single owner.
 </dd>
 <dt>
-<code>
-allow_extensions: bool</code>
+
+allow_extensions: bool
 </dt>
 <dd>
- [DEPRECATED] Please, don't use the <code>
-allow_extensions</code> and the matching
- <code>
-set_allow_extensions</code> function - it is a legacy feature that is being
- replaced by the <code>
-<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> module and its Extensions API.
+ [DEPRECATED] Please, don't use the 
+allow_extensions and the matching
+ 
+set_allow_extensions function - it is a legacy feature that is being
+ replaced by the 
+<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link> module and its Extensions API.
 
- Exposes <code>
-uid_mut</code> publicly when set to <code>
-<b>true</b></code>, set to <code>
-<b>false</b></code> by default.
+ Exposes 
+uid_mut publicly when set to 
+<b>true</b>, set to 
+<b>false</b> by default.
 </dd>
 </dl>
 
@@ -310,13 +310,13 @@ uid_mut</code> publicly when set to <code>
 
 ## Resource `KioskOwnerCap`
 
-A Capability granting the bearer a right to <code>
-place</code> and <code>
-take</code> items
-from the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> as well as to <code>
-list</code> them and <code>
-list_with_purchase_cap</code>.
+A Capability granting the bearer a right to 
+place and 
+take items
+from the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> as well as to 
+list them and 
+list_with_purchase_cap.
 
 
 <pre><code>
@@ -331,15 +331,15 @@ list_with_purchase_cap</code>.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-for: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+for: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -354,20 +354,20 @@ for: <Link to="object#0x2_object_ID">object::ID</Link></code>
 ## Resource `PurchaseCap`
 
 A capability which locks an item and gives a permission to
-purchase it from a <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> for any price no less than <code>
-min_price</code>.
+purchase it from a 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> for any price no less than 
+min_price.
 
-Allows exclusive listing: only bearer of the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> can
+Allows exclusive listing: only bearer of the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> can
 purchase the asset. However, the capability should be used
-carefully as losing it would lock the asset in the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+carefully as losing it would lock the asset in the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
-The main application for the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> is building extensions
-on top of the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+The main application for the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> is building extensions
+on top of the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
 
 <pre><code>
@@ -382,30 +382,30 @@ on top of the <code>
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- ID of the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> the cap belongs to.
+ ID of the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> the cap belongs to.
 </dd>
 <dt>
-<code>
-item_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+item_id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  ID of the listed item.
 </dd>
 <dt>
-<code>
-min_price: u64</code>
+
+min_price: u64
 </dt>
 <dd>
  Minimum price for which the item can be purchased.
@@ -420,8 +420,8 @@ min_price: u64</code>
 ## Struct `Borrow`
 
 Hot potato to ensure an item was returned after being taken using
-the <code>
-borrow_val</code> call.
+the 
+borrow_val call.
 
 
 <pre><code>
@@ -436,15 +436,15 @@ borrow_val</code> call.
 
 <dl>
 <dt>
-<code>
-kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-item_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+item_id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -473,8 +473,8 @@ Dynamic field key for an item placed into the kiosk.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -489,9 +489,9 @@ id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 ## Struct `Listing`
 
 Dynamic field key for an active offer to purchase the T. If an
-item is listed without a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>, exclusive is set to <code>
-<b>false</b></code>.
+item is listed without a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>, exclusive is set to 
+<b>false</b>.
 
 
 <pre><code>
@@ -506,15 +506,15 @@ item is listed without a <code>
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-is_exclusive: bool</code>
+
+is_exclusive: bool
 </dt>
 <dd>
 
@@ -528,12 +528,12 @@ is_exclusive: bool</code>
 
 ## Struct `Lock`
 
-Dynamic field key which marks that an item is locked in the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and
-can't be <code>
-take</code>n. The item then can only be listed / sold via the PurchaseCap.
-Lock is released on <code>
-purchase</code>.
+Dynamic field key which marks that an item is locked in the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and
+can't be 
+taken. The item then can only be listed / sold via the PurchaseCap.
+Lock is released on 
+purchase.
 
 
 <pre><code>
@@ -548,8 +548,8 @@ purchase</code>.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -565,8 +565,8 @@ id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 
 Emitted when an item was listed by the safe owner. Can be used
 to track available offers anywhere on the network; the event is
-type-indexed which allows for searching for offers of a specific <code>
-T</code>
+type-indexed which allows for searching for offers of a specific 
+T
 
 
 <pre><code>
@@ -581,22 +581,22 @@ T</code>
 
 <dl>
 <dt>
-<code>
-<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
@@ -610,21 +610,21 @@ price: u64</code>
 
 ## Struct `ItemPurchased`
 
-Emitted when an item was purchased from the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. Can be used
+Emitted when an item was purchased from the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. Can be used
 to track finalized sales across the network. The event is emitted
-in both cases: when an item is purchased via the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> or
-when it's purchased directly (via <code>
-list</code> + <code>
-purchase</code>).
+in both cases: when an item is purchased via the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> or
+when it's purchased directly (via 
+list + 
+purchase).
 
-The <code>
-price</code> is also emitted and might differ from the <code>
-price</code> set
-in the <code>
-<Link to="kiosk#0x2_kiosk_ItemListed">ItemListed</Link></code> event. This is because the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> only
+The 
+price is also emitted and might differ from the 
+price set
+in the 
+<Link to="kiosk#0x2_kiosk_ItemListed">ItemListed</Link> event. This is because the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> only
 sets a minimum price for the item, and the actual price is defined
 by the trading module / extension.
 
@@ -641,22 +641,22 @@ by the trading module / extension.
 
 <dl>
 <dt>
-<code>
-<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
@@ -686,15 +686,15 @@ to close tracked offers.
 
 <dl>
 <dt>
-<code>
-<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -766,8 +766,8 @@ Taking or mutably borrowing an item that is listed.
 
 <Link id="0x2_kiosk_EItemLocked"></Link>
 
-Attempt to <code>
-take</code> an item that is locked.
+Attempt to 
+take an item that is locked.
 
 
 <pre><code>
@@ -778,9 +778,9 @@ take</code> an item that is locked.
 
 <Link id="0x2_kiosk_EItemMismatch"></Link>
 
-Item does not match <code>
-<Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link></code> in <code>
-return_val</code>.
+Item does not match 
+<Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link> in 
+return_val.
 
 
 <pre><code>
@@ -802,8 +802,8 @@ An is not found while trying to borrow.
 
 <Link id="0x2_kiosk_EListedExclusively"></Link>
 
-Attempt to take an item that has a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> issued.
+Attempt to take an item that has a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> issued.
 
 
 <pre><code>
@@ -836,9 +836,9 @@ Delisting an item that is not listed.
 
 <Link id="0x2_kiosk_EUidAccessNotAllowed"></Link>
 
-Trying to call <code>
-uid_mut</code> when <code>
-allow_extensions</code> set to false.
+Trying to call 
+uid_mut when 
+allow_extensions set to false.
 
 
 <pre><code>
@@ -849,9 +849,9 @@ allow_extensions</code> set to false.
 
 <Link id="0x2_kiosk_EWrongKiosk"></Link>
 
-<code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> does not match the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> does not match the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
 
 <pre><code>
@@ -865,9 +865,9 @@ allow_extensions</code> set to false.
 ## Function `default`
 
 Creates a new Kiosk in a default configuration: sender receives the
-<code>
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code> and becomes the Owner, the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> is shared.
+
+<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> and becomes the Owner, the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> is shared.
 
 
 <pre><code>
@@ -896,9 +896,9 @@ entry <b>fun</b> <Link to="kiosk#0x2_kiosk_default">default</Link>(ctx: &<b>mut<
 
 ## Function `new`
 
-Creates a new <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> with a matching <code>
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code>.
+Creates a new 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> with a matching 
+<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>.
 
 
 <pre><code>
@@ -939,10 +939,10 @@ Creates a new <code>
 ## Function `close_and_withdraw`
 
 Unpacks and destroys a Kiosk returning the profits (even if "0").
-Can only be performed by the bearer of the <code>
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code> in the
-case where there's no items inside and a <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> is not shared.
+Can only be performed by the bearer of the 
+<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> in the
+case where there's no items inside and a 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> is not shared.
 
 
 <pre><code>
@@ -980,8 +980,8 @@ case where there's no items inside and a <code>
 
 ## Function `set_owner`
 
-Change the <code>
-owner</code> field to the transaction sender.
+Change the 
+owner field to the transaction sender.
 The change is purely cosmetical and does not affect any of the
 basic kiosk functions unless some logic for this is implemented
 in a third party module.
@@ -1014,10 +1014,10 @@ in a third party module.
 
 ## Function `set_owner_custom`
 
-Update the <code>
-owner</code> field with a custom address. Can be used for
-implementing a custom logic that relies on the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> owner.
+Update the 
+owner field with a custom address. Can be used for
+implementing a custom logic that relies on the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> owner.
 
 
 <pre><code>
@@ -1078,17 +1078,17 @@ Performs an authorization check to make sure only owner can do that.
 
 ## Function `lock`
 
-Place an item to the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and issue a <code>
-<Link to="kiosk#0x2_kiosk_Lock">Lock</Link></code> for it. Once placed this
-way, an item can only be listed either with a <code>
-list</code> function or with a
-<code>
-list_with_purchase_cap</code>.
+Place an item to the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and issue a 
+<Link to="kiosk#0x2_kiosk_Lock">Lock</Link> for it. Once placed this
+way, an item can only be listed either with a 
+list function or with a
 
-Requires policy for <code>
-T</code> to make sure that there's an issued <code>
-TransferPolicy</code>
+list_with_purchase_cap.
+
+Requires policy for 
+T to make sure that there's an issued 
+TransferPolicy
 and the item can be sold, otherwise the asset might be locked forever.
 
 
@@ -1191,9 +1191,9 @@ Performs an authorization check to make sure only owner can sell.
 
 ## Function `place_and_list`
 
-Calls <code>
-place</code> and <code>
-list</code> together - simplifies the flow.
+Calls 
+place and 
+list together - simplifies the flow.
 
 
 <pre><code>
@@ -1224,10 +1224,10 @@ list</code> together - simplifies the flow.
 
 ## Function `delist`
 
-Remove an existing listing from the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and keep the item in the
-user Kiosk. Can only be performed by the owner of the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+Remove an existing listing from the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and keep the item in the
+user Kiosk. Can only be performed by the owner of the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
 
 <pre><code>
@@ -1262,12 +1262,12 @@ user Kiosk. Can only be performed by the owner of the <code>
 
 ## Function `purchase`
 
-Make a trade: pay the owner of the item and request a Transfer to the <code>
-target</code>
+Make a trade: pay the owner of the item and request a Transfer to the 
+target
 kiosk (to prevent item being taken by the approving party).
 
-Received <code>
-TransferRequest</code> needs to be handled by the publisher of the T,
+Received 
+TransferRequest needs to be handled by the publisher of the T,
 if they have a method implemented that allows a trade, it is possible to
 request their approval (by calling some function) so that the trade can be
 finalized.
@@ -1309,10 +1309,10 @@ finalized.
 
 ## Function `list_with_purchase_cap`
 
-Creates a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> which gives the right to purchase an item
-for any price equal or higher than the <code>
-min_price</code>.
+Creates a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> which gives the right to purchase an item
+for any price equal or higher than the 
+min_price.
 
 
 <pre><code>
@@ -1352,11 +1352,11 @@ min_price</code>.
 
 ## Function `purchase_with_cap`
 
-Unpack the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> and call <code>
-purchase</code>. Sets the payment amount
-as the price for the listing making sure it's no less than <code>
-min_amount</code>.
+Unpack the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> and call 
+purchase. Sets the payment amount
+as the price for the listing making sure it's no less than 
+min_amount.
 
 
 <pre><code>
@@ -1400,10 +1400,10 @@ min_amount</code>.
 
 ## Function `return_purchase_cap`
 
-Return the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> without making a purchase; remove an active offer and
-allow the item for taking. Can only be returned to its <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>, aborts otherwise.
+Return the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> without making a purchase; remove an active offer and
+allow the item for taking. Can only be returned to its 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, aborts otherwise.
 
 
 <pre><code>
@@ -1475,8 +1475,8 @@ Withdraw profits from the Kiosk.
 
 ## Function `lock_internal`
 
-Internal: "lock" an item disabling the <code>
-take</code> action.
+Internal: "lock" an item disabling the 
+take action.
 
 
 <pre><code>
@@ -1559,9 +1559,9 @@ Internal: get a mutable access to the UID.
 
 ## Function `has_item`
 
-Check whether the <code>
-item</code> is present in the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+Check whether the 
+item is present in the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
 
 <pre><code>
@@ -1588,9 +1588,9 @@ item</code> is present in the <code>
 
 ## Function `has_item_with_type`
 
-Check whether the <code>
-item</code> is present in the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and has type T.
+Check whether the 
+item is present in the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and has type T.
 
 
 <pre><code>
@@ -1617,15 +1617,15 @@ item</code> is present in the <code>
 
 ## Function `is_locked`
 
-Check whether an item with the <code>
-id</code> is locked in the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. Meaning
-that the only two actions that can be performed on it are <code>
-list</code> and
-<code>
-list_with_purchase_cap</code>, it cannot be <code>
-take</code>n out of the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+Check whether an item with the 
+id is locked in the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. Meaning
+that the only two actions that can be performed on it are 
+list and
+
+list_with_purchase_cap, it cannot be 
+taken out of the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
 
 <pre><code>
@@ -1652,8 +1652,8 @@ take</code>n out of the <code>
 
 ## Function `is_listed`
 
-Check whether an <code>
-item</code> is listed (exclusively or non exclusively).
+Check whether an 
+item is listed (exclusively or non exclusively).
 
 
 <pre><code>
@@ -1681,8 +1681,8 @@ item</code> is listed (exclusively or non exclusively).
 
 ## Function `is_listed_exclusively`
 
-Check whether there's a <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> issued for an item.
+Check whether there's a 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> issued for an item.
 
 
 <pre><code>
@@ -1709,9 +1709,9 @@ Check whether there's a <code>
 
 ## Function `has_access`
 
-Check whether the <code>
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code> matches the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+Check whether the 
+<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> matches the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
 
 
 <pre><code>
@@ -1738,9 +1738,9 @@ Check whether the <code>
 
 ## Function `uid_mut_as_owner`
 
-Access the <code>
-UID</code> using the <code>
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code>.
+Access the 
+UID using the 
+<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>.
 
 
 <pre><code>
@@ -1771,10 +1771,10 @@ UID</code> using the <code>
 ## Function `set_allow_extensions`
 
 [DEPRECATED]
-Allow or disallow <code>
-uid</code> and <code>
-uid_mut</code> access via the <code>
-allow_extensions</code>
+Allow or disallow 
+uid and 
+uid_mut access via the 
+allow_extensions
 setting.
 
 
@@ -1805,8 +1805,8 @@ setting.
 
 ## Function `uid`
 
-Get the immutable <code>
-UID</code> for dynamic field access.
+Get the immutable 
+UID for dynamic field access.
 Always enabled.
 
 Given the &UID can be used for reading keys and authorization,
@@ -1837,11 +1837,11 @@ its access
 
 ## Function `uid_mut`
 
-Get the mutable <code>
-UID</code> for dynamic field access and extensions.
-Aborts if <code>
-allow_extensions</code> set to <code>
-<b>false</b></code>.
+Get the mutable 
+UID for dynamic field access and extensions.
+Aborts if 
+allow_extensions set to 
+<b>false</b>.
 
 
 <pre><code>
@@ -1950,8 +1950,8 @@ Get the amount of profits collected by selling items.
 
 ## Function `profits_mut`
 
-Get mutable access to <code>
-profits</code> - owner only action.
+Get mutable access to 
+profits - owner only action.
 
 
 <pre><code>
@@ -1979,9 +1979,9 @@ profits</code> - owner only action.
 
 ## Function `borrow`
 
-Immutably borrow an item from the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. Any item can be <code>
-<Link to="borrow#0x2_borrow">borrow</Link></code>ed
+Immutably borrow an item from the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. Any item can be 
+<Link to="borrow#0x2_borrow">borrow</Link>ed
 at any time.
 
 
@@ -2014,11 +2014,11 @@ at any time.
 
 ## Function `borrow_mut`
 
-Mutably borrow an item from the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
-Item can be <code>
-borrow_mut</code>ed only if it's not <code>
-is_listed</code>.
+Mutably borrow an item from the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+Item can be 
+borrow_muted only if it's not 
+is_listed.
 
 
 <pre><code>
@@ -2051,11 +2051,11 @@ is_listed</code>.
 
 ## Function `borrow_val`
 
-Take the item from the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> with a guarantee that it will be returned.
-Item can be <code>
-borrow_val</code>-ed only if it's not <code>
-is_listed</code>.
+Take the item from the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> with a guarantee that it will be returned.
+Item can be 
+borrow_val-ed only if it's not 
+is_listed.
 
 
 <pre><code>
@@ -2091,10 +2091,10 @@ is_listed</code>.
 
 ## Function `return_val`
 
-Return the borrowed item to the <code>
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. This method cannot be avoided
-if <code>
-borrow_val</code> is used.
+Return the borrowed item to the 
+<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. This method cannot be avoided
+if 
+borrow_val is used.
 
 
 <pre><code>
@@ -2128,9 +2128,9 @@ borrow_val</code> is used.
 
 ## Function `kiosk_owner_cap_for`
 
-Get the <code>
-for</code> field of the <code>
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code>.
+Get the 
+for field of the 
+<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>.
 
 
 <pre><code>
@@ -2157,9 +2157,9 @@ for</code> field of the <code>
 
 ## Function `purchase_cap_kiosk`
 
-Get the <code>
-kiosk_id</code> from the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
+Get the 
+kiosk_id from the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
 
 
 <pre><code>
@@ -2186,9 +2186,9 @@ kiosk_id</code> from the <code>
 
 ## Function `purchase_cap_item`
 
-Get the <code>
-Item_id</code> from the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
+Get the 
+Item_id from the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
 
 
 <pre><code>
@@ -2215,9 +2215,9 @@ Item_id</code> from the <code>
 
 ## Function `purchase_cap_min_price`
 
-Get the <code>
-min_price</code> from the <code>
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
+Get the 
+min_price from the 
+<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
 
 
 <pre><code>

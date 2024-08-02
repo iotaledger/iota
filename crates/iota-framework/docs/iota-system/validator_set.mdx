@@ -116,78 +116,78 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-<code>
-total_stake: u64</code>
+
+total_stake: u64
 </dt>
 <dd>
  Total amount of stake from all active validators at the beginning of the epoch.
 </dd>
 <dt>
-<code>
-active_validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;</code>
+
+active_validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;
 </dt>
 <dd>
  The current list of active validators.
 </dd>
 <dt>
-<code>
-pending_active_validators: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;</code>
+
+pending_active_validators: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;
 </dt>
 <dd>
  List of new validator candidates added during the current epoch.
  They will be processed at the end of the epoch.
 </dd>
 <dt>
-<code>
-pending_removals: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;</code>
+
+pending_removals: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;
 </dt>
 <dd>
  Removal requests from the validators. Each element is an index
- pointing to <code>
-active_validators</code>.
+ pointing to 
+active_validators.
 </dd>
 <dt>
-<code>
-staking_pool_mappings: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <b>address</b>&gt;</code>
+
+staking_pool_mappings: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <b>address</b>&gt;
 </dt>
 <dd>
  Mappings from staking pool's ID to the iota address of a validator.
 </dd>
 <dt>
-<code>
-inactive_validators: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;</code>
+
+inactive_validators: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;
 </dt>
 <dd>
  Mapping from a staking pool ID to the inactive validator that has that pool as its staking pool.
- When a validator is deactivated the validator is removed from <code>
-active_validators</code> it
+ When a validator is deactivated the validator is removed from 
+active_validators it
  is added to this table so that stakers can continue to withdraw their stake from it.
 </dd>
 <dt>
-<code>
-validator_candidates: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;</code>
+
+validator_candidates: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;
 </dt>
 <dd>
- Table storing preactive/candidate validators, mapping their addresses to their <code>
-Validator </code> structs.
- When an address calls <code>
-request_add_validator_candidate</code>, they get added to this table and become a preactive
+ Table storing preactive/candidate validators, mapping their addresses to their 
+Validator  structs.
+ When an address calls 
+request_add_validator_candidate, they get added to this table and become a preactive
  validator.
- When the candidate has met the min stake requirement, they can call <code>
-request_add_validator</code> to
- officially add them to the active validator set <code>
-active_validators</code> next epoch.
+ When the candidate has met the min stake requirement, they can call 
+request_add_validator to
+ officially add them to the active validator set 
+active_validators next epoch.
 </dd>
 <dt>
-<code>
-at_risk_validators: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, u64&gt;</code>
+
+at_risk_validators: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, u64&gt;
 </dt>
 <dd>
  Table storing the number of epochs during which a validator's stake has been below the low stake threshold.
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -217,64 +217,64 @@ each validator, emitted during epoch advancement.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-validator_address: <b>address</b></code>
+
+validator_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-reference_gas_survey_quote: u64</code>
+
+reference_gas_survey_quote: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-stake: u64</code>
+
+stake: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-commission_rate: u64</code>
+
+commission_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-pool_staking_reward: u64</code>
+
+pool_staking_reward: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link></code>
+
+pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;</code>
+
+tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tallying_rule_global_score: u64</code>
+
+tallying_rule_global_score: u64
 </dt>
 <dd>
 
@@ -303,71 +303,71 @@ V2 of ValidatorEpochInfoEvent containing more information about the validator.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-validator_address: <b>address</b></code>
+
+validator_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-reference_gas_survey_quote: u64</code>
+
+reference_gas_survey_quote: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-stake: u64</code>
+
+stake: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
+
+<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-commission_rate: u64</code>
+
+commission_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-pool_staking_reward: u64</code>
+
+pool_staking_reward: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link></code>
+
+pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;</code>
+
+tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tallying_rule_global_score: u64</code>
+
+tallying_rule_global_score: u64
 </dt>
 <dd>
 
@@ -397,22 +397,22 @@ The epoch value corresponds to the first epoch this change takes place.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-validator_address: <b>address</b></code>
+
+validator_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -442,29 +442,29 @@ The epoch value corresponds to the first epoch this change takes place.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-validator_address: <b>address</b></code>
+
+validator_address: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-is_voluntary: bool</code>
+
+is_voluntary: bool
 </dt>
 <dd>
 
@@ -730,8 +730,8 @@ is_voluntary: bool</code>
 
 ## Function `request_add_validator_candidate`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code> to add a new validator candidate.
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link> to add a new validator candidate.
 
 
 <pre><code>
@@ -781,9 +781,9 @@ Called by <code>
 
 ## Function `request_remove_validator_candidate`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code> to remove a validator candidate, and move them to <code>
-inactive_validators</code>.
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link> to remove a validator candidate, and move them to 
+inactive_validators.
 
 
 <pre><code>
@@ -831,9 +831,9 @@ inactive_validators</code>.
 
 ## Function `request_add_validator`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code> to add a new validator to <code>
-pending_active_validators</code>, which will be
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link> to add a new validator to 
+pending_active_validators, which will be
 processed at the end of epoch.
 
 
@@ -907,10 +907,10 @@ processed at the end of epoch.
 
 ## Function `request_remove_validator`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code>, to remove a validator.
-The index of the validator is added to <code>
-pending_removals</code> and
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link>, to remove a validator.
+The index of the validator is added to 
+pending_removals and
 will be processed at the end of epoch.
 Only an active validator can request to be removed.
 
@@ -950,8 +950,8 @@ Only an active validator can request to be removed.
 
 ## Function `request_add_stake`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code>, to add a new stake to the validator.
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link>, to add a new stake to the validator.
 This request is added to the validator's staking pool's pending stake entries, processed at the end
 of the epoch.
 Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
@@ -989,15 +989,15 @@ Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
 
 ## Function `request_withdraw_stake`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code>, to withdraw some share of a stake from the validator. The share to withdraw
-is denoted by <code>
-principal_withdraw_amount</code>. One of two things occurs in this function:
-1. If the <code>
-staked_iota</code> is staked with an active validator, the request is added to the validator's
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link>, to withdraw some share of a stake from the validator. The share to withdraw
+is denoted by 
+principal_withdraw_amount. One of two things occurs in this function:
+1. If the 
+staked_iota is staked with an active validator, the request is added to the validator's
 staking pool's pending stake withdraw entries, processed at the end of the epoch.
-2. If the <code>
-staked_iota</code> was staked with a validator that is no longer active,
+2. If the 
+staked_iota was staked with a validator that is no longer active,
 the stake and any rewards corresponding to it will be immediately processed.
 
 
@@ -1074,8 +1074,8 @@ the stake and any rewards corresponding to it will be immediately processed.
 Update the validator set at the end of epoch.
 It does the following things:
 1. Distribute stake award.
-2. Process pending stake deposits and withdraws for each validator (<code>
-adjust_stake</code>).
+2. Process pending stake deposits and withdraws for each validator (
+adjust_stake).
 3. Process pending stake deposits, and withdraws.
 4. Process pending validator application and withdraws.
 5. At the end, we calculate the total stake for the new epoch.
@@ -1292,8 +1292,8 @@ Effectutate pending next epoch metadata if they are staged.
 
 ## Function `derive_reference_gas_price`
 
-Called by <code>
-<Link to="iota_system#0x3_iota_system">iota_system</Link></code> to derive reference gas price for the new epoch.
+Called by 
+<Link to="iota_system#0x3_iota_system">iota_system</Link> to derive reference gas price for the new epoch.
 Derive the reference gas price based on the gas price quote submitted by each validator.
 The returned gas price should be greater than or equal to 2/3 of the validators submitted
 gas price, weighted by stake.
@@ -1571,10 +1571,10 @@ Returns true iff the address exists in active validators.
 
 ## Function `is_duplicate_with_active_validator`
 
-Checks whether <code>
-new_validator</code> is duplicate with any currently active validators.
-It differs from <code>
-is_active_validator_by_iota_address</code> in that the former checks
+Checks whether 
+new_validator is duplicate with any currently active validators.
+It differs from 
+is_active_validator_by_iota_address in that the former checks
 only the iota address but this function looks at more metadata.
 
 
@@ -1664,8 +1664,8 @@ only the iota address but this function looks at more metadata.
 
 ## Function `is_duplicate_with_pending_validator`
 
-Checks whether <code>
-new_validator</code> is duplicate with any currently pending validators.
+Checks whether 
+new_validator is duplicate with any currently pending validators.
 
 
 <pre><code>
@@ -1759,9 +1759,9 @@ Get mutable reference to either a candidate or an active validator by address.
 
 ## Function `find_validator`
 
-Find validator by <code>
-validator_address</code>, in <code>
-validators</code>.
+Find validator by 
+validator_address, in 
+validators.
 Returns (true, index) if the validator is found, and the index is its index in the list.
 If not found, returns (false, 0).
 
@@ -1799,9 +1799,9 @@ If not found, returns (false, 0).
 
 ## Function `find_validator_from_table_vec`
 
-Find validator by <code>
-validator_address</code>, in <code>
-validators</code>.
+Find validator by 
+validator_address, in 
+validators.
 Returns (true, index) if the validator is found, and the index is its index in the list.
 If not found, returns (false, 0).
 
@@ -1912,8 +1912,8 @@ Aborts if any address isn't in the given validator set.
 Get mutable reference to an active or (if active does not exist) pending or (if pending and
 active do not exist) or candidate validator by address.
 Note: this function should be called carefully, only after verifying the transaction
-sender has the ability to modify the <code>
-Validator</code>.
+sender has the ability to modify the 
+Validator.
 
 
 <pre><code>
@@ -2184,8 +2184,8 @@ Validator</code>.
 ## Function `verify_cap`
 
 Verify the capability is valid for a Validator.
-If <code>
-active_validator_only</code> is true, only verify the Cap for an active validator.
+If 
+active_validator_only is true, only verify the Cap for an active validator.
 Otherwise, verify the Cap for au either active or pending validator.
 
 
@@ -2225,9 +2225,9 @@ Otherwise, verify the Cap for au either active or pending validator.
 ## Function `process_pending_removals`
 
 Process the pending withdraw requests. For each pending request, the validator
-is removed from <code>
-validators</code> and its staking pool is put into the <code>
-inactive_validators</code> table.
+is removed from 
+validators and its staking pool is put into the 
+inactive_validators table.
 
 
 <pre><code>
@@ -2371,8 +2371,8 @@ inactive_validators</code> table.
 
 ## Function `process_pending_validators`
 
-Process the pending new validators. They are activated and inserted into <code>
-validators</code>.
+Process the pending new validators. They are activated and inserted into 
+validators.
 
 
 <pre><code>
@@ -2922,8 +2922,8 @@ Sum up the total stake of a given list of validator addresses.
 
 ## Function `active_validators`
 
-Return the active validators in <code>
-self</code>
+Return the active validators in 
+self
 
 
 <pre><code>
@@ -2950,8 +2950,8 @@ self</code>
 
 ## Function `is_validator_candidate`
 
-Returns true if the <code>
-addr</code> is a validator candidate.
+Returns true if the 
+addr is a validator candidate.
 
 
 <pre><code>
@@ -2978,8 +2978,8 @@ addr</code> is a validator candidate.
 
 ## Function `is_inactive_validator`
 
-Returns true if the staking pool identified by <code>
-staking_pool_id</code> is of an inactive validator.
+Returns true if the staking pool identified by 
+staking_pool_id is of an inactive validator.
 
 
 <pre><code>

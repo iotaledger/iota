@@ -86,50 +86,50 @@ Emitted when a new pool is created
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the newly created pool
 </dd>
 <dt>
-<code>
-base_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
+
+base_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quote_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
+
+quote_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_fee_rate: u64</code>
+
+taker_fee_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebate_rate: u64</code>
+
+maker_rebate_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tick_size: u64</code>
+
+tick_size: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-lot_size: u64</code>
+
+lot_size: u64
 </dt>
 <dd>
 
@@ -158,51 +158,51 @@ Emitted when a maker order is injected into the order book.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- object ID of the <code>
-AccountCap</code> that placed the order
+ object ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-base_asset_quantity_placed: u64</code>
+
+base_asset_quantity_placed: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-expire_timestamp: u64</code>
+
+expire_timestamp: u64
 </dt>
 <dd>
 
@@ -231,44 +231,44 @@ Emitted when a maker order is canceled.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- object ID of the <code>
-AccountCap</code> that placed the order
+ object ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-base_asset_quantity_canceled: u64</code>
+
+base_asset_quantity_canceled: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
@@ -297,72 +297,72 @@ Emitted only when a maker order is filled.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- object ID of the <code>
-AccountCap</code> that placed the order
+ object ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-total_quantity: u64</code>
+
+total_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_filled: u64</code>
+
+base_asset_quantity_filled: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_remaining: u64</code>
+
+base_asset_quantity_remaining: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_commission: u64</code>
+
+taker_commission: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebates: u64</code>
+
+maker_rebates: u64
 </dt>
 <dd>
 
@@ -390,43 +390,43 @@ maker_rebates: u64</code>
 
 <dl>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quantity: u64</code>
+
+quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-expire_timestamp: u64</code>
+
+expire_timestamp: u64
 </dt>
 <dd>
 
@@ -454,15 +454,15 @@ expire_timestamp: u64</code>
 
 <dl>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, <Link to="clob#0xdee9_clob_Order">clob::Order</Link>&gt;</code>
+
+open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, <Link to="clob#0xdee9_clob_Order">clob::Order</Link>&gt;
 </dt>
 <dd>
 
@@ -490,106 +490,106 @@ open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTab
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-bids: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;</code>
+
+bids: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-asks: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;</code>
+
+asks: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob#0xdee9_clob_TickLevel">clob::TickLevel</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_bid_order_id: u64</code>
+
+next_bid_order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_ask_order_id: u64</code>
+
+next_ask_order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-usr_open_orders: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;&gt;</code>
+
+usr_open_orders: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_fee_rate: u64</code>
+
+taker_fee_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebate_rate: u64</code>
+
+maker_rebate_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tick_size: u64</code>
+
+tick_size: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-lot_size: u64</code>
+
+lot_size: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_custodian: <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;BaseAsset&gt;</code>
+
+base_custodian: <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;BaseAsset&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quote_custodian: <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;QuoteAsset&gt;</code>
+
+quote_custodian: <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;QuoteAsset&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-creation_fee: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+creation_fee: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;</code>
+
+base_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;</code>
+
+quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;
 </dt>
 <dd>
 
@@ -603,8 +603,8 @@ quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balanc
 
 ## Struct `OrderPlaced`
 
-Deprecated since v1.0.0, use <code>
-<Link to="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link></code> instead.
+Deprecated since v1.0.0, use 
+<Link to="clob#0xdee9_clob_OrderPlacedV2">OrderPlacedV2</Link> instead.
 
 
 <pre><code>
@@ -619,44 +619,44 @@ Deprecated since v1.0.0, use <code>
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- object ID of the <code>
-AccountCap</code> that placed the order
+ object ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-base_asset_quantity_placed: u64</code>
+
+base_asset_quantity_placed: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
@@ -670,8 +670,8 @@ price: u64</code>
 
 ## Struct `OrderFilled`
 
-Deprecated since v1.0.0, use <code>
-<Link to="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link></code> instead.
+Deprecated since v1.0.0, use 
+<Link to="clob#0xdee9_clob_OrderFilledV2">OrderFilledV2</Link> instead.
 
 
 <pre><code>
@@ -686,58 +686,58 @@ Deprecated since v1.0.0, use <code>
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+owner: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- object ID of the <code>
-AccountCap</code> that placed the order
+ object ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-total_quantity: u64</code>
+
+total_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_filled: u64</code>
+
+base_asset_quantity_filled: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_remaining: u64</code>
+
+base_asset_quantity_remaining: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 

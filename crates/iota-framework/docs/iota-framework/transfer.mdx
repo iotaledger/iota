@@ -34,15 +34,15 @@ import Link from '@docusaurus/Link';
 
 ## Struct `Receiving`
 
-This represents the ability to <code>
-receive</code> an object of type <code>
-T</code>.
+This represents the ability to 
+receive an object of type 
+T.
 This type is ephemeral per-transaction and cannot be stored on-chain.
 This does not represent the obligation to receive the object that it
 references, but simply the ability to receive the object with object ID
-<code>
-id</code> at version <code>
-version</code> if you can prove mutable access to the parent
+
+id at version 
+version if you can prove mutable access to the parent
 object during the transaction.
 Internals of this struct are opaque outside this module.
 
@@ -59,15 +59,15 @@ Internals of this struct are opaque outside this module.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-version: u64</code>
+
+version: u64
 </dt>
 <dd>
 
@@ -143,23 +143,23 @@ able to be accessed through the parent that is passed-in.
 
 ## Function `transfer`
 
-Transfer ownership of <code>
-obj</code> to <code>
-recipient</code>. <code>
-obj</code> must have the <code>
-key</code> attribute,
-which (in turn) ensures that <code>
-obj</code> has a globally unique ID. Note that if the recipient
-address represents an object ID, the <code>
-obj</code> sent will be inaccessible after the transfer
+Transfer ownership of 
+obj to 
+recipient. 
+obj must have the 
+key attribute,
+which (in turn) ensures that 
+obj has a globally unique ID. Note that if the recipient
+address represents an object ID, the 
+obj sent will be inaccessible after the transfer
 (though they will be retrievable at a future date once new features are added).
 This function has custom rules performed by the Iota Move bytecode verifier that ensures
-that <code>
-T</code> is an object defined in the module where <code>
-<Link to="../iota-framework/transfer#0x2_transfer">transfer</Link></code> is invoked. Use
-<code>
-public_transfer</code> to transfer an object with <code>
-store</code> outside of its module.
+that 
+T is an object defined in the module where 
+<Link to="../iota-framework/transfer#0x2_transfer">transfer</Link> is invoked. Use
+
+public_transfer to transfer an object with 
+store outside of its module.
 
 
 <pre><code>
@@ -186,18 +186,18 @@ store</code> outside of its module.
 
 ## Function `public_transfer`
 
-Transfer ownership of <code>
-obj</code> to <code>
-recipient</code>. <code>
-obj</code> must have the <code>
-key</code> attribute,
-which (in turn) ensures that <code>
-obj</code> has a globally unique ID. Note that if the recipient
-address represents an object ID, the <code>
-obj</code> sent will be inaccessible after the transfer
+Transfer ownership of 
+obj to 
+recipient. 
+obj must have the 
+key attribute,
+which (in turn) ensures that 
+obj has a globally unique ID. Note that if the recipient
+address represents an object ID, the 
+obj sent will be inaccessible after the transfer
 (though they will be retrievable at a future date once new features are added).
-The object must have <code>
-store</code> to be transferred outside of its module.
+The object must have 
+store to be transferred outside of its module.
 
 
 <pre><code>
@@ -224,17 +224,17 @@ store</code> to be transferred outside of its module.
 
 ## Function `freeze_object`
 
-Freeze <code>
-obj</code>. After freezing <code>
-obj</code> becomes immutable and can no longer be transferred or
+Freeze 
+obj. After freezing 
+obj becomes immutable and can no longer be transferred or
 mutated.
 This function has custom rules performed by the Iota Move bytecode verifier that ensures
-that <code>
-T</code> is an object defined in the module where <code>
-freeze_object</code> is invoked. Use
-<code>
-public_freeze_object</code> to freeze an object with <code>
-store</code> outside of its module.
+that 
+T is an object defined in the module where 
+freeze_object is invoked. Use
+
+public_freeze_object to freeze an object with 
+store outside of its module.
 
 
 <pre><code>
@@ -261,12 +261,12 @@ store</code> outside of its module.
 
 ## Function `public_freeze_object`
 
-Freeze <code>
-obj</code>. After freezing <code>
-obj</code> becomes immutable and can no longer be transferred or
+Freeze 
+obj. After freezing 
+obj becomes immutable and can no longer be transferred or
 mutated.
-The object must have <code>
-store</code> to be frozen outside of its module.
+The object must have 
+store to be frozen outside of its module.
 
 
 <pre><code>
@@ -295,16 +295,16 @@ store</code> to be frozen outside of its module.
 
 Turn the given object into a mutable shared object that everyone can access and mutate.
 This is irreversible, i.e. once an object is shared, it will stay shared forever.
-Aborts with <code>
-<Link to="../iota-framework/transfer#0x2_transfer_ESharedNonNewObject">ESharedNonNewObject</Link></code> of the object being shared was not created in this
+Aborts with 
+<Link to="../iota-framework/transfer#0x2_transfer_ESharedNonNewObject">ESharedNonNewObject</Link> of the object being shared was not created in this
 transaction. This restriction may be relaxed in the future.
 This function has custom rules performed by the Iota Move bytecode verifier that ensures
-that <code>
-T</code> is an object defined in the module where <code>
-share_object</code> is invoked. Use
-<code>
-public_share_object</code> to share an object with <code>
-store</code> outside of its module.
+that 
+T is an object defined in the module where 
+share_object is invoked. Use
+
+public_share_object to share an object with 
+store outside of its module.
 
 
 <pre><code>
@@ -333,11 +333,11 @@ store</code> outside of its module.
 
 Turn the given object into a mutable shared object that everyone can access and mutate.
 This is irreversible, i.e. once an object is shared, it will stay shared forever.
-Aborts with <code>
-<Link to="../iota-framework/transfer#0x2_transfer_ESharedNonNewObject">ESharedNonNewObject</Link></code> of the object being shared was not created in this
+Aborts with 
+<Link to="../iota-framework/transfer#0x2_transfer_ESharedNonNewObject">ESharedNonNewObject</Link> of the object being shared was not created in this
 transaction. This restriction may be relaxed in the future.
-The object must have <code>
-store</code> to be shared outside of its module.
+The object must have 
+store to be shared outside of its module.
 
 
 <pre><code>
@@ -364,22 +364,22 @@ store</code> to be shared outside of its module.
 
 ## Function `receive`
 
-Given mutable (i.e., locked) access to the <code>
-parent</code> and a <code>
-<Link to="../iota-framework/transfer#0x2_transfer_Receiving">Receiving</Link></code> argument
-referencing an object of type <code>
-T</code> owned by <code>
-parent</code> use the <code>
-to_receive</code>
-argument to receive and return the referenced owned object of type <code>
-T</code>.
+Given mutable (i.e., locked) access to the 
+parent and a 
+<Link to="../iota-framework/transfer#0x2_transfer_Receiving">Receiving</Link> argument
+referencing an object of type 
+T owned by 
+parent use the 
+to_receive
+argument to receive and return the referenced owned object of type 
+T.
 This function has custom rules performed by the Iota Move bytecode verifier that ensures
-that <code>
-T</code> is an object defined in the module where <code>
-receive</code> is invoked. Use
-<code>
-public_receive</code> to receivne an object with <code>
-store</code> outside of its module.
+that 
+T is an object defined in the module where 
+receive is invoked. Use
+
+public_receive to receivne an object with 
+store outside of its module.
 
 
 <pre><code>
@@ -410,17 +410,17 @@ store</code> outside of its module.
 
 ## Function `public_receive`
 
-Given mutable (i.e., locked) access to the <code>
-parent</code> and a <code>
-<Link to="../iota-framework/transfer#0x2_transfer_Receiving">Receiving</Link></code> argument
-referencing an object of type <code>
-T</code> owned by <code>
-parent</code> use the <code>
-to_receive</code>
-argument to receive and return the referenced owned object of type <code>
-T</code>.
-The object must have <code>
-store</code> to be received outside of its defining module.
+Given mutable (i.e., locked) access to the 
+parent and a 
+<Link to="../iota-framework/transfer#0x2_transfer_Receiving">Receiving</Link> argument
+referencing an object of type 
+T owned by 
+parent use the 
+to_receive
+argument to receive and return the referenced owned object of type 
+T.
+The object must have 
+store to be received outside of its defining module.
 
 
 <pre><code>
@@ -451,8 +451,8 @@ store</code> to be received outside of its defining module.
 
 ## Function `receiving_object_id`
 
-Return the object ID that the given <code>
-<Link to="../iota-framework/transfer#0x2_transfer_Receiving">Receiving</Link></code> argument references.
+Return the object ID that the given 
+<Link to="../iota-framework/transfer#0x2_transfer_Receiving">Receiving</Link> argument references.
 
 
 <pre><code>

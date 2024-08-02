@@ -48,15 +48,15 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 <dl>
 <dt>
-<code>
-validator_index: u64</code>
+
+validator_index: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
+
+<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
 </dt>
 <dd>
 
@@ -84,22 +84,22 @@ validator_index: u64</code>
 
 <dl>
 <dt>
-<code>
-validator_index: u64</code>
+
+validator_index: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
+
+<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-stake: u64</code>
+
+stake: u64
 </dt>
 <dd>
 
@@ -197,9 +197,9 @@ than recomputing these.
 
 Set the voting power of all validators.
 Each validator's voting power is initialized using their stake. We then attempt to cap their voting power
-at <code>
-<Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link></code>. If <code>
-<Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link></code> is not a feasible cap, we pick the lowest possible cap.
+at 
+<Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link>. If 
+<Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link> is not a feasible cap, we pick the lowest possible cap.
 
 
 <pre><code>
@@ -321,10 +321,10 @@ Sum up the total stake of all validators.
 
 ## Function `insert`
 
-Insert <code>
-new_info</code> to <code>
-info_list</code> as part of insertion sort, such that <code>
-info_list</code> is always sorted
+Insert 
+new_info to 
+info_list as part of insertion sort, such that 
+info_list is always sorted
 using stake, in descending order.
 
 

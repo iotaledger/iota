@@ -232,7 +232,7 @@ fn build_packages_with_move_config(
 }
 
 /// Create a Docusaurus category file for the specified prefix.
-fn create_category_file(prefix: &str){
+fn create_category_file(prefix: &str) {
     let mut path = PathBuf::from(DOCS_DIR).join(prefix);
     fs::create_dir_all(path.clone()).unwrap();
     path.push("_category_.json");
@@ -268,6 +268,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
     let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
+    let none_pre_code_regex = regex::Regex::new(r"([^>])<code>([\s\S]*?)</code>").unwrap();
 
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
@@ -306,6 +307,9 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             .replace("dependencies/", "../")
             // Here we remove the extension from `to` property in Link tags
             .replace(".md", "");
+
+        // Remove <code> tags that are not in between <pre> tags
+        let content = none_pre_code_regex.replace_all(&content, r#"$1$2"#);
 
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {

@@ -74,22 +74,22 @@ a type originated from.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-<Link to="package#0x2_package">package</Link>: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
+
+<Link to="package#0x2_package">package</Link>: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-module_name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
+
+module_name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </dt>
 <dd>
 
@@ -118,30 +118,30 @@ Capability controlling the ability to upgrade a package.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  (Mutable) ID of the package that can be upgraded.
 </dd>
 <dt>
-<code>
-version: u64</code>
+
+version: u64
 </dt>
 <dd>
  (Mutable) The number of upgrades that have been applied
  successively to the original package.  Initially 0.
 </dd>
 <dt>
-<code>
-policy: u8</code>
+
+policy: u8
 </dt>
 <dd>
  What kind of upgrades are allowed.
@@ -159,8 +159,8 @@ Permission to perform a particular upgrade (for a fixed version of
 the package, bytecode to upgrade with and transitive dependencies to
 depend against).
 
-An <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> can only issue one ticket at a time, to prevent races
+An 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> can only issue one ticket at a time, to prevent races
 between concurrent updates or a change in its upgrade policy after
 isiotang a ticket, so the ticket is a "Hot Potato" to preserve forward
 progress.
@@ -178,31 +178,31 @@ progress.
 
 <dl>
 <dt>
-<code>
-cap: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+cap: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- (Immutable) ID of the <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
+ (Immutable) ID of the 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> this originated from.
 </dd>
 <dt>
-<code>
-<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  (Immutable) ID of the package that can be upgraded.
 </dd>
 <dt>
-<code>
-policy: u8</code>
+
+policy: u8
 </dt>
 <dd>
  (Immutable) The policy regarding what kind of upgrade this ticket
  permits.
 </dd>
 <dt>
-<code>
-digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
  (Immutable) SHA256 digest of the bytecode and transitive
@@ -218,10 +218,10 @@ digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</cod
 ## Struct `UpgradeReceipt`
 
 Issued as a result of a successful upgrade, containing the
-information to be used to update the <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>.  This is a "Hot
-Potato" to ensure that it is used to update its <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> before
+information to be used to update the 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>.  This is a "Hot
+Potato" to ensure that it is used to update its 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> before
 the end of the transaction that performed the upgrade.
 
 
@@ -237,16 +237,16 @@ the end of the transaction that performed the upgrade.
 
 <dl>
 <dt>
-<code>
-cap: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+cap: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
- (Immutable) ID of the <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
+ (Immutable) ID of the 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> this originated from.
 </dd>
 <dt>
-<code>
-<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  (Immutable) ID of the package after it was upgraded.
@@ -298,8 +298,8 @@ Only be able to change dependencies.
 
 <Link id="0x2_package_EAlreadyAuthorized"></Link>
 
-This <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> has already authorized a pending upgrade.
+This 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> has already authorized a pending upgrade.
 
 
 <pre><code>
@@ -310,8 +310,8 @@ This <code>
 
 <Link id="0x2_package_ENotAuthorized"></Link>
 
-This <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> has not authorized an upgrade.
+This 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> has not authorized an upgrade.
 
 
 <pre><code>
@@ -322,8 +322,8 @@ This <code>
 
 <Link id="0x2_package_ENotOneTimeWitness"></Link>
 
-Tried to create a <code>
-<Link to="package#0x2_package_Publisher">Publisher</Link></code> using a type that isn't a
+Tried to create a 
+<Link to="package#0x2_package_Publisher">Publisher</Link> using a type that isn't a
 one-time witness.
 
 
@@ -346,8 +346,8 @@ Tried to set a less restrictive policy than currently in place.
 
 <Link id="0x2_package_EWrongUpgradeCap"></Link>
 
-Trying to commit an upgrade to the wrong <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>.
+Trying to commit an upgrade to the wrong 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>.
 
 
 <pre><code>
@@ -567,8 +567,8 @@ Read the package address string.
 ## Function `upgrade_package`
 
 The ID of the package that this cap authorizes upgrades for.
-Can be <code>
-0x0</code> if the cap cannot currently authorize an upgrade
+Can be 
+0x0 if the cap cannot currently authorize an upgrade
 because there is already a pending upgrade in the transaction.
 Otherwise guaranteed to be the latest version of any given
 package.
@@ -627,8 +627,8 @@ successfully applied upgrade.
 ## Function `upgrade_policy`
 
 The most permissive kind of upgrade currently supported by this
-<code>
-cap</code>.
+
+cap.
 
 
 <pre><code>
@@ -709,9 +709,9 @@ The kind of upgrade that this ticket authorizes.
 
 ## Function `receipt_cap`
 
-ID of the <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> that this <code>
-receipt</code> should be used to
+ID of the 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> that this 
+receipt should be used to
 update.
 
 
@@ -740,8 +740,8 @@ update.
 ## Function `receipt_package`
 
 ID of the package that was upgraded to: the latest version of
-the package, as of the upgrade represented by this <code>
-receipt</code>.
+the package, as of the upgrade represented by this 
+receipt.
 
 
 <pre><code>
@@ -879,8 +879,8 @@ Expose the constants representing various upgrade policies
 
 ## Function `only_additive_upgrades`
 
-Restrict upgrades through this upgrade <code>
-cap</code> to just add code, or
+Restrict upgrades through this upgrade 
+cap to just add code, or
 change dependencies.
 
 
@@ -908,8 +908,8 @@ change dependencies.
 
 ## Function `only_dep_upgrades`
 
-Restrict upgrades through this upgrade <code>
-cap</code> to just change
+Restrict upgrades through this upgrade 
+cap to just change
 dependencies.
 
 
@@ -937,8 +937,8 @@ dependencies.
 
 ## Function `make_immutable`
 
-Discard the <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> to make a package immutable.
+Discard the 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> to make a package immutable.
 
 
 <pre><code>
@@ -968,14 +968,14 @@ Discard the <code>
 
 Issue a ticket authorizing an upgrade to a particular new bytecode
 (identified by its digest).  A ticket will only be issued if one has
-not already been issued, and if the <code>
-policy</code> requested is at least as
-restrictive as the policy set out by the <code>
-cap</code>.
+not already been issued, and if the 
+policy requested is at least as
+restrictive as the policy set out by the 
+cap.
 
-The <code>
-digest</code> supplied and the <code>
-policy</code> will both be checked by
+The 
+digest supplied and the 
+policy will both be checked by
 validators when running the upgrade.  I.e. the bytecode supplied in
 the upgrade must have a matching digest, and the changes relative to
 the parent package must be compatible with the policy in the ticket
@@ -1022,9 +1022,9 @@ for the upgrade to succeed.
 
 ## Function `commit_upgrade`
 
-Consume an <code>
-<Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link></code> to update its <code>
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>, finalizing
+Consume an 
+<Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link> to update its 
+<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>, finalizing
 the upgrade.
 
 

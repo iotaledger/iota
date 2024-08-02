@@ -128,50 +128,50 @@ Emitted when a new pool is created
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the newly created pool
 </dd>
 <dt>
-<code>
-base_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
+
+base_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quote_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link></code>
+
+quote_asset: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_fee_rate: u64</code>
+
+taker_fee_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebate_rate: u64</code>
+
+maker_rebate_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tick_size: u64</code>
+
+tick_size: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-lot_size: u64</code>
+
+lot_size: u64
 </dt>
 <dd>
 
@@ -200,65 +200,65 @@ Emitted when a maker order is injected into the order book.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-client_order_id: u64</code>
+
+client_order_id: u64
 </dt>
 <dd>
  ID of the order defined by client
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that placed the order
+ owner ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-original_quantity: u64</code>
+
+original_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_placed: u64</code>
+
+base_asset_quantity_placed: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-expire_timestamp: u64</code>
+
+expire_timestamp: u64
 </dt>
 <dd>
 
@@ -287,58 +287,58 @@ Emitted when a maker order is canceled.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-client_order_id: u64</code>
+
+client_order_id: u64
 </dt>
 <dd>
  ID of the order defined by client
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that canceled the order
+ owner ID of the 
+AccountCap that canceled the order
 </dd>
 <dt>
-<code>
-original_quantity: u64</code>
+
+original_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_canceled: u64</code>
+
+base_asset_quantity_canceled: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
@@ -367,51 +367,51 @@ A struct to make all orders canceled a more effifient struct
 
 <dl>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-client_order_id: u64</code>
+
+client_order_id: u64
 </dt>
 <dd>
  ID of the order defined by client
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that canceled the order
+ owner ID of the 
+AccountCap that canceled the order
 </dd>
 <dt>
-<code>
-original_quantity: u64</code>
+
+original_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_canceled: u64</code>
+
+base_asset_quantity_canceled: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
@@ -440,15 +440,15 @@ Emitted when batch of orders are canceled.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-orders_canceled: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_AllOrdersCanceledComponent">clob_v2::AllOrdersCanceledComponent</Link>&lt;BaseAsset, QuoteAsset&gt;&gt;</code>
+
+orders_canceled: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_AllOrdersCanceledComponent">clob_v2::AllOrdersCanceledComponent</Link>&lt;BaseAsset, QuoteAsset&gt;&gt;
 </dt>
 <dd>
 
@@ -477,94 +477,94 @@ Emitted only when a maker order is filled.
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-taker_client_order_id: u64</code>
+
+taker_client_order_id: u64
 </dt>
 <dd>
  ID of the order defined by taker client
 </dd>
 <dt>
-<code>
-maker_client_order_id: u64</code>
+
+maker_client_order_id: u64
 </dt>
 <dd>
  ID of the order defined by maker client
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_address: <b>address</b></code>
+
+taker_address: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that filled the order
+ owner ID of the 
+AccountCap that filled the order
 </dd>
 <dt>
-<code>
-maker_address: <b>address</b></code>
+
+maker_address: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that placed the order
+ owner ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-original_quantity: u64</code>
+
+original_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_filled: u64</code>
+
+base_asset_quantity_filled: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_quantity_remaining: u64</code>
+
+base_asset_quantity_remaining: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_commission: u64</code>
+
+taker_commission: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebates: u64</code>
+
+maker_rebates: u64
 </dt>
 <dd>
 
@@ -593,26 +593,26 @@ Emitted when user deposit asset to custodian
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object id of the pool that asset deposit to
 </dd>
 <dt>
-<code>
-quantity: u64</code>
+
+quantity: u64
 </dt>
 <dd>
  quantity of the asset deposited
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- owner address of the <code>
-AccountCap</code> that deposit the asset
+ owner address of the 
+AccountCap that deposit the asset
 </dd>
 </dl>
 
@@ -638,26 +638,26 @@ Emitted when user withdraw asset from custodian
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object id of the pool that asset withdraw from
 </dd>
 <dt>
-<code>
-quantity: u64</code>
+
+quantity: u64
 </dt>
 <dd>
  quantity of the asset user withdrew
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that withdrew the asset
+ owner ID of the 
+AccountCap that withdrew the asset
 </dd>
 </dl>
 
@@ -683,66 +683,66 @@ Returned as metadata only when a maker order is filled from place order function
 
 <dl>
 <dt>
-<code>
-pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
+
+pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
  object ID of the pool the order was placed on
 </dd>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
  ID of the order within the pool
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
  Direction of order.
 </dd>
 <dt>
-<code>
-taker_address: <b>address</b></code>
+
+taker_address: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that filled the order
+ owner ID of the 
+AccountCap that filled the order
 </dd>
 <dt>
-<code>
-maker_address: <b>address</b></code>
+
+maker_address: <b>address</b>
 </dt>
 <dd>
- owner ID of the <code>
-AccountCap</code> that placed the order
+ owner ID of the 
+AccountCap that placed the order
 </dd>
 <dt>
-<code>
-base_asset_quantity_filled: u64</code>
+
+base_asset_quantity_filled: u64
 </dt>
 <dd>
  qty of base asset filled.
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
  price at which basset asset filled.
 </dd>
 <dt>
-<code>
-taker_commission: u64</code>
+
+taker_commission: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebates: u64</code>
+
+maker_rebates: u64
 </dt>
 <dd>
 
@@ -770,65 +770,65 @@ maker_rebates: u64</code>
 
 <dl>
 <dt>
-<code>
-order_id: u64</code>
+
+order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-client_order_id: u64</code>
+
+client_order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-original_quantity: u64</code>
+
+original_quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quantity: u64</code>
+
+quantity: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-is_bid: bool</code>
+
+is_bid: bool
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
- Order can only be canceled by the <code>
-AccountCap</code> with this owner ID
+ Order can only be canceled by the 
+AccountCap with this owner ID
 </dd>
 <dt>
-<code>
-expire_timestamp: u64</code>
+
+expire_timestamp: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-self_matching_prevention: u8</code>
+
+self_matching_prevention: u8
 </dt>
 <dd>
 
@@ -856,15 +856,15 @@ self_matching_prevention: u8</code>
 
 <dl>
 <dt>
-<code>
-price: u64</code>
+
+price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, <Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;</code>
+
+open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, <Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;
 </dt>
 <dd>
 
@@ -892,106 +892,106 @@ open_orders: <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTab
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-bids: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</Link>&gt;</code>
+
+bids: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-asks: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</Link>&gt;</code>
+
+asks: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_bid_order_id: u64</code>
+
+next_bid_order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-next_ask_order_id: u64</code>
+
+next_ask_order_id: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-usr_open_orders: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;&gt;</code>
+
+usr_open_orders: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">linked_table::LinkedTable</Link>&lt;u64, u64&gt;&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-taker_fee_rate: u64</code>
+
+taker_fee_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-maker_rebate_rate: u64</code>
+
+maker_rebate_rate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-tick_size: u64</code>
+
+tick_size: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-lot_size: u64</code>
+
+lot_size: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_custodian: <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;BaseAsset&gt;</code>
+
+base_custodian: <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;BaseAsset&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quote_custodian: <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;QuoteAsset&gt;</code>
+
+quote_custodian: <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;QuoteAsset&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-creation_fee: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+creation_fee: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-base_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;</code>
+
+base_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;BaseAsset&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;</code>
+
+quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;QuoteAsset&gt;
 </dt>
 <dd>
 
@@ -1005,8 +1005,8 @@ quote_asset_trading_fees: <Link to="../iota-framework/balance#0x2_balance_Balanc
 
 ## Resource `PoolOwnerCap`
 
-Capability granting permission to access an entry in <code>
-<Link to="clob_v2#0xdee9_clob_v2_Pool">Pool</Link>.quote_asset_trading_fees</code>.
+Capability granting permission to access an entry in 
+<Link to="clob_v2#0xdee9_clob_v2_Pool">Pool</Link>.quote_asset_trading_fees.
 The pool objects created for older pools do not have a PoolOwnerCap because they were created
 prior to the addition of this feature. Here is a list of 11 pools on mainnet that
 do not have this capability:
@@ -1035,15 +1035,15 @@ do not have this capability:
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
  The owner of this AccountCap. Note: this is
@@ -1504,8 +1504,8 @@ Function to withdraw fees created from a pool
 
 ## Function `delete_pool_owner_cap`
 
-Destroy the given <code>
-pool_owner_cap</code> object
+Destroy the given 
+pool_owner_cap object
 
 
 <pre><code>

@@ -50,45 +50,45 @@ The Stardust NFT output representation.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  This is a "random" UID, not the NFTID from Stardust.
 </dd>
 <dt>
-<code>
-<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
+
+<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
 </dt>
 <dd>
  The amount of coins held by the output.
 </dd>
 <dt>
-<code>
-native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
- The <code>
-Bag</code> holds native tokens, key-ed by the stringified type of the asset.
+ The 
+Bag holds native tokens, key-ed by the stringified type of the asset.
  Example: key: "0xabcded::soon::SOON", value: `Balance<0xabcded::soon::SOON>`.
 </dd>
 <dt>
-<code>
-storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;</code>
+
+storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;
 </dt>
 <dd>
  The storage deposit return unlock condition.
 </dd>
 <dt>
-<code>
-timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;</code>
+
+timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;
 </dt>
 <dd>
  The timelock unlock condition.
 </dd>
 <dt>
-<code>
-expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;</code>
+
+expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;
 </dt>
 <dd>
  The expiration unlock condition.
@@ -180,8 +180,8 @@ The function extracts assets from a legacy NFT output.
 
 ## Function `load_nft`
 
-Loads the related <code>
-Nft</code> object.
+Loads the related 
+Nft object.
 
 
 <pre><code>
@@ -208,9 +208,9 @@ Nft</code> object.
 
 ## Function `attach_nft`
 
-Utility function to attach an <code>
-Alias</code> to an <code>
-AliasOutput</code>.
+Utility function to attach an 
+Alias to an 
+AliasOutput.
 
 
 <pre><code>
@@ -237,10 +237,10 @@ AliasOutput</code>.
 
 ## Function `receive`
 
-Utility function to receive an <code>
-<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link></code> in other Stardust modules.
-Other modules in the stardust package can call this function to receive an <code>
-<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link></code> (alias).
+Utility function to receive an 
+<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link> in other Stardust modules.
+Other modules in the stardust package can call this function to receive an 
+<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link> (alias).
 
 
 <pre><code>

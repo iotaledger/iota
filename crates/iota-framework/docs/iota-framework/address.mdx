@@ -36,8 +36,8 @@ import Link from '@docusaurus/Link';
 
 <Link id="0x2_address_EAddressParseError"></Link>
 
-Error from <code>
-from_bytes</code> when it is supplied too many or too few bytes.
+Error from 
+from_bytes when it is supplied too many or too few bytes.
 
 
 <pre><code>
@@ -71,11 +71,11 @@ The length of an address, in bytes
 
 ## Function `to_u256`
 
-Convert <code>
-a</code> into a u256 by interpreting <code>
-a</code> as the bytes of a big-endian integer
-(e.g., <code>
-<Link to="../iota-framework/address#0x2_address_to_u256">to_u256</Link>(0x1) == 1</code>)
+Convert 
+a into a u256 by interpreting 
+a as the bytes of a big-endian integer
+(e.g., 
+<Link to="../iota-framework/address#0x2_address_to_u256">to_u256</Link>(0x1) == 1)
 
 
 <pre><code>
@@ -100,12 +100,12 @@ a</code> as the bytes of a big-endian integer
 
 ## Function `from_u256`
 
-Convert <code>
-n</code> into an address by encoding it as a big-endian integer (e.g., <code>
-<Link to="../iota-framework/address#0x2_address_from_u256">from_u256</Link>(1) = @0x1</code>)
-Aborts if <code>
-n</code> > <code>
-MAX_ADDRESS</code>
+Convert 
+n into an address by encoding it as a big-endian integer (e.g., 
+<Link to="../iota-framework/address#0x2_address_from_u256">from_u256</Link>(1) = @0x1)
+Aborts if 
+n > 
+MAX_ADDRESS
 
 
 <pre><code>
@@ -130,11 +130,11 @@ MAX_ADDRESS</code>
 
 ## Function `from_bytes`
 
-Convert <code>
-bytes</code> into an address.
-Aborts with <code>
-<Link to="../iota-framework/address#0x2_address_EAddressParseError">EAddressParseError</Link></code> if the length of <code>
-bytes</code> is not 32
+Convert 
+bytes into an address.
+Aborts with 
+<Link to="../iota-framework/address#0x2_address_EAddressParseError">EAddressParseError</Link> if the length of 
+bytes is not 32
 
 
 <pre><code>
@@ -159,8 +159,8 @@ bytes</code> is not 32
 
 ## Function `to_bytes`
 
-Convert <code>
-a</code> into BCS-encoded bytes.
+Convert 
+a into BCS-encoded bytes.
 
 
 <pre><code>
@@ -187,8 +187,8 @@ a</code> into BCS-encoded bytes.
 
 ## Function `to_ascii_string`
 
-Convert <code>
-a</code> to a hex-encoded ASCII string
+Convert 
+a to a hex-encoded ASCII string
 
 
 <pre><code>
@@ -215,8 +215,8 @@ a</code> to a hex-encoded ASCII string
 
 ## Function `to_string`
 
-Convert <code>
-a</code> to a hex-encoded string
+Convert 
+a to a hex-encoded string
 
 
 <pre><code>
@@ -247,9 +247,9 @@ Converts an ASCII string to an address, taking the numerical value for each char
 string must be Base16 encoded, and thus exactly 64 characters long.
 For example, the string "00000000000000000000000000000000000000000000000000000000DEADB33F"
 will be converted to the address @0xDEADB33F.
-Aborts with <code>
-<Link to="../iota-framework/address#0x2_address_EAddressParseError">EAddressParseError</Link></code> if the length of <code>
-s</code> is not 64,
+Aborts with 
+<Link to="../iota-framework/address#0x2_address_EAddressParseError">EAddressParseError</Link> if the length of 
+s is not 64,
 or if an invalid character is encountered.
 
 

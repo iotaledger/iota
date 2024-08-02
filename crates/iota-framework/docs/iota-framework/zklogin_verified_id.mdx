@@ -47,43 +47,43 @@ Posession of a VerifiedID proves that the user's address was created using zklog
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  The ID of this VerifiedID
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
  The address this VerifiedID is associated with
 </dd>
 <dt>
-<code>
-key_claim_name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+key_claim_name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The name of the key claim
 </dd>
 <dt>
-<code>
-key_claim_value: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+key_claim_value: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The value of the key claim
 </dd>
 <dt>
-<code>
-issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The issuer
 </dd>
 <dt>
-<code>
-audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The audience (wallet)
@@ -344,20 +344,20 @@ This function has been disabled.
 
 ## Function `check_zklogin_id_internal`
 
-Returns true if <code>
-<b>address</b></code> was created using zklogin and the given parameters.
+Returns true if 
+<b>address</b> was created using zklogin and the given parameters.
 
-Aborts with <code>
-EInvalidInput</code> if any of <code>
-kc_name</code>, <code>
-kc_value</code>, <code>
-iss</code> and <code>
-aud</code> is not a properly encoded UTF-8
-string or if the inputs are longer than the allowed upper bounds: <code>
-kc_name</code> must be at most 32 characters,
-<code>
-kc_value</code> must be at most 115 characters and <code>
-aud</code> must be at most 145 characters.
+Aborts with 
+EInvalidInput if any of 
+kc_name, 
+kc_value, 
+iss and 
+aud is not a properly encoded UTF-8
+string or if the inputs are longer than the allowed upper bounds: 
+kc_name must be at most 32 characters,
+
+kc_value must be at most 115 characters and 
+aud must be at most 145 characters.
 
 
 <pre><code>

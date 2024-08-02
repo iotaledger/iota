@@ -46,22 +46,22 @@ Posession of a VerifiedIssuer proves that the user's address was created using z
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  The ID of this VerifiedIssuer
 </dd>
 <dt>
-<code>
-owner: <b>address</b></code>
+
+owner: <b>address</b>
 </dt>
 <dd>
  The address this VerifiedID is associated with
 </dd>
 <dt>
-<code>
-issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
+
+issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 </dt>
 <dd>
  The issuer
@@ -187,8 +187,8 @@ Delete a VerifiedIssuer
 Verify that the caller's address was created using zklogin with the given issuer. If so, a VerifiedIssuer object
 with the issuers id transfered to the caller.
 
-Aborts with <code>
-<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link></code> if the verification fails.
+Aborts with 
+<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link> if the verification fails.
 
 
 <pre><code>
@@ -228,8 +228,8 @@ Aborts with <code>
 
 ## Function `check_zklogin_issuer`
 
-Returns true if <code>
-<b>address</b></code> was created using zklogin with the given issuer and address seed.
+Returns true if 
+<b>address</b> was created using zklogin with the given issuer and address seed.
 
 
 <pre><code>
@@ -260,12 +260,12 @@ Returns true if <code>
 
 ## Function `check_zklogin_issuer_internal`
 
-Returns true if <code>
-<b>address</b></code> was created using zklogin with the given issuer and address seed.
+Returns true if 
+<b>address</b> was created using zklogin with the given issuer and address seed.
 
-Aborts with <code>
-<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link></code> if the <code>
-iss</code> input is not a valid UTF-8 string.
+Aborts with 
+<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link> if the 
+iss input is not a valid UTF-8 string.
 
 
 <pre><code>

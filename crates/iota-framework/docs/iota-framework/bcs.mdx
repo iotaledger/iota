@@ -78,8 +78,8 @@ let leftovers = prepared.into_remainder_bytes();
 
 A helper struct that saves resources on operations. For better
 vector performance, it stores reversed bytes of the BCS and
-enables use of <code>
-<Link to="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link></code>.
+enables use of 
+<Link to="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link>.
 
 
 <pre><code>
@@ -94,8 +94,8 @@ enables use of <code>
 
 <dl>
 <dt>
-<code>
-bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
+
+bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 </dt>
 <dd>
 
@@ -123,9 +123,9 @@ For when ULEB byte is out of range (or not found).
 
 <Link id="0x2_bcs_ENotBool"></Link>
 
-For when the boolean value different than <code>
-0</code> or <code>
-1</code>.
+For when the boolean value different than 
+0 or 
+1.
 
 
 <pre><code>
@@ -150,8 +150,8 @@ For when bytes length is less than required for deserialization.
 ## Function `to_bytes`
 
 Get BCS serialized bytes for any value.
-Re-exports stdlib <code>
-<Link to="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link></code>.
+Re-exports stdlib 
+<Link to="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link>.
 
 
 <pre><code>
@@ -207,8 +207,8 @@ bytes for better performance.
 
 ## Function `into_remainder_bytes`
 
-Unpack the <code>
-<Link to="bcs#0x2_bcs_BCS">BCS</Link></code> struct returning the leftover bytes.
+Unpack the 
+<Link to="bcs#0x2_bcs_BCS">BCS</Link> struct returning the leftover bytes.
 Useful for passing the data further after partial deserialization.
 
 
@@ -271,8 +271,8 @@ Read address from the bcs-serialized bytes.
 
 ## Function `peel_bool`
 
-Read a <code>
-bool</code> value from bcs-serialized bytes.
+Read a 
+bool value from bcs-serialized bytes.
 
 
 <pre><code>
@@ -306,8 +306,8 @@ bool</code> value from bcs-serialized bytes.
 
 ## Function `peel_u8`
 
-Read <code>
-u8</code> value from bcs-serialized bytes.
+Read 
+u8 value from bcs-serialized bytes.
 
 
 <pre><code>
@@ -335,8 +335,8 @@ u8</code> value from bcs-serialized bytes.
 
 ## Function `peel_u64`
 
-Read <code>
-u64</code> value from bcs-serialized bytes.
+Read 
+u64 value from bcs-serialized bytes.
 
 
 <pre><code>
@@ -372,8 +372,8 @@ u64</code> value from bcs-serialized bytes.
 
 ## Function `peel_u128`
 
-Read <code>
-u128</code> value from bcs-serialized bytes.
+Read 
+u128 value from bcs-serialized bytes.
 
 
 <pre><code>
@@ -409,8 +409,8 @@ u128</code> value from bcs-serialized bytes.
 
 ## Function `peel_u256`
 
-Read <code>
-u256</code> value from bcs-serialized bytes.
+Read 
+u256 value from bcs-serialized bytes.
 
 
 <pre><code>
@@ -447,11 +447,11 @@ u256</code> value from bcs-serialized bytes.
 ## Function `peel_vec_length`
 
 Read ULEB bytes expecting a vector length. Result should
-then be used to perform <code>
-peel_*</code> operation LEN times.
+then be used to perform 
+peel_* operation LEN times.
 
-In BCS <code>
-<Link to="../move-stdlib/vector#0x1_vector">vector</Link></code> length is implemented with ULEB128;
+In BCS 
+<Link to="../move-stdlib/vector#0x1_vector">vector</Link> length is implemented with ULEB128;
 See more here: https://en.wikipedia.org/wiki/LEB128
 
 
@@ -490,8 +490,8 @@ See more here: https://en.wikipedia.org/wiki/LEB128
 
 ## Function `peel_vec_address`
 
-Peel a vector of <code>
-<b>address</b></code> from serialized bytes.
+Peel a vector of 
+<b>address</b> from serialized bytes.
 
 
 <pre><code>
@@ -523,8 +523,8 @@ Peel a vector of <code>
 
 ## Function `peel_vec_bool`
 
-Peel a vector of <code>
-<b>address</b></code> from serialized bytes.
+Peel a vector of 
+<b>address</b> from serialized bytes.
 
 
 <pre><code>
@@ -556,8 +556,8 @@ Peel a vector of <code>
 
 ## Function `peel_vec_u8`
 
-Peel a vector of <code>
-u8</code> (eg string) from serialized bytes.
+Peel a vector of 
+u8 (eg string) from serialized bytes.
 
 
 <pre><code>
@@ -589,8 +589,8 @@ u8</code> (eg string) from serialized bytes.
 
 ## Function `peel_vec_vec_u8`
 
-Peel a <code>
-<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code> (eg vec of string) from serialized bytes.
+Peel a 
+<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; (eg vec of string) from serialized bytes.
 
 
 <pre><code>
@@ -622,8 +622,8 @@ Peel a <code>
 
 ## Function `peel_vec_u64`
 
-Peel a vector of <code>
-u64</code> from serialized bytes.
+Peel a vector of 
+u64 from serialized bytes.
 
 
 <pre><code>
@@ -655,8 +655,8 @@ u64</code> from serialized bytes.
 
 ## Function `peel_vec_u128`
 
-Peel a vector of <code>
-u128</code> from serialized bytes.
+Peel a vector of 
+u128 from serialized bytes.
 
 
 <pre><code>
@@ -688,8 +688,8 @@ u128</code> from serialized bytes.
 
 ## Function `peel_option_address`
 
-Peel <code>
-Option&lt;<b>address</b>&gt;</code> from serialized bytes.
+Peel 
+Option&lt;<b>address</b>&gt; from serialized bytes.
 
 
 <pre><code>
@@ -720,8 +720,8 @@ Option&lt;<b>address</b>&gt;</code> from serialized bytes.
 
 ## Function `peel_option_bool`
 
-Peel <code>
-Option&lt;bool&gt;</code> from serialized bytes.
+Peel 
+Option&lt;bool&gt; from serialized bytes.
 
 
 <pre><code>
@@ -752,8 +752,8 @@ Option&lt;bool&gt;</code> from serialized bytes.
 
 ## Function `peel_option_u8`
 
-Peel <code>
-Option&lt;u8&gt;</code> from serialized bytes.
+Peel 
+Option&lt;u8&gt; from serialized bytes.
 
 
 <pre><code>
@@ -784,8 +784,8 @@ Option&lt;u8&gt;</code> from serialized bytes.
 
 ## Function `peel_option_u64`
 
-Peel <code>
-Option&lt;u64&gt;</code> from serialized bytes.
+Peel 
+Option&lt;u64&gt; from serialized bytes.
 
 
 <pre><code>
@@ -816,8 +816,8 @@ Option&lt;u64&gt;</code> from serialized bytes.
 
 ## Function `peel_option_u128`
 
-Peel <code>
-Option&lt;u128&gt;</code> from serialized bytes.
+Peel 
+Option&lt;u128&gt; from serialized bytes.
 
 
 <pre><code>

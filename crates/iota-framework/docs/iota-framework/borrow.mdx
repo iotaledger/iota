@@ -8,8 +8,8 @@ import Link from '@docusaurus/Link';
 A simple library that enables hot-potato-locked borrow mechanics.
 
 With Programmable transactions, it is possible to borrow a value within
-a transaction, use it and put back in the end. Hot-potato <code>
-<Link to="borrow#0x2_borrow_Borrow">Borrow</Link></code> makes
+a transaction, use it and put back in the end. Hot-potato 
+<Link to="borrow#0x2_borrow_Borrow">Borrow</Link> makes
 sure the object is returned and was not swapped for another one.
 
 
@@ -34,8 +34,8 @@ sure the object is returned and was not swapped for another one.
 
 ## Struct `Referent`
 
-An object wrapping a <code>
-T</code> and providing the borrow API.
+An object wrapping a 
+T and providing the borrow API.
 
 
 <pre><code>
@@ -50,15 +50,15 @@ T</code> and providing the borrow API.
 
 <dl>
 <dt>
-<code>
-id: <b>address</b></code>
+
+id: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-value: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;T&gt;</code>
+
+value: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;T&gt;
 </dt>
 <dd>
 
@@ -87,15 +87,15 @@ A hot potato making sure the object is put back once borrowed.
 
 <dl>
 <dt>
-<code>
-ref: <b>address</b></code>
+
+ref: <b>address</b>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-obj: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+obj: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -112,9 +112,9 @@ obj: <Link to="object#0x2_object_ID">object::ID</Link></code>
 
 <Link id="0x2_borrow_EWrongBorrow"></Link>
 
-The <code>
-<Link to="borrow#0x2_borrow_Borrow">Borrow</Link></code> does not match the <code>
-<Link to="borrow#0x2_borrow_Referent">Referent</Link></code>.
+The 
+<Link to="borrow#0x2_borrow_Borrow">Borrow</Link> does not match the 
+<Link to="borrow#0x2_borrow_Referent">Referent</Link>.
 
 
 <pre><code>
@@ -125,8 +125,8 @@ The <code>
 
 <Link id="0x2_borrow_EWrongValue"></Link>
 
-An attempt to swap the <code>
-<Link to="borrow#0x2_borrow_Referent">Referent</Link>.value</code> with another object of the same type.
+An attempt to swap the 
+<Link to="borrow#0x2_borrow_Referent">Referent</Link>.value with another object of the same type.
 
 
 <pre><code>
@@ -139,8 +139,8 @@ An attempt to swap the <code>
 
 ## Function `new`
 
-Create a new <code>
-<Link to="borrow#0x2_borrow_Referent">Referent</Link></code> struct
+Create a new 
+<Link to="borrow#0x2_borrow_Referent">Referent</Link> struct
 
 
 <pre><code>
@@ -170,11 +170,11 @@ Create a new <code>
 
 ## Function `borrow`
 
-Borrow the <code>
-T</code> from the <code>
-<Link to="borrow#0x2_borrow_Referent">Referent</Link></code> receiving the <code>
-T</code> and a <code>
-<Link to="borrow#0x2_borrow_Borrow">Borrow</Link></code>
+Borrow the 
+T from the 
+<Link to="borrow#0x2_borrow_Referent">Referent</Link> receiving the 
+T and a 
+<Link to="borrow#0x2_borrow_Borrow">Borrow</Link>
 hot potato.
 
 
@@ -208,8 +208,8 @@ hot potato.
 
 ## Function `put_back`
 
-Put an object and the <code>
-<Link to="borrow#0x2_borrow_Borrow">Borrow</Link></code> hot potato back.
+Put an object and the 
+<Link to="borrow#0x2_borrow_Borrow">Borrow</Link> hot potato back.
 
 
 <pre><code>
@@ -240,8 +240,8 @@ Put an object and the <code>
 
 ## Function `destroy`
 
-Unpack the <code>
-<Link to="borrow#0x2_borrow_Referent">Referent</Link></code> struct and return the value.
+Unpack the 
+<Link to="borrow#0x2_borrow_Referent">Referent</Link> struct and return the value.
 
 
 <pre><code>

@@ -5,8 +5,8 @@ sidebar_label: linked_table
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_linked_table"/>
-Similar to <code>
-iota::table</code> but the values are linked together, allowing for ordered insertion and
+Similar to 
+iota::table but the values are linked together, allowing for ordered insertion and
 removal
 
 
@@ -59,29 +59,29 @@ removal
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  the ID of this table
 </dd>
 <dt>
-<code>
-size: u64</code>
+
+size: u64
 </dt>
 <dd>
  the number of key-value pairs in the table
 </dd>
 <dt>
-<code>
-head: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+
+head: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </dt>
 <dd>
  the front of the table, i.e. the key of the first entry
 </dd>
 <dt>
-<code>
-tail: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+
+tail: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </dt>
 <dd>
  the back of the table, i.e. the key of the last entry
@@ -109,22 +109,22 @@ tail: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&l
 
 <dl>
 <dt>
-<code>
-prev: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+
+prev: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </dt>
 <dd>
  the previous key
 </dd>
 <dt>
-<code>
-next: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;</code>
+
+next: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;K&gt;
 </dt>
 <dd>
  the next key
 </dd>
 <dt>
-<code>
-value: V</code>
+
+value: V
 </dt>
 <dd>
  the value being stored
@@ -251,10 +251,10 @@ Returns the key for the last element in the table, or None if the table is empty
 
 Inserts a key-value pair at the front of the table, i.e. the newly inserted pair will be
 the first element in the table
-Aborts with <code>
-iota::dynamic_field::EFieldAlreadyExists</code> if the table already has an entry with
-that key <code>
-k: K</code>.
+Aborts with 
+iota::dynamic_field::EFieldAlreadyExists if the table already has an entry with
+that key 
+k: K.
 
 
 <pre><code>
@@ -298,10 +298,10 @@ k: K</code>.
 
 Inserts a key-value pair at the back of the table, i.e. the newly inserted pair will be
 the last element in the table
-Aborts with <code>
-iota::dynamic_field::EFieldAlreadyExists</code> if the table already has an entry with
-that key <code>
-k: K</code>.
+Aborts with 
+iota::dynamic_field::EFieldAlreadyExists if the table already has an entry with
+that key 
+k: K.
 
 
 <pre><code>
@@ -343,12 +343,12 @@ k: K</code>.
 
 ## Function `borrow`
 
-Immutable borrows the value associated with the key in the table <code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
-that key <code>
-k: K</code>.
+Immutable borrows the value associated with the key in the table 
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the table does not have an entry with
+that key 
+k: K.
 
 
 <pre><code>
@@ -375,12 +375,12 @@ k: K</code>.
 
 ## Function `borrow_mut`
 
-Mutably borrows the value associated with the key in the table <code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
-that key <code>
-k: K</code>.
+Mutably borrows the value associated with the key in the table 
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the table does not have an entry with
+that key 
+k: K.
 
 
 <pre><code>
@@ -410,14 +410,14 @@ k: K</code>.
 
 ## Function `prev`
 
-Borrows the key for the previous entry of the specified key <code>
-k: K</code> in the table
-<code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>. Returns None if the entry does not have a predecessor.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
-that key <code>
-k: K</code>
+Borrows the key for the previous entry of the specified key 
+k: K in the table
+
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;. Returns None if the entry does not have a predecessor.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the table does not have an entry with
+that key 
+k: K
 
 
 <pre><code>
@@ -444,14 +444,14 @@ k: K</code>
 
 ## Function `next`
 
-Borrows the key for the next entry of the specified key <code>
-k: K</code> in the table
-<code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>. Returns None if the entry does not have a predecessor.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
-that key <code>
-k: K</code>
+Borrows the key for the next entry of the specified key 
+k: K in the table
+
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;. Returns None if the entry does not have a predecessor.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the table does not have an entry with
+that key 
+k: K
 
 
 <pre><code>
@@ -478,13 +478,13 @@ k: K</code>
 
 ## Function `remove`
 
-Removes the key-value pair in the table <code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
+Removes the key-value pair in the table 
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt; and returns the value.
 This splices the element out of the ordering.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the table does not have an entry with
-that key <code>
-k: K</code>. Note: this is also what happens when the table is empty.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the table does not have an entry with
+that key 
+k: K. Note: this is also what happens when the table is empty.
 
 
 <pre><code>
@@ -521,10 +521,10 @@ k: K</code>. Note: this is also what happens when the table is empty.
 
 ## Function `pop_front`
 
-Removes the front of the table <code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
-Aborts with <code>
-<Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link></code> if the table is empty
+Removes the front of the table 
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt; and returns the value.
+Aborts with 
+<Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link> if the table is empty
 
 
 <pre><code>
@@ -553,10 +553,10 @@ Aborts with <code>
 
 ## Function `pop_back`
 
-Removes the back of the table <code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code> and returns the value.
-Aborts with <code>
-<Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link></code> if the table is empty
+Removes the back of the table 
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<b>mut</b> <Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt; and returns the value.
+Aborts with 
+<Link to="../iota-framework/linked_table#0x2_linked_table_ETableIsEmpty">ETableIsEmpty</Link> if the table is empty
 
 
 <pre><code>
@@ -585,10 +585,10 @@ Aborts with <code>
 
 ## Function `contains`
 
-Returns true iff there is a value associated with the key <code>
-k: K</code> in table
-<code>
-<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;</code>
+Returns true iff there is a value associated with the key 
+k: K in table
+
+<Link to="../iota-framework/table#0x2_table">table</Link>: &<Link to="../iota-framework/linked_table#0x2_linked_table_LinkedTable">LinkedTable</Link>&lt;K, V&gt;
 
 
 <pre><code>
@@ -642,9 +642,9 @@ Returns the size of the table, the number of key-value pairs
 
 ## Function `is_empty`
 
-Returns true iff the table is empty (if <code>
-length</code> returns <code>
-0</code>)
+Returns true iff the table is empty (if 
+length returns 
+0)
 
 
 <pre><code>
@@ -672,8 +672,8 @@ length</code> returns <code>
 ## Function `destroy_empty`
 
 Destroys an empty table
-Aborts with <code>
-<Link to="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link></code> if the table still contains values
+Aborts with 
+<Link to="../iota-framework/linked_table#0x2_linked_table_ETableNotEmpty">ETableNotEmpty</Link> if the table still contains values
 
 
 <pre><code>
@@ -703,9 +703,9 @@ Aborts with <code>
 ## Function `drop`
 
 Drop a possibly non-empty table.
-Usable only if the value type <code>
-V</code> has the <code>
-drop</code> ability
+Usable only if the value type 
+V has the 
+drop ability
 
 
 <pre><code>

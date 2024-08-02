@@ -5,9 +5,9 @@ sidebar_label: deny_list
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_deny_list"/>
-Defines the <code>
-<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link></code> type. The <code>
-<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link></code> shared object is used to restrict access to
+Defines the 
+<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link> type. The 
+<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link> shared object is used to restrict access to
 instances of certain core types from being used as inputs by specified addresses in the deny
 list.
 
@@ -55,15 +55,15 @@ A shared object that stores the addresses that are blocked for a given core type
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-lists: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+lists: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  The individual deny lists.
@@ -92,28 +92,28 @@ Stores the addresses that are denied for a given core type.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-denied_count: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, u64&gt;</code>
+
+denied_count: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, u64&gt;
 </dt>
 <dd>
  Number of object types that have been banned for a given address.
  Used to quickly skip checks for most addresses.
 </dd>
 <dt>
-<code>
-denied_addresses: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;</code>
+
+denied_addresses: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;
 </dt>
 <dd>
  Set of addresses that are banned for a given type.
- For example with <code>
-iota::coin::Coin</code>: If addresses A and B are banned from using
+ For example with 
+iota::coin::Coin: If addresses A and B are banned from using
  "0...0123::my_coin::MY_COIN", this will be "0...0123::my_coin::MY_COIN" -> \{A, B}.
 </dd>
 </dl>
@@ -139,8 +139,8 @@ Trying to create a deny list object when not called by the system address.
 
 <Link id="0x2_deny_list_COIN_INDEX"></Link>
 
-The index into the deny list vector for the <code>
-iota::coin::Coin</code> type.
+The index into the deny list vector for the 
+iota::coin::Coin type.
 
 
 <pre><code>
@@ -243,8 +243,8 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 ## Function `remove`
 
 Removes a previously denied address from the list.
-Aborts with <code>
-<Link to="../iota-framework/deny_list#0x2_deny_list_ENotDenied">ENotDenied</Link></code> if the address is not on the list.
+Aborts with 
+<Link to="../iota-framework/deny_list#0x2_deny_list_ENotDenied">ENotDenied</Link> if the address is not on the list.
 
 
 <pre><code>

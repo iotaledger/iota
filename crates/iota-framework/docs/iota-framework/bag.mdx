@@ -5,17 +5,17 @@ sidebar_label: bag
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_bag"/>
-A bag is a heterogeneous map-like collection. The collection is similar to <code>
-iota::table</code> in that
-its keys and values are not stored within the <code>
-<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> value, but instead are stored using Iota's
-object system. The <code>
-<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> struct acts only as a handle into the object system to retrieve those
+A bag is a heterogeneous map-like collection. The collection is similar to 
+iota::table in that
+its keys and values are not stored within the 
+<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link> value, but instead are stored using Iota's
+object system. The 
+<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link> struct acts only as a handle into the object system to retrieve those
 keys and values.
-Note that this means that <code>
-<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> values with exactly the same key-value mapping will not be
-equal, with <code>
-==</code>, at runtime. For example
+Note that this means that 
+<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link> values with exactly the same key-value mapping will not be
+equal, with 
+==, at runtime. For example
 ```
 let bag1 = bag::new();
 let bag2 = bag::new();
@@ -26,12 +26,12 @@ bag::add(&mut bag2, 1, true);
 // bag1 does not equal bag2, despite having the same entries
 assert!(&bag1 != &bag2, 0);
 ```
-At it's core, <code>
-iota::bag</code> is a wrapper around <code>
-UID</code> that allows for access to
-<code>
-iota::dynamic_field</code> while preventing accidentally stranding field values. A <code>
-UID</code> can be
+At it's core, 
+iota::bag is a wrapper around 
+UID that allows for access to
+
+iota::dynamic_field while preventing accidentally stranding field values. A 
+UID can be
 deleted, even if it has dynamic fields associated with it, but a bag, on the other hand, must be
 empty to be destroyed.
 
@@ -76,15 +76,15 @@ empty to be destroyed.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  the ID of this bag
 </dd>
 <dt>
-<code>
-size: u64</code>
+
+size: u64
 </dt>
 <dd>
  the number of key-value pairs in the bag
@@ -143,12 +143,12 @@ Creates a new, empty bag
 
 ## Function `add`
 
-Adds a key-value pair to the bag <code>
-<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>
-Aborts with <code>
-iota::dynamic_field::EFieldAlreadyExists</code> if the bag already has an entry with
-that key <code>
-k: K</code>.
+Adds a key-value pair to the bag 
+<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link>
+Aborts with 
+iota::dynamic_field::EFieldAlreadyExists if the bag already has an entry with
+that key 
+k: K.
 
 
 <pre><code>
@@ -176,14 +176,14 @@ k: K</code>.
 
 ## Function `borrow`
 
-Immutable borrows the value associated with the key in the bag <code>
-<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
-that key <code>
-k: K</code>.
-Aborts with <code>
-iota::dynamic_field::EFieldTypeMismatch</code> if the bag has an entry for the key, but
+Immutable borrows the value associated with the key in the bag 
+<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link>.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the bag does not have an entry with
+that key 
+k: K.
+Aborts with 
+iota::dynamic_field::EFieldTypeMismatch if the bag has an entry for the key, but
 the value does not have the specified type.
 
 
@@ -211,14 +211,14 @@ the value does not have the specified type.
 
 ## Function `borrow_mut`
 
-Mutably borrows the value associated with the key in the bag <code>
-<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
-that key <code>
-k: K</code>.
-Aborts with <code>
-iota::dynamic_field::EFieldTypeMismatch</code> if the bag has an entry for the key, but
+Mutably borrows the value associated with the key in the bag 
+<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link>.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the bag does not have an entry with
+that key 
+k: K.
+Aborts with 
+iota::dynamic_field::EFieldTypeMismatch if the bag has an entry for the key, but
 the value does not have the specified type.
 
 
@@ -246,14 +246,14 @@ the value does not have the specified type.
 
 ## Function `remove`
 
-Mutably borrows the key-value pair in the bag <code>
-<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code> and returns the value.
-Aborts with <code>
-iota::dynamic_field::EFieldDoesNotExist</code> if the bag does not have an entry with
-that key <code>
-k: K</code>.
-Aborts with <code>
-iota::dynamic_field::EFieldTypeMismatch</code> if the bag has an entry for the key, but
+Mutably borrows the key-value pair in the bag 
+<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<b>mut</b> <Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link> and returns the value.
+Aborts with 
+iota::dynamic_field::EFieldDoesNotExist if the bag does not have an entry with
+that key 
+k: K.
+Aborts with 
+iota::dynamic_field::EFieldTypeMismatch if the bag has an entry for the key, but
 the value does not have the specified type.
 
 
@@ -283,9 +283,9 @@ the value does not have the specified type.
 
 ## Function `contains`
 
-Returns true iff there is an value associated with the key <code>
-k: K</code> in the bag <code>
-<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>
+Returns true iff there is an value associated with the key 
+k: K in the bag 
+<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link>
 
 
 <pre><code>
@@ -312,11 +312,11 @@ k: K</code> in the bag <code>
 
 ## Function `contains_with_type`
 
-Returns true iff there is an value associated with the key <code>
-k: K</code> in the bag <code>
-<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link></code>
-with an assigned value of type <code>
-V</code>
+Returns true iff there is an value associated with the key 
+k: K in the bag 
+<Link to="../iota-framework/bag#0x2_bag">bag</Link>: &<Link to="../iota-framework/bag#0x2_bag_Bag">Bag</Link>
+with an assigned value of type 
+V
 
 
 <pre><code>
@@ -370,9 +370,9 @@ Returns the size of the bag, the number of key-value pairs
 
 ## Function `is_empty`
 
-Returns true iff the bag is empty (if <code>
-length</code> returns <code>
-0</code>)
+Returns true iff the bag is empty (if 
+length returns 
+0)
 
 
 <pre><code>
@@ -400,8 +400,8 @@ length</code> returns <code>
 ## Function `destroy_empty`
 
 Destroys an empty bag
-Aborts with <code>
-<Link to="../iota-framework/bag#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link></code> if the bag still contains values
+Aborts with 
+<Link to="../iota-framework/bag#0x2_bag_EBagNotEmpty">EBagNotEmpty</Link> if the bag still contains values
 
 
 <pre><code>

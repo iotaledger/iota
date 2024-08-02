@@ -90,9 +90,9 @@ The accepted v values are {0, 1, 2, 3}.
 
 If the signature is valid, return the corresponding recovered Secpk256k1 public
 key, otherwise throw error. This is similar to ecrecover in Ethereum, can only be
-applied to Secp256k1 signatures. May abort with <code>
-<Link to="ecdsa_k1#0x2_ecdsa_k1_EFailToRecoverPubKey">EFailToRecoverPubKey</Link></code> or <code>
-<Link to="ecdsa_k1#0x2_ecdsa_k1_EInvalidSignature">EInvalidSignature</Link></code>.
+applied to Secp256k1 signatures. May abort with 
+<Link to="ecdsa_k1#0x2_ecdsa_k1_EFailToRecoverPubKey">EFailToRecoverPubKey</Link> or 
+<Link to="ecdsa_k1#0x2_ecdsa_k1_EInvalidSignature">EInvalidSignature</Link>.
 
 
 <pre><code>
@@ -120,8 +120,8 @@ applied to Secp256k1 signatures. May abort with <code>
 @param pubkey: A 33-bytes compressed public key, a prefix either 0x02 or 0x03 and a 256-bit integer.
 
 If the compressed public key is valid, return the 65-bytes uncompressed public key,
-otherwise throw error. May abort with <code>
-<Link to="ecdsa_k1#0x2_ecdsa_k1_EInvalidPubKey">EInvalidPubKey</Link></code>.
+otherwise throw error. May abort with 
+<Link to="ecdsa_k1#0x2_ecdsa_k1_EInvalidPubKey">EInvalidPubKey</Link>.
 
 
 <pre><code>

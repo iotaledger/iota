@@ -70,29 +70,29 @@ A self-custodial object holding the timelocked staked IOTA tokens.
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link></code>
+
+staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>
 </dt>
 <dd>
  A self-custodial object holding the staked IOTA tokens.
 </dd>
 <dt>
-<code>
-expiration_timestamp_ms: u64</code>
+
+expiration_timestamp_ms: u64
 </dt>
 <dd>
  This is the epoch time stamp of when the lock expires.
 </dd>
 <dt>
-<code>
-label: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+label: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
  Timelock related label.
@@ -262,8 +262,8 @@ Withdraw a time-locked stake from a validator's staking pool.
 
 ## Function `request_add_stake_non_entry`
 
-The non-entry version of <code>
-request_add_stake</code>, which returns the time-locked staked IOTA instead of transferring it to the sender.
+The non-entry version of 
+request_add_stake, which returns the time-locked staked IOTA instead of transferring it to the sender.
 
 
 <pre><code>
@@ -315,8 +315,8 @@ request_add_stake</code>, which returns the time-locked staked IOTA instead of t
 
 ## Function `request_add_stake_mul_bal_non_entry`
 
-The non-entry version of <code>
-request_add_stake_mul_bal</code>,
+The non-entry version of 
+request_add_stake_mul_bal,
 which returns a list of the time-locked staked IOTAs instead of transferring them to the sender.
 
 
@@ -372,8 +372,8 @@ which returns a list of the time-locked staked IOTAs instead of transferring the
 
 ## Function `request_withdraw_stake_non_entry`
 
-Non-entry version of <code>
-request_withdraw_stake</code> that returns the withdrawn time-locked IOTA and reward
+Non-entry version of 
+request_withdraw_stake that returns the withdrawn time-locked IOTA and reward
 instead of transferring it to the sender.
 
 
@@ -420,15 +420,15 @@ instead of transferring it to the sender.
 
 ## Function `split`
 
-Split <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code> into two parts, one with principal <code>
-split_amount</code>,
-and the remaining principal is left in <code>
-self</code>.
-All the other parameters of the <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code> like <code>
-stake_activation_epoch</code> or <code>
-pool_id</code> remain the same.
+Split 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> into two parts, one with principal 
+split_amount,
+and the remaining principal is left in 
+self.
+All the other parameters of the 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> like 
+stake_activation_epoch or 
+pool_id remain the same.
 
 
 <pre><code>
@@ -462,9 +462,9 @@ pool_id</code> remain the same.
 
 ## Function `split_staked_iota`
 
-Split the given <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code> to the two parts, one with principal <code>
-split_amount</code>,
+Split the given 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> to the two parts, one with principal 
+split_amount,
 transfer the newly split part to the sender address.
 
 
@@ -492,9 +492,9 @@ transfer the newly split part to the sender address.
 
 ## Function `join_staked_iota`
 
-Consume the staked iota <code>
-other</code> and add its value to <code>
-self</code>.
+Consume the staked iota 
+other and add its value to 
+self.
 Aborts if some of the staking parameters are incompatible (pool id, stake activation epoch, etc.)
 
 
@@ -533,8 +533,8 @@ Aborts if some of the staking parameters are incompatible (pool id, stake activa
 
 ## Function `transfer_to_sender`
 
-A utility function to transfer a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+A utility function to transfer a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -561,8 +561,8 @@ A utility function to transfer a <code>
 
 ## Function `transfer_to_sender_multiple`
 
-A utility function to transfer multiple <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+A utility function to transfer multiple 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -619,8 +619,8 @@ of the staked iota except the principal are identical
 
 ## Function `pool_id`
 
-Function to get the pool id of a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+Function to get the pool id of a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -645,8 +645,8 @@ Function to get the pool id of a <code>
 
 ## Function `staked_iota_amount`
 
-Function to get the staked iota amount of a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+Function to get the staked iota amount of a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -671,8 +671,8 @@ Function to get the staked iota amount of a <code>
 
 ## Function `stake_activation_epoch`
 
-Function to get the stake activation epoch of a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+Function to get the stake activation epoch of a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -699,8 +699,8 @@ Function to get the stake activation epoch of a <code>
 
 ## Function `expiration_timestamp_ms`
 
-Function to get the expiration timestamp of a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+Function to get the expiration timestamp of a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -727,8 +727,8 @@ Function to get the expiration timestamp of a <code>
 
 ## Function `label`
 
-Function to get the label of a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+Function to get the label of a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -755,9 +755,9 @@ Function to get the label of a <code>
 
 ## Function `is_labeled_with`
 
-Check if a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code> is labeled with the type <code>
-L</code>.
+Check if a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> is labeled with the type 
+L.
 
 
 <pre><code>
@@ -789,8 +789,8 @@ L</code>.
 
 ## Function `unpack`
 
-A utility function to destroy a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code>.
+A utility function to destroy a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link>.
 
 
 <pre><code>
@@ -826,8 +826,8 @@ A utility function to destroy a <code>
 
 ## Function `transfer`
 
-A utility function to transfer a <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code> to a receiver.
+A utility function to transfer a 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> to a receiver.
 
 
 <pre><code>
@@ -854,8 +854,8 @@ A utility function to transfer a <code>
 
 ## Function `transfer_multiple`
 
-A utility function to transfer a vector of <code>
-<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link></code> to a receiver.
+A utility function to transfer a vector of 
+<Link to="timelocked_staking#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</Link> to a receiver.
 
 
 <pre><code>

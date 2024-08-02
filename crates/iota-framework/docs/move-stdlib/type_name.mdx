@@ -44,18 +44,18 @@ Functionality for converting Move types into values. Use with care!
 
 <dl>
 <dt>
-<code>
-name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
+
+name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 </dt>
 <dd>
  String representation of the type. All types are represented
  using their source syntax:
  "u8", "u64", "bool", "address", "vector", and so on for primitive types.
  Struct types are represented as fully qualified type names; e.g.
- <code>
-00000000000000000000000000000001::string::String</code> or
- <code>
-0000000000000000000000000000000a::module_name1::type_name1&lt;0000000000000000000000000000000a::module_name2::type_name2&lt;u64&gt;&gt;</code>
+ 
+00000000000000000000000000000001::string::String or
+ 
+0000000000000000000000000000000a::module_name1::type_name1&lt;0000000000000000000000000000000a::module_name2::type_name2&lt;u64&gt;&gt;
  Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16, 20, or 32 depending on the Move platform)
 </dd>
 </dl>
@@ -70,8 +70,8 @@ name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></cod
 
 <Link id="0x1_type_name_ASCII_C"></Link>
 
-ASCII Character code for the <code>
-c</code> (lowercase c) symbol.
+ASCII Character code for the 
+c (lowercase c) symbol.
 
 
 <pre><code>
@@ -82,8 +82,8 @@ c</code> (lowercase c) symbol.
 
 <Link id="0x1_type_name_ASCII_COLON"></Link>
 
-ASCII Character code for the <code>
-:</code> (colon) symbol.
+ASCII Character code for the 
+: (colon) symbol.
 
 
 <pre><code>
@@ -94,8 +94,8 @@ ASCII Character code for the <code>
 
 <Link id="0x1_type_name_ASCII_E"></Link>
 
-ASCII Character code for the <code>
-e</code> (lowercase e) symbol.
+ASCII Character code for the 
+e (lowercase e) symbol.
 
 
 <pre><code>
@@ -106,8 +106,8 @@ e</code> (lowercase e) symbol.
 
 <Link id="0x1_type_name_ASCII_O"></Link>
 
-ASCII Character code for the <code>
-o</code> (lowercase o) symbol.
+ASCII Character code for the 
+o (lowercase o) symbol.
 
 
 <pre><code>
@@ -118,8 +118,8 @@ o</code> (lowercase o) symbol.
 
 <Link id="0x1_type_name_ASCII_R"></Link>
 
-ASCII Character code for the <code>
-r</code> (lowercase r) symbol.
+ASCII Character code for the 
+r (lowercase r) symbol.
 
 
 <pre><code>
@@ -130,8 +130,8 @@ r</code> (lowercase r) symbol.
 
 <Link id="0x1_type_name_ASCII_T"></Link>
 
-ASCII Character code for the <code>
-t</code> (lowercase t) symbol.
+ASCII Character code for the 
+t (lowercase t) symbol.
 
 
 <pre><code>
@@ -142,8 +142,8 @@ t</code> (lowercase t) symbol.
 
 <Link id="0x1_type_name_ASCII_V"></Link>
 
-ASCII Character code for the <code>
-v</code> (lowercase v) symbol.
+ASCII Character code for the 
+v (lowercase v) symbol.
 
 
 <pre><code>
@@ -167,8 +167,8 @@ The type is not from a package/module. It is a primitive type.
 
 ## Function `get`
 
-Return a value representation of the type <code>
-T</code>.  Package IDs
+Return a value representation of the type 
+T.  Package IDs
 that appear in fully qualified type names in the output from
 this function are defining IDs (the ID of the package in
 storage that first introduced the type).
@@ -196,8 +196,8 @@ storage that first introduced the type).
 
 ## Function `get_with_original_ids`
 
-Return a value representation of the type <code>
-T</code>.  Package IDs
+Return a value representation of the type 
+T.  Package IDs
 that appear in fully qualified type names in the output from
 this function are original IDs (the ID of the first version of
 the package, even if the type in question was introduced in a
@@ -270,8 +270,8 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 ## Function `borrow_string`
 
-Get the String representation of <code>
-self</code>
+Get the String representation of 
+self
 
 
 <pre><code>
@@ -385,8 +385,8 @@ Aborts if given a primitive type.
 
 ## Function `into_string`
 
-Convert <code>
-self</code> into its inner String
+Convert 
+self into its inner String
 
 
 <pre><code>

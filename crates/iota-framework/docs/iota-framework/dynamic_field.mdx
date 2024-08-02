@@ -8,10 +8,10 @@ import Link from '@docusaurus/Link';
 In addition to the fields declared in its type definition, a Iota object can have dynamic fields
 that can be added after the object has been constructed. Unlike ordinary field names
 (which are always statically declared identifiers) a dynamic field name can be any value with
-the <code>
-<b>copy</b></code>, <code>
-drop</code>, and <code>
-store</code> abilities, e.g. an integer, a boolean, or a string.
+the 
+<b>copy</b>, 
+drop, and 
+store abilities, e.g. an integer, a boolean, or a string.
 This gives Iota programmers the flexibility to extend objects on-the-fly, and it also serves as a
 building block for core collection types
 
@@ -62,23 +62,23 @@ Internal object used for storing the field and value
 
 <dl>
 <dt>
-<code>
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
  Determined by the hash of the object ID, the field name value and it's type,
  i.e. hash(parent.id || name || Name)
 </dd>
 <dt>
-<code>
-name: Name</code>
+
+name: Name
 </dt>
 <dd>
  The value for the name of this field
 </dd>
 <dt>
-<code>
-value: Value</code>
+
+value: Value
 </dt>
 <dd>
  The value bound to this field
@@ -153,11 +153,11 @@ The object has a field with that name, but the value type does not match
 
 ## Function `add`
 
-Adds a dynamic field to the object <code>
-<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID</code> at field specified by <code>
-name: Name</code>.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldAlreadyExists">EFieldAlreadyExists</Link></code> if the object already has that field with that name.
+Adds a dynamic field to the object 
+<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID at field specified by 
+name: Name.
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldAlreadyExists">EFieldAlreadyExists</Link> if the object already has that field with that name.
 
 
 <pre><code>
@@ -197,13 +197,13 @@ Aborts with <code>
 
 ## Function `borrow`
 
-Immutably borrows the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic field with the name specified by <code>
-name: Name</code>.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link></code> if the object does not have a field with that name.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link></code> if the field exists, but the value does not have the specified
+Immutably borrows the 
+<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic field with the name specified by 
+name: Name.
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link> if the object does not have a field with that name.
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link> if the field exists, but the value does not have the specified
 type.
 
 
@@ -237,13 +237,13 @@ type.
 
 ## Function `borrow_mut`
 
-Mutably borrows the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic field with the name specified by <code>
-name: Name</code>.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link></code> if the object does not have a field with that name.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link></code> if the field exists, but the value does not have the specified
+Mutably borrows the 
+<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic field with the name specified by 
+name: Name.
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link> if the object does not have a field with that name.
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link> if the field exists, but the value does not have the specified
 type.
 
 
@@ -277,14 +277,14 @@ type.
 
 ## Function `remove`
 
-Removes the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic field with the name specified by <code>
-name: Name</code> and returns the
+Removes the 
+<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic field with the name specified by 
+name: Name and returns the
 bound value.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link></code> if the object does not have a field with that name.
-Aborts with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link></code> if the field exists, but the value does not have the specified
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link> if the object does not have a field with that name.
+Aborts with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link> if the field exists, but the value does not have the specified
 type.
 
 
@@ -319,11 +319,11 @@ type.
 
 ## Function `exists_`
 
-Returns true if and only if the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code> has a dynamic field with the name specified by
-<code>
-name: Name</code> but without specifying the <code>
-Value</code> type
+Returns true if and only if the 
+<Link to="../iota-framework/object#0x2_object">object</Link> has a dynamic field with the name specified by
+
+name: Name but without specifying the 
+Value type
 
 
 <pre><code>
@@ -355,8 +355,8 @@ Value</code> type
 
 ## Function `remove_if_exists`
 
-Removes the dynamic field if it exists. Returns the <code>
-some(Value)</code> if it exists or none otherwise.
+Removes the dynamic field if it exists. Returns the 
+some(Value) if it exists or none otherwise.
 
 
 <pre><code>
@@ -390,11 +390,11 @@ some(Value)</code> if it exists or none otherwise.
 
 ## Function `exists_with_type`
 
-Returns true if and only if the <code>
-<Link to="../iota-framework/object#0x2_object">object</Link></code> has a dynamic field with the name specified by
-<code>
-name: Name</code> with an assigned value of type <code>
-Value</code>.
+Returns true if and only if the 
+<Link to="../iota-framework/object#0x2_object">object</Link> has a dynamic field with the name specified by
+
+name: Name with an assigned value of type 
+Value.
 
 
 <pre><code>
@@ -490,8 +490,8 @@ Value</code>.
 
 ## Function `hash_type_and_key`
 
-May abort with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EBCSSerializationFailure">EBCSSerializationFailure</Link></code>.
+May abort with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EBCSSerializationFailure">EBCSSerializationFailure</Link>.
 
 
 <pre><code>
@@ -540,12 +540,12 @@ May abort with <code>
 
 ## Function `borrow_child_object`
 
-throws <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link></code> if a child does not exist with that ID
-or throws <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link></code> if the type does not match,
-and may also abort with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EBCSSerializationFailure">EBCSSerializationFailure</Link></code>
+throws 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link> if a child does not exist with that ID
+or throws 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link> if the type does not match,
+and may also abort with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EBCSSerializationFailure">EBCSSerializationFailure</Link>
 we need two versions to return a reference or a mutable reference
 
 
@@ -595,12 +595,12 @@ we need two versions to return a reference or a mutable reference
 
 ## Function `remove_child_object`
 
-throws <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link></code> if a child does not exist with that ID
-or throws <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link></code> if the type does not match,
-and may also abort with <code>
-<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EBCSSerializationFailure">EBCSSerializationFailure</Link></code>.
+throws 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldDoesNotExist">EFieldDoesNotExist</Link> if a child does not exist with that ID
+or throws 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EFieldTypeMismatch">EFieldTypeMismatch</Link> if the type does not match,
+and may also abort with 
+<Link to="../iota-framework/dynamic_field#0x2_dynamic_field_EBCSSerializationFailure">EBCSSerializationFailure</Link>.
 
 
 <pre><code>

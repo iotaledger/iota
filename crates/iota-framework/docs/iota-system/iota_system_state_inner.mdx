@@ -112,66 +112,66 @@ A list of system config parameters.
 
 <dl>
 <dt>
-<code>
-epoch_duration_ms: u64</code>
+
+epoch_duration_ms: u64
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
 </dd>
 <dt>
-<code>
-stake_subsidy_start_epoch: u64</code>
+
+stake_subsidy_start_epoch: u64
 </dt>
 <dd>
  The starting epoch in which stake subsidies start being paid out
 </dd>
 <dt>
-<code>
-max_validator_count: u64</code>
+
+max_validator_count: u64
 </dt>
 <dd>
  Maximum number of active validators at any moment.
  We do not allow the number of validators in any epoch to go above this.
 </dd>
 <dt>
-<code>
-min_validator_joining_stake: u64</code>
+
+min_validator_joining_stake: u64
 </dt>
 <dd>
  Lower-bound on the amount of stake required to become a validator.
 </dd>
 <dt>
-<code>
-validator_low_stake_threshold: u64</code>
+
+validator_low_stake_threshold: u64
 </dt>
 <dd>
- Validators with stake amount below <code>
-validator_low_stake_threshold</code> are considered to
+ Validators with stake amount below 
+validator_low_stake_threshold are considered to
  have low stake and will be escorted out of the validator set after being below this
- threshold for more than <code>
-validator_low_stake_grace_period</code> number of epochs.
+ threshold for more than 
+validator_low_stake_grace_period number of epochs.
 </dd>
 <dt>
-<code>
-validator_very_low_stake_threshold: u64</code>
+
+validator_very_low_stake_threshold: u64
 </dt>
 <dd>
- Validators with stake below <code>
-validator_very_low_stake_threshold</code> will be removed
+ Validators with stake below 
+validator_very_low_stake_threshold will be removed
  immediately at epoch change, no grace period.
 </dd>
 <dt>
-<code>
-validator_low_stake_grace_period: u64</code>
+
+validator_low_stake_grace_period: u64
 </dt>
 <dd>
- A validator can have stake below <code>
-validator_low_stake_threshold</code>
+ A validator can have stake below 
+validator_low_stake_threshold
  for this many epochs before being kicked out.
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -200,73 +200,73 @@ Added min_validator_count.
 
 <dl>
 <dt>
-<code>
-epoch_duration_ms: u64</code>
+
+epoch_duration_ms: u64
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
 </dd>
 <dt>
-<code>
-stake_subsidy_start_epoch: u64</code>
+
+stake_subsidy_start_epoch: u64
 </dt>
 <dd>
  The starting epoch in which stake subsidies start being paid out
 </dd>
 <dt>
-<code>
-min_validator_count: u64</code>
+
+min_validator_count: u64
 </dt>
 <dd>
  Minimum number of active validators at any moment.
 </dd>
 <dt>
-<code>
-max_validator_count: u64</code>
+
+max_validator_count: u64
 </dt>
 <dd>
  Maximum number of active validators at any moment.
  We do not allow the number of validators in any epoch to go above this.
 </dd>
 <dt>
-<code>
-min_validator_joining_stake: u64</code>
+
+min_validator_joining_stake: u64
 </dt>
 <dd>
  Lower-bound on the amount of stake required to become a validator.
 </dd>
 <dt>
-<code>
-validator_low_stake_threshold: u64</code>
+
+validator_low_stake_threshold: u64
 </dt>
 <dd>
- Validators with stake amount below <code>
-validator_low_stake_threshold</code> are considered to
+ Validators with stake amount below 
+validator_low_stake_threshold are considered to
  have low stake and will be escorted out of the validator set after being below this
- threshold for more than <code>
-validator_low_stake_grace_period</code> number of epochs.
+ threshold for more than 
+validator_low_stake_grace_period number of epochs.
 </dd>
 <dt>
-<code>
-validator_very_low_stake_threshold: u64</code>
+
+validator_very_low_stake_threshold: u64
 </dt>
 <dd>
- Validators with stake below <code>
-validator_very_low_stake_threshold</code> will be removed
+ Validators with stake below 
+validator_very_low_stake_threshold will be removed
  immediately at epoch change, no grace period.
 </dd>
 <dt>
-<code>
-validator_low_stake_grace_period: u64</code>
+
+validator_low_stake_grace_period: u64
 </dt>
 <dd>
- A validator can have stake below <code>
-validator_low_stake_threshold</code>
+ A validator can have stake below 
+validator_low_stake_threshold
  for this many epochs before being kicked out.
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -295,22 +295,22 @@ The top-level object containing all information of the Iota system.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
  The current epoch ID, starting from 0.
 </dd>
 <dt>
-<code>
-protocol_version: u64</code>
+
+protocol_version: u64
 </dt>
 <dd>
  The current protocol version, starting from 1.
 </dd>
 <dt>
-<code>
-system_state_version: u64</code>
+
+system_state_version: u64
 </dt>
 <dd>
  The current version of the system state data structure type.
@@ -318,43 +318,43 @@ system_state_version: u64</code>
  we know what version it is by inspecting IotaSystemStateInner as well.
 </dd>
 <dt>
-<code>
-iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link></code>
+
+iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>
 </dt>
 <dd>
  The IOTA's TreasuryCap.
 </dd>
 <dt>
-<code>
-validators: <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link></code>
+
+validators: <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>
 </dt>
 <dd>
  Contains all information about the validators.
 </dd>
 <dt>
-<code>
-<Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: <Link to="storage_fund#0x3_storage_fund_StorageFund">storage_fund::StorageFund</Link></code>
+
+<Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: <Link to="storage_fund#0x3_storage_fund_StorageFund">storage_fund::StorageFund</Link>
 </dt>
 <dd>
  The storage fund.
 </dd>
 <dt>
-<code>
-parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link></code>
+
+parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>
 </dt>
 <dd>
  A list of system config parameters.
 </dd>
 <dt>
-<code>
-reference_gas_price: u64</code>
+
+reference_gas_price: u64
 </dt>
 <dd>
  The reference gas price for the current epoch.
 </dd>
 <dt>
-<code>
-validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;</code>
+
+validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;
 </dt>
 <dd>
  A map storing the records of validator reporting each other.
@@ -367,63 +367,63 @@ validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap
  the reports should be based on validator ids
 </dd>
 <dt>
-<code>
-<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link></code>
+
+<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>
 </dt>
 <dd>
  Schedule of stake subsidies given out each epoch.
 </dd>
 <dt>
-<code>
-safe_mode: bool</code>
+
+safe_mode: bool
 </dt>
 <dd>
  Whether the system is running in a downgraded safe mode due to a non-recoverable bug.
  This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode.
  It can be reset once we are able to successfully execute advance_epoch.
- The rest of the fields starting with <code>
-safe_mode_</code> are accmulated during safe mode
+ The rest of the fields starting with 
+safe_mode_ are accmulated during safe mode
  when advance_epoch_safe_mode is executed. They will eventually be processed once we
  are out of safe mode.
 </dd>
 <dt>
-<code>
-safe_mode_storage_charges: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+safe_mode_storage_charges: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-safe_mode_computation_rewards: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+safe_mode_computation_rewards: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-safe_mode_storage_rebates: u64</code>
+
+safe_mode_storage_rebates: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-safe_mode_non_refundable_storage_fee: u64</code>
+
+safe_mode_non_refundable_storage_fee: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-epoch_start_timestamp_ms: u64</code>
+
+epoch_start_timestamp_ms: u64
 </dt>
 <dd>
  Unix timestamp of the current epoch start
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -452,22 +452,22 @@ Uses SystemParametersV2 as the parameters.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
  The current epoch ID, starting from 0.
 </dd>
 <dt>
-<code>
-protocol_version: u64</code>
+
+protocol_version: u64
 </dt>
 <dd>
  The current protocol version, starting from 1.
 </dd>
 <dt>
-<code>
-system_state_version: u64</code>
+
+system_state_version: u64
 </dt>
 <dd>
  The current version of the system state data structure type.
@@ -475,43 +475,43 @@ system_state_version: u64</code>
  we know what version it is by inspecting IotaSystemStateInner as well.
 </dd>
 <dt>
-<code>
-iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link></code>
+
+iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>
 </dt>
 <dd>
  The IOTA's TreasuryCap.
 </dd>
 <dt>
-<code>
-validators: <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link></code>
+
+validators: <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>
 </dt>
 <dd>
  Contains all information about the validators.
 </dd>
 <dt>
-<code>
-<Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: <Link to="storage_fund#0x3_storage_fund_StorageFund">storage_fund::StorageFund</Link></code>
+
+<Link to="storage_fund#0x3_storage_fund">storage_fund</Link>: <Link to="storage_fund#0x3_storage_fund_StorageFund">storage_fund::StorageFund</Link>
 </dt>
 <dd>
  The storage fund.
 </dd>
 <dt>
-<code>
-parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParametersV2">iota_system_state_inner::SystemParametersV2</Link></code>
+
+parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParametersV2">iota_system_state_inner::SystemParametersV2</Link>
 </dt>
 <dd>
  A list of system config parameters.
 </dd>
 <dt>
-<code>
-reference_gas_price: u64</code>
+
+reference_gas_price: u64
 </dt>
 <dd>
  The reference gas price for the current epoch.
 </dd>
 <dt>
-<code>
-validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;</code>
+
+validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;
 </dt>
 <dd>
  A map storing the records of validator reporting each other.
@@ -524,63 +524,63 @@ validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap
  the reports should be based on validator ids
 </dd>
 <dt>
-<code>
-<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link></code>
+
+<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>
 </dt>
 <dd>
  Schedule of stake subsidies given out each epoch.
 </dd>
 <dt>
-<code>
-safe_mode: bool</code>
+
+safe_mode: bool
 </dt>
 <dd>
  Whether the system is running in a downgraded safe mode due to a non-recoverable bug.
  This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode.
  It can be reset once we are able to successfully execute advance_epoch.
- The rest of the fields starting with <code>
-safe_mode_</code> are accmulated during safe mode
+ The rest of the fields starting with 
+safe_mode_ are accmulated during safe mode
  when advance_epoch_safe_mode is executed. They will eventually be processed once we
  are out of safe mode.
 </dd>
 <dt>
-<code>
-safe_mode_storage_charges: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+safe_mode_storage_charges: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-safe_mode_computation_rewards: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
+
+safe_mode_computation_rewards: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-safe_mode_storage_rebates: u64</code>
+
+safe_mode_storage_rebates: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-safe_mode_non_refundable_storage_fee: u64</code>
+
+safe_mode_non_refundable_storage_fee: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-epoch_start_timestamp_ms: u64</code>
+
+epoch_start_timestamp_ms: u64
 </dt>
 <dd>
  Unix timestamp of the current epoch start
 </dd>
 <dt>
-<code>
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
+
+extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -610,92 +610,92 @@ the epoch advancement transaction.
 
 <dl>
 <dt>
-<code>
-epoch: u64</code>
+
+epoch: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-protocol_version: u64</code>
+
+protocol_version: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-reference_gas_price: u64</code>
+
+reference_gas_price: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-total_stake: u64</code>
+
+total_stake: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-storage_charge: u64</code>
+
+storage_charge: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-storage_rebate: u64</code>
+
+storage_rebate: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-storage_fund_balance: u64</code>
+
+storage_fund_balance: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-stake_subsidy_amount: u64</code>
+
+stake_subsidy_amount: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-total_gas_fees: u64</code>
+
+total_gas_fees: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-total_stake_rewards_distributed: u64</code>
+
+total_stake_rewards_distributed: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-burnt_leftover_amount: u64</code>
+
+burnt_leftover_amount: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-burnt_tokens_amount: u64</code>
+
+burnt_tokens_amount: u64
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-minted_tokens_amount: u64</code>
+
+minted_tokens_amount: u64
 </dt>
 <dd>
 
@@ -1043,13 +1043,13 @@ This function will be called only once in genesis.
 ## Function `request_add_validator_candidate`
 
 Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
-stakes in their staking pool. Once they have at least <code>
-MIN_VALIDATOR_JOINING_STAKE</code> amount of stake they
-can call <code>
-request_add_validator</code> to officially become an active validator at the next epoch.
+stakes in their staking pool. Once they have at least 
+MIN_VALIDATOR_JOINING_STAKE amount of stake they
+can call 
+request_add_validator to officially become an active validator at the next epoch.
 Aborts if the caller is already a pending or active validator, or a validator candidate.
-Note: <code>
-proof_of_possession</code> MUST be a valid signature using iota_address and protocol_pubkey_bytes.
+Note: 
+proof_of_possession MUST be a valid signature using iota_address and protocol_pubkey_bytes.
 To produce a valid PoP, run [fn test_proof_of_possession].
 
 
@@ -1183,11 +1183,11 @@ epoch has already reached the maximum.
 ## Function `request_remove_validator`
 
 A validator can call this function to request a removal in the next epoch.
-We use the sender of <code>
-ctx</code> to look up the validator
+We use the sender of 
+ctx to look up the validator
 (i.e. sender must match the iota_address in the validator).
-At the end of the epoch, the <code>
-<Link to="validator#0x3_validator">validator</Link></code> object will be returned to the iota_address
+At the end of the epoch, the 
+<Link to="validator#0x3_validator">validator</Link> object will be returned to the iota_address
 of the validator.
 
 
@@ -1472,9 +1472,9 @@ Withdraw some portion of a stake from a validator's staking pool.
 
 Report a validator as a bad or non-performant actor in the system.
 Succeeds if all the following are satisfied:
-1. both the reporter in <code>
-cap</code> and the input <code>
-reportee_addr</code> are active validators.
+1. both the reporter in 
+cap and the input 
+reportee_addr are active validators.
 2. reporter and reportee not the same address.
 3. the cap object is still valid.
 This function is idempotent.
@@ -1512,11 +1512,11 @@ This function is idempotent.
 
 ## Function `undo_report_validator`
 
-Undo a <code>
-report_validator</code> action. Aborts if
+Undo a 
+report_validator action. Aborts if
 1. the reportee is not a currently active validator or
-2. the sender has not previously reported the <code>
-reportee_addr</code>, or
+2. the sender has not previously reported the 
+reportee_addr, or
 3. the cap is not valid
 
 
@@ -1627,8 +1627,8 @@ reportee_addr</code>, or
 
 ## Function `rotate_operation_cap`
 
-Create a new <code>
-UnverifiedValidatorOperationCap</code>, transfer it to the
+Create a new 
+UnverifiedValidatorOperationCap, transfer it to the
 validator and registers it. The original object is thus revoked.
 
 
@@ -2595,10 +2595,10 @@ Returns unix timestamp of the start of current epoch
 
 ## Function `validator_stake_amount`
 
-Returns the total amount staked with <code>
-validator_addr</code>.
-Aborts if <code>
-validator_addr</code> is not an active validator.
+Returns the total amount staked with 
+validator_addr.
+Aborts if 
+validator_addr is not an active validator.
 
 
 <pre><code>
@@ -2626,8 +2626,8 @@ validator_addr</code> is not an active validator.
 ## Function `validator_staking_pool_id`
 
 Returns the staking pool id of a given validator.
-Aborts if <code>
-validator_addr</code> is not an active validator.
+Aborts if 
+validator_addr is not an active validator.
 
 
 <pre><code>
@@ -2710,8 +2710,8 @@ Returns the total iota supply.
 
 ## Function `get_reporters_of`
 
-Returns all the validators who are currently reporting <code>
-addr</code>
+Returns all the validators who are currently reporting 
+addr
 
 
 <pre><code>

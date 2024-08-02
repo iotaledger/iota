@@ -86,23 +86,23 @@ the property names have a priority over their types.
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_UID">object::UID</Link></code>
+
+id: <Link to="object#0x2_object_UID">object::UID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-fields: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+fields: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
  Contains fields for display. Currently supported
  fields are: name, link, image and description.
 </dd>
 <dt>
-<code>
-version: u16</code>
+
+version: u16
 </dt>
 <dd>
  Version that can only be updated manually by the Publisher.
@@ -121,8 +121,8 @@ Type signature of the event corresponds to the type while id serves for
 the discovery.
 
 Since Iota RPC supports querying events by type, finding a Display for the T
-would be as simple as looking for the first event with <code>
-<Link to="display#0x2_display_Display">Display</Link>&lt;T&gt;</code>.
+would be as simple as looking for the first event with 
+<Link to="display#0x2_display_Display">Display</Link>&lt;T&gt;.
 
 
 <pre><code>
@@ -137,8 +137,8 @@ would be as simple as looking for the first event with <code>
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
@@ -167,22 +167,22 @@ Version of Display got updated -
 
 <dl>
 <dt>
-<code>
-id: <Link to="object#0x2_object_ID">object::ID</Link></code>
+
+id: <Link to="object#0x2_object_ID">object::ID</Link>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-version: u16</code>
+
+version: u16
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>
-fields: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;</code>
+
+fields: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>&gt;
 </dt>
 <dd>
 
@@ -199,8 +199,8 @@ fields: <Link to="vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<Link to
 
 <Link id="0x2_display_ENotOwner"></Link>
 
-For when T does not belong to the package <code>
-Publisher</code>.
+For when T does not belong to the package 
+Publisher.
 
 
 <pre><code>
@@ -226,8 +226,8 @@ don't match in their lengths.
 ## Function `new`
 
 Create an empty Display object. It can either be shared empty or filled
-with data right away via cheaper <code>
-set_owned</code> method.
+with data right away via cheaper 
+set_owned method.
 
 
 <pre><code>
@@ -355,9 +355,9 @@ entry <b>public</b> <b>fun</b> <Link to="display#0x2_display_update_version">upd
 
 ## Function `add`
 
-Sets a custom <code>
-name</code> field with the <code>
-value</code>.
+Sets a custom 
+name field with the 
+value.
 
 
 <pre><code>
@@ -384,9 +384,9 @@ entry <b>public</b> <b>fun</b> <Link to="display#0x2_display_add">add</Link>&lt;
 
 ## Function `add_multiple`
 
-Sets multiple <code>
-fields</code> with <code>
-values</code>.
+Sets multiple 
+fields with 
+values.
 
 
 <pre><code>
@@ -505,8 +505,8 @@ Authorization check; can be performed externally to implement protection rules f
 
 ## Function `version`
 
-Read the <code>
-version</code> field.
+Read the 
+version field.
 
 
 <pre><code>
@@ -533,8 +533,8 @@ version</code> field.
 
 ## Function `fields`
 
-Read the <code>
-fields</code> field.
+Read the 
+fields field.
 
 
 <pre><code>
@@ -561,8 +561,8 @@ fields</code> field.
 
 ## Function `create_internal`
 
-Internal function to create a new <code>
-<Link to="display#0x2_display_Display">Display</Link>&lt;T&gt;</code>.
+Internal function to create a new 
+<Link to="display#0x2_display_Display">Display</Link>&lt;T&gt;.
 
 
 <pre><code>
