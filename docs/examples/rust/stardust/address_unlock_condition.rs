@@ -18,12 +18,13 @@ use iota_sdk::{
     types::{
         base_types::{IotaAddress, ObjectID},
         crypto::SignatureScheme::ED25519,
+        dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::NftOutput,
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
+        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
     IotaClient, IotaClientBuilder,
 };
@@ -103,7 +104,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("alias not found"))?;
     let alias_object_address = alias_object.object_ref().0;
 
-    // Some objects are owned by the Alias object. In this case we filter them by type using the NftOutput type.
+    // Some objects are owned by the Alias object. In this case we filter them by
+    // type using the NftOutput type.
     let owned_objects_query_filter =
         IotaObjectDataFilter::StructType(NftOutput::tag(GAS::type_tag()));
     let owned_objects_query = IotaObjectResponseQuery::new(Some(owned_objects_query_filter), None);

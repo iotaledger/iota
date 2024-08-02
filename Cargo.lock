@@ -3499,6 +3499,7 @@ dependencies = [
  "iota-keys",
  "iota-sdk 0.1.2",
  "move-core-types",
+ "serde_json",
  "shared-crypto",
  "tokio",
 ]
