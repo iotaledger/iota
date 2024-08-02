@@ -11,9 +11,6 @@ pub(crate) struct SystemParameters {
     /// Target duration of an epoch, in milliseconds.
     pub duration_ms: Option<BigInt>,
 
-    /// The epoch at which stake subsidies start being paid out.
-    pub stake_subsidy_start_epoch: Option<u64>,
-
     /// The minimum number of active validators that the system supports.
     pub min_validator_count: Option<u64>,
 
