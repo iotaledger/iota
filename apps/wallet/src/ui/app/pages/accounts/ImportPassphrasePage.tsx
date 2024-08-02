@@ -27,7 +27,7 @@ export function ImportPassphrasePage() {
     return (
         <>
             <Header
-                title="Add Existing Account"
+                title="Import Mnemonic"
                 titleCentered
                 onBack={() => {
                     navigate(-1);
