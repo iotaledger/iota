@@ -36,19 +36,19 @@ If you already have a network config set up, switch your active environment to T
     $ iota client
     ```
 1. At the prompt, type <kbd>y</kbd> and press <kbd>Enter</kbd> to connect to a IOTA Full node server.
-1. At the following prompt, type the address of the Testnet server (`https://fullnode.testnet.iota.io:443`) and press <kbd>Enter</kbd>.
-1. At the following prompt, type `testnet` to give the network an alias and press <kbd>Enter</kbd>. You can use the alias in subsequent commands instead of typing the complete URL.
+1. At the following prompt, type the address of the Testnet server (`https://api.iota-rebased-alphanet.iota.cafe:443`) and press <kbd>Enter</kbd>.
+1. At the following prompt, type `alphanet` to give the network an alias and press <kbd>Enter</kbd>. You can use the alias in subsequent commands instead of typing the complete URL.
 1. At the following prompt, type `0` and press <kbd>Enter</kbd>. The selection creates an address in the `ed25519` signing scheme.
 1. The response provides an alias for your address, the actual address ID, and a secret recovery phrase. Be sure to save this information for later reference. Because this is on the Testnet network, the security of this information is not as important as if it were on Mainnet.
 1. In your terminal or console, use the following command to get IOTA for your account.
     ```shell
-    $ iota client faucet
+    $ iota client faucet --url https://faucet.iota-rebased-alphanet.iota.cafe/gas
     ```
 1. You can confirm that you received IOTA by using the following command. There may be a delay in receiving coins depending on the activity of the network.
     ```shell
     $ iota client gas
     ```
-You are now connected to the IOTA Testnet network and should have an account with available IOTA.  
+You are now connected to the IOTA Alphanet network and should have an account with available IOTA.  
 
 
 ## Related links

@@ -4,9 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
-use tui::{
+use ratatui::{
     style::{Color, Style},
-    text::Spans,
+    text::Line,
 };
 
 use crate::{
@@ -73,7 +73,8 @@ impl<BytecodeViewer: LeftScreen, SourceViewer: RightScreen<BytecodeViewer>> TUII
             left_screen: self
                 .bytecode_text
                 .iter()
-                .map(|x| Spans::from(x.clone()))
+                .map(AsRef::as_ref)
+                .map(Line::from)
                 .collect(),
             right_screen: report,
         }
