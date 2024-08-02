@@ -16,7 +16,7 @@ use move_binary_format::CompiledModule;
 use move_compiler::editions::Edition;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
-const DOCS_DIR: &str = "docs";
+const DOCS_DIR: &str = "../../docs/content/references/framework/";
 
 /// Save revision info to environment variable
 fn main() {
