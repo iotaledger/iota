@@ -34,7 +34,7 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
         const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
 
         // The `--extensionTestsPath` argument passed to VS Code. This should point to a JavaScript
-        // program that is considered to be the "test iotate" for the extension.
+        // program that is considered to be the "test suite" for the extension.
         const extensionTestsPath = path.resolve(__dirname, 'index.js');
 
         // The workspace
@@ -60,7 +60,7 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
             fse.mkdirsSync(userDataDir);
         }
 
-        // Download VS Code, unzip it, and run the "test iotate" program.
+        // Download VS Code, unzip it, and run the "test suite" program.
         await runTests({
             vscodeExecutablePath: vscodeExecutablePath,
             extensionDevelopmentPath,

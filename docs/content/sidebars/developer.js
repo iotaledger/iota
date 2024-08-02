@@ -7,10 +7,10 @@ const developer = [
     {
         type: 'category',
         label: 'Getting Started',
-        collapsed: false,
+        collapsed: true,
         link: {
             type: 'doc',
-            id: 'developer/getting-started',
+            id: 'developer/getting-started/getting-started',
         },
         items: [
             'developer/getting-started/iota-environment',
@@ -36,21 +36,6 @@ const developer = [
                     'developer/getting-started/first-app/client-tssdk',
                 ],
             },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'From Solidity/EVM to Move',
-        collapsed: true,
-        link: {
-            type: 'doc',
-            id: 'developer/evm-to-move',
-        },
-        items: [
-            'developer/evm-to-move/why-move',
-            'developer/evm-to-move/tooling-apis',
-            'developer/evm-to-move/creating-token',
-            'developer/evm-to-move/creating-nft',
         ],
     },
     {
@@ -201,6 +186,49 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'Standards',
+        items: [
+            'developer/standards/standards',
+            'developer/standards/coin',
+            'developer/standards/coin-manager',
+            {
+                type: 'category',
+                label: 'Closed-Loop Token',
+                link: {
+                    type: 'doc',
+                    id: 'developer/standards/closed-loop-token',
+                },
+                items: [
+                    'developer/standards/closed-loop-token/action-request',
+                    'developer/standards/closed-loop-token/token-policy',
+                    'developer/standards/closed-loop-token/spending',
+                    'developer/standards/closed-loop-token/rules',
+                    'developer/standards/closed-loop-token/coin-token-comparison',
+                ],
+            },
+            'developer/standards/kiosk',
+            'developer/standards/kiosk-apps',
+            'developer/standards/display',
+            'developer/standards/wallet-standard',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'From Solidity/EVM to Move',
+        collapsed: true,
+        link: {
+            type: 'doc',
+            id: 'developer/evm-to-move/evm-to-move',
+        },
+        items: [
+            'developer/evm-to-move/why-move',
+            'developer/evm-to-move/tooling-apis',
+            'developer/evm-to-move/creating-token',
+            'developer/evm-to-move/creating-nft',
+        ],
+    },
+    {
+        type: 'category',
         label: 'Cryptography',
         link: {
             type: 'doc',
@@ -251,51 +279,9 @@ const developer = [
             id: 'developer/advanced',
         },
         items: [
-            /*{
-						type: 'category',
-						label: 'Efficient Smart Contracts',
-						link: {
-							type: 'doc',
-							id: 'developer/advanced/efficient-smart-contracts',
-						},
-						items: ['developer/advanced/min-gas-fees'],
-					},*/
-            //'developer/advanced/graphql-migration',
-            'developer/advanced/move-2024-migration',
             'developer/advanced/asset-tokenization',
-            'developer/advanced/custom-indexer',
-            'developer/advanced/stardust-on-move',
         ],
     },
-    {
-        type: 'category',
-        label: 'Standards',
-        items: [
-            'developer/standards/standards',
-            'developer/standards/coin',
-            'developer/standards/coin-manager',
-            {
-                type: 'category',
-                label: 'Closed-Loop Token',
-                link: {
-                    type: 'doc',
-                    id: 'developer/standards/closed-loop-token',
-                },
-                items: [
-                    'developer/standards/closed-loop-token/action-request',
-                    'developer/standards/closed-loop-token/token-policy',
-                    'developer/standards/closed-loop-token/spending',
-                    'developer/standards/closed-loop-token/rules',
-                    'developer/standards/closed-loop-token/coin-token-comparison',
-                ],
-            },
-            'developer/standards/kiosk',
-            'developer/standards/kiosk-apps',
-            'developer/standards/display',
-            'developer/standards/wallet-standard',
-        ],
-    },
-    'developer/dev-cheat-sheet',
 
     {
         type: 'category',
@@ -745,5 +731,6 @@ const developer = [
         label: 'Exchange integration',
         items: ['developer/exchange-integration/exchange-integration'],
     },
+    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

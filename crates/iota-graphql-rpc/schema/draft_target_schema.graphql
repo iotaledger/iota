@@ -592,7 +592,6 @@ type Epoch {
   totalCheckpoints: BigInt
   totalGasFees: BigInt
   totalStakeRewards: BigInt
-  totalStakeSubsidies: BigInt
   fundSize: BigInt
   netInflow: BigInt
   fundInflow: BigInt
@@ -603,7 +602,6 @@ type Epoch {
   safeMode: SafeMode
   systemStateVersion: BigInt
   systemParameters: SystemParameters
-  systemStakeSubsidy: StakeSubsidy
 
   checkpoints(
     first: Int,
@@ -642,7 +640,6 @@ type ProtocolConfigFeatureFlag {
 
 type SystemParameters {
   durationMs: BigInt
-  stakeSubsidyStartEpoch: Int
 
   minValidatorCount: Int
   maxValidatorCount: Int
@@ -651,14 +648,6 @@ type SystemParameters {
   validatorLowStakeThreshold: BigInt
   validatorVeryLowStakeThreshold: BigInt
   validatorLowStakeGracePeriod: Int
-}
-
-type StakeSubsidy {
-  balance: BigInt
-  distributionCounter: Int
-  currentDistributionAmount: BigInt
-  periodLength: Int
-  decreaseRate: Int
 }
 
 type ValidatorSet {
