@@ -771,21 +771,12 @@
 >    systemStateVersion
 >    systemParameters {
 >      durationMs
->      stakeSubsidyStartEpoch
 >      minValidatorCount
 >      maxValidatorCount
 >      minValidatorJoiningStake
 >      validatorLowStakeThreshold
 >      validatorVeryLowStakeThreshold
 >      validatorLowStakeGracePeriod
->    }
->    systemStakeSubsidy {
->      balance
->      distributionCounter
->      currentDistributionAmount
->      periodLength
->      decreaseRate
->
 >    }
 >  }
 >}</pre>

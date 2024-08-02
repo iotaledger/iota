@@ -65,16 +65,6 @@ const references = [
             id: 'references/iota-sdks',
         },
         items: [
-            {
-                type: 'link',
-                label: 'IOTA Go SDK',
-                href: 'https://github.com/block-vision/iota-go-sdk',
-            },
-            {
-                type: 'link',
-                label: 'IOTA Python SDK',
-                href: 'https://github.com/FrankC01/pyiota',
-            },
             'references/rust-sdk',
             {
                 type: 'category',
