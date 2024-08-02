@@ -198,12 +198,12 @@ fn build_packages_with_move_config(
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
         let mut files_to_write = BTreeMap::new();
-        create_category_file(deepbook_dir);
+        /*create_category_file(deepbook_dir);
         relocate_docs(
             deepbook_dir,
             &deepbook_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
-        );
+        );*/
         create_category_file(system_dir);
         relocate_docs(
             system_dir,
