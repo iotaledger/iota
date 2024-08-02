@@ -23,16 +23,36 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         title: 'Header',
+        onBack: undefined,
+        onClose: undefined,
     },
     argTypes: {
-        hasLeftIcon: {
-            control: 'boolean',
-        },
-        hasRightIcon: {
-            control: 'boolean',
-        },
         titleCentered: {
             control: 'boolean',
         },
+    },
+};
+
+export const Centered: Story = {
+    args: {
+        title: 'Header',
+        titleCentered: true,
+    },
+};
+
+export const CenteredNoIcon: Story = {
+    args: {
+        title: 'Header',
+        titleCentered: true,
+        onBack: undefined,
+        onClose: undefined,
+    },
+};
+
+export const NoIcon: Story = {
+    args: {
+        title: 'Header',
+        onBack: undefined,
+        onClose: undefined,
     },
 };

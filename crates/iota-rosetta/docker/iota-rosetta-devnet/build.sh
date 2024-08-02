@@ -21,7 +21,7 @@ echo "git revision: \t$GIT_REVISION"
 echo
 
 docker build -f "$DOCKERFILE" "$REPO_ROOT" \
-  -t mysten/iota-rosetta-devnet \
+  -t iotaledger/iota-rosetta-devnet \
 	--build-arg GIT_REVISION="$GIT_REVISION" \
 	--build-arg BUILD_DATE="$BUILD_DATE" \
 	"$@"
