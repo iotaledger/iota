@@ -15,7 +15,7 @@ export function ImportSeedPage() {
 
     return (
         <div className="flex h-full w-full flex-col bg-white">
-            <Header title="Import Seed" hasLeftIcon titleCentered onBack={() => navigate(-1)} />
+            <Header title="Import Seed" titleCentered onBack={() => navigate(-1)} />
             <div className="flex h-full flex-col gap-4 p-md">
                 <ImportSeedForm
                     onSubmit={({ seed }) => {
