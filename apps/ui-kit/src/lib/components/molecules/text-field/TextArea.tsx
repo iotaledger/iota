@@ -43,10 +43,6 @@ interface TextFieldBaseProps extends TextAreaProps, TextFieldWrapperProps {
      */
     isContentVisible?: boolean;
     /**
-     * Value of the input field
-     */
-    value?: string;
-    /**
      * If true the textarea is resizable vertically
      */
     isResizeEnabled?: boolean;
@@ -54,9 +50,7 @@ interface TextFieldBaseProps extends TextAreaProps, TextFieldWrapperProps {
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(function TextArea(
     {
-        name,
         label,
-        placeholder,
         caption,
         disabled,
         errorMessage,
@@ -64,14 +58,10 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
         amountCounter,
         isVisibilityToggleEnabled,
         isResizeEnabled,
-        rows = 3,
-        autoFocus,
         required,
-        maxLength,
-        minLength,
         isContentVisible,
-        id,
-    }: TextFieldBaseProps,
+        ...textareaProps
+    },
     ref,
 ) {
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
@@ -90,7 +80,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
         <TextFieldWrapper
             label={label}
             caption={caption}
-            disabled={disabled}
+            disabled={disabled || !isInputContentVisible}
             errorMessage={errorMessage}
             amountCounter={amountCounter}
             required={required}
@@ -98,12 +88,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
             <div className="relative">
                 <textarea
                     disabled={disabled || !isInputContentVisible}
-                    placeholder={placeholder}
                     required={required}
-                    id={id}
-                    name={name}
-                    rows={rows}
-                    autoFocus={autoFocus}
                     ref={ref}
                     className={cx(
                         'peer block min-h-[50px]',
@@ -116,8 +101,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
                             'not-visible select-none text-transparent dark:text-transparent',
                     )}
                     value={isInputContentVisible ? value : ''}
-                    maxLength={maxLength}
-                    minLength={minLength}
+                    {...textareaProps}
                 />
                 {!isInputContentVisible && (
                     <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">

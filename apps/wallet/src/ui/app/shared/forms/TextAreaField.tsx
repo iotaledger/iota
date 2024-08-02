@@ -4,13 +4,13 @@
 
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
 
-import { TextArea } from './controls/TextArea';
+import { TextArea } from '@iota/apps-ui-kit';
 import FormField from './FormField';
 
 type TextAreaFieldProps = {
     name: string;
     label: ReactNode;
-} & ComponentProps<'textarea'>;
+} & ComponentProps<typeof TextArea>;
 
 export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>(
     ({ label, ...props }, forwardedRef) => (

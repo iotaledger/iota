@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
 import { useZodForm } from '@iota/core';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -10,8 +9,9 @@ import { z } from 'zod';
 
 import { privateKeyValidation } from '../../helpers/validation/privateKeyValidation';
 import { Form } from '../../shared/forms/Form';
-import { TextAreaField } from '../../shared/forms/TextAreaField';
 import Alert from '../alert';
+import { Button, ButtonType, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { TextAreaField } from '../../shared/forms/TextAreaField';
 
 const formSchema = z.object({
     privateKey: privateKeyValidation,
@@ -45,14 +45,18 @@ export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
                     encoded private key that starts with "iotaprivkey" instead
                 </Alert>
             ) : null}
-            <div className="mt-auto flex gap-2.5">
-                <Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
+            <div className="mt-auto flex gap-xs pt-xs">
                 <Button
-                    type="submit"
+                    fullWidth
+                    text="Cancel"
+                    onClick={() => navigate(-1)}
+                    type={ButtonType.Secondary}
+                />
+                <Button
+                    htmlType={ButtonHtmlType.Submit}
                     disabled={isSubmitting || !isValid}
-                    variant="primary"
-                    size="tall"
-                    loading={isSubmitting}
+                    fullWidth
+                    type={ButtonType.Primary}
                     text="Add Account"
                 />
             </div>
