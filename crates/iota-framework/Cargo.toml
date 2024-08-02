@@ -28,3 +28,5 @@ iota-move-build.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-package.workspace = true
+
+capitalize = "0.3.4"

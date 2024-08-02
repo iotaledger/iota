@@ -5,10 +5,12 @@
 use std::{
     collections::BTreeMap,
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 
 use anyhow::Result;
+use capitalize::Capitalize;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Edition;
@@ -196,21 +198,26 @@ fn build_packages_with_move_config(
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
         let mut files_to_write = BTreeMap::new();
+        create_category_file(deepbook_dir);
         relocate_docs(
             deepbook_dir,
             &deepbook_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
         );
+        create_category_file(system_dir);
         relocate_docs(
             system_dir,
             &system_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
         );
+        create_category_file(framework_dir);
+        create_category_file(stdlib_dir);
         relocate_docs(
             framework_dir,
             &framework_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
         );
+        create_category_file(stardust_dir);
         relocate_docs(
             stardust_dir,
             &stardust_pkg.package.compiled_docs.unwrap(),
@@ -219,10 +226,18 @@ fn build_packages_with_move_config(
         for (fname, doc) in files_to_write {
             let mut dst_path = PathBuf::from(DOCS_DIR);
             dst_path.push(fname);
-            fs::create_dir_all(dst_path.parent().unwrap()).unwrap();
             fs::write(dst_path, doc).unwrap();
         }
     }
+}
+
+/// Create a Docusaurus category file for the specified prefix.
+fn create_category_file(prefix: &str){
+    let mut path = PathBuf::from(DOCS_DIR).join(prefix);
+    fs::create_dir_all(path.clone()).unwrap();
+    path.push("_category_.json");
+    let mut file = fs::File::create(path).unwrap();
+    write!(file, "{{\"label\":\"{}\",\"link\":{{\"type\":\"generated-index\",\"slug\":\"/references/framework/{}\",\"description\":\"Documentation for the modules in the iota/crates/iota-framework/packages/{} crate. Select a module from the list to see its details.\"}}}}", prefix.split('-').map(|w| w.capitalize()).collect::<Vec<String>>().join(" "), prefix, prefix).unwrap();
 }
 
 /// Post process the generated docs so that they are in a format that can be
