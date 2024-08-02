@@ -130,7 +130,7 @@ CoinManagerTreasuryCap</code> locked to the alias address.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link to="address_unlock_condition#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="alias#0x107a_alias_Alias">alias::Alias</Link>, treasury_to_unlock: <Link to="../iota-framework/transfer#0x2_transfer_Receiving">transfer::Receiving</Link>&lt;<Link to="../iota-framework/coin_manager#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</Link>&lt;T&gt;&gt;): <Link to="../iota-framework/coin_manager#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</Link>&lt;T&gt;
+<b>public</b> <b>fun</b> <Link to="address_unlock_condition#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</Link>&lt;T&gt;(self: &<b>mut</b> <Link to="alias#0x107a_alias_Alias">alias::Alias</Link>, treasury_to_unlock: <Link to="../iota-framework/transfer#0x2_transfer_Receiving">transfer::Receiving</Link>&lt;<Link to="../iota-framework/coin_manager#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</Link>&lt;T&gt;&gt;): <Link to="../iota-framework/coin_manager#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</Link>&lt;T&gt;
 </code></pre>
 
 
@@ -140,7 +140,7 @@ CoinManagerTreasuryCap</code> locked to the alias address.
 
 
 <pre><code>
-<b>public</b> <b>fun</b> <Link to="address_unlock_condition#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</Link>&lt;T: key + store&gt;(
+<b>public</b> <b>fun</b> <Link to="address_unlock_condition#0x107a_address_unlock_condition_unlock_alias_address_owned_coinmanager_treasury">unlock_alias_address_owned_coinmanager_treasury</Link>&lt;T&gt;(
   self: &<b>mut</b> Alias,
   treasury_to_unlock: Receiving&lt;CoinManagerTreasuryCap&lt;T&gt;&gt;,
 ): CoinManagerTreasuryCap&lt;T&gt; \{
