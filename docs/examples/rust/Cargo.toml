@@ -18,8 +18,8 @@ move-core-types.workspace = true
 shared-crypto.workspace = true
 
 [[example]]
-name = "unlock_condition"
-path = "src/stardust/unlock_condition.rs"
+name = "address_unlock_condition"
+path = "stardust/address_unlock_condition.rs"
 
 [[example]]
 name = "nft-output-claim"
