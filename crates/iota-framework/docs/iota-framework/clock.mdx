@@ -5,8 +5,7 @@ sidebar_label: clock
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_clock"/>
-APIs for accessing time from move calls, via the 
-<Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link>: a unique
+APIs for accessing time from move calls, via the <code><Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link></code>: a unique
 shared object that is created at 0x6 during genesis.
 
 
@@ -17,11 +16,13 @@ shared object that is created at 0x6 during genesis.
 -  [Function `consensus_commit_prologue`](#0x2_clock_consensus_commit_prologue)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -33,17 +34,17 @@ Singleton shared object that exposes time to Move calls.  This
 object is found at address 0x6, and can only be read (accessed
 via an immutable reference) by entry functions.
 
-Entry Functions that attempt to accept 
-<Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link> by mutable
+Entry Functions that attempt to accept <code><Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link></code> by mutable
 reference or value will fail to verify, and honest validators
-will not sign or execute transactions that use 
-<Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link> as an
+will not sign or execute transactions that use <code><Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link></code> as an
 input parameter, unless it is passed by immutable reference.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link> <b>has</b> key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -53,21 +54,18 @@ input parameter, unless it is passed by immutable reference.
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-timestamp_ms: u64
+<code>timestamp_ms: u64</code>
 </dt>
 <dd>
  The clock's timestamp, which is set automatically by a
  system transaction every time consensus commits a
- schedule, or by 
-iota::clock::increment_for_testing during
+ schedule, or by <code>iota::clock::increment_for_testing</code> during
  testing.
 </dd>
 </dl>
@@ -85,9 +83,11 @@ iota::clock::increment_for_testing during
 Sender is not @0x0 the system address.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/clock#0x2_clock_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -95,14 +95,15 @@ Sender is not @0x0 the system address.
 
 ## Function `timestamp_ms`
 
-The 
-<Link to="../iota-framework/clock#0x2_clock">clock</Link>'s current timestamp as a running total of
+The <code><Link to="../iota-framework/clock#0x2_clock">clock</Link></code>'s current timestamp as a running total of
 milliseconds since an arbitrary point in the past.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -110,11 +111,13 @@ milliseconds since an arbitrary point in the past.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/clock#0x2_clock_timestamp_ms">timestamp_ms</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link>): u64 \{
     <Link to="../iota-framework/clock#0x2_clock">clock</Link>.timestamp_ms
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -128,9 +131,11 @@ Create and share the singleton Clock -- this function is
 called exactly once, during genesis.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/clock#0x2_clock_create">create</Link>(ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -138,7 +143,8 @@ called exactly once, during genesis.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/clock#0x2_clock_create">create</Link>(ctx: &TxContext) \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/clock#0x2_clock_ENotSystemAddress">ENotSystemAddress</Link>);
 
@@ -150,7 +156,8 @@ called exactly once, during genesis.
         timestamp_ms: 0,
     })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -162,9 +169,11 @@ called exactly once, during genesis.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/clock#0x2_clock_consensus_commit_prologue">consensus_commit_prologue</Link>(<Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<b>mut</b> <Link to="../iota-framework/clock#0x2_clock_Clock">clock::Clock</Link>, timestamp_ms: u64, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -172,7 +181,8 @@ called exactly once, during genesis.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/clock#0x2_clock_consensus_commit_prologue">consensus_commit_prologue</Link>(
     <Link to="../iota-framework/clock#0x2_clock">clock</Link>: &<b>mut</b> <Link to="../iota-framework/clock#0x2_clock_Clock">Clock</Link>,
     timestamp_ms: u64,
@@ -183,7 +193,8 @@ called exactly once, during genesis.
 
     <Link to="../iota-framework/clock#0x2_clock">clock</Link>.timestamp_ms = timestamp_ms
 }
-</code></pre>
+</code>
+</pre>
 
 
 

@@ -9,14 +9,10 @@ This module implements the Kiosk Extensions functionality. It allows
 exposing previously protected (only-owner) methods to third-party apps.
 
 A Kiosk Extension is a module that implements any functionality on top of
-the 
-Kiosk without discarding nor blocking the base. Given that 
-Kiosk
+the <code>Kiosk</code> without discarding nor blocking the base. Given that <code>Kiosk</code>
 itself is a trading primitive, most of the extensions are expected to be
 related to trading. However, there's no limit to what can be built using the
-
-<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link> module, as it gives certain benefits such as using 
-Kiosk
+<code><Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> module, as it gives certain benefits such as using <code>Kiosk</code>
 as the storage for any type of data / assets.
 
 
@@ -25,19 +21,14 @@ as the storage for any type of data / assets.
 #### Flow:
 
 - An extension can only be installed by the Kiosk Owner and requires an
-authorization via the 
-KioskOwnerCap.
+authorization via the <code>KioskOwnerCap</code>.
 - When installed, the extension is given a permission bitmap that allows it
-to perform certain protected actions (eg 
-place, 
-lock). However, it is
+to perform certain protected actions (eg <code>place</code>, <code>lock</code>). However, it is
 possible to install an extension that does not have any permissions.
-- Kiosk Owner can 
-disable the extension at any time, which prevents it
+- Kiosk Owner can <code>disable</code> the extension at any time, which prevents it
 from performing any protected actions. The storage is still available to the
 extension until it is completely removed.
-- A disabled extension can be 
-enabled at any time giving the permissions
+- A disabled extension can be <code>enable</code>d at any time giving the permissions
 back to the extension.
 - An extension permissions follow the all-or-nothing policy. Either all of
 the requested permissions are granted or none of them (can't install).
@@ -48,8 +39,7 @@ the requested permissions are granted or none of them (can't install).
 #### Examples:
 
 - An Auction extension can utilize the storage to store Auction-related data
-while utilizing the same 
-Kiosk object that the items are stored in.
+while utilizing the same <code>Kiosk</code> object that the items are stored in.
 - A Marketplace extension that implements custom events and fees for the
 default trading functionality.
 
@@ -58,19 +48,12 @@ default trading functionality.
 
 #### Notes:
 
-- Trading functionality can utilize the 
-PurchaseCap to build a custom
+- Trading functionality can utilize the <code>PurchaseCap</code> to build a custom
 logic around the purchase flow. However, it should be carefully managed to
 prevent asset locking.
-- 
-<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link> is a friend module to 
-<Link to="kiosk#0x2_kiosk">kiosk</Link> and has access to its
-internal functions (such as 
-place_internal and 
-lock_internal to
-implement custom authorization scheme for 
-place and 
-lock respectively).
+- <code><Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> is a friend module to <code><Link to="kiosk#0x2_kiosk">kiosk</Link></code> and has access to its
+internal functions (such as <code>place_internal</code> and <code>lock_internal</code> to
+implement custom authorization scheme for <code>place</code> and <code>lock</code> respectively).
 
 
         -  [Flow:](#@Flow:_0)
@@ -95,14 +78,16 @@ lock respectively).
 -  [Function `extension_mut`](#0x2_kiosk_extension_extension_mut)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="bag#0x2_bag">0x2::bag</Link>;
 <b>use</b> <Link to="dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
 <b>use</b> <Link to="kiosk#0x2_kiosk">0x2::kiosk</Link>;
 <b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="transfer_policy#0x2_transfer_policy">0x2::transfer_policy</Link>;
 <b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -111,14 +96,15 @@ lock respectively).
 ## Struct `Extension`
 
 The Extension struct contains the data used by the extension and the
-configuration for this extension. Stored under the 
-<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>
+configuration for this extension. Stored under the <code><Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code>
 dynamic field.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -128,8 +114,7 @@ dynamic field.
 
 <dl>
 <dt>
-
-storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link>
+<code>storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  Storage for the extension, an isolated Bag. By putting the extension
@@ -138,40 +123,28 @@ storage: <Link to="bag#0x2_bag_Bag">bag::Bag</Link>
  the ability to store any data they want.
 </dd>
 <dt>
-
-permissions: u128
+<code>permissions: u128</code>
 </dt>
 <dd>
  Bitmap of permissions that the extension has (can be revoked any
  moment). It's all or nothing policy - either the extension has the
  required permissions or no permissions at all.
 
- 1st bit - 
-place - allows to place items for sale
- 2nd bit - 
-lock and 
-place - allows to lock items (and place)
+ 1st bit - <code>place</code> - allows to place items for sale
+ 2nd bit - <code>lock</code> and <code>place</code> - allows to lock items (and place)
 
  For example:
- - 
-10 - allows to place items and lock them.
- - 
-11 - allows to place items and lock them (
-lock includes 
-place).
- - 
-01 - allows to place items, but not lock them.
- - 
-00 - no permissions.
+ - <code>10</code> - allows to place items and lock them.
+ - <code>11</code> - allows to place items and lock them (<code>lock</code> includes <code>place</code>).
+ - <code>01</code> - allows to place items, but not lock them.
+ - <code>00</code> - no permissions.
 </dd>
 <dt>
-
-is_enabled: bool
+<code>is_enabled: bool</code>
 </dt>
 <dd>
  Whether the extension can call protected actions. By default, all
- extensions are enabled (on 
-add call), however the Kiosk
+ extensions are enabled (on <code>add</code> call), however the Kiosk
  owner can disable them at any time.
 
  Disabling the extension does not limit its access to the storage.
@@ -185,16 +158,16 @@ add call), however the Kiosk
 
 ## Struct `ExtensionKey`
 
-The 
-<Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link> is a typed dynamic field key used to store the
-extension configuration and data. 
-Ext is a phantom type that is used
+The <code><Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link></code> is a typed dynamic field key used to store the
+extension configuration and data. <code>Ext</code> is a phantom type that is used
 to identify the extension witness.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -204,8 +177,7 @@ to identify the extension witness.
 
 <dl>
 <dt>
-
-dummy_field: bool
+<code>dummy_field: bool</code>
 </dt>
 <dd>
 
@@ -225,9 +197,11 @@ dummy_field: bool
 Trying to add an extension while not being the owner of the Kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_ENotOwner">ENotOwner</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -237,9 +211,11 @@ Extension is trying to access a permissioned action while not having
 the required permission.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotAllowed">EExtensionNotAllowed</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -248,35 +224,38 @@ the required permission.
 Extension is not installed in the Kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_extension_LOCK"></Link>
 
-Value that represents the 
-lock and 
-place permission in the
+Value that represents the <code>lock</code> and <code>place</code> permission in the
 permissions bitmap.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_LOCK">LOCK</Link>: u128 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_extension_PLACE"></Link>
 
-Value that represents the 
-place permission in the permissions bitmap.
+Value that represents the <code>place</code> permission in the permissions bitmap.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk_extension#0x2_kiosk_extension_PLACE">PLACE</Link>: u128 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -286,13 +265,14 @@ place permission in the permissions bitmap.
 
 Add an extension to the Kiosk. Can only be performed by the owner. The
 extension witness is required to allow extensions define their set of
-permissions in the custom 
-add call.
+permissions in the custom <code>add</code> call.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_add">add</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, permissions: u128, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -300,7 +280,8 @@ add call.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_add">add</Link>&lt;Ext: drop&gt;(
     _ext: Ext,
     self: &<b>mut</b> Kiosk,
@@ -319,7 +300,8 @@ add call.
         }
     )
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -334,9 +316,11 @@ extension completely, it keeps it from performing any protected actions.
 The storage is still available to the extension (until it's removed).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_disable">disable</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -344,7 +328,8 @@ The storage is still available to the extension (until it's removed).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_disable">disable</Link>&lt;Ext: drop&gt;(
     self: &<b>mut</b> Kiosk,
     cap: &KioskOwnerCap,
@@ -353,7 +338,8 @@ The storage is still available to the extension (until it's removed).
     <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
     <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).is_enabled = <b>false</b>;
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -364,16 +350,15 @@ The storage is still available to the extension (until it's removed).
 ## Function `enable`
 
 Re-enable the extension allowing it to call protected actions (eg
-
-place, 
-lock). By default, all added extensions are enabled. Kiosk
-owner can disable them via 
-disable call.
+<code>place</code>, <code>lock</code>). By default, all added extensions are enabled. Kiosk
+owner can disable them via <code>disable</code> call.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_enable">enable</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -381,7 +366,8 @@ disable call.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_enable">enable</Link>&lt;Ext: drop&gt;(
     self: &<b>mut</b> Kiosk,
     cap: &KioskOwnerCap,
@@ -390,7 +376,8 @@ disable call.
     <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
     <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).is_enabled = <b>true</b>;
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -404,9 +391,11 @@ Remove an extension from the Kiosk. Can only be performed by the owner,
 the extension storage must be empty for the transaction to succeed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_remove">remove</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -414,7 +403,8 @@ the extension storage must be empty for the transaction to succeed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_remove">remove</Link>&lt;Ext: drop&gt;(
     self: &<b>mut</b> Kiosk, cap: &KioskOwnerCap
 ) \{
@@ -429,7 +419,8 @@ the extension storage must be empty for the transaction to succeed.
 
     storage.destroy_empty();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -443,9 +434,11 @@ Get immutable access to the extension storage. Can only be performed by
 the extension as long as the extension is installed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage">storage</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link to="bag#0x2_bag_Bag">bag::Bag</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -453,14 +446,16 @@ the extension as long as the extension is installed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage">storage</Link>&lt;Ext: drop&gt;(
     _ext: Ext, self: &Kiosk
 ): &Bag \{
     <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
     &<Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).storage
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -484,9 +479,11 @@ Extensions should be crafted carefully, and the KioskOwner should be
 aware of the risks.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage_mut">storage_mut</Link>&lt;Ext: drop&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link to="bag#0x2_bag_Bag">bag::Bag</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -494,14 +491,16 @@ aware of the risks.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_storage_mut">storage_mut</Link>&lt;Ext: drop&gt;(
     _ext: Ext, self: &<b>mut</b> Kiosk
 ): &<b>mut</b> Bag \{
     <b>assert</b>!(<Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext&gt;(self), <Link to="kiosk_extension#0x2_kiosk_extension_EExtensionNotInstalled">EExtensionNotInstalled</Link>);
     &<b>mut</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext&gt;(self).storage
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -512,20 +511,18 @@ aware of the risks.
 ## Function `place`
 
 Protected action: place an item into the Kiosk. Can be performed by an
-authorized extension. The extension must have the 
-place permission or
-a 
-lock permission.
+authorized extension. The extension must have the <code>place</code> permission or
+a <code>lock</code> permission.
 
-To prevent non-tradable items from being placed into 
-Kiosk the method
-requires a 
-TransferPolicy for the placed type to exist.
+To prevent non-tradable items from being placed into <code>Kiosk</code> the method
+requires a <code>TransferPolicy</code> for the placed type to exist.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_place">place</Link>&lt;Ext: drop, T: store, key&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, _policy: &<Link to="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -533,7 +530,8 @@ TransferPolicy for the placed type to exist.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_place">place</Link>&lt;Ext: drop, T: key + store&gt;(
     _ext: Ext, self: &<b>mut</b> Kiosk, item: T, _policy: &TransferPolicy&lt;T&gt;
 ) \{
@@ -542,7 +540,8 @@ TransferPolicy for the placed type to exist.
 
     self.place_internal(item)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -553,13 +552,14 @@ TransferPolicy for the placed type to exist.
 ## Function `lock`
 
 Protected action: lock an item in the Kiosk. Can be performed by an
-authorized extension. The extension must have the 
-lock permission.
+authorized extension. The extension must have the <code>lock</code> permission.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_lock">lock</Link>&lt;Ext: drop, T: store, key&gt;(_ext: Ext, self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, _policy: &<Link to="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -567,7 +567,8 @@ lock permission.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_lock">lock</Link>&lt;Ext: drop, T: key + store&gt;(
     _ext: Ext, self: &<b>mut</b> Kiosk, item: T, _policy: &TransferPolicy&lt;T&gt;
 ) \{
@@ -576,7 +577,8 @@ lock permission.
 
     self.lock_internal(item)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -586,13 +588,14 @@ lock permission.
 
 ## Function `is_installed`
 
-Check whether an extension of type 
-Ext is installed.
+Check whether an extension of type <code>Ext</code> is installed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -600,11 +603,13 @@ Ext is installed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_installed">is_installed</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
     df::exists_(self.uid(), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -614,13 +619,14 @@ Ext is installed.
 
 ## Function `is_enabled`
 
-Check whether an extension of type 
-Ext is enabled.
+Check whether an extension of type <code>Ext</code> is enabled.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -628,11 +634,13 @@ Ext is enabled.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
     <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).is_enabled
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -642,14 +650,14 @@ Ext is enabled.
 
 ## Function `can_place`
 
-Check whether an extension of type 
-Ext can 
-place into Kiosk.
+Check whether an extension of type <code>Ext</code> can <code>place</code> into Kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -657,11 +665,13 @@ place into Kiosk.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_place">can_place</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
     <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext&gt;(self) && <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).permissions & <Link to="kiosk_extension#0x2_kiosk_extension_PLACE">PLACE</Link> != 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -671,16 +681,15 @@ place into Kiosk.
 
 ## Function `can_lock`
 
-Check whether an extension of type 
-Ext can 
-lock items in Kiosk.
-Locking also enables 
-place.
+Check whether an extension of type <code>Ext</code> can <code>lock</code> items in Kiosk.
+Locking also enables <code>place</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -688,11 +697,13 @@ place.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_can_lock">can_lock</Link>&lt;Ext: drop&gt;(self: &Kiosk): bool \{
     <Link to="kiosk_extension#0x2_kiosk_extension_is_enabled">is_enabled</Link>&lt;Ext&gt;(self) && <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext&gt;(self).permissions & <Link to="kiosk_extension#0x2_kiosk_extension_LOCK">LOCK</Link> != 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -705,9 +716,11 @@ place.
 Internal: get a read-only access to the Extension.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext: drop&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link to="kiosk_extension#0x2_kiosk_extension_Extension">kiosk_extension::Extension</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -715,11 +728,13 @@ Internal: get a read-only access to the Extension.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension">extension</Link>&lt;Ext: drop&gt;(self: &Kiosk): &<Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
     df::borrow(self.uid(), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -732,9 +747,11 @@ Internal: get a read-only access to the Extension.
 Internal: get a mutable access to the Extension.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">kiosk_extension::Extension</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -742,11 +759,13 @@ Internal: get a mutable access to the Extension.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="kiosk_extension#0x2_kiosk_extension_extension_mut">extension_mut</Link>&lt;Ext: drop&gt;(self: &<b>mut</b> Kiosk): &<b>mut</b> <Link to="kiosk_extension#0x2_kiosk_extension_Extension">Extension</Link> \{
     df::borrow_mut(self.uid_mut_internal(), <Link to="kiosk_extension#0x2_kiosk_extension_ExtensionKey">ExtensionKey</Link>&lt;Ext&gt; \{})
 }
-</code></pre>
+</code>
+</pre>
 
 
 

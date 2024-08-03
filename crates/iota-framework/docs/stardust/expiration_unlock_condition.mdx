@@ -16,9 +16,11 @@ import Link from '@docusaurus/Link';
 -  [Function `unix_time`](#0x107a_expiration_unlock_condition_unix_time)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -29,9 +31,11 @@ import Link from '@docusaurus/Link';
 The Stardust expiration unlock condition.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link> <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -41,22 +45,19 @@ The Stardust expiration unlock condition.
 
 <dl>
 <dt>
-
-owner: <b>address</b>
+<code>owner: <b>address</b></code>
 </dt>
 <dd>
  The address who owns the output before the timestamp has passed.
 </dd>
 <dt>
-
-return_address: <b>address</b>
+<code>return_address: <b>address</b></code>
 </dt>
 <dd>
  The address that is allowed to spend the locked funds after the timestamp has passed.
 </dd>
 <dt>
-
-unix_time: u32
+<code>unix_time: u32</code>
 </dt>
 <dd>
  Before this unix time, Address Unlock Condition is allowed to unlock the output, after that only the address defined in Return Address.
@@ -76,9 +77,11 @@ unix_time: u32
 The output can not be unlocked by the sender error.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_EWrongSender">EWrongSender</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -89,9 +92,11 @@ The output can not be unlocked by the sender error.
 Check the unlock condition.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unlock">unlock</Link>(condition: <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -99,7 +104,8 @@ Check the unlock condition.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unlock">unlock</Link>(condition: <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>, ctx: &<b>mut</b> TxContext) \{
     <b>let</b> unlock_address = condition.<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(ctx);
 
@@ -111,7 +117,8 @@ Check the unlock condition.
         unix_time: _,
     } = condition;
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -124,9 +131,11 @@ Check the unlock condition.
 Return the address that can unlock the related output.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -134,7 +143,8 @@ Return the address that can unlock the related output.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_can_be_unlocked_by">can_be_unlocked_by</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>, ctx: &TxContext): <b>address</b> \{
     // Unix time in seconds.
     <b>let</b> current_time = ((<Link to="../iota-framework/tx_context#0x2_tx_context_epoch_timestamp_ms">tx_context::epoch_timestamp_ms</Link>(ctx) / 1000) <b>as</b> u32);
@@ -145,7 +155,8 @@ Return the address that can unlock the related output.
         condition.<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -155,13 +166,14 @@ Return the address that can unlock the related output.
 
 ## Function `owner`
 
-Get the unlock condition's 
-owner.
+Get the unlock condition's <code>owner</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -169,11 +181,13 @@ owner.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_owner">owner</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): <b>address</b> \{
     condition.owner
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -183,13 +197,14 @@ owner.
 
 ## Function `return_address`
 
-Get the unlock condition's 
-return_address.
+Get the unlock condition's <code>return_address</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -197,11 +212,13 @@ return_address.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_return_address">return_address</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): <b>address</b> \{
     condition.return_address
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -211,13 +228,14 @@ return_address.
 
 ## Function `unix_time`
 
-Get the unlock condition's 
-unix_time.
+Get the unlock condition's <code>unix_time</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>): u32
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -225,11 +243,13 @@ unix_time.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_unix_time">unix_time</Link>(condition: &<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">ExpirationUnlockCondition</Link>): u32 \{
     condition.unix_time
 }
-</code></pre>
+</code>
+</pre>
 
 
 

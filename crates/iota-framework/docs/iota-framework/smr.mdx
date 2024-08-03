@@ -15,14 +15,16 @@ It has 6 decimals, and the smallest unit (10^-6) is called "glow".
 -  [Function `transfer`](#0x2_smr_transfer)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
 <b>use</b> <Link to="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="../iota-framework/url#0x2_url">0x2::url</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -33,9 +35,11 @@ It has 6 decimals, and the smallest unit (10^-6) is called "glow".
 Name of the coin
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link> <b>has</b> drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -45,8 +49,7 @@ Name of the coin
 
 <dl>
 <dt>
-
-dummy_field: bool
+<code>dummy_field: bool</code>
 </dt>
 <dd>
 
@@ -66,9 +69,11 @@ dummy_field: bool
 Sender is not @0x0 the system address.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/smr#0x2_smr_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -76,9 +81,11 @@ Sender is not @0x0 the system address.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/smr#0x2_smr_EAlreadyMinted">EAlreadyMinted</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -88,9 +95,11 @@ The amount of Glows per Shimmer token based on the fact that micros is
 10^-6 of a Shimmer token
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/smr#0x2_smr_GLOW_PER_SMR">GLOW_PER_SMR</Link>: u64 = 1000000;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -99,9 +108,11 @@ The amount of Glows per Shimmer token based on the fact that micros is
 The total supply of Shimmer denominated in Glows
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/smr#0x2_smr_TOTAL_SUPPLY_GLOWS">TOTAL_SUPPLY_GLOWS</Link>: u64 = 1813620509061365;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -109,13 +120,14 @@ The total supply of Shimmer denominated in Glows
 
 ## Function `init`
 
-Register the 
-SHIMMER coin.
+Register the <code>SHIMMER</code> coin.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/smr#0x2_smr_init">init</Link>(witness: <Link to="../iota-framework/smr#0x2_smr_SMR">smr::SMR</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -123,7 +135,8 @@ SHIMMER coin.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/smr#0x2_smr_init">init</Link>(witness: <Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link>, ctx: &<b>mut</b> TxContext) \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/smr#0x2_smr_ENotSystemAddress">ENotSystemAddress</Link>);
     <b>assert</b>!(ctx.epoch() == 0, <Link to="../iota-framework/smr#0x2_smr_EAlreadyMinted">EAlreadyMinted</Link>);
@@ -141,7 +154,8 @@ SHIMMER coin.
     <b>let</b> supply = treasury.treasury_into_supply();
     supply.destroy_supply();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -153,9 +167,11 @@ SHIMMER coin.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/smr#0x2_smr_SMR">smr::SMR</Link>&gt;, recipient: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -163,11 +179,13 @@ SHIMMER coin.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/smr#0x2_smr_SMR">SMR</Link>&gt;, recipient: <b>address</b>) \{
     <Link to="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(c, recipient)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

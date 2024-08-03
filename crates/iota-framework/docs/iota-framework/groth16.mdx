@@ -24,8 +24,7 @@ import Link from '@docusaurus/Link';
 -  [Function `verify_groth16_proof_internal`](#0x2_groth16_verify_groth16_proof_internal)
 
 
-<pre><code>
-</code></pre>
+<pre><code></code></pre>
 
 
 
@@ -34,14 +33,14 @@ import Link from '@docusaurus/Link';
 ## Struct `Curve`
 
 Represents an elliptic curve construction to be used in the verifier. Currently we support BLS12-381 and BN254.
-This should be given as the first parameter to 
-prepare_verifying_key or 
-verify_groth16_proof.
+This should be given as the first parameter to <code>prepare_verifying_key</code> or <code>verify_groth16_proof</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="groth16#0x2_groth16_Curve">Curve</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -51,8 +50,7 @@ verify_groth16_proof.
 
 <dl>
 <dt>
-
-id: u8
+<code>id: u8</code>
 </dt>
 <dd>
 
@@ -66,13 +64,14 @@ id: u8
 
 ## Struct `PreparedVerifyingKey`
 
-A 
-<Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link> consisting of four components in serialized form.
+A <code><Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link></code> consisting of four components in serialized form.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -82,29 +81,25 @@ A
 
 <dl>
 <dt>
-
-vk_gamma_abc_g1_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>vk_gamma_abc_g1_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-alpha_g1_beta_g2_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>alpha_g1_beta_g2_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-gamma_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>gamma_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-delta_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>delta_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -118,13 +113,14 @@ delta_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>
 
 ## Struct `PublicProofInputs`
 
-A 
-<Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link> wrapper around its serialized bytes.
+A <code><Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link></code> wrapper around its serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -134,8 +130,7 @@ A
 
 <dl>
 <dt>
-
-bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -149,13 +144,14 @@ bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 
 ## Struct `ProofPoints`
 
-A 
-<Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link> wrapper around the serialized form of three proof points.
+A <code><Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link></code> wrapper around the serialized form of three proof points.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -165,8 +161,7 @@ A
 
 <dl>
 <dt>
-
-bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -185,9 +180,11 @@ bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="groth16#0x2_groth16_EInvalidCurve">EInvalidCurve</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -195,9 +192,11 @@ bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="groth16#0x2_groth16_EInvalidVerifyingKey">EInvalidVerifyingKey</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -205,9 +204,11 @@ bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="groth16#0x2_groth16_ETooManyPublicInputs">ETooManyPublicInputs</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -215,13 +216,14 @@ bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 
 ## Function `bls12381`
 
-Return the 
-<Link to="groth16#0x2_groth16_Curve">Curve</Link> value indicating that the BLS12-381 construction should be used in a given function.
+Return the <code><Link to="groth16#0x2_groth16_Curve">Curve</Link></code> value indicating that the BLS12-381 construction should be used in a given function.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bls12381#0x2_bls12381">bls12381</Link>(): <Link to="groth16#0x2_groth16_Curve">groth16::Curve</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -229,9 +231,11 @@ Return the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bls12381#0x2_bls12381">bls12381</Link>(): <Link to="groth16#0x2_groth16_Curve">Curve</Link> \{ <Link to="groth16#0x2_groth16_Curve">Curve</Link> \{ id: 0 } }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -241,13 +245,14 @@ Return the
 
 ## Function `bn254`
 
-Return the 
-<Link to="groth16#0x2_groth16_Curve">Curve</Link> value indicating that the BN254 construction should be used in a given function.
+Return the <code><Link to="groth16#0x2_groth16_Curve">Curve</Link></code> value indicating that the BN254 construction should be used in a given function.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_bn254">bn254</Link>(): <Link to="groth16#0x2_groth16_Curve">groth16::Curve</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -255,9 +260,11 @@ Return the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_bn254">bn254</Link>(): <Link to="groth16#0x2_groth16_Curve">Curve</Link> \{ <Link to="groth16#0x2_groth16_Curve">Curve</Link> \{ id: 1 } }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -267,13 +274,14 @@ Return the
 
 ## Function `pvk_from_bytes`
 
-Creates a 
-<Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link> from bytes.
+Creates a <code><Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link></code> from bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_pvk_from_bytes">pvk_from_bytes</Link>(vk_gamma_abc_g1_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, alpha_g1_beta_g2_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, gamma_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, delta_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PreparedVerifyingKey">groth16::PreparedVerifyingKey</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -281,7 +289,8 @@ Creates a
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_pvk_from_bytes">pvk_from_bytes</Link>(vk_gamma_abc_g1_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, alpha_g1_beta_g2_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, gamma_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, delta_g2_neg_pc_bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link> \{
     <Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link> \{
         vk_gamma_abc_g1_bytes,
@@ -290,7 +299,8 @@ Creates a
         delta_g2_neg_pc_bytes
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -300,13 +310,14 @@ Creates a
 
 ## Function `pvk_to_bytes`
 
-Returns bytes of the four components of the 
-<Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link>.
+Returns bytes of the four components of the <code><Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_pvk_to_bytes">pvk_to_bytes</Link>(pvk: <Link to="groth16#0x2_groth16_PreparedVerifyingKey">groth16::PreparedVerifyingKey</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -314,7 +325,8 @@ Returns bytes of the four components of the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_pvk_to_bytes">pvk_to_bytes</Link>(pvk: <Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; \{
     <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[
         pvk.vk_gamma_abc_g1_bytes,
@@ -323,7 +335,8 @@ Returns bytes of the four components of the
         pvk.delta_g2_neg_pc_bytes,
     ]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -333,13 +346,14 @@ Returns bytes of the four components of the
 
 ## Function `public_proof_inputs_from_bytes`
 
-Creates a 
-<Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link> wrapper from bytes.
+Creates a <code><Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link></code> wrapper from bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_public_proof_inputs_from_bytes">public_proof_inputs_from_bytes</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PublicProofInputs">groth16::PublicProofInputs</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -347,11 +361,13 @@ Creates a
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_public_proof_inputs_from_bytes">public_proof_inputs_from_bytes</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link> \{
     <Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link> \{ bytes }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -361,13 +377,14 @@ Creates a
 
 ## Function `proof_points_from_bytes`
 
-Creates a Groth16 
-<Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link> from bytes.
+Creates a Groth16 <code><Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link></code> from bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_proof_points_from_bytes">proof_points_from_bytes</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_ProofPoints">groth16::ProofPoints</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -375,11 +392,13 @@ Creates a Groth16
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_proof_points_from_bytes">proof_points_from_bytes</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link> \{
     <Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link> \{ bytes }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -389,20 +408,19 @@ Creates a Groth16
 
 ## Function `prepare_verifying_key`
 
-@param curve: What elliptic curve construction to use. See 
-<Link to="bls12381#0x2_bls12381">bls12381</Link> and 
-bn254.
+@param curve: What elliptic curve construction to use. See <code><Link to="bls12381#0x2_bls12381">bls12381</Link></code> and <code>bn254</code>.
 @param verifying_key: An Arkworks canonical compressed serialization of a verifying key.
 
 Returns four vectors of bytes representing the four components of a prepared verifying key.
 This step computes one pairing e(P, Q), and binds the verification to one particular proof statement.
-This can be used as inputs for the 
-verify_groth16_proof function.
+This can be used as inputs for the <code>verify_groth16_proof</code> function.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_prepare_verifying_key">prepare_verifying_key</Link>(curve: &<Link to="groth16#0x2_groth16_Curve">groth16::Curve</Link>, verifying_key: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PreparedVerifyingKey">groth16::PreparedVerifyingKey</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -410,11 +428,13 @@ verify_groth16_proof function.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_prepare_verifying_key">prepare_verifying_key</Link>(curve: &<Link to="groth16#0x2_groth16_Curve">Curve</Link>, verifying_key: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link> \{
     <Link to="groth16#0x2_groth16_prepare_verifying_key_internal">prepare_verifying_key_internal</Link>(curve.id, verifying_key)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -424,14 +444,14 @@ verify_groth16_proof function.
 
 ## Function `prepare_verifying_key_internal`
 
-Native functions that flattens the inputs into an array and passes to the Rust native function. May abort with 
-<Link to="groth16#0x2_groth16_EInvalidVerifyingKey">EInvalidVerifyingKey</Link> or 
-<Link to="groth16#0x2_groth16_EInvalidCurve">EInvalidCurve</Link>.
+Native functions that flattens the inputs into an array and passes to the Rust native function. May abort with <code><Link to="groth16#0x2_groth16_EInvalidVerifyingKey">EInvalidVerifyingKey</Link></code> or <code><Link to="groth16#0x2_groth16_EInvalidCurve">EInvalidCurve</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="groth16#0x2_groth16_prepare_verifying_key_internal">prepare_verifying_key_internal</Link>(curve: u8, verifying_key: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PreparedVerifyingKey">groth16::PreparedVerifyingKey</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -439,9 +459,11 @@ Native functions that flattens the inputs into an array and passes to the Rust n
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>fun</b> <Link to="groth16#0x2_groth16_prepare_verifying_key_internal">prepare_verifying_key_internal</Link>(curve: u8, verifying_key: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -451,9 +473,7 @@ Native functions that flattens the inputs into an array and passes to the Rust n
 
 ## Function `verify_groth16_proof`
 
-@param curve: What elliptic curve construction to use. See the 
-<Link to="bls12381#0x2_bls12381">bls12381</Link> and 
-bn254 functions.
+@param curve: What elliptic curve construction to use. See the <code><Link to="bls12381#0x2_bls12381">bls12381</Link></code> and <code>bn254</code> functions.
 @param prepared_verifying_key: Consists of four vectors of bytes representing the four components of a prepared verifying key.
 @param public_proof_inputs: Represent inputs that are public.
 @param proof_points: Represent three proof points.
@@ -461,9 +481,11 @@ bn254 functions.
 Returns a boolean indicating whether the proof is valid.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_verify_groth16_proof">verify_groth16_proof</Link>(curve: &<Link to="groth16#0x2_groth16_Curve">groth16::Curve</Link>, prepared_verifying_key: &<Link to="groth16#0x2_groth16_PreparedVerifyingKey">groth16::PreparedVerifyingKey</Link>, public_proof_inputs: &<Link to="groth16#0x2_groth16_PublicProofInputs">groth16::PublicProofInputs</Link>, proof_points: &<Link to="groth16#0x2_groth16_ProofPoints">groth16::ProofPoints</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -471,7 +493,8 @@ Returns a boolean indicating whether the proof is valid.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="groth16#0x2_groth16_verify_groth16_proof">verify_groth16_proof</Link>(curve: &<Link to="groth16#0x2_groth16_Curve">Curve</Link>, prepared_verifying_key: &<Link to="groth16#0x2_groth16_PreparedVerifyingKey">PreparedVerifyingKey</Link>, public_proof_inputs: &<Link to="groth16#0x2_groth16_PublicProofInputs">PublicProofInputs</Link>, proof_points: &<Link to="groth16#0x2_groth16_ProofPoints">ProofPoints</Link>): bool \{
     <Link to="groth16#0x2_groth16_verify_groth16_proof_internal">verify_groth16_proof_internal</Link>(
         curve.id,
@@ -483,7 +506,8 @@ Returns a boolean indicating whether the proof is valid.
         &proof_points.bytes
     )
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -493,14 +517,14 @@ Returns a boolean indicating whether the proof is valid.
 
 ## Function `verify_groth16_proof_internal`
 
-Native functions that flattens the inputs into arrays of vectors and passed to the Rust native function. May abort with 
-<Link to="groth16#0x2_groth16_EInvalidCurve">EInvalidCurve</Link> or 
-<Link to="groth16#0x2_groth16_ETooManyPublicInputs">ETooManyPublicInputs</Link>.
+Native functions that flattens the inputs into arrays of vectors and passed to the Rust native function. May abort with <code><Link to="groth16#0x2_groth16_EInvalidCurve">EInvalidCurve</Link></code> or <code><Link to="groth16#0x2_groth16_ETooManyPublicInputs">ETooManyPublicInputs</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="groth16#0x2_groth16_verify_groth16_proof_internal">verify_groth16_proof_internal</Link>(curve: u8, vk_gamma_abc_g1_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, alpha_g1_beta_g2_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, gamma_g2_neg_pc_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, delta_g2_neg_pc_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, public_proof_inputs: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, proof_points: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -508,9 +532,11 @@ Native functions that flattens the inputs into arrays of vectors and passed to t
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>fun</b> <Link to="groth16#0x2_groth16_verify_groth16_proof_internal">verify_groth16_proof_internal</Link>(curve: u8, vk_gamma_abc_g1_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, alpha_g1_beta_g2_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, gamma_g2_neg_pc_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, delta_g2_neg_pc_bytes: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, public_proof_inputs: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, proof_points: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool;
-</code></pre>
+</code>
+</pre>
 
 
 

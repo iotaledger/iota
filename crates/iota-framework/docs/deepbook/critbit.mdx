@@ -34,11 +34,13 @@ import Link from '@docusaurus/Link';
 -  [Function `is_left_child`](#0xdee9_critbit_is_left_child)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="math#0xdee9_math">0xdee9::math</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -48,9 +50,11 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="critbit#0xdee9_critbit_Leaf">Leaf</Link>&lt;V&gt; <b>has</b> drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -60,22 +64,19 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-
-key: u64
+<code>key: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-value: V
+<code>value: V</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-parent: u64
+<code>parent: u64</code>
 </dt>
 <dd>
 
@@ -91,9 +92,11 @@ parent: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="critbit#0xdee9_critbit_InternalNode">InternalNode</Link> <b>has</b> drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -103,29 +106,25 @@ parent: u64
 
 <dl>
 <dt>
-
-mask: u64
+<code>mask: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-left_child: u64
+<code>left_child: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-right_child: u64
+<code>right_child: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-parent: u64
+<code>parent: u64</code>
 </dt>
 <dd>
 
@@ -141,9 +140,11 @@ parent: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V: store&gt; <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -153,50 +154,43 @@ parent: u64
 
 <dl>
 <dt>
-
-root: u64
+<code>root: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-internal_nodes: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="critbit#0xdee9_critbit_InternalNode">critbit::InternalNode</Link>&gt;
+<code>internal_nodes: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="critbit#0xdee9_critbit_InternalNode">critbit::InternalNode</Link>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-leaves: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="critbit#0xdee9_critbit_Leaf">critbit::Leaf</Link>&lt;V&gt;&gt;
+<code>leaves: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="critbit#0xdee9_critbit_Leaf">critbit::Leaf</Link>&lt;V&gt;&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-min_leaf: u64
+<code>min_leaf: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-max_leaf: u64
+<code>max_leaf: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-next_internal_node_index: u64
+<code>next_internal_node_index: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-next_leaf_index: u64
+<code>next_leaf_index: u64</code>
 </dt>
 <dd>
 
@@ -215,9 +209,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_EExceedCapacity">EExceedCapacity</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -225,9 +221,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_EIndexOutOfRange">EIndexOutOfRange</Link>: u64 = 7;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -235,9 +233,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_EKeyAlreadyExist">EKeyAlreadyExist</Link>: u64 = 4;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -245,9 +245,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_ELeafNotExist">ELeafNotExist</Link>: u64 = 5;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -255,9 +257,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_ENullParent">ENullParent</Link>: u64 = 8;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -265,9 +269,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_ETreeNotEmpty">ETreeNotEmpty</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -275,9 +281,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_MAX_CAPACITY">MAX_CAPACITY</Link>: u64 = 9223372036854775807;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -285,9 +293,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_MAX_U64">MAX_U64</Link>: u64 = 18446744073709551615;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -295,9 +305,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>: u64 = 9223372036854775808;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -307,9 +319,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_new">new</Link>&lt;V: store&gt;(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -317,7 +331,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_new">new</Link>&lt;V: store&gt;(ctx: &<b>mut</b> TxContext): <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt; \{
     <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt; \{
         root: <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>,
@@ -329,7 +344,8 @@ next_leaf_index: u64
         next_leaf_index: 0
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -341,9 +357,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_size">size</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -351,11 +369,13 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_size">size</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;): u64 \{
     <Link to="../iota-framework/table#0x2_table_length">table::length</Link>(&tree.leaves)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -367,9 +387,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_is_empty">is_empty</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -377,11 +399,13 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_is_empty">is_empty</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;): bool \{
     <Link to="../iota-framework/table#0x2_table_is_empty">table::is_empty</Link>(&tree.leaves)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -393,9 +417,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_min_leaf">min_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;): (u64, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -403,13 +429,15 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_min_leaf">min_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;): (u64, u64) \{
     <b>assert</b>!(!<Link to="critbit#0xdee9_critbit_is_empty">is_empty</Link>(tree), <Link to="critbit#0xdee9_critbit_ELeafNotExist">ELeafNotExist</Link>);
     <b>let</b> min_leaf = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.leaves, tree.min_leaf);
     <b>return</b> (min_leaf.key, tree.min_leaf)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -421,9 +449,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_max_leaf">max_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;): (u64, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -431,13 +461,15 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_max_leaf">max_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;): (u64, u64) \{
     <b>assert</b>!(!<Link to="critbit#0xdee9_critbit_is_empty">is_empty</Link>(tree), <Link to="critbit#0xdee9_critbit_ELeafNotExist">ELeafNotExist</Link>);
     <b>let</b> max_leaf = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.leaves, tree.max_leaf);
     <b>return</b> (max_leaf.key, tree.max_leaf)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -449,9 +481,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_previous_leaf">previous_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64): (u64, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -459,7 +493,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_previous_leaf">previous_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64): (u64, u64) \{
     <b>let</b> (_, <b>mut</b> index) = <Link to="critbit#0xdee9_critbit_find_leaf">find_leaf</Link>(tree, key);
     <b>assert</b>!(index != <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>, <Link to="critbit#0xdee9_critbit_ELeafNotExist">ELeafNotExist</Link>);
@@ -476,7 +511,8 @@ next_leaf_index: u64
     <b>let</b> key = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.leaves, index).key;
     <b>return</b> (key, index)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -488,9 +524,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_next_leaf">next_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64): (u64, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -498,7 +536,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_next_leaf">next_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64): (u64, u64) \{
     <b>let</b> (_, <b>mut</b> index) = <Link to="critbit#0xdee9_critbit_find_leaf">find_leaf</Link>(tree, key);
     <b>assert</b>!(index != <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>, <Link to="critbit#0xdee9_critbit_ELeafNotExist">ELeafNotExist</Link>);
@@ -515,7 +554,8 @@ next_leaf_index: u64
     <b>let</b> key = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.leaves, index).key;
     <b>return</b> (key, index)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -527,9 +567,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_left_most_leaf">left_most_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, root: u64): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -537,7 +579,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_left_most_leaf">left_most_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, root: u64): u64 \{
     <b>let</b> <b>mut</b> ptr = root;
     <b>while</b> (ptr &lt; <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>)\{
@@ -545,7 +588,8 @@ next_leaf_index: u64
     };
     ptr
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -557,9 +601,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_right_most_leaf">right_most_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, root: u64): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -567,7 +613,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_right_most_leaf">right_most_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, root: u64): u64 \{
     <b>let</b> <b>mut</b> ptr = root;
     <b>while</b> (ptr &lt; <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>)\{
@@ -575,7 +622,8 @@ next_leaf_index: u64
     };
     ptr
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -587,9 +635,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_insert_leaf">insert_leaf</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64, value: V): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -597,7 +647,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_insert_leaf">insert_leaf</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64, value: V): u64 \{
     <b>let</b> new_leaf = <Link to="critbit#0xdee9_critbit_Leaf">Leaf</Link>&lt;V&gt;\{
         key,
@@ -677,7 +728,8 @@ next_leaf_index: u64
     };
     new_leaf_index
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -689,9 +741,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_find_leaf">find_leaf</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64): (bool, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -699,7 +753,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_find_leaf">find_leaf</Link>&lt;V: store&gt;(tree: & <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64): (bool, u64) \{
     <b>if</b> (<Link to="critbit#0xdee9_critbit_is_empty">is_empty</Link>(tree)) \{
         <b>return</b> (<b>false</b>, <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>)
@@ -712,7 +767,8 @@ next_leaf_index: u64
         <b>return</b> (<b>true</b>, closest_leaf_index)
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -724,9 +780,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_find_closest_key">find_closest_key</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -734,7 +792,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_find_closest_key">find_closest_key</Link>&lt;V: store&gt;(tree: & <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64): u64 \{
     <b>if</b> (<Link to="critbit#0xdee9_critbit_is_empty">is_empty</Link>(tree)) \{
         <b>return</b> 0
@@ -743,7 +802,8 @@ next_leaf_index: u64
     <b>let</b> closeset_leaf = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.leaves, closest_leaf_index);
     closeset_leaf.key
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -755,9 +815,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_remove_leaf_by_index">remove_leaf_by_index</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, index: u64): V
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -765,7 +827,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_remove_leaf_by_index">remove_leaf_by_index</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, index: u64): V \{
     <b>let</b> key = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(& tree.leaves, index).key;
     <b>if</b> (tree.min_leaf == index) \{
@@ -817,7 +880,8 @@ next_leaf_index: u64
     };
     value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -829,9 +893,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_borrow_mut_leaf_by_index">borrow_mut_leaf_by_index</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, index: u64): &<b>mut</b> V
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -839,12 +905,14 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_borrow_mut_leaf_by_index">borrow_mut_leaf_by_index</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, index: u64): &<b>mut</b> V \{
     <b>let</b> entry = <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> tree.leaves, index);
     &<b>mut</b> entry.value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -856,9 +924,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_borrow_leaf_by_index">borrow_leaf_by_index</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, index: u64): &V
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -866,12 +936,14 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_borrow_leaf_by_index">borrow_leaf_by_index</Link>&lt;V: store&gt;(tree: & <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, index: u64): &V \{
     <b>let</b> entry = <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.leaves, index);
     &entry.value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -883,9 +955,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_borrow_leaf_by_key">borrow_leaf_by_key</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64): &V
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -893,13 +967,15 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="critbit#0xdee9_critbit_borrow_leaf_by_key">borrow_leaf_by_key</Link>&lt;V: store&gt;(tree: & <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64): &V \{
     <b>let</b> (is_exist, index) = <Link to="critbit#0xdee9_critbit_find_leaf">find_leaf</Link>(tree, key);
     <b>assert</b>!(is_exist, <Link to="critbit#0xdee9_critbit_ELeafNotExist">ELeafNotExist</Link>);
     <Link to="critbit#0xdee9_critbit_borrow_leaf_by_index">borrow_leaf_by_index</Link>(tree, index)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -911,9 +987,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_drop">drop</Link>&lt;V: drop, store&gt;(tree: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -921,7 +999,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_drop">drop</Link>&lt;V: store + drop&gt;(tree: <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;) \{
     <b>let</b> <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt; \{
         root: _,
@@ -936,7 +1015,8 @@ next_leaf_index: u64
     <Link to="../iota-framework/table#0x2_table_drop">table::drop</Link>(internal_nodes);
     <Link to="../iota-framework/table#0x2_table_drop">table::drop</Link>(leaves);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -948,9 +1028,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="critbit#0xdee9_critbit_destroy_empty">destroy_empty</Link>&lt;V: store&gt;(tree: <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -958,7 +1040,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="critbit#0xdee9_critbit_destroy_empty">destroy_empty</Link>&lt;V: store&gt;(tree: <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;) \{
     <b>assert</b>!(<Link to="../iota-framework/table#0x2_table_length">table::length</Link>(&tree.leaves) == 0, 0);
 
@@ -975,7 +1058,8 @@ next_leaf_index: u64
     <Link to="../iota-framework/table#0x2_table_destroy_empty">table::destroy_empty</Link>(leaves);
     <Link to="../iota-framework/table#0x2_table_destroy_empty">table::destroy_empty</Link>(internal_nodes);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -987,9 +1071,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_get_closest_leaf_index_by_key">get_closest_leaf_index_by_key</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, key: u64): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -997,7 +1083,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_get_closest_leaf_index_by_key">get_closest_leaf_index_by_key</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, key: u64): u64 \{
     <b>let</b> <b>mut</b> ptr = tree.root;
     // <b>if</b> tree is empty, <b>return</b> the patrition index
@@ -1012,7 +1099,8 @@ next_leaf_index: u64
     };
     <b>return</b> (<Link to="critbit#0xdee9_critbit_MAX_U64">MAX_U64</Link> - ptr)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1024,9 +1112,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_update_child">update_child</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, parent_index: u64, new_child: u64, is_left_child: bool)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1034,7 +1124,8 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_update_child">update_child</Link>&lt;V: store&gt;(tree: &<b>mut</b> <Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, parent_index: u64, new_child: u64, is_left_child: bool) \{
     <b>assert</b>!(parent_index != <Link to="critbit#0xdee9_critbit_PARTITION_INDEX">PARTITION_INDEX</Link>, <Link to="critbit#0xdee9_critbit_ENullParent">ENullParent</Link>);
     <b>if</b> (is_left_child) \{
@@ -1048,7 +1139,8 @@ next_leaf_index: u64
         <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> tree.internal_nodes, new_child).parent = parent_index;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1060,9 +1152,11 @@ next_leaf_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_is_left_child">is_left_child</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;V&gt;, parent_index: u64, index: u64): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1070,11 +1164,13 @@ next_leaf_index: u64
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="critbit#0xdee9_critbit_is_left_child">is_left_child</Link>&lt;V: store&gt;(tree: &<Link to="critbit#0xdee9_critbit_CritbitTree">CritbitTree</Link>&lt;V&gt;, parent_index: u64, index: u64): bool \{
     <Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&tree.internal_nodes, parent_index).left_child == index
 }
-</code></pre>
+</code>
+</pre>
 
 
 

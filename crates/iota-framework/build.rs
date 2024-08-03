@@ -277,7 +277,6 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
     let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
-    let none_pre_code_regex = regex::Regex::new(r"([^>])<code>([\s\S]*?)</code>").unwrap();
     let iota_system_regex = regex::Regex::new(r"((?:\.\.\/|\.\/)+)(iota_system)(\.md)").unwrap();
 
     for (file_name, file_content) in files {
@@ -302,10 +301,15 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
         // need to make sure that `to` path don't contain extensions in a later step.
         let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
-        // Escape `{` in <code> and add new lines as this is a requirement from mdx
+        // Escape `{` in multi-line <code> and add new lines as this is a requirement
+        // from mdx
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
+            let match_content = caps.get(0).unwrap().as_str();
             let code_content = caps.get(1).unwrap().as_str();
-            format!("<code>\n{}</code>", code_content.replace('{', "\\{"))
+            if match_content.lines().count() == 1 {
+                return match_content.to_string();
+            }
+            format!("\n<code>\n{}</code>\n", code_content.replace('{', "\\{"))
         });
 
         // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as
@@ -326,9 +330,6 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
             .replace("dependencies/", "../")
             // Here we remove the extension from `to` property in Link tags
             .replace(".md", "");
-
-        // Remove <code> tags that are not in between <pre> tags
-        let content = none_pre_code_regex.replace_all(&content, r#"$1$2"#);
 
         // Store all files in a map to deduplicate and change extension to mdx
         output.entry(format!("{}x", file_name)).or_insert_with(|| {

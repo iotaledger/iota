@@ -30,10 +30,12 @@ import Link from '@docusaurus/Link';
 -  [Function `remove_entry_by_idx`](#0x2_vec_map_remove_entry_by_idx)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -49,9 +51,11 @@ Large maps should use handwritten parent/child relationships instead.
 Maps that need sorted iteration rather than insertion order iteration should also be handwritten.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K: <b>copy</b>, V&gt; <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -61,8 +65,7 @@ Maps that need sorted iteration rather than insertion order iteration should als
 
 <dl>
 <dt>
-
-contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../iota-framework/vec_map#0x2_vec_map_Entry">vec_map::Entry</Link>&lt;K, V&gt;&gt;
+<code>contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../iota-framework/vec_map#0x2_vec_map_Entry">vec_map::Entry</Link>&lt;K, V&gt;&gt;</code>
 </dt>
 <dd>
 
@@ -79,9 +82,11 @@ contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to=
 An entry in the map
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/vec_map#0x2_vec_map_Entry">Entry</Link>&lt;K: <b>copy</b>, V&gt; <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -91,15 +96,13 @@ An entry in the map
 
 <dl>
 <dt>
-
-key: K
+<code>key: K</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-value: V
+<code>value: V</code>
 </dt>
 <dd>
 
@@ -119,9 +122,11 @@ value: V
 This key already exists in the map
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_map#0x2_vec_map_EKeyAlreadyExists">EKeyAlreadyExists</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -130,9 +135,11 @@ This key already exists in the map
 This key does not exist in the map
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_map#0x2_vec_map_EKeyDoesNotExist">EKeyDoesNotExist</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -141,9 +148,11 @@ This key does not exist in the map
 Trying to access an element of the map at an invalid index
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_map#0x2_vec_map_EIndexOutOfBounds">EIndexOutOfBounds</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -152,9 +161,11 @@ Trying to access an element of the map at an invalid index
 Trying to pop from a map that is empty
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_map#0x2_vec_map_EMapEmpty">EMapEmpty</Link>: u64 = 4;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -163,9 +174,11 @@ Trying to pop from a map that is empty
 Trying to destroy a map that is not empty
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_map#0x2_vec_map_EMapNotEmpty">EMapNotEmpty</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -173,13 +186,14 @@ Trying to destroy a map that is not empty
 
 ## Function `empty`
 
-Create an empty 
-<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>
+Create an empty <code><Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link></code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_empty">empty</Link>&lt;K: <b>copy</b>, V&gt;(): <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -187,11 +201,13 @@ Create an empty
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_empty">empty</Link>&lt;K: <b>copy</b>, V&gt;(): <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt; \{
     <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link> \{ contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[] }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -201,18 +217,15 @@ Create an empty
 
 ## Function `insert`
 
-Insert the entry 
-key |-> 
-value into 
-self.
-Aborts if 
-key is already bound in 
-self.
+Insert the entry <code>key</code> |-> <code>value</code> into <code>self</code>.
+Aborts if <code>key</code> is already bound in <code>self</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_insert">insert</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: K, value: V)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -220,12 +233,14 @@ self.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_insert">insert</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: K, value: V) \{
     <b>assert</b>!(!self.<Link to="../iota-framework/vec_map#0x2_vec_map_contains">contains</Link>(&key), <Link to="../iota-framework/vec_map#0x2_vec_map_EKeyAlreadyExists">EKeyAlreadyExists</Link>);
     self.contents.push_back(<Link to="../iota-framework/vec_map#0x2_vec_map_Entry">Entry</Link> \{ key, value })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -235,16 +250,14 @@ self.
 
 ## Function `remove`
 
-Remove the entry 
-key |-> 
-value from self. Aborts if 
-key is not bound in 
-self.
+Remove the entry <code>key</code> |-> <code>value</code> from self. Aborts if <code>key</code> is not bound in <code>self</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_remove">remove</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): (K, V)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -252,13 +265,15 @@ self.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_remove">remove</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: &K): (K, V) \{
     <b>let</b> idx = self.<Link to="../iota-framework/vec_map#0x2_vec_map_get_idx">get_idx</Link>(key);
     <b>let</b> <Link to="../iota-framework/vec_map#0x2_vec_map_Entry">Entry</Link> \{ key, value } = self.contents.<Link to="../iota-framework/vec_map#0x2_vec_map_remove">remove</Link>(idx);
     (key, value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -271,9 +286,11 @@ self.
 Pop the most recently inserted entry from the map. Aborts if the map is empty.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_pop">pop</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;): (K, V)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -281,13 +298,15 @@ Pop the most recently inserted entry from the map. Aborts if the map is empty.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_pop">pop</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;): (K, V) \{
     <b>assert</b>!(!self.contents.<Link to="../iota-framework/vec_map#0x2_vec_map_is_empty">is_empty</Link>(), <Link to="../iota-framework/vec_map#0x2_vec_map_EMapEmpty">EMapEmpty</Link>);
     <b>let</b> <Link to="../iota-framework/vec_map#0x2_vec_map_Entry">Entry</Link> \{ key, value } = self.contents.pop_back();
     (key, value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -297,17 +316,15 @@ Pop the most recently inserted entry from the map. Aborts if the map is empty.
 
 ## Function `get_mut`
 
-Get a mutable reference to the value bound to 
-key in 
-self.
-Aborts if 
-key is not bound in 
-self.
+Get a mutable reference to the value bound to <code>key</code> in <code>self</code>.
+Aborts if <code>key</code> is not bound in <code>self</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_mut">get_mut</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): &<b>mut</b> V
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -315,13 +332,15 @@ self.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_mut">get_mut</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: &K): &<b>mut</b> V \{
     <b>let</b> idx = self.<Link to="../iota-framework/vec_map#0x2_vec_map_get_idx">get_idx</Link>(key);
     <b>let</b> entry = &<b>mut</b> self.contents[idx];
     &<b>mut</b> entry.value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -331,17 +350,15 @@ self.
 
 ## Function `get`
 
-Get a reference to the value bound to 
-key in 
-self.
-Aborts if 
-key is not bound in 
-self.
+Get a reference to the value bound to <code>key</code> in <code>self</code>.
+Aborts if <code>key</code> is not bound in <code>self</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get">get</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): &V
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -349,13 +366,15 @@ self.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get">get</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: &K): &V \{
     <b>let</b> idx = self.<Link to="../iota-framework/vec_map#0x2_vec_map_get_idx">get_idx</Link>(key);
     <b>let</b> entry = &self.contents[idx];
     &entry.value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -365,17 +384,16 @@ self.
 
 ## Function `try_get`
 
-Safely try borrow a value bound to 
-key in 
-self.
+Safely try borrow a value bound to <code>key</code> in <code>self</code>.
 Return Some(V) if the value exists, None otherwise.
-Only works for a "copyable" value as references cannot be stored in 
-<Link to="../move-stdlib/vector#0x1_vector">vector</Link>.
+Only works for a "copyable" value as references cannot be stored in <code><Link to="../move-stdlib/vector#0x1_vector">vector</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_try_get">try_get</Link>&lt;K: <b>copy</b>, V: <b>copy</b>&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;V&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -383,7 +401,8 @@ Only works for a "copyable" value as references cannot be stored in
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_try_get">try_get</Link>&lt;K: <b>copy</b>, V: <b>copy</b>&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: &K): Option&lt;V&gt; \{
     <b>if</b> (self.<Link to="../iota-framework/vec_map#0x2_vec_map_contains">contains</Link>(key)) \{
         <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(*<Link to="../iota-framework/vec_map#0x2_vec_map_get">get</Link>(self, key))
@@ -391,7 +410,8 @@ Only works for a "copyable" value as references cannot be stored in
         <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -401,14 +421,14 @@ Only works for a "copyable" value as references cannot be stored in
 
 ## Function `contains`
 
-Return true if 
-self contains an entry for 
-key, false otherwise
+Return true if <code>self</code> contains an entry for <code>key</code>, false otherwise
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_contains">contains</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -416,11 +436,13 @@ key, false otherwise
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_contains">contains</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;, key: &K): bool \{
     <Link to="../iota-framework/vec_map#0x2_vec_map_get_idx_opt">get_idx_opt</Link>(self, key).is_some()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -430,13 +452,14 @@ key, false otherwise
 
 ## Function `size`
 
-Return the number of entries in 
-self
+Return the number of entries in <code>self</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -444,11 +467,13 @@ self
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;): u64 \{
     self.contents.length()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -458,13 +483,14 @@ self
 
 ## Function `is_empty`
 
-Return true if 
-self has 0 elements, false otherwise
+Return true if <code>self</code> has 0 elements, false otherwise
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_is_empty">is_empty</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -472,11 +498,13 @@ self has 0 elements, false otherwise
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_is_empty">is_empty</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;): bool \{
     self.<Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>() == 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -486,13 +514,14 @@ self has 0 elements, false otherwise
 
 ## Function `destroy_empty`
 
-Destroy an empty map. Aborts if 
-self is not empty
+Destroy an empty map. Aborts if <code>self</code> is not empty
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b>, V&gt;(self: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -500,13 +529,15 @@ self is not empty
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_destroy_empty">destroy_empty</Link>&lt;K: <b>copy</b>, V&gt;(self: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;) \{
     <b>let</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link> \{ contents } = self;
     <b>assert</b>!(contents.<Link to="../iota-framework/vec_map#0x2_vec_map_is_empty">is_empty</Link>(), <Link to="../iota-framework/vec_map#0x2_vec_map_EMapNotEmpty">EMapNotEmpty</Link>);
     contents.<Link to="../iota-framework/vec_map#0x2_vec_map_destroy_empty">destroy_empty</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -516,14 +547,15 @@ self is not empty
 
 ## Function `into_keys_values`
 
-Unpack 
-self into vectors of its keys and values.
+Unpack <code>self</code> into vectors of its keys and values.
 The output keys and values are stored in insertion order, *not* sorted by key.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_into_keys_values">into_keys_values</Link>&lt;K: <b>copy</b>, V&gt;(self: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;V&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -531,7 +563,8 @@ The output keys and values are stored in insertion order, *not* sorted by key.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_into_keys_values">into_keys_values</Link>&lt;K: <b>copy</b>, V&gt;(self: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;V&gt;) \{
     <b>let</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link> \{ <b>mut</b> contents } = self;
     // reverse the <Link to="../move-stdlib/vector#0x1_vector">vector</Link> so the output keys and values will appear in insertion order
@@ -549,7 +582,8 @@ The output keys and values are stored in insertion order, *not* sorted by key.
     contents.<Link to="../iota-framework/vec_map#0x2_vec_map_destroy_empty">destroy_empty</Link>();
     (keys, values)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -563,9 +597,11 @@ Returns a list of keys in the map.
 Do not assume any particular ordering.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_keys">keys</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -573,7 +609,8 @@ Do not assume any particular ordering.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_keys">keys</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt; \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> n = self.contents.length();
@@ -585,7 +622,8 @@ Do not assume any particular ordering.
     };
     keys
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -595,18 +633,15 @@ Do not assume any particular ordering.
 
 ## Function `get_idx_opt`
 
-Find the index of 
-key in 
-self. Return 
-None if 
-key is not in 
-self.
+Find the index of <code>key</code> in <code>self</code>. Return <code>None</code> if <code>key</code> is not in <code>self</code>.
 Note that map entries are stored in insertion order, *not* sorted by key.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_idx_opt">get_idx_opt</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -614,7 +649,8 @@ Note that map entries are stored in insertion order, *not* sorted by key.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_idx_opt">get_idx_opt</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: &K): Option&lt;u64&gt; \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> n = <Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self);
@@ -626,7 +662,8 @@ Note that map entries are stored in insertion order, *not* sorted by key.
     };
     <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -636,17 +673,15 @@ Note that map entries are stored in insertion order, *not* sorted by key.
 
 ## Function `get_idx`
 
-Find the index of 
-key in 
-self. Aborts if 
-key is not in 
-self.
+Find the index of <code>key</code> in <code>self</code>. Aborts if <code>key</code> is not in <code>self</code>.
 Note that map entries are stored in insertion order, *not* sorted by key.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_idx">get_idx</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, key: &K): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -654,13 +689,15 @@ Note that map entries are stored in insertion order, *not* sorted by key.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_idx">get_idx</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K,V&gt;, key: &K): u64 \{
     <b>let</b> idx_opt = self.<Link to="../iota-framework/vec_map#0x2_vec_map_get_idx_opt">get_idx_opt</Link>(key);
     <b>assert</b>!(idx_opt.is_some(), <Link to="../iota-framework/vec_map#0x2_vec_map_EKeyDoesNotExist">EKeyDoesNotExist</Link>);
     idx_opt.destroy_some()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -670,18 +707,16 @@ Note that map entries are stored in insertion order, *not* sorted by key.
 
 ## Function `get_entry_by_idx`
 
-Return a reference to the 
-idxth entry of 
-self. This gives direct access into the backing array of the map--use with caution.
+Return a reference to the <code>idx</code>th entry of <code>self</code>. This gives direct access into the backing array of the map--use with caution.
 Note that map entries are stored in insertion order, *not* sorted by key.
-Aborts if 
-idx is greater than or equal to 
-<Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self)
+Aborts if <code>idx</code> is greater than or equal to <code><Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self)</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_entry_by_idx">get_entry_by_idx</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, idx: u64): (&K, &V)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -689,13 +724,15 @@ idx is greater than or equal to
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_entry_by_idx">get_entry_by_idx</Link>&lt;K: <b>copy</b>, V&gt;(self: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;, idx: u64): (&K, &V) \{
     <b>assert</b>!(idx &lt; <Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self), <Link to="../iota-framework/vec_map#0x2_vec_map_EIndexOutOfBounds">EIndexOutOfBounds</Link>);
     <b>let</b> entry = &self.contents[idx];
     (&entry.key, &entry.value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -705,18 +742,16 @@ idx is greater than or equal to
 
 ## Function `get_entry_by_idx_mut`
 
-Return a mutable reference to the 
-idxth entry of 
-self. This gives direct access into the backing array of the map--use with caution.
+Return a mutable reference to the <code>idx</code>th entry of <code>self</code>. This gives direct access into the backing array of the map--use with caution.
 Note that map entries are stored in insertion order, *not* sorted by key.
-Aborts if 
-idx is greater than or equal to 
-<Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self)
+Aborts if <code>idx</code> is greater than or equal to <code><Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self)</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_entry_by_idx_mut">get_entry_by_idx_mut</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, idx: u64): (&K, &<b>mut</b> V)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -724,13 +759,15 @@ idx is greater than or equal to
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_get_entry_by_idx_mut">get_entry_by_idx_mut</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;, idx: u64): (&K, &<b>mut</b> V) \{
     <b>assert</b>!(idx &lt; <Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self), <Link to="../iota-framework/vec_map#0x2_vec_map_EIndexOutOfBounds">EIndexOutOfBounds</Link>);
     <b>let</b> entry = &<b>mut</b> self.contents[idx];
     (&entry.key, &<b>mut</b> entry.value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -740,16 +777,15 @@ idx is greater than or equal to
 
 ## Function `remove_entry_by_idx`
 
-Remove the entry at index 
-idx from self.
-Aborts if 
-idx is greater than or equal to 
-<Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self)
+Remove the entry at index <code>idx</code> from self.
+Aborts if <code>idx</code> is greater than or equal to <code><Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self)</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_remove_entry_by_idx">remove_entry_by_idx</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;K, V&gt;, idx: u64): (K, V)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -757,13 +793,15 @@ idx is greater than or equal to
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_map#0x2_vec_map_remove_entry_by_idx">remove_entry_by_idx</Link>&lt;K: <b>copy</b>, V&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">VecMap</Link>&lt;K, V&gt;, idx: u64): (K, V) \{
     <b>assert</b>!(idx &lt; <Link to="../iota-framework/vec_map#0x2_vec_map_size">size</Link>(self), <Link to="../iota-framework/vec_map#0x2_vec_map_EIndexOutOfBounds">EIndexOutOfBounds</Link>);
     <b>let</b> <Link to="../iota-framework/vec_map#0x2_vec_map_Entry">Entry</Link> \{ key, value } = self.contents.<Link to="../iota-framework/vec_map#0x2_vec_map_remove">remove</Link>(idx);
     (key, value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

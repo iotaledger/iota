@@ -22,10 +22,12 @@ import Link from '@docusaurus/Link';
 -  [Function `get_idx`](#0x2_vec_set_get_idx)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -40,9 +42,11 @@ of programming against a set API. Sets that need sorted iteration rather
 than insertion order iteration should be handwritten.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K: <b>copy</b>, drop&gt; <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -52,8 +56,7 @@ than insertion order iteration should be handwritten.
 
 <dl>
 <dt>
-
-contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;
+<code>contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;</code>
 </dt>
 <dd>
 
@@ -73,9 +76,11 @@ contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;
 This key already exists in the map
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_set#0x2_vec_set_EKeyAlreadyExists">EKeyAlreadyExists</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -84,9 +89,11 @@ This key already exists in the map
 This key does not exist in the map
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/vec_set#0x2_vec_set_EKeyDoesNotExist">EKeyDoesNotExist</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -94,13 +101,14 @@ This key does not exist in the map
 
 ## Function `empty`
 
-Create an empty 
-<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>
+Create an empty <code><Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link></code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_empty">empty</Link>&lt;K: <b>copy</b>, drop&gt;(): <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -108,11 +116,13 @@ Create an empty
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_empty">empty</Link>&lt;K: <b>copy</b> + drop&gt;(): <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt; \{
     <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> \{ contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[] }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -122,13 +132,14 @@ Create an empty
 
 ## Function `singleton`
 
-Create a singleton 
-<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> that only contains one element.
+Create a singleton <code><Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link></code> that only contains one element.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_singleton">singleton</Link>&lt;K: <b>copy</b>, drop&gt;(key: K): <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -136,11 +147,13 @@ Create a singleton
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_singleton">singleton</Link>&lt;K: <b>copy</b> + drop&gt;(key: K): <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt; \{
     <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> \{ contents: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[key] }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -150,16 +163,15 @@ Create a singleton
 
 ## Function `insert`
 
-Insert a 
-key into self.
-Aborts if 
-key is already present in 
-self.
+Insert a <code>key</code> into self.
+Aborts if <code>key</code> is already present in <code>self</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_insert">insert</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;, key: K)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -167,12 +179,14 @@ self.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_insert">insert</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;, key: K) \{
     <b>assert</b>!(!self.<Link to="../iota-framework/vec_set#0x2_vec_set_contains">contains</Link>(&key), <Link to="../iota-framework/vec_set#0x2_vec_set_EKeyAlreadyExists">EKeyAlreadyExists</Link>);
     self.contents.push_back(key)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -182,15 +196,14 @@ self.
 
 ## Function `remove`
 
-Remove the entry 
-key from self. Aborts if 
-key is not present in 
-self.
+Remove the entry <code>key</code> from self. Aborts if <code>key</code> is not present in <code>self</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_remove">remove</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;, key: &K)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -198,12 +211,14 @@ self.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_remove">remove</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<b>mut</b> <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;, key: &K) \{
     <b>let</b> idx = <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx">get_idx</Link>(self, key);
     self.contents.<Link to="../iota-framework/vec_set#0x2_vec_set_remove">remove</Link>(idx);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -213,14 +228,14 @@ self.
 
 ## Function `contains`
 
-Return true if 
-self contains an entry for 
-key, false otherwise
+Return true if <code>self</code> contains an entry for <code>key</code>, false otherwise
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_contains">contains</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;, key: &K): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -228,11 +243,13 @@ key, false otherwise
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_contains">contains</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;, key: &K): bool \{
     <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx_opt">get_idx_opt</Link>(self, key).is_some()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -242,13 +259,14 @@ key, false otherwise
 
 ## Function `size`
 
-Return the number of entries in 
-self
+Return the number of entries in <code>self</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_size">size</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -256,11 +274,13 @@ self
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_size">size</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;): u64 \{
     self.contents.length()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -270,13 +290,14 @@ self
 
 ## Function `is_empty`
 
-Return true if 
-self has 0 elements, false otherwise
+Return true if <code>self</code> has 0 elements, false otherwise
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_is_empty">is_empty</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -284,11 +305,13 @@ self has 0 elements, false otherwise
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_is_empty">is_empty</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;): bool \{
     <Link to="../iota-framework/vec_set#0x2_vec_set_size">size</Link>(self) == 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -298,14 +321,15 @@ self has 0 elements, false otherwise
 
 ## Function `into_keys`
 
-Unpack 
-self into vectors of keys.
+Unpack <code>self</code> into vectors of keys.
 The output keys are stored in insertion order, *not* sorted.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_into_keys">into_keys</Link>&lt;K: <b>copy</b>, drop&gt;(self: <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -313,12 +337,14 @@ The output keys are stored in insertion order, *not* sorted.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_into_keys">into_keys</Link>&lt;K: <b>copy</b> + drop&gt;(self: <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt; \{
     <b>let</b> <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> \{ contents } = self;
     contents
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -328,16 +354,16 @@ The output keys are stored in insertion order, *not* sorted.
 
 ## Function `keys`
 
-Borrow the 
-contents of the 
-<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link> to access content by index
+Borrow the <code>contents</code> of the <code><Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link></code> to access content by index
 without unpacking. The contents are stored in insertion order,
 *not* sorted.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_keys">keys</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -345,11 +371,13 @@ without unpacking. The contents are stored in insertion order,
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_keys">keys</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;K&gt; \{
     &self.contents
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -359,18 +387,15 @@ without unpacking. The contents are stored in insertion order,
 
 ## Function `get_idx_opt`
 
-Find the index of 
-key in 
-self. Return 
-None if 
-key is not in 
-self.
+Find the index of <code>key</code> in <code>self</code>. Return <code>None</code> if <code>key</code> is not in <code>self</code>.
 Note that keys are stored in insertion order, *not* sorted.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx_opt">get_idx_opt</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;, key: &K): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -378,7 +403,8 @@ Note that keys are stored in insertion order, *not* sorted.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx_opt">get_idx_opt</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;, key: &K): Option&lt;u64&gt; \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> n = <Link to="../iota-framework/vec_set#0x2_vec_set_size">size</Link>(self);
@@ -390,7 +416,8 @@ Note that keys are stored in insertion order, *not* sorted.
     };
     <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -400,17 +427,15 @@ Note that keys are stored in insertion order, *not* sorted.
 
 ## Function `get_idx`
 
-Find the index of 
-key in 
-self. Aborts if 
-key is not in 
-self.
+Find the index of <code>key</code> in <code>self</code>. Aborts if <code>key</code> is not in <code>self</code>.
 Note that map entries are stored in insertion order, *not* sorted.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx">get_idx</Link>&lt;K: <b>copy</b>, drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;K&gt;, key: &K): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -418,13 +443,15 @@ Note that map entries are stored in insertion order, *not* sorted.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx">get_idx</Link>&lt;K: <b>copy</b> + drop&gt;(self: &<Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">VecSet</Link>&lt;K&gt;, key: &K): u64 \{
     <b>let</b> idx_opt = <Link to="../iota-framework/vec_set#0x2_vec_set_get_idx_opt">get_idx_opt</Link>(self, key);
     <b>assert</b>!(idx_opt.is_some(), <Link to="../iota-framework/vec_set#0x2_vec_set_EKeyDoesNotExist">EKeyDoesNotExist</Link>);
     idx_opt.destroy_some()
 }
-</code></pre>
+</code>
+</pre>
 
 
 

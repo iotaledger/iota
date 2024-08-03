@@ -5,10 +5,8 @@ sidebar_label: dynamic_object_field
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_dynamic_object_field"/>
-Similar to 
-iota::dynamic_field, this module allows for the access of dynamic fields. But
-unlike, 
-iota::dynamic_field the values bound to these dynamic fields _must_ be objects
+Similar to <code>iota::dynamic_field</code>, this module allows for the access of dynamic fields. But
+unlike, <code>iota::dynamic_field</code> the values bound to these dynamic fields _must_ be objects
 themselves. This allows for the objects to still exist within in storage, which may be important
 for external tools. The difference is otherwise not observable from within Move.
 
@@ -23,11 +21,13 @@ for external tools. The difference is otherwise not observable from within Move.
 -  [Function `id`](#0x2_dynamic_object_field_id)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../iota-framework/dynamic_field#0x2_dynamic_field">0x2::dynamic_field</Link>;
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -37,9 +37,11 @@ for external tools. The difference is otherwise not observable from within Move.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt; <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -49,8 +51,7 @@ for external tools. The difference is otherwise not observable from within Move.
 
 <dl>
 <dt>
-
-name: Name
+<code>name: Name</code>
 </dt>
 <dd>
 
@@ -64,16 +65,15 @@ name: Name
 
 ## Function `add`
 
-Adds a dynamic object field to the object 
-<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID at field specified by 
-name: Name.
-Aborts with 
-EFieldAlreadyExists if the object already has that field with that name.
+Adds a dynamic object field to the object <code><Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID</code> at field specified by <code>name: Name</code>.
+Aborts with <code>EFieldAlreadyExists</code> if the object already has that field with that name.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_add">add</Link>&lt;Name: <b>copy</b>, drop, store, Value: store, key&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name, value: Value)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -81,7 +81,8 @@ EFieldAlreadyExists if the object already has that field with that name.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_add">add</Link>&lt;Name: <b>copy</b> + drop + store, Value: key + store&gt;(
     // we <b>use</b> &<b>mut</b> UID in several spots for access control
     <Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID,
@@ -94,7 +95,8 @@ EFieldAlreadyExists if the object already has that field with that name.
     <b>let</b> (field, _) = field::field_info&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key);
     add_child_object(field.to_address(), value);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -104,19 +106,17 @@ EFieldAlreadyExists if the object already has that field with that name.
 
 ## Function `borrow`
 
-Immutably borrows the 
-<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic object field with the name specified by 
-name: Name.
-Aborts with 
-EFieldDoesNotExist if the object does not have a field with that name.
-Aborts with 
-EFieldTypeMismatch if the field exists, but the value object does not have the
+Immutably borrows the <code><Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic object field with the name specified by <code>name: Name</code>.
+Aborts with <code>EFieldDoesNotExist</code> if the object does not have a field with that name.
+Aborts with <code>EFieldTypeMismatch</code> if the field exists, but the value object does not have the
 specified type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_borrow">borrow</Link>&lt;Name: <b>copy</b>, drop, store, Value: store, key&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name): &Value
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -124,7 +124,8 @@ specified type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_borrow">borrow</Link>&lt;Name: <b>copy</b> + drop + store, Value: key + store&gt;(
     <Link to="../iota-framework/object#0x2_object">object</Link>: &UID,
     name: Name,
@@ -133,7 +134,8 @@ specified type.
     <b>let</b> (field, value_id) = field::field_info&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key);
     borrow_child_object&lt;Value&gt;(field, value_id)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -143,19 +145,17 @@ specified type.
 
 ## Function `borrow_mut`
 
-Mutably borrows the 
-<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic object field with the name specified by 
-name: Name.
-Aborts with 
-EFieldDoesNotExist if the object does not have a field with that name.
-Aborts with 
-EFieldTypeMismatch if the field exists, but the value object does not have the
+Mutably borrows the <code><Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic object field with the name specified by <code>name: Name</code>.
+Aborts with <code>EFieldDoesNotExist</code> if the object does not have a field with that name.
+Aborts with <code>EFieldTypeMismatch</code> if the field exists, but the value object does not have the
 specified type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_borrow_mut">borrow_mut</Link>&lt;Name: <b>copy</b>, drop, store, Value: store, key&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name): &<b>mut</b> Value
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -163,7 +163,8 @@ specified type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_borrow_mut">borrow_mut</Link>&lt;Name: <b>copy</b> + drop + store, Value: key + store&gt;(
     <Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID,
     name: Name,
@@ -172,7 +173,8 @@ specified type.
     <b>let</b> (field, value_id) = field::field_info_mut&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key);
     borrow_child_object_mut&lt;Value&gt;(field, value_id)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -182,20 +184,18 @@ specified type.
 
 ## Function `remove`
 
-Removes the 
-<Link to="../iota-framework/object#0x2_object">object</Link>s dynamic object field with the name specified by 
-name: Name and returns
+Removes the <code><Link to="../iota-framework/object#0x2_object">object</Link></code>s dynamic object field with the name specified by <code>name: Name</code> and returns
 the bound object.
-Aborts with 
-EFieldDoesNotExist if the object does not have a field with that name.
-Aborts with 
-EFieldTypeMismatch if the field exists, but the value object does not have the
+Aborts with <code>EFieldDoesNotExist</code> if the object does not have a field with that name.
+Aborts with <code>EFieldTypeMismatch</code> if the field exists, but the value object does not have the
 specified type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_remove">remove</Link>&lt;Name: <b>copy</b>, drop, store, Value: store, key&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name): Value
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -203,7 +203,8 @@ specified type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_remove">remove</Link>&lt;Name: <b>copy</b> + drop + store, Value: key + store&gt;(
     <Link to="../iota-framework/object#0x2_object">object</Link>: &<b>mut</b> UID,
     name: Name,
@@ -214,7 +215,8 @@ specified type.
     field::remove&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;, ID&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key);
     value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -224,15 +226,15 @@ specified type.
 
 ## Function `exists_`
 
-Returns true if and only if the 
-<Link to="../iota-framework/object#0x2_object">object</Link> has a dynamic object field with the name specified by
-
-name: Name.
+Returns true if and only if the <code><Link to="../iota-framework/object#0x2_object">object</Link></code> has a dynamic object field with the name specified by
+<code>name: Name</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_exists_">exists_</Link>&lt;Name: <b>copy</b>, drop, store&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -240,7 +242,8 @@ name: Name.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_exists_">exists_</Link>&lt;Name: <b>copy</b> + drop + store&gt;(
     <Link to="../iota-framework/object#0x2_object">object</Link>: &UID,
     name: Name,
@@ -248,7 +251,8 @@ name: Name.
     <b>let</b> key = <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link> \{ name };
     field::exists_with_type&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;, ID&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -258,16 +262,15 @@ name: Name.
 
 ## Function `exists_with_type`
 
-Returns true if and only if the 
-<Link to="../iota-framework/object#0x2_object">object</Link> has a dynamic field with the name specified by
-
-name: Name with an assigned value of type 
-Value.
+Returns true if and only if the <code><Link to="../iota-framework/object#0x2_object">object</Link></code> has a dynamic field with the name specified by
+<code>name: Name</code> with an assigned value of type <code>Value</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_exists_with_type">exists_with_type</Link>&lt;Name: <b>copy</b>, drop, store, Value: store, key&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -275,7 +278,8 @@ Value.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_exists_with_type">exists_with_type</Link>&lt;Name: <b>copy</b> + drop + store, Value: key + store&gt;(
     <Link to="../iota-framework/object#0x2_object">object</Link>: &UID,
     name: Name,
@@ -285,7 +289,8 @@ Value.
     <b>let</b> (field, value_id) = field::field_info&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key);
     field::has_child_object_with_ty&lt;Value&gt;(field.to_address(), value_id)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -299,9 +304,11 @@ Returns the ID of the object associated with the dynamic object field
 Returns none otherwise
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_id">id</Link>&lt;Name: <b>copy</b>, drop, store&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>: &<Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, name: Name): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -309,7 +316,8 @@ Returns none otherwise
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_id">id</Link>&lt;Name: <b>copy</b> + drop + store&gt;(
     <Link to="../iota-framework/object#0x2_object">object</Link>: &UID,
     name: Name,
@@ -319,7 +327,8 @@ Returns none otherwise
     <b>let</b> (_field, value_addr) = field::field_info&lt;<Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_Wrapper">Wrapper</Link>&lt;Name&gt;&gt;(<Link to="../iota-framework/object#0x2_object">object</Link>, key);
     <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(value_addr.to_id())
 }
-</code></pre>
+</code>
+</pre>
 
 
 

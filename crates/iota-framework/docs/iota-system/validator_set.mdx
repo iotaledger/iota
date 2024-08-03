@@ -74,7 +74,8 @@ import Link from '@docusaurus/Link';
 -  [Function `active_validator_addresses`](#0x3_validator_set_active_validator_addresses)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
 <b>use</b> <Link to="../iota-framework/bag#0x2_bag">0x2::bag</Link>;
@@ -94,7 +95,8 @@ import Link from '@docusaurus/Link';
 <b>use</b> <Link to="validator_cap#0x3_validator_cap">0x3::validator_cap</Link>;
 <b>use</b> <Link to="validator_wrapper#0x3_validator_wrapper">0x3::validator_wrapper</Link>;
 <b>use</b> <Link to="voting_power#0x3_voting_power">0x3::voting_power</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -104,9 +106,11 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link> <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -116,78 +120,63 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-
-total_stake: u64
+<code>total_stake: u64</code>
 </dt>
 <dd>
  Total amount of stake from all active validators at the beginning of the epoch.
 </dd>
 <dt>
-
-active_validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;
+<code>active_validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;</code>
 </dt>
 <dd>
  The current list of active validators.
 </dd>
 <dt>
-
-pending_active_validators: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;
+<code>pending_active_validators: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;</code>
 </dt>
 <dd>
  List of new validator candidates added during the current epoch.
  They will be processed at the end of the epoch.
 </dd>
 <dt>
-
-pending_removals: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;
+<code>pending_removals: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
  Removal requests from the validators. Each element is an index
- pointing to 
-active_validators.
+ pointing to <code>active_validators</code>.
 </dd>
 <dt>
-
-staking_pool_mappings: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <b>address</b>&gt;
+<code>staking_pool_mappings: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <b>address</b>&gt;</code>
 </dt>
 <dd>
  Mappings from staking pool's ID to the iota address of a validator.
 </dd>
 <dt>
-
-inactive_validators: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;
+<code>inactive_validators: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;</code>
 </dt>
 <dd>
  Mapping from a staking pool ID to the inactive validator that has that pool as its staking pool.
- When a validator is deactivated the validator is removed from 
-active_validators it
+ When a validator is deactivated the validator is removed from <code>active_validators</code> it
  is added to this table so that stakers can continue to withdraw their stake from it.
 </dd>
 <dt>
-
-validator_candidates: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;
+<code>validator_candidates: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="validator_wrapper#0x3_validator_wrapper_ValidatorWrapper">validator_wrapper::ValidatorWrapper</Link>&gt;</code>
 </dt>
 <dd>
- Table storing preactive/candidate validators, mapping their addresses to their 
-Validator  structs.
- When an address calls 
-request_add_validator_candidate, they get added to this table and become a preactive
+ Table storing preactive/candidate validators, mapping their addresses to their <code>Validator </code> structs.
+ When an address calls <code>request_add_validator_candidate</code>, they get added to this table and become a preactive
  validator.
- When the candidate has met the min stake requirement, they can call 
-request_add_validator to
- officially add them to the active validator set 
-active_validators next epoch.
+ When the candidate has met the min stake requirement, they can call <code>request_add_validator</code> to
+ officially add them to the active validator set <code>active_validators</code> next epoch.
 </dd>
 <dt>
-
-at_risk_validators: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, u64&gt;
+<code>at_risk_validators: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, u64&gt;</code>
 </dt>
 <dd>
  Table storing the number of epochs during which a validator's stake has been below the low stake threshold.
 </dd>
 <dt>
-
-extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
+<code>extra_fields: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -205,9 +194,11 @@ Event containing staking and rewards related information of
 each validator, emitted during epoch advancement.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_set#0x3_validator_set_ValidatorEpochInfoEvent">ValidatorEpochInfoEvent</Link> <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -217,64 +208,55 @@ each validator, emitted during epoch advancement.
 
 <dl>
 <dt>
-
-epoch: u64
+<code>epoch: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-validator_address: <b>address</b>
+<code>validator_address: <b>address</b></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-reference_gas_survey_quote: u64
+<code>reference_gas_survey_quote: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-stake: u64
+<code>stake: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-commission_rate: u64
+<code>commission_rate: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-pool_staking_reward: u64
+<code>pool_staking_reward: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
+<code>pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
+<code>tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-tallying_rule_global_score: u64
+<code>tallying_rule_global_score: u64</code>
 </dt>
 <dd>
 
@@ -291,9 +273,11 @@ tallying_rule_global_score: u64
 V2 of ValidatorEpochInfoEvent containing more information about the validator.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_set#0x3_validator_set_ValidatorEpochInfoEventV2">ValidatorEpochInfoEventV2</Link> <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -303,71 +287,61 @@ V2 of ValidatorEpochInfoEvent containing more information about the validator.
 
 <dl>
 <dt>
-
-epoch: u64
+<code>epoch: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-validator_address: <b>address</b>
+<code>validator_address: <b>address</b></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-reference_gas_survey_quote: u64
+<code>reference_gas_survey_quote: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-stake: u64
+<code>stake: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
+<code><Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-commission_rate: u64
+<code>commission_rate: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-pool_staking_reward: u64
+<code>pool_staking_reward: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>
+<code>pool_token_exchange_rate: <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
+<code>tallying_rule_reporters: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-tallying_rule_global_score: u64
+<code>tallying_rule_global_score: u64</code>
 </dt>
 <dd>
 
@@ -385,9 +359,11 @@ Event emitted every time a new validator joins the committee.
 The epoch value corresponds to the first epoch this change takes place.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_set#0x3_validator_set_ValidatorJoinEvent">ValidatorJoinEvent</Link> <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -397,22 +373,19 @@ The epoch value corresponds to the first epoch this change takes place.
 
 <dl>
 <dt>
-
-epoch: u64
+<code>epoch: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-validator_address: <b>address</b>
+<code>validator_address: <b>address</b></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
+<code>staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -430,9 +403,11 @@ Event emitted every time a validator leaves the committee.
 The epoch value corresponds to the first epoch this change takes place.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_set#0x3_validator_set_ValidatorLeaveEvent">ValidatorLeaveEvent</Link> <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -442,29 +417,25 @@ The epoch value corresponds to the first epoch this change takes place.
 
 <dl>
 <dt>
-
-epoch: u64
+<code>epoch: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-validator_address: <b>address</b>
+<code>validator_address: <b>address</b></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
+<code>staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-is_voluntary: bool
+<code>is_voluntary: bool</code>
 </dt>
 <dd>
 
@@ -483,9 +454,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</Link>: u64 = 1000000000;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -493,9 +466,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EInvalidCap">EInvalidCap</Link>: u64 = 101;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -503,9 +478,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ENotValidatorCandidate">ENotValidatorCandidate</Link>: u64 = 8;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -513,9 +490,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ACTIVE_OR_PENDING_VALIDATOR">ACTIVE_OR_PENDING_VALIDATOR</Link>: u8 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -523,9 +502,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ACTIVE_VALIDATOR_ONLY">ACTIVE_VALIDATOR_ONLY</Link>: u8 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -533,9 +514,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ANY_VALIDATOR">ANY_VALIDATOR</Link>: u8 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -543,9 +526,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</Link>: u128 = 10000;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -553,9 +538,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EAlreadyValidatorCandidate">EAlreadyValidatorCandidate</Link>: u64 = 6;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -563,9 +550,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EDuplicateValidator">EDuplicateValidator</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -573,9 +562,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EInvalidStakeAdjustmentAmount">EInvalidStakeAdjustmentAmount</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -583,9 +574,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EMinJoiningStakeNotReached">EMinJoiningStakeNotReached</Link>: u64 = 5;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -593,9 +586,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ENoPoolFound">ENoPoolFound</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -603,9 +598,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ENonValidatorInReportRecords">ENonValidatorInReportRecords</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -613,9 +610,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ENotAPendingValidator">ENotAPendingValidator</Link>: u64 = 12;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -623,9 +622,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ENotAValidator">ENotAValidator</Link>: u64 = 4;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -633,9 +634,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_ENotActiveOrPendingValidator">ENotActiveOrPendingValidator</Link>: u64 = 9;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -643,9 +646,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EStakingBelowThreshold">EStakingBelowThreshold</Link>: u64 = 10;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -653,9 +658,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EValidatorAlreadyRemoved">EValidatorAlreadyRemoved</Link>: u64 = 11;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -663,9 +670,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EValidatorNotCandidate">EValidatorNotCandidate</Link>: u64 = 7;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -673,9 +682,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="validator_set#0x3_validator_set_EValidatorSetEmpty">EValidatorSetEmpty</Link>: u64 = 13;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -685,9 +696,11 @@ is_voluntary: bool
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_new">new</Link>(init_active_validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -695,7 +708,8 @@ is_voluntary: bool
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_new">new</Link>(init_active_validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, ctx: &<b>mut</b> TxContext): <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link> \{
     <b>let</b> total_stake = <Link to="validator_set#0x3_validator_set_calculate_total_stakes">calculate_total_stakes</Link>(&init_active_validators);
     <b>let</b> <b>mut</b> staking_pool_mappings = <Link to="../iota-framework/table#0x2_table_new">table::new</Link>(ctx);
@@ -720,7 +734,8 @@ is_voluntary: bool
     <Link to="voting_power#0x3_voting_power_set_voting_power">voting_power::set_voting_power</Link>(&<b>mut</b> validators.active_validators);
     validators
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -730,13 +745,14 @@ is_voluntary: bool
 
 ## Function `request_add_validator_candidate`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link> to add a new validator candidate.
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code> to add a new validator candidate.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_add_validator_candidate">request_add_validator_candidate</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, <Link to="validator#0x3_validator">validator</Link>: <Link to="validator#0x3_validator_Validator">validator::Validator</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -744,7 +760,8 @@ Called by
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_add_validator_candidate">request_add_validator_candidate</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     <Link to="validator#0x3_validator">validator</Link>: Validator,
@@ -771,7 +788,8 @@ Called by
         <Link to="validator_wrapper#0x3_validator_wrapper_create_v1">validator_wrapper::create_v1</Link>(<Link to="validator#0x3_validator">validator</Link>, ctx),
     );
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -781,14 +799,14 @@ Called by
 
 ## Function `request_remove_validator_candidate`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link> to remove a validator candidate, and move them to 
-inactive_validators.
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code> to remove a validator candidate, and move them to <code>inactive_validators</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_remove_validator_candidate">request_remove_validator_candidate</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -796,7 +814,8 @@ inactive_validators.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_remove_validator_candidate">request_remove_validator_candidate</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, ctx: &<b>mut</b> TxContext) \{
     <b>let</b> validator_address = ctx.sender();
      <b>assert</b>!(
@@ -821,7 +840,8 @@ inactive_validators.
         <Link to="validator_wrapper#0x3_validator_wrapper_create_v1">validator_wrapper::create_v1</Link>(<Link to="validator#0x3_validator">validator</Link>, ctx),
     );
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -831,15 +851,15 @@ inactive_validators.
 
 ## Function `request_add_validator`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link> to add a new validator to 
-pending_active_validators, which will be
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code> to add a new validator to <code>pending_active_validators</code>, which will be
 processed at the end of epoch.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_add_validator">request_add_validator</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, min_joining_stake_amount: u64, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -847,7 +867,8 @@ processed at the end of epoch.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_add_validator">request_add_validator</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, min_joining_stake_amount: u64, ctx: &TxContext) \{
     <b>let</b> validator_address = ctx.sender();
     <b>assert</b>!(
@@ -866,7 +887,8 @@ processed at the end of epoch.
 
     self.pending_active_validators.push_back(<Link to="validator#0x3_validator">validator</Link>);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -878,9 +900,11 @@ processed at the end of epoch.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_assert_no_pending_or_active_duplicates">assert_no_pending_or_active_duplicates</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, <Link to="validator#0x3_validator">validator</Link>: &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -888,7 +912,8 @@ processed at the end of epoch.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_assert_no_pending_or_active_duplicates">assert_no_pending_or_active_duplicates</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, <Link to="validator#0x3_validator">validator</Link>: &Validator) \{
     // Validator here must be active or pending, and thus must be identified <b>as</b> duplicate exactly once.
     <b>assert</b>!(
@@ -897,7 +922,8 @@ processed at the end of epoch.
         <Link to="validator_set#0x3_validator_set_EDuplicateValidator">EDuplicateValidator</Link>
     );
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -907,17 +933,17 @@ processed at the end of epoch.
 
 ## Function `request_remove_validator`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link>, to remove a validator.
-The index of the validator is added to 
-pending_removals and
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code>, to remove a validator.
+The index of the validator is added to <code>pending_removals</code> and
 will be processed at the end of epoch.
 Only an active validator can request to be removed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_remove_validator">request_remove_validator</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -925,7 +951,8 @@ Only an active validator can request to be removed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_remove_validator">request_remove_validator</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     ctx: &TxContext,
@@ -940,7 +967,8 @@ Only an active validator can request to be removed.
     );
     self.pending_removals.push_back(validator_index);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -950,16 +978,17 @@ Only an active validator can request to be removed.
 
 ## Function `request_add_stake`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link>, to add a new stake to the validator.
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code>, to add a new stake to the validator.
 This request is added to the validator's staking pool's pending stake entries, processed at the end
 of the epoch.
 Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_add_stake">request_add_stake</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>, stake: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -967,7 +996,8 @@ Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_add_stake">request_add_stake</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_address: <b>address</b>,
@@ -979,7 +1009,8 @@ Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
     <b>let</b> <Link to="validator#0x3_validator">validator</Link> = <Link to="validator_set#0x3_validator_set_get_candidate_or_active_validator_mut">get_candidate_or_active_validator_mut</Link>(self, validator_address);
     <Link to="validator#0x3_validator">validator</Link>.<Link to="validator_set#0x3_validator_set_request_add_stake">request_add_stake</Link>(stake, ctx.sender(), ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -989,21 +1020,19 @@ Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
 
 ## Function `request_withdraw_stake`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link>, to withdraw some share of a stake from the validator. The share to withdraw
-is denoted by 
-principal_withdraw_amount. One of two things occurs in this function:
-1. If the 
-staked_iota is staked with an active validator, the request is added to the validator's
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code>, to withdraw some share of a stake from the validator. The share to withdraw
+is denoted by <code>principal_withdraw_amount</code>. One of two things occurs in this function:
+1. If the <code>staked_iota</code> is staked with an active validator, the request is added to the validator's
 staking pool's pending stake withdraw entries, processed at the end of the epoch.
-2. If the 
-staked_iota was staked with a validator that is no longer active,
+2. If the <code>staked_iota</code> was staked with a validator that is no longer active,
 the stake and any rewards corresponding to it will be immediately processed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_withdraw_stake">request_withdraw_stake</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, staked_iota: <Link to="staking_pool#0x3_staking_pool_StakedIota">staking_pool::StakedIota</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1011,7 +1040,8 @@ the stake and any rewards corresponding to it will be immediately processed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_withdraw_stake">request_withdraw_stake</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     staked_iota: StakedIota,
@@ -1029,7 +1059,8 @@ the stake and any rewards corresponding to it will be immediately processed.
         };
     <Link to="validator#0x3_validator">validator</Link>.<Link to="validator_set#0x3_validator_set_request_withdraw_stake">request_withdraw_stake</Link>(staked_iota, ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1041,9 +1072,11 @@ the stake and any rewards corresponding to it will be immediately processed.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_set_commission_rate">request_set_commission_rate</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, new_commission_rate: u64, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1051,7 +1084,8 @@ the stake and any rewards corresponding to it will be immediately processed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_request_set_commission_rate">request_set_commission_rate</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     new_commission_rate: u64,
@@ -1061,7 +1095,8 @@ the stake and any rewards corresponding to it will be immediately processed.
     <b>let</b> <Link to="validator#0x3_validator">validator</Link> = <Link to="validator_set#0x3_validator_set_get_validator_mut">get_validator_mut</Link>(&<b>mut</b> self.active_validators, validator_address);
     <Link to="validator#0x3_validator">validator</Link>.<Link to="validator_set#0x3_validator_set_request_set_commission_rate">request_set_commission_rate</Link>(new_commission_rate);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1074,16 +1109,17 @@ the stake and any rewards corresponding to it will be immediately processed.
 Update the validator set at the end of epoch.
 It does the following things:
 1. Distribute stake award.
-2. Process pending stake deposits and withdraws for each validator (
-adjust_stake).
+2. Process pending stake deposits and withdraws for each validator (<code>adjust_stake</code>).
 3. Process pending stake deposits, and withdraws.
 4. Process pending validator application and withdraws.
 5. At the end, we calculate the total stake for the new epoch.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_advance_epoch">advance_epoch</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, total_validator_rewards: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, validator_report_records: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;, reward_slashing_rate: u64, low_stake_threshold: u64, very_low_stake_threshold: u64, low_stake_grace_period: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1091,7 +1127,8 @@ adjust_stake).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_advance_epoch">advance_epoch</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     total_validator_rewards: &<b>mut</b> Balance&lt;IOTA&gt;,
@@ -1180,7 +1217,8 @@ adjust_stake).
     // Now we process the staged <Link to="validator#0x3_validator">validator</Link> metadata.
     <Link to="validator_set#0x3_validator_set_effectuate_staged_metadata">effectuate_staged_metadata</Link>(self);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1192,9 +1230,11 @@ adjust_stake).
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_update_and_process_low_stake_departures">update_and_process_low_stake_departures</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, low_stake_threshold: u64, very_low_stake_threshold: u64, low_stake_grace_period: u64, validator_report_records: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1202,7 +1242,8 @@ adjust_stake).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_update_and_process_low_stake_departures">update_and_process_low_stake_departures</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     low_stake_threshold: u64,
@@ -1247,7 +1288,8 @@ adjust_stake).
         }
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1260,9 +1302,11 @@ adjust_stake).
 Effectutate pending next epoch metadata if they are staged.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_effectuate_staged_metadata">effectuate_staged_metadata</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1270,7 +1314,8 @@ Effectutate pending next epoch metadata if they are staged.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_effectuate_staged_metadata">effectuate_staged_metadata</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
 ) \{
@@ -1282,7 +1327,8 @@ Effectutate pending next epoch metadata if they are staged.
         i = i + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1292,16 +1338,17 @@ Effectutate pending next epoch metadata if they are staged.
 
 ## Function `derive_reference_gas_price`
 
-Called by 
-<Link to="iota_system#0x3_iota_system">iota_system</Link> to derive reference gas price for the new epoch.
+Called by <code><Link to="iota_system#0x3_iota_system">iota_system</Link></code> to derive reference gas price for the new epoch.
 Derive the reference gas price based on the gas price quote submitted by each validator.
 The returned gas price should be greater than or equal to 2/3 of the validators submitted
 gas price, weighted by stake.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_derive_reference_gas_price">derive_reference_gas_price</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1309,7 +1356,8 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_derive_reference_gas_price">derive_reference_gas_price</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>): u64 \{
     <b>let</b> vs = &self.active_validators;
     <b>let</b> num_validators = vs.length();
@@ -1334,7 +1382,8 @@ gas price, weighted by stake.
     };
     result
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1346,9 +1395,11 @@ gas price, weighted by stake.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_total_stake">total_stake</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1356,11 +1407,13 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_total_stake">total_stake</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>): u64 \{
     self.total_stake
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1372,9 +1425,11 @@ gas price, weighted by stake.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_validator_total_stake_amount">validator_total_stake_amount</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1382,12 +1437,14 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_validator_total_stake_amount">validator_total_stake_amount</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, validator_address: <b>address</b>): u64 \{
     <b>let</b> <Link to="validator#0x3_validator">validator</Link> = <Link to="validator_set#0x3_validator_set_get_validator_ref">get_validator_ref</Link>(&self.active_validators, validator_address);
     <Link to="validator#0x3_validator">validator</Link>.total_stake_amount()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1399,9 +1456,11 @@ gas price, weighted by stake.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_validator_stake_amount">validator_stake_amount</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1409,12 +1468,14 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_validator_stake_amount">validator_stake_amount</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, validator_address: <b>address</b>): u64 \{
     <b>let</b> <Link to="validator#0x3_validator">validator</Link> = <Link to="validator_set#0x3_validator_set_get_validator_ref">get_validator_ref</Link>(&self.active_validators, validator_address);
     <Link to="validator#0x3_validator">validator</Link>.stake_amount()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1426,9 +1487,11 @@ gas price, weighted by stake.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_validator_staking_pool_id">validator_staking_pool_id</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1436,12 +1499,14 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_validator_staking_pool_id">validator_staking_pool_id</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, validator_address: <b>address</b>): ID \{
     <b>let</b> <Link to="validator#0x3_validator">validator</Link> = <Link to="validator_set#0x3_validator_set_get_validator_ref">get_validator_ref</Link>(&self.active_validators, validator_address);
     <Link to="validator#0x3_validator">validator</Link>.staking_pool_id()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1453,9 +1518,11 @@ gas price, weighted by stake.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_staking_pool_mappings">staking_pool_mappings</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>): &<Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1463,11 +1530,13 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_staking_pool_mappings">staking_pool_mappings</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>): &Table&lt;ID, <b>address</b>&gt; \{
     &self.staking_pool_mappings
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1479,9 +1548,11 @@ gas price, weighted by stake.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_pool_exchange_rates">pool_exchange_rates</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, pool_id: &<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): &<Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, <Link to="staking_pool#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1489,7 +1560,8 @@ gas price, weighted by stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_pool_exchange_rates">pool_exchange_rates</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, pool_id: &ID
 ) : &Table&lt;u64, PoolTokenExchangeRate&gt; \{
@@ -1504,7 +1576,8 @@ gas price, weighted by stake.
         };
 	<Link to="validator#0x3_validator">validator</Link>.get_staking_pool_ref().exchange_rates()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1517,9 +1590,11 @@ gas price, weighted by stake.
 Get the total number of validators in the next epoch.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_next_epoch_validator_count">next_epoch_validator_count</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1527,11 +1602,13 @@ Get the total number of validators in the next epoch.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_next_epoch_validator_count">next_epoch_validator_count</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>): u64 \{
     self.active_validators.length() - self.pending_removals.length() + self.pending_active_validators.length()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1544,9 +1621,11 @@ Get the total number of validators in the next epoch.
 Returns true iff the address exists in active validators.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_is_active_validator_by_iota_address">is_active_validator_by_iota_address</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1554,14 +1633,16 @@ Returns true iff the address exists in active validators.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_is_active_validator_by_iota_address">is_active_validator_by_iota_address</Link>(
     self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_address: <b>address</b>,
 ): bool \{
    <Link to="validator_set#0x3_validator_set_find_validator">find_validator</Link>(&self.active_validators, validator_address).is_some()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1571,16 +1652,16 @@ Returns true iff the address exists in active validators.
 
 ## Function `is_duplicate_with_active_validator`
 
-Checks whether 
-new_validator is duplicate with any currently active validators.
-It differs from 
-is_active_validator_by_iota_address in that the former checks
+Checks whether <code>new_validator</code> is duplicate with any currently active validators.
+It differs from <code>is_active_validator_by_iota_address</code> in that the former checks
 only the iota address but this function looks at more metadata.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_is_duplicate_with_active_validator">is_duplicate_with_active_validator</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, new_validator: &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1588,11 +1669,13 @@ only the iota address but this function looks at more metadata.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_is_duplicate_with_active_validator">is_duplicate_with_active_validator</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, new_validator: &Validator): bool \{
     <Link to="validator_set#0x3_validator_set_is_duplicate_validator">is_duplicate_validator</Link>(&self.active_validators, new_validator)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1604,9 +1687,11 @@ only the iota address but this function looks at more metadata.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_is_duplicate_validator">is_duplicate_validator</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, new_validator: &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1614,11 +1699,13 @@ only the iota address but this function looks at more metadata.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_is_duplicate_validator">is_duplicate_validator</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, new_validator: &Validator): bool \{
     <Link to="validator_set#0x3_validator_set_count_duplicates_vec">count_duplicates_vec</Link>(validators, new_validator) &gt; 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1630,9 +1717,11 @@ only the iota address but this function looks at more metadata.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_count_duplicates_vec">count_duplicates_vec</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, <Link to="validator#0x3_validator">validator</Link>: &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1640,7 +1729,8 @@ only the iota address but this function looks at more metadata.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_count_duplicates_vec">count_duplicates_vec</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, <Link to="validator#0x3_validator">validator</Link>: &Validator): u64 \{
     <b>let</b> len = validators.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -1654,7 +1744,8 @@ only the iota address but this function looks at more metadata.
     };
     result
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1664,13 +1755,14 @@ only the iota address but this function looks at more metadata.
 
 ## Function `is_duplicate_with_pending_validator`
 
-Checks whether 
-new_validator is duplicate with any currently pending validators.
+Checks whether <code>new_validator</code> is duplicate with any currently pending validators.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_is_duplicate_with_pending_validator">is_duplicate_with_pending_validator</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, new_validator: &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1678,11 +1770,13 @@ new_validator is duplicate with any currently pending validators.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_is_duplicate_with_pending_validator">is_duplicate_with_pending_validator</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, new_validator: &Validator): bool \{
     <Link to="validator_set#0x3_validator_set_count_duplicates_tablevec">count_duplicates_tablevec</Link>(&self.pending_active_validators, new_validator) &gt; 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1694,9 +1788,11 @@ new_validator is duplicate with any currently pending validators.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_count_duplicates_tablevec">count_duplicates_tablevec</Link>(validators: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, <Link to="validator#0x3_validator">validator</Link>: &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1704,7 +1800,8 @@ new_validator is duplicate with any currently pending validators.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_count_duplicates_tablevec">count_duplicates_tablevec</Link>(validators: &TableVec&lt;Validator&gt;, <Link to="validator#0x3_validator">validator</Link>: &Validator): u64 \{
     <b>let</b> len = validators.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -1718,7 +1815,8 @@ new_validator is duplicate with any currently pending validators.
     };
     result
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1731,9 +1829,11 @@ new_validator is duplicate with any currently pending validators.
 Get mutable reference to either a candidate or an active validator by address.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_candidate_or_active_validator_mut">get_candidate_or_active_validator_mut</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): &<b>mut</b> <Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1741,7 +1841,8 @@ Get mutable reference to either a candidate or an active validator by address.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_candidate_or_active_validator_mut">get_candidate_or_active_validator_mut</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, validator_address: <b>address</b>): &<b>mut</b> Validator \{
     <b>if</b> (self.validator_candidates.contains(validator_address)) \{
         <b>let</b> wrapper = &<b>mut</b> self.validator_candidates[validator_address];
@@ -1749,7 +1850,8 @@ Get mutable reference to either a candidate or an active validator by address.
     };
     <Link to="validator_set#0x3_validator_set_get_validator_mut">get_validator_mut</Link>(&<b>mut</b> self.active_validators, validator_address)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1759,16 +1861,16 @@ Get mutable reference to either a candidate or an active validator by address.
 
 ## Function `find_validator`
 
-Find validator by 
-validator_address, in 
-validators.
+Find validator by <code>validator_address</code>, in <code>validators</code>.
 Returns (true, index) if the validator is found, and the index is its index in the list.
 If not found, returns (false, 0).
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_find_validator">find_validator</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, validator_address: <b>address</b>): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1776,7 +1878,8 @@ If not found, returns (false, 0).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_find_validator">find_validator</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, validator_address: <b>address</b>): Option&lt;u64&gt; \{
     <b>let</b> length = validators.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -1789,7 +1892,8 @@ If not found, returns (false, 0).
     };
     <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1799,16 +1903,16 @@ If not found, returns (false, 0).
 
 ## Function `find_validator_from_table_vec`
 
-Find validator by 
-validator_address, in 
-validators.
+Find validator by <code>validator_address</code>, in <code>validators</code>.
 Returns (true, index) if the validator is found, and the index is its index in the list.
 If not found, returns (false, 0).
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_find_validator_from_table_vec">find_validator_from_table_vec</Link>(validators: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, validator_address: <b>address</b>): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1816,7 +1920,8 @@ If not found, returns (false, 0).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_find_validator_from_table_vec">find_validator_from_table_vec</Link>(validators: &TableVec&lt;Validator&gt;, validator_address: <b>address</b>): Option&lt;u64&gt; \{
     <b>let</b> length = validators.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -1829,7 +1934,8 @@ If not found, returns (false, 0).
     };
     <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1843,9 +1949,11 @@ Given a vector of validator addresses, return their indices in the validator set
 Aborts if any address isn't in the given validator set.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_indices">get_validator_indices</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, validator_addresses: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1853,7 +1961,8 @@ Aborts if any address isn't in the given validator set.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_indices">get_validator_indices</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, validator_addresses: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt; \{
     <b>let</b> length = validator_addresses.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -1867,7 +1976,8 @@ Aborts if any address isn't in the given validator set.
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1879,9 +1989,11 @@ Aborts if any address isn't in the given validator set.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut">get_validator_mut</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, validator_address: <b>address</b>): &<b>mut</b> <Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1889,7 +2001,8 @@ Aborts if any address isn't in the given validator set.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut">get_validator_mut</Link>(
     validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     validator_address: <b>address</b>,
@@ -1899,7 +2012,8 @@ Aborts if any address isn't in the given validator set.
     <b>let</b> validator_index = validator_index_opt.extract();
     &<b>mut</b> validators[validator_index]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1912,13 +2026,14 @@ Aborts if any address isn't in the given validator set.
 Get mutable reference to an active or (if active does not exist) pending or (if pending and
 active do not exist) or candidate validator by address.
 Note: this function should be called carefully, only after verifying the transaction
-sender has the ability to modify the 
-Validator.
+sender has the ability to modify the <code>Validator</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_mut">get_active_or_pending_or_candidate_validator_mut</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>, include_candidate: bool): &<b>mut</b> <Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1926,7 +2041,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_mut">get_active_or_pending_or_candidate_validator_mut</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_address: <b>address</b>,
@@ -1947,7 +2063,8 @@ Validator.
     <b>let</b> wrapper = &<b>mut</b> self.validator_candidates[validator_address];
     wrapper.load_validator_maybe_upgrade()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1959,9 +2076,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut_with_verified_cap">get_validator_mut_with_verified_cap</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, verified_cap: &<Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">validator_cap::ValidatorOperationCap</Link>, include_candidate: bool): &<b>mut</b> <Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1969,7 +2088,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut_with_verified_cap">get_validator_mut_with_verified_cap</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     verified_cap: &ValidatorOperationCap,
@@ -1977,7 +2097,8 @@ Validator.
 ): &<b>mut</b> Validator \{
     <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_mut">get_active_or_pending_or_candidate_validator_mut</Link>(self, *verified_cap.verified_operation_cap_address(), include_candidate)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1989,9 +2110,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut_with_ctx">get_validator_mut_with_ctx</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): &<b>mut</b> <Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1999,7 +2122,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut_with_ctx">get_validator_mut_with_ctx</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     ctx: &TxContext,
@@ -2007,7 +2131,8 @@ Validator.
     <b>let</b> validator_address = ctx.sender();
     <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_mut">get_active_or_pending_or_candidate_validator_mut</Link>(self, validator_address, <b>false</b>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2019,9 +2144,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut_with_ctx_including_candidates">get_validator_mut_with_ctx_including_candidates</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): &<b>mut</b> <Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2029,7 +2156,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_mut_with_ctx_including_candidates">get_validator_mut_with_ctx_including_candidates</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     ctx: &TxContext,
@@ -2037,7 +2165,8 @@ Validator.
     <b>let</b> validator_address = ctx.sender();
     <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_mut">get_active_or_pending_or_candidate_validator_mut</Link>(self, validator_address, <b>true</b>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2049,9 +2178,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_ref">get_validator_ref</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, validator_address: <b>address</b>): &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2059,7 +2190,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_get_validator_ref">get_validator_ref</Link>(
     validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     validator_address: <b>address</b>,
@@ -2069,7 +2201,8 @@ Validator.
     <b>let</b> validator_index = validator_index_opt.extract();
     &validators[validator_index]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2081,9 +2214,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_ref">get_active_or_pending_or_candidate_validator_ref</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>, which_validator: u8): &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2091,7 +2226,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_get_active_or_pending_or_candidate_validator_ref">get_active_or_pending_or_candidate_validator_ref</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_address: <b>address</b>,
@@ -2109,7 +2245,8 @@ Validator.
     };
     self.validator_candidates[validator_address].load_validator_maybe_upgrade()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2121,9 +2258,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_get_active_validator_ref">get_active_validator_ref</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2131,7 +2270,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_get_active_validator_ref">get_active_validator_ref</Link>(
     self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_address: <b>address</b>,
@@ -2141,7 +2281,8 @@ Validator.
     <b>let</b> validator_index = validator_index_opt.extract();
     &self.active_validators[validator_index]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2153,9 +2294,11 @@ Validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_get_pending_validator_ref">get_pending_validator_ref</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_address: <b>address</b>): &<Link to="validator#0x3_validator_Validator">validator::Validator</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2163,7 +2306,8 @@ Validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_get_pending_validator_ref">get_pending_validator_ref</Link>(
     self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_address: <b>address</b>,
@@ -2173,7 +2317,8 @@ Validator.
     <b>let</b> validator_index = validator_index_opt.extract();
     &self.pending_active_validators[validator_index]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2184,14 +2329,15 @@ Validator.
 ## Function `verify_cap`
 
 Verify the capability is valid for a Validator.
-If 
-active_validator_only is true, only verify the Cap for an active validator.
+If <code>active_validator_only</code> is true, only verify the Cap for an active validator.
 Otherwise, verify the Cap for au either active or pending validator.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_verify_cap">verify_cap</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, cap: &<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</Link>, which_validator: u8): <Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">validator_cap::ValidatorOperationCap</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2199,7 +2345,8 @@ Otherwise, verify the Cap for au either active or pending validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_verify_cap">verify_cap</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     cap: &UnverifiedValidatorOperationCap,
@@ -2214,7 +2361,8 @@ Otherwise, verify the Cap for au either active or pending validator.
     <b>assert</b>!(<Link to="validator#0x3_validator">validator</Link>.operation_cap_id() == &<Link to="../iota-framework/object#0x2_object_id">object::id</Link>(cap), <Link to="validator_set#0x3_validator_set_EInvalidCap">EInvalidCap</Link>);
     <Link to="validator_cap#0x3_validator_cap_new_from_unverified">validator_cap::new_from_unverified</Link>(cap)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2225,14 +2373,14 @@ Otherwise, verify the Cap for au either active or pending validator.
 ## Function `process_pending_removals`
 
 Process the pending withdraw requests. For each pending request, the validator
-is removed from 
-validators and its staking pool is put into the 
-inactive_validators table.
+is removed from <code>validators</code> and its staking pool is put into the <code>inactive_validators</code> table.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_pending_removals">process_pending_removals</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_report_records: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2240,7 +2388,8 @@ inactive_validators table.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_pending_removals">process_pending_removals</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     validator_report_records: &<b>mut</b> VecMap&lt;<b>address</b>, VecSet&lt;<b>address</b>&gt;&gt;,
@@ -2253,7 +2402,8 @@ inactive_validators table.
         <Link to="validator_set#0x3_validator_set_process_validator_departure">process_validator_departure</Link>(self, <Link to="validator#0x3_validator">validator</Link>, validator_report_records, <b>true</b> /* the <Link to="validator#0x3_validator">validator</Link> removes itself voluntarily */, ctx);
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2265,9 +2415,11 @@ inactive_validators table.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_validator_departure">process_validator_departure</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, <Link to="validator#0x3_validator">validator</Link>: <Link to="validator#0x3_validator_Validator">validator::Validator</Link>, validator_report_records: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;, is_voluntary: bool, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2275,7 +2427,8 @@ inactive_validators table.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_validator_departure">process_validator_departure</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     <b>mut</b> <Link to="validator#0x3_validator">validator</Link>: Validator,
@@ -2313,7 +2466,8 @@ inactive_validators table.
         <Link to="validator_wrapper#0x3_validator_wrapper_create_v1">validator_wrapper::create_v1</Link>(<Link to="validator#0x3_validator">validator</Link>, ctx),
     );
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2325,9 +2479,11 @@ inactive_validators table.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_clean_report_records_leaving_validator">clean_report_records_leaving_validator</Link>(validator_report_records: &<b>mut</b> <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;, leaving_validator_addr: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2335,7 +2491,8 @@ inactive_validators table.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_clean_report_records_leaving_validator">clean_report_records_leaving_validator</Link>(
     validator_report_records: &<b>mut</b> VecMap&lt;<b>address</b>, VecSet&lt;<b>address</b>&gt;&gt;,
     leaving_validator_addr: <b>address</b>
@@ -2361,7 +2518,8 @@ inactive_validators table.
         i = i + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2371,13 +2529,14 @@ inactive_validators table.
 
 ## Function `process_pending_validators`
 
-Process the pending new validators. They are activated and inserted into 
-validators.
+Process the pending new validators. They are activated and inserted into <code>validators</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_pending_validators">process_pending_validators</Link>(self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, new_epoch: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2385,7 +2544,8 @@ validators.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_pending_validators">process_pending_validators</Link>(
     self: &<b>mut</b> <Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, new_epoch: u64,
 ) \{
@@ -2402,7 +2562,8 @@ validators.
         self.active_validators.push_back(<Link to="validator#0x3_validator">validator</Link>);
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2415,9 +2576,11 @@ validators.
 Sort all the pending removal indexes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_sort_removal_list">sort_removal_list</Link>(withdraw_list: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2425,7 +2588,8 @@ Sort all the pending removal indexes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_sort_removal_list">sort_removal_list</Link>(withdraw_list: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;) \{
     <b>let</b> length = withdraw_list.length();
     <b>let</b> <b>mut</b> i = 1;
@@ -2443,7 +2607,8 @@ Sort all the pending removal indexes.
         i = i + 1;
     };
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2456,9 +2621,11 @@ Sort all the pending removal indexes.
 Process all active validators' pending stake deposits and withdraws.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2466,7 +2633,8 @@ Process all active validators' pending stake deposits and withdraws.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</Link>(
     validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, ctx: &TxContext
 ) \{
@@ -2478,7 +2646,8 @@ Process all active validators' pending stake deposits and withdraws.
         i = i + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2491,9 +2660,11 @@ Process all active validators' pending stake deposits and withdraws.
 Calculate the total active validator stake.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_calculate_total_stakes">calculate_total_stakes</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2501,7 +2672,8 @@ Calculate the total active validator stake.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_calculate_total_stakes">calculate_total_stakes</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;): u64 \{
     <b>let</b> <b>mut</b> stake = 0;
     <b>let</b> length = validators.length();
@@ -2513,7 +2685,8 @@ Calculate the total active validator stake.
     };
     stake
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2526,9 +2699,11 @@ Calculate the total active validator stake.
 Process the pending stake changes for each validator.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_adjust_stake_and_gas_price">adjust_stake_and_gas_price</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2536,7 +2711,8 @@ Process the pending stake changes for each validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_adjust_stake_and_gas_price">adjust_stake_and_gas_price</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;) \{
     <b>let</b> length = validators.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -2546,7 +2722,8 @@ Process the pending stake changes for each validator.
         i = i + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2559,9 +2736,11 @@ Process the pending stake changes for each validator.
 Compute both the individual reward adjustments and total reward adjustment for staking rewards.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_reward_adjustments">compute_reward_adjustments</Link>(slashed_validator_indices: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, reward_slashing_rate: u64, unadjusted_staking_reward_amounts: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;): (u64, <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;u64, u64&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2569,7 +2748,8 @@ Compute both the individual reward adjustments and total reward adjustment for s
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_reward_adjustments">compute_reward_adjustments</Link>(
     <b>mut</b> slashed_validator_indices: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;,
     reward_slashing_rate: u64,
@@ -2597,7 +2777,8 @@ Compute both the individual reward adjustments and total reward adjustment for s
 
     (total_staking_reward_adjustment, individual_staking_reward_adjustments)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2611,9 +2792,11 @@ Process the validator report records of the epoch and return the addresses of th
 non-performant validators according to the input threshold.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_slashed_validators">compute_slashed_validators</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2621,7 +2804,8 @@ non-performant validators according to the input threshold.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_slashed_validators">compute_slashed_validators</Link>(
     self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>,
     <b>mut</b> validator_report_records: VecMap&lt;<b>address</b>, VecSet&lt;<b>address</b>&gt;&gt;,
@@ -2642,7 +2826,8 @@ non-performant validators according to the input threshold.
     };
     slashed_validators
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2658,9 +2843,11 @@ account the tallying rule results.
 Returns the unadjusted amounts of staking reward for each validator.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_unadjusted_reward_distribution">compute_unadjusted_reward_distribution</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, total_voting_power: u64, total_staking_reward: u64): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2668,7 +2855,8 @@ Returns the unadjusted amounts of staking reward for each validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_unadjusted_reward_distribution">compute_unadjusted_reward_distribution</Link>(
     validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     total_voting_power: u64,
@@ -2689,7 +2877,8 @@ Returns the unadjusted amounts of staking reward for each validator.
     };
     staking_reward_amounts
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2704,9 +2893,11 @@ Returns the staking rewards each validator gets.
 The staking rewards are shared with the stakers.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_adjusted_reward_distribution">compute_adjusted_reward_distribution</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, total_voting_power: u64, total_slashed_validator_voting_power: u64, unadjusted_staking_reward_amounts: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, total_staking_reward_adjustment: u64, individual_staking_reward_adjustments: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;u64, u64&gt;): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2714,7 +2905,8 @@ The staking rewards are shared with the stakers.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_compute_adjusted_reward_distribution">compute_adjusted_reward_distribution</Link>(
     validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     total_voting_power: u64,
@@ -2757,7 +2949,8 @@ The staking rewards are shared with the stakers.
 
     adjusted_staking_reward_amounts
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2769,9 +2962,11 @@ The staking rewards are shared with the stakers.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_distribute_reward">distribute_reward</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, adjusted_staking_reward_amounts: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, staking_rewards: &<b>mut</b> <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2779,7 +2974,8 @@ The staking rewards are shared with the stakers.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_distribute_reward">distribute_reward</Link>(
     validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     adjusted_staking_reward_amounts: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;,
@@ -2814,7 +3010,8 @@ The staking rewards are shared with the stakers.
         i = i + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2828,9 +3025,11 @@ Emit events containing information of each validator for the epoch,
 including stakes, rewards, performance, etc.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_emit_validator_epoch_events">emit_validator_epoch_events</Link>(new_epoch: u64, vs: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, pool_staking_reward_amounts: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;, report_records: &<Link to="../iota-framework/vec_map#0x2_vec_map_VecMap">vec_map::VecMap</Link>&lt;<b>address</b>, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;, slashed_validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2838,7 +3037,8 @@ including stakes, rewards, performance, etc.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="validator_set#0x3_validator_set_emit_validator_epoch_events">emit_validator_epoch_events</Link>(
     new_epoch: u64,
     vs: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
@@ -2877,7 +3077,8 @@ including stakes, rewards, performance, etc.
         i = i + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2890,9 +3091,11 @@ including stakes, rewards, performance, etc.
 Sum up the total stake of a given list of validator addresses.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_sum_voting_power_by_addresses">sum_voting_power_by_addresses</Link>(vs: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, addresses: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2900,7 +3103,8 @@ Sum up the total stake of a given list of validator addresses.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_sum_voting_power_by_addresses">sum_voting_power_by_addresses</Link>(vs: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, addresses: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;): u64 \{
     <b>let</b> <b>mut</b> sum = 0;
     <b>let</b> <b>mut</b> i = 0;
@@ -2912,7 +3116,8 @@ Sum up the total stake of a given list of validator addresses.
     };
     sum
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2922,13 +3127,14 @@ Sum up the total stake of a given list of validator addresses.
 
 ## Function `active_validators`
 
-Return the active validators in 
-self
+Return the active validators in <code>self</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_active_validators">active_validators</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2936,11 +3142,13 @@ self
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_active_validators">active_validators</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt; \{
     &self.active_validators
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2950,13 +3158,14 @@ self
 
 ## Function `is_validator_candidate`
 
-Returns true if the 
-addr is a validator candidate.
+Returns true if the <code>addr</code> is a validator candidate.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_is_validator_candidate">is_validator_candidate</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, addr: <b>address</b>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2964,11 +3173,13 @@ addr is a validator candidate.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_is_validator_candidate">is_validator_candidate</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, addr: <b>address</b>): bool \{
     self.validator_candidates.contains(addr)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2978,13 +3189,14 @@ addr is a validator candidate.
 
 ## Function `is_inactive_validator`
 
-Returns true if the staking pool identified by 
-staking_pool_id is of an inactive validator.
+Returns true if the staking pool identified by <code>staking_pool_id</code> is of an inactive validator.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_is_inactive_validator">is_inactive_validator</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>, staking_pool_id: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2992,11 +3204,13 @@ staking_pool_id is of an inactive validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="validator_set#0x3_validator_set_is_inactive_validator">is_inactive_validator</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>, staking_pool_id: ID): bool \{
     self.inactive_validators.contains(staking_pool_id)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -3008,9 +3222,11 @@ staking_pool_id is of an inactive validator.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_set#0x3_validator_set_active_validator_addresses">active_validator_addresses</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -3018,7 +3234,8 @@ staking_pool_id is of an inactive validator.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_set#0x3_validator_set_active_validator_addresses">active_validator_addresses</Link>(self: &<Link to="validator_set#0x3_validator_set_ValidatorSet">ValidatorSet</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt; \{
     <b>let</b> vs = &self.active_validators;
     <b>let</b> <b>mut</b> res = <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[];
@@ -3031,7 +3248,8 @@ staking_pool_id is of an inactive validator.
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 

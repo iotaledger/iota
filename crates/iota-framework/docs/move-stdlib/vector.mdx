@@ -29,8 +29,7 @@ vectors are growable. This module has many native functions.
 -  [Function `swap_remove`](#0x1_vector_swap_remove)
 
 
-<pre><code>
-</code></pre>
+<pre><code></code></pre>
 
 
 
@@ -44,9 +43,11 @@ vectors are growable. This module has many native functions.
 The index into the vector is out of bounds
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>: u64 = 131072;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -57,9 +58,11 @@ The index into the vector is out of bounds
 Create an empty vector.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_empty">empty</Link>&lt;Element&gt;(): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -67,9 +70,11 @@ Create an empty vector.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_empty">empty</Link>&lt;Element&gt;(): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -82,9 +87,11 @@ Create an empty vector.
 Return the length of the vector.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_length">length</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -92,9 +99,11 @@ Return the length of the vector.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_length">length</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): u64;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -104,16 +113,15 @@ Return the length of the vector.
 
 ## Function `borrow`
 
-Acquire an immutable reference to the 
-ith element of the vector 
-v.
-Aborts if 
-i is out of bounds.
+Acquire an immutable reference to the <code>i</code>th element of the vector <code>v</code>.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow">borrow</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -121,9 +129,11 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow">borrow</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &Element;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -133,14 +143,14 @@ i is out of bounds.
 
 ## Function `push_back`
 
-Add element 
-e to the end of the vector 
-v.
+Add element <code>e</code> to the end of the vector <code>v</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -148,9 +158,11 @@ v.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element);
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -160,16 +172,15 @@ v.
 
 ## Function `borrow_mut`
 
-Return a mutable reference to the 
-ith element in the vector 
-v.
-Aborts if 
-i is out of bounds.
+Return a mutable reference to the <code>i</code>th element in the vector <code>v</code>.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow_mut">borrow_mut</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -177,9 +188,11 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_borrow_mut">borrow_mut</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -189,15 +202,15 @@ i is out of bounds.
 
 ## Function `pop_back`
 
-Pop an element from the end of vector 
-v.
-Aborts if 
-v is empty.
+Pop an element from the end of vector <code>v</code>.
+Aborts if <code>v</code> is empty.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -205,9 +218,11 @@ v is empty.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): Element;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -217,15 +232,15 @@ v is empty.
 
 ## Function `destroy_empty`
 
-Destroy the vector 
-v.
-Aborts if 
-v is not empty.
+Destroy the vector <code>v</code>.
+Aborts if <code>v</code> is not empty.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>&lt;Element&gt;(v: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -233,9 +248,11 @@ v is not empty.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>&lt;Element&gt;(v: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;);
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -245,18 +262,15 @@ v is not empty.
 
 ## Function `swap`
 
-Swaps the elements at the 
-ith and 
-jth indices in the vector 
-v.
-Aborts if 
-i or 
-j is out of bounds.
+Swaps the elements at the <code>i</code>th and <code>j</code>th indices in the vector <code>v</code>.
+Aborts if <code>i</code> or <code>j</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64, j: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -264,9 +278,11 @@ j is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64, j: u64);
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -276,13 +292,14 @@ j is out of bounds.
 
 ## Function `singleton`
 
-Return an vector of size one containing element 
-e.
+Return an vector of size one containing element <code>e</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_singleton">singleton</Link>&lt;Element&gt;(e: Element): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -290,13 +307,15 @@ e.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_singleton">singleton</Link>&lt;Element&gt;(e: Element): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt; \{
     <b>let</b> <b>mut</b> v = <Link to="../move-stdlib/vector#0x1_vector_empty">empty</Link>();
     v.<Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(e);
     v
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -306,13 +325,14 @@ e.
 
 ## Function `reverse`
 
-Reverses the order of the elements in the vector 
-v in place.
+Reverses the order of the elements in the vector <code>v</code> in place.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -320,7 +340,8 @@ v in place.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;) \{
     <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     <b>if</b> (len == 0) <b>return</b> ();
@@ -333,7 +354,8 @@ v in place.
         back_index = back_index - 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -343,14 +365,14 @@ v in place.
 
 ## Function `append`
 
-Pushes all of the elements of the 
-other vector into the 
-lhs vector.
+Pushes all of the elements of the <code>other</code> vector into the <code>lhs</code> vector.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_append">append</Link>&lt;Element&gt;(lhs: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, other: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -358,13 +380,15 @@ lhs vector.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_append">append</Link>&lt;Element&gt;(lhs: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, <b>mut</b> other: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;) \{
     other.<Link to="../move-stdlib/vector#0x1_vector_reverse">reverse</Link>();
     <b>while</b> (!other.<Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>()) lhs.<Link to="../move-stdlib/vector#0x1_vector_push_back">push_back</Link>(other.<Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>());
     other.<Link to="../move-stdlib/vector#0x1_vector_destroy_empty">destroy_empty</Link>();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -374,15 +398,14 @@ lhs vector.
 
 ## Function `is_empty`
 
-Return 
-<b>true</b> if the vector 
-v has no elements and 
-<b>false</b> otherwise.
+Return <code><b>true</b></code> if the vector <code>v</code> has no elements and <code><b>false</b></code> otherwise.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -390,11 +413,13 @@ v has no elements and
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;): bool \{
     v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>() == 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -404,15 +429,15 @@ v has no elements and
 
 ## Function `contains`
 
-Return true if 
-e is in the vector 
-v.
+Return true if <code>e</code> is in the vector <code>v</code>.
 Otherwise, returns false.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_contains">contains</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -420,7 +445,8 @@ Otherwise, returns false.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_contains">contains</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): bool \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
@@ -430,7 +456,8 @@ Otherwise, returns false.
     };
     <b>false</b>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -440,18 +467,15 @@ Otherwise, returns false.
 
 ## Function `index_of`
 
-Return 
-(<b>true</b>, i) if 
-e is in the vector 
-v at index 
-i.
-Otherwise, returns 
-(<b>false</b>, 0).
+Return <code>(<b>true</b>, i)</code> if <code>e</code> is in the vector <code>v</code> at index <code>i</code>.
+Otherwise, returns <code>(<b>false</b>, 0)</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_index_of">index_of</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): (bool, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -459,7 +483,8 @@ Otherwise, returns
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_index_of">index_of</Link>&lt;Element&gt;(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: &Element): (bool, u64) \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
@@ -469,7 +494,8 @@ Otherwise, returns
     };
     (<b>false</b>, 0)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -479,17 +505,16 @@ Otherwise, returns
 
 ## Function `remove`
 
-Remove the 
-ith element of the vector 
-v, shifting all subsequent elements.
+Remove the <code>i</code>th element of the vector <code>v</code>, shifting all subsequent elements.
 This is O(n) and preserves ordering of elements in the vector.
-Aborts if 
-i is out of bounds.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_remove">remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -497,7 +522,8 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_remove">remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, <b>mut</b> i: u64): Element \{
     <b>let</b> <b>mut</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     // i out of bounds; <b>abort</b>
@@ -507,7 +533,8 @@ i is out of bounds.
     <b>while</b> (i &lt; len) v.<Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, \{ i = i + 1; i });
     v.<Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -517,24 +544,18 @@ i is out of bounds.
 
 ## Function `insert`
 
-Insert 
-e at position 
-i in the vector 
-v.
-If 
-i is in bounds, this shifts the old 
-v[i] and all subsequent elements to the right.
-If 
-i == v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>(), this adds 
-e to the end of the vector.
+Insert <code>e</code> at position <code>i</code> in the vector <code>v</code>.
+If <code>i</code> is in bounds, this shifts the old <code>v[i]</code> and all subsequent elements to the right.
+If <code>i == v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()</code>, this adds <code>e</code> to the end of the vector.
 This is O(n) and preserves ordering of elements in the vector.
-Aborts if 
-i &gt; v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()
+Aborts if <code>i &gt; v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_insert">insert</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element, i: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -542,7 +563,8 @@ i &gt; v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_insert">insert</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, e: Element, <b>mut</b> i: u64) \{
     <b>let</b> len = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>();
     // i too big <b>abort</b>
@@ -554,7 +576,8 @@ i &gt; v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()
         i = i + 1
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -564,17 +587,16 @@ i &gt; v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>()
 
 ## Function `swap_remove`
 
-Swap the 
-ith element of the vector 
-v with the last element and then pop the vector.
+Swap the <code>i</code>th element of the vector <code>v</code> with the last element and then pop the vector.
 This is O(1), but does not preserve ordering of elements in the vector.
-Aborts if 
-i is out of bounds.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap_remove">swap_remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -582,14 +604,16 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/vector#0x1_vector_swap_remove">swap_remove</Link>&lt;Element&gt;(v: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Element&gt;, i: u64): Element \{
     <b>assert</b>!(!v.<Link to="../move-stdlib/vector#0x1_vector_is_empty">is_empty</Link>(), <Link to="../move-stdlib/vector#0x1_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</Link>);
     <b>let</b> last_idx = v.<Link to="../move-stdlib/vector#0x1_vector_length">length</Link>() - 1;
     v.<Link to="../move-stdlib/vector#0x1_vector_swap">swap</Link>(i, last_idx);
     v.<Link to="../move-stdlib/vector#0x1_vector_pop_back">pop_back</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 

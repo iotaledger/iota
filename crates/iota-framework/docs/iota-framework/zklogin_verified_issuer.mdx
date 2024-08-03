@@ -17,12 +17,14 @@ import Link from '@docusaurus/Link';
 -  [Function `check_zklogin_issuer_internal`](#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/string#0x1_string">0x1::string</Link>;
 <b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -34,9 +36,11 @@ Posession of a VerifiedIssuer proves that the user's address was created using z
 (identity provider).
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> <b>has</b> key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -46,22 +50,19 @@ Posession of a VerifiedIssuer proves that the user's address was created using z
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  The ID of this VerifiedIssuer
 </dd>
 <dt>
-
-owner: <b>address</b>
+<code>owner: <b>address</b></code>
 </dt>
 <dd>
  The address this VerifiedID is associated with
 </dd>
 <dt>
-
-issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
+<code>issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The issuer
@@ -81,9 +82,11 @@ issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
 Error if the proof consisting of the inputs provided to the verification function is invalid.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -92,9 +95,11 @@ Error if the proof consisting of the inputs provided to the verification functio
 Error if the proof consisting of the inputs provided to the verification function is invalid.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -105,9 +110,11 @@ Error if the proof consisting of the inputs provided to the verification functio
 Returns the address associated with the given VerifiedIssuer
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_owner">owner</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -115,11 +122,13 @@ Returns the address associated with the given VerifiedIssuer
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_owner">owner</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>): <b>address</b> \{
     verified_issuer.owner
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -132,9 +141,11 @@ Returns the address associated with the given VerifiedIssuer
 Returns the issuer associated with the given VerifiedIssuer
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_issuer">issuer</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -142,11 +153,13 @@ Returns the issuer associated with the given VerifiedIssuer
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_issuer">issuer</Link>(verified_issuer: &<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>): &String \{
     &verified_issuer.issuer
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -159,9 +172,11 @@ Returns the issuer associated with the given VerifiedIssuer
 Delete a VerifiedIssuer
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>(verified_issuer: <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">zklogin_verified_issuer::VerifiedIssuer</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -169,12 +184,14 @@ Delete a VerifiedIssuer
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>(verified_issuer: <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link>) \{
     <b>let</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_VerifiedIssuer">VerifiedIssuer</Link> \{ id, owner: _, issuer: _ } = verified_issuer;
     id.<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_delete">delete</Link>();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -187,13 +204,14 @@ Delete a VerifiedIssuer
 Verify that the caller's address was created using zklogin with the given issuer. If so, a VerifiedIssuer object
 with the issuers id transfered to the caller.
 
-Aborts with 
-<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link> if the verification fails.
+Aborts with <code><Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidProof">EInvalidProof</Link></code> if the verification fails.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_verify_zklogin_issuer">verify_zklogin_issuer</Link>(address_seed: u256, issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -201,7 +219,8 @@ Aborts with
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_verify_zklogin_issuer">verify_zklogin_issuer</Link>(
     address_seed: u256,
     issuer: String,
@@ -218,7 +237,8 @@ Aborts with
         sender
     )
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -228,13 +248,14 @@ Aborts with
 
 ## Function `check_zklogin_issuer`
 
-Returns true if 
-<b>address</b> was created using zklogin with the given issuer and address seed.
+Returns true if <code><b>address</b></code> was created using zklogin with the given issuer and address seed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(<b>address</b>: <b>address</b>, address_seed: u256, issuer: &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -242,7 +263,8 @@ Returns true if
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer">check_zklogin_issuer</Link>(
     <b>address</b>: <b>address</b>,
     address_seed: u256,
@@ -250,7 +272,8 @@ Returns true if
 ): bool \{
     <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(<b>address</b>, address_seed, issuer.bytes())
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -260,17 +283,16 @@ Returns true if
 
 ## Function `check_zklogin_issuer_internal`
 
-Returns true if 
-<b>address</b> was created using zklogin with the given issuer and address seed.
+Returns true if <code><b>address</b></code> was created using zklogin with the given issuer and address seed.
 
-Aborts with 
-<Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link> if the 
-iss input is not a valid UTF-8 string.
+Aborts with <code><Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_EInvalidInput">EInvalidInput</Link></code> if the <code>iss</code> input is not a valid UTF-8 string.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(<b>address</b>: <b>address</b>, address_seed: u256, issuer: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -278,13 +300,15 @@ iss input is not a valid UTF-8 string.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>fun</b> <Link to="zklogin_verified_issuer#0x2_zklogin_verified_issuer_check_zklogin_issuer_internal">check_zklogin_issuer_internal</Link>(
     <b>address</b>: <b>address</b>,
     address_seed: u256,
     issuer: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
 ): bool;
-</code></pre>
+</code>
+</pre>
 
 
 

@@ -19,10 +19,12 @@ Functionality for converting Move types into values. Use with care!
 -  [Function `into_string`](#0x1_type_name_into_string)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/address#0x1_address">0x1::address</Link>;
 <b>use</b> <Link to="../move-stdlib/ascii#0x1_ascii">0x1::ascii</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -32,9 +34,11 @@ Functionality for converting Move types into values. Use with care!
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -44,18 +48,15 @@ Functionality for converting Move types into values. Use with care!
 
 <dl>
 <dt>
-
-name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
+<code>name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
  String representation of the type. All types are represented
  using their source syntax:
  "u8", "u64", "bool", "address", "vector", and so on for primitive types.
  Struct types are represented as fully qualified type names; e.g.
- 
-00000000000000000000000000000001::string::String or
- 
-0000000000000000000000000000000a::module_name1::type_name1&lt;0000000000000000000000000000000a::module_name2::type_name2&lt;u64&gt;&gt;
+ <code>00000000000000000000000000000001::string::String</code> or
+ <code>0000000000000000000000000000000a::module_name1::type_name1&lt;0000000000000000000000000000000a::module_name2::type_name2&lt;u64&gt;&gt;</code>
  Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16, 20, or 32 depending on the Move platform)
 </dd>
 </dl>
@@ -70,85 +71,92 @@ name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
 
 <Link id="0x1_type_name_ASCII_C"></Link>
 
-ASCII Character code for the 
-c (lowercase c) symbol.
+ASCII Character code for the <code>c</code> (lowercase c) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_C">ASCII_C</Link>: u8 = 99;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_type_name_ASCII_COLON"></Link>
 
-ASCII Character code for the 
-: (colon) symbol.
+ASCII Character code for the <code>:</code> (colon) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_COLON">ASCII_COLON</Link>: u8 = 58;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_type_name_ASCII_E"></Link>
 
-ASCII Character code for the 
-e (lowercase e) symbol.
+ASCII Character code for the <code>e</code> (lowercase e) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_E">ASCII_E</Link>: u8 = 101;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_type_name_ASCII_O"></Link>
 
-ASCII Character code for the 
-o (lowercase o) symbol.
+ASCII Character code for the <code>o</code> (lowercase o) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_O">ASCII_O</Link>: u8 = 111;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_type_name_ASCII_R"></Link>
 
-ASCII Character code for the 
-r (lowercase r) symbol.
+ASCII Character code for the <code>r</code> (lowercase r) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_R">ASCII_R</Link>: u8 = 114;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_type_name_ASCII_T"></Link>
 
-ASCII Character code for the 
-t (lowercase t) symbol.
+ASCII Character code for the <code>t</code> (lowercase t) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_T">ASCII_T</Link>: u8 = 116;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_type_name_ASCII_V"></Link>
 
-ASCII Character code for the 
-v (lowercase v) symbol.
+ASCII Character code for the <code>v</code> (lowercase v) symbol.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_V">ASCII_V</Link>: u8 = 118;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -157,9 +165,11 @@ v (lowercase v) symbol.
 The type is not from a package/module. It is a primitive type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/type_name#0x1_type_name_ENonModuleType">ENonModuleType</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -167,16 +177,17 @@ The type is not from a package/module. It is a primitive type.
 
 ## Function `get`
 
-Return a value representation of the type 
-T.  Package IDs
+Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
 this function are defining IDs (the ID of the package in
 storage that first introduced the type).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get">get</Link>&lt;T&gt;(): <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -184,9 +195,11 @@ storage that first introduced the type).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>native</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get">get</Link>&lt;T&gt;(): <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -196,17 +209,18 @@ storage that first introduced the type).
 
 ## Function `get_with_original_ids`
 
-Return a value representation of the type 
-T.  Package IDs
+Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
 this function are original IDs (the ID of the first version of
 the package, even if the type in question was introduced in a
 later upgrade).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">get_with_original_ids</Link>&lt;T&gt;(): <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -214,9 +228,11 @@ later upgrade).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>native</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">get_with_original_ids</Link>&lt;T&gt;(): <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -230,9 +246,11 @@ Returns true iff the TypeName represents a primitive type, i.e. one of
 u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_is_primitive">is_primitive</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -240,7 +258,8 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_is_primitive">is_primitive</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>): bool \{
     <b>let</b> bytes = self.name.as_bytes();
     bytes == &b"bool" ||
@@ -260,7 +279,8 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
      bytes[5] == <Link to="../move-stdlib/type_name#0x1_type_name_ASCII_R">ASCII_R</Link>)
 
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -270,13 +290,14 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 ## Function `borrow_string`
 
-Get the String representation of 
-self
+Get the String representation of <code>self</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_borrow_string">borrow_string</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>): &<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -284,11 +305,13 @@ self
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_borrow_string">borrow_string</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>): &String \{
     &self.name
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -302,9 +325,11 @@ Get Address string (Base16 encoded), first part of the TypeName.
 Aborts if given a primitive type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get_address">get_address</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>): <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -312,7 +337,8 @@ Aborts if given a primitive type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get_address">get_address</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>): String \{
     <b>assert</b>!(!self.<Link to="../move-stdlib/type_name#0x1_type_name_is_primitive">is_primitive</Link>(), <Link to="../move-stdlib/type_name#0x1_type_name_ENonModuleType">ENonModuleType</Link>);
 
@@ -330,7 +356,8 @@ Aborts if given a primitive type.
 
     <Link to="../move-stdlib/ascii#0x1_ascii_string">ascii::string</Link>(addr_bytes)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -344,9 +371,11 @@ Get name of the module.
 Aborts if given a primitive type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get_module">get_module</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>): <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -354,7 +383,8 @@ Aborts if given a primitive type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_get_module">get_module</Link>(self: &<Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>): String \{
     <b>assert</b>!(!self.<Link to="../move-stdlib/type_name#0x1_type_name_is_primitive">is_primitive</Link>(), <Link to="../move-stdlib/type_name#0x1_type_name_ENonModuleType">ENonModuleType</Link>);
 
@@ -375,7 +405,8 @@ Aborts if given a primitive type.
 
     <Link to="../move-stdlib/ascii#0x1_ascii_string">ascii::string</Link>(module_name)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -385,13 +416,14 @@ Aborts if given a primitive type.
 
 ## Function `into_string`
 
-Convert 
-self into its inner String
+Convert <code>self</code> into its inner String
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_into_string">into_string</Link>(self: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">type_name::TypeName</Link>): <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -399,11 +431,13 @@ self into its inner String
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/type_name#0x1_type_name_into_string">into_string</Link>(self: <Link to="../move-stdlib/type_name#0x1_type_name_TypeName">TypeName</Link>): String \{
     self.name
 }
-</code></pre>
+</code>
+</pre>
 
 
 

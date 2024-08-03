@@ -19,10 +19,12 @@ import Link from '@docusaurus/Link';
 -  [Function `id`](#0x107a_alias_id)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -32,13 +34,14 @@ import Link from '@docusaurus/Link';
 
 The persisted Alias object from Stardust, without tokens and assets.
 Outputs owned the AliasID/Address in Stardust will be sent to this object and
-have to be received via this object once extracted from 
-AliasOutput.
+have to be received via this object once extracted from <code>AliasOutput</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="alias#0x107a_alias_Alias">Alias</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -48,58 +51,50 @@ AliasOutput.
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  The ID of the Alias = hash of the Output ID that created the Alias Output in Stardust.
  This is the AliasID from Stardust.
 </dd>
 <dt>
-
-legacy_state_controller: <b>address</b>
+<code>legacy_state_controller: <b>address</b></code>
 </dt>
 <dd>
  The last State Controller address assigned before the migration.
 </dd>
 <dt>
-
-state_index: u32
+<code>state_index: u32</code>
 </dt>
 <dd>
  A counter increased by 1 every time the alias was state transitioned.
 </dd>
 <dt>
-
-state_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
+<code>state_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  State metadata that can be used to store additional information.
 </dd>
 <dt>
-
-sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
+<code>sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  The sender feature.
 </dd>
 <dt>
-
-metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
+<code>metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  The metadata feature.
 </dd>
 <dt>
-
-immutable_issuer: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
+<code>immutable_issuer: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  The immutable issuer feature.
 </dd>
 <dt>
-
-immutable_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
+<code>immutable_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  The immutable metadata feature.
@@ -113,14 +108,14 @@ immutable_metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::O
 
 ## Function `destroy`
 
-Destroy the 
-<Link to="alias#0x107a_alias_Alias">Alias</Link> object, equivalent to 
-burning an Alias Output in Stardust.
+Destroy the <code><Link to="alias#0x107a_alias_Alias">Alias</Link></code> object, equivalent to <code>burning</code> an Alias Output in Stardust.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_destroy">destroy</Link>(self: <Link to="alias#0x107a_alias_Alias">alias::Alias</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -128,7 +123,8 @@ burning an Alias Output in Stardust.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_destroy">destroy</Link>(self: <Link to="alias#0x107a_alias_Alias">Alias</Link>) \{
     <b>let</b> <Link to="alias#0x107a_alias_Alias">Alias</Link> \{
         id,
@@ -143,7 +139,8 @@ burning an Alias Output in Stardust.
 
     <Link to="../iota-framework/object#0x2_object_delete">object::delete</Link>(id);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -153,13 +150,14 @@ burning an Alias Output in Stardust.
 
 ## Function `legacy_state_controller`
 
-Get the Alias's 
-legacy_state_controller.
+Get the Alias's <code>legacy_state_controller</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_legacy_state_controller">legacy_state_controller</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -167,11 +165,13 @@ legacy_state_controller.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_legacy_state_controller">legacy_state_controller</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): &<b>address</b> \{
     &self.legacy_state_controller
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -181,13 +181,14 @@ legacy_state_controller.
 
 ## Function `state_index`
 
-Get the Alias's 
-state_index.
+Get the Alias's <code>state_index</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_state_index">state_index</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): u32
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -195,11 +196,13 @@ state_index.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_state_index">state_index</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): u32 \{
     self.state_index
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -209,13 +212,14 @@ state_index.
 
 ## Function `state_metadata`
 
-Get the Alias's 
-state_metadata.
+Get the Alias's <code>state_metadata</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_state_metadata">state_metadata</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -223,11 +227,13 @@ state_metadata.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_state_metadata">state_metadata</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): &Option&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; \{
     &self.state_metadata
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -237,13 +243,14 @@ state_metadata.
 
 ## Function `sender`
 
-Get the Alias's 
-sender.
+Get the Alias's <code>sender</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_sender">sender</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -251,11 +258,13 @@ sender.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_sender">sender</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): &Option&lt;<b>address</b>&gt; \{
     &self.sender
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -265,13 +274,14 @@ sender.
 
 ## Function `metadata`
 
-Get the Alias's 
-metadata.
+Get the Alias's <code>metadata</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_metadata">metadata</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -279,11 +289,13 @@ metadata.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_metadata">metadata</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): &Option&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; \{
     &self.metadata
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -293,13 +305,14 @@ metadata.
 
 ## Function `immutable_issuer`
 
-Get the Alias's 
-immutable_sender.
+Get the Alias's <code>immutable_sender</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_immutable_issuer">immutable_issuer</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -307,11 +320,13 @@ immutable_sender.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_immutable_issuer">immutable_issuer</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): &Option&lt;<b>address</b>&gt; \{
     &self.immutable_issuer
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -321,13 +336,14 @@ immutable_sender.
 
 ## Function `immutable_metadata`
 
-Get the Alias's 
-immutable_metadata.
+Get the Alias's <code>immutable_metadata</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_immutable_metadata">immutable_metadata</Link>(self: &<Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -335,11 +351,13 @@ immutable_metadata.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="alias#0x107a_alias_immutable_metadata">immutable_metadata</Link>(self: &<Link to="alias#0x107a_alias_Alias">Alias</Link>): &Option&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; \{
     &self.immutable_metadata
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -352,9 +370,11 @@ immutable_metadata.
 Get the Alias's id.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="alias#0x107a_alias_id">id</Link>(self: &<b>mut</b> <Link to="alias#0x107a_alias_Alias">alias::Alias</Link>): &<b>mut</b> <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -362,11 +382,13 @@ Get the Alias's id.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<Link to="../iota-framework/package#0x2_package">package</Link>) <b>fun</b> <Link to="alias#0x107a_alias_id">id</Link>(self: &<b>mut</b> <Link to="alias#0x107a_alias_Alias">Alias</Link>): &<b>mut</b> UID \{
     &<b>mut</b> self.id
 }
-</code></pre>
+</code>
+</pre>
 
 
 

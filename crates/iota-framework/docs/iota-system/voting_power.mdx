@@ -21,11 +21,13 @@ import Link from '@docusaurus/Link';
 -  [Function `quorum_threshold`](#0x3_voting_power_quorum_threshold)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
 <b>use</b> <Link to="../iota-framework/math#0x2_math">0x2::math</Link>;
 <b>use</b> <Link to="validator#0x3_validator">0x3::validator</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -36,9 +38,11 @@ import Link from '@docusaurus/Link';
 Deprecated. Use VotingPowerInfoV2 instead.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="voting_power#0x3_voting_power_VotingPowerInfo">VotingPowerInfo</Link> <b>has</b> drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -48,15 +52,13 @@ Deprecated. Use VotingPowerInfoV2 instead.
 
 <dl>
 <dt>
-
-validator_index: u64
+<code>validator_index: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
+<code><Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
 </dt>
 <dd>
 
@@ -72,9 +74,11 @@ validator_index: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link> <b>has</b> drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -84,22 +88,19 @@ validator_index: u64
 
 <dl>
 <dt>
-
-validator_index: u64
+<code>validator_index: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-<Link to="voting_power#0x3_voting_power">voting_power</Link>: u64
+<code><Link to="voting_power#0x3_voting_power">voting_power</Link>: u64</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-stake: u64
+<code>stake: u64</code>
 </dt>
 <dd>
 
@@ -118,9 +119,11 @@ stake: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_EInvalidVotingPower">EInvalidVotingPower</Link>: u64 = 4;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -128,9 +131,11 @@ stake: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_ERelativePowerMismatch">ERelativePowerMismatch</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -138,9 +143,11 @@ stake: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -148,9 +155,11 @@ stake: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_EVotingPowerOverThreshold">EVotingPowerOverThreshold</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -158,9 +167,11 @@ stake: u64
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link>: u64 = 1000;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -170,9 +181,11 @@ Quorum threshold for our fixed voting power--any message signed by this much vot
 up to BFT assumptions
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_QUORUM_THRESHOLD">QUORUM_THRESHOLD</Link>: u64 = 6667;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -185,9 +198,11 @@ Fixing the total voting power allows clients to hardcode the quorum threshold an
 than recomputing these.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="voting_power#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>: u64 = 10000;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -197,14 +212,14 @@ than recomputing these.
 
 Set the voting power of all validators.
 Each validator's voting power is initialized using their stake. We then attempt to cap their voting power
-at 
-<Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link>. If 
-<Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link> is not a feasible cap, we pick the lowest possible cap.
+at <code><Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link></code>. If <code><Link to="voting_power#0x3_voting_power_MAX_VOTING_POWER">MAX_VOTING_POWER</Link></code> is not a feasible cap, we pick the lowest possible cap.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="voting_power#0x3_voting_power_set_voting_power">set_voting_power</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -212,7 +227,8 @@ at
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="voting_power#0x3_voting_power_set_voting_power">set_voting_power</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;) \{
     // If threshold_pct is too small, it's possible that even when all validators reach the threshold we still don't
     // have 100%. So we bound the threshold_pct <b>to</b> be always enough <b>to</b> find a solution.
@@ -225,7 +241,8 @@ at
     <Link to="voting_power#0x3_voting_power_update_voting_power">update_voting_power</Link>(validators, info_list);
     <Link to="voting_power#0x3_voting_power_check_invariants">check_invariants</Link>(validators);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -241,9 +258,11 @@ descending order using voting power.
 Anything beyond the threshold is added to the remaining_power, which is also returned.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_init_voting_power_info">init_voting_power_info</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, threshold: u64): (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -251,7 +270,8 @@ Anything beyond the threshold is added to the remaining_power, which is also ret
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_init_voting_power_info">init_voting_power_info</Link>(
     validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;,
     threshold: u64,
@@ -277,7 +297,8 @@ Anything beyond the threshold is added to the remaining_power, which is also ret
     };
     (result, <Link to="voting_power#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link> - total_power)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -290,9 +311,11 @@ Anything beyond the threshold is added to the remaining_power, which is also ret
 Sum up the total stake of all validators.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_total_stake">total_stake</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -300,7 +323,8 @@ Sum up the total stake of all validators.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_total_stake">total_stake</Link>(validators: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;): u64 \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = validators.length();
@@ -311,7 +335,8 @@ Sum up the total stake of all validators.
     };
     total_stake
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -321,16 +346,15 @@ Sum up the total stake of all validators.
 
 ## Function `insert`
 
-Insert 
-new_info to 
-info_list as part of insertion sort, such that 
-info_list is always sorted
+Insert <code>new_info</code> to <code>info_list</code> as part of insertion sort, such that <code>info_list</code> is always sorted
 using stake, in descending order.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_insert">insert</Link>(info_list: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;, new_info: <Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -338,7 +362,8 @@ using stake, in descending order.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_insert">insert</Link>(info_list: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;, new_info: <Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>) \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = info_list.length();
@@ -347,7 +372,8 @@ using stake, in descending order.
     };
     info_list.<Link to="voting_power#0x3_voting_power_insert">insert</Link>(new_info, i);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -360,9 +386,11 @@ using stake, in descending order.
 Distribute remaining_power to validators that are not capped at threshold.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_adjust_voting_power">adjust_voting_power</Link>(info_list: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;, threshold: u64, remaining_power: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -370,7 +398,8 @@ Distribute remaining_power to validators that are not capped at threshold.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_adjust_voting_power">adjust_voting_power</Link>(info_list: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;, threshold: u64, <b>mut</b> remaining_power: u64) \{
     <b>let</b> <b>mut</b> i = 0;
     <b>let</b> len = info_list.length();
@@ -389,7 +418,8 @@ Distribute remaining_power to validators that are not capped at threshold.
     };
     <b>assert</b>!(remaining_power == 0, <Link to="voting_power#0x3_voting_power_ETotalPowerMismatch">ETotalPowerMismatch</Link>);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -402,9 +432,11 @@ Distribute remaining_power to validators that are not capped at threshold.
 Update validators with the decided voting power.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_update_voting_power">update_voting_power</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, info_list: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">voting_power::VotingPowerInfoV2</Link>&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -412,7 +444,8 @@ Update validators with the decided voting power.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_update_voting_power">update_voting_power</Link>(validators: &<b>mut</b> <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;, <b>mut</b> info_list: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link>&gt;) \{
     <b>while</b> (!info_list.is_empty()) \{
         <b>let</b> <Link to="voting_power#0x3_voting_power_VotingPowerInfoV2">VotingPowerInfoV2</Link> \{
@@ -425,7 +458,8 @@ Update validators with the decided voting power.
     };
     info_list.destroy_empty();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -438,9 +472,11 @@ Update validators with the decided voting power.
 Check a few invariants that must hold after setting the voting power.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_check_invariants">check_invariants</Link>(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -448,7 +484,8 @@ Check a few invariants that must hold after setting the voting power.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="voting_power#0x3_voting_power_check_invariants">check_invariants</Link>(v: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Validator&gt;) \{
     // First check that the total voting power must be <Link to="voting_power#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>.
     <b>let</b> <b>mut</b> i = 0;
@@ -486,7 +523,8 @@ Check a few invariants that must hold after setting the voting power.
         a = a + 1;
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -499,9 +537,11 @@ Check a few invariants that must hold after setting the voting power.
 Return the (constant) total voting power
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="voting_power#0x3_voting_power_total_voting_power">total_voting_power</Link>(): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -509,11 +549,13 @@ Return the (constant) total voting power
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="voting_power#0x3_voting_power_total_voting_power">total_voting_power</Link>(): u64 \{
     <Link to="voting_power#0x3_voting_power_TOTAL_VOTING_POWER">TOTAL_VOTING_POWER</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -526,9 +568,11 @@ Return the (constant) total voting power
 Return the (constant) quorum threshold
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="voting_power#0x3_voting_power_quorum_threshold">quorum_threshold</Link>(): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -536,11 +580,13 @@ Return the (constant) quorum threshold
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="voting_power#0x3_voting_power_quorum_threshold">quorum_threshold</Link>(): u64 \{
     <Link to="voting_power#0x3_voting_power_QUORUM_THRESHOLD">QUORUM_THRESHOLD</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 

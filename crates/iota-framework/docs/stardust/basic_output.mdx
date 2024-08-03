@@ -12,7 +12,8 @@ import Link from '@docusaurus/Link';
 -  [Function `receive`](#0x107a_basic_output_receive)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition">0x107a::expiration_unlock_condition</Link>;
 <b>use</b> <Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition">0x107a::storage_deposit_return_unlock_condition</Link>;
 <b>use</b> <Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition">0x107a::timelock_unlock_condition</Link>;
@@ -22,7 +23,8 @@ import Link from '@docusaurus/Link';
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -33,18 +35,16 @@ import Link from '@docusaurus/Link';
 A basic output that has unlock conditions/features.
 - basic outputs with expiration unlock condition must be a shared object, since that's the only
 way to handle the two possible addresses that can unlock the output.
-- notice that there is no 
-store ability and there is no custom transfer function:
--  you can call 
-extract_assets,
--  or you can call 
-receive in other models to receive a 
-<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link>.
+- notice that there is no <code>store</code> ability and there is no custom transfer function:
+-  you can call <code>extract_assets</code>,
+-  or you can call <code>receive</code> in other models to receive a <code><Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link>&lt;T&gt; <b>has</b> key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -54,67 +54,56 @@ receive in other models to receive a
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
- Hash of the 
-outputId that was migrated.
+ Hash of the <code>outputId</code> that was migrated.
 </dd>
 <dt>
-
-<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<code><Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
  The amount of coins held by the output.
 </dd>
 <dt>
-
-native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
+<code>native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
- The 
-Bag holds native tokens, key-ed by the stringified type of the asset.
+ The <code>Bag</code> holds native tokens, key-ed by the stringified type of the asset.
  Example: key: "0xabcded::soon::SOON", value: `Balance<0xabcded::soon::SOON>`.
 </dd>
 <dt>
-
-storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;
+<code>storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The storage deposit return unlock condition.
 </dd>
 <dt>
-
-timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;
+<code>timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The timelock unlock condition.
 </dd>
 <dt>
-
-expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;
+<code>expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The expiration unlock condition.
 </dd>
 <dt>
-
-metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
+<code>metadata: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  The metadata feature.
 </dd>
 <dt>
-
-tag: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
+<code>tag: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code>
 </dt>
 <dd>
  The tag feature.
 </dd>
 <dt>
-
-sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
+<code>sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;</code>
 </dt>
 <dd>
  The sender feature.
@@ -130,14 +119,15 @@ sender: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>
 
 Extract the assets stored inside the output, respecting the unlock conditions.
 - The object will be deleted.
-- The 
-StorageDepositReturnUnlockCondition will return the deposit.
+- The <code>StorageDepositReturnUnlockCondition</code> will return the deposit.
 - Remaining assets (coins and native tokens) will be returned.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="basic_output#0x107a_basic_output_extract_assets">extract_assets</Link>&lt;T&gt;(output: <Link to="basic_output#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -145,7 +135,8 @@ StorageDepositReturnUnlockCondition will return the deposit.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="basic_output#0x107a_basic_output_extract_assets">extract_assets</Link>&lt;T&gt;(output: <Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext) : (Balance&lt;T&gt;, Bag) \{
     // Unpack the output into its basic part.
     <b>let</b> <Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link> \{
@@ -185,7 +176,8 @@ StorageDepositReturnUnlockCondition will return the deposit.
 
     <b>return</b> (<Link to="../iota-framework/balance#0x2_balance">balance</Link>, native_tokens)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -196,17 +188,16 @@ StorageDepositReturnUnlockCondition will return the deposit.
 ## Function `receive`
 
 Utility function to receive a basic output in other stardust modules.
-Since 
-<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link> only has 
-key, it can not be received via 
-public_receive.
+Since <code><Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link></code> only has <code>key</code>, it can not be received via <code>public_receive</code>.
 The private receiver must be implemented in its defining module (here).
 Other modules in the Stardust package can call this function to receive a basic output (alias, NFT).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="basic_output#0x107a_basic_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, output: <Link to="../iota-framework/transfer#0x2_transfer_Receiving">transfer::Receiving</Link>&lt;<Link to="basic_output#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</Link>&lt;T&gt;&gt;): <Link to="basic_output#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -214,11 +205,13 @@ Other modules in the Stardust package can call this function to receive a basic 
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<Link to="../iota-framework/package#0x2_package">package</Link>) <b>fun</b> <Link to="basic_output#0x107a_basic_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> UID, output: Receiving&lt;<Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link>&lt;T&gt;&gt;) : <Link to="basic_output#0x107a_basic_output_BasicOutput">BasicOutput</Link>&lt;T&gt; \{
     <Link to="../iota-framework/transfer#0x2_transfer_receive">transfer::receive</Link>(parent, output)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

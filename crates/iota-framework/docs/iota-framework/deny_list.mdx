@@ -5,9 +5,7 @@ sidebar_label: deny_list
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_deny_list"/>
-Defines the 
-<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link> type. The 
-<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link> shared object is used to restrict access to
+Defines the <code><Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link></code> type. The <code><Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link></code> shared object is used to restrict access to
 instances of certain core types from being used as inputs by specified addresses in the deny
 list.
 
@@ -25,14 +23,16 @@ list.
 -  [Function `per_type_list`](#0x2_deny_list_per_type_list)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/bag#0x2_bag">0x2::bag</Link>;
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="../iota-framework/vec_set#0x2_vec_set">0x2::vec_set</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -43,9 +43,11 @@ list.
 A shared object that stores the addresses that are blocked for a given core type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link> <b>has</b> key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -55,15 +57,13 @@ A shared object that stores the addresses that are blocked for a given core type
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-lists: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
+<code>lists: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
  The individual deny lists.
@@ -80,9 +80,11 @@ lists: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
 Stores the addresses that are denied for a given core type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -92,28 +94,24 @@ Stores the addresses that are denied for a given core type.
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-denied_count: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, u64&gt;
+<code>denied_count: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, u64&gt;</code>
 </dt>
 <dd>
  Number of object types that have been banned for a given address.
  Used to quickly skip checks for most addresses.
 </dd>
 <dt>
-
-denied_addresses: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;
+<code>denied_addresses: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, <Link to="../iota-framework/vec_set#0x2_vec_set_VecSet">vec_set::VecSet</Link>&lt;<b>address</b>&gt;&gt;</code>
 </dt>
 <dd>
  Set of addresses that are banned for a given type.
- For example with 
-iota::coin::Coin: If addresses A and B are banned from using
+ For example with <code>iota::coin::Coin</code>: If addresses A and B are banned from using
  "0...0123::my_coin::MY_COIN", this will be "0...0123::my_coin::MY_COIN" -> \{A, B}.
 </dd>
 </dl>
@@ -131,21 +129,24 @@ iota::coin::Coin: If addresses A and B are banned from using
 Trying to create a deny list object when not called by the system address.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/deny_list#0x2_deny_list_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_deny_list_COIN_INDEX"></Link>
 
-The index into the deny list vector for the 
-iota::coin::Coin type.
+The index into the deny list vector for the <code>iota::coin::Coin</code> type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/deny_list#0x2_deny_list_COIN_INDEX">COIN_INDEX</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -154,9 +155,11 @@ iota::coin::Coin type.
 The specified address to be removed is not already in the deny list.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/deny_list#0x2_deny_list_ENotDenied">ENotDenied</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -170,9 +173,11 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 "00...0123::my_coin::MY_COIN" would be the type, not "00...02::coin::Coin".
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_add">add</Link>(<Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">deny_list::DenyList</Link>, per_type_index: u64, type: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, addr: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -180,7 +185,8 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_add">add</Link>(
     <Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link>,
     per_type_index: u64,
@@ -190,7 +196,8 @@ the type specified is the type of the coin, not the coin type itself. For exampl
     <b>let</b> bag_entry: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link> = &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>.lists[per_type_index];
     bag_entry.<Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_add">per_type_list_add</Link>(`type`, addr)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -202,9 +209,11 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_add">per_type_list_add</Link>(list: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">deny_list::PerTypeList</Link>, type: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, addr: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -212,7 +221,8 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_add">per_type_list_add</Link>(
     list: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link>,
     `type`: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
@@ -232,7 +242,8 @@ the type specified is the type of the coin, not the coin type itself. For exampl
     <b>let</b> denied_count = &<b>mut</b> list.denied_count[addr];
     *denied_count = *denied_count + 1;
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -243,13 +254,14 @@ the type specified is the type of the coin, not the coin type itself. For exampl
 ## Function `remove`
 
 Removes a previously denied address from the list.
-Aborts with 
-<Link to="../iota-framework/deny_list#0x2_deny_list_ENotDenied">ENotDenied</Link> if the address is not on the list.
+Aborts with <code><Link to="../iota-framework/deny_list#0x2_deny_list_ENotDenied">ENotDenied</Link></code> if the address is not on the list.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_remove">remove</Link>(<Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">deny_list::DenyList</Link>, per_type_index: u64, type: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, addr: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -257,7 +269,8 @@ Aborts with
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_remove">remove</Link>(
     <Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link>,
     per_type_index: u64,
@@ -266,7 +279,8 @@ Aborts with
 ) \{
     <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_remove">per_type_list_remove</Link>(&<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>.lists[per_type_index], `type`, addr)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -278,9 +292,11 @@ Aborts with
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_remove">per_type_list_remove</Link>(list: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">deny_list::PerTypeList</Link>, type: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, addr: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -288,7 +304,8 @@ Aborts with
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_remove">per_type_list_remove</Link>(
     list: &<b>mut</b> <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link>,
     `type`: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
@@ -303,7 +320,8 @@ Aborts with
         list.denied_count.<Link to="../iota-framework/deny_list#0x2_deny_list_remove">remove</Link>(addr);
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -316,9 +334,11 @@ Aborts with
 Returns true iff the given address is denied for the given type.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_contains">contains</Link>(<Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">deny_list::DenyList</Link>, per_type_index: u64, type: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, addr: <b>address</b>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -326,7 +346,8 @@ Returns true iff the given address is denied for the given type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_contains">contains</Link>(
     <Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>: &<Link to="../iota-framework/deny_list#0x2_deny_list_DenyList">DenyList</Link>,
     per_type_index: u64,
@@ -335,7 +356,8 @@ Returns true iff the given address is denied for the given type.
 ): bool \{
     <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_contains">per_type_list_contains</Link>(&<Link to="../iota-framework/deny_list#0x2_deny_list">deny_list</Link>.lists[per_type_index], `type`, addr)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -347,9 +369,11 @@ Returns true iff the given address is denied for the given type.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_contains">per_type_list_contains</Link>(list: &<Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">deny_list::PerTypeList</Link>, type: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, addr: <b>address</b>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -357,7 +381,8 @@ Returns true iff the given address is denied for the given type.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list_contains">per_type_list_contains</Link>(
     list: &<Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link>,
     `type`: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
@@ -373,7 +398,8 @@ Returns true iff the given address is denied for the given type.
     <b>let</b> denied_addresses = &list.denied_addresses[`type`];
     denied_addresses.<Link to="../iota-framework/deny_list#0x2_deny_list_contains">contains</Link>(&addr)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -387,9 +413,11 @@ Creation of the deny list object is restricted to the system address
 via a system transaction.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_create">create</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -397,7 +425,8 @@ via a system transaction.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_create">create</Link>(ctx: &<b>mut</b> TxContext) \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/deny_list#0x2_deny_list_ENotSystemAddress">ENotSystemAddress</Link>);
 
@@ -409,7 +438,8 @@ via a system transaction.
     };
     <Link to="../iota-framework/transfer#0x2_transfer_share_object">transfer::share_object</Link>(deny_list_object);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -421,9 +451,11 @@ via a system transaction.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list">per_type_list</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">deny_list::PerTypeList</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -431,7 +463,8 @@ via a system transaction.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/deny_list#0x2_deny_list_per_type_list">per_type_list</Link>(ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link> \{
     <Link to="../iota-framework/deny_list#0x2_deny_list_PerTypeList">PerTypeList</Link> \{
         id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
@@ -439,7 +472,8 @@ via a system transaction.
         denied_addresses: <Link to="../iota-framework/table#0x2_table_new">table::new</Link>(ctx),
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 

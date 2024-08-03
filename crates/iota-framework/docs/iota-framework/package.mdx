@@ -41,14 +41,16 @@ Functions for operating on Move packages from within Move:
 -  [Function `restrict`](#0x2_package_restrict)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/ascii#0x1_ascii">0x1::ascii</Link>;
 <b>use</b> <Link to="../move-stdlib/type_name#0x1_type_name">0x1::type_name</Link>;
 <b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="types#0x2_types">0x2::types</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -62,9 +64,11 @@ can be used to identify the address that published the package
 a type originated from.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="package#0x2_package_Publisher">Publisher</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -74,22 +78,19 @@ a type originated from.
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-<Link to="package#0x2_package">package</Link>: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
+<code><Link to="package#0x2_package">package</Link>: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-module_name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
+<code>module_name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link></code>
 </dt>
 <dd>
 
@@ -106,9 +107,11 @@ module_name: <Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Lin
 Capability controlling the ability to upgrade a package.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -118,30 +121,26 @@ Capability controlling the ability to upgrade a package.
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
+<code><Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Mutable) ID of the package that can be upgraded.
 </dd>
 <dt>
-
-version: u64
+<code>version: u64</code>
 </dt>
 <dd>
  (Mutable) The number of upgrades that have been applied
  successively to the original package.  Initially 0.
 </dd>
 <dt>
-
-policy: u8
+<code>policy: u8</code>
 </dt>
 <dd>
  What kind of upgrades are allowed.
@@ -159,16 +158,17 @@ Permission to perform a particular upgrade (for a fixed version of
 the package, bytecode to upgrade with and transitive dependencies to
 depend against).
 
-An 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> can only issue one ticket at a time, to prevent races
+An <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> can only issue one ticket at a time, to prevent races
 between concurrent updates or a change in its upgrade policy after
 isiotang a ticket, so the ticket is a "Hot Potato" to preserve forward
 progress.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -178,31 +178,26 @@ progress.
 
 <dl>
 <dt>
-
-cap: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>cap: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
- (Immutable) ID of the 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> this originated from.
+ (Immutable) ID of the <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
 </dd>
 <dt>
-
-<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
+<code><Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Immutable) ID of the package that can be upgraded.
 </dd>
 <dt>
-
-policy: u8
+<code>policy: u8</code>
 </dt>
 <dd>
  (Immutable) The policy regarding what kind of upgrade this ticket
  permits.
 </dd>
 <dt>
-
-digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
  (Immutable) SHA256 digest of the bytecode and transitive
@@ -218,16 +213,16 @@ digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 ## Struct `UpgradeReceipt`
 
 Issued as a result of a successful upgrade, containing the
-information to be used to update the 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>.  This is a "Hot
-Potato" to ensure that it is used to update its 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> before
+information to be used to update the <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>.  This is a "Hot
+Potato" to ensure that it is used to update its <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> before
 the end of the transaction that performed the upgrade.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -237,16 +232,13 @@ the end of the transaction that performed the upgrade.
 
 <dl>
 <dt>
-
-cap: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>cap: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
- (Immutable) ID of the 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> this originated from.
+ (Immutable) ID of the <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> this originated from.
 </dd>
 <dt>
-
-<Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
+<code><Link to="package#0x2_package">package</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  (Immutable) ID of the package after it was upgraded.
@@ -267,9 +259,11 @@ Add new functions or types, or change dependencies, existing
 functions can't change.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_ADDITIVE">ADDITIVE</Link>: u8 = 128;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -279,9 +273,11 @@ Update any part of the package (function implementations, add new
 functions or types, change dependencies)
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_COMPATIBLE">COMPATIBLE</Link>: u8 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -290,46 +286,51 @@ functions or types, change dependencies)
 Only be able to change dependencies.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_DEP_ONLY">DEP_ONLY</Link>: u8 = 192;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_package_EAlreadyAuthorized"></Link>
 
-This 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> has already authorized a pending upgrade.
+This <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> has already authorized a pending upgrade.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_EAlreadyAuthorized">EAlreadyAuthorized</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_package_ENotAuthorized"></Link>
 
-This 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> has not authorized an upgrade.
+This <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> has not authorized an upgrade.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_ENotAuthorized">ENotAuthorized</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_package_ENotOneTimeWitness"></Link>
 
-Tried to create a 
-<Link to="package#0x2_package_Publisher">Publisher</Link> using a type that isn't a
+Tried to create a <code><Link to="package#0x2_package_Publisher">Publisher</Link></code> using a type that isn't a
 one-time witness.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_ENotOneTimeWitness">ENotOneTimeWitness</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -338,21 +339,24 @@ one-time witness.
 Tried to set a less restrictive policy than currently in place.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_ETooPermissive">ETooPermissive</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_package_EWrongUpgradeCap"></Link>
 
-Trying to commit an upgrade to the wrong 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>.
+Trying to commit an upgrade to the wrong <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="package#0x2_package_EWrongUpgradeCap">EWrongUpgradeCap</Link>: u64 = 4;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -366,9 +370,11 @@ constraint there can be only one Publisher object per module
 but multiple per package (!).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_claim">claim</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="package#0x2_package_Publisher">package::Publisher</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -376,7 +382,8 @@ but multiple per package (!).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_claim">claim</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> TxContext): <Link to="package#0x2_package_Publisher">Publisher</Link> \{
     <b>assert</b>!(<Link to="types#0x2_types_is_one_time_witness">types::is_one_time_witness</Link>(&otw), <Link to="package#0x2_package_ENotOneTimeWitness">ENotOneTimeWitness</Link>);
 
@@ -388,7 +395,8 @@ but multiple per package (!).
         module_name: tyname.get_module(),
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -403,9 +411,11 @@ Since this function can only be called in the module initializer,
 the sender is the publisher.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_claim_and_keep">claim_and_keep</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -413,11 +423,13 @@ the sender is the publisher.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_claim_and_keep">claim_and_keep</Link>&lt;OTW: drop&gt;(otw: OTW, ctx: &<b>mut</b> TxContext) \{
     iota::transfer::public_transfer(<Link to="package#0x2_package_claim">claim</Link>(otw, ctx), ctx.sender())
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -431,9 +443,11 @@ Destroy a Publisher object effectively removing all privileges
 associated with it.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_burn_publisher">burn_publisher</Link>(self: <Link to="package#0x2_package_Publisher">package::Publisher</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -441,12 +455,14 @@ associated with it.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_burn_publisher">burn_publisher</Link>(self: <Link to="package#0x2_package_Publisher">Publisher</Link>) \{
     <b>let</b> <Link to="package#0x2_package_Publisher">Publisher</Link> \{ id, <Link to="package#0x2_package">package</Link>: _, module_name: _ } = self;
     id.delete();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -459,9 +475,11 @@ associated with it.
 Check whether type belongs to the same package as the publisher object.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_from_package">from_package</Link>&lt;T&gt;(self: &<Link to="package#0x2_package_Publisher">package::Publisher</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -469,11 +487,13 @@ Check whether type belongs to the same package as the publisher object.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_from_package">from_package</Link>&lt;T&gt;(self: &<Link to="package#0x2_package_Publisher">Publisher</Link>): bool \{
     <Link to="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;().get_address() == self.<Link to="package#0x2_package">package</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -486,9 +506,11 @@ Check whether type belongs to the same package as the publisher object.
 Check whether a type belongs to the same module as the publisher object.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_from_module">from_module</Link>&lt;T&gt;(self: &<Link to="package#0x2_package_Publisher">package::Publisher</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -496,13 +518,15 @@ Check whether a type belongs to the same module as the publisher object.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_from_module">from_module</Link>&lt;T&gt;(self: &<Link to="package#0x2_package_Publisher">Publisher</Link>): bool \{
     <b>let</b> tyname = <Link to="../move-stdlib/type_name#0x1_type_name_get_with_original_ids">type_name::get_with_original_ids</Link>&lt;T&gt;();
 
     (tyname.get_address() == self.<Link to="package#0x2_package">package</Link>) && (tyname.get_module() == self.module_name)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -515,9 +539,11 @@ Check whether a type belongs to the same module as the publisher object.
 Read the name of the module.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_published_module">published_module</Link>(self: &<Link to="package#0x2_package_Publisher">package::Publisher</Link>): &<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -525,11 +551,13 @@ Read the name of the module.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_published_module">published_module</Link>(self: &<Link to="package#0x2_package_Publisher">Publisher</Link>): &String \{
     &self.module_name
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -542,9 +570,11 @@ Read the name of the module.
 Read the package address string.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_published_package">published_package</Link>(self: &<Link to="package#0x2_package_Publisher">package::Publisher</Link>): &<Link to="../move-stdlib/ascii#0x1_ascii_String">ascii::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -552,11 +582,13 @@ Read the package address string.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_published_package">published_package</Link>(self: &<Link to="package#0x2_package_Publisher">Publisher</Link>): &String \{
     &self.<Link to="package#0x2_package">package</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -567,16 +599,17 @@ Read the package address string.
 ## Function `upgrade_package`
 
 The ID of the package that this cap authorizes upgrades for.
-Can be 
-0x0 if the cap cannot currently authorize an upgrade
+Can be <code>0x0</code> if the cap cannot currently authorize an upgrade
 because there is already a pending upgrade in the transaction.
 Otherwise guaranteed to be the latest version of any given
 package.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_upgrade_package">upgrade_package</Link>(cap: &<Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -584,11 +617,13 @@ package.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_upgrade_package">upgrade_package</Link>(cap: &<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>): ID \{
     cap.<Link to="package#0x2_package">package</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -602,9 +637,11 @@ The most recent version of the package, increments by one for each
 successfully applied upgrade.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_version">version</Link>(cap: &<Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -612,11 +649,13 @@ successfully applied upgrade.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_version">version</Link>(cap: &<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>): u64 \{
     cap.version
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -627,13 +666,14 @@ successfully applied upgrade.
 ## Function `upgrade_policy`
 
 The most permissive kind of upgrade currently supported by this
+<code>cap</code>.
 
-cap.
 
-
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_upgrade_policy">upgrade_policy</Link>(cap: &<Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>): u8
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -641,11 +681,13 @@ cap.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_upgrade_policy">upgrade_policy</Link>(cap: &<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>): u8 \{
     cap.policy
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -658,9 +700,11 @@ cap.
 The package that this ticket is authorized to upgrade
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_ticket_package">ticket_package</Link>(ticket: &<Link to="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -668,11 +712,13 @@ The package that this ticket is authorized to upgrade
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_ticket_package">ticket_package</Link>(ticket: &<Link to="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>): ID \{
     ticket.<Link to="package#0x2_package">package</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -685,9 +731,11 @@ The package that this ticket is authorized to upgrade
 The kind of upgrade that this ticket authorizes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_ticket_policy">ticket_policy</Link>(ticket: &<Link to="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): u8
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -695,11 +743,13 @@ The kind of upgrade that this ticket authorizes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_ticket_policy">ticket_policy</Link>(ticket: &<Link to="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>): u8 \{
     ticket.policy
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -709,15 +759,15 @@ The kind of upgrade that this ticket authorizes.
 
 ## Function `receipt_cap`
 
-ID of the 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> that this 
-receipt should be used to
+ID of the <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> that this <code>receipt</code> should be used to
 update.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_receipt_cap">receipt_cap</Link>(receipt: &<Link to="package#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -725,11 +775,13 @@ update.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_receipt_cap">receipt_cap</Link>(receipt: &<Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>): ID \{
     receipt.cap
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -740,13 +792,14 @@ update.
 ## Function `receipt_package`
 
 ID of the package that was upgraded to: the latest version of
-the package, as of the upgrade represented by this 
-receipt.
+the package, as of the upgrade represented by this <code>receipt</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_receipt_package">receipt_package</Link>(receipt: &<Link to="package#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -754,11 +807,13 @@ receipt.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_receipt_package">receipt_package</Link>(receipt: &<Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>): ID \{
     receipt.<Link to="package#0x2_package">package</Link>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -782,9 +837,11 @@ A package's digest is calculated as:
 sha3_256(sort(modules ++ deps))
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_ticket_digest">ticket_digest</Link>(ticket: &<Link to="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -792,11 +849,13 @@ sha3_256(sort(modules ++ deps))
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_ticket_digest">ticket_digest</Link>(ticket: &<Link to="package#0x2_package_UpgradeTicket">UpgradeTicket</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     &ticket.digest
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -809,9 +868,11 @@ sha3_256(sort(modules ++ deps))
 Expose the constants representing various upgrade policies
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_compatible_policy">compatible_policy</Link>(): u8
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -819,9 +880,11 @@ Expose the constants representing various upgrade policies
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_compatible_policy">compatible_policy</Link>(): u8 \{ <Link to="package#0x2_package_COMPATIBLE">COMPATIBLE</Link> }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -833,9 +896,11 @@ Expose the constants representing various upgrade policies
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_additive_policy">additive_policy</Link>(): u8
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -843,9 +908,11 @@ Expose the constants representing various upgrade policies
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_additive_policy">additive_policy</Link>(): u8 \{ <Link to="package#0x2_package_ADDITIVE">ADDITIVE</Link> }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -857,9 +924,11 @@ Expose the constants representing various upgrade policies
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_dep_only_policy">dep_only_policy</Link>(): u8
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -867,9 +936,11 @@ Expose the constants representing various upgrade policies
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_dep_only_policy">dep_only_policy</Link>(): u8 \{ <Link to="package#0x2_package_DEP_ONLY">DEP_ONLY</Link> }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -879,14 +950,15 @@ Expose the constants representing various upgrade policies
 
 ## Function `only_additive_upgrades`
 
-Restrict upgrades through this upgrade 
-cap to just add code, or
+Restrict upgrades through this upgrade <code>cap</code> to just add code, or
 change dependencies.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="package#0x2_package_only_additive_upgrades">only_additive_upgrades</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -894,11 +966,13 @@ change dependencies.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="package#0x2_package_only_additive_upgrades">only_additive_upgrades</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
     cap.<Link to="package#0x2_package_restrict">restrict</Link>(<Link to="package#0x2_package_ADDITIVE">ADDITIVE</Link>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -908,14 +982,15 @@ change dependencies.
 
 ## Function `only_dep_upgrades`
 
-Restrict upgrades through this upgrade 
-cap to just change
+Restrict upgrades through this upgrade <code>cap</code> to just change
 dependencies.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="package#0x2_package_only_dep_upgrades">only_dep_upgrades</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -923,11 +998,13 @@ dependencies.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="package#0x2_package_only_dep_upgrades">only_dep_upgrades</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
     cap.<Link to="package#0x2_package_restrict">restrict</Link>(<Link to="package#0x2_package_DEP_ONLY">DEP_ONLY</Link>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -937,13 +1014,14 @@ dependencies.
 
 ## Function `make_immutable`
 
-Discard the 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> to make a package immutable.
+Discard the <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code> to make a package immutable.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="package#0x2_package_make_immutable">make_immutable</Link>(cap: <Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -951,12 +1029,14 @@ Discard the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="package#0x2_package_make_immutable">make_immutable</Link>(cap: <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>) \{
     <b>let</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link> \{ id, <Link to="package#0x2_package">package</Link>: _, version: _, policy: _ } = cap;
     id.delete();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -968,23 +1048,21 @@ Discard the
 
 Issue a ticket authorizing an upgrade to a particular new bytecode
 (identified by its digest).  A ticket will only be issued if one has
-not already been issued, and if the 
-policy requested is at least as
-restrictive as the policy set out by the 
-cap.
+not already been issued, and if the <code>policy</code> requested is at least as
+restrictive as the policy set out by the <code>cap</code>.
 
-The 
-digest supplied and the 
-policy will both be checked by
+The <code>digest</code> supplied and the <code>policy</code> will both be checked by
 validators when running the upgrade.  I.e. the bytecode supplied in
 the upgrade must have a matching digest, and the changes relative to
 the parent package must be compatible with the policy in the ticket
 for the upgrade to succeed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_authorize_upgrade">authorize_upgrade</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>, policy: u8, digest: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="package#0x2_package_UpgradeTicket">package::UpgradeTicket</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -992,7 +1070,8 @@ for the upgrade to succeed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_authorize_upgrade">authorize_upgrade</Link>(
     cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>,
     policy: u8,
@@ -1012,7 +1091,8 @@ for the upgrade to succeed.
         digest,
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1022,15 +1102,15 @@ for the upgrade to succeed.
 
 ## Function `commit_upgrade`
 
-Consume an 
-<Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link> to update its 
-<Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>, finalizing
+Consume an <code><Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link></code> to update its <code><Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link></code>, finalizing
 the upgrade.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_commit_upgrade">commit_upgrade</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>, receipt: <Link to="package#0x2_package_UpgradeReceipt">package::UpgradeReceipt</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1038,7 +1118,8 @@ the upgrade.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="package#0x2_package_commit_upgrade">commit_upgrade</Link>(
     cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>,
     receipt: <Link to="package#0x2_package_UpgradeReceipt">UpgradeReceipt</Link>,
@@ -1051,7 +1132,8 @@ the upgrade.
     cap.<Link to="package#0x2_package">package</Link> = <Link to="package#0x2_package">package</Link>;
     cap.version = cap.version + 1;
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1063,9 +1145,11 @@ the upgrade.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="package#0x2_package_restrict">restrict</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">package::UpgradeCap</Link>, policy: u8)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1073,12 +1157,14 @@ the upgrade.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="package#0x2_package_restrict">restrict</Link>(cap: &<b>mut</b> <Link to="package#0x2_package_UpgradeCap">UpgradeCap</Link>, policy: u8) \{
     <b>assert</b>!(cap.policy &lt;= policy, <Link to="package#0x2_package_ETooPermissive">ETooPermissive</Link>);
     cap.policy = policy;
 }
-</code></pre>
+</code>
+</pre>
 
 
 

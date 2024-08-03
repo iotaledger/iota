@@ -21,14 +21,16 @@ It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 -  [Function `total_supply`](#0x2_iota_total_supply)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
 <b>use</b> <Link to="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="../iota-framework/url#0x2_url">0x2::url</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -39,9 +41,11 @@ It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 Name of the coin
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link> <b>has</b> drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -51,8 +55,7 @@ Name of the coin
 
 <dl>
 <dt>
-
-dummy_field: bool
+<code>dummy_field: bool</code>
 </dt>
 <dd>
 
@@ -70,9 +73,11 @@ The IOTA token treasury capability.
 Protects the token from unauthorized changes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link> <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -82,8 +87,7 @@ Protects the token from unauthorized changes.
 
 <dl>
 <dt>
-
-inner: <Link to="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<code>inner: <Link to="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
 
@@ -103,9 +107,11 @@ inner: <Link to="../iota-framework/coin#0x2_coin_TreasuryCap">coin::TreasuryCap<
 Sender is not @0x0 the system address.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -113,9 +119,11 @@ Sender is not @0x0 the system address.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/iota#0x2_iota_EAlreadyMinted">EAlreadyMinted</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -123,15 +131,15 @@ Sender is not @0x0 the system address.
 
 ## Function `new`
 
-Register the 
-<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link> Coin to acquire 
-<Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>.
+Register the <code><Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link></code> Coin to acquire <code><Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link></code>.
 This should be called only once during genesis creation.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_new">new</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -139,7 +147,8 @@ This should be called only once during genesis creation.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_new">new</Link>(ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link> \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
     <b>assert</b>!(ctx.epoch() == 0, <Link to="../iota-framework/iota#0x2_iota_EAlreadyMinted">EAlreadyMinted</Link>);
@@ -160,7 +169,8 @@ This should be called only once during genesis creation.
         inner: treasury,
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -172,9 +182,11 @@ This should be called only once during genesis creation.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, recipient: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -182,11 +194,13 @@ This should be called only once during genesis creation.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> entry <b>fun</b> <Link to="../iota-framework/transfer#0x2_transfer">transfer</Link>(c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt;, recipient: <b>address</b>) \{
     <Link to="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(c, recipient)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -196,14 +210,14 @@ This should be called only once during genesis creation.
 
 ## Function `mint`
 
-Create an IOTA coin worth 
-value and increase the total supply in 
-cap accordingly.
+Create an IOTA coin worth <code>value</code> and increase the total supply in <code>cap</code> accordingly.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_mint">mint</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, value: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -211,13 +225,15 @@ cap accordingly.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_mint">mint</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>, value: u64, ctx: &<b>mut</b> TxContext): Coin&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt; \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
 
     cap.inner.<Link to="../iota-framework/iota#0x2_iota_mint">mint</Link>(value, ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -227,17 +243,15 @@ cap accordingly.
 
 ## Function `mint_balance`
 
-Mint some amount of IOTA as a 
-Balance and increase the total supply in 
-cap accordingly.
-Aborts if 
-value + 
-cap.inner.total_supply >= U64_MAX
+Mint some amount of IOTA as a <code>Balance</code> and increase the total supply in <code>cap</code> accordingly.
+Aborts if <code>value</code> + <code>cap.inner.total_supply</code> >= U64_MAX
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_mint_balance">mint_balance</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, value: u64, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -245,13 +259,15 @@ cap.inner.total_supply >= U64_MAX
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_mint_balance">mint_balance</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>, value: u64, ctx: &TxContext): Balance&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt; \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
 
     cap.inner.<Link to="../iota-framework/iota#0x2_iota_mint_balance">mint_balance</Link>(value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -261,14 +277,14 @@ cap.inner.total_supply >= U64_MAX
 
 ## Function `burn`
 
-Destroy the IOTA coin 
-c and decrease the total supply in 
-cap accordingly.
+Destroy the IOTA coin <code>c</code> and decrease the total supply in <code>cap</code> accordingly.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_burn">burn</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, c: <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -276,13 +292,15 @@ cap accordingly.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_burn">burn</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>, c: Coin&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt;, ctx: &TxContext): u64 \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
 
     cap.inner.<Link to="../iota-framework/iota#0x2_iota_burn">burn</Link>(c)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -292,14 +310,14 @@ cap accordingly.
 
 ## Function `burn_balance`
 
-Destroy the IOTA balance 
-b and decrease the total supply in 
-cap accordingly.
+Destroy the IOTA balance <code>b</code> and decrease the total supply in <code>cap</code> accordingly.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_burn_balance">burn_balance</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, b: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, ctx: &<Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -307,13 +325,15 @@ cap accordingly.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_burn_balance">burn_balance</Link>(cap: &<b>mut</b> <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>, b: Balance&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">IOTA</Link>&gt;, ctx: &TxContext): u64 \{
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/iota#0x2_iota_ENotSystemAddress">ENotSystemAddress</Link>);
 
     cap.inner.supply_mut().decrease_supply(b)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -326,9 +346,11 @@ cap accordingly.
 Return the total number of IOTA's in circulation.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_total_supply">total_supply</Link>(cap: &<Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -336,11 +358,13 @@ Return the total number of IOTA's in circulation.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/iota#0x2_iota_total_supply">total_supply</Link>(cap: &<Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">IotaTreasuryCap</Link>): u64 \{
     cap.inner.<Link to="../iota-framework/iota#0x2_iota_total_supply">total_supply</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 

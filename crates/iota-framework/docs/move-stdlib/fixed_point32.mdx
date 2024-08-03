@@ -19,8 +19,7 @@ a 32-bit fractional part.
 -  [Function `is_zero`](#0x1_fixed_point32_is_zero)
 
 
-<pre><code>
-</code></pre>
+<pre><code></code></pre>
 
 
 
@@ -39,9 +38,11 @@ be careful about using floating-point to convert these values to
 decimal.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -51,8 +52,7 @@ decimal.
 
 <dl>
 <dt>
-
-value: u64
+<code>value: u64</code>
 </dt>
 <dd>
 
@@ -72,21 +72,24 @@ value: u64
 The denominator provided was zero
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_EDENOMINATOR">EDENOMINATOR</Link>: u64 = 65537;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_fixed_point32_EDIVISION"></Link>
 
-The quotient value would be too large to be held in a 
-u64
+The quotient value would be too large to be held in a <code>u64</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_EDIVISION">EDIVISION</Link>: u64 = 131074;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -95,33 +98,37 @@ u64
 A division by zero was encountered
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</Link>: u64 = 65540;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_fixed_point32_EMULTIPLICATION"></Link>
 
-The multiplied value would be too large to be held in a 
-u64
+The multiplied value would be too large to be held in a <code>u64</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</Link>: u64 = 131075;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x1_fixed_point32_ERATIO_OUT_OF_RANGE"></Link>
 
-The computed ratio when converting to a 
-<Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> would be unrepresentable
+The computed ratio when converting to a <code><Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link></code> would be unrepresentable
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_ERATIO_OUT_OF_RANGE">ERATIO_OUT_OF_RANGE</Link>: u64 = 131077;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -130,9 +137,11 @@ The computed ratio when converting to a
 > TODO: This is a basic constant and should be provided somewhere centrally in the framework.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_MAX_U64">MAX_U64</Link>: u128 = 18446744073709551615;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -145,9 +154,11 @@ fractional part of the product. This will abort if the product
 overflows.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_multiply_u64">multiply_u64</Link>(val: u64, multiplier: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -155,7 +166,8 @@ overflows.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_multiply_u64">multiply_u64</Link>(val: u64, multiplier: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link>): u64 \{
     // The product of two 64 bit values <b>has</b> 128 bits, so perform the
     // multiplication <b>with</b> u128 <Link to="../iota-framework/types#0x2_types">types</Link> and keep the full 128 bit product
@@ -168,7 +180,8 @@ overflows.
     <b>assert</b>!(product &lt;= <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_MAX_U64">MAX_U64</Link>, <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</Link>);
     product <b>as</b> u64
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -183,9 +196,11 @@ fractional part of the quotient. This will abort if the divisor
 is zero or if the quotient overflows.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_divide_u64">divide_u64</Link>(val: u64, divisor: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -193,7 +208,8 @@ is zero or if the quotient overflows.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_divide_u64">divide_u64</Link>(val: u64, divisor: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link>): u64 \{
     // Check for division by zero.
     <b>assert</b>!(divisor.value != 0, <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</Link>);
@@ -207,7 +223,8 @@ is zero or if the quotient overflows.
     // <b>with</b> an arithmetic error.
     quotient <b>as</b> u64
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -219,8 +236,7 @@ is zero or if the quotient overflows.
 
 Create a fixed-point value from a rational number specified by its
 numerator and denominator. Calling this function should be preferred
-for using 
-<Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_raw_value">Self::create_from_raw_value</Link> which is also available.
+for using <code><Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_raw_value">Self::create_from_raw_value</Link></code> which is also available.
 This will abort if the denominator is zero. It will also
 abort if the numerator is nonzero and the ratio is not in the range
 2^-32 .. 2^32-1. When specifying decimal fractions, be careful about
@@ -230,9 +246,11 @@ very small imprecision in the binary representation could change the
 rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_rational">create_from_rational</Link>(numerator: u64, denominator: u64): <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -240,7 +258,8 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_rational">create_from_rational</Link>(numerator: u64, denominator: u64): <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> \{
     // If the denominator is zero, this will <b>abort</b>.
     // Scale the numerator <b>to</b> have 64 fractional bits and the denominator
@@ -256,7 +275,8 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
     <b>assert</b>!(quotient &lt;= <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_MAX_U64">MAX_U64</Link>, <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_ERATIO_OUT_OF_RANGE">ERATIO_OUT_OF_RANGE</Link>);
     <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> \{ value: quotient <b>as</b> u64 }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -269,9 +289,11 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 Create a fixedpoint value from a raw value.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_raw_value">create_from_raw_value</Link>(value: u64): <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -279,11 +301,13 @@ Create a fixedpoint value from a raw value.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_create_from_raw_value">create_from_raw_value</Link>(value: u64): <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> \{
     <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link> \{ value }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -298,9 +322,11 @@ adding or subtracting FixedPoint32 values, can be done using the raw
 values directly.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_get_raw_value">get_raw_value</Link>(num: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -308,11 +334,13 @@ values directly.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_get_raw_value">get_raw_value</Link>(num: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link>): u64 \{
     num.value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -325,9 +353,11 @@ values directly.
 Returns true if the ratio is zero.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_is_zero">is_zero</Link>(num: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -335,11 +365,13 @@ Returns true if the ratio is zero.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_is_zero">is_zero</Link>(num: <Link to="../move-stdlib/fixed_point32#0x1_fixed_point32_FixedPoint32">FixedPoint32</Link>): bool \{
     num.value == 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 

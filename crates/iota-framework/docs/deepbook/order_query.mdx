@@ -20,12 +20,14 @@ import Link from '@docusaurus/Link';
 -  [Function `tick_level`](#0xdee9_order_query_tick_level)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../iota-framework/linked_table#0x2_linked_table">0x2::linked_table</Link>;
 <b>use</b> <Link to="clob_v2#0xdee9_clob_v2">0xdee9::clob_v2</Link>;
 <b>use</b> <Link to="critbit#0xdee9_critbit">0xdee9::critbit</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -35,9 +37,11 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="order_query#0xdee9_order_query_OrderPage">OrderPage</Link> <b>has</b> drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -47,29 +51,25 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-
-orders: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;
+<code>orders: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-has_next_page: bool
+<code>has_next_page: bool</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-next_tick_level: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
+<code>next_tick_level: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
+<code>next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;</code>
 </dt>
 <dd>
 
@@ -88,9 +88,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="order_query#0xdee9_order_query_PAGE_LIMIT">PAGE_LIMIT</Link>: u64 = 100;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -100,9 +102,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_iter_bids">iter_bids</Link>&lt;T1, T2&gt;(pool: &<Link to="clob_v2#0xdee9_clob_v2_Pool">clob_v2::Pool</Link>&lt;T1, T2&gt;, start_tick_level: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, start_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, min_expire_timestamp: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, max_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ascending: bool): <Link to="order_query#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -110,7 +114,8 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_iter_bids">iter_bids</Link>&lt;T1, T2&gt;(
     pool: &Pool&lt;T1, T2&gt;,
     // tick level <b>to</b> start from
@@ -149,7 +154,8 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
         next_order_id
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -161,9 +167,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_iter_asks">iter_asks</Link>&lt;T1, T2&gt;(pool: &<Link to="clob_v2#0xdee9_clob_v2_Pool">clob_v2::Pool</Link>&lt;T1, T2&gt;, start_tick_level: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, start_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, min_expire_timestamp: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, max_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ascending: bool): <Link to="order_query#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -171,7 +179,8 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_iter_asks">iter_asks</Link>&lt;T1, T2&gt;(
     pool: &Pool&lt;T1, T2&gt;,
     // tick level <b>to</b> start from
@@ -210,7 +219,8 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
         next_order_id
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -222,9 +232,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="order_query#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</Link>(ticks: &<Link to="critbit#0xdee9_critbit_CritbitTree">critbit::CritbitTree</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_TickLevel">clob_v2::TickLevel</Link>&gt;, start_tick_level: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, start_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, min_expire_timestamp: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, max_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ascending: bool): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -232,7 +244,8 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="order_query#0xdee9_order_query_iter_ticks_internal">iter_ticks_internal</Link>(
     ticks: &CritbitTree&lt;TickLevel&gt;,
     // tick level <b>to</b> start from
@@ -308,7 +321,8 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
     };
     orders
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -320,9 +334,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_orders">orders</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -330,11 +346,13 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_orders">orders</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">OrderPage</Link>): &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;Order&gt; \{
     &page.orders
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -346,9 +364,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_has_next_page">has_next_page</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -356,11 +376,13 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_has_next_page">has_next_page</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">OrderPage</Link>): bool \{
     page.has_next_page
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -372,9 +394,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_next_tick_level">next_tick_level</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -382,11 +406,13 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_next_tick_level">next_tick_level</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">OrderPage</Link>): Option&lt;u64&gt; \{
     page.next_tick_level
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -398,9 +424,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_next_order_id">next_order_id</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">order_query::OrderPage</Link>): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -408,11 +436,13 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_next_order_id">next_order_id</Link>(page: &<Link to="order_query#0xdee9_order_query_OrderPage">OrderPage</Link>): Option&lt;u64&gt; \{
     page.next_order_id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -424,9 +454,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_order_id">order_id</Link>(order: &<Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -434,11 +466,13 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_order_id">order_id</Link>(order: &Order): u64 \{
     <Link to="clob_v2#0xdee9_clob_v2_order_id">clob_v2::order_id</Link>(order)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -450,9 +484,11 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_tick_level">tick_level</Link>(order: &<Link to="clob_v2#0xdee9_clob_v2_Order">clob_v2::Order</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -460,11 +496,13 @@ next_order_id: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="order_query#0xdee9_order_query_tick_level">tick_level</Link>(order: &Order): u64 \{
     <Link to="clob_v2#0xdee9_clob_v2_tick_level">clob_v2::tick_level</Link>(order)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

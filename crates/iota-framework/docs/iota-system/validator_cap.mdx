@@ -15,11 +15,13 @@ import Link from '@docusaurus/Link';
 -  [Function `new_from_unverified`](#0x3_validator_cap_new_from_unverified)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -27,26 +29,23 @@ import Link from '@docusaurus/Link';
 
 ## Resource `UnverifiedValidatorOperationCap`
 
-The capability object is created when creating a new 
-Validator or when the
+The capability object is created when creating a new <code>Validator</code> or when the
 validator explicitly creates a new capability object for rotation/revocation.
 The holder address of this object can perform some validator operations on behalf of
 the authorizer validator. Thus, if a validator wants to separate the keys for operation
 (such as reference gas price setting or tallying rule reporting) from fund/staking, it
 could transfer this capability object to another address.
-To facilitate rotating/revocation, 
-Validator stores the ID of currently valid
-
-<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link>. Thus, before converting 
-<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link>
-to 
-<Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link>, verification needs to be done to make sure
+To facilitate rotating/revocation, <code>Validator</code> stores the ID of currently valid
+<code><Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link></code>. Thus, before converting <code><Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link></code>
+to <code><Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link></code>, verification needs to be done to make sure
 the cap object is still valid.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -56,15 +55,13 @@ the cap object is still valid.
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-authorizer_validator_address: <b>address</b>
+<code>authorizer_validator_address: <b>address</b></code>
 </dt>
 <dd>
 
@@ -78,14 +75,15 @@ authorizer_validator_address: <b>address</b>
 
 ## Struct `ValidatorOperationCap`
 
-Privileged operations require 
-<Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link> for permission check.
+Privileged operations require <code><Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link></code> for permission check.
 This is only constructed after successful verification.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link> <b>has</b> drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -95,8 +93,7 @@ This is only constructed after successful verification.
 
 <dl>
 <dt>
-
-authorizer_validator_address: <b>address</b>
+<code>authorizer_validator_address: <b>address</b></code>
 </dt>
 <dd>
 
@@ -112,9 +109,11 @@ authorizer_validator_address: <b>address</b>
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_unverified_operation_cap_address">unverified_operation_cap_address</Link>(cap: &<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</Link>): &<b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -122,11 +121,13 @@ authorizer_validator_address: <b>address</b>
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_unverified_operation_cap_address">unverified_operation_cap_address</Link>(cap: &<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link>): &<b>address</b> \{
     &cap.authorizer_validator_address
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -138,9 +139,11 @@ authorizer_validator_address: <b>address</b>
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_verified_operation_cap_address">verified_operation_cap_address</Link>(cap: &<Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">validator_cap::ValidatorOperationCap</Link>): &<b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -148,11 +151,13 @@ authorizer_validator_address: <b>address</b>
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_verified_operation_cap_address">verified_operation_cap_address</Link>(cap: &<Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link>): &<b>address</b> \{
     &cap.authorizer_validator_address
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -162,15 +167,15 @@ authorizer_validator_address: <b>address</b>
 
 ## Function `new_unverified_validator_operation_cap_and_transfer`
 
-Should be only called by the friend modules when adding a 
-Validator
-or rotating an existing validaotr's 
-operation_cap_id.
+Should be only called by the friend modules when adding a <code>Validator</code>
+or rotating an existing validaotr's <code>operation_cap_id</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_new_unverified_validator_operation_cap_and_transfer">new_unverified_validator_operation_cap_and_transfer</Link>(validator_address: <b>address</b>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -178,7 +183,8 @@ operation_cap_id.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_new_unverified_validator_operation_cap_and_transfer">new_unverified_validator_operation_cap_and_transfer</Link>(
     validator_address: <b>address</b>,
     ctx: &<b>mut</b> TxContext,
@@ -197,7 +203,8 @@ operation_cap_id.
     <Link to="../iota-framework/transfer#0x2_transfer_public_transfer">transfer::public_transfer</Link>(operation_cap, validator_address);
     operation_cap_id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -207,16 +214,15 @@ operation_cap_id.
 
 ## Function `new_from_unverified`
 
-Convert an 
-<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link> to 
-<Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link>.
-Should only be called by 
-<Link to="validator_set#0x3_validator_set">validator_set</Link> module AFTER verification.
+Convert an <code><Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link></code> to <code><Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link></code>.
+Should only be called by <code><Link to="validator_set#0x3_validator_set">validator_set</Link></code> module AFTER verification.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_new_from_unverified">new_from_unverified</Link>(cap: &<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">validator_cap::UnverifiedValidatorOperationCap</Link>): <Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">validator_cap::ValidatorOperationCap</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -224,7 +230,8 @@ Should only be called by
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="validator_cap#0x3_validator_cap_new_from_unverified">new_from_unverified</Link>(
     cap: &<Link to="validator_cap#0x3_validator_cap_UnverifiedValidatorOperationCap">UnverifiedValidatorOperationCap</Link>,
 ): <Link to="validator_cap#0x3_validator_cap_ValidatorOperationCap">ValidatorOperationCap</Link> \{
@@ -232,7 +239,8 @@ Should only be called by
         authorizer_validator_address: cap.authorizer_validator_address
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 

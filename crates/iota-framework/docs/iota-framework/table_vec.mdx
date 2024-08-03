@@ -5,8 +5,7 @@ sidebar_label: table_vec
 import Link from '@docusaurus/Link';
 
 <Link id="0x2_table_vec"/>
-A basic scalable vector library implemented using 
-Table.
+A basic scalable vector library implemented using <code>Table</code>.
 
 
 -  [Struct `TableVec`](#0x2_table_vec_TableVec)
@@ -25,10 +24,12 @@ Table.
 -  [Function `swap_remove`](#0x2_table_vec_swap_remove)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -38,9 +39,11 @@ Table.
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element: store&gt; <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -50,8 +53,7 @@ Table.
 
 <dl>
 <dt>
-
-contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, Element&gt;
+<code>contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;u64, Element&gt;</code>
 </dt>
 <dd>
  The contents of the table vector.
@@ -70,9 +72,11 @@ contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -80,9 +84,11 @@ contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/table_vec#0x2_table_vec_ETableNonEmpty">ETableNonEmpty</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -93,9 +99,11 @@ contents: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>
 Create an empty TableVec.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_empty">empty</Link>&lt;Element: store&gt;(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -103,13 +111,15 @@ Create an empty TableVec.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_empty">empty</Link>&lt;Element: store&gt;(ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt; \{
     <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link> \{
         contents: <Link to="../iota-framework/table#0x2_table_new">table::new</Link>(ctx)
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -119,13 +129,14 @@ Create an empty TableVec.
 
 ## Function `singleton`
 
-Return a TableVec of size one containing element 
-e.
+Return a TableVec of size one containing element <code>e</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_singleton">singleton</Link>&lt;Element: store&gt;(e: Element, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -133,13 +144,15 @@ e.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_singleton">singleton</Link>&lt;Element: store&gt;(e: Element, ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt; \{
     <b>let</b> <b>mut</b> t = <Link to="../iota-framework/table_vec#0x2_table_vec_empty">empty</Link>(ctx);
     t.<Link to="../iota-framework/table_vec#0x2_table_vec_push_back">push_back</Link>(e);
     t
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -152,9 +165,11 @@ e.
 Return the length of the TableVec.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>&lt;Element: store&gt;(t: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -162,11 +177,13 @@ Return the length of the TableVec.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>&lt;Element: store&gt;(t: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;): u64 \{
     t.contents.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -179,9 +196,11 @@ Return the length of the TableVec.
 Return if the TableVec is empty or not.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_is_empty">is_empty</Link>&lt;Element: store&gt;(t: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -189,11 +208,13 @@ Return if the TableVec is empty or not.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_is_empty">is_empty</Link>&lt;Element: store&gt;(t: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;): bool \{
     t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() == 0
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -203,16 +224,15 @@ Return if the TableVec is empty or not.
 
 ## Function `borrow`
 
-Acquire an immutable reference to the 
-ith element of the TableVec 
-t.
-Aborts if 
-i is out of bounds.
+Acquire an immutable reference to the <code>i</code>th element of the TableVec <code>t</code>.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_borrow">borrow</Link>&lt;Element: store&gt;(t: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;, i: u64): &Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -220,12 +240,14 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_borrow">borrow</Link>&lt;Element: store&gt;(t: &<Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;, i: u64): &Element \{
     <b>assert</b>!(t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() &gt; i, <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>);
     &t.contents[i]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -235,14 +257,14 @@ i is out of bounds.
 
 ## Function `push_back`
 
-Add element 
-e to the end of the TableVec 
-t.
+Add element <code>e</code> to the end of the TableVec <code>t</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_push_back">push_back</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;, e: Element)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -250,12 +272,14 @@ t.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_push_back">push_back</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;, e: Element) \{
     <b>let</b> key = t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>();
     t.contents.add(key, e);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -265,16 +289,15 @@ t.
 
 ## Function `borrow_mut`
 
-Return a mutable reference to the 
-ith element in the TableVec 
-t.
-Aborts if 
-i is out of bounds.
+Return a mutable reference to the <code>i</code>th element in the TableVec <code>t</code>.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_borrow_mut">borrow_mut</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -282,12 +305,14 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_borrow_mut">borrow_mut</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;, i: u64): &<b>mut</b> Element \{
     <b>assert</b>!(t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() &gt; i, <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>);
     &<b>mut</b> t.contents[i]
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -297,15 +322,15 @@ i is out of bounds.
 
 ## Function `pop_back`
 
-Pop an element from the end of TableVec 
-t.
-Aborts if 
-t is empty.
+Pop an element from the end of TableVec <code>t</code>.
+Aborts if <code>t</code> is empty.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_pop_back">pop_back</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;): Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -313,13 +338,15 @@ t is empty.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_pop_back">pop_back</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;): Element \{
     <b>let</b> length = <Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>(t);
     <b>assert</b>!(length &gt; 0, <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>);
     t.contents.remove(length - 1)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -329,15 +356,15 @@ t is empty.
 
 ## Function `destroy_empty`
 
-Destroy the TableVec 
-t.
-Aborts if 
-t is not empty.
+Destroy the TableVec <code>t</code>.
+Aborts if <code>t</code> is not empty.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_destroy_empty">destroy_empty</Link>&lt;Element: store&gt;(t: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -345,13 +372,15 @@ t is not empty.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_destroy_empty">destroy_empty</Link>&lt;Element: store&gt;(t: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;) \{
     <b>assert</b>!(<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>(&t) == 0, <Link to="../iota-framework/table_vec#0x2_table_vec_ETableNonEmpty">ETableNonEmpty</Link>);
     <b>let</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link> \{ contents } = t;
     contents.<Link to="../iota-framework/table_vec#0x2_table_vec_destroy_empty">destroy_empty</Link>();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -361,16 +390,15 @@ t is not empty.
 
 ## Function `drop`
 
-Drop a possibly non-empty TableVec 
-t.
-Usable only if the value type 
-Element has the 
-drop ability
+Drop a possibly non-empty TableVec <code>t</code>.
+Usable only if the value type <code>Element</code> has the <code>drop</code> ability
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_drop">drop</Link>&lt;Element: drop, store&gt;(t: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -378,12 +406,14 @@ drop ability
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_drop">drop</Link>&lt;Element: drop + store&gt;(t: <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;) \{
     <b>let</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link> \{ contents } = t;
     contents.<Link to="../iota-framework/table_vec#0x2_table_vec_drop">drop</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -393,18 +423,15 @@ drop ability
 
 ## Function `swap`
 
-Swaps the elements at the 
-ith and 
-jth indices in the TableVec 
-t.
-Aborts if 
-i or 
-j is out of bounds.
+Swaps the elements at the <code>i</code>th and <code>j</code>th indices in the TableVec <code>t</code>.
+Aborts if <code>i</code> or <code>j</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_swap">swap</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;, i: u64, j: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -412,7 +439,8 @@ j is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_swap">swap</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;, i: u64, j: u64) \{
     <b>assert</b>!(t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() &gt; i, <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>);
     <b>assert</b>!(t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() &gt; j, <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>);
@@ -422,7 +450,8 @@ j is out of bounds.
     t.contents.add(j, element_i);
     t.contents.add(i, element_j);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -432,17 +461,16 @@ j is out of bounds.
 
 ## Function `swap_remove`
 
-Swap the 
-ith element of the TableVec 
-t with the last element and then pop the TableVec.
+Swap the <code>i</code>th element of the TableVec <code>t</code> with the last element and then pop the TableVec.
 This is O(1), but does not preserve ordering of elements in the TableVec.
-Aborts if 
-i is out of bounds.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_swap_remove">swap_remove</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">table_vec::TableVec</Link>&lt;Element&gt;, i: u64): Element
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -450,14 +478,16 @@ i is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/table_vec#0x2_table_vec_swap_remove">swap_remove</Link>&lt;Element: store&gt;(t: &<b>mut</b> <Link to="../iota-framework/table_vec#0x2_table_vec_TableVec">TableVec</Link>&lt;Element&gt;, i: u64): Element \{
     <b>assert</b>!(t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() &gt; i, <Link to="../iota-framework/table_vec#0x2_table_vec_EIndexOutOfBound">EIndexOutOfBound</Link>);
     <b>let</b> last_idx = t.<Link to="../iota-framework/table_vec#0x2_table_vec_length">length</Link>() - 1;
     t.<Link to="../iota-framework/table_vec#0x2_table_vec_swap">swap</Link>(i, last_idx);
     t.<Link to="../iota-framework/table_vec#0x2_table_vec_pop_back">pop_back</Link>()
 }
-</code></pre>
+</code>
+</pre>
 
 
 

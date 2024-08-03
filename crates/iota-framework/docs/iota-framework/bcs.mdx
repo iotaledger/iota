@@ -63,12 +63,14 @@ let leftovers = prepared.into_remainder_bytes();
 -  [Function `peel_option_u128`](#0x2_bcs_peel_option_u128)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/bcs#0x1_bcs">0x1::bcs</Link>;
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="../move-stdlib/vector#0x1_vector">0x1::vector</Link>;
 <b>use</b> <Link to="address#0x2_address">0x2::address</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -78,13 +80,14 @@ let leftovers = prepared.into_remainder_bytes();
 
 A helper struct that saves resources on operations. For better
 vector performance, it stores reversed bytes of the BCS and
-enables use of 
-<Link to="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link>.
+enables use of <code><Link to="../move-stdlib/vector#0x1_vector_pop_back">vector::pop_back</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -94,8 +97,7 @@ enables use of
 
 <dl>
 <dt>
-
-bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
+<code>bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;</code>
 </dt>
 <dd>
 
@@ -115,22 +117,24 @@ bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
 For when ULEB byte is out of range (or not found).
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="bcs#0x2_bcs_ELenOutOfRange">ELenOutOfRange</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_bcs_ENotBool"></Link>
 
-For when the boolean value different than 
-0 or 
-1.
+For when the boolean value different than <code>0</code> or <code>1</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="bcs#0x2_bcs_ENotBool">ENotBool</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -139,9 +143,11 @@ For when the boolean value different than
 For when bytes length is less than required for deserialization.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="bcs#0x2_bcs_EOutOfRange">EOutOfRange</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -150,13 +156,14 @@ For when bytes length is less than required for deserialization.
 ## Function `to_bytes`
 
 Get BCS serialized bytes for any value.
-Re-exports stdlib 
-<Link to="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link>.
+Re-exports stdlib <code><Link to="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_to_bytes">to_bytes</Link>&lt;T&gt;(value: &T): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -164,11 +171,13 @@ Re-exports stdlib
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_to_bytes">to_bytes</Link>&lt;T&gt;(value: &T): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     <Link to="../move-stdlib/bcs#0x1_bcs_to_bytes">bcs::to_bytes</Link>(value)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -182,9 +191,11 @@ Creates a new instance of BCS wrapper that holds inversed
 bytes for better performance.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_new">new</Link>(bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): bcs::BCS
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -192,12 +203,14 @@ bytes for better performance.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_new">new</Link>(<b>mut</b> bytes: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;): <Link to="bcs#0x2_bcs_BCS">BCS</Link> \{
     bytes.reverse();
     <Link to="bcs#0x2_bcs_BCS">BCS</Link> \{ bytes }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -207,14 +220,15 @@ bytes for better performance.
 
 ## Function `into_remainder_bytes`
 
-Unpack the 
-<Link to="bcs#0x2_bcs_BCS">BCS</Link> struct returning the leftover bytes.
+Unpack the <code><Link to="bcs#0x2_bcs_BCS">BCS</Link></code> struct returning the leftover bytes.
 Useful for passing the data further after partial deserialization.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_into_remainder_bytes">into_remainder_bytes</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -222,13 +236,15 @@ Useful for passing the data further after partial deserialization.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_into_remainder_bytes">into_remainder_bytes</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     <b>let</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link> \{ <b>mut</b> bytes } = <Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>;
     bytes.reverse();
     bytes
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -241,9 +257,11 @@ Useful for passing the data further after partial deserialization.
 Read address from the bcs-serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_address">peel_address</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -251,7 +269,8 @@ Read address from the bcs-serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_address">peel_address</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <b>address</b> \{
     <b>assert</b>!(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.bytes.length() &gt;= <Link to="../move-stdlib/address#0x1_address_length">address::length</Link>(), <Link to="bcs#0x2_bcs_EOutOfRange">EOutOfRange</Link>);
     <b>let</b> (<b>mut</b> addr_bytes, <b>mut</b> i) = (<Link to="../move-stdlib/vector#0x1_vector">vector</Link>[], 0);
@@ -261,7 +280,8 @@ Read address from the bcs-serialized bytes.
     };
     address::from_bytes(addr_bytes)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -271,13 +291,14 @@ Read address from the bcs-serialized bytes.
 
 ## Function `peel_bool`
 
-Read a 
-bool value from bcs-serialized bytes.
+Read a <code>bool</code> value from bcs-serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -285,7 +306,8 @@ bool value from bcs-serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): bool \{
     <b>let</b> value = <Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_u8">peel_u8</Link>();
     <b>if</b> (value == 0) \{
@@ -296,7 +318,8 @@ bool value from bcs-serialized bytes.
         <b>abort</b> <Link to="bcs#0x2_bcs_ENotBool">ENotBool</Link>
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -306,13 +329,14 @@ bool value from bcs-serialized bytes.
 
 ## Function `peel_u8`
 
-Read 
-u8 value from bcs-serialized bytes.
+Read <code>u8</code> value from bcs-serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u8">peel_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): u8
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -320,12 +344,14 @@ u8 value from bcs-serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u8">peel_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): u8 \{
     <b>assert</b>!(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.bytes.length() &gt;= 1, <Link to="bcs#0x2_bcs_EOutOfRange">EOutOfRange</Link>);
     <Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.bytes.pop_back()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -335,13 +361,14 @@ u8 value from bcs-serialized bytes.
 
 ## Function `peel_u64`
 
-Read 
-u64 value from bcs-serialized bytes.
+Read <code>u64</code> value from bcs-serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u64">peel_u64</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -349,7 +376,8 @@ u64 value from bcs-serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u64">peel_u64</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): u64 \{
     <b>assert</b>!(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.bytes.length() &gt;= 8, <Link to="bcs#0x2_bcs_EOutOfRange">EOutOfRange</Link>);
 
@@ -362,7 +390,8 @@ u64 value from bcs-serialized bytes.
 
     value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -372,13 +401,14 @@ u64 value from bcs-serialized bytes.
 
 ## Function `peel_u128`
 
-Read 
-u128 value from bcs-serialized bytes.
+Read <code>u128</code> value from bcs-serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u128">peel_u128</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): u128
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -386,7 +416,8 @@ u128 value from bcs-serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u128">peel_u128</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): u128 \{
     <b>assert</b>!(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.bytes.length() &gt;= 16, <Link to="bcs#0x2_bcs_EOutOfRange">EOutOfRange</Link>);
 
@@ -399,7 +430,8 @@ u128 value from bcs-serialized bytes.
 
     value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -409,13 +441,14 @@ u128 value from bcs-serialized bytes.
 
 ## Function `peel_u256`
 
-Read 
-u256 value from bcs-serialized bytes.
+Read <code>u256</code> value from bcs-serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u256">peel_u256</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): u256
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -423,7 +456,8 @@ u256 value from bcs-serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_u256">peel_u256</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): u256 \{
     <b>assert</b>!(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.bytes.length() &gt;= 32, <Link to="bcs#0x2_bcs_EOutOfRange">EOutOfRange</Link>);
 
@@ -436,7 +470,8 @@ u256 value from bcs-serialized bytes.
 
     value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -447,17 +482,17 @@ u256 value from bcs-serialized bytes.
 ## Function `peel_vec_length`
 
 Read ULEB bytes expecting a vector length. Result should
-then be used to perform 
-peel_* operation LEN times.
+then be used to perform <code>peel_*</code> operation LEN times.
 
-In BCS 
-<Link to="../move-stdlib/vector#0x1_vector">vector</Link> length is implemented with ULEB128;
+In BCS <code><Link to="../move-stdlib/vector#0x1_vector">vector</Link></code> length is implemented with ULEB128;
 See more here: https://en.wikipedia.org/wiki/LEB128
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -465,7 +500,8 @@ See more here: https://en.wikipedia.org/wiki/LEB128
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): u64 \{
     <b>let</b> (<b>mut</b> total, <b>mut</b> shift, <b>mut</b> len) = (0u64, 0, 0);
     <b>while</b> (<b>true</b>) \{
@@ -480,7 +516,8 @@ See more here: https://en.wikipedia.org/wiki/LEB128
     };
     total
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -490,13 +527,14 @@ See more here: https://en.wikipedia.org/wiki/LEB128
 
 ## Function `peel_vec_address`
 
-Peel a vector of 
-<b>address</b> from serialized bytes.
+Peel a vector of <code><b>address</b></code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_address">peel_vec_address</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -504,7 +542,8 @@ Peel a vector of
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_address">peel_vec_address</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<b>address</b>&gt; \{
     <b>let</b> (len, <b>mut</b> i, <b>mut</b> res) = (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(), 0, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[]);
     <b>while</b> (i &lt; len) \{
@@ -513,7 +552,8 @@ Peel a vector of
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -523,13 +563,14 @@ Peel a vector of
 
 ## Function `peel_vec_bool`
 
-Peel a vector of 
-<b>address</b> from serialized bytes.
+Peel a vector of <code><b>address</b></code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_bool">peel_vec_bool</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;bool&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -537,7 +578,8 @@ Peel a vector of
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_bool">peel_vec_bool</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;bool&gt; \{
     <b>let</b> (len, <b>mut</b> i, <b>mut</b> res) = (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(), 0, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[]);
     <b>while</b> (i &lt; len) \{
@@ -546,7 +588,8 @@ Peel a vector of
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -556,13 +599,14 @@ Peel a vector of
 
 ## Function `peel_vec_u8`
 
-Peel a vector of 
-u8 (eg string) from serialized bytes.
+Peel a vector of <code>u8</code> (eg string) from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_u8">peel_vec_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -570,7 +614,8 @@ u8 (eg string) from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_u8">peel_vec_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; \{
     <b>let</b> (len, <b>mut</b> i, <b>mut</b> res) = (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(), 0, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[]);
     <b>while</b> (i &lt; len) \{
@@ -579,7 +624,8 @@ u8 (eg string) from serialized bytes.
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -589,13 +635,14 @@ u8 (eg string) from serialized bytes.
 
 ## Function `peel_vec_vec_u8`
 
-Peel a 
-<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; (eg vec of string) from serialized bytes.
+Peel a <code><Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;</code> (eg vec of string) from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_vec_u8">peel_vec_vec_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -603,7 +650,8 @@ Peel a
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_vec_u8">peel_vec_vec_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;&gt; \{
     <b>let</b> (len, <b>mut</b> i, <b>mut</b> res) = (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(), 0, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[]);
     <b>while</b> (i &lt; len) \{
@@ -612,7 +660,8 @@ Peel a
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -622,13 +671,14 @@ Peel a
 
 ## Function `peel_vec_u64`
 
-Peel a vector of 
-u64 from serialized bytes.
+Peel a vector of <code>u64</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_u64">peel_vec_u64</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -636,7 +686,8 @@ u64 from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_u64">peel_vec_u64</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u64&gt; \{
     <b>let</b> (len, <b>mut</b> i, <b>mut</b> res) = (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(), 0, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[]);
     <b>while</b> (i &lt; len) \{
@@ -645,7 +696,8 @@ u64 from serialized bytes.
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -655,13 +707,14 @@ u64 from serialized bytes.
 
 ## Function `peel_vec_u128`
 
-Peel a vector of 
-u128 from serialized bytes.
+Peel a vector of <code>u128</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_u128">peel_vec_u128</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u128&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -669,7 +722,8 @@ u128 from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_vec_u128">peel_vec_u128</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u128&gt; \{
     <b>let</b> (len, <b>mut</b> i, <b>mut</b> res) = (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_vec_length">peel_vec_length</Link>(), 0, <Link to="../move-stdlib/vector#0x1_vector">vector</Link>[]);
     <b>while</b> (i &lt; len) \{
@@ -678,7 +732,8 @@ u128 from serialized bytes.
     };
     res
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -688,13 +743,14 @@ u128 from serialized bytes.
 
 ## Function `peel_option_address`
 
-Peel 
-Option&lt;<b>address</b>&gt; from serialized bytes.
+Peel <code>Option&lt;<b>address</b>&gt;</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_address">peel_option_address</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<b>address</b>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -702,7 +758,8 @@ Option&lt;<b>address</b>&gt; from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_address">peel_option_address</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): Option&lt;<b>address</b>&gt; \{
     <b>if</b> (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>()) \{
         <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_address">peel_address</Link>())
@@ -710,7 +767,8 @@ Option&lt;<b>address</b>&gt; from serialized bytes.
         <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -720,13 +778,14 @@ Option&lt;<b>address</b>&gt; from serialized bytes.
 
 ## Function `peel_option_bool`
 
-Peel 
-Option&lt;bool&gt; from serialized bytes.
+Peel <code>Option&lt;bool&gt;</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_bool">peel_option_bool</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;bool&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -734,7 +793,8 @@ Option&lt;bool&gt; from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_bool">peel_option_bool</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): Option&lt;bool&gt; \{
     <b>if</b> (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>()) \{
         <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>())
@@ -742,7 +802,8 @@ Option&lt;bool&gt; from serialized bytes.
         <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -752,13 +813,14 @@ Option&lt;bool&gt; from serialized bytes.
 
 ## Function `peel_option_u8`
 
-Peel 
-Option&lt;u8&gt; from serialized bytes.
+Peel <code>Option&lt;u8&gt;</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_u8">peel_option_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u8&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -766,7 +828,8 @@ Option&lt;u8&gt; from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_u8">peel_option_u8</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): Option&lt;u8&gt; \{
     <b>if</b> (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>()) \{
         <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_u8">peel_u8</Link>())
@@ -774,7 +837,8 @@ Option&lt;u8&gt; from serialized bytes.
         <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -784,13 +848,14 @@ Option&lt;u8&gt; from serialized bytes.
 
 ## Function `peel_option_u64`
 
-Peel 
-Option&lt;u64&gt; from serialized bytes.
+Peel <code>Option&lt;u64&gt;</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_u64">peel_option_u64</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -798,7 +863,8 @@ Option&lt;u64&gt; from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_u64">peel_option_u64</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): Option&lt;u64&gt; \{
     <b>if</b> (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>()) \{
         <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_u64">peel_u64</Link>())
@@ -806,7 +872,8 @@ Option&lt;u64&gt; from serialized bytes.
         <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -816,13 +883,14 @@ Option&lt;u64&gt; from serialized bytes.
 
 ## Function `peel_option_u128`
 
-Peel 
-Option&lt;u128&gt; from serialized bytes.
+Peel <code>Option&lt;u128&gt;</code> from serialized bytes.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_u128">peel_option_u128</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> bcs::BCS): <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u128&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -830,7 +898,8 @@ Option&lt;u128&gt; from serialized bytes.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="bcs#0x2_bcs_peel_option_u128">peel_option_u128</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>: &<b>mut</b> <Link to="bcs#0x2_bcs_BCS">BCS</Link>): Option&lt;u128&gt; \{
     <b>if</b> (<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_bool">peel_bool</Link>()) \{
         <Link to="../move-stdlib/option#0x1_option_some">option::some</Link>(<Link to="../move-stdlib/bcs#0x1_bcs">bcs</Link>.<Link to="bcs#0x2_bcs_peel_u128">peel_u128</Link>())
@@ -838,7 +907,8 @@ Option&lt;u128&gt; from serialized bytes.
         <Link to="../move-stdlib/option#0x1_option_none">option::none</Link>()
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 

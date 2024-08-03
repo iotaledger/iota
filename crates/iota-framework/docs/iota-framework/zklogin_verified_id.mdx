@@ -20,11 +20,13 @@ import Link from '@docusaurus/Link';
 -  [Function `check_zklogin_id_internal`](#0x2_zklogin_verified_id_check_zklogin_id_internal)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/string#0x1_string">0x1::string</Link>;
 <b>use</b> <Link to="object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -35,9 +37,11 @@ import Link from '@docusaurus/Link';
 Posession of a VerifiedID proves that the user's address was created using zklogin and the given parameters.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link> <b>has</b> key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -47,43 +51,37 @@ Posession of a VerifiedID proves that the user's address was created using zklog
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  The ID of this VerifiedID
 </dd>
 <dt>
-
-owner: <b>address</b>
+<code>owner: <b>address</b></code>
 </dt>
 <dd>
  The address this VerifiedID is associated with
 </dd>
 <dt>
-
-key_claim_name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
+<code>key_claim_name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The name of the key claim
 </dd>
 <dt>
-
-key_claim_value: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
+<code>key_claim_value: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The value of the key claim
 </dd>
 <dt>
-
-issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
+<code>issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The issuer
 </dd>
 <dt>
-
-audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
+<code>audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link></code>
 </dt>
 <dd>
  The audience (wallet)
@@ -102,9 +100,11 @@ audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Lin
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_EFunctionDisabled">EFunctionDisabled</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -115,9 +115,11 @@ audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Lin
 Returns the address associated with the given VerifiedID
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_owner">owner</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">zklogin_verified_id::VerifiedID</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -125,11 +127,13 @@ Returns the address associated with the given VerifiedID
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_owner">owner</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link>): <b>address</b> \{
     verified_id.owner
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -142,9 +146,11 @@ Returns the address associated with the given VerifiedID
 Returns the name of the key claim associated with the given VerifiedID
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_key_claim_name">key_claim_name</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">zklogin_verified_id::VerifiedID</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -152,11 +158,13 @@ Returns the name of the key claim associated with the given VerifiedID
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_key_claim_name">key_claim_name</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link>): &String \{
     &verified_id.key_claim_name
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -169,9 +177,11 @@ Returns the name of the key claim associated with the given VerifiedID
 Returns the value of the key claim associated with the given VerifiedID
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_key_claim_value">key_claim_value</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">zklogin_verified_id::VerifiedID</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -179,11 +189,13 @@ Returns the value of the key claim associated with the given VerifiedID
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_key_claim_value">key_claim_value</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link>): &String \{
     &verified_id.key_claim_value
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -196,9 +208,11 @@ Returns the value of the key claim associated with the given VerifiedID
 Returns the issuer associated with the given VerifiedID
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_issuer">issuer</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">zklogin_verified_id::VerifiedID</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -206,11 +220,13 @@ Returns the issuer associated with the given VerifiedID
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_issuer">issuer</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link>): &String \{
     &verified_id.issuer
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -223,9 +239,11 @@ Returns the issuer associated with the given VerifiedID
 Returns the audience (wallet) associated with the given VerifiedID
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_audience">audience</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">zklogin_verified_id::VerifiedID</Link>): &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -233,11 +251,13 @@ Returns the audience (wallet) associated with the given VerifiedID
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_audience">audience</Link>(verified_id: &<Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link>): &String \{
     &verified_id.audience
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -250,9 +270,11 @@ Returns the audience (wallet) associated with the given VerifiedID
 Delete a VerifiedID
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_delete">delete</Link>(verified_id: <Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">zklogin_verified_id::VerifiedID</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -260,12 +282,14 @@ Delete a VerifiedID
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_delete">delete</Link>(verified_id: <Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link>) \{
     <b>let</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_VerifiedID">VerifiedID</Link> \{ id, owner: _, key_claim_name: _, key_claim_value: _, issuer: _, audience: _ } = verified_id;
     id.<Link to="zklogin_verified_id#0x2_zklogin_verified_id_delete">delete</Link>();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -278,9 +302,11 @@ Delete a VerifiedID
 This function has been disabled.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_verify_zklogin_id">verify_zklogin_id</Link>(_key_claim_name: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _key_claim_value: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _issuer: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _audience: <Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _pin_hash: u256, _ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -288,7 +314,8 @@ This function has been disabled.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_verify_zklogin_id">verify_zklogin_id</Link>(
     _key_claim_name: String,
     _key_claim_value: String,
@@ -299,7 +326,8 @@ This function has been disabled.
 ) \{
     <b>assert</b>!(<b>false</b>, <Link to="zklogin_verified_id#0x2_zklogin_verified_id_EFunctionDisabled">EFunctionDisabled</Link>);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -312,9 +340,11 @@ This function has been disabled.
 This function has been disabled.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_check_zklogin_id">check_zklogin_id</Link>(_address: <b>address</b>, _key_claim_name: &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _key_claim_value: &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _issuer: &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _audience: &<Link to="../move-stdlib/string#0x1_string_String">string::String</Link>, _pin_hash: u256): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -322,7 +352,8 @@ This function has been disabled.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_check_zklogin_id">check_zklogin_id</Link>(
     _address: <b>address</b>,
     _key_claim_name: &String,
@@ -334,7 +365,8 @@ This function has been disabled.
     <b>assert</b>!(<b>false</b>, <Link to="zklogin_verified_id#0x2_zklogin_verified_id_EFunctionDisabled">EFunctionDisabled</Link>);
     <b>false</b>
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -344,25 +376,18 @@ This function has been disabled.
 
 ## Function `check_zklogin_id_internal`
 
-Returns true if 
-<b>address</b> was created using zklogin and the given parameters.
+Returns true if <code><b>address</b></code> was created using zklogin and the given parameters.
 
-Aborts with 
-EInvalidInput if any of 
-kc_name, 
-kc_value, 
-iss and 
-aud is not a properly encoded UTF-8
-string or if the inputs are longer than the allowed upper bounds: 
-kc_name must be at most 32 characters,
-
-kc_value must be at most 115 characters and 
-aud must be at most 145 characters.
+Aborts with <code>EInvalidInput</code> if any of <code>kc_name</code>, <code>kc_value</code>, <code>iss</code> and <code>aud</code> is not a properly encoded UTF-8
+string or if the inputs are longer than the allowed upper bounds: <code>kc_name</code> must be at most 32 characters,
+<code>kc_value</code> must be at most 115 characters and <code>aud</code> must be at most 145 characters.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_check_zklogin_id_internal">check_zklogin_id_internal</Link>(<b>address</b>: <b>address</b>, key_claim_name: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, key_claim_value: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, issuer: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, audience: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;, pin_hash: u256): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -370,7 +395,8 @@ aud must be at most 145 characters.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>native</b> <b>fun</b> <Link to="zklogin_verified_id#0x2_zklogin_verified_id_check_zklogin_id_internal">check_zklogin_id_internal</Link>(
     <b>address</b>: <b>address</b>,
     key_claim_name: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
@@ -379,7 +405,8 @@ aud must be at most 145 characters.
     audience: &<Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt;,
     pin_hash: u256
 ): bool;
-</code></pre>
+</code>
+</pre>
 
 
 

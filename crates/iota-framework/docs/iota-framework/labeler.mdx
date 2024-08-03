@@ -13,11 +13,13 @@ import Link from '@docusaurus/Link';
 -  [Function `destroy_labeler_cap`](#0x2_labeler_destroy_labeler_cap)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="../iota-framework/types#0x2_types">0x2::types</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -25,15 +27,15 @@ import Link from '@docusaurus/Link';
 
 ## Resource `LabelerCap`
 
-
-<Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link> allows to create labels of the specific type 
-L.
+<code><Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link></code> allows to create labels of the specific type <code>L</code>.
 Can be publicly transferred like any other object.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -43,8 +45,7 @@ Can be publicly transferred like any other object.
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -61,13 +62,14 @@ id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 
 <Link id="0x2_labeler_ENotOneTimeWitness"></Link>
 
-Error code for when a type passed to the 
-create_labeler_cap function is not a one-time witness.
+Error code for when a type passed to the <code>create_labeler_cap</code> function is not a one-time witness.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="../iota-framework/labeler#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -75,14 +77,15 @@ create_labeler_cap function is not a one-time witness.
 
 ## Function `create_labeler_cap`
 
-Create a 
-<Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link> instance.
+Create a <code><Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link></code> instance.
 Can be created only by consuming a one time witness.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/labeler#0x2_labeler_create_labeler_cap">create_labeler_cap</Link>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">labeler::LabelerCap</Link>&lt;L&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -90,7 +93,8 @@ Can be created only by consuming a one time witness.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/labeler#0x2_labeler_create_labeler_cap">create_labeler_cap</Link>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> TxContext): <Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; \{
     <b>assert</b>!(iota::types::is_one_time_witness(&witness), <Link to="../iota-framework/labeler#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</Link>);
 
@@ -98,7 +102,8 @@ Can be created only by consuming a one time witness.
         id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -108,14 +113,15 @@ Can be created only by consuming a one time witness.
 
 ## Function `destroy_labeler_cap`
 
-Delete a 
-<Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link> instance.
+Delete a <code><Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link></code> instance.
 If a capability is destroyed, it is impossible to add the related labels.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/labeler#0x2_labeler_destroy_labeler_cap">destroy_labeler_cap</Link>&lt;L&gt;(cap: <Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">labeler::LabelerCap</Link>&lt;L&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -123,7 +129,8 @@ If a capability is destroyed, it is impossible to add the related labels.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="../iota-framework/labeler#0x2_labeler_destroy_labeler_cap">destroy_labeler_cap</Link>&lt;L&gt;(cap: <Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt;) \{
     <b>let</b> <Link to="../iota-framework/labeler#0x2_labeler_LabelerCap">LabelerCap</Link>&lt;L&gt; \{
         id,
@@ -131,7 +138,8 @@ If a capability is destroyed, it is impossible to add the related labels.
 
     <Link to="../iota-framework/object#0x2_object_delete">object::delete</Link>(id);
 }
-</code></pre>
+</code>
+</pre>
 
 
 

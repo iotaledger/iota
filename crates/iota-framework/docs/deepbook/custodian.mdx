@@ -25,13 +25,15 @@ import Link from '@docusaurus/Link';
 -  [Function `borrow_mut_account_balance`](#0xdee9_custodian_borrow_mut_account_balance)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
 <b>use</b> <Link to="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -41,9 +43,11 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="custodian#0xdee9_custodian_Account">Account</Link>&lt;T&gt; <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -53,15 +57,13 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-
-available_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<code>available_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<code>locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
@@ -77,9 +79,11 @@ locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -89,8 +93,7 @@ locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
@@ -106,9 +109,11 @@ id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt; <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -118,15 +123,13 @@ id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="custodian#0xdee9_custodian_Account">custodian::Account</Link>&lt;T&gt;&gt;
+<code>account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, <Link to="custodian#0xdee9_custodian_Account">custodian::Account</Link>&lt;T&gt;&gt;</code>
 </dt>
 <dd>
  Map from an AccountCap object ID to an Account object
@@ -140,13 +143,14 @@ account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Tabl
 
 ## Function `mint_account_cap`
 
-Create an 
-<Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link> that can be used across all DeepBook pool
+Create an <code><Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link></code> that can be used across all DeepBook pool
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian#0xdee9_custodian_mint_account_cap">mint_account_cap</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -154,11 +158,13 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian#0xdee9_custodian_mint_account_cap">mint_account_cap</Link>(ctx: &<b>mut</b> TxContext): <Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link> \{
     <Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link> \{ id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx) }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -170,9 +176,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_account_balance">account_balance</Link>&lt;Asset&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;Asset&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): (u64, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -180,7 +188,8 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_account_balance">account_balance</Link>&lt;Asset&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;Asset&gt;,
     user: ID
@@ -194,7 +203,8 @@ Create an
     <b>let</b> locked_balance = <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&account_balances.locked_balance);
     (avail_balance, locked_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -206,9 +216,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_new">new</Link>&lt;T&gt;(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -216,14 +228,16 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_new">new</Link>&lt;T&gt;(ctx: &<b>mut</b> TxContext): <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt; \{
     <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt; \{
         id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
         account_balances: <Link to="../iota-framework/table#0x2_table_new">table::new</Link>(ctx),
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -235,9 +249,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_withdraw_asset">withdraw_asset</Link>&lt;Asset&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;Asset&gt;, quantity: u64, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;Asset&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -245,7 +261,8 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_withdraw_asset">withdraw_asset</Link>&lt;Asset&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;Asset&gt;,
     quantity: u64,
@@ -254,7 +271,8 @@ Create an
 ): Coin&lt;Asset&gt; \{
     <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(<Link to="custodian#0xdee9_custodian_decrease_user_available_balance">decrease_user_available_balance</Link>&lt;Asset&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap, quantity), ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -266,9 +284,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_increase_user_available_balance">increase_user_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, quantity: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -276,7 +296,8 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_increase_user_available_balance">increase_user_available_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     user: ID,
@@ -285,7 +306,8 @@ Create an
     <b>let</b> account = <Link to="custodian#0xdee9_custodian_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, user);
     <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> account.available_balance, quantity);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -297,9 +319,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_decrease_user_available_balance">decrease_user_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, quantity: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -307,7 +331,8 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_decrease_user_available_balance">decrease_user_available_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link>,
@@ -316,7 +341,8 @@ Create an
     <b>let</b> account = <Link to="custodian#0xdee9_custodian_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, <Link to="../iota-framework/object#0x2_object_uid_to_inner">object::uid_to_inner</Link>(&account_cap.id));
     <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(&<b>mut</b> account.available_balance, quantity)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -328,9 +354,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_increase_user_locked_balance">increase_user_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, quantity: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -338,7 +366,8 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_increase_user_locked_balance">increase_user_locked_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link>,
@@ -347,7 +376,8 @@ Create an
     <b>let</b> account = <Link to="custodian#0xdee9_custodian_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, <Link to="../iota-framework/object#0x2_object_uid_to_inner">object::uid_to_inner</Link>(&account_cap.id));
     <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> account.locked_balance, quantity);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -359,9 +389,11 @@ Create an
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_decrease_user_locked_balance">decrease_user_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, quantity: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -369,7 +401,8 @@ Create an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_decrease_user_locked_balance">decrease_user_locked_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     user: ID,
@@ -378,7 +411,8 @@ Create an
     <b>let</b> account = <Link to="custodian#0xdee9_custodian_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, user);
     split(&<b>mut</b> account.locked_balance, quantity)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -388,15 +422,14 @@ Create an
 
 ## Function `lock_balance`
 
-Move 
-quantity from the unlocked balance of 
-user to the locked balance of 
-user
+Move <code>quantity</code> from the unlocked balance of <code>user</code> to the locked balance of <code>user</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_lock_balance">lock_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">custodian::AccountCap</Link>, quantity: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -404,7 +437,8 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_lock_balance">lock_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     account_cap: &<Link to="custodian#0xdee9_custodian_AccountCap">AccountCap</Link>,
@@ -413,7 +447,8 @@ user
     <b>let</b> to_lock = <Link to="custodian#0xdee9_custodian_decrease_user_available_balance">decrease_user_available_balance</Link>(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap, quantity);
     <Link to="custodian#0xdee9_custodian_increase_user_locked_balance">increase_user_locked_balance</Link>(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap, to_lock);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -423,15 +458,14 @@ user
 
 ## Function `unlock_balance`
 
-Move 
-quantity from the locked balance of 
-user to the unlocked balacne of 
-user
+Move <code>quantity</code> from the locked balance of <code>user</code> to the unlocked balacne of <code>user</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_unlock_balance">unlock_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>, quantity: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -439,7 +473,8 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_unlock_balance">unlock_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     user: ID,
@@ -448,7 +483,8 @@ user
     <b>let</b> locked_balance = <Link to="custodian#0xdee9_custodian_decrease_user_locked_balance">decrease_user_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, user, quantity);
     <Link to="custodian#0xdee9_custodian_increase_user_available_balance">increase_user_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, user, locked_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -460,9 +496,11 @@ user
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_account_available_balance">account_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -470,14 +508,16 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_account_available_balance">account_available_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     user: ID,
 ): u64 \{
     <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&<Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&<Link to="custodian#0xdee9_custodian">custodian</Link>.account_balances, user).available_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -489,9 +529,11 @@ user
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian#0xdee9_custodian_account_locked_balance">account_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -499,14 +541,16 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian#0xdee9_custodian_account_locked_balance">account_locked_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     user: ID,
 ): u64 \{
     <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&<Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&<Link to="custodian#0xdee9_custodian">custodian</Link>.account_balances, user).locked_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -518,9 +562,11 @@ user
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="custodian#0xdee9_custodian_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">custodian::Custodian</Link>&lt;T&gt;, user: <Link to="../iota-framework/object#0x2_object_ID">object::ID</Link>): &<b>mut</b> <Link to="custodian#0xdee9_custodian_Account">custodian::Account</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -528,7 +574,8 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="custodian#0xdee9_custodian_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian#0xdee9_custodian_Custodian">Custodian</Link>&lt;T&gt;,
     user: ID,
@@ -542,7 +589,8 @@ user
     };
     <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> <Link to="custodian#0xdee9_custodian">custodian</Link>.account_balances, user)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

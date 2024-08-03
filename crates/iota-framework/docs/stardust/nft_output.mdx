@@ -15,7 +15,8 @@ import Link from '@docusaurus/Link';
 -  [Function `receive`](#0x107a_nft_output_receive)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition">0x107a::expiration_unlock_condition</Link>;
 <b>use</b> <Link to="nft#0x107a_nft">0x107a::nft</Link>;
 <b>use</b> <Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition">0x107a::storage_deposit_return_unlock_condition</Link>;
@@ -27,7 +28,8 @@ import Link from '@docusaurus/Link';
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -38,9 +40,11 @@ import Link from '@docusaurus/Link';
 The Stardust NFT output representation.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt; <b>has</b> key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -50,45 +54,38 @@ The Stardust NFT output representation.
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
  This is a "random" UID, not the NFTID from Stardust.
 </dd>
 <dt>
-
-<Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<code><Link to="../iota-framework/balance#0x2_balance">balance</Link>: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
  The amount of coins held by the output.
 </dd>
 <dt>
-
-native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>
+<code>native_tokens: <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link></code>
 </dt>
 <dd>
- The 
-Bag holds native tokens, key-ed by the stringified type of the asset.
+ The <code>Bag</code> holds native tokens, key-ed by the stringified type of the asset.
  Example: key: "0xabcded::soon::SOON", value: `Balance<0xabcded::soon::SOON>`.
 </dd>
 <dt>
-
-storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;
+<code>storage_deposit_return_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="storage_deposit_return_unlock_condition#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The storage deposit return unlock condition.
 </dd>
 <dt>
-
-timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;
+<code>timelock_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="timelock_unlock_condition#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The timelock unlock condition.
 </dd>
 <dt>
-
-expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;
+<code>expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;<Link to="expiration_unlock_condition#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</Link>&gt;</code>
 </dt>
 <dd>
  The expiration unlock condition.
@@ -108,9 +105,11 @@ expiration_uc: <Link to="../move-stdlib/option#0x1_option_Option">option::Option
 The NFT dynamic field name.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="nft_output#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;u8&gt; = [110, 102, 116];
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -121,9 +120,11 @@ The NFT dynamic field name.
 The function extracts assets from a legacy NFT output.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="nft_output#0x107a_nft_output_extract_assets">extract_assets</Link>&lt;T&gt;(output: <Link to="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;, <Link to="../iota-framework/bag#0x2_bag_Bag">bag::Bag</Link>, <Link to="nft#0x107a_nft_Nft">nft::Nft</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -131,7 +132,8 @@ The function extracts assets from a legacy NFT output.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="nft_output#0x107a_nft_output_extract_assets">extract_assets</Link>&lt;T&gt;(<b>mut</b> output: <Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;, ctx: &<b>mut</b> TxContext): (Balance&lt;T&gt;, Bag, Nft) \{
     // Load the related Nft <Link to="../iota-framework/object#0x2_object">object</Link>.
     <b>let</b> <Link to="nft#0x107a_nft">nft</Link> = <Link to="nft_output#0x107a_nft_output_load_nft">load_nft</Link>(&<b>mut</b> output);
@@ -170,7 +172,8 @@ The function extracts assets from a legacy NFT output.
 
     <b>return</b> (<Link to="../iota-framework/balance#0x2_balance">balance</Link>, native_tokens, <Link to="nft#0x107a_nft">nft</Link>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -180,13 +183,14 @@ The function extracts assets from a legacy NFT output.
 
 ## Function `load_nft`
 
-Loads the related 
-Nft object.
+Loads the related <code>Nft</code> object.
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="nft_output#0x107a_nft_output_load_nft">load_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link to="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;): <Link to="nft#0x107a_nft_Nft">nft::Nft</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -194,11 +198,13 @@ Nft object.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="nft_output#0x107a_nft_output_load_nft">load_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;): Nft \{
     <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_remove">dynamic_object_field::remove</Link>(&<b>mut</b> output.id, <Link to="nft_output#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -208,14 +214,14 @@ Nft object.
 
 ## Function `attach_nft`
 
-Utility function to attach an 
-Alias to an 
-AliasOutput.
+Utility function to attach an <code>Alias</code> to an <code>AliasOutput</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="nft_output#0x107a_nft_output_attach_nft">attach_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link to="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;, <Link to="nft#0x107a_nft">nft</Link>: <Link to="nft#0x107a_nft_Nft">nft::Nft</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -223,11 +229,13 @@ AliasOutput.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="nft_output#0x107a_nft_output_attach_nft">attach_nft</Link>&lt;T&gt;(output: &<b>mut</b> <Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;, <Link to="nft#0x107a_nft">nft</Link>: Nft) \{
     <Link to="../iota-framework/dynamic_object_field#0x2_dynamic_object_field_add">dynamic_object_field::add</Link>(&<b>mut</b> output.id, <Link to="nft_output#0x107a_nft_output_NFT_NAME">NFT_NAME</Link>, <Link to="nft#0x107a_nft">nft</Link>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -237,15 +245,15 @@ AliasOutput.
 
 ## Function `receive`
 
-Utility function to receive an 
-<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link> in other Stardust modules.
-Other modules in the stardust package can call this function to receive an 
-<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link> (alias).
+Utility function to receive an <code><Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link></code> in other Stardust modules.
+Other modules in the stardust package can call this function to receive an <code><Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link></code> (alias).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="nft_output#0x107a_nft_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>, <Link to="nft#0x107a_nft">nft</Link>: <Link to="../iota-framework/transfer#0x2_transfer_Receiving">transfer::Receiving</Link>&lt;<Link to="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;&gt;): <Link to="nft_output#0x107a_nft_output_NftOutput">nft_output::NftOutput</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -253,11 +261,13 @@ Other modules in the stardust package can call this function to receive an
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<Link to="../iota-framework/package#0x2_package">package</Link>) <b>fun</b> <Link to="nft_output#0x107a_nft_output_receive">receive</Link>&lt;T&gt;(parent: &<b>mut</b> UID, <Link to="nft#0x107a_nft">nft</Link>: Receiving&lt;<Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt;&gt;) : <Link to="nft_output#0x107a_nft_output_NftOutput">NftOutput</Link>&lt;T&gt; \{
     <Link to="../iota-framework/transfer#0x2_transfer_receive">transfer::receive</Link>(parent, <Link to="nft#0x107a_nft">nft</Link>)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

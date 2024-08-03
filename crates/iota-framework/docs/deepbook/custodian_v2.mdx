@@ -29,13 +29,15 @@ import Link from '@docusaurus/Link';
 -  [Function `borrow_mut_account_balance`](#0xdee9_custodian_v2_borrow_mut_account_balance)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../iota-framework/balance#0x2_balance">0x2::balance</Link>;
 <b>use</b> <Link to="../iota-framework/coin#0x2_coin">0x2::coin</Link>;
 <b>use</b> <Link to="../iota-framework/object#0x2_object">0x2::object</Link>;
 <b>use</b> <Link to="../iota-framework/table#0x2_table">0x2::table</Link>;
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -45,9 +47,11 @@ import Link from '@docusaurus/Link';
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="custodian_v2#0xdee9_custodian_v2_Account">Account</Link>&lt;T&gt; <b>has</b> store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -57,15 +61,13 @@ import Link from '@docusaurus/Link';
 
 <dl>
 <dt>
-
-available_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<code>available_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
+<code>locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;</code>
 </dt>
 <dd>
 
@@ -79,21 +81,18 @@ locked_balance: <Link to="../iota-framework/balance#0x2_balance_Balance">balance
 
 ## Resource `AccountCap`
 
-Capability granting permission to access an entry in 
-<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>.account_balances.
-Calling 
-mint_account_cap creates an "admin account cap" such that id == owner with
-the permission to both access funds and create new 
-<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>s.
-Calling 
-create_child_account_cap creates a "child account cap" such that id != owner
-that can access funds, but cannot create new 
-<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>s.
+Capability granting permission to access an entry in <code><Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>.account_balances</code>.
+Calling <code>mint_account_cap</code> creates an "admin account cap" such that id == owner with
+the permission to both access funds and create new <code><Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link></code>s.
+Calling <code>create_child_account_cap</code> creates a "child account cap" such that id != owner
+that can access funds, but cannot create new <code><Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link></code>s.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -103,15 +102,13 @@ that can access funds, but cannot create new
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-owner: <b>address</b>
+<code>owner: <b>address</b></code>
 </dt>
 <dd>
  The owner of this AccountCap. Note: this is
@@ -128,9 +125,11 @@ owner: <b>address</b>
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt; <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -140,15 +139,13 @@ owner: <b>address</b>
 
 <dl>
 <dt>
-
-id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="../iota-framework/object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="custodian_v2#0xdee9_custodian_v2_Account">custodian_v2::Account</Link>&lt;T&gt;&gt;
+<code>account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Table</Link>&lt;<b>address</b>, <Link to="custodian_v2#0xdee9_custodian_v2_Account">custodian_v2::Account</Link>&lt;T&gt;&gt;</code>
 </dt>
 <dd>
  Map from the owner address of AccountCap object to an Account object
@@ -167,9 +164,11 @@ account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Tabl
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="custodian_v2#0xdee9_custodian_v2_EAdminAccountCapRequired">EAdminAccountCapRequired</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -177,15 +176,15 @@ account_balances: <Link to="../iota-framework/table#0x2_table_Table">table::Tabl
 
 ## Function `mint_account_cap`
 
-Create an admin 
-<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link> that can be used across all DeepBook pools, and has
-the permission to create new 
-<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>s that can access the same source of funds
+Create an admin <code><Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link></code> that can be used across all DeepBook pools, and has
+the permission to create new <code><Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link></code>s that can access the same source of funds
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_mint_account_cap">mint_account_cap</Link>(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -193,13 +192,15 @@ the permission to create new
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_mint_account_cap">mint_account_cap</Link>(ctx: &<b>mut</b> TxContext): <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link> \{
     <b>let</b> id = <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx);
     <b>let</b> owner = <Link to="../iota-framework/object#0x2_object_uid_to_address">object::uid_to_address</Link>(&id);
     <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link> \{ id, owner }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -210,13 +211,14 @@ the permission to create new
 ## Function `create_child_account_cap`
 
 Create a "child account cap" such that id != owner
-that can access funds, but cannot create new 
-<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>s.
+that can access funds, but cannot create new <code><Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link></code>s.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_create_child_account_cap">create_child_account_cap</Link>(admin_account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -224,7 +226,8 @@ that can access funds, but cannot create new
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_create_child_account_cap">create_child_account_cap</Link>(admin_account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>, ctx: &<b>mut</b> TxContext): <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link> \{
     // Only the admin account cap can create new account caps
     <b>assert</b>!(<Link to="../iota-framework/object#0x2_object_uid_to_address">object::uid_to_address</Link>(&admin_account_cap.id) == admin_account_cap.owner, <Link to="custodian_v2#0xdee9_custodian_v2_EAdminAccountCapRequired">EAdminAccountCapRequired</Link>);
@@ -234,7 +237,8 @@ that can access funds, but cannot create new
         owner: admin_account_cap.owner
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -244,13 +248,14 @@ that can access funds, but cannot create new
 
 ## Function `delete_account_cap`
 
-Destroy the given 
-account_cap object
+Destroy the given <code>account_cap</code> object
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_delete_account_cap">delete_account_cap</Link>(account_cap: <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -258,12 +263,14 @@ account_cap object
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_delete_account_cap">delete_account_cap</Link>(account_cap: <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>) \{
     <b>let</b> <Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link> \{ id, owner: _ } = account_cap;
     <Link to="../iota-framework/object#0x2_object_delete">object::delete</Link>(id)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -276,9 +283,11 @@ account_cap object
 Return the owner of an AccountCap
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_owner">account_owner</Link>(account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -286,11 +295,13 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_owner">account_owner</Link>(account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>): <b>address</b> \{
     account_cap.owner
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -302,9 +313,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_balance">account_balance</Link>&lt;Asset&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;Asset&gt;, owner: <b>address</b>): (u64, u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -312,7 +325,8 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_balance">account_balance</Link>&lt;Asset&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;Asset&gt;,
     owner: <b>address</b>
@@ -326,7 +340,8 @@ Return the owner of an AccountCap
     <b>let</b> locked_balance = <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&account_balances.locked_balance);
     (avail_balance, locked_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -338,9 +353,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_new">new</Link>&lt;T&gt;(ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -348,14 +365,16 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_new">new</Link>&lt;T&gt;(ctx: &<b>mut</b> TxContext): <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt; \{
     <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt; \{
         id: <Link to="../iota-framework/object#0x2_object_new">object::new</Link>(ctx),
         account_balances: <Link to="../iota-framework/table#0x2_table_new">table::new</Link>(ctx),
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -367,9 +386,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_withdraw_asset">withdraw_asset</Link>&lt;Asset&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;Asset&gt;, quantity: u64, account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="../iota-framework/coin#0x2_coin_Coin">coin::Coin</Link>&lt;Asset&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -377,7 +398,8 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_withdraw_asset">withdraw_asset</Link>&lt;Asset&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;Asset&gt;,
     quantity: u64,
@@ -386,7 +408,8 @@ Return the owner of an AccountCap
 ): Coin&lt;Asset&gt; \{
     <Link to="../iota-framework/coin#0x2_coin_from_balance">coin::from_balance</Link>(<Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_available_balance">decrease_user_available_balance</Link>&lt;Asset&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap, quantity), ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -398,9 +421,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_increase_user_available_balance">increase_user_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, owner: <b>address</b>, quantity: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -408,7 +433,8 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_increase_user_available_balance">increase_user_available_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     owner: <b>address</b>,
@@ -417,7 +443,8 @@ Return the owner of an AccountCap
     <b>let</b> account = <Link to="custodian_v2#0xdee9_custodian_v2_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, owner);
     <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> account.available_balance, quantity);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -429,9 +456,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_available_balance">decrease_user_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>, quantity: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -439,7 +468,8 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_available_balance">decrease_user_available_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>,
@@ -448,7 +478,8 @@ Return the owner of an AccountCap
     <b>let</b> account = <Link to="custodian_v2#0xdee9_custodian_v2_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap.owner);
     <Link to="../iota-framework/balance#0x2_balance_split">balance::split</Link>(&<b>mut</b> account.available_balance, quantity)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -460,9 +491,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_increase_user_locked_balance">increase_user_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>, quantity: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -470,7 +503,8 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_increase_user_locked_balance">increase_user_locked_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>,
@@ -479,7 +513,8 @@ Return the owner of an AccountCap
     <b>let</b> account = <Link to="custodian_v2#0xdee9_custodian_v2_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap.owner);
     <Link to="../iota-framework/balance#0x2_balance_join">balance::join</Link>(&<b>mut</b> account.locked_balance, quantity);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -491,9 +526,11 @@ Return the owner of an AccountCap
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_locked_balance">decrease_user_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, owner: <b>address</b>, quantity: u64): <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -501,7 +538,8 @@ Return the owner of an AccountCap
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_locked_balance">decrease_user_locked_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     owner: <b>address</b>,
@@ -510,7 +548,8 @@ Return the owner of an AccountCap
     <b>let</b> account = <Link to="custodian_v2#0xdee9_custodian_v2_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, owner);
     split(&<b>mut</b> account.locked_balance, quantity)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -520,15 +559,14 @@ Return the owner of an AccountCap
 
 ## Function `lock_balance`
 
-Move 
-quantity from the unlocked balance of 
-user to the locked balance of 
-user
+Move <code>quantity</code> from the unlocked balance of <code>user</code> to the locked balance of <code>user</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_lock_balance">lock_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">custodian_v2::AccountCap</Link>, quantity: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -536,7 +574,8 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_lock_balance">lock_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     account_cap: &<Link to="custodian_v2#0xdee9_custodian_v2_AccountCap">AccountCap</Link>,
@@ -545,7 +584,8 @@ user
     <b>let</b> to_lock = <Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_available_balance">decrease_user_available_balance</Link>(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap, quantity);
     <Link to="custodian_v2#0xdee9_custodian_v2_increase_user_locked_balance">increase_user_locked_balance</Link>(<Link to="custodian#0xdee9_custodian">custodian</Link>, account_cap, to_lock);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -555,15 +595,14 @@ user
 
 ## Function `unlock_balance`
 
-Move 
-quantity from the locked balance of 
-user to the unlocked balance of 
-user
+Move <code>quantity</code> from the locked balance of <code>user</code> to the unlocked balance of <code>user</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_unlock_balance">unlock_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, owner: <b>address</b>, quantity: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -571,7 +610,8 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_unlock_balance">unlock_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     owner: <b>address</b>,
@@ -580,7 +620,8 @@ user
     <b>let</b> locked_balance = <Link to="custodian_v2#0xdee9_custodian_v2_decrease_user_locked_balance">decrease_user_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, owner, quantity);
     <Link to="custodian_v2#0xdee9_custodian_v2_increase_user_available_balance">increase_user_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>, owner, locked_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -592,9 +633,11 @@ user
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_available_balance">account_available_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, owner: <b>address</b>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -602,14 +645,16 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_available_balance">account_available_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     owner: <b>address</b>,
 ): u64 \{
     <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&<Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&<Link to="custodian#0xdee9_custodian">custodian</Link>.account_balances, owner).available_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -621,9 +666,11 @@ user
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_locked_balance">account_locked_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, owner: <b>address</b>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -631,14 +678,16 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(package) <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_account_locked_balance">account_locked_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     owner: <b>address</b>,
 ): u64 \{
     <Link to="../iota-framework/balance#0x2_balance_value">balance::value</Link>(&<Link to="../iota-framework/table#0x2_table_borrow">table::borrow</Link>(&<Link to="custodian#0xdee9_custodian">custodian</Link>.account_balances, owner).locked_balance)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -650,9 +699,11 @@ user
 
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(<Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">custodian_v2::Custodian</Link>&lt;T&gt;, owner: <b>address</b>): &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Account">custodian_v2::Account</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -660,7 +711,8 @@ user
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>fun</b> <Link to="custodian_v2#0xdee9_custodian_v2_borrow_mut_account_balance">borrow_mut_account_balance</Link>&lt;T&gt;(
     <Link to="custodian#0xdee9_custodian">custodian</Link>: &<b>mut</b> <Link to="custodian_v2#0xdee9_custodian_v2_Custodian">Custodian</Link>&lt;T&gt;,
     owner: <b>address</b>,
@@ -674,7 +726,8 @@ user
     };
     <Link to="../iota-framework/table#0x2_table_borrow_mut">table::borrow_mut</Link>(&<b>mut</b> <Link to="custodian#0xdee9_custodian">custodian</Link>.account_balances, owner)
 }
-</code></pre>
+</code>
+</pre>
 
 
 

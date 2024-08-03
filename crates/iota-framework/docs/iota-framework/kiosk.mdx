@@ -7,8 +7,7 @@ import Link from '@docusaurus/Link';
 <Link id="0x2_kiosk"/>
 Kiosk is a primitive for building safe, decentralized and trustless trading
 experiences. It allows storing and trading any types of assets as long as
-the creator of these assets implements a 
-TransferPolicy for them.
+the creator of these assets implements a <code>TransferPolicy</code> for them.
 
 
 <Link id="@Principles_and_philosophy:_0"></Link>
@@ -18,24 +17,16 @@ TransferPolicy for them.
 
 - Kiosk provides guarantees of "true ownership"; - just like single owner
 objects, assets stored in the Kiosk can only be managed by the Kiosk owner.
-Only the owner can 
-place, 
-take, 
-list, perform any other actions on
+Only the owner can <code>place</code>, <code>take</code>, <code>list</code>, perform any other actions on
 assets in the Kiosk.
 
 - Kiosk aims to be generic - allowing for a small set of default behaviors
 and not imposing any restrictions on how the assets can be traded. The only
-default scenario is a 
-list + 
-purchase flow; any other trading logic can
-be implemented on top using the 
-list_with_purchase_cap (and a matching
+default scenario is a <code>list</code> + <code>purchase</code> flow; any other trading logic can
+be implemented on top using the <code>list_with_purchase_cap</code> (and a matching
+<code>purchase_with_cap</code>) flow.
 
-purchase_with_cap) flow.
-
-- For every transaction happening with a third party a 
-TransferRequest is
+- For every transaction happening with a third party a <code>TransferRequest</code> is
 created - this way creators are fully in control of the trading experience.
 
 
@@ -44,69 +35,35 @@ created - this way creators are fully in control of the trading experience.
 #### Asset states in the Kiosk:
 
 
-- 
-placed -  An asset is 
-placed into the Kiosk and can be 
-taken out by
-the Kiosk owner; it's freely tradable and modifiable via the 
-borrow_mut
-and 
-borrow_val functions.
+- <code>placed</code> -  An asset is <code>place</code>d into the Kiosk and can be <code>take</code>n out by
+the Kiosk owner; it's freely tradable and modifiable via the <code>borrow_mut</code>
+and <code>borrow_val</code> functions.
 
-- 
-locked - Similar to 
-placed except that 
-take is disabled and the only
-way to move the asset out of the Kiosk is to 
-list it or
+- <code>locked</code> - Similar to <code>placed</code> except that <code>take</code> is disabled and the only
+way to move the asset out of the Kiosk is to <code>list</code> it or
+<code>list_with_purchase_cap</code> therefore performing a trade (isiotang a
+<code>TransferRequest</code>). The check on the <code>lock</code> function makes sure that the
+<code>TransferPolicy</code> exists to not lock the item in a <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> forever.
 
-list_with_purchase_cap therefore performing a trade (isiotang a
-
-TransferRequest). The check on the 
-lock function makes sure that the
-
-TransferPolicy exists to not lock the item in a 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> forever.
-
-- 
-listed - A 
-placed or a 
-locked item can be 
-listed for a fixed price
-allowing anyone to 
-purchase it from the Kiosk. While listed, an item can
-not be taken or modified. However, an immutable borrow via 
-<Link to="borrow#0x2_borrow">borrow</Link> call is
-still available. The 
-delist function returns the asset to the previous
+- <code>listed</code> - A <code>place</code>d or a <code>lock</code>ed item can be <code>list</code>ed for a fixed price
+allowing anyone to <code>purchase</code> it from the Kiosk. While listed, an item can
+not be taken or modified. However, an immutable borrow via <code><Link to="borrow#0x2_borrow">borrow</Link></code> call is
+still available. The <code>delist</code> function returns the asset to the previous
 state.
 
-- 
-listed_exclusively - An item is listed via the 
-list_with_purchase_cap
-function (and a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> is created). While listed this way, an item
-can not be 
-delist-ed unless a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> is returned. All actions
-available at this item state require a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>:
+- <code>listed_exclusively</code> - An item is listed via the <code>list_with_purchase_cap</code>
+function (and a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> is created). While listed this way, an item
+can not be <code>delist</code>-ed unless a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> is returned. All actions
+available at this item state require a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>:
 
-1. 
-purchase_with_cap - to purchase the item for a price equal or higher
-than the 
-min_price set in the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
-2. 
-return_purchase_cap - to return the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> and return the asset
+1. <code>purchase_with_cap</code> - to purchase the item for a price equal or higher
+than the <code>min_price</code> set in the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
+2. <code>return_purchase_cap</code> - to return the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> and return the asset
 into the previous state.
 
 When an item is listed exclusively it cannot be modified nor taken and
-losing a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> would lock the item in the Kiosk forever. Therefore,
-it is recommended to only use 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> functionality in trusted
+losing a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> would lock the item in the Kiosk forever. Therefore,
+it is recommended to only use <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> functionality in trusted
 applications and not use it for direct trading (eg sending to another
 account).
 
@@ -116,16 +73,10 @@ account).
 #### Using multiple Transfer Policies for different 'tracks':
 
 
-Every 
-purchase or 
-purchase_with_purchase_cap creates a 
-TransferRequest
-hot potato which must be resolved in a matching 
-TransferPolicy for the
+Every <code>purchase</code> or <code>purchase_with_purchase_cap</code> creates a <code>TransferRequest</code>
+hot potato which must be resolved in a matching <code>TransferPolicy</code> for the
 transaction to pass. While the default scenario implies that there should be
-a single 
-TransferPolicy&lt;T&gt; for 
-T; it is possible to have multiple, each
+a single <code>TransferPolicy&lt;T&gt;</code> for <code>T</code>; it is possible to have multiple, each
 one having its own set of rules.
 
 
@@ -134,15 +85,11 @@ one having its own set of rules.
 #### Examples:
 
 
-- I create one 
-TransferPolicy with "Royalty Rule" for everyone
-- I create a special 
-TransferPolicy for bearers of a "Club Membership"
+- I create one <code>TransferPolicy</code> with "Royalty Rule" for everyone
+- I create a special <code>TransferPolicy</code> for bearers of a "Club Membership"
 object so they don't have to pay anything
-- I create and wrap a 
-TransferPolicy so that players of my game can
-transfer items between 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>s in game without any charge (and maybe not
+- I create and wrap a <code>TransferPolicy</code> so that players of my game can
+transfer items between <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>s in game without any charge (and maybe not
 even paying the price with a 0 IOTA PurchaseCap)
 
 ```
@@ -152,8 +99,7 @@ Kiosk -> (Item, TransferRequest)
 ... TransferRequest ------> Club Membership Transfer Policy
 ```
 
-See 
-<Link to="transfer_policy#0x2_transfer_policy">transfer_policy</Link> module for more details on how they function.
+See <code><Link to="transfer_policy#0x2_transfer_policy">transfer_policy</Link></code> module for more details on how they function.
 
 
         -  [Principles and philosophy:](#@Principles_and_philosophy:_0)
@@ -214,7 +160,8 @@ See
 -  [Function `purchase_cap_min_price`](#0x2_kiosk_purchase_cap_min_price)
 
 
-<pre><code>
+<pre>
+<code>
 <b>use</b> <Link to="../move-stdlib/option#0x1_option">0x1::option</Link>;
 <b>use</b> <Link to="balance#0x2_balance">0x2::balance</Link>;
 <b>use</b> <Link to="coin#0x2_coin">0x2::coin</Link>;
@@ -226,7 +173,8 @@ See
 <b>use</b> <Link to="transfer#0x2_transfer">0x2::transfer</Link>;
 <b>use</b> <Link to="transfer_policy#0x2_transfer_policy">0x2::transfer_policy</Link>;
 <b>use</b> <Link to="tx_context#0x2_tx_context">0x2::tx_context</Link>;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -237,13 +185,14 @@ See
 An object which allows selling collectibles within "kiosk" ecosystem.
 By default gives the functionality to list an item openly - for anyone
 to purchase providing the guarantees for creators that every transfer
-needs to be approved via the 
-TransferPolicy.
+needs to be approved via the <code>TransferPolicy</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -253,53 +202,40 @@ TransferPolicy.
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-profits: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
+<code>profits: <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;</code>
 </dt>
 <dd>
  Balance of the Kiosk - all profits from sales go here.
 </dd>
 <dt>
-
-owner: <b>address</b>
+<code>owner: <b>address</b></code>
 </dt>
 <dd>
- Always point to 
-sender of the transaction.
- Can be changed by calling 
-set_owner with Cap.
+ Always point to <code>sender</code> of the transaction.
+ Can be changed by calling <code>set_owner</code> with Cap.
 </dd>
 <dt>
-
-item_count: u32
+<code>item_count: u32</code>
 </dt>
 <dd>
  Number of items stored in a Kiosk. Used to allow unpacking
  an empty Kiosk if it was wrapped or has a single owner.
 </dd>
 <dt>
-
-allow_extensions: bool
+<code>allow_extensions: bool</code>
 </dt>
 <dd>
- [DEPRECATED] Please, don't use the 
-allow_extensions and the matching
- 
-set_allow_extensions function - it is a legacy feature that is being
- replaced by the 
-<Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link> module and its Extensions API.
+ [DEPRECATED] Please, don't use the <code>allow_extensions</code> and the matching
+ <code>set_allow_extensions</code> function - it is a legacy feature that is being
+ replaced by the <code><Link to="kiosk_extension#0x2_kiosk_extension">kiosk_extension</Link></code> module and its Extensions API.
 
- Exposes 
-uid_mut publicly when set to 
-<b>true</b>, set to 
-<b>false</b> by default.
+ Exposes <code>uid_mut</code> publicly when set to <code><b>true</b></code>, set to <code><b>false</b></code> by default.
 </dd>
 </dl>
 
@@ -310,18 +246,15 @@ uid_mut publicly when set to
 
 ## Resource `KioskOwnerCap`
 
-A Capability granting the bearer a right to 
-place and 
-take items
-from the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> as well as to 
-list them and 
-list_with_purchase_cap.
+A Capability granting the bearer a right to <code>place</code> and <code>take</code> items
+from the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> as well as to <code>list</code> them and <code>list_with_purchase_cap</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -331,15 +264,13 @@ list_with_purchase_cap.
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-for: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>for: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -354,25 +285,21 @@ for: <Link to="object#0x2_object_ID">object::ID</Link>
 ## Resource `PurchaseCap`
 
 A capability which locks an item and gives a permission to
-purchase it from a 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> for any price no less than 
-min_price.
+purchase it from a <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> for any price no less than <code>min_price</code>.
 
-Allows exclusive listing: only bearer of the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> can
+Allows exclusive listing: only bearer of the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> can
 purchase the asset. However, the capability should be used
-carefully as losing it would lock the asset in the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+carefully as losing it would lock the asset in the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
-The main application for the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> is building extensions
-on top of the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+The main application for the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> is building extensions
+on top of the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T: store, key&gt; <b>has</b> store, key
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -382,30 +309,25 @@ on top of the
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_UID">object::UID</Link>
+<code>id: <Link to="object#0x2_object_UID">object::UID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
- ID of the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> the cap belongs to.
+ ID of the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> the cap belongs to.
 </dd>
 <dt>
-
-item_id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>item_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
  ID of the listed item.
 </dd>
 <dt>
-
-min_price: u64
+<code>min_price: u64</code>
 </dt>
 <dd>
  Minimum price for which the item can be purchased.
@@ -420,13 +342,14 @@ min_price: u64
 ## Struct `Borrow`
 
 Hot potato to ensure an item was returned after being taken using
-the 
-borrow_val call.
+the <code>borrow_val</code> call.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -436,15 +359,13 @@ borrow_val call.
 
 <dl>
 <dt>
-
-kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>kiosk_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-item_id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>item_id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -461,9 +382,11 @@ item_id: <Link to="object#0x2_object_ID">object::ID</Link>
 Dynamic field key for an item placed into the kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_Item">Item</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -473,8 +396,7 @@ Dynamic field key for an item placed into the kiosk.
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -489,14 +411,14 @@ id: <Link to="object#0x2_object_ID">object::ID</Link>
 ## Struct `Listing`
 
 Dynamic field key for an active offer to purchase the T. If an
-item is listed without a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>, exclusive is set to 
-<b>false</b>.
+item is listed without a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>, exclusive is set to <code><b>false</b></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -506,15 +428,13 @@ item is listed without a
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-is_exclusive: bool
+<code>is_exclusive: bool</code>
 </dt>
 <dd>
 
@@ -528,17 +448,16 @@ is_exclusive: bool
 
 ## Struct `Lock`
 
-Dynamic field key which marks that an item is locked in the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and
-can't be 
-taken. The item then can only be listed / sold via the PurchaseCap.
-Lock is released on 
-purchase.
+Dynamic field key which marks that an item is locked in the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and
+can't be <code>take</code>n. The item then can only be listed / sold via the PurchaseCap.
+Lock is released on <code>purchase</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_Lock">Lock</Link> <b>has</b> <b>copy</b>, drop, store
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -548,8 +467,7 @@ purchase.
 
 <dl>
 <dt>
-
-id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -565,13 +483,14 @@ id: <Link to="object#0x2_object_ID">object::ID</Link>
 
 Emitted when an item was listed by the safe owner. Can be used
 to track available offers anywhere on the network; the event is
-type-indexed which allows for searching for offers of a specific 
-T
+type-indexed which allows for searching for offers of a specific <code>T</code>
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_ItemListed">ItemListed</Link>&lt;T: store, key&gt; <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -581,22 +500,19 @@ T
 
 <dl>
 <dt>
-
-<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
+<code><Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-price: u64
+<code>price: u64</code>
 </dt>
 <dd>
 
@@ -610,28 +526,22 @@ price: u64
 
 ## Struct `ItemPurchased`
 
-Emitted when an item was purchased from the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. Can be used
+Emitted when an item was purchased from the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. Can be used
 to track finalized sales across the network. The event is emitted
-in both cases: when an item is purchased via the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> or
-when it's purchased directly (via 
-list + 
-purchase).
+in both cases: when an item is purchased via the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> or
+when it's purchased directly (via <code>list</code> + <code>purchase</code>).
 
-The 
-price is also emitted and might differ from the 
-price set
-in the 
-<Link to="kiosk#0x2_kiosk_ItemListed">ItemListed</Link> event. This is because the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> only
+The <code>price</code> is also emitted and might differ from the <code>price</code> set
+in the <code><Link to="kiosk#0x2_kiosk_ItemListed">ItemListed</Link></code> event. This is because the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> only
 sets a minimum price for the item, and the actual price is defined
 by the trading module / extension.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_ItemPurchased">ItemPurchased</Link>&lt;T: store, key&gt; <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -641,22 +551,19 @@ by the trading module / extension.
 
 <dl>
 <dt>
-
-<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
+<code><Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-price: u64
+<code>price: u64</code>
 </dt>
 <dd>
 
@@ -674,9 +581,11 @@ Emitted when an item was delisted by the safe owner. Can be used
 to close tracked offers.
 
 
-<pre><code>
+<pre>
+<code>
 <b>struct</b> <Link to="kiosk#0x2_kiosk_ItemDelisted">ItemDelisted</Link>&lt;T: store, key&gt; <b>has</b> <b>copy</b>, drop
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -686,15 +595,13 @@ to close tracked offers.
 
 <dl>
 <dt>
-
-<Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link>
+<code><Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-
-id: <Link to="object#0x2_object_ID">object::ID</Link>
+<code>id: <Link to="object#0x2_object_ID">object::ID</Link></code>
 </dt>
 <dd>
 
@@ -714,9 +621,11 @@ id: <Link to="object#0x2_object_ID">object::ID</Link>
 Trying to withdraw higher amount than stored.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_ENotEnough">ENotEnough</Link>: u64 = 2;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -725,9 +634,11 @@ Trying to withdraw higher amount than stored.
 Trying to withdraw profits and sender is not owner.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>: u64 = 0;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -736,9 +647,11 @@ Trying to withdraw profits and sender is not owner.
 Trying to exclusively list an already listed item.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EAlreadyListed">EAlreadyListed</Link>: u64 = 6;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -747,9 +660,11 @@ Trying to exclusively list an already listed item.
 Coin paid does not match the offer price.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EIncorrectAmount">EIncorrectAmount</Link>: u64 = 1;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -758,34 +673,37 @@ Coin paid does not match the offer price.
 Taking or mutably borrowing an item that is listed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EItemIsListed">EItemIsListed</Link>: u64 = 9;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_EItemLocked"></Link>
 
-Attempt to 
-take an item that is locked.
+Attempt to <code>take</code> an item that is locked.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EItemLocked">EItemLocked</Link>: u64 = 8;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_EItemMismatch"></Link>
 
-Item does not match 
-<Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link> in 
-return_val.
+Item does not match <code><Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link></code> in <code>return_val</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EItemMismatch">EItemMismatch</Link>: u64 = 10;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -794,21 +712,24 @@ return_val.
 An is not found while trying to borrow.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EItemNotFound">EItemNotFound</Link>: u64 = 11;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_EListedExclusively"></Link>
 
-Attempt to take an item that has a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> issued.
+Attempt to take an item that has a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> issued.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EListedExclusively">EListedExclusively</Link>: u64 = 4;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -817,9 +738,11 @@ Attempt to take an item that has a
 Trying to close a Kiosk and it has items in it.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_ENotEmpty">ENotEmpty</Link>: u64 = 3;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -828,35 +751,37 @@ Trying to close a Kiosk and it has items in it.
 Delisting an item that is not listed.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_ENotListed">ENotListed</Link>: u64 = 12;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_EUidAccessNotAllowed"></Link>
 
-Trying to call 
-uid_mut when 
-allow_extensions set to false.
+Trying to call <code>uid_mut</code> when <code>allow_extensions</code> set to false.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EUidAccessNotAllowed">EUidAccessNotAllowed</Link>: u64 = 7;
-</code></pre>
+</code>
+</pre>
 
 
 
 <Link id="0x2_kiosk_EWrongKiosk"></Link>
 
-
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> does not match the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+<code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> does not match the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>const</b> <Link to="kiosk#0x2_kiosk_EWrongKiosk">EWrongKiosk</Link>: u64 = 5;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -865,14 +790,14 @@ allow_extensions set to false.
 ## Function `default`
 
 Creates a new Kiosk in a default configuration: sender receives the
-
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> and becomes the Owner, the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> is shared.
+<code><Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code> and becomes the Owner, the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> is shared.
 
 
-<pre><code>
+<pre>
+<code>
 entry <b>fun</b> <Link to="kiosk#0x2_kiosk_default">default</Link>(ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -880,13 +805,15 @@ entry <b>fun</b> <Link to="kiosk#0x2_kiosk_default">default</Link>(ctx: &<b>mut<
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 entry <b>fun</b> <Link to="kiosk#0x2_kiosk_default">default</Link>(ctx: &<b>mut</b> TxContext) \{
     <b>let</b> (<Link to="kiosk#0x2_kiosk">kiosk</Link>, cap) = <Link to="kiosk#0x2_kiosk_new">new</Link>(ctx);
     iota::transfer::transfer(cap, ctx.sender());
     iota::transfer::share_object(<Link to="kiosk#0x2_kiosk">kiosk</Link>);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -896,14 +823,14 @@ entry <b>fun</b> <Link to="kiosk#0x2_kiosk_default">default</Link>(ctx: &<b>mut<
 
 ## Function `new`
 
-Creates a new 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> with a matching 
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>.
+Creates a new <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> with a matching <code><Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_new">new</Link>(ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): (<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, <Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -911,7 +838,8 @@ Creates a new
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_new">new</Link>(ctx: &<b>mut</b> TxContext): (<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, <Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>) \{
     <b>let</b> <Link to="kiosk#0x2_kiosk">kiosk</Link> = <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> \{
         id: <Link to="object#0x2_object_new">object::new</Link>(ctx),
@@ -928,7 +856,8 @@ Creates a new
 
     (<Link to="kiosk#0x2_kiosk">kiosk</Link>, cap)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -939,15 +868,15 @@ Creates a new
 ## Function `close_and_withdraw`
 
 Unpacks and destroys a Kiosk returning the profits (even if "0").
-Can only be performed by the bearer of the 
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> in the
-case where there's no items inside and a 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> is not shared.
+Can only be performed by the bearer of the <code><Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code> in the
+case where there's no items inside and a <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> is not shared.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_close_and_withdraw">close_and_withdraw</Link>(self: <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: <Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -955,7 +884,8 @@ case where there's no items inside and a
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_close_and_withdraw">close_and_withdraw</Link>(
     self: <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: <Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, ctx: &<b>mut</b> TxContext
 ): Coin&lt;IOTA&gt; \{
@@ -970,7 +900,8 @@ case where there's no items inside and a
 
     profits.into_coin(ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -980,16 +911,17 @@ case where there's no items inside and a
 
 ## Function `set_owner`
 
-Change the 
-owner field to the transaction sender.
+Change the <code>owner</code> field to the transaction sender.
 The change is purely cosmetical and does not affect any of the
 basic kiosk functions unless some logic for this is implemented
 in a third party module.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_set_owner">set_owner</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, ctx: &<Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -997,14 +929,16 @@ in a third party module.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_set_owner">set_owner</Link>(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, ctx: &TxContext
 ) \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     self.owner = ctx.sender();
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1014,15 +948,15 @@ in a third party module.
 
 ## Function `set_owner_custom`
 
-Update the 
-owner field with a custom address. Can be used for
-implementing a custom logic that relies on the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> owner.
+Update the <code>owner</code> field with a custom address. Can be used for
+implementing a custom logic that relies on the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> owner.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_set_owner_custom">set_owner_custom</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, owner: <b>address</b>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1030,14 +964,16 @@ implementing a custom logic that relies on the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_set_owner_custom">set_owner_custom</Link>(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, owner: <b>address</b>
 ) \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     self.owner = owner
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1051,9 +987,11 @@ Place any object into a Kiosk.
 Performs an authorization check to make sure only owner can do that.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_place">place</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, item: T)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1061,14 +999,16 @@ Performs an authorization check to make sure only owner can do that.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_place">place</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, item: T
 ) \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     self.<Link to="kiosk#0x2_kiosk_place_internal">place_internal</Link>(item)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1078,23 +1018,19 @@ Performs an authorization check to make sure only owner can do that.
 
 ## Function `lock`
 
-Place an item to the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and issue a 
-<Link to="kiosk#0x2_kiosk_Lock">Lock</Link> for it. Once placed this
-way, an item can only be listed either with a 
-list function or with a
+Place an item to the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and issue a <code><Link to="kiosk#0x2_kiosk_Lock">Lock</Link></code> for it. Once placed this
+way, an item can only be listed either with a <code>list</code> function or with a
+<code>list_with_purchase_cap</code>.
 
-list_with_purchase_cap.
-
-Requires policy for 
-T to make sure that there's an issued 
-TransferPolicy
+Requires policy for <code>T</code> to make sure that there's an issued <code>TransferPolicy</code>
 and the item can be sold, otherwise the asset might be locked forever.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_lock">lock</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, _policy: &<Link to="transfer_policy#0x2_transfer_policy_TransferPolicy">transfer_policy::TransferPolicy</Link>&lt;T&gt;, item: T)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1102,14 +1038,16 @@ and the item can be sold, otherwise the asset might be locked forever.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_lock">lock</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, _policy: &TransferPolicy&lt;T&gt;, item: T
 ) \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     self.<Link to="kiosk#0x2_kiosk_lock_internal">lock_internal</Link>(item)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1123,9 +1061,11 @@ Take any object from the Kiosk.
 Performs an authorization check to make sure only owner can do that.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_take">take</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): T
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1133,7 +1073,8 @@ Performs an authorization check to make sure only owner can do that.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_take">take</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID
 ): T \{
@@ -1146,7 +1087,8 @@ Performs an authorization check to make sure only owner can do that.
     df::remove_if_exists&lt;<Link to="kiosk#0x2_kiosk_Listing">Listing</Link>, u64&gt;(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> \{ id, is_exclusive: <b>false</b> });
     dof::remove(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1160,9 +1102,11 @@ List the item by setting a price and making it available for purchase.
 Performs an authorization check to make sure only owner can sell.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_list">list</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>, price: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1170,7 +1114,8 @@ Performs an authorization check to make sure only owner can sell.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_list">list</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID, price: u64
 ) \{
@@ -1181,7 +1126,8 @@ Performs an authorization check to make sure only owner can sell.
     df::add(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> \{ id, is_exclusive: <b>false</b> }, price);
     <Link to="event#0x2_event_emit">event::emit</Link>(<Link to="kiosk#0x2_kiosk_ItemListed">ItemListed</Link>&lt;T&gt; \{ <Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_id">object::id</Link>(self), id, price })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1191,14 +1137,14 @@ Performs an authorization check to make sure only owner can sell.
 
 ## Function `place_and_list`
 
-Calls 
-place and 
-list together - simplifies the flow.
+Calls <code>place</code> and <code>list</code> together - simplifies the flow.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_place_and_list">place_and_list</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, item: T, price: u64)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1206,7 +1152,8 @@ list together - simplifies the flow.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_place_and_list">place_and_list</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, item: T, price: u64
 ) \{
@@ -1214,7 +1161,8 @@ list together - simplifies the flow.
     self.<Link to="kiosk#0x2_kiosk_place">place</Link>(cap, item);
     self.<Link to="kiosk#0x2_kiosk_list">list</Link>&lt;T&gt;(cap, id, price)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1224,15 +1172,15 @@ list together - simplifies the flow.
 
 ## Function `delist`
 
-Remove an existing listing from the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and keep the item in the
-user Kiosk. Can only be performed by the owner of the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+Remove an existing listing from the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and keep the item in the
+user Kiosk. Can only be performed by the owner of the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_delist">delist</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1240,7 +1188,8 @@ user Kiosk. Can only be performed by the owner of the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_delist">delist</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID
 ) \{
@@ -1252,7 +1201,8 @@ user Kiosk. Can only be performed by the owner of the
     df::remove&lt;<Link to="kiosk#0x2_kiosk_Listing">Listing</Link>, u64&gt;(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> \{ id, is_exclusive: <b>false</b> });
     <Link to="event#0x2_event_emit">event::emit</Link>(<Link to="kiosk#0x2_kiosk_ItemDelisted">ItemDelisted</Link>&lt;T&gt; \{ <Link to="kiosk#0x2_kiosk">kiosk</Link>: <Link to="object#0x2_object_id">object::id</Link>(self), id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1262,20 +1212,20 @@ user Kiosk. Can only be performed by the owner of the
 
 ## Function `purchase`
 
-Make a trade: pay the owner of the item and request a Transfer to the 
-target
+Make a trade: pay the owner of the item and request a Transfer to the <code>target</code>
 kiosk (to prevent item being taken by the approving party).
 
-Received 
-TransferRequest needs to be handled by the publisher of the T,
+Received <code>TransferRequest</code> needs to be handled by the publisher of the T,
 if they have a method implemented that allows a trade, it is possible to
 request their approval (by calling some function) so that the trade can be
 finalized.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase">purchase</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>, payment: <Link to="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;): (T, <Link to="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1283,7 +1233,8 @@ finalized.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase">purchase</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, id: ID, payment: Coin&lt;IOTA&gt;
 ): (T, TransferRequest&lt;T&gt;) \{
@@ -1299,7 +1250,8 @@ finalized.
 
     (inner, <Link to="transfer_policy#0x2_transfer_policy_new_request">transfer_policy::new_request</Link>(id, price, <Link to="object#0x2_object_id">object::id</Link>(self)))
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1309,15 +1261,15 @@ finalized.
 
 ## Function `list_with_purchase_cap`
 
-Creates a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> which gives the right to purchase an item
-for any price equal or higher than the 
-min_price.
+Creates a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> which gives the right to purchase an item
+for any price equal or higher than the <code>min_price</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_list_with_purchase_cap">list_with_purchase_cap</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>, min_price: u64, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="kiosk#0x2_kiosk_PurchaseCap">kiosk::PurchaseCap</Link>&lt;T&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1325,7 +1277,8 @@ min_price.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_list_with_purchase_cap">list_with_purchase_cap</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID, min_price: u64, ctx: &<b>mut</b> TxContext
 ): <Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T&gt; \{
@@ -1342,7 +1295,8 @@ min_price.
         kiosk_id: <Link to="object#0x2_object_id">object::id</Link>(self),
     }
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1352,16 +1306,15 @@ min_price.
 
 ## Function `purchase_with_cap`
 
-Unpack the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> and call 
-purchase. Sets the payment amount
-as the price for the listing making sure it's no less than 
-min_amount.
+Unpack the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> and call <code>purchase</code>. Sets the payment amount
+as the price for the listing making sure it's no less than <code>min_amount</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_with_cap">purchase_with_cap</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, purchase_cap: <Link to="kiosk#0x2_kiosk_PurchaseCap">kiosk::PurchaseCap</Link>&lt;T&gt;, payment: <Link to="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;): (T, <Link to="transfer_policy#0x2_transfer_policy_TransferRequest">transfer_policy::TransferRequest</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1369,7 +1322,8 @@ min_amount.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_with_cap">purchase_with_cap</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, purchase_cap: <Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T&gt;, payment: Coin&lt;IOTA&gt;
 ): (T, TransferRequest&lt;T&gt;) \{
@@ -1390,7 +1344,8 @@ min_amount.
 
     (item, <Link to="transfer_policy#0x2_transfer_policy_new_request">transfer_policy::new_request</Link>(id, paid, <Link to="object#0x2_object_id">object::id</Link>(self)))
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1400,15 +1355,15 @@ min_amount.
 
 ## Function `return_purchase_cap`
 
-Return the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> without making a purchase; remove an active offer and
-allow the item for taking. Can only be returned to its 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, aborts otherwise.
+Return the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> without making a purchase; remove an active offer and
+allow the item for taking. Can only be returned to its <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>, aborts otherwise.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_return_purchase_cap">return_purchase_cap</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, purchase_cap: <Link to="kiosk#0x2_kiosk_PurchaseCap">kiosk::PurchaseCap</Link>&lt;T&gt;)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1416,7 +1371,8 @@ allow the item for taking. Can only be returned to its
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_return_purchase_cap">return_purchase_cap</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, purchase_cap: <Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T&gt;
 ) \{
@@ -1426,7 +1382,8 @@ allow the item for taking. Can only be returned to its
     df::remove&lt;<Link to="kiosk#0x2_kiosk_Listing">Listing</Link>, u64&gt;(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> \{ id: item_id, is_exclusive: <b>true</b> });
     id.delete()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1439,9 +1396,11 @@ allow the item for taking. Can only be returned to its
 Withdraw profits from the Kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_withdraw">withdraw</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, amount: <Link to="../move-stdlib/option#0x1_option_Option">option::Option</Link>&lt;u64&gt;, ctx: &<b>mut</b> <Link to="tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="coin#0x2_coin_Coin">coin::Coin</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1449,7 +1408,8 @@ Withdraw profits from the Kiosk.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_withdraw">withdraw</Link>(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, amount: Option&lt;u64&gt;, ctx: &<b>mut</b> TxContext
 ): Coin&lt;IOTA&gt; \{
@@ -1465,7 +1425,8 @@ Withdraw profits from the Kiosk.
 
     <Link to="coin#0x2_coin_take">coin::take</Link>(&<b>mut</b> self.profits, amount, ctx)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1475,13 +1436,14 @@ Withdraw profits from the Kiosk.
 
 ## Function `lock_internal`
 
-Internal: "lock" an item disabling the 
-take action.
+Internal: "lock" an item disabling the <code>take</code> action.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="kiosk#0x2_kiosk_lock_internal">lock_internal</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1489,12 +1451,14 @@ take action.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<Link to="package#0x2_package">package</Link>) <b>fun</b> <Link to="kiosk#0x2_kiosk_lock_internal">lock_internal</Link>&lt;T: key + store&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, item: T) \{
     df::add(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Lock">Lock</Link> \{ id: <Link to="object#0x2_object_id">object::id</Link>(&item) }, <b>true</b>);
     self.<Link to="kiosk#0x2_kiosk_place_internal">place_internal</Link>(item)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1507,9 +1471,11 @@ take action.
 Internal: "place" an item to the Kiosk and increment the item count.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="kiosk#0x2_kiosk_place_internal">place_internal</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1517,12 +1483,14 @@ Internal: "place" an item to the Kiosk and increment the item count.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<Link to="package#0x2_package">package</Link>) <b>fun</b> <Link to="kiosk#0x2_kiosk_place_internal">place_internal</Link>&lt;T: key + store&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, item: T) \{
     self.item_count = self.item_count + 1;
     dof::add(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id: <Link to="object#0x2_object_id">object::id</Link>(&item) }, item)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1535,9 +1503,11 @@ Internal: "place" an item to the Kiosk and increment the item count.
 Internal: get a mutable access to the UID.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<b>friend</b>) <b>fun</b> <Link to="kiosk#0x2_kiosk_uid_mut_internal">uid_mut_internal</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link to="object#0x2_object_UID">object::UID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1545,11 +1515,13 @@ Internal: get a mutable access to the UID.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b>(<Link to="package#0x2_package">package</Link>) <b>fun</b> <Link to="kiosk#0x2_kiosk_uid_mut_internal">uid_mut_internal</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>): &<b>mut</b> UID \{
     &<b>mut</b> self.id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1559,14 +1531,14 @@ Internal: get a mutable access to the UID.
 
 ## Function `has_item`
 
-Check whether the 
-item is present in the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+Check whether the <code>item</code> is present in the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_has_item">has_item</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1574,11 +1546,13 @@ item is present in the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_has_item">has_item</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, id: ID): bool \{
     dof::exists_(&self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1588,14 +1562,14 @@ item is present in the
 
 ## Function `has_item_with_type`
 
-Check whether the 
-item is present in the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> and has type T.
+Check whether the <code>item</code> is present in the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> and has type T.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_has_item_with_type">has_item_with_type</Link>&lt;T: store, key&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1603,11 +1577,13 @@ item is present in the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_has_item_with_type">has_item_with_type</Link>&lt;T: key + store&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, id: ID): bool \{
     dof::exists_with_type&lt;<Link to="kiosk#0x2_kiosk_Item">Item</Link>, T&gt;(&self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1617,20 +1593,16 @@ item is present in the
 
 ## Function `is_locked`
 
-Check whether an item with the 
-id is locked in the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. Meaning
-that the only two actions that can be performed on it are 
-list and
-
-list_with_purchase_cap, it cannot be 
-taken out of the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+Check whether an item with the <code>id</code> is locked in the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. Meaning
+that the only two actions that can be performed on it are <code>list</code> and
+<code>list_with_purchase_cap</code>, it cannot be <code>take</code>n out of the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_is_locked">is_locked</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1638,11 +1610,13 @@ taken out of the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_is_locked">is_locked</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, id: ID): bool \{
     df::exists_(&self.id, <Link to="kiosk#0x2_kiosk_Lock">Lock</Link> \{ id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1652,13 +1626,14 @@ taken out of the
 
 ## Function `is_listed`
 
-Check whether an 
-item is listed (exclusively or non exclusively).
+Check whether an <code>item</code> is listed (exclusively or non exclusively).
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_is_listed">is_listed</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1666,12 +1641,14 @@ item is listed (exclusively or non exclusively).
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_is_listed">is_listed</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, id: ID): bool \{
     df::exists_(&self.id, <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> \{ id, is_exclusive: <b>false</b> })
     || self.<Link to="kiosk#0x2_kiosk_is_listed_exclusively">is_listed_exclusively</Link>(id)
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1681,13 +1658,14 @@ item is listed (exclusively or non exclusively).
 
 ## Function `is_listed_exclusively`
 
-Check whether there's a 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link> issued for an item.
+Check whether there's a <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code> issued for an item.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_is_listed_exclusively">is_listed_exclusively</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1695,11 +1673,13 @@ Check whether there's a
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_is_listed_exclusively">is_listed_exclusively</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, id: ID): bool \{
     df::exists_(&self.id, <Link to="kiosk#0x2_kiosk_Listing">Listing</Link> \{ id, is_exclusive: <b>true</b> })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1709,14 +1689,14 @@ Check whether there's a
 
 ## Function `has_access`
 
-Check whether the 
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link> matches the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
+Check whether the <code><Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code> matches the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>): bool
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1724,11 +1704,13 @@ Check whether the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>): bool \{
     <Link to="object#0x2_object_id">object::id</Link>(self) == cap.`for`
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1738,14 +1720,14 @@ Check whether the
 
 ## Function `uid_mut_as_owner`
 
-Access the 
-UID using the 
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>.
+Access the <code>UID</code> using the <code><Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_uid_mut_as_owner">uid_mut_as_owner</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>): &<b>mut</b> <Link to="object#0x2_object_UID">object::UID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1753,14 +1735,16 @@ UID using the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_uid_mut_as_owner">uid_mut_as_owner</Link>(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>
 ): &<b>mut</b> UID \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     &<b>mut</b> self.id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1771,16 +1755,15 @@ UID using the
 ## Function `set_allow_extensions`
 
 [DEPRECATED]
-Allow or disallow 
-uid and 
-uid_mut access via the 
-allow_extensions
+Allow or disallow <code>uid</code> and <code>uid_mut</code> access via the <code>allow_extensions</code>
 setting.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_set_allow_extensions">set_allow_extensions</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, allow_extensions: bool)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1788,14 +1771,16 @@ setting.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_set_allow_extensions">set_allow_extensions</Link>(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, allow_extensions: bool
 ) \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     self.allow_extensions = allow_extensions;
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1805,17 +1790,18 @@ setting.
 
 ## Function `uid`
 
-Get the immutable 
-UID for dynamic field access.
+Get the immutable <code>UID</code> for dynamic field access.
 Always enabled.
 
 Given the &UID can be used for reading keys and authorization,
 its access
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_uid">uid</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<Link to="object#0x2_object_UID">object::UID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1823,11 +1809,13 @@ its access
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_uid">uid</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>): &UID \{
     &self.id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1837,16 +1825,15 @@ its access
 
 ## Function `uid_mut`
 
-Get the mutable 
-UID for dynamic field access and extensions.
-Aborts if 
-allow_extensions set to 
-<b>false</b>.
+Get the mutable <code>UID</code> for dynamic field access and extensions.
+Aborts if <code>allow_extensions</code> set to <code><b>false</b></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_uid_mut">uid_mut</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): &<b>mut</b> <Link to="object#0x2_object_UID">object::UID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1854,12 +1841,14 @@ allow_extensions set to
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_uid_mut">uid_mut</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>): &<b>mut</b> UID \{
     <b>assert</b>!(self.allow_extensions, <Link to="kiosk#0x2_kiosk_EUidAccessNotAllowed">EUidAccessNotAllowed</Link>);
     &<b>mut</b> self.id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1872,9 +1861,11 @@ allow_extensions set to
 Get the owner of the Kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_owner">owner</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): <b>address</b>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1882,11 +1873,13 @@ Get the owner of the Kiosk.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_owner">owner</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>): <b>address</b> \{
     self.owner
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1899,9 +1892,11 @@ Get the owner of the Kiosk.
 Get the number of items stored in a Kiosk.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_item_count">item_count</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): u32
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1909,11 +1904,13 @@ Get the number of items stored in a Kiosk.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_item_count">item_count</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>): u32 \{
     self.item_count
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1926,9 +1923,11 @@ Get the number of items stored in a Kiosk.
 Get the amount of profits collected by selling items.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_profits_amount">profits_amount</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1936,11 +1935,13 @@ Get the amount of profits collected by selling items.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_profits_amount">profits_amount</Link>(self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>): u64 \{
     self.profits.value()
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1950,13 +1951,14 @@ Get the amount of profits collected by selling items.
 
 ## Function `profits_mut`
 
-Get mutable access to 
-profits - owner only action.
+Get mutable access to <code>profits</code> - owner only action.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_profits_mut">profits_mut</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>): &<b>mut</b> <Link to="balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1964,12 +1966,14 @@ profits - owner only action.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_profits_mut">profits_mut</Link>(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>): &<b>mut</b> Balance&lt;IOTA&gt; \{
     <b>assert</b>!(self.<Link to="kiosk#0x2_kiosk_has_access">has_access</Link>(cap), <Link to="kiosk#0x2_kiosk_ENotOwner">ENotOwner</Link>);
     &<b>mut</b> self.profits
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1979,15 +1983,15 @@ profits - owner only action.
 
 ## Function `borrow`
 
-Immutably borrow an item from the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. Any item can be 
-<Link to="borrow#0x2_borrow">borrow</Link>ed
+Immutably borrow an item from the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. Any item can be <code><Link to="borrow#0x2_borrow">borrow</Link></code>ed
 at any time.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="borrow#0x2_borrow">borrow</Link>&lt;T: store, key&gt;(self: &<Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): &T
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -1995,7 +1999,8 @@ at any time.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="borrow#0x2_borrow">borrow</Link>&lt;T: key + store&gt;(
     self: &<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID
 ): &T \{
@@ -2004,7 +2009,8 @@ at any time.
 
     dof::borrow(&self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2014,16 +2020,15 @@ at any time.
 
 ## Function `borrow_mut`
 
-Mutably borrow an item from the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>.
-Item can be 
-borrow_muted only if it's not 
-is_listed.
+Mutably borrow an item from the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>.
+Item can be <code>borrow_mut</code>ed only if it's not <code>is_listed</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_borrow_mut">borrow_mut</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): &<b>mut</b> T
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2031,7 +2036,8 @@ is_listed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_borrow_mut">borrow_mut</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID
 ): &<b>mut</b> T \{
@@ -2041,7 +2047,8 @@ is_listed.
 
     dof::borrow_mut(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id })
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2051,16 +2058,15 @@ is_listed.
 
 ## Function `borrow_val`
 
-Take the item from the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link> with a guarantee that it will be returned.
-Item can be 
-borrow_val-ed only if it's not 
-is_listed.
+Take the item from the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code> with a guarantee that it will be returned.
+Item can be <code>borrow_val</code>-ed only if it's not <code>is_listed</code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_borrow_val">borrow_val</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>, id: <Link to="object#0x2_object_ID">object::ID</Link>): (T, <Link to="kiosk#0x2_kiosk_Borrow">kiosk::Borrow</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2068,7 +2074,8 @@ is_listed.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_borrow_val">borrow_val</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>, id: ID
 ): (T, <Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link>) \{
@@ -2081,7 +2088,8 @@ is_listed.
         <Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link> \{ kiosk_id: <Link to="object#0x2_object_id">object::id</Link>(self), item_id: id }
     )
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2091,15 +2099,15 @@ is_listed.
 
 ## Function `return_val`
 
-Return the borrowed item to the 
-<Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>. This method cannot be avoided
-if 
-borrow_val is used.
+Return the borrowed item to the <code><Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link></code>. This method cannot be avoided
+if <code>borrow_val</code> is used.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_return_val">return_val</Link>&lt;T: store, key&gt;(self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">kiosk::Kiosk</Link>, item: T, <Link to="borrow#0x2_borrow">borrow</Link>: <Link to="kiosk#0x2_kiosk_Borrow">kiosk::Borrow</Link>)
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2107,7 +2115,8 @@ borrow_val is used.
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_return_val">return_val</Link>&lt;T: key + store&gt;(
     self: &<b>mut</b> <Link to="kiosk#0x2_kiosk_Kiosk">Kiosk</Link>, item: T, <Link to="borrow#0x2_borrow">borrow</Link>: <Link to="kiosk#0x2_kiosk_Borrow">Borrow</Link>
 ) \{
@@ -2118,7 +2127,8 @@ borrow_val is used.
 
     dof::add(&<b>mut</b> self.id, <Link to="kiosk#0x2_kiosk_Item">Item</Link> \{ id: item_id }, item);
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2128,14 +2138,14 @@ borrow_val is used.
 
 ## Function `kiosk_owner_cap_for`
 
-Get the 
-for field of the 
-<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>.
+Get the <code>for</code> field of the <code><Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_kiosk_owner_cap_for">kiosk_owner_cap_for</Link>(cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">kiosk::KioskOwnerCap</Link>): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2143,11 +2153,13 @@ for field of the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_kiosk_owner_cap_for">kiosk_owner_cap_for</Link>(cap: &<Link to="kiosk#0x2_kiosk_KioskOwnerCap">KioskOwnerCap</Link>): ID \{
     cap.`for`
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2157,14 +2169,14 @@ for field of the
 
 ## Function `purchase_cap_kiosk`
 
-Get the 
-kiosk_id from the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
+Get the <code>kiosk_id</code> from the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_cap_kiosk">purchase_cap_kiosk</Link>&lt;T: store, key&gt;(self: &<Link to="kiosk#0x2_kiosk_PurchaseCap">kiosk::PurchaseCap</Link>&lt;T&gt;): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2172,11 +2184,13 @@ kiosk_id from the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_cap_kiosk">purchase_cap_kiosk</Link>&lt;T: key + store&gt;(self: &<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T&gt;): ID \{
     self.kiosk_id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2186,14 +2200,14 @@ kiosk_id from the
 
 ## Function `purchase_cap_item`
 
-Get the 
-Item_id from the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
+Get the <code>Item_id</code> from the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_cap_item">purchase_cap_item</Link>&lt;T: store, key&gt;(self: &<Link to="kiosk#0x2_kiosk_PurchaseCap">kiosk::PurchaseCap</Link>&lt;T&gt;): <Link to="object#0x2_object_ID">object::ID</Link>
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2201,11 +2215,13 @@ Item_id from the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_cap_item">purchase_cap_item</Link>&lt;T: key + store&gt;(self: &<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T&gt;): ID \{
     self.item_id
 }
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2215,14 +2231,14 @@ Item_id from the
 
 ## Function `purchase_cap_min_price`
 
-Get the 
-min_price from the 
-<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>.
+Get the <code>min_price</code> from the <code><Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link></code>.
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_cap_min_price">purchase_cap_min_price</Link>&lt;T: store, key&gt;(self: &<Link to="kiosk#0x2_kiosk_PurchaseCap">kiosk::PurchaseCap</Link>&lt;T&gt;): u64
-</code></pre>
+</code>
+</pre>
 
 
 
@@ -2230,11 +2246,13 @@ min_price from the
 <summary>Implementation</summary>
 
 
-<pre><code>
+<pre>
+<code>
 <b>public</b> <b>fun</b> <Link to="kiosk#0x2_kiosk_purchase_cap_min_price">purchase_cap_min_price</Link>&lt;T: key + store&gt;(self: &<Link to="kiosk#0x2_kiosk_PurchaseCap">PurchaseCap</Link>&lt;T&gt;): u64 \{
     self.min_price
 }
-</code></pre>
+</code>
+</pre>
 
 
 
