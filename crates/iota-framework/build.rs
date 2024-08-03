@@ -5,7 +5,6 @@
 use std::{
     collections::BTreeMap,
     env, fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -236,8 +235,18 @@ fn create_category_file(prefix: &str) {
     let mut path = PathBuf::from(DOCS_DIR).join(prefix);
     fs::create_dir_all(path.clone()).unwrap();
     path.push("_category_.json");
-    let mut file = fs::File::create(path).unwrap();
-    write!(file, "{{\"label\":\"{}\",\"link\":{{\"type\":\"generated-index\",\"slug\":\"/references/framework/{}\",\"description\":\"Documentation for the modules in the iota/crates/iota-framework/packages/{} crate. Select a module from the list to see its details.\"}}}}", prefix.split('-').map(|w| w.capitalize()).collect::<Vec<String>>().join(" "), prefix, prefix).unwrap();
+    fs::write(
+        path,
+        serde_json::json!({
+            "label":prefix.split('-').map(|w| w.capitalize()).collect::<Vec<String>>().join(" "),
+            "link":{
+                "type":"generated-index","slug": "/references/framework/".to_owned() + prefix,
+                "description": format!(
+                    "Documentation for the modules in the iota/crates/iota-framework/packages/{prefix} crate. Select a module from the list to see its details."
+                )
+            }
+        }).to_string()
+    ).unwrap()
 }
 
 /// Post process the generated docs so that they are in a format that can be
