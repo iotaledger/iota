@@ -760,7 +760,7 @@ indicate that the JWK has been validated in the current epoch and should not be 
     // any jwk below this epoch is not retained
     min_epoch: u64,
     ctx: &TxContext) \{
-    // This will only be called by iota_system::advance_epoch
+    // This will only be called by <Link to="../iota-system/iota_system#0x3_iota_system_advance_epoch">iota_system::advance_epoch</Link>
     <b>assert</b>!(ctx.sender() == @0x0, <Link to="../iota-framework/authenticator_state#0x2_authenticator_state_ENotSystemAddress">ENotSystemAddress</Link>);
 
     <b>let</b> inner = <Link to="../iota-framework/authenticator_state#0x2_authenticator_state_load_inner_mut">load_inner_mut</Link>(self);

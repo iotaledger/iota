@@ -198,12 +198,12 @@ fn build_packages_with_move_config(
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
         let mut files_to_write = BTreeMap::new();
-        /*create_category_file(deepbook_dir);
-        relocate_docs(
-            deepbook_dir,
-            &deepbook_pkg.package.compiled_docs.unwrap(),
-            &mut files_to_write,
-        );*/
+        // create_category_file(deepbook_dir);
+        // relocate_docs(
+        // deepbook_dir,
+        // &deepbook_pkg.package.compiled_docs.unwrap(),
+        // &mut files_to_write,
+        // );
         create_category_file(system_dir);
         relocate_docs(
             system_dir,
@@ -269,6 +269,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
     let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
     let none_pre_code_regex = regex::Regex::new(r"([^>])<code>([\s\S]*?)</code>").unwrap();
+    let iota_system_regex = regex::Regex::new(r"((?:\.\.\/|\.\/)+)(iota_system)(\.md)").unwrap();
 
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
@@ -302,8 +303,17 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
         // React components otherwise
         let content = type_regex.replace_all(&content, r#"`$1<$2>`"#);
 
+        // Add the iota-system directory to links containing iota_system.md
+        // This is a quite specific case, as docs of packages, that are not
+        // dependencies, are created in root, but this script moves them to a
+        // folder with the name of the package. So their links are not correct anymore.
+        // We could improve this by checking all links that, are not from dependencies,
+        // against a list of all paths and replace them accordingly.
+        let content = iota_system_regex.replace_all(&content, r#"${1}iota-system/$2$3"#);
+
         let content = content
-            .replace("../../dependencies/", "../")
+            .replace("../../", "../")
+            .replace("../dependencies/", "../")
             .replace("dependencies/", "../")
             // Here we remove the extension from `to` property in Link tags
             .replace(".md", "");
@@ -319,7 +329,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
                     let anchor = name.replace("::", "_");
                     // Remove backticks from title and add module name as sidebar label
                     format!("---\ntitle: {}{}\nsidebar_label: {}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, name.split("::").last().unwrap(), anchor)
-        }).to_string()
+            }).to_string()
         });
     }
 }
