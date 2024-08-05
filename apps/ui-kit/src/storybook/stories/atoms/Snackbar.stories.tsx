@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import { Snackbar, SnackbarProps, SnackbarType } from '@/components/atoms';
+import { Snackbar, SnackbarProps, SnackbarType, Button } from '@/components/atoms';
 
 const meta: Meta<SnackbarProps> = {
     component: Snackbar,
@@ -30,7 +30,7 @@ export const Default: Story = {
 
         return (
             <>
-                <button onClick={() => setIsOpen(true)}>Open Snackbar</button>
+                <Button onClick={() => setIsOpen(true)} text="Open Snackbar" />
                 <Snackbar {...props} isOpen={isOpen} onClose={onClose} />
             </>
         );

@@ -5,6 +5,7 @@ import React, { useEffect } from 'react';
 import cx from 'classnames';
 import { Close } from '@iota/ui-icons';
 import { SnackbarType } from './snackbar.enums';
+import { BACKGROUND_COLOR, TEXT_COLOR } from '@/components/atoms/snackbar/snackbar.classes';
 
 export interface SnackbarProps {
     /**
@@ -53,30 +54,24 @@ export function Snackbar({
         }
     }, [isOpen, duration, onClose]);
 
+    const openedClass = isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0';
+
     return (
         <div
             className={cx(
                 'transition-all duration-300 ease-out',
                 'z-99 bottom-0',
-                'flex w-full items-center justify-between gap-1 rounded-md px-md py-sm',
-                {
-                    'bg-neutral-80 dark:bg-neutral-30': type === SnackbarType.Default,
-                    'bg-error-90 dark:bg-error-10': type === SnackbarType.Error,
-                    'translate-y-0 opacity-100': isOpen,
-                    'translate-y-full opacity-0': !isOpen,
-                },
+                'flex w-full items-center justify-between gap-1 rounded-md py-sm pl-md pr-sm',
+                BACKGROUND_COLOR[type],
+                openedClass,
             )}
         >
-            <p
-                className={cx('text-left text-body-md dark:text-neutral-60', {
-                    'text-neutral-10 dark:text-neutral-92': type === SnackbarType.Default,
-                    'text-error-20 dark:text-error-90': type === SnackbarType.Error,
-                })}
-            >
-                {text}
-            </p>
+            <p className={cx('text-left text-body-md', TEXT_COLOR[type])}>{text}</p>
             {showClose && (
-                <Close className={'h-5 w-5 cursor-pointer text-neutral-6'} onClick={onClose} />
+                <Close
+                    className={cx('h-5 w-5 cursor-pointer', TEXT_COLOR[type])}
+                    onClick={onClose}
+                />
             )}
         </div>
     );
