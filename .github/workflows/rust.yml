@@ -45,7 +45,7 @@ jobs:
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -66,7 +66,7 @@ jobs:
     runs-on: [self-hosted]
     needs: changes
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: taiki-e/install-action@nextest
       - name: cargo test
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
@@ -74,7 +74,7 @@ jobs:
   iota-sdk-changes:
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -93,7 +93,7 @@ jobs:
     runs-on: [self-hosted]
     needs: iota-sdk-changes
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: taiki-e/install-action@nextest
       - name: cargo test
         run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.2
@@ -105,7 +105,7 @@ jobs:
       isMove: ${{ steps.diff.outputs.isMove }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
@@ -115,7 +115,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
 
       - name: Install cargo-license-template
@@ -130,7 +130,7 @@ jobs:
     if: needs.diff.outputs.isReleaseNotesEligible == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Check Pull Request Description
         shell: bash
         run: |
@@ -163,7 +163,7 @@ jobs:
           - [self-hosted]
       fail-fast: false
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: benchmark (smoke)
         run: |
           cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
@@ -200,7 +200,7 @@ jobs:
   #     env:
   #         MSIM_WATCHDOG_TIMEOUT_MS: 60000
   #     steps:
-  #         - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+  #         - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
   #         - uses: taiki-e/install-action@nextest
   #         - name: cargo simtest
   #           run: |
@@ -218,7 +218,7 @@ jobs:
     timeout-minutes: 10
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
       - name: Run move tests
         run: |
@@ -231,7 +231,7 @@ jobs:
   #   timeout-minutes: 45
   #   runs-on: [self-hosted]
   #   steps:
-  #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+  #     - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08  # Pin v4.1.1
 
   #     - name: Setup environment
   #       run: .github/scripts/rosetta/setup.sh
@@ -269,7 +269,7 @@ jobs:
         # this avoids rate-limiting
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - run: rustup component add clippy
       # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
@@ -287,7 +287,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
@@ -296,7 +296,7 @@ jobs:
   dprint-format:
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Install dprint
         run: cargo install dprint
       - name: Check dprint formatting
@@ -308,7 +308,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   iota-excution-cut:
@@ -317,13 +317,13 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
         with:
           crate: cargo-hakari
           locked: true
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Make cut
         run: ./scripts/execution_layer.py cut for_ci_test
       - name: Check execution builds
@@ -348,7 +348,7 @@ jobs:
     #      ports:
     #        - 5432:5432
     #  steps:
-    #    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+    #    - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08  # Pin v4.1.1
     #    - name: integration-test-with-postgres
     #      #We only have 1 instance of postgres DB, can only run test in single thread
     #      run: |
@@ -382,7 +382,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
       - name: Install postgresql-client
         run: sudo apt-get install -y postgresql-client

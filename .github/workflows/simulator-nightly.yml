@@ -87,7 +87,7 @@ jobs:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # Pin v4.1.1
 
       - name: Checkout iota repo main branch
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
 
       - name: Get iota commit
         env:

@@ -40,7 +40,7 @@ jobs:
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -53,7 +53,7 @@ jobs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
@@ -73,7 +73,7 @@ jobs:
     runs-on: [self-hosted]
     needs: changes
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: taiki-e/install-action@nextest
       - name: Install python dependencies
         run: pip install pyopenssl --upgrade
@@ -91,7 +91,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - run: rustup component add clippy
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
@@ -104,7 +104,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
@@ -117,5 +117,5 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
       - uses: EmbarkStudios/cargo-deny-action@v1

@@ -61,7 +61,7 @@ jobs:
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -83,7 +83,7 @@ jobs:
     runs-on: [self-hosted]
     needs: changes
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: taiki-e/install-action@nextest
       - name: cargo test
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
@@ -95,7 +95,7 @@ jobs:
       isMove: ${{ steps.diff.outputs.isMove }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
       - name: Detect Changes
@@ -118,7 +118,7 @@ jobs:
           - [self-hosted]
       fail-fast: false
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08 # Pin v4.1.1
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
       - uses: taiki-e/install-action@nextest
@@ -157,7 +157,7 @@ jobs:
   #   env:
   #     MSIM_WATCHDOG_TIMEOUT_MS: 60000
   #   steps:
-  #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+  #     - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08  # Pin v4.1.1
   #       with:
   #         ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
   #     - uses: taiki-e/install-action@nextest
