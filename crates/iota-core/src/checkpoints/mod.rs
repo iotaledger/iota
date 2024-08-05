@@ -1269,8 +1269,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-        // TODO: Check whether we must use anyhow::Result or can we use IotaResult.
-    ) -> anyhow::Result<(IotaSystemState, SystemEpochInfoEvent)> {
+    ) -> IotaResult<(IotaSystemState, SystemEpochInfoEvent)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
