@@ -1112,6 +1112,10 @@ type Epoch {
 	"""
 	systemStateVersion: Int
 	"""
+	The total IOTA supply.
+	"""
+	iotaTotalSupply: Int
+	"""
 	Details of the system that are decided during genesis.
 	"""
 	systemParameters: SystemParameters

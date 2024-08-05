@@ -2,20 +2,20 @@
 name = "move-bytecode-viewer"
 version = "0.1.0"
 authors = ["Diem Association <opensource@diem.com>"]
-description = "Explore Move bytecode and how the source code compiles to it"
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+description = "Explore Move bytecode and how the source code compiles to it"
 
 [dependencies]
-clap.workspace = true
 anyhow.workspace = true
-regex.workspace = true
-ratatui.workspace = true
+clap.workspace = true
 crossterm.workspace = true
+ratatui.workspace = true
+regex.workspace = true
 
-move-bytecode-source-map.workspace = true
 move-binary-format.workspace = true
+move-bytecode-source-map.workspace = true
 move-disassembler.workspace = true
 
 [features]
