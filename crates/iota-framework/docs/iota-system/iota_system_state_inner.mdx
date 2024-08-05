@@ -644,13 +644,6 @@ total_stake_rewards_distributed: u64</code>
 </dd>
 <dt>
 <code>
-burnt_leftover_amount: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
 burnt_tokens_amount: u64</code>
 </dt>
 <dd>
@@ -2266,7 +2259,7 @@ or smaller than the computation reward.
     <b>let</b> storage_charge_value = storage_charge.value();
     <b>let</b> computation_charge = computation_reward.value();
 
-    <b>let</b> (<b>mut</b> total_validator_rewards, minted_tokens_amount, burnt_tokens_amount) = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</Link>(
+    <b>let</b> (<b>mut</b> total_validator_rewards, minted_tokens_amount, <b>mut</b> burnt_tokens_amount) = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</Link>(
         validator_target_reward,
         computation_reward,
         &<b>mut</b> self.iota_treasury_cap,
@@ -2301,9 +2294,8 @@ or smaller than the computation reward.
     // Because of precision issues <b>with</b> integer divisions, we expect that there will be some
     // remaining <Link to="../iota-framework/balance#0x2_balance">balance</Link> in `total_validator_rewards`.
     <b>let</b> leftover_staking_rewards = total_validator_rewards;
-    <b>let</b> burnt_leftover_amount = leftover_staking_rewards.value();
-
-    // Burning leftover rewards
+    // Burn any remaining leftover rewards.
+    burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
     self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
     <b>let</b> refunded_storage_rebate =
@@ -2324,7 +2316,6 @@ or smaller than the computation reward.
             storage_fund_balance: self.<Link to="storage_fund#0x3_storage_fund">storage_fund</Link>.total_balance(),
             total_gas_fees: computation_charge,
             total_stake_rewards_distributed: total_validator_rewards_distributed,
-            burnt_leftover_amount,
             burnt_tokens_amount,
             minted_tokens_amount
         }

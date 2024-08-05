@@ -3490,12 +3490,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
-name = "dotenvy"
-version = "0.15.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
-
-[[package]]
 name = "downcast"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7422,39 +7416,6 @@ dependencies = [
  "stronghold_engine",
  "thiserror",
  "zeroize",
-]
-
-[[package]]
-name = "iotans-indexer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "backoff",
- "base64-url",
- "bcs",
- "bytes",
- "diesel",
- "dotenvy",
- "futures",
- "iota-data-ingestion-core",
- "iota-json-rpc",
- "iota-storage",
- "iota-types",
- "move-core-types",
- "mysten-metrics",
- "notify",
- "object_store",
- "prometheus",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "serde_yaml",
- "telemetry-subscribers",
- "tempfile",
- "tokio",
- "tracing",
- "url",
 ]
 
 [[package]]
