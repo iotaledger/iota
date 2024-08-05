@@ -4,27 +4,47 @@
 'use client';
 
 import { Button } from '@/components';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
+import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
+import { NotificationType } from '@/stores/notificationStore';
 import { useCollectUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
 
+    const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
-    const collect = useCollectUnlockTimelockedObjects(account?.address || '');
+    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
+
+    const { data: unlockAllTimelockedObjects } = useCollectUnlockTimelockedObjects(
+        account?.address || '',
+        timelockedMapped.map((timelocked) => timelocked.id.id) || [],
+    );
 
     const handleCollect = () => {
         // Update Date.now() when #1217 is merged
         const unlockTimelockedObjects = timelockedMapped?.filter(
             (timelockedObject) => timelockedObject.expirationTimestampMs <= Date.now(),
         );
-        console.log('unlockTimelockedObjects', unlockTimelockedObjects);
-        collect();
+        if (!unlockAllTimelockedObjects?.transaction || unlockTimelockedObjects.length === 0) {
+            addNotification('There was an error with the transaction', NotificationType.Error);
+            return;
+        } else {
+            signAndExecuteTransactionBlock({
+                transactionBlock: unlockAllTimelockedObjects.transaction,
+            })
+                .then(() => {
+                    addNotification('Transfer transaction has been sent');
+                })
+                .catch(() => {
+                    addNotification('Transfer transaction was not sent', NotificationType.Error);
+                });
+        }
     };
     const handleStake = () => {
         console.log('Stake');
@@ -63,12 +83,12 @@ function VestingDashboardPage(): JSX.Element {
             </div>
             {account?.address && (
                 <div className="flex flex-row space-x-4">
-                    {vestingSchedule.availableClaiming && (
+                    {vestingSchedule.availableClaiming ? (
                         <Button onClick={handleCollect}>Collect</Button>
-                    )}
-                    {vestingSchedule.availableStaking && (
+                    ) : null}
+                    {vestingSchedule.availableStaking ? (
                         <Button onClick={handleStake}>Stake</Button>
-                    )}
+                    ) : null}
                 </div>
             )}
         </div>
