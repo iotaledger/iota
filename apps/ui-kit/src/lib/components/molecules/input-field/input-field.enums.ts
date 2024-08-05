@@ -1,9 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export enum TextFieldType {
+export enum InputFieldType {
     Text = 'text',
     Password = 'password',
+    Number = 'number',
 }
 
 export enum Resize {

@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { TextField, TextFieldType } from '@/components/molecules/text-field';
+import { InputField, InputFieldType } from '@/lib/components/molecules/input-field';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import { ComponentProps, useCallback, useEffect, useState } from 'react';
 
@@ -11,12 +11,12 @@ type CustomStoryProps = {
     withLeadingIcon?: boolean;
 };
 
-function TextFieldStory({
+function InputFieldStory({
     withLeadingIcon,
     value,
     onClearInput,
     ...props
-}: ComponentProps<typeof TextField> & CustomStoryProps): JSX.Element {
+}: ComponentProps<typeof InputField> & CustomStoryProps): JSX.Element {
     const [inputValue, setInputValue] = useState(value ?? '');
 
     useEffect(() => {
@@ -24,7 +24,7 @@ function TextFieldStory({
     }, [value]);
 
     return (
-        <TextField
+        <InputField
             {...props}
             onChange={(value) => setInputValue(value)}
             value={inputValue}
@@ -35,9 +35,9 @@ function TextFieldStory({
 }
 
 const meta = {
-    component: TextField,
+    component: InputField,
     tags: ['autodocs'],
-} satisfies Meta<typeof TextField>;
+} satisfies Meta<typeof InputField>;
 
 export default meta;
 
@@ -47,7 +47,7 @@ export const Default: Story = {
     args: {
         label: 'Label',
         caption: 'Caption',
-        type: TextFieldType.Text,
+        type: InputFieldType.Text,
     },
     argTypes: {
         amountCounter: {
@@ -55,23 +55,29 @@ export const Default: Story = {
                 type: 'text',
             },
         },
+        type: {
+            control: {
+                type: 'select',
+                options: Object.values(InputFieldType),
+            },
+        },
     },
-    render: (props) => <TextFieldStory {...props} />,
+    render: (props) => <InputFieldStory {...props} />,
 };
 
 export const WithLeadingElement: Story = {
     args: {
-        type: TextFieldType.Text,
+        type: InputFieldType.Text,
         placeholder: 'Placeholder',
         amountCounter: '10',
         caption: 'Caption',
     },
-    render: (props) => <TextFieldStory {...props} withLeadingIcon />,
+    render: (props) => <InputFieldStory {...props} withLeadingIcon />,
 };
 
 export const WithMaxTrailingButton: Story = {
     args: {
-        type: TextFieldType.Text,
+        type: InputFieldType.Number,
         placeholder: 'Send IOTAs',
         amountCounter: 'Max 10 IOTA',
         caption: 'Enter token amount',
@@ -120,7 +126,7 @@ export const WithMaxTrailingButton: Story = {
         };
 
         return (
-            <TextField
+            <InputField
                 {...props}
                 required
                 label="Send Tokens"

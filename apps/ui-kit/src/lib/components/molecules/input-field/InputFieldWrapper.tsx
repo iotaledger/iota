@@ -3,7 +3,7 @@
 
 import cx from 'classnames';
 
-export interface TextFieldWrapperProps {
+export interface InputFieldWrapperProps {
     /**
      * Shows a label with the text above the input field.
      */
@@ -30,7 +30,7 @@ export interface TextFieldWrapperProps {
     disabled?: boolean;
 }
 
-export function TextFieldWrapper({
+export function InputFieldWrapper({
     label,
     caption,
     disabled,
@@ -38,7 +38,7 @@ export function TextFieldWrapper({
     amountCounter,
     required,
     children,
-}: React.PropsWithChildren<TextFieldWrapperProps>) {
+}: React.PropsWithChildren<InputFieldWrapperProps>) {
     return (
         <div
             className={cx('group flex flex-col gap-y-2', {

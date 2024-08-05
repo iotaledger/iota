@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef, useState } from 'react';
-import { TextFieldWrapper, TextFieldWrapperProps } from './TextFieldWrapper';
-import { TextFieldTrailingElement } from './TextFieldTrailingElement';
+import { InputFieldWrapper, InputFieldWrapperProps } from './InputFieldWrapper';
+import { InputFieldTrailingElement } from './InputFieldTrailingElement';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
     PLACEHOLDER_TEXT_CLASSES,
-} from './text-field.classes';
+} from './input-field.classes';
 import cx from 'classnames';
 
 type InputPickedProps = Pick<
@@ -25,7 +25,7 @@ type InputPickedProps = Pick<
     | 'id'
 >;
 
-interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
+interface TextFieldBaseProps extends InputPickedProps, InputFieldWrapperProps {
     /**
      * Shows a label with the text above the input field.
      */
@@ -111,7 +111,7 @@ export function TextArea({
     }
 
     return (
-        <TextFieldWrapper
+        <InputFieldWrapper
             label={label}
             caption={caption}
             disabled={disabled}
@@ -151,13 +151,13 @@ export function TextArea({
                 )}
                 {isVisibilityToggleEnabled && (
                     <span className="absolute bottom-4 right-4 flex">
-                        <TextFieldTrailingElement
+                        <InputFieldTrailingElement
                             onToggleButtonClick={onToggleButtonClick}
                             isContentVisible={isInputContentVisible}
                         />
                     </span>
                 )}
             </div>
-        </TextFieldWrapper>
+        </InputFieldWrapper>
     );
 }

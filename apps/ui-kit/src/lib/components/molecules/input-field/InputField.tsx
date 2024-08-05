@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef, useState } from 'react';
-import { TextFieldPropsByType } from './text-field.types';
-import { TextFieldType } from './text-field.enums';
-import { TextFieldTrailingElement } from './TextFieldTrailingElement';
+import { InputFieldTrailingElement } from './InputFieldTrailingElement';
 import cx from 'classnames';
-import { TextFieldWrapper, type TextFieldWrapperProps, SecondaryText } from './TextFieldWrapper';
+import { InputFieldWrapper, InputFieldWrapperProps, SecondaryText } from './InputFieldWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
+    NUMBER_INPUT_CLASSES,
     PLACEHOLDER_TEXT_CLASSES,
-} from './text-field.classes';
+} from './input-field.classes';
+import { InputFieldType } from './input-field.enums';
+import { InputFieldPropsByType } from './input-field.types';
 
 type InputPickedProps = Pick<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -31,7 +32,7 @@ type InputPickedProps = Pick<
     | 'id'
 >;
 
-interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
+interface InputFieldBaseProps extends InputPickedProps, InputFieldWrapperProps {
     /**
      * Callback function that is called when the input field value changes
      */
@@ -70,9 +71,9 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
     onClearInput?: () => void;
 }
 
-export type TextFieldProps = TextFieldBaseProps & TextFieldPropsByType;
+export type InputFieldProps = InputFieldBaseProps & InputFieldPropsByType;
 
-export function TextField({
+export function InputField({
     name,
     label,
     placeholder,
@@ -99,12 +100,12 @@ export function TextField({
     onClearInput,
     isContentVisible,
     ...inputProps
-}: TextFieldProps) {
+}: InputFieldProps) {
     const fallbackRef = useRef<HTMLInputElement>(null);
     const inputRef = ref ?? fallbackRef;
 
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
-        isContentVisible ?? inputProps.type !== TextFieldType.Password,
+        isContentVisible ?? inputProps.type !== InputFieldType.Password,
     );
 
     useEffect(() => {
@@ -124,7 +125,7 @@ export function TextField({
     }
 
     return (
-        <TextFieldWrapper
+        <InputFieldWrapper
             label={label}
             caption={caption}
             disabled={disabled}
@@ -142,7 +143,7 @@ export function TextField({
 
                 <input
                     type={
-                        inputProps.type === TextFieldType.Password && isInputContentVisible
+                        inputProps.type === InputFieldType.Password && isInputContentVisible
                             ? 'text'
                             : inputProps.type
                     }
@@ -162,15 +163,20 @@ export function TextField({
                     max={max}
                     min={min}
                     step={step}
-                    className={cx(INPUT_CLASSES, INPUT_TEXT_CLASSES, PLACEHOLDER_TEXT_CLASSES)}
+                    className={cx(
+                        INPUT_CLASSES,
+                        INPUT_TEXT_CLASSES,
+                        PLACEHOLDER_TEXT_CLASSES,
+                        NUMBER_INPUT_CLASSES,
+                    )}
                 />
 
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
 
                 {(trailingElement ||
-                    (inputProps.type === TextFieldType.Password &&
+                    (inputProps.type === InputFieldType.Password &&
                         inputProps.isVisibilityToggleEnabled)) && (
-                    <TextFieldTrailingElement
+                    <InputFieldTrailingElement
                         onClearInput={onClearInput}
                         onToggleButtonClick={onToggleButtonClick}
                         trailingElement={trailingElement}
@@ -178,6 +184,6 @@ export function TextField({
                     />
                 )}
             </div>
-        </TextFieldWrapper>
+        </InputFieldWrapper>
     );
 }
