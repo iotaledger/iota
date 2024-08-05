@@ -1796,10 +1796,25 @@ impl AuthorityStore {
             Some((old_supply, epoch_supply_change))
                 if old_supply.last_check_epoch + 1 == old_epoch_store.epoch() =>
             {
-                let expected_new_supply = if epoch_supply_change > 0 {
-                    old_supply.total_supply + epoch_supply_change as u64
+                let expected_new_supply = if epoch_supply_change >= 0 {
+                    old_supply
+                        .total_supply
+                        .checked_add(epoch_supply_change.unsigned_abs())
+                        .ok_or_else(|| {
+                            IotaError::from(
+                              format!(
+                                  "Inconsistent state detected at epoch {}: old supply {} + supply change {} overflowed",
+                                  system_state.epoch, old_supply.total_supply, epoch_supply_change
+                              ).as_str())
+                        })?
                 } else {
-                    old_supply.total_supply - epoch_supply_change.unsigned_abs()
+                    old_supply.total_supply.checked_sub(epoch_supply_change.unsigned_abs()).ok_or_else(|| {
+                      IotaError::from(
+                        format!(
+                            "Inconsistent state detected at epoch {}: old supply {} - supply change {} underflowed",
+                            system_state.epoch, old_supply.total_supply, epoch_supply_change
+                        ).as_str())
+                    })?
                 };
 
                 fp_ensure!(
