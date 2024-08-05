@@ -11,6 +11,7 @@ anyhow.workspace = true
 tokio.workspace = true
 
 bcs.workspace = true
+serde_json.workspace = true
 iota-keys.workspace = true
 iota-sdk.workspace = true
 move-core-types.workspace = true
@@ -27,3 +28,7 @@ path = "stardust/alias-output-claim.rs"
 [[example]]
 name = "basic-output-claim"
 path = "stardust/basic-output-claim.rs"
+
+[[example]]
+name = "nft-migration"
+path = "stardust/nft-migration.rs"
