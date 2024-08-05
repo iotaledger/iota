@@ -131,7 +131,7 @@ export function TextArea({
                     ref={inputRef}
                     onChange={handleOnChange}
                     className={cx(
-                        'peer block min-h-[50px]',
+                        'custom-scrollbar peer block min-h-[50px]',
                         BORDER_CLASSES,
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,

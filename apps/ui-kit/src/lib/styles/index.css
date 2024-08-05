@@ -80,16 +80,14 @@
             @apply bg-primary-80;
         }
     }
-}
 
-.custom-scrollbar {
-    &::-webkit-scrollbar {
-        @apply w-1.5;
+    .dark .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: theme('colors.neutral.30') transparent;
     }
-    &::-webkit-scrollbar-track {
-        @apply shadow-none;
-    }
-    &::-webkit-scrollbar-thumb {
-        @apply rounded-[6px] bg-neutral-80 dark:bg-neutral-30;
+
+    .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: theme('colors.neutral.80') transparent;
     }
 }
