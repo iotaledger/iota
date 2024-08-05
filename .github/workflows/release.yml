@@ -186,7 +186,7 @@ jobs:
           choco push iota.${{ env.iota_version }}.nupkg --source https://push.chocolatey.org/
 
       - name: Upload release artifacts for ${{ matrix.os }} platform
-        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # pin@v3
+        uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029 # pin@v3
         with:
           name: iota-binaries-${{ matrix.os }}
           if-no-files-found: error
