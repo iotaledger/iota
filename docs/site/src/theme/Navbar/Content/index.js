@@ -81,8 +81,7 @@ export default function NavbarContent() {
                 {isHomePage && (
                     <Link
                         to="/developer/getting-started"
-                        className="button-cta"
-                    >
+                        className="button-cta">
                         Get started
                     </Link>
                 )}
