@@ -5,24 +5,34 @@
 //! In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{env, fs, path::PathBuf, str::FromStr};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::ObjectID, crypto::SignatureScheme::ED25519, dynamic_field::DynamicFieldName, gas_coin::GAS, programmable_transaction_builder::ProgrammableTransactionBuilder, quorum_driver_types::ExecuteTransactionRequestType, stardust::output::{Nft, NftOutput}, transaction::{Argument, ObjectArg, Transaction, TransactionData}, TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS
+        base_types::ObjectID,
+        crypto::SignatureScheme::ED25519,
+        dynamic_field::DynamicFieldName,
+        gas_coin::GAS,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        quorum_driver_types::ExecuteTransactionRequestType,
+        stardust::output::{Nft, NftOutput},
+        transaction::{Argument, ObjectArg, Transaction, TransactionData},
+        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
-    IotaClientBuilder,
+    IotaClient, IotaClientBuilder,
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
 use shared_crypto::intent::Intent;
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
+const RANDOM_NFT_PACKAGE_PATH: &str = "../move/random_nft";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    let random_nft_package_id = publish_random_nft_package()?;
     // Build an iota client for a local network
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
@@ -80,10 +90,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
             let nft_asset = Argument::NestedResult(extracted_assets, 2);
 
-
             builder.programmable_move_call(
-                //TODO: package id should be taken from the chain(not hardcoded)
-                ObjectID::from_str("0x692d45aeb82669e274ed47f94e9a4fc5a80a688fd4525af1401183af3741f244")?,
+                random_nft_package_id,
                 ident_str!("random_nft").to_owned(),
                 ident_str!("convert").to_owned(),
                 vec![],
@@ -165,4 +173,28 @@ fn clean_keystore() -> Result<(), anyhow::Error> {
     fs::remove_file("iotatempdb")?;
     fs::remove_file("iotatempdb.aliases")?;
     Ok(())
+}
+
+fn publish_random_nft_package() -> Result<ObjectID, anyhow::Error> {
+    let output = std::process::Command::new("iota")
+        .arg("client")
+        .arg("publish")
+        .arg(RANDOM_NFT_PACKAGE_PATH)
+        .arg("--gas-budget")
+        .arg("100000000")
+        .output()
+        .expect("Failed to execute command");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let keyword = "PackageID:";
+    Ok(ObjectID::from_str(
+        stdout
+            .lines()
+            .find_map(|line| {
+                line.split_once(keyword)
+                    .map(|(_, value)| value.split_whitespace().next().unwrap_or(""))
+            })
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("Some error during package publishing"))?,
+    )?)
 }

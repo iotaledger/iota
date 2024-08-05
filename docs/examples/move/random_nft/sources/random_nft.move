@@ -56,7 +56,6 @@ module random_nft::random_nft {
         stardust::nft::destroy(stardust_nft)
     }
 
-
     #[allow(lint(self_transfer))]
     /// Create a new RandomNFT
     public fun mint(
