@@ -1155,8 +1155,7 @@ impl CheckpointBuilder {
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
                 let epoch_supply_change = system_epoch_info_event.minted_tokens_amount as i64
-                    - system_epoch_info_event.burnt_tokens_amount as i64
-                    - system_epoch_info_event.burnt_leftover_amount as i64;
+                    - system_epoch_info_event.burnt_tokens_amount as i64;
 
                 let committee = system_state_obj.get_current_epoch_committee().committee;
 
