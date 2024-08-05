@@ -56,9 +56,10 @@ export const CustomOptions: Story = {
         label: 'Selector Field',
         supportingText: 'Info',
         placeholder: 'Select a coin',
+        options: [],
     },
-    render: (args) => {
-        const options: SelectorOption[] = [
+    render: ({ options, ...args }) => {
+        const customOptions: SelectorOption[] = [
             {
                 id: 'iota',
                 renderLabel: () => (
@@ -81,7 +82,7 @@ export const CustomOptions: Story = {
 
         return (
             <div className="h-60">
-                <SelectorField {...args} options={options} />
+                <SelectorField {...args} options={customOptions} />
             </div>
         );
     },
