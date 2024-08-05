@@ -5,10 +5,10 @@ import React from 'react';
 import Image from 'next/image';
 import { useAppsBackend } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
-import { AppListItem } from './AppList.types';
+import { AppListItemData } from './AppList.types';
 import { getDefaultNetwork } from '@iota/iota.js/client';
 
-const AppListItem = (props: AppListItem) => {
+const AppListItem = (props: AppListItemData) => {
     return (
         <a
             href={props.link}
@@ -37,7 +37,7 @@ export const AppList = () => {
 
     const { data, isLoading } = useQuery<{
         status: number;
-        apps: AppListItem[];
+        apps: AppListItemData[];
         dataUpdated: string;
     }>({
         queryKey: ['apps'],

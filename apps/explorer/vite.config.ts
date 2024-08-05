@@ -5,7 +5,7 @@
 /// <reference types="vitest" />
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import pluginRewriteAll from 'vite-plugin-rewrite-all';
+import pluginRewriteAll from '@evg3/vite-plugin-rewrite-all';
 import svgr from 'vite-plugin-svgr';
 import { configDefaults } from 'vitest/config';
 

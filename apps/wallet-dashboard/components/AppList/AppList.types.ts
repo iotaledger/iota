@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export interface AppListItem {
+export interface AppListItemData {
     name: string;
     description: string;
     link: string;
