@@ -76,7 +76,7 @@ const DialogBody = React.forwardRef<
 >((props, ref) => (
     <RadixDialog.Description
         ref={ref}
-        className="p-md text-body-sm text-neutral-40 dark:text-neutral-60"
+        className="p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
         {...props}
     />
 ));
