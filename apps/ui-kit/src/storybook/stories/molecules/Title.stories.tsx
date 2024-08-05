@@ -4,9 +4,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import * as ButtonStory from '../atoms/Button.stories';
 import * as BadgeStory from '../atoms/Badge.stories';
-import { Badge, Button, Title, TooltipPosition } from '@/lib/components';
+import { Badge, BadgeType, Button, Title, TooltipPosition } from '@/lib/components';
 
-const meta = {
+const meta: Meta<typeof Title> = {
     component: Title,
     tags: ['autodocs'],
     render: (props) => {
@@ -66,6 +66,11 @@ export const WithSupportingElement: Story = {
         title: 'Title',
     },
     render: (props) => {
-        return <Title {...props} supportingElement={<Badge {...BadgeStory.Default.args} />} />;
+        return (
+            <Title
+                {...props}
+                supportingElement={<Badge {...BadgeStory.Default.args} type={BadgeType.Neutral} />}
+            />
+        );
     },
 };
