@@ -46,7 +46,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get an NftOutput object
     let nft_output_object_id = ObjectID::from_hex_literal(
-        "0x573f657e7021ce66e02c838bd14a05485aa0fe6e344228eb90b36a5bf3014d19",
+        "0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226",
     )?;
 
     let nft_output_object = iota_client
@@ -59,57 +59,61 @@ async fn main() -> Result<(), anyhow::Error> {
         .data
         .ok_or(anyhow!("Nft output not found"))?;
 
-    let df_name = DynamicFieldName {
-        type_: TypeTag::Vector(Box::new(TypeTag::U8)),
-        value: serde_json::Value::String("nft".to_string()),
-    };
-    let nft_object_dyn_field = iota_client
-        .read_api()
-        .get_dynamic_field_object(nft_output_object_id, df_name)
-        .await?
-        .data
-        .ok_or(anyhow!("nft not found"))?;
-    
-    let nft_object_id = nft_object_dyn_field.object_ref().0;
-
-
-    let nft_object = iota_client
-    .read_api()
-    .get_object_with_options(
-        nft_object_id,
-        IotaObjectDataOptions::new().with_bcs(),
-    )
-    .await?
-    .data
-    .ok_or(anyhow!("Nft not found"))?;
-
-    let nft = bcs::from_bytes::<Nft>(
-        &nft_object
-            .bcs
-            .expect("should contain bcs")
-            .try_as_move()
-            .expect("should convert it to a move object")
-            .bcs_bytes,
-    )?;
-
-    let nft_metadata = nft.immutable_metadata;
-
+    let nft_output_object_ref = nft_output_object.object_ref();
     // Create a PTB
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let name_arg = builder.pure(nft_metadata.name)?;
-        let description_arg = builder.pure(nft_metadata.description.unwrap())?;
-        let url_arg = builder.pure(nft_metadata.uri)?;
-        builder.programmable_move_call(
-            //TODO: package id should be taken from chain(not hardcoded)
-            ObjectID::from_str("0xeb5a5b3761da04af060646f235d655f307eefe4f1499b3edbb726244e9f910da")?,
-            ident_str!("random_nft").to_owned(),
-            ident_str!("mint").to_owned(),
-            vec![],
-            vec![name_arg, description_arg, url_arg],
-        );
+        let type_arguments = vec![GAS::type_tag()];
+        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(nft_output_object_ref))?];
+        // Finally call the nft_output::extract_assets function
+        if let Argument::Result(extracted_assets) = builder.programmable_move_call(
+            STARDUST_ADDRESS.into(),
+            ident_str!("nft_output").to_owned(),
+            ident_str!("extract_assets").to_owned(),
+            type_arguments,
+            arguments,
+        ) {
+            // If the nft output can be unlocked, the command will be succesful and will
+            // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens and
+            // related nft object.
+            let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
+            let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
+            let nft_asset = Argument::NestedResult(extracted_assets, 2);
 
 
+            builder.programmable_move_call(
+                //TODO: package id should be taken from the chain(not hardcoded)
+                ObjectID::from_str("0x692d45aeb82669e274ed47f94e9a4fc5a80a688fd4525af1401183af3741f244")?,
+                ident_str!("random_nft").to_owned(),
+                ident_str!("convert").to_owned(),
+                vec![],
+                vec![nft_asset],
+            );
+
+            // Extract IOTA balance
+            let arguments = vec![extracted_base_token];
+            let type_arguments = vec![GAS::type_tag()];
+            let iota_coin = builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("coin").to_owned(),
+                ident_str!("from_balance").to_owned(),
+                type_arguments,
+                arguments,
+            );
+
+            // Transfer IOTA balance
+            builder.transfer_arg(sender, iota_coin);
+
+            // Cleanup bag.
+            let arguments = vec![extracted_native_tokens_bag];
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("bag").to_owned(),
+                ident_str!("destroy_empty").to_owned(),
+                vec![],
+                arguments,
+            );
+        }
         builder.finish()
     };
 
