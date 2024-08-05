@@ -3,14 +3,19 @@
 
 import { TriangleDown } from '@iota/ui-icons';
 import cx from 'classnames';
-import { useCallback, useEffect } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
+import { SecondaryText } from '../../atoms/secondary-text';
+import { TextFieldWrapper } from '../text-field/TextFieldWrapper';
+import { ListItem } from '../../atoms';
 
-interface SelectorFieldProps extends React.PropsWithChildren {
-    /**
-     * The field is disabled or not.
-     */
-    isDisabled?: boolean;
+export type SelectorOption =
+    | string
+    | { id: string; renderLabel: () => React.JSX.Element }
+    | { id: string; label: React.ReactNode };
+
+interface SelectorFieldProps
+    extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled' | 'value'> {
     /**
      * The field label.
      */
@@ -22,7 +27,7 @@ interface SelectorFieldProps extends React.PropsWithChildren {
     /**
      * The dropdown elements to render.
      */
-    dropdownElements?: React.ReactNode;
+    options: SelectorOption[];
     /**
      * The icon to show on the left of the field.
      */
@@ -36,110 +41,163 @@ interface SelectorFieldProps extends React.PropsWithChildren {
      */
     errorMessage?: string;
     /**
-     * Is the dropdown open
+     * Placeholder for the selector
      */
-    isOpen?: boolean;
+    placeholder?: SelectorOption;
     /**
-     * Set the dropdown open
+     * The callback to call when the value changes.
      */
-    setIsOpen?: (isOpen: boolean) => void;
+    onValueChange?: (id: string) => void;
+    /**
+     * Name of the field.
+     */
+    name?: string;
 }
 
-export function SelectorField({
-    isDisabled,
-    label,
-    leadingIcon,
-    supportingText,
-    errorMessage,
-    caption,
-    dropdownElements,
-    children,
-    isOpen,
-    setIsOpen,
-}: SelectorFieldProps) {
-    const onClick = useCallback(() => {
-        if (!isDisabled) {
-            setIsOpen?.(!isOpen);
-        }
-    }, [isOpen, isDisabled]);
+export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
+    (
+        {
+            disabled,
+            label,
+            leadingIcon,
+            supportingText,
+            errorMessage,
+            caption,
+            options,
+            placeholder,
+            onValueChange,
+            name,
+            value,
+        },
+        ref,
+    ) => {
+        const [isOpen, setIsOpen] = useState<boolean>(false);
+        const [selectedValue, setSelectedValue] = useState<SelectorOption>(
+            findValueByProps(value, options),
+        );
 
-    useEffect(() => {
-        if (isDisabled && isOpen) {
-            setIsOpen?.(false);
-        }
-    }, [isDisabled]);
+        const selectorText = selectedValue || placeholder;
 
-    return (
-        <div
-            aria-disabled={isDisabled}
-            className={cx('group flex flex-col gap-y-2', {
-                'opacity-40': isDisabled,
-                errored: !!errorMessage,
-                opened: isOpen,
-            })}
-        >
-            {label && (
-                <label
-                    onClick={onClick}
-                    className="text-label-lg text-neutral-40 dark:text-neutral-60"
-                >
-                    {label}
-                </label>
-            )}
-            <div className="relative flex w-full flex-col">
-                <button
-                    onClick={onClick}
-                    disabled={isDisabled}
-                    className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30  active:enabled:border-primary-30 group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80"
-                >
-                    {leadingIcon && (
-                        <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
+        useEffect(() => {
+            const newValue = findValueByProps(value, options);
+            setSelectedValue(newValue);
+        }, [value, options]);
+
+        useEffect(() => {
+            if (disabled && isOpen) {
+                closeDropdown();
+            }
+        }, [disabled, isOpen]);
+
+        function findValueByProps(
+            value: SelectorFieldProps['value'],
+            options: SelectorOption[] = [],
+        ) {
+            return (
+                options.find((option) =>
+                    typeof option === 'string' ? option === value : option.id === value,
+                ) ?? options[0]
+            );
+        }
+
+        function onSelectorClick() {
+            setIsOpen((prev) => !prev);
+        }
+
+        function handleOptionClick(option: SelectorOption) {
+            setSelectedValue(option);
+            closeDropdown();
+            onValueChange?.(typeof option === 'string' ? option : option.id);
+        }
+
+        function closeDropdown() {
+            setIsOpen(false);
+        }
+
+        return (
+            <TextFieldWrapper
+                label={label}
+                caption={caption}
+                disabled={disabled}
+                errorMessage={errorMessage}
+                useDivAsLabel
+            >
+                <div className="relative flex w-full flex-col">
+                    <button
+                        type="button"
+                        ref={ref}
+                        onClick={onSelectorClick}
+                        data-selected-value={value}
+                        disabled={disabled}
+                        className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30  active:enabled:border-primary-30 group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80"
+                    >
+                        {leadingIcon && (
+                            <span className="text-neutral-10 dark:text-neutral-92">
+                                {leadingIcon}
+                            </span>
+                        )}
+                        <div className="flex w-full flex-row items-baseline gap-x-3">
+                            {selectorText && (
+                                <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
+                                    <OptionLabel option={selectorText} />
+                                </div>
+                            )}
+                            {supportingText && (
+                                <div className={cx(!placeholder && !selectedValue && 'ml-auto')}>
+                                    <SecondaryText noErrorStyles>{supportingText}</SecondaryText>
+                                </div>
+                            )}
+                        </div>
+                        <TriangleDown
+                            className={cx(
+                                'text-neutral-10 transition-transform dark:text-neutral-92',
+                                {
+                                    ' rotate-180': isOpen,
+                                },
+                            )}
+                            width={20}
+                            height={20}
+                        />
+                    </button>
+
+                    {isOpen && (
+                        <div
+                            className="fixed left-0 top-0 z-[49] h-screen w-screen bg-transparent"
+                            onClick={closeDropdown}
+                        />
                     )}
-                    <div className="flex w-full flex-row items-baseline gap-x-3">
-                        {children && (
-                            <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
-                                {children}
-                            </div>
-                        )}
-                        {supportingText && (
-                            <SecondaryText noErrorStyles>{supportingText}</SecondaryText>
-                        )}
-                    </div>
-                    <TriangleDown
-                        className={cx('text-neutral-10 transition-transform dark:text-neutral-92', {
-                            ' rotate-180': isOpen,
+                    <div
+                        className={cx('absolute top-full z-50 min-w-full', {
+                            hidden: !isOpen,
                         })}
-                        width={20}
-                        height={20}
-                    />
-                </button>
-                {isOpen && (
-                    <div className="absolute top-full z-[2] w-full">
-                        <Dropdown>{dropdownElements}</Dropdown>
+                    >
+                        <Dropdown>
+                            {options.map((option) => {
+                                const optionIsString = typeof option === 'string';
+                                return (
+                                    <ListItem
+                                        onClick={() => handleOptionClick(option)}
+                                        hideBottomBorder
+                                        key={optionIsString ? option : option.id}
+                                    >
+                                        <OptionLabel option={option} />
+                                    </ListItem>
+                                );
+                            })}
+                        </Dropdown>
                     </div>
-                )}
-            </div>
-            <div className="flex flex-row items-center justify-between">
-                {(errorMessage || caption) && (
-                    <SecondaryText>{errorMessage || caption}</SecondaryText>
-                )}
-            </div>
-        </div>
-    );
-}
+                </div>
+            </TextFieldWrapper>
+        );
+    },
+);
 
-function SecondaryText({
-    children,
-    noErrorStyles,
-}: React.PropsWithChildren<{ noErrorStyles?: boolean }>) {
-    const ERROR_STYLES = 'group-[.errored]:text-error-30 dark:group-[.errored]:text-error-80';
-    return (
-        <p
-            className={cx('text-label-lg text-neutral-40  dark:text-neutral-60 ', {
-                [ERROR_STYLES]: !noErrorStyles,
-            })}
-        >
-            {children}
-        </p>
-    );
+function OptionLabel({ option }: { option: SelectorOption }) {
+    if (typeof option === 'string') {
+        return option;
+    } else if ('renderLabel' in option) {
+        return option.renderLabel();
+    } else {
+        return option.label;
+    }
 }

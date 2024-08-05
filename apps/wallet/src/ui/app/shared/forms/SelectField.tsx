@@ -5,7 +5,7 @@
 import { forwardRef, type ReactNode } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './controls/Select';
+import { SelectorField } from '@iota/apps-ui-kit';
 
 interface SelectFieldProps {
     name: string;
@@ -21,21 +21,13 @@ export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(
                 control={control}
                 name={name}
                 render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value} {...props}>
-                        <SelectTrigger ref={forwardedRef}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent position="popper" align="end">
-                            {options.map((option, index) => (
-                                <SelectItem
-                                    value={typeof option === 'string' ? option : option.id}
-                                    key={index}
-                                >
-                                    {typeof option === 'string' ? option : option.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <SelectorField
+                        onValueChange={field.onChange}
+                        ref={forwardedRef}
+                        options={options}
+                        value={field.value}
+                        {...props}
+                    />
                 )}
             />
         );

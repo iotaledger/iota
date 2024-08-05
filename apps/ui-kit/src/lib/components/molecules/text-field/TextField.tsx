@@ -6,13 +6,14 @@ import { TextFieldPropsByType } from './text-field.types';
 import { TextFieldType } from './text-field.enums';
 import { TextFieldTrailingElement } from './TextFieldTrailingElement';
 import cx from 'classnames';
-import { TextFieldWrapper, type TextFieldWrapperProps, SecondaryText } from './TextFieldWrapper';
+import { TextFieldWrapper, type TextFieldWrapperProps } from './TextFieldWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
     PLACEHOLDER_TEXT_CLASSES,
 } from './text-field.classes';
+import { SecondaryText } from '../../atoms/secondary-text';
 
 type InputPickedProps = Pick<
     React.InputHTMLAttributes<HTMLInputElement>,

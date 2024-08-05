@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
+import { SecondaryText } from '../../atoms/secondary-text';
 
 export interface TextFieldWrapperProps {
     /**
@@ -28,6 +29,10 @@ export interface TextFieldWrapperProps {
      * Is the input field disabled
      */
     disabled?: boolean;
+    /**
+     * Use a div as a label instead of a label element
+     */
+    useDivAsLabel?: boolean;
 }
 
 export function TextFieldWrapper({
@@ -37,6 +42,7 @@ export function TextFieldWrapper({
     errorMessage,
     amountCounter,
     required,
+    useDivAsLabel,
     children,
 }: React.PropsWithChildren<TextFieldWrapperProps>) {
     return (
@@ -49,10 +55,10 @@ export function TextFieldWrapper({
             })}
         >
             {label ? (
-                <label className="flex flex-col gap-y-2 text-label-lg text-neutral-40 dark:text-neutral-60">
+                <LabelOrDiv useDivAsLabel={useDivAsLabel}>
                     {label}
                     {children}
-                </label>
+                </LabelOrDiv>
             ) : (
                 children
             )}
@@ -72,23 +78,17 @@ export function TextFieldWrapper({
     );
 }
 
-export function SecondaryText({
+const LABEL_CLASSES = 'flex flex-col gap-y-2 text-label-lg text-neutral-40 dark:text-neutral-60';
+function LabelOrDiv({
+    useDivAsLabel,
     children,
-    noErrorStyles,
-    className,
-}: React.PropsWithChildren<{ noErrorStyles?: boolean; className?: string }>) {
-    const ERROR_STYLES = 'group-[.errored]:text-error-30 dark:group-[.errored]:text-error-80';
-    return (
-        <p
-            className={cx(
-                'text-label-lg text-neutral-40  dark:text-neutral-60 ',
-                {
-                    [ERROR_STYLES]: !noErrorStyles,
-                },
-                className,
-            )}
-        >
-            {children}
-        </p>
-    );
+}: {
+    useDivAsLabel?: boolean;
+    children: React.ReactNode;
+}) {
+    if (useDivAsLabel) {
+        return <div className={LABEL_CLASSES}>{children}</div>;
+    } else {
+        return <label className={LABEL_CLASSES}>{children}</label>;
+    }
 }
