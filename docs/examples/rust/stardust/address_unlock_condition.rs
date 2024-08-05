@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example demonstrating the claim of an alias output.
+//! Example demonstrating how to unlock an output owned by an alias output.
 //! In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
