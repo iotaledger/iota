@@ -197,12 +197,6 @@ fn build_packages_with_move_config(
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
         let mut files_to_write = BTreeMap::new();
-        // create_category_file(deepbook_dir);
-        // relocate_docs(
-        // deepbook_dir,
-        // &deepbook_pkg.package.compiled_docs.unwrap(),
-        // &mut files_to_write,
-        // );
         create_category_file(system_dir);
         relocate_docs(
             system_dir,
@@ -235,12 +229,14 @@ fn create_category_file(prefix: &str) {
     let mut path = PathBuf::from(DOCS_DIR).join(prefix);
     fs::create_dir_all(path.clone()).unwrap();
     path.push("_category_.json");
+    let label = prefix.split('-').map(|w| w.capitalize()).collect::<Vec<_>>().join(" ");
     fs::write(
         path,
         serde_json::json!({
-            "label":prefix.split('-').map(|w| w.capitalize()).collect::<Vec<String>>().join(" "),
-            "link":{
-                "type":"generated-index","slug": "/references/framework/".to_owned() + prefix,
+            "label": label,
+            "link": {
+                "type": "generated-index",
+                "slug": format!("/references/framework/{}", prefix),
                 "description": format!(
                     "Documentation for the modules in the iota/crates/iota-framework/packages/{prefix} crate. Select a module from the list to see its details."
                 )
