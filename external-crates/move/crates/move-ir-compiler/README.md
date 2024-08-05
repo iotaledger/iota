@@ -4,7 +4,6 @@ title: Move IR Compiler
 custom_edit_url: https://github.com/move-language/move/edit/main/language/move-ir-compiler/README.md
 ---
 
-
 ## Summary
 
 The Move IR compiler compiles the Move IR down to its bytecode representation.
@@ -52,14 +51,16 @@ ARGS:
 
 > cargo build --bin compiler
 
-* This will build the compiler + verifier binary.
-* The binary can be found at `diem/target/debug/compiler`.
-* Alternatively, the binary can be run directly with `cargo run -p compiler`.
+- This will build the compiler + verifier binary.
+- The binary can be found at `diem/target/debug/compiler`.
+- Alternatively, the binary can be run directly with `cargo run -p compiler`.
 
 To compile and verify `foo.mvir`, which contains a Move IR module:
+
 > `compiler --address 0x42 --no-stdlib -m foo.mvir`
 
 To compile and verify `bar.mvir`, which contains a transaction script:
+
 > `compiler --address 0xca --no-stdlib bar.mvir`
 
 ## Folder Structure
