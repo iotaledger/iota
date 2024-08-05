@@ -250,7 +250,7 @@ jobs:
 
       # Download all artifacts from the previous job
       - name: Download all artifacts
-        uses: actions/download-artifact@cbed621e49e4c01b044d60f6c80ea4ed6328b281 # pin@v2
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # pin@v2
 
       - name: Fetch Ubuntu x86_64 Binary and Compute SHA256
         shell: bash
