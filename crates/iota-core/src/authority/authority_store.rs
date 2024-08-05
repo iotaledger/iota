@@ -1764,7 +1764,11 @@ impl AuthorityStore {
             .perpetual_tables
             .expected_storage_fund_imbalance
             .get(&())
-            .expect("DB read cannot fail")
+            .map_err(|err| {
+                IotaError::from(
+                    format!("failed to read expected storage fund imbalance: {err}").as_str(),
+                )
+            })?
         {
             fp_ensure!(
                 imbalance == expected_imbalance,
@@ -1779,14 +1783,20 @@ impl AuthorityStore {
             self.perpetual_tables
                 .expected_storage_fund_imbalance
                 .insert(&(), &imbalance)
-                .expect("DB write cannot fail");
+                .map_err(|err| {
+                    IotaError::from(
+                        format!("failed to write expected storage fund imbalance: {err}").as_str(),
+                    )
+                })?;
         }
 
         let total_supply = self
             .perpetual_tables
             .total_iota_supply
             .get(&())
-            .expect("DB read cannot fail");
+            .map_err(|err| {
+                IotaError::from(format!("failed to read total iota supply: {err}").as_str())
+            })?;
 
         match total_supply.zip(epoch_supply_change) {
             // Only execute the check if both are set and the supply value was set in the last
@@ -1836,7 +1846,11 @@ impl AuthorityStore {
                 self.perpetual_tables
                     .total_iota_supply
                     .insert(&(), &new_supply)
-                    .expect("DB write cannot fail");
+                    .map_err(|err| {
+                        IotaError::from(
+                            format!("failed to write total iota supply: {err}").as_str(),
+                        )
+                    })?;
             }
             // If either one is None or if the last value is from an older epoch,
             // we update the value in the table since we're at genesis and cannot execute the check.
@@ -1851,7 +1865,11 @@ impl AuthorityStore {
                 self.perpetual_tables
                     .total_iota_supply
                     .insert(&(), &supply)
-                    .expect("DB write cannot fail");
+                    .map_err(|err| {
+                        IotaError::from(
+                            format!("failed to write total iota supply: {err}").as_str(),
+                        )
+                    })?;
 
                 return Ok(());
             }
