@@ -1721,6 +1721,11 @@ impl IotaNode {
             .get_epoch_last_checkpoint(cur_epoch_store.epoch())
             .expect("Error loading last checkpoint for current epoch")
             .expect("Could not load last checkpoint for current epoch");
+        let epoch_supply_change = last_checkpoint
+            .end_of_epoch_data
+            .as_ref()
+            .expect("last checkpoint in epoch should contain end of epoch data")
+            .epoch_supply_change;
 
         let epoch_start_configuration = EpochStartConfiguration::new(
             next_epoch_start_system_state,
@@ -1740,6 +1745,7 @@ impl IotaNode {
                 checkpoint_executor,
                 self.accumulator.clone(),
                 &self.config.expensive_safety_check_config,
+                epoch_supply_change,
             )
             .await
             .expect("Reconfigure authority state cannot fail");

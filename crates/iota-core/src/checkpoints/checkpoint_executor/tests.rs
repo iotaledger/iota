@@ -246,6 +246,9 @@ pub async fn test_checkpoint_executor_cross_epoch() {
             &executor,
             accumulator,
             &ExpensiveSafetyCheckConfig::default(),
+            // Since the expensive checks are disabled, per the line above, the value we pass here
+            // won't be used.
+            0,
         )
         .await
         .unwrap();

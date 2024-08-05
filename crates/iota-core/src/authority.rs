@@ -2879,6 +2879,7 @@ impl AuthorityState {
         checkpoint_executor: &CheckpointExecutor,
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
+        epoch_supply_change: i64,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         Self::check_protocol_version(
             supported_protocol_versions,
@@ -2900,6 +2901,7 @@ impl AuthorityState {
             checkpoint_executor,
             accumulator,
             expensive_safety_check_config,
+            epoch_supply_change,
         );
         self.maybe_reaccumulate_state_hash(
             cur_epoch_store,
@@ -2966,25 +2968,17 @@ impl AuthorityState {
         checkpoint_executor: &CheckpointExecutor,
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
+        epoch_supply_change: i64,
     ) {
         info!(
             "Performing iota conservation consistency check for epoch {}",
             cur_epoch_store.epoch()
         );
 
-        let last_checkpoint = self
-            .checkpoint_store
-            .get_epoch_last_checkpoint(cur_epoch_store.epoch())
-            .expect("reading from DB should succeed")
-            .expect("the last checkpoint must be available to check system consistency");
-        let (_, last_checkpoint_summary) = last_checkpoint.into_summary_and_sequence();
-
-        if let Err(err) = self.execution_cache.expensive_check_iota_conservation(
-            cur_epoch_store,
-            last_checkpoint_summary
-                .end_of_epoch_data
-                .map(|data| data.epoch_supply_change),
-        ) {
+        if let Err(err) = self
+            .execution_cache
+            .expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))
+        {
             if cfg!(debug_assertions) {
                 panic!("{}", err);
             } else {
