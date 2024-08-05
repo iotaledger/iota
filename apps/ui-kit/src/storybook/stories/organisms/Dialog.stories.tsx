@@ -19,8 +19,6 @@ const meta = {
                     <DialogContent showCloseOnOverlay>
                         <Header
                             title="Connect Ledger Wallet"
-                            hasLeftIcon
-                            hasRightIcon
                             titleCentered
                             onClose={() => setOpen(false)}
                             onBack={() => setOpen(false)}
@@ -35,7 +33,7 @@ const meta = {
                                 <div className="mt-4.5"> Need more help? View tutorial.</div>
                             </div>
                         </DialogBody>
-                        <div className="mt-3 flex w-full flex-row justify-center gap-2 px-md pb-md">
+                        <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
                             <Button
                                 size={ButtonSize.Small}
                                 type={ButtonType.Outlined}
