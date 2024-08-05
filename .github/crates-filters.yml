@@ -152,8 +152,6 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
-iotans-indexer:
-  - "crates/iotans-indexer/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:

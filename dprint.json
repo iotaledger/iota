@@ -9,7 +9,6 @@
   "excludes": [
     "**/target/",
     "**/build/",
-    "external-crates/move/",
     "examples/trading/api/prisma/migrations/migration_lock.toml",
     "sdk/create-dapp/templates/",
     "crates/iota-framework/docs/**/*.{md}",
@@ -26,4 +25,3 @@
     "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.4.0.wasm"
   ]
 }
-
