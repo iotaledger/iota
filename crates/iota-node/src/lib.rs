@@ -1608,7 +1608,7 @@ impl IotaNode {
                         new_epoch_start_state,
                         &checkpoint_executor,
                     )
-                    .await;
+                    .await?;
 
                 consensus_epoch_data_remover
                     .remove_old_data(next_epoch - 1)
@@ -1649,7 +1649,7 @@ impl IotaNode {
                         new_epoch_start_state,
                         &checkpoint_executor,
                     )
-                    .await;
+                    .await?;
 
                 if self.state.is_validator(&new_epoch_store) {
                     info!("Promoting the node from fullnode to validator, starting grpc server");
@@ -1713,7 +1713,7 @@ impl IotaNode {
         next_epoch_committee: Committee,
         next_epoch_start_system_state: EpochStartSystemState,
         checkpoint_executor: &CheckpointExecutor,
-    ) -> Arc<AuthorityPerEpochStore> {
+    ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let next_epoch = next_epoch_committee.epoch();
 
         let last_checkpoint = self
@@ -1724,7 +1724,9 @@ impl IotaNode {
         let epoch_supply_change = last_checkpoint
             .end_of_epoch_data
             .as_ref()
-            .expect("last checkpoint in epoch should contain end of epoch data")
+            .ok_or_else(|| {
+                IotaError::from("last checkpoint in epoch should contain end of epoch data")
+            })?
             .epoch_supply_change;
 
         let epoch_start_configuration = EpochStartConfiguration::new(
@@ -1756,7 +1758,7 @@ impl IotaNode {
             new_epoch_store.epoch_start_config().flags(),
         );
 
-        new_epoch_store
+        Ok(new_epoch_store)
     }
 
     pub fn get_config(&self) -> &NodeConfig {
