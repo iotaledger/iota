@@ -3,13 +3,13 @@
 
 import cx from 'classnames';
 
-export interface TextFieldWrapperProps {
+export interface InputWrapperProps {
     /**
-     * Shows a label with the text above the input field.
+     * Shows a label with the text above the input.
      */
     label?: string;
     /**
-     * Shows a caption with the text below the input field.
+     * Shows a caption with the text below the input.
      */
     caption?: string;
     /**
@@ -21,16 +21,16 @@ export interface TextFieldWrapperProps {
      */
     amountCounter?: string | number;
     /**
-     * Is the input field required
+     * Is the input required
      */
     required?: boolean;
     /**
-     * Is the input field disabled
+     * Is the input disabled
      */
     disabled?: boolean;
 }
 
-export function TextFieldWrapper({
+export function InputWrapper({
     label,
     caption,
     disabled,
@@ -38,7 +38,7 @@ export function TextFieldWrapper({
     amountCounter,
     required,
     children,
-}: React.PropsWithChildren<TextFieldWrapperProps>) {
+}: React.PropsWithChildren<InputWrapperProps>) {
     return (
         <div
             className={cx('group flex flex-col gap-y-2', {
