@@ -1,0 +1,141 @@
+# Diataxis
+tutorial:
+  label: Tutorial
+  description: Learning orientated guide.
+
+how-to:
+  label: How-To
+  description: Goal orientated direction.
+
+explanation:
+  label: Explanation
+  description: Content that explains and helps understand a concept.
+
+reference:
+  label: Reference
+  description: Technical documentation.
+
+# Programming languages
+rust:
+  label: Rust
+  description: Rust programming language.
+
+python:
+  label: Python
+  description: Python programming language.
+
+typescript:
+  label: TypeScript
+  description: TypeScript programming language.
+
+solidity:
+  label: Solidity
+  description: Solidity programming language.
+
+move:
+  label: Move
+  description: Move programming language.
+
+# SDK
+sdk:
+  label: SDK
+  description: Software Development Kit.
+
+# VMs
+move-vm:
+  label: Move VM
+  description: Move Virtual Machine.
+
+evm:
+  label: EVM
+  description: Ethereum Virtual Machine.
+
+# Networks
+mainnet:
+  label: Mainnet
+  description: Main network.
+
+testnet:
+  label: Testnet
+  description: Test network.
+
+devnet:
+  label: Devnet
+  description: Development network.
+
+# Node
+pruning:
+  label: Pruning
+
+snapshot:
+  label: Snapshot
+
+validator:
+  label: Validator
+  description: Node that validates transactions.
+
+access-node:
+  label: Access Node
+  description: Node that provides access to the network.
+
+rpc:
+  label: RPC
+  description: Remote Procedure Call.
+
+# ISC
+isc:
+  label: ISC
+  description: IOTA Smart Contracts.
+
+on-ledger:
+  label: On-Ledger Request
+  description: On-Ledger Request.
+
+off-ledger:
+  label: Off-Ledger Request
+  description: Off-Ledger Request.
+
+magic:
+  label: Magic Smart Contract
+  description: Magic Smart Contract.
+
+allowance:
+  label: Allowance
+  description: Allowance for L1 interactions.
+
+core-contract:
+  label: Core Contract
+  description: Core Contract for interacting with L1.
+
+# Keywords
+consensus:
+  label: Consensus
+  description: Agreement among a group of people.
+
+quickstart:
+  label: Quickstart
+  description: Get started quickly.
+
+cli:
+  label: CLI
+  description: Command Line Interface.
+
+setup:
+  label: Setup
+  description: Prepare for use.
+
+install:
+  label: Install
+  description: Add to a system.
+
+getting-started:
+  label: Getting Started
+  description: Initial steps to start using IOTA.
+
+nft:
+  label: NFT
+  description: Non-fungible token.
+
+randomness:
+  label: Randomness
+  description: On chain randomness.

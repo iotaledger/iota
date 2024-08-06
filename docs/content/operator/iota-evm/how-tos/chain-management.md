@@ -3,12 +3,8 @@ description:  'How to manage a chain using the Grafana dashboard, a client to re
 validators.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-  - Smart Contracts
-  - Chain
-  - Management
-  - Grafana
-
+  - how-to
+  - isc
 ---
 
 # Manage a Chain

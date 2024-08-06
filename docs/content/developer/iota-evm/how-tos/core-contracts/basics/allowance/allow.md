@@ -2,11 +2,11 @@
 description: How to allow native assets and base token
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - allow
   - allowance
-  - EVM
+  - evm
   - magic
   - solidity
+  - how-to
 ---
 
 # Allow

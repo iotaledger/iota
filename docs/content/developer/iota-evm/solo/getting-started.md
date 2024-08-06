@@ -3,14 +3,7 @@ description: 'Solo is a testing framework that allows developers to validate rea
 protocols.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-- testing framework
-- golang
-- rust
-- inter-chain protocols
-- validate smart contracts
-- install
-- how-tos
+  - how-to
 ---
 
 # Testing Smart Contracts with Solo

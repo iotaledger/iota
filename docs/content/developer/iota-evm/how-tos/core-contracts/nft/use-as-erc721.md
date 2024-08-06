@@ -2,8 +2,8 @@
 description: How to use a native NFT like an ERC721 NFT
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - NFT
-  - EVM
+  - nft
+  - evm
   - how-to
 ---
 

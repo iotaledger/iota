@@ -2,11 +2,9 @@
 description: Each chain is run by a network of validator nodes which run a consensus on the chain state update.
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - validators
-    - validator nodes
-    - access nodes
+    - validator
+    - access-node
     - consensus
-    - state update
     - explanation
 ---
 

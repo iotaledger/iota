@@ -3,13 +3,7 @@ description: 'Smart Contracts can only interact with the world by using the Sand
 deterministic access to the state through a key/value storage abstraction.'
 image: /img/iota-evm/sandbox.png
 tags:
-
-- smart contracts
-- sandbox
-- interface
-- storage abstraction
-- explanation
-
+  - explanation
 ---
 
 # Sandbox Interface

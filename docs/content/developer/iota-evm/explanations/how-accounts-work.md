@@ -3,13 +3,7 @@ description: 'IOTA Smart Contracts chains keep a ledger of on-chain account bala
 by an AgentID.'
 image: /img/iota-evm/tutorial/accounts.png
 tags:
-
-- smart contracts
-- on-chain account
-- ownership
-- accounts Contract
-- explanation
-
+    - explanation
 ---
 
 # How Accounts Work

@@ -3,13 +3,7 @@ description: 'Smart contracts are applications you can trust that run on a distr
 all executing and validating the same code.'
 image: /img/banner/banner_wasp_core_concepts_smart_contracts.png
 tags:
-
-- smart contracts
-- blockchain
-- parallel
-- scaling
-- explanation
-
+    - explanation
 ---
 
 # Smart Contracts

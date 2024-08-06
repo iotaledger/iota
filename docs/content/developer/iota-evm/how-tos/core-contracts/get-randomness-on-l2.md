@@ -2,12 +2,10 @@
 description: You can use the ISC Magic Contract in EVM contracts to access ISC functionality, such as randomness.
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - magic contract
+  - magic
   - randomness
-  - EVM
-  - Ethereum
-  - Solidity
-  - ISC
+  - evm
+  - solidity
 ---
 
 # Get Randomness on L2
