@@ -67,7 +67,7 @@ To see it work in action:
 
 ```move
 let sender1 = @0x1;
-let scenario_val = test_scenario::begin(sender1);
+let mut scenario_val = test_scenario::begin(sender1);
 let scenario = &mut scenario_val;
 {
     let ctx = test_scenario::ctx(scenario);
