@@ -3,6 +3,7 @@ description: IOTA Smart Contracts consensus is how Layer 2 validators agree to c
 image: /img/logo/WASP_logo_dark.png
 tags:
   - consensus
+  - validator
   - explanation
 ---
 
