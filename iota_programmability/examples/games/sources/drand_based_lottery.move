@@ -42,11 +42,6 @@
 ///
 module games::drand_based_lottery {
     use games::drand_lib::{derive_randomness, verify_drand_signature, safe_selection};
-    use std::option::{Self, Option};
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-
 
     /// Error codes
     const EGameNotInProgress: u64 = 0;
@@ -61,7 +56,7 @@ module games::drand_based_lottery {
     /// Game represents a set of parameters of a single game.
     /// This game can be extended to require ticket purchase, reward winners, etc.
     ///
-    struct Game has key, store {
+    public struct Game has key, store {
         id: UID,
         round: u64,
         status: u8,
@@ -71,7 +66,7 @@ module games::drand_based_lottery {
 
     /// Ticket represents a participant in a single game.
     /// Can be deconstructed only by the owner.
-    struct Ticket has key, store {
+    public struct Ticket has key, store {
         id: UID,
         game_id: ID,
         participant_index: u64,
@@ -79,7 +74,7 @@ module games::drand_based_lottery {
 
     /// GameWinner represents a participant that won in a specific game.
     /// Can be deconstructed only by the owner.
-    struct GameWinner has key, store {
+    public struct GameWinner has key, store {
         id: UID,
         game_id: ID,
     }
