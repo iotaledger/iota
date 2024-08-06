@@ -109,10 +109,8 @@ export function Input({
     );
 
     useEffect(() => {
-        if (isContentVisible !== undefined) {
-            setIsInputContentVisible(isContentVisible);
-        }
-    }, [isContentVisible]);
+        setIsInputContentVisible(isContentVisible ?? inputProps.type !== InputType.Password);
+    }, [inputProps.type, isContentVisible]);
 
     function onToggleButtonClick() {
         setIsInputContentVisible((prev) => !prev);
