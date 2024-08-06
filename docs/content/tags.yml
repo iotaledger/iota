@@ -1,40 +1,41 @@
+# Grouped and alpabetically sorted tags
 # Diataxis
-tutorial:
-  label: Tutorial
-  description: Learning orientated guide.
+explanation:
+  label: Explanation
+  description: Content that explains and helps understand a concept.
 
 how-to:
   label: How-To
   description: Goal orientated direction.
 
-explanation:
-  label: Explanation
-  description: Content that explains and helps understand a concept.
-
 reference:
   label: Reference
   description: Technical documentation.
 
+tutorial:
+  label: Tutorial
+  description: Learning orientated guide.
+
 # Programming languages
-rust:
-  label: Rust
-  description: Rust programming language.
+move:
+  label: Move
+  description: Move programming language.
 
 python:
   label: Python
   description: Python programming language.
 
-typescript:
-  label: TypeScript
-  description: TypeScript programming language.
+rust:
+  label: Rust
+  description: Rust programming language.
 
 solidity:
   label: Solidity
   description: Solidity programming language.
 
-move:
-  label: Move
-  description: Move programming language.
+typescript:
+  label: TypeScript
+  description: TypeScript programming language.
 
 # SDK
 sdk:
@@ -42,15 +43,19 @@ sdk:
   description: Software Development Kit.
 
 # VMs
-move-vm:
-  label: Move VM
-  description: Move Virtual Machine.
-
 evm:
   label: EVM
   description: Ethereum Virtual Machine.
 
+move-vm:
+  label: Move VM
+  description: Move Virtual Machine.
+
 # Networks
+devnet:
+  label: Devnet
+  description: Development network.
+
 mainnet:
   label: Mainnet
   description: Main network.
@@ -59,13 +64,17 @@ testnet:
   label: Testnet
   description: Test network.
 
-devnet:
-  label: Devnet
-  description: Development network.
-
 # Node
+access-node:
+  label: Access Node
+  description: Node that provides access to the network.
+
 pruning:
   label: Pruning
+
+rpc:
+  label: RPC
+  description: Remote Procedure Call.
 
 snapshot:
   label: Snapshot
@@ -74,31 +83,7 @@ validator:
   label: Validator
   description: Node that validates transactions.
 
-access-node:
-  label: Access Node
-  description: Node that provides access to the network.
-
-rpc:
-  label: RPC
-  description: Remote Procedure Call.
-
 # ISC
-isc:
-  label: ISC
-  description: IOTA Smart Contracts.
-
-on-ledger:
-  label: On-Ledger Request
-  description: On-Ledger Request.
-
-off-ledger:
-  label: Off-Ledger Request
-  description: Off-Ledger Request.
-
-magic:
-  label: Magic Smart Contract
-  description: Magic Smart Contract.
-
 allowance:
   label: Allowance
   description: Allowance for L1 interactions.
@@ -107,35 +92,51 @@ core-contract:
   label: Core Contract
   description: Core Contract for interacting with L1.
 
+isc:
+  label: ISC
+  description: IOTA Smart Contracts.
+
+magic:
+  label: Magic Smart Contract
+  description: Magic Smart Contract.
+
+off-ledger:
+  label: Off-Ledger Request
+  description: Off-Ledger Request.
+
+on-ledger:
+  label: On-Ledger Request
+  description: On-Ledger Request.
+
 # Keywords
-consensus:
-  label: Consensus
-  description: Agreement among a group of people.
-
-quickstart:
-  label: Quickstart
-  description: Get started quickly.
-
 cli:
   label: CLI
   description: Command Line Interface.
 
-setup:
-  label: Setup
-  description: Prepare for use.
-
-install:
-  label: Install
-  description: Add to a system.
+consensus:
+  label: Consensus
+  description: Agreement among a group of people.
 
 getting-started:
   label: Getting Started
   description: Initial steps to start using IOTA.
 
+install:
+  label: Install
+  description: Add to a system.
+
 nft:
   label: NFT
   description: Non-fungible token.
 
+quickstart:
+  label: Quickstart
+  description: Get started quickly.
+
 randomness:
   label: Randomness
   description: On chain randomness.
+
+setup:
+  label: Setup
+  description: Prepare for use.
