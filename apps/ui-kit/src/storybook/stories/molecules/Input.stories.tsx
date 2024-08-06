@@ -15,6 +15,7 @@ function InputStory({
     withLeadingIcon,
     value,
     onClearInput,
+    type,
     ...props
 }: ComponentProps<typeof Input> & CustomStoryProps): JSX.Element {
     const [inputValue, setInputValue] = useState(value ?? '');
@@ -30,6 +31,7 @@ function InputStory({
             value={inputValue}
             onClearInput={() => setInputValue('')}
             leadingIcon={withLeadingIcon ? <PlaceholderReplace /> : undefined}
+            type={type}
         />
     );
 }
