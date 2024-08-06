@@ -1,4 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export { Accordion } from './Accordion';
+export * from './Accordion';

@@ -3,12 +3,10 @@
 
 import React, { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { Badge, BadgeType } from '../../atoms';
-import { Title } from '@/lib';
-import { ArrowDown, ArrowUp } from '@iota/ui-icons';
+import { ArrowDown } from '@iota/ui-icons';
 import { ICON_STYLE } from './accordion.classes';
 
-interface AccordionProps {
+interface AccordionHeaderProps {
     /**
      * Flag for show/hide content
      */
@@ -20,65 +18,46 @@ interface AccordionProps {
     onToggle: () => void;
 
     /**
-     * Text for title.
-     */
-    title: string;
-
-    /**
-     * Text for subtitle.
-     */
-    subtitle?: string;
-
-    /**
      * The type of the badge.
      */
-    badgeType?: BadgeType;
-    /**
-     * The text of the badge.
-     */
-    badgeText?: string;
+    badge?: React.ReactNode;
 }
 
-export function Accordion({
-    isExpanded,
-    onToggle,
-    title,
-    subtitle,
-    badgeType,
-    badgeText,
-    children,
-}: PropsWithChildren<AccordionProps>): React.JSX.Element {
-    const badge = (() => {
-        if (!badgeText || !badgeType) {
-            return;
-        }
-        return <Badge type={badgeType} label={badgeText} />;
-    })();
+interface AccordionContentProps {
+    /**
+     * Flag for show/hide content
+     */
+    isExpanded: boolean;
+}
 
-    const arrow = (() => {
-        if (isExpanded) {
-            return <ArrowUp className={ICON_STYLE} />;
-        }
-        return <ArrowDown className={ICON_STYLE} />;
-    })();
-
+export function AccordionHeader(props: PropsWithChildren<AccordionHeaderProps>) {
     return (
-        <div className="rounded-xl">
-            <div onClick={onToggle} className="state-layer relative cursor-pointer rounded-xl">
-                <Title
-                    title={title}
-                    subtitle={subtitle}
-                    supportingElement={badge}
-                    trailingElement={arrow}
-                />
-            </div>
-            <div
-                className={cx('border-box px-lg pb-md--rs pt-xs--rs', {
-                    hidden: !isExpanded,
+        <div
+            onClick={props.onToggle}
+            className="state-layer relative flex cursor-pointer items-center justify-between gap-8 rounded-xl pr-md--rs"
+        >
+            {props.children}
+            <ArrowDown
+                className={cx(ICON_STYLE, {
+                    'rotate-180': props.isExpanded,
                 })}
-            >
-                {children}
-            </div>
+            />
         </div>
     );
+}
+
+export function AccordionContent(props: PropsWithChildren<AccordionContentProps>) {
+    return (
+        <div
+            className={cx('border-box px-lg pb-md--rs pt-xs--rs', {
+                hidden: !props.isExpanded,
+            })}
+        >
+            {props.children}
+        </div>
+    );
+}
+
+export function Accordion({ children }: { children: React.ReactNode }): React.JSX.Element {
+    return <div className="rounded-xl">{children}</div>;
 }
