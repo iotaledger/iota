@@ -28,7 +28,7 @@ mysten-metrics.workspace = true
 mysten-network.workspace = true
 narwhal-config.workspace = true
 narwhal-crypto.workspace = true
-num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
+num-bigint = { workspace = true, default-features = false, features = ["rand"] }
 num-rational = "0.4"
 num-traits = "0.2"
 once_cell.workspace = true
