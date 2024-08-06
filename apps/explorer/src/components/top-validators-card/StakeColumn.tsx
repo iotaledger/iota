@@ -9,24 +9,24 @@ import { Text } from '@iota/ui';
 type StakeColumnProps = {
     stake: bigint | number | string;
     hideCoinSymbol?: boolean;
-    inMICROS?: boolean;
+    inNano?: boolean;
 };
 
 export function StakeColumn({
     stake,
     hideCoinSymbol,
-    inMICROS = false,
+    inNano = false,
 }: StakeColumnProps): JSX.Element {
     const coinFormat = hideCoinSymbol ? CoinFormat.FULL : CoinFormat.ROUNDED;
     const [amount, symbol] = useFormatCoin(stake, IOTA_TYPE_ARG, coinFormat);
     return (
         <div className="flex items-end gap-0.5">
             <Text variant="bodySmall/medium" color="steel-darker">
-                {inMICROS ? formatBalance(stake, 0, coinFormat) : amount}
+                {inNano ? formatBalance(stake, 0, coinFormat) : amount}
             </Text>
             {!hideCoinSymbol && (
                 <Text variant="captionSmall/medium" color="steel-dark">
-                    {inMICROS ? 'MICROS' : symbol}
+                    {inNano ? 'nano' : symbol}
                 </Text>
             )}
         </div>
