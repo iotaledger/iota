@@ -1,5 +1,5 @@
 module random_nft::random_nft {
-    use iota::url::{Self, Url};
+    use iota::url::Url;
     use stardust::nft::Nft;
     use std::string::String;
     use iota::event;

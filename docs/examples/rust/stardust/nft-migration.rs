@@ -44,6 +44,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!("{sender:?}");
 
+    // Get a package id of custom nft module
     let random_nft_package_id =
         publish_random_nft_package(sender, &mut keystore, &iota_client, RANDOM_NFT_PACKAGE_PATH)
             .await?;
@@ -58,11 +59,12 @@ async fn main() -> Result<(), anyhow::Error> {
         .next()
         .ok_or(anyhow!("No coins found"))?;
 
-    // Get an NftOutput object
+    // Get an NftOutput object id
     let nft_output_object_id = ObjectID::from_hex_literal(
         "0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226",
     )?;
 
+    // Get an NftOutput object
     let nft_output_object = iota_client
         .read_api()
         .get_object_with_options(
@@ -79,7 +81,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
         let type_arguments = vec![GAS::type_tag()];
         let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(nft_output_object_ref))?];
-        // Finally call the nft_output::extract_assets function
+        // Call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_ADDRESS.into(),
             ident_str!("nft_output").to_owned(),
@@ -94,6 +96,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
             let nft_asset = Argument::NestedResult(extracted_assets, 2);
 
+            // Call conversion function in order to create custom nft from stardust nft
+            // asset.
             builder.programmable_move_call(
                 random_nft_package_id,
                 ident_str!("random_nft").to_owned(),
@@ -185,7 +189,7 @@ async fn publish_random_nft_package(
     iota_client: &IotaClient,
     package_path: &str,
 ) -> Result<ObjectID> {
-    // Get a gas coin.
+    // Get a gas coin
     let gas_coin = iota_client
         .coin_read_api()
         .get_coins(sender, None, None, None)
@@ -195,6 +199,7 @@ async fn publish_random_nft_package(
         .next()
         .ok_or(anyhow!("No coins found"))?;
 
+    // Build custom nft package
     let compiled_package = BuildConfig::default().build(package_path.into())?;
     let modules = compiled_package
         .get_modules()
@@ -205,6 +210,8 @@ async fn publish_random_nft_package(
         })
         .collect::<Result<Vec<Vec<u8>>>>()?;
     let dependencies = compiled_package.get_dependency_original_package_ids();
+
+    // Publish package
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.publish_immutable(modules, dependencies);
@@ -212,7 +219,7 @@ async fn publish_random_nft_package(
     };
 
     // Setup gas budget and gas price
-    let gas_budget = 100_000_000;
+    let gas_budget = 50_000_000;
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
@@ -242,6 +249,7 @@ async fn publish_random_nft_package(
         transaction_response.digest
     );
 
+    // Extract package id from the transaction effects
     if let Some(effects) = transaction_response.effects {
         if let Some(package_ref) = effects.created().first() {
             let package_id = package_ref.reference.object_id;
