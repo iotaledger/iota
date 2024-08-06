@@ -64,7 +64,7 @@ export const TEXT_BODY_DISAMBIGUOUS_CLASSES: TailwindCustomFonts = {
         '12px',
         {
             lineHeight: '16px',
-            letterSpacing: '0.2px',
+            letterSpacing: '0.1px',
             fontWeight: 400,
         },
     ],
@@ -80,7 +80,7 @@ export const TEXT_BODY_DISAMBIGUOUS_CLASSES: TailwindCustomFonts = {
         '16px',
         {
             lineHeight: '24px',
-            letterSpacing: '0.1px',
+            letterSpacing: '0.2px',
             fontWeight: 400,
         },
     ],
@@ -119,7 +119,7 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         {
             lineHeight: '120%',
             letterSpacing: '-0.2px',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-headline-md': [
@@ -127,7 +127,7 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         {
             lineHeight: '120%',
             letterSpacing: '-0.4px',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-headline-lg': [
@@ -135,7 +135,7 @@ export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
         {
             lineHeight: '120%',
             letterSpacing: '-0.4px',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
 };
@@ -145,21 +145,21 @@ export const TEXT_DISPLAY_CLASSES: TailwindCustomFonts = {
         '36px',
         {
             lineHeight: '120%',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-display-md': [
         '48px',
         {
             lineHeight: '120%',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
     'text-display-lg': [
         '60px',
         {
             lineHeight: '120%',
-            fontWeight: 400,
+            fontWeight: 500,
         },
     ],
 };
