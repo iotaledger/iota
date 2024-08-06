@@ -2,38 +2,38 @@
 name = "move-vm-integration-tests"
 version = "0.1.0"
 authors = ["Diem Association <opensource@diem.com>"]
-description = "Move VM Integration Tests"
-repository = "https://github.com/diem/diem"
+edition = "2021"
 homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+repository = "https://github.com/diem/diem"
+description = "Move VM Integration Tests"
 
 [dependencies]
 anyhow.workspace = true
 fail = { workspace = true, features = ["failpoints"] }
-tempfile.workspace = true
 memory-stats = "1.0.0"
+tempfile.workspace = true
 
-move-core-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-verifier.workspace = true
 move-compiler.workspace = true
-move-vm-config.workspace = true
-move-vm-runtime.workspace = true
-move-vm-profiler.workspace = true
-move-vm-types.workspace = true
-move-vm-test-utils.workspace = true
+move-core-types.workspace = true
 move-stdlib.workspace = true
+move-vm-config.workspace = true
+move-vm-profiler.workspace = true
+move-vm-runtime.workspace = true
+move-vm-test-utils.workspace = true
+move-vm-types.workspace = true
 
 [features]
 default = []
 gas-profiler = [
-    "move-vm-config/gas-profiler",
-    "move-vm-runtime/gas-profiler",
-    "move-vm-profiler/gas-profiler",
-    "move-vm-types/gas-profiler",
-    "move-vm-test-utils/gas-profiler",
+  "move-vm-config/gas-profiler",
+  "move-vm-runtime/gas-profiler",
+  "move-vm-profiler/gas-profiler",
+  "move-vm-types/gas-profiler",
+  "move-vm-test-utils/gas-profiler",
 ]
 
 [[bin]]
