@@ -27,7 +27,6 @@ pub struct StoredEpochInfo {
     pub storage_rebate: Option<i64>,
     pub total_gas_fees: Option<i64>,
     pub total_stake_rewards_distributed: Option<i64>,
-    pub burnt_leftover_amount: Option<i64>,
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
@@ -51,7 +50,6 @@ pub struct QueryableEpochInfo {
     pub storage_rebate: Option<i64>,
     pub total_gas_fees: Option<i64>,
     pub total_stake_rewards_distributed: Option<i64>,
-    pub burnt_leftover_amount: Option<i64>,
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
@@ -88,7 +86,6 @@ impl StoredEpochInfo {
             storage_rebate: e.storage_rebate.map(|v| v as i64),
             total_gas_fees: e.total_gas_fees.map(|v| v as i64),
             total_stake_rewards_distributed: e.total_stake_rewards_distributed.map(|v| v as i64),
-            burnt_leftover_amount: e.burnt_leftover_amount.map(|v| v as i64),
             epoch_commitments: e
                 .epoch_commitments
                 .as_ref()
@@ -125,7 +122,6 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
             total_stake_rewards_distributed: info
                 .total_stake_rewards_distributed
                 .map(|v| v as u64)?,
-            burnt_leftover_amount: info.burnt_leftover_amount.map(|v| v as u64)?,
             burnt_tokens_amount: info.burnt_tokens_amount.map(|v| v as u64)?,
             minted_tokens_amount: info.minted_tokens_amount.map(|v| v as u64)?,
         })

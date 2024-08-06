@@ -2,23 +2,23 @@
 name = "bytecode-verifier-libfuzzer"
 version = "0.0.0"
 authors = ["Diem Association <opensource@diem.com>"]
+edition = "2018"
 license = "Apache-2.0"
 publish = false
-edition = "2018"
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys.workspace = true
 arbitrary.workspace = true
+libfuzzer-sys.workspace = true
+move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true
 move-core-types = { workspace = true, features = ["fuzzing"] }
-move-binary-format = { workspace = true, features = ["fuzzing"] }
 
 # Prevent this from interfering with workspaces
-#[workspace]
-#members = ["."]
+# [workspace]
+# members = ["."]
 
 [[bin]]
 name = "code_unit"

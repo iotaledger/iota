@@ -293,15 +293,6 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly ci-fmt
 
-  dprint-format:
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Install dprint
-        run: cargo install dprint
-      - name: Check dprint formatting
-        run: dprint check
-
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
