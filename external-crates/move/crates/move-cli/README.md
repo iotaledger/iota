@@ -5,9 +5,9 @@ with writing and running Move code, and to experiment with developing new tools 
 for Move development. To reflect this, the Move CLI commands are grouped into
 three main subcommands:
 
--   **package commands**: are commands to create, compile, and test Move packages, as well as perform other operations related to packages. These do not rely on a Move Adapter implementation nor an implementation of storage.
--   **sandbox commands**: are commands that allow you to write Move modules and scripts, write and run scripts and tests, and view the resulting state of execution in a local sandboxed environment.
--   **experimental commands**: are experimental commands that are currently in development.
+- **package commands**: are commands to create, compile, and test Move packages, as well as perform other operations related to packages. These do not rely on a Move Adapter implementation nor an implementation of storage.
+- **sandbox commands**: are commands that allow you to write Move modules and scripts, write and run scripts and tests, and view the resulting state of execution in a local sandboxed environment.
+- **experimental commands**: are experimental commands that are currently in development.
 
 Every Move CLI command, with the exception of `package create`, is expected to be run within the context of a [Move package](https://move-language.github.io/move/packages.html).
 
@@ -40,8 +40,7 @@ USAGE:
 ```
 
 We'll go through the most common Move CLI commands and flags here, however
-you can find the complete list of commands available by calling `move
---help`. Additionally, the complete list of flags and options available
+you can find the complete list of commands available by calling `move --help`. Additionally, the complete list of flags and options available
 for each Move CLI command can be found by passing the `--help` flag to it,
 i.e., `move <command> --help`.
 
@@ -78,8 +77,7 @@ $ move prove # Verify the specifications in the current package
 $ move prove -p <path> # Verify the specifications in the package at <path>
 ```
 
-In order to run the Move Prover [additional tools need to be
-installed](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/install.md).
+In order to run the Move Prover [additional tools need to be installed](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/install.md).
 Information on the Move Prover and its configuration options can be found
 [here](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/prover-guide.md)
 and
@@ -124,8 +122,7 @@ fun debug_script(account: signer) {
 ```
 
 Before we can run this however, we need to import the Move standard library
-nursery in order to have access to the `Debug` module and `Std` [named
-address](https://move-language.github.io/move/address.html#named-addresses).
+nursery in order to have access to the `Debug` module and `Std` [named address](https://move-language.github.io/move/address.html#named-addresses).
 You can specify dependencies locally, or using a Git URL. Here, we will specify
 it using Git, so add the following to the `Move.toml` file in the `readme`
 directory:
@@ -155,11 +152,11 @@ single-`signer` script will trigger a type error.
 
 The CLI supports passing non-`signer` arguments to `move sandbox run` via `--args`. The following argument types are supported:
 
--   `bool` literals (`true`, `false`)
--   `u64` literals (e.g., `10`, `58`)
--   `address` literals (e.g., `0x12`, `0x0000000000000000000000000000000f`)
--   hexadecimal strings (e.g., `'x"0012"'` will parse as the `vector<u8>` value `[00, 12]`)
--   ASCII strings (e.g., `'b"hi"'` will parse as the `vector<u8>` value `[68, 69]`)
+- `bool` literals (`true`, `false`)
+- `u64` literals (e.g., `10`, `58`)
+- `address` literals (e.g., `0x12`, `0x0000000000000000000000000000000f`)
+- hexadecimal strings (e.g., `'x"0012"'` will parse as the `vector<u8>` value `[00, 12]`)
+- ASCII strings (e.g., `'b"hi"'` will parse as the `vector<u8>` value `[68, 69]`)
 
 ### Publishing new modules
 
@@ -258,8 +255,7 @@ public write() {
 ```
 
 You can also look at the compiled bytecode before publishing to `storage` by
-running either `move disassemble --name <module_name>` or `move
-disassemble --name <module_name> --interactive` to interactively inspect the
+running either `move disassemble --name <module_name>` or `move disassemble --name <module_name> --interactive` to interactively inspect the
 bytecode and how it relates to the Move source code:
 
 ```shell
@@ -546,9 +542,9 @@ overall module coverage is boosted to 61.11%.
 The `move sandbox publish` command automatically detects when upgrading a module may lead to a breaking change.
 There are two kinds of breaking changes:
 
--   Linking compatibility (e.g., removing or changing the signature of a public function that is invoked by other modules, removing a
-    struct or resource type used by other modules)
--   Layout compatibility (e.g., adding/removing a resource or struct field)
+- Linking compatibility (e.g., removing or changing the signature of a public function that is invoked by other modules, removing a
+  struct or resource type used by other modules)
+- Layout compatibility (e.g., adding/removing a resource or struct field)
 
 The breaking changes analysis performed by `move sandbox publish` is necessarily conservative. For example, say we `move sandbox publish` the following
 module:
@@ -582,7 +578,7 @@ In this case, we know we have not published any instances of `S` in global stora
 We can double-check that this was not a breaking change by running `move sandbox doctor`.
 This handy command runs exhaustive sanity checks on global storage to detect any breaking changes that occurred in the past:
 
--   All modules pass the bytecode verifier
--   All modules link against their dependencies
--   All resources deserialize according to their declared types
--   All events deserialize according to their declared types
+- All modules pass the bytecode verifier
+- All modules link against their dependencies
+- All resources deserialize according to their declared types
+- All events deserialize according to their declared types

@@ -2,12 +2,12 @@
 name = "move-vm-types"
 version = "0.1.0"
 authors = ["Diem Association <opensource@diem.com>"]
-description = "Types for Move VM"
-repository = "https://github.com/diem/diem"
+edition = "2021"
 homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+repository = "https://github.com/diem/diem"
+description = "Types for Move VM"
 
 [dependencies]
 proptest = { workspace = true, optional = true }
@@ -16,8 +16,8 @@ smallvec.workspace = true
 
 bcs.workspace = true
 
-move-core-types.workspace = true
 move-binary-format.workspace = true
+move-core-types.workspace = true
 move-vm-profiler.workspace = true
 
 [dev-dependencies]
@@ -27,6 +27,5 @@ proptest.workspace = true
 default = []
 fuzzing = ["proptest", "move-binary-format/fuzzing"]
 gas-profiler = [
-    "move-vm-profiler/gas-profiler"
+  "move-vm-profiler/gas-profiler",
 ]
-

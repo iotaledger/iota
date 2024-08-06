@@ -2,4 +2,4 @@
 name = "name"
 
 [dependencies]
-A = { local = "a", addr_subst = { "©" = "A"  } }
+A = { local = "a", addr_subst = { "©" = "A" } }

@@ -23,6 +23,6 @@
 name = "Root"
 
 [dependencies]
-A = { local = "./deps_only/A" , override = true}
+A = { local = "./deps_only/A", override = true }
 B = { local = "./deps_only/B" }
 C = { local = "./deps_only/C2", override = true }
