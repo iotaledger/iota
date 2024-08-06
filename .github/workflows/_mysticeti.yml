@@ -2,10 +2,6 @@ name: Mysticeti tests
 
 on:
   workflow_call:
-    inputs:
-      isRust:
-        type: boolean
-        required: true
   workflow_dispatch:
     inputs:
       iota_repo_ref:
@@ -85,7 +81,6 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   test-extra:
-    if: inputs.isRust
     timeout-minutes: 45
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var

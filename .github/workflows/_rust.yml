@@ -1,14 +1,6 @@
 name: Rust crates
 
-on:
-  workflow_call:
-    inputs:
-      isRust:
-        type: boolean
-        required: true
-      isMove:
-        type: boolean
-        required: true
+on: [workflow_call]
 
 env:
   CARGO_TERM_COLOR: always
@@ -34,16 +26,13 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
+  lints:
+    uses: ./.github/workflows/_rust_lints.yml
+
   rust-tests:
-    if: inputs.isRust
+    needs: lints
     uses: ./.github/workflows/_rust_tests.yml
 
-  move-tests:
-    if: inputs.isRust == false && inputs.isMove
-    uses: ./.github/workflows/_move_tests.yml
-
   execution-cut:
-    needs:
-      - rust-tests
-    if: inputs.isRust
+    needs: rust-tests
     uses: ./.github/workflows/_execution_cut.yml

@@ -1,11 +1,6 @@
 name: External crates
 
-on:
-  workflow_call:
-    inputs:
-      isRust:
-        type: boolean
-        required: true
+on: [workflow_call]
 
 env:
   CARGO_TERM_COLOR: always
@@ -32,6 +27,9 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
+  lints:
+    uses: ./.github/workflows/_external_rust_lints.yml
+
   tests:
-    if: inputs.isRust
+    needs: lints
     uses: ./.github/workflows/_external_rust_tests.yml

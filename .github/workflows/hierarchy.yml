@@ -58,16 +58,6 @@ jobs:
     if: ${{ needs.diff.outputs.isDoc == 'true' }}
     uses: ./.github/workflows/_docs_lint.yml
 
-  rust-lints:
-    needs: diff
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
-    uses: ./.github/workflows/_rust_lints.yml
-
-  external-rust-lints:
-    needs: diff
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
-    uses: ./.github/workflows/_external_rust_lints.yml
-
   release-notes-description-check:
     name: release-notes-check
     needs: diff
@@ -97,51 +87,39 @@ jobs:
       - diff
       - dprint-format
       - typos
-      - rust-lints
-      - external-rust-lints
     uses: ./.github/workflows/_turborepo.yml
 
-  rust:
+  move-tests:
     needs:
       - diff
       - dprint-format
       - typos
-      - rust-lints
-      - external-rust-lints
+    if: ${{ needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' }}
+    uses: ./.github/workflows/_move_tests.yml
+
+  rust:
+    needs: diff
+    if: ${{ needs.diff.outputs.isRust == 'true' }}
     uses: ./.github/workflows/_rust.yml
-    with:
-      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
-      isMove: ${{ needs.diff.outputs.isMove == 'true' }}
 
   external:
-    needs:
-      - diff
-      - dprint-format
-      - typos
-      - rust-lints
-      - external-rust-lints
+    needs: diff
+    if: ${{ needs.diff.outputs.isRust == 'true' }}
     uses: ./.github/workflows/_external.yml
-    with:
-      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   mysticeti:
     needs:
       - diff
       - dprint-format
       - typos
-      - rust-lints
-      - external-rust-lints
+    if: ${{ needs.diff.outputs.isRust == 'true' }}
     uses: ./.github/workflows/_mysticeti.yml
-    with:
-      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
     needs:
       - diff
       - dprint-format
       - typos
-      - rust-lints
-      - external-rust-lints
     uses: ./.github/workflows/_e2e.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
