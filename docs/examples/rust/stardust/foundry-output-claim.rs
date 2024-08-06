@@ -196,7 +196,7 @@ async fn main() -> Result<(), anyhow::Error> {
             CoinManagerTreasuryCap::is_coin_manager_treasury_cap(
                 &object
                     .data
-                    .clone()
+                    .as_ref()
                     .expect("the query should request the data")
                     .object_type()
                     .expect("should contain the type")
@@ -208,10 +208,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get only the first coin manager treasury cap
     let coin_manager_treasury_cap_object = owned_coin_manager_treasury_caps
-        .first()
+        .into_iter()
+        .next()
         .ok_or(anyhow!("no coin manager treasury caps found"))?
         .data
-        .clone()
         .ok_or(anyhow!("coin manager treasury cap data not found"))?;
     let coin_manager_treasury_cap_object_ref = coin_manager_treasury_cap_object.object_ref();
 
