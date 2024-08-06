@@ -1,71 +1,110 @@
-module examples::donuts {
-    use iota::iota::IOTA;
-    use iota::coin::{Self, Coin};
-    use iota::balance::{Self, Balance};
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 
-    /// For when Coin balance is too low.
-    const ENotEnough: u64 = 0;
+module dynamic_fields::example {
+    use iota::dynamic_object_field as ofield;
 
-    /// Capability that grants an owner the right to collect profits.
-    public struct ShopOwnerCap has key { id: UID }
-
-    /// A purchasable Donut. For simplicity's sake we ignore implementation.
-    public struct Donut has key { id: UID }
-
-    /// A shared object. `key` ability is required.
-    public struct DonutShop has key {
+    public struct Parent has key {
         id: UID,
-        price: u64,
-        balance: Balance<IOTA>
     }
 
-    /// Init function is often ideal place for initializing
-    /// a shared object as it is called only once.
-    fun init(ctx: &mut TxContext) {
-        transfer::transfer(ShopOwnerCap {
-            id: object::new(ctx)
-        }, tx_context::sender(ctx));
-
-        // Share the object to make it accessible to everyone!
-        transfer::share_object(DonutShop {
-            id: object::new(ctx),
-            price: 1000,
-            balance: balance::zero()
-        })
+    public struct Child has key, store {
+        id: UID,
+        count: u64,
     }
 
-    /// Entry function available to everyone who owns a Coin.
-    public fun buy_donut(
-        shop: &mut DonutShop, payment: &mut Coin<IOTA>, ctx: &mut TxContext
-    ) {
-        assert!(coin::value(payment) >= shop.price, ENotEnough);
-
-        // Take amount = `shop.price` from Coin<IOTA>
-        let coin_balance = coin::balance_mut(payment);
-        let paid = balance::split(coin_balance, shop.price);
-
-        // Put the coin to the Shop's balance
-        balance::join(&mut shop.balance, paid);
-
-        transfer::transfer(Donut {
-            id: object::new(ctx)
-        }, tx_context::sender(ctx))
+    public fun add_child(parent: &mut Parent, child: Child) {
+        ofield::add(&mut parent.id, b"child", child);
     }
 
-    /// Consume donut and get nothing...
-    public fun eat_donut(d: Donut) {
-        let Donut { id } = d;
+    /// If `child` is a dynamic field of some `Parent`, then this
+    /// function cannot be called directly, because `child` must be
+    /// accessed via its parent.
+    ///
+    /// Use this function as a transaction entry-point if `child` is
+    /// address-owned or shared, and use `mutate_child_via_parent` if
+    /// it is a dynamic field of a `Parent`.
+    ///
+    /// This restriction only applies on transaction entry.  Within
+    /// Move, if you have borrowed a `Child` that is a dynamic field
+    /// of a `Parent`, it is possible to call `mutate_child` on it.
+    public fun mutate_child(child: &mut Child) {
+        child.count = child.count + 1;
+    }
+
+    public fun mutate_child_via_parent(parent: &mut Parent) {
+        mutate_child(ofield::borrow_mut(&mut parent.id, b"child"))
+    }
+
+    public fun reclaim_child(parent: &mut Parent): Child {
+        ofield::remove(&mut parent.id, b"child")
+    }
+
+    public fun delete_child(parent: &mut Parent) {
+        let Child { id, count: _ } = reclaim_child(parent);
         object::delete(id);
     }
 
-    /// Take coin from `DonutShop` and transfer it to tx sender.
-    /// Requires authorization with `ShopOwnerCap`.
-    public fun collect_profits(
-        _: &ShopOwnerCap, shop: &mut DonutShop, ctx: &mut TxContext
-    ) {
-        let amount = balance::value(&shop.balance);
-        let profits = coin::take(&mut shop.balance, amount, ctx);
+    // === Tests ===
+    #[test_only] use iota::test_scenario;
 
-        transfer::public_transfer(profits, tx_context::sender(ctx))
+    #[test]
+    fun test_add_delete() {
+        let mut ts = test_scenario::begin(@0xA);
+        let ctx = test_scenario::ctx(&mut ts);
+
+        let mut p = Parent { id: object::new(ctx) };
+        add_child(&mut p, Child { id: object::new(ctx), count: 0 });
+
+        mutate_child_via_parent(&mut p);
+        delete_child(&mut p);
+
+        let Parent { id } = p;
+        object::delete(id);
+
+        test_scenario::end(ts);
+    }
+
+    #[test]
+    fun test_add_reclaim() {
+        let mut ts = test_scenario::begin(@0xA);
+        let ctx = test_scenario::ctx(&mut ts);
+
+        let mut p = Parent { id: object::new(ctx) };
+        add_child(&mut p, Child { id: object::new(ctx), count: 0 });
+
+        mutate_child_via_parent(&mut p);
+
+        let mut c = reclaim_child(&mut p);
+        assert!(c.count == 1, 0);
+
+        mutate_child(&mut c);
+        assert!(c.count == 2, 1);
+
+        let Child { id, count: _ } = c;
+        object::delete(id);
+
+        let Parent { id } = p;
+        object::delete(id);
+
+        test_scenario::end(ts);
+    }
+
+    #[test]
+    /// This is not a desirable property, but objects can be deleted
+    /// with dynamic fields still attached, and they become
+    /// inaccessible.
+    fun test_delete_with_child_attached() {
+        let mut ts = test_scenario::begin(@0xA);
+        let ctx = test_scenario::ctx(&mut ts);
+
+        let mut p = Parent { id: object::new(ctx) };
+        add_child(&mut p, Child { id: object::new(ctx), count: 0 });
+
+        let Parent { id } = p;
+        object::delete(id);
+
+        test_scenario::end(ts);
     }
 }
