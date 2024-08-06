@@ -1,9 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React, { useState } from 'react';
+import React from 'react';
 import { SortByDown, SortByUp } from '@iota/ui-icons';
 import cx from 'classnames';
 import { Checkbox } from '@/lib';
+import { TableHeaderCellSortOrder } from './table-header-cell.enums';
 
 export interface TableHeaderCellProps {
     /**
@@ -29,15 +30,23 @@ export interface TableHeaderCellProps {
     /**
      * On Sort icon click.
      */
-    onSortClick?: (columnKey: string | number, sortOrder: 'asc' | 'desc') => void;
+    onSortClick?: (columnKey: string | number, sortOrder: TableHeaderCellSortOrder) => void;
     /**
      * Has Checkbox.
      */
     hasCheckbox?: boolean;
     /**
-     * On Checkbox click.
+     * Is Checkbox checked.
      */
-    onCheckboxClick?: () => void;
+    isChecked?: boolean;
+    /**
+     * Is Checkbox indeterminate.
+     */
+    isIndeterminate?: boolean;
+    /**
+     * On Checkbox change.
+     */
+    onCheckboxChange?: (checked: boolean) => void;
 }
 
 export function TableHeaderCell({
@@ -45,13 +54,20 @@ export function TableHeaderCell({
     columnKey,
     hasSort,
     hasCheckbox,
+    isChecked,
+    isIndeterminate,
     onSortClick,
-    onCheckboxClick,
+    onCheckboxChange,
 }: TableHeaderCellProps): JSX.Element {
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>('asc');
+    const [sortOrder, setSortOrder] = React.useState<TableHeaderCellSortOrder | null>(
+        TableHeaderCellSortOrder.Asc,
+    );
 
     const handleSort = () => {
-        const newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+        const newSortOrder =
+            sortOrder === TableHeaderCellSortOrder.Asc
+                ? TableHeaderCellSortOrder.Desc
+                : TableHeaderCellSortOrder.Asc;
         setSortOrder(newSortOrder);
         if (onSortClick) {
             onSortClick(columnKey, newSortOrder);
@@ -69,7 +85,11 @@ export function TableHeaderCell({
         >
             <div className={cx('flex flex-row items-center gap-1', textColorClass, textSizeClass)}>
                 {hasCheckbox ? (
-                    <Checkbox onChange={onCheckboxClick} label={label} />
+                    <Checkbox
+                        isChecked={isChecked}
+                        isIndeterminate={isIndeterminate}
+                        onChange={onCheckboxChange}
+                    />
                 ) : (
                     <span>{label}</span>
                 )}

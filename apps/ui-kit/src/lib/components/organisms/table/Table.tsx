@@ -111,14 +111,14 @@ export function Table({
     );
 }
 
-export function TableHeader({ children }: PropsWithChildren<object>): JSX.Element {
-    return <thead>{React.Children.toArray(children)}</thead>;
+export function TableHeader({ children }: PropsWithChildren): JSX.Element {
+    return <thead>{children}</thead>;
 }
 
-export function TableRow({ children }: PropsWithChildren<object>): JSX.Element {
+export function TableRow({ children }: PropsWithChildren): JSX.Element {
     return <tr>{children}</tr>;
 }
 
-export function TableBody({ children }: PropsWithChildren<object>): JSX.Element {
+export function TableBody({ children }: PropsWithChildren): JSX.Element {
     return <tbody>{children}</tbody>;
 }

@@ -72,7 +72,7 @@ type TableCellCheckbox = {
     /**
      * The function to call when the checkbox is clicked.
      */
-    onChange?: () => void;
+    onChange?: (checked: boolean) => void;
 };
 
 export type TableCellProps = TableCellBaseProps &
@@ -126,7 +126,8 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     </div>
                 );
             case TableCellType.Checkbox:
-                return <Checkbox />;
+                const { isChecked, onChange } = props;
+                return <Checkbox isChecked={isChecked} onChange={onChange} />;
             default:
                 return null;
         }
