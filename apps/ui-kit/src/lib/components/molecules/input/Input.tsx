@@ -2,18 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef, useState } from 'react';
-import { InputFieldTrailingElement } from './InputFieldTrailingElement';
+import { InputTrailingElement } from './InputTrailingElement';
 import cx from 'classnames';
-import { InputFieldWrapper, InputFieldWrapperProps, SecondaryText } from './InputFieldWrapper';
+import { InputWrapper, InputWrapperProps, SecondaryText } from './InputWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
     INPUT_NUMBER_CLASSES,
     INPUT_PLACEHOLDER_CLASSES,
-} from './input-field.classes';
-import { InputFieldType } from './input-field.enums';
-import { InputFieldPropsByType } from './input-field.types';
+} from './input.classes';
+import { InputType } from './input.enums';
+import { InputPropsByType } from './input.types';
 
 type InputPickedProps = Pick<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -32,13 +32,13 @@ type InputPickedProps = Pick<
     | 'id'
 >;
 
-interface InputFieldBaseProps extends InputPickedProps, InputFieldWrapperProps {
+interface InputBaseProps extends InputPickedProps, InputWrapperProps {
     /**
-     * Callback function that is called when the input field value changes
+     * Callback function that is called when the input value changes
      */
     onChange?: (value: string, name?: string) => void;
     /**
-     * A leading icon that is shown before the input field
+     * A leading icon that is shown before the input
      */
     leadingIcon?: React.JSX.Element;
     /**
@@ -50,11 +50,11 @@ interface InputFieldBaseProps extends InputPickedProps, InputFieldWrapperProps {
      */
     amountCounter?: string | number;
     /**
-     * Trailing element that is shown after the input field
+     * Trailing element that is shown after the input
      */
     trailingElement?: React.JSX.Element;
     /**
-     * Ref for the input field
+     * Ref for the input
      */
     ref?: React.RefObject<HTMLInputElement>;
     /**
@@ -62,7 +62,7 @@ interface InputFieldBaseProps extends InputPickedProps, InputFieldWrapperProps {
      */
     isContentVisible?: boolean;
     /**
-     * Value of the input field
+     * Value of the input
      */
     value?: string;
     /**
@@ -71,9 +71,9 @@ interface InputFieldBaseProps extends InputPickedProps, InputFieldWrapperProps {
     onClearInput?: () => void;
 }
 
-export type InputFieldProps = InputFieldBaseProps & InputFieldPropsByType;
+export type InputProps = InputBaseProps & InputPropsByType;
 
-export function InputField({
+export function Input({
     name,
     label,
     placeholder,
@@ -100,12 +100,12 @@ export function InputField({
     onClearInput,
     isContentVisible,
     ...inputProps
-}: InputFieldProps) {
+}: InputProps) {
     const fallbackRef = useRef<HTMLInputElement>(null);
     const inputRef = ref ?? fallbackRef;
 
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
-        isContentVisible ?? inputProps.type !== InputFieldType.Password,
+        isContentVisible ?? inputProps.type !== InputType.Password,
     );
 
     useEffect(() => {
@@ -125,7 +125,7 @@ export function InputField({
     }
 
     return (
-        <InputFieldWrapper
+        <InputWrapper
             label={label}
             caption={caption}
             disabled={disabled}
@@ -143,7 +143,7 @@ export function InputField({
 
                 <input
                     type={
-                        inputProps.type === InputFieldType.Password && isInputContentVisible
+                        inputProps.type === InputType.Password && isInputContentVisible
                             ? 'text'
                             : inputProps.type
                     }
@@ -174,9 +174,9 @@ export function InputField({
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
 
                 {(trailingElement ||
-                    (inputProps.type === InputFieldType.Password &&
+                    (inputProps.type === InputType.Password &&
                         inputProps.isVisibilityToggleEnabled)) && (
-                    <InputFieldTrailingElement
+                    <InputTrailingElement
                         onClearInput={onClearInput}
                         onToggleButtonClick={onToggleButtonClick}
                         trailingElement={trailingElement}
@@ -184,6 +184,6 @@ export function InputField({
                     />
                 )}
             </div>
-        </InputFieldWrapper>
+        </InputWrapper>
     );
 }

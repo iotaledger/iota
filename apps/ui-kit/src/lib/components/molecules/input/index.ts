@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './InputField';
+export * from './Input';
 export * from './TextArea';
 
-export * from './input-field.enums';
+export * from './input.enums';

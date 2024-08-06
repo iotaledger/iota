@@ -2,22 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
-import { InputFieldProps } from './InputField';
+import { InputProps } from './Input';
 import cx from 'classnames';
 
-type TrailingElementProps = Pick<InputFieldProps, 'trailingElement' | 'isContentVisible'>;
+type TrailingElementProps = Pick<InputProps, 'trailingElement' | 'isContentVisible'>;
 
-type InputFieldTrailingElementProps = TrailingElementProps & {
+type InputTrailingElementProps = TrailingElementProps & {
     onToggleButtonClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     onClearInput?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
-export function InputFieldTrailingElement({
+export function InputTrailingElement({
     onClearInput,
     onToggleButtonClick,
     trailingElement,
     isContentVisible,
-}: InputFieldTrailingElementProps) {
+}: InputTrailingElementProps) {
     if (trailingElement) {
         return trailingElement;
     }
