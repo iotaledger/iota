@@ -85,3 +85,4 @@ jobs:
           path: |
             ./target/release/iota
             ./target/release/iota-test-validator
+            ./target/release/iota-indexer
