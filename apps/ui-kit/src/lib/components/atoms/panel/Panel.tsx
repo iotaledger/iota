@@ -6,17 +6,12 @@ import cx from 'classnames';
 
 interface PanelProps {
     /**
-     * The title of the panel.
-     */
-    title?: React.ReactNode;
-    /**
      * Show or hide border around the panel.
      */
     hasBorder?: boolean;
 }
 
 export function Panel({
-    title,
     children,
     hasBorder,
 }: React.PropsWithChildren<PanelProps>): React.JSX.Element {
@@ -30,7 +25,6 @@ export function Panel({
                 borderClass,
             )}
         >
-            {title && <div>{title}</div>}
             <div>{children}</div>
         </div>
     );
