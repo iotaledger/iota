@@ -151,12 +151,12 @@ impl Display for Keystore {
         let mut writer = String::new();
         match self {
             Keystore::File(file) => {
-                writeln!(writer, "Keystore Type : File")?;
+                writeln!(writer, "Keystore Type: File")?;
                 write!(writer, "Keystore Path : {:?}", file.path)?;
                 write!(f, "{}", writer)
             }
             Keystore::InMem(_) => {
-                writeln!(writer, "Keystore Type : InMem")?;
+                writeln!(writer, "Keystore Type: InMem")?;
                 write!(f, "{}", writer)
             }
         }
