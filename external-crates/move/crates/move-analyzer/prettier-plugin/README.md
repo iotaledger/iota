@@ -20,7 +20,7 @@ using Prettier's VSCode
 [extension](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode). When the
 plugin is complete, we will make it available directly from Move's VSCode extension.
 
-## Installation 
+## Installation
 
 Currently, you need to install plugin from sources (when the plugin is complete, we will submit it
 to the NPM package [registry](https://www.npmjs.com/) for direct download).
@@ -34,7 +34,7 @@ git clone https://github.com/iotaledger/iota.git "$IOTA"
 Go to `"$IOTA"/external-crates/move/crates/move-analyzer/prettier-plugin` and run the following
 command:
 
-``` bash
+```bash
 npm run compile
 ```
 
@@ -43,7 +43,7 @@ npm run compile
 Go to the root directory of the Move package whose files you'd like to format (i.e., the directory
 containing the Move.toml manifest file for this package) and run the following command:
 
-``` bash
+```bash
 npm install prettier@3.1.1 "$IOTA"/external-crates/move/crates/move-analyzer/prettier-plugin
 ```
 
@@ -54,7 +54,7 @@ This will install both the prettier formatter and the plugin in the `./node_modu
 You can format Move files in the package where you completed the installation [step](#installation) by running the
 following command:
 
-``` bash
+```bash
 ./node_modules/.bin/prettier --plugin=prettier-plugin-move "$PATH_TO_MOVE_FILE"
 ```
 
@@ -79,8 +79,7 @@ be able to format them by choosing `Format Code` command from VSCode's command p
 
 Here is the plugin at work in VSCode:
 
-<img src=move-format.gif width="600px" height="429px"> 
-
+<img src=move-format.gif width="600px" height="429px">
 
 ## Contribute
 
