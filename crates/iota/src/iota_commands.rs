@@ -129,7 +129,7 @@ pub enum IotaCommand {
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
     },
-    /// Client for interacting with the Iota network.
+    /// Client for interacting with the IOTA network.
     #[clap(name = "client")]
     Client {
         /// Sets the file storing the state of our user accounts (an empty one
