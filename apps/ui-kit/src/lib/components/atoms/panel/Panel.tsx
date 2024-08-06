@@ -25,7 +25,7 @@ export function Panel({
                 borderClass,
             )}
         >
-            <div>{children}</div>
+            {children}
         </div>
     );
 }
