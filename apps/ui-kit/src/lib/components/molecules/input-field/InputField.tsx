@@ -9,8 +9,8 @@ import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
-    NUMBER_INPUT_CLASSES,
-    PLACEHOLDER_TEXT_CLASSES,
+    INPUT_NUMBER_CLASSES,
+    INPUT_PLACEHOLDER_CLASSES,
 } from './input-field.classes';
 import { InputFieldType } from './input-field.enums';
 import { InputFieldPropsByType } from './input-field.types';
@@ -166,8 +166,8 @@ export function InputField({
                     className={cx(
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,
-                        PLACEHOLDER_TEXT_CLASSES,
-                        NUMBER_INPUT_CLASSES,
+                        INPUT_PLACEHOLDER_CLASSES,
+                        INPUT_NUMBER_CLASSES,
                     )}
                 />
 

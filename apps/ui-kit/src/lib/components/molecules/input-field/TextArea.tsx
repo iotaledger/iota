@@ -8,7 +8,7 @@ import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
-    PLACEHOLDER_TEXT_CLASSES,
+    INPUT_PLACEHOLDER_CLASSES,
 } from './input-field.classes';
 import cx from 'classnames';
 
@@ -135,7 +135,7 @@ export function TextArea({
                         BORDER_CLASSES,
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,
-                        PLACEHOLDER_TEXT_CLASSES,
+                        INPUT_PLACEHOLDER_CLASSES,
                         isInputContentVisible && isResizeEnabled ? 'resize-y' : 'resize-none',
                         !isInputContentVisible &&
                             'not-visible select-none text-transparent dark:text-transparent',
