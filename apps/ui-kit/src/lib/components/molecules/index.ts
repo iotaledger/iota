@@ -8,6 +8,6 @@ export * from './navbar-item';
 export * from './account';
 export * from './dropdown';
 export * from './table-cell';
-export * from './selector-field';
+export * from './select';
 export * from './search';
 export * from './card';

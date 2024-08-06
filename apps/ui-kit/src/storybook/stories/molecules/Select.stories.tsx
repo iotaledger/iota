@@ -2,24 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { SelectorField, SelectorOption } from '@/components/molecules/selector-field/SelectorField';
+import { Select, SelectOption } from '@/components/molecules/select/Select';
 import { useState } from 'react';
 import { IotaLogoMark, PlaceholderReplace } from '@iota/ui-icons';
 
 const meta = {
-    component: SelectorField,
+    component: Select,
     tags: ['autodocs'],
-} satisfies Meta<typeof SelectorField>;
+} satisfies Meta<typeof Select>;
 
 export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const dropdownOptions: SelectorOption[] = ['Option 1', 'Option 2', 'Option 3', 'Invalid Option'];
+const dropdownOptions: SelectOption[] = ['Option 1', 'Option 2', 'Option 3', 'Invalid Option'];
 
 export const Default: Story = {
     args: {
-        label: 'Selector Field',
+        label: 'Select Input',
         supportingText: 'Info',
         caption: 'Caption',
         placeholder: 'Placeholder',
@@ -45,7 +45,7 @@ export const Default: Story = {
 
         return (
             <div className="h-60">
-                <SelectorField {...args} onValueChange={onChange} errorMessage={errorMessage} />
+                <Select {...args} onValueChange={onChange} errorMessage={errorMessage} />
             </div>
         );
     },
@@ -53,13 +53,12 @@ export const Default: Story = {
 
 export const CustomOptions: Story = {
     args: {
-        label: 'Selector Field',
-        supportingText: 'Info',
+        label: 'Send Coins',
         placeholder: 'Select a coin',
         options: [],
     },
     render: ({ options, ...args }) => {
-        const customOptions: SelectorOption[] = [
+        const customOptions: SelectOption[] = [
             {
                 id: 'iota',
                 renderLabel: () => (
@@ -82,7 +81,7 @@ export const CustomOptions: Story = {
 
         return (
             <div className="h-60">
-                <SelectorField {...args} options={customOptions} />
+                <Select {...args} options={customOptions} />
             </div>
         );
     },

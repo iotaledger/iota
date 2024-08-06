@@ -9,13 +9,12 @@ import { SecondaryText } from '../../atoms/secondary-text';
 import { TextFieldWrapper } from '../text-field/TextFieldWrapper';
 import { ListItem } from '../../atoms';
 
-export type SelectorOption =
+export type SelectOption =
     | string
     | { id: string; renderLabel: () => React.JSX.Element }
     | { id: string; label: React.ReactNode };
 
-interface SelectorFieldProps
-    extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled' | 'value'> {
+interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled' | 'value'> {
     /**
      * The field label.
      */
@@ -27,7 +26,7 @@ interface SelectorFieldProps
     /**
      * The dropdown elements to render.
      */
-    options: SelectorOption[];
+    options: SelectOption[];
     /**
      * The icon to show on the left of the field.
      */
@@ -43,14 +42,14 @@ interface SelectorFieldProps
     /**
      * Placeholder for the selector
      */
-    placeholder?: SelectorOption;
+    placeholder?: SelectOption;
     /**
      * The callback to call when the value changes.
      */
     onValueChange?: (id: string) => void;
 }
 
-export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
+export const Select = forwardRef<HTMLButtonElement, SelectProps>(
     (
         {
             disabled,
@@ -67,7 +66,7 @@ export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
         ref,
     ) => {
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [selectedValue, setSelectedValue] = useState<SelectorOption>(
+        const [selectedValue, setSelectedValue] = useState<SelectOption>(
             findValueByProps(value, options),
         );
 
@@ -84,10 +83,7 @@ export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
             }
         }, [disabled, isOpen]);
 
-        function findValueByProps(
-            value: SelectorFieldProps['value'],
-            options: SelectorOption[] = [],
-        ) {
+        function findValueByProps(value: SelectProps['value'], options: SelectOption[] = []) {
             return (
                 options.find((option) =>
                     typeof option === 'string' ? option === value : option.id === value,
@@ -99,7 +95,7 @@ export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
             setIsOpen((prev) => !prev);
         }
 
-        function handleOptionClick(option: SelectorOption) {
+        function handleOptionClick(option: SelectOption) {
             setSelectedValue(option);
             closeDropdown();
             onValueChange?.(typeof option === 'string' ? option : option.id);
@@ -131,18 +127,21 @@ export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
                                 {leadingIcon}
                             </span>
                         )}
+
                         <div className="flex w-full flex-row items-baseline gap-x-3">
                             {selectorText && (
                                 <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
                                     <OptionLabel option={selectorText} />
                                 </div>
                             )}
+
                             {supportingText && (
                                 <div className={cx(!placeholder && !selectedValue && 'ml-auto')}>
                                     <SecondaryText noErrorStyles>{supportingText}</SecondaryText>
                                 </div>
                             )}
                         </div>
+
                         <TriangleDown
                             className={cx(
                                 'text-neutral-10 transition-transform dark:text-neutral-92',
@@ -187,7 +186,7 @@ export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
     },
 );
 
-function OptionLabel({ option }: { option: SelectorOption }) {
+function OptionLabel({ option }: { option: SelectOption }) {
     if (typeof option === 'string') {
         return option;
     } else if ('renderLabel' in option) {
