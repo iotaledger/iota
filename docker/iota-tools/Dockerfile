@@ -22,7 +22,8 @@ RUN cargo build --profile ${PROFILE} \
     --bin iota-faucet \
     --bin stress \
     --bin iota-cluster-test \
-    --bin iota-tool
+    --bin iota-tool \
+    --bin iota-test-validator
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
@@ -37,6 +38,7 @@ COPY --from=builder /iota/target/release/iota-faucet /usr/local/bin
 COPY --from=builder /iota/target/release/stress /usr/local/bin
 COPY --from=builder /iota/target/release/iota-cluster-test /usr/local/bin
 COPY --from=builder /iota/target/release/iota-tool /usr/local/bin
+COPY --from=builder /iota/target/release/iota-test-validator /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION
