@@ -7,3 +7,49 @@
   - Demonstrates through examples for each output type the resulting move objects
   - Explains what commands need to be called in a PTB to claim the assets
   - Describes transaction sponsorship from iota addresses for shimmer claiming
+
+#### Claim of a NFT Output
+Once a NFT Output can be unlocked the claim of its assets can start
+
+1. The first step is to fetch the `NftOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L54-L78
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+
+2. Then we check the native tokens that possibily were held by this output. A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the `OTW` used for the native token `Coin`. 
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L80-L105
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+3. Finally, a PTB can be created using the `nft_output` as input and the `Bag` keys for iterating the native tokens extracted. 
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L107-L173
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
