@@ -80,14 +80,14 @@
             @apply bg-primary-80;
         }
     }
+}
 
-    .dark .custom-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: theme('colors.neutral.30') transparent;
-    }
+.dark * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.neutral.30') transparent;
+}
 
-    .custom-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: theme('colors.neutral.80') transparent;
-    }
+* {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.neutral.80') transparent;
 }
