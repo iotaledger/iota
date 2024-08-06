@@ -6,7 +6,7 @@ import cx from 'classnames';
 import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
-import { TextFieldWrapper } from '../text-field/TextFieldWrapper';
+import { InputWrapper } from '../input/InputWrapper';
 import { ListItem } from '../../atoms';
 
 export type SelectOption =
@@ -106,7 +106,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         }
 
         return (
-            <TextFieldWrapper
+            <InputWrapper
                 label={label}
                 caption={caption}
                 disabled={disabled}
@@ -181,7 +181,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         </Dropdown>
                     </div>
                 </div>
-            </TextFieldWrapper>
+            </InputWrapper>
         );
     },
 );
