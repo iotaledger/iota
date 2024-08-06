@@ -22,7 +22,7 @@ import {
     type StatsProps,
 } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
-import { getEpochStorageFundFlow } from '~/lib/utils';
+import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
 import { validatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
@@ -135,6 +135,13 @@ export default function EpochDetail() {
                             <IotaStats label="Net Inflow" amount={netInflow} />
                             <IotaStats label="Fund Inflow" amount={fundInflow} />
                             <IotaStats label="Fund Outflow" amount={fundOutflow} />
+                        </EpochStats>
+
+                        <EpochStats label="Supply">
+                            <IotaStats
+                                label="Supply Change"
+                                amount={getSupplyChangeAfterEpochEnd(epochData.endOfEpochInfo)}
+                            />
                         </EpochStats>
 
                         {isCurrentEpoch ? <ValidatorStatus /> : null}
