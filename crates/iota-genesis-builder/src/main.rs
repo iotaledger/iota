@@ -37,12 +37,6 @@ use tracing_subscriber::FmtSubscriber;
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
-    #[clap(
-        short,
-        long,
-        default_value_t = false,
-        help = "Compress the resulting object snapshot"
-    )]
     #[clap(long, help = "Disable global snapshot verification")]
     disable_global_snapshot_verification: bool,
 }
