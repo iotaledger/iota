@@ -93,10 +93,10 @@ export function TableHeaderCell({
                 ) : (
                     <span>{label}</span>
                 )}
-                {hasSort && sortOrder === 'asc' && (
+                {hasSort && sortOrder === TableHeaderCellSortOrder.Asc && (
                     <SortByUp className="ml-auto h-4 w-4 cursor-pointer" onClick={handleSort} />
                 )}
-                {hasSort && sortOrder === 'desc' && (
+                {hasSort && sortOrder === TableHeaderCellSortOrder.Desc && (
                     <SortByDown className="ml-auto h-4 w-4 cursor-pointer" onClick={handleSort} />
                 )}
             </div>
