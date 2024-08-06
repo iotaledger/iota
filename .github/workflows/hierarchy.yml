@@ -25,17 +25,45 @@ jobs:
       - name: Check dprint formatting
         run: dprint check
 
-  rust:
+  typos:
     needs:
       - dprint-format
+    uses: ./.github/workflows/_typos.yml
+
+  docusaurus:
+    needs: typos
+    uses: ./.github/workflows/_docusaurus.yml
+
+  docs-lint:
+    needs: typos
+    uses: ./.github/workflows/_docs_lint.yml
+
+  turborepo:
+    needs:
+      - docusaurus
+      - docs-lint
+    uses: ./.github/workflows/_turborepo.yml
+
+  rust:
+    needs:
+      - docusaurus
+      - docs-lint
     uses: ./.github/workflows/_rust.yml
 
   external:
     needs:
-      - dprint-format
+      - docusaurus
+      - docs-lint
     uses: ./.github/workflows/_external.yml
 
   mysticeti:
     needs:
-      - dprint-format
+      - docusaurus
+      - docs-lint
     uses: ./.github/workflows/_mysticeti.yml
+
+  e2e:
+    needs:
+      - docusaurus
+      - docs-lint
+    uses: ./.github/workflows/_e2e.yml
