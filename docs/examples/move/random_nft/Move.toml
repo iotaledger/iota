@@ -5,8 +5,8 @@ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
 [dependencies]
-Iota = { local = "/Users/pk/repos/kinesis/crates/iota-framework/packages/iota-framework"}
-Stardust = { local = "/Users/pk/repos/kinesis/crates/iota-framework/packages/stardust"}
+Iota = { local = "/Users/pk/repos/kinesis/crates/iota-framework/packages/iota-framework" }
+Stardust = { local = "/Users/pk/repos/kinesis/crates/iota-framework/packages/stardust" }
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.
@@ -35,4 +35,3 @@ random_nft = "0x0"
 # The dev-addresses section allows overwriting named addresses for the `--test`
 # and `--dev` modes.
 # alice = "0xB0B"
-

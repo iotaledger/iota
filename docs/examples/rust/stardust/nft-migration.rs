@@ -212,7 +212,7 @@ async fn publish_random_nft_package(
     };
 
     // Setup gas budget and gas price
-    let gas_budget = 10_000_0000;
+    let gas_budget = 100_000_000;
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
@@ -237,7 +237,10 @@ async fn publish_random_nft_package(
         )
         .await?;
 
-    println!("Package publishing transaction digest: {}", transaction_response.digest);
+    println!(
+        "Package publishing transaction digest: {}",
+        transaction_response.digest
+    );
 
     if let Some(effects) = transaction_response.effects {
         if let Some(package_ref) = effects.created().first() {
