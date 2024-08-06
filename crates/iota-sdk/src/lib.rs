@@ -203,6 +203,10 @@ impl IotaClientBuilder {
     /// }
     /// ```
     pub async fn build(self, http: impl AsRef<str>) -> IotaRpcResult<IotaClient> {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .ok();
+
         let client_version = env!("CARGO_PKG_VERSION");
         let mut headers = HeaderMap::new();
         headers.insert(
