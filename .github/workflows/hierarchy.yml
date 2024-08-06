@@ -26,44 +26,38 @@ jobs:
         run: dprint check
 
   typos:
-    needs:
-      - dprint-format
     uses: ./.github/workflows/_typos.yml
 
   docusaurus:
-    needs: typos
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
-    needs: typos
     uses: ./.github/workflows/_docs_lint.yml
 
   turborepo:
     needs:
+      - dprint-format
+      - typos
       - docusaurus
       - docs-lint
     uses: ./.github/workflows/_turborepo.yml
 
   rust:
     needs:
-      - docusaurus
-      - docs-lint
+      - turborepo
     uses: ./.github/workflows/_rust.yml
 
   external:
     needs:
-      - docusaurus
-      - docs-lint
+      - turborepo
     uses: ./.github/workflows/_external.yml
 
   mysticeti:
     needs:
-      - docusaurus
-      - docs-lint
+      - turborepo
     uses: ./.github/workflows/_mysticeti.yml
 
   e2e:
     needs:
-      - docusaurus
-      - docs-lint
+      - turborepo
     uses: ./.github/workflows/_e2e.yml
