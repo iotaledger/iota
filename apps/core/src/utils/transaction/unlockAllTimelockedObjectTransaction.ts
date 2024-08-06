@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { TransactionBlock } from '@iota/iota.js/transactions';
@@ -24,7 +23,7 @@ export function unlockAllTimelockedObjectTransaction({ address, objectIds }: Opt
 
         // Convert Balance in Coin
         const [coin] = ptb.moveCall({
-            target: '0x02::coin::from_balance',
+            target: `${IOTA_FRAMEWORK_ADDRESS}::coin::from_balance`,
             typeArguments: [IOTA_TYPE_ARG],
             arguments: [ptb.object(unlock)],
         });

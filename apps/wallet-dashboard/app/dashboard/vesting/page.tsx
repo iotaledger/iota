@@ -18,12 +18,13 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
-    const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
+    const timelockedMapped = timelockedObjects ? mapTimelockObjects(timelockedObjects) : [];
     const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
+    const objectIds: string[] = timelockedMapped.map((timelocked) => timelocked.id.id) || [];
 
     const { data: unlockAllTimelockedObjects } = useCollectUnlockTimelockedObjects(
         account?.address || '',
-        timelockedMapped.map((timelocked) => timelocked.id.id) || [],
+        objectIds,
     );
 
     const handleCollect = () => {
