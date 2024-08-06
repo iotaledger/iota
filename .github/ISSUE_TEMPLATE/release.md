@@ -8,8 +8,8 @@ about: Request a new release
 - [ ] Edit `.github/workflows/rust.yml`
 - [ ] Edit `Cargo.toml`
 - [ ] Edit `crates/iota-open-rpc/spec/openrpc.json`
-- [ ] Edit `sdk/typescript/src/version.ts`
-- [ ] Update `Cargo.lock`
+- [ ] Update `sdk/typescript/src/version.ts` (`pnpm sdk build`)
+- [ ] Update `Cargo.lock` (`cargo check`)
 - [ ] Update `crates/iota-framework/packages/deepbook/Move.lock`
 - [ ] Update `crates/iota-framework/packages/iota-framework/Move.lock`
 - [ ] Update `crates/iota-framework/packages/iota-system/Move.lock`
