@@ -3,7 +3,7 @@ description: There currently are 6 core smart contracts that are always deployed
 image: /img/banner/banner_wasp_core_contracts_overview.png
 tags:
   - core-contract
-    - reference
+  - reference
 ---
 
 # Core Contracts
