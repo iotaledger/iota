@@ -1980,9 +1980,6 @@ importers:
       bech32:
         specifier: ^2.0.0
         version: 2.0.0
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
       gql.tada:
         specifier: ^1.4.1
         version: 1.7.5(graphql@16.8.1)(typescript@5.3.3)
@@ -2032,6 +2029,9 @@ importers:
       cross-env:
         specifier: ^7.0.3
         version: 7.0.3
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       graphql-config:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@20.4.2)(graphql@16.8.1)
