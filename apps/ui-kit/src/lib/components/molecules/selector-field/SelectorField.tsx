@@ -48,10 +48,6 @@ interface SelectorFieldProps
      * The callback to call when the value changes.
      */
     onValueChange?: (id: string) => void;
-    /**
-     * Name of the field.
-     */
-    name?: string;
 }
 
 export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
@@ -66,7 +62,6 @@ export const SelectorField = forwardRef<HTMLButtonElement, SelectorFieldProps>(
             options,
             placeholder,
             onValueChange,
-            name,
             value,
         },
         ref,
