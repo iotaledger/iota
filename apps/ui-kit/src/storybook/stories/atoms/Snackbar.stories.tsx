@@ -17,8 +17,9 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         type: SnackbarType.Default,
-        isOpen: true,
         text: 'Test message',
+        showClose: false,
+        duration: 2000,
     },
     argTypes: {},
     render: (props) => {
@@ -30,8 +31,11 @@ export const Default: Story = {
 
         return (
             <>
-                <Button onClick={() => setIsOpen(true)} text="Open Snackbar" />
-                <Snackbar {...props} isOpen={isOpen} onClose={onClose} />
+                <Button
+                    onClick={() => setIsOpen(!isOpen)}
+                    text={isOpen ? 'Close Snackbar' : 'Open Snackbar'}
+                />
+                {isOpen && <Snackbar {...props} onClose={onClose} />}
             </>
         );
     },

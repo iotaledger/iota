@@ -14,11 +14,6 @@ export interface SnackbarProps {
     text: string;
 
     /**
-     * State for the snackbar.
-     */
-    isOpen: boolean;
-
-    /**
      * Type of the snackbar.
      */
     type: SnackbarType;
@@ -41,20 +36,17 @@ export interface SnackbarProps {
 
 export function Snackbar({
     text,
-    isOpen = true,
     duration = 2000,
     onClose,
     showClose,
     type = SnackbarType.Default,
 }: SnackbarProps) {
     useEffect(() => {
-        if (isOpen && duration) {
+        if (duration) {
             const timer = setTimeout(onClose, duration);
             return () => clearTimeout(timer);
         }
-    }, [isOpen, duration, onClose]);
-
-    const openedClass = isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0';
+    }, [duration, onClose]);
 
     return (
         <div
@@ -63,7 +55,6 @@ export function Snackbar({
                 'z-99 bottom-0',
                 'flex w-full items-center justify-between gap-1 rounded-md py-sm pl-md pr-sm',
                 BACKGROUND_COLOR[type],
-                openedClass,
             )}
         >
             <p className={cx('text-left text-body-md', TEXT_COLOR[type])}>{text}</p>
