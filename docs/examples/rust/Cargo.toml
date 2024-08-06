@@ -12,6 +12,7 @@ tokio.workspace = true
 
 bcs.workspace = true
 iota-keys.workspace = true
+iota-move-build.workspace = true
 iota-sdk.workspace = true
 move-core-types.workspace = true
 serde_json.workspace = true

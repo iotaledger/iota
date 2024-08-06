@@ -5,26 +5,27 @@
 //! In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
-use std::{env, fs, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf};
 
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Result};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_move_build::BuildConfig;
 use iota_sdk::{
-    rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
+    rpc_types::{
+        IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
+    },
     types::{
-        base_types::ObjectID,
+        base_types::{IotaAddress, ObjectID},
         crypto::SignatureScheme::ED25519,
-        dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        stardust::output::{Nft, NftOutput},
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
-        TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
+        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
     IotaClient, IotaClientBuilder,
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -32,7 +33,6 @@ const RANDOM_NFT_PACKAGE_PATH: &str = "../move/random_nft";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let random_nft_package_id = publish_random_nft_package()?;
     // Build an iota client for a local network
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
@@ -43,6 +43,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
 
     println!("{sender:?}");
+
+    let random_nft_package_id =
+        publish_random_nft_package(sender, &mut keystore, &iota_client, RANDOM_NFT_PACKAGE_PATH)
+            .await?;
 
     // Get a gas coin
     let gas_coin = iota_client
@@ -83,9 +87,9 @@ async fn main() -> Result<(), anyhow::Error> {
             type_arguments,
             arguments,
         ) {
-            // If the nft output can be unlocked, the command will be succesful and will
-            // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens and
-            // related nft object.
+            // If the nft output can be unlocked, the command will be succesful
+            // and will return a `base_token` (i.e., IOTA) balance and a
+            // `Bag` of native tokens and related nft object.
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
             let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
             let nft_asset = Argument::NestedResult(extracted_assets, 2);
@@ -175,26 +179,72 @@ fn clean_keystore() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn publish_random_nft_package() -> Result<ObjectID, anyhow::Error> {
-    let output = std::process::Command::new("iota")
-        .arg("client")
-        .arg("publish")
-        .arg(RANDOM_NFT_PACKAGE_PATH)
-        .arg("--gas-budget")
-        .arg("100000000")
-        .output()
-        .expect("Failed to execute command");
+async fn publish_random_nft_package(
+    sender: IotaAddress,
+    keystore: &mut FileBasedKeystore,
+    iota_client: &IotaClient,
+    package_path: &str,
+) -> Result<ObjectID> {
+    // Get a gas coin.
+    let gas_coin = iota_client
+        .coin_read_api()
+        .get_coins(sender, None, None, None)
+        .await?
+        .data
+        .into_iter()
+        .next()
+        .ok_or(anyhow!("No coins found"))?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let keyword = "PackageID:";
-    Ok(ObjectID::from_str(
-        stdout
-            .lines()
-            .find_map(|line| {
-                line.split_once(keyword)
-                    .map(|(_, value)| value.split_whitespace().next().unwrap_or(""))
-            })
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| anyhow::anyhow!("Some error during package publishing"))?,
-    )?)
+    let compiled_package = BuildConfig::default().build(package_path.into())?;
+    let modules = compiled_package
+        .get_modules()
+        .map(|module| {
+            let mut buf = Vec::new();
+            module.serialize(&mut buf)?;
+            Ok(buf)
+        })
+        .collect::<Result<Vec<Vec<u8>>>>()?;
+    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.publish_immutable(modules, dependencies);
+        builder.finish()
+    };
+
+    // Setup gas budget and gas price
+    let gas_budget = 10_000_0000;
+    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+
+    // Create the transaction data that will be sent to the network
+    let tx_data = TransactionData::new_programmable(
+        sender,
+        vec![gas_coin.object_ref()],
+        pt,
+        gas_budget,
+        gas_price,
+    );
+
+    // Sign the transaction
+    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+
+    // Execute transaction
+    let transaction_response = iota_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_data(tx_data, vec![signature]),
+            IotaTransactionBlockResponseOptions::full_content(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+
+    println!("Package publishing transaction digest: {}", transaction_response.digest);
+
+    if let Some(effects) = transaction_response.effects {
+        if let Some(package_ref) = effects.created().first() {
+            let package_id = package_ref.reference.object_id;
+            println!("Package ID: {}", package_id);
+            return Ok(package_id);
+        }
+    }
+    Err(anyhow!("Package publishing failed"))
 }
