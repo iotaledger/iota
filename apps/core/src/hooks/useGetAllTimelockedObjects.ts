@@ -11,7 +11,7 @@ const MAX_OBJECTS_PER_REQ = 10;
 export function useGetAllTimelockedObjects(address: string) {
     const client = useIotaClient();
     const filter: IotaObjectDataFilter = {
-        MatchAll: [{ StructType: TIMELOCK_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
+        MatchAny: [{ StructType: TIMELOCK_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
     };
     return useQuery({
         queryKey: ['get-all-timelocked-objects', address, filter],
