@@ -17,6 +17,8 @@ jobs:
 
   test:
     name: Test ${{ matrix.components }}
+    needs: changes
+    if: needs.changes.outputs.components != '[]'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -27,7 +29,6 @@ jobs:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
     runs-on: [self-hosted]
-    needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
@@ -36,6 +37,8 @@ jobs:
 
   iota-sdk-changes:
     runs-on: [self-hosted]
+    outputs:
+      changed: ${{ steps.filter.outputs.iota-sdk }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: dorny/paths-filter@v3
@@ -47,7 +50,7 @@ jobs:
 
   test-iota-sdk:
     name: Test iota-sdk
-    if: needs.iota-sdk-changes.outputs.iota-sdk == 'true'
+    if: needs.iota-sdk-changes.outputs.changed == 'true'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
