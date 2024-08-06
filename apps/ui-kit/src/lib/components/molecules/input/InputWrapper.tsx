@@ -3,14 +3,15 @@
 
 import cx from 'classnames';
 import { SecondaryText } from '../../atoms/secondary-text';
+import { LABEL_CLASSES } from './input.classes';
 
-export interface TextFieldWrapperProps {
+export interface InputWrapperProps {
     /**
-     * Shows a label with the text above the input field.
+     * Shows a label with the text above the input.
      */
     label?: string;
     /**
-     * Shows a caption with the text below the input field.
+     * Shows a caption with the text below the input.
      */
     caption?: string;
     /**
@@ -22,11 +23,11 @@ export interface TextFieldWrapperProps {
      */
     amountCounter?: string | number;
     /**
-     * Is the input field required
+     * Is the input required
      */
     required?: boolean;
     /**
-     * Is the input field disabled
+     * Is the input disabled
      */
     disabled?: boolean;
     /**
@@ -35,7 +36,7 @@ export interface TextFieldWrapperProps {
     useDivAsLabel?: boolean;
 }
 
-export function TextFieldWrapper({
+export function InputWrapper({
     label,
     caption,
     disabled,
@@ -44,7 +45,7 @@ export function TextFieldWrapper({
     required,
     useDivAsLabel,
     children,
-}: React.PropsWithChildren<TextFieldWrapperProps>) {
+}: React.PropsWithChildren<InputWrapperProps>) {
     return (
         <div
             className={cx('group flex flex-col gap-y-2', {
@@ -78,7 +79,6 @@ export function TextFieldWrapper({
     );
 }
 
-const LABEL_CLASSES = 'flex flex-col gap-y-2 text-label-lg text-neutral-40 dark:text-neutral-60';
 function LabelOrDiv({
     useDivAsLabel,
     children,

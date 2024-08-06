@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef, useState } from 'react';
-import { TextFieldPropsByType } from './text-field.types';
-import { TextFieldType } from './text-field.enums';
-import { TextFieldTrailingElement } from './TextFieldTrailingElement';
+import { InputTrailingElement } from './InputTrailingElement';
 import cx from 'classnames';
-import { TextFieldWrapper, type TextFieldWrapperProps } from './TextFieldWrapper';
+import { InputWrapper, InputWrapperProps } from './InputWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
     INPUT_TEXT_CLASSES,
-    PLACEHOLDER_TEXT_CLASSES,
-} from './text-field.classes';
+    INPUT_NUMBER_CLASSES,
+    INPUT_PLACEHOLDER_CLASSES,
+} from './input.classes';
+import { InputType } from './input.enums';
+import { InputPropsByType } from './input.types';
 import { SecondaryText } from '../../atoms/secondary-text';
 
 type InputPickedProps = Pick<
@@ -32,13 +33,13 @@ type InputPickedProps = Pick<
     | 'id'
 >;
 
-interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
+interface InputBaseProps extends InputPickedProps, InputWrapperProps {
     /**
-     * Callback function that is called when the input field value changes
+     * Callback function that is called when the input value changes
      */
     onChange?: (value: string, name?: string) => void;
     /**
-     * A leading icon that is shown before the input field
+     * A leading icon that is shown before the input
      */
     leadingIcon?: React.JSX.Element;
     /**
@@ -50,11 +51,11 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
      */
     amountCounter?: string | number;
     /**
-     * Trailing element that is shown after the input field
+     * Trailing element that is shown after the input
      */
     trailingElement?: React.JSX.Element;
     /**
-     * Ref for the input field
+     * Ref for the input
      */
     ref?: React.RefObject<HTMLInputElement>;
     /**
@@ -62,7 +63,7 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
      */
     isContentVisible?: boolean;
     /**
-     * Value of the input field
+     * Value of the input
      */
     value?: string;
     /**
@@ -71,9 +72,9 @@ interface TextFieldBaseProps extends InputPickedProps, TextFieldWrapperProps {
     onClearInput?: () => void;
 }
 
-export type TextFieldProps = TextFieldBaseProps & TextFieldPropsByType;
+export type InputProps = InputBaseProps & InputPropsByType;
 
-export function TextField({
+export function Input({
     name,
     label,
     placeholder,
@@ -100,19 +101,17 @@ export function TextField({
     onClearInput,
     isContentVisible,
     ...inputProps
-}: TextFieldProps) {
+}: InputProps) {
     const fallbackRef = useRef<HTMLInputElement>(null);
     const inputRef = ref ?? fallbackRef;
 
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
-        isContentVisible ?? inputProps.type !== TextFieldType.Password,
+        isContentVisible ?? inputProps.type !== InputType.Password,
     );
 
     useEffect(() => {
-        if (isContentVisible !== undefined) {
-            setIsInputContentVisible(isContentVisible);
-        }
-    }, [isContentVisible]);
+        setIsInputContentVisible(isContentVisible ?? inputProps.type !== InputType.Password);
+    }, [inputProps.type, isContentVisible]);
 
     function onToggleButtonClick() {
         setIsInputContentVisible((prev) => !prev);
@@ -125,7 +124,7 @@ export function TextField({
     }
 
     return (
-        <TextFieldWrapper
+        <InputWrapper
             label={label}
             caption={caption}
             disabled={disabled}
@@ -143,7 +142,7 @@ export function TextField({
 
                 <input
                     type={
-                        inputProps.type === TextFieldType.Password && isInputContentVisible
+                        inputProps.type === InputType.Password && isInputContentVisible
                             ? 'text'
                             : inputProps.type
                     }
@@ -163,15 +162,20 @@ export function TextField({
                     max={max}
                     min={min}
                     step={step}
-                    className={cx(INPUT_CLASSES, INPUT_TEXT_CLASSES, PLACEHOLDER_TEXT_CLASSES)}
+                    className={cx(
+                        INPUT_CLASSES,
+                        INPUT_TEXT_CLASSES,
+                        INPUT_PLACEHOLDER_CLASSES,
+                        INPUT_NUMBER_CLASSES,
+                    )}
                 />
 
                 {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
 
                 {(trailingElement ||
-                    (inputProps.type === TextFieldType.Password &&
+                    (inputProps.type === InputType.Password &&
                         inputProps.isVisibilityToggleEnabled)) && (
-                    <TextFieldTrailingElement
+                    <InputTrailingElement
                         onClearInput={onClearInput}
                         onToggleButtonClick={onToggleButtonClick}
                         trailingElement={trailingElement}
@@ -179,6 +183,6 @@ export function TextField({
                     />
                 )}
             </div>
-        </TextFieldWrapper>
+        </InputWrapper>
     );
 }
