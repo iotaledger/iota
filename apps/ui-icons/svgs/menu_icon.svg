@@ -1,0 +1,12 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="24" height="24" />
+<g id="Icons">
+<rect width="948" height="1081" transform="translate(-282 -881)" />
+<g id="menu_icon">
+<g id="icon">
+<path d="M21 9C21 9.55228 20.5523 10 20 10H4C3.44771 10 3 9.55228 3 9C3 8.44772 3.44771 8 4 8H20C20.5523 8 21 8.44772 21 9Z" fill="#171D26"/>
+<path d="M21 15C21 15.5523 20.5523 16 20 16H10C9.44771 16 9 15.5523 9 15C9 14.4477 9.44771 14 10 14H20C20.5523 14 21 14.4477 21 15Z" fill="#171D26"/>
+</g>
+</g>
+</g>
+</svg>

@@ -3,10 +3,10 @@
 
 import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import { NavbarItem } from '@/components';
+import { NavbarItem, NavbarItemType } from '@/components';
 import { Home } from '@iota/ui-icons';
 
-const meta = {
+const meta: Meta<typeof NavbarItem> = {
     component: NavbarItem,
     tags: ['autodocs'],
     render: (props) => {
@@ -34,6 +34,10 @@ export const Default: Story = {
         },
         isSelected: {
             control: 'boolean',
+        },
+        type: {
+            control: 'select',
+            options: Object.values(NavbarItemType),
         },
     },
 };

@@ -23,4 +23,4 @@ name = "Root"
 
 [dependencies]
 A = { local = "./deps_only/A" }
-C = { local = "./deps_only/C2" , override = true }
+C = { local = "./deps_only/C2", override = true }

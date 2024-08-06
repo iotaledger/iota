@@ -82,7 +82,6 @@ import Link from '@docusaurus/Link';
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="../iota-framework/vec_map#0x2_vec_map">0x2::vec_map</Link>;
 <b>use</b> <Link to="../iota-framework/vec_set#0x2_vec_set">0x2::vec_set</Link>;
-<b>use</b> <Link to="stake_subsidy#0x3_stake_subsidy">0x3::stake_subsidy</Link>;
 <b>use</b> <Link to="staking_pool#0x3_staking_pool">0x3::staking_pool</Link>;
 <b>use</b> <Link to="storage_fund#0x3_storage_fund">0x3::storage_fund</Link>;
 <b>use</b> <Link to="validator#0x3_validator">0x3::validator</Link>;
@@ -116,13 +115,6 @@ epoch_duration_ms: u64</code>
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
-</dd>
-<dt>
-<code>
-stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
- The starting epoch in which stake subsidies start being paid out
 </dd>
 <dt>
 <code>
@@ -204,13 +196,6 @@ epoch_duration_ms: u64</code>
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
-</dd>
-<dt>
-<code>
-stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
- The starting epoch in which stake subsidies start being paid out
 </dd>
 <dt>
 <code>
@@ -367,13 +352,6 @@ validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap
 </dd>
 <dt>
 <code>
-<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link></code>
-</dt>
-<dd>
- Schedule of stake subsidies given out each epoch.
-</dd>
-<dt>
-<code>
 safe_mode: bool</code>
 </dt>
 <dd>
@@ -524,13 +502,6 @@ validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_VecMap
 </dd>
 <dt>
 <code>
-<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link></code>
-</dt>
-<dd>
- Schedule of stake subsidies given out each epoch.
-</dd>
-<dt>
-<code>
 safe_mode: bool</code>
 </dt>
 <dd>
@@ -659,13 +630,6 @@ storage_fund_balance: u64</code>
 </dd>
 <dt>
 <code>
-stake_subsidy_amount: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
 total_gas_fees: u64</code>
 </dt>
 <dd>
@@ -674,13 +638,6 @@ total_gas_fees: u64</code>
 <dt>
 <code>
 total_stake_rewards_distributed: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
-burnt_leftover_amount: u64</code>
 </dt>
 <dd>
 
@@ -858,7 +815,7 @@ This function will be called only once in genesis.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create">create</Link>(iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, initial_storage_fund: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>, <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: <Link to="stake_subsidy#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="iota_system_state_inner#0x3_iota_system_state_inner_IotaSystemStateInner">iota_system_state_inner::IotaSystemStateInner</Link>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create">create</Link>(iota_treasury_cap: <Link to="../iota-framework/iota#0x2_iota_IotaTreasuryCap">iota::IotaTreasuryCap</Link>, validators: <Link to="../move-stdlib/vector#0x1_vector">vector</Link>&lt;<Link to="validator#0x3_validator_Validator">validator::Validator</Link>&gt;, initial_storage_fund: <Link to="../iota-framework/balance#0x2_balance_Balance">balance::Balance</Link>&lt;<Link to="../iota-framework/iota#0x2_iota_IOTA">iota::IOTA</Link>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="iota_system_state_inner#0x3_iota_system_state_inner_IotaSystemStateInner">iota_system_state_inner::IotaSystemStateInner</Link>
 </code></pre>
 
 
@@ -875,7 +832,6 @@ This function will be called only once in genesis.
     protocol_version: u64,
     epoch_start_timestamp_ms: u64,
     parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">SystemParameters</Link>,
-    <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>: StakeSubsidy,
     ctx: &<b>mut</b> TxContext,
 ): <Link to="iota_system_state_inner#0x3_iota_system_state_inner_IotaSystemStateInner">IotaSystemStateInner</Link> \{
     <b>let</b> validators = <Link to="validator_set#0x3_validator_set_new">validator_set::new</Link>(validators, ctx);
@@ -891,7 +847,6 @@ This function will be called only once in genesis.
         parameters,
         reference_gas_price,
         validator_report_records: <Link to="../iota-framework/vec_map#0x2_vec_map_empty">vec_map::empty</Link>(),
-        <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>,
         safe_mode: <b>false</b>,
         safe_mode_storage_charges: <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>(),
         safe_mode_computation_rewards: <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>(),
@@ -915,7 +870,7 @@ This function will be called only once in genesis.
 
 
 <pre><code>
-<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</Link>(epoch_duration_ms: u64, stake_subsidy_start_epoch: u64, max_validator_count: u64, min_validator_joining_stake: u64, validator_low_stake_threshold: u64, validator_very_low_stake_threshold: u64, validator_low_stake_grace_period: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>
+<b>public</b>(<b>friend</b>) <b>fun</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</Link>(epoch_duration_ms: u64, max_validator_count: u64, min_validator_joining_stake: u64, validator_low_stake_threshold: u64, validator_very_low_stake_threshold: u64, validator_low_stake_grace_period: u64, ctx: &<b>mut</b> <Link to="../iota-framework/tx_context#0x2_tx_context_TxContext">tx_context::TxContext</Link>): <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</Link>
 </code></pre>
 
 
@@ -927,7 +882,6 @@ This function will be called only once in genesis.
 <pre><code>
 <b>public</b>(package) <b>fun</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</Link>(
     epoch_duration_ms: u64,
-    stake_subsidy_start_epoch: u64,
 
     // Validator committee parameters
     max_validator_count: u64,
@@ -939,7 +893,6 @@ This function will be called only once in genesis.
 ): <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">SystemParameters</Link> \{
     <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">SystemParameters</Link> \{
         epoch_duration_ms,
-        stake_subsidy_start_epoch,
         max_validator_count,
         min_validator_joining_stake,
         validator_low_stake_threshold,
@@ -982,7 +935,6 @@ This function will be called only once in genesis.
         parameters,
         reference_gas_price,
         validator_report_records,
-        <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>,
         safe_mode,
         safe_mode_storage_charges,
         safe_mode_computation_rewards,
@@ -993,7 +945,6 @@ This function will be called only once in genesis.
     } = self;
     <b>let</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParameters">SystemParameters</Link> \{
         epoch_duration_ms,
-        stake_subsidy_start_epoch,
         max_validator_count,
         min_validator_joining_stake,
         validator_low_stake_threshold,
@@ -1010,7 +961,6 @@ This function will be called only once in genesis.
         <Link to="storage_fund#0x3_storage_fund">storage_fund</Link>,
         parameters: <Link to="iota_system_state_inner#0x3_iota_system_state_inner_SystemParametersV2">SystemParametersV2</Link> \{
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             min_validator_count: 4,
             max_validator_count,
             min_validator_joining_stake,
@@ -1021,7 +971,6 @@ This function will be called only once in genesis.
         },
         reference_gas_price,
         validator_report_records,
-        <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>,
         safe_mode,
         safe_mode_storage_charges,
         safe_mode_computation_rewards,
@@ -2291,7 +2240,6 @@ or smaller than the computation reward.
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     ctx: &<b>mut</b> TxContext,
 ) : Balance&lt;IOTA&gt; \{
-    <b>let</b> prev_epoch_start_timestamp = self.epoch_start_timestamp_ms;
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
 
     <b>let</b> bps_denominator_u64 = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</Link> <b>as</b> u64;
@@ -2311,24 +2259,7 @@ or smaller than the computation reward.
     <b>let</b> storage_charge_value = storage_charge.value();
     <b>let</b> computation_charge = computation_reward.value();
 
-    // Include stake subsidy in the rewards given out <b>to</b> validators and stakers.
-    // Delay distributing any stake subsidies until after `stake_subsidy_start_epoch`.
-    // And <b>if</b> this epoch is shorter than the regular epoch duration, don't distribute any stake subsidy.
-    <b>let</b> <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link> =
-        <b>if</b> (ctx.<Link to="iota_system_state_inner#0x3_iota_system_state_inner_epoch">epoch</Link>() &gt;= self.parameters.stake_subsidy_start_epoch  &&
-            epoch_start_timestamp_ms &gt;= prev_epoch_start_timestamp + self.parameters.epoch_duration_ms)
-        \{
-            self.<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>.<Link to="iota_system_state_inner#0x3_iota_system_state_inner_advance_epoch">advance_epoch</Link>()
-        } <b>else</b> \{
-            <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>()
-        };
-
-    // The stake subsidy fund is disabled through parameter choices in GenesisCeremonyParameters,
-    // so it is always a zero <Link to="../iota-framework/balance#0x2_balance">balance</Link> now. It will be fully removed in a later step.
-    <b>let</b> stake_subsidy_amount = <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>.value();
-    computation_reward.join(<Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>);
-
-    <b>let</b> (<b>mut</b> total_validator_rewards, minted_tokens_amount, burnt_tokens_amount) = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</Link>(
+    <b>let</b> (<b>mut</b> total_validator_rewards, minted_tokens_amount, <b>mut</b> burnt_tokens_amount) = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_match_computation_reward_to_target_reward">match_computation_reward_to_target_reward</Link>(
         validator_target_reward,
         computation_reward,
         &<b>mut</b> self.iota_treasury_cap,
@@ -2363,9 +2294,8 @@ or smaller than the computation reward.
     // Because of precision issues <b>with</b> integer divisions, we expect that there will be some
     // remaining <Link to="../iota-framework/balance#0x2_balance">balance</Link> in `total_validator_rewards`.
     <b>let</b> leftover_staking_rewards = total_validator_rewards;
-    <b>let</b> burnt_leftover_amount = leftover_staking_rewards.value();
-
-    // Burning leftover rewards
+    // Burn any remaining leftover rewards.
+    burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
     self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
     <b>let</b> refunded_storage_rebate =
@@ -2384,11 +2314,8 @@ or smaller than the computation reward.
             storage_charge: storage_charge_value,
             storage_rebate: storage_rebate_amount,
             storage_fund_balance: self.<Link to="storage_fund#0x3_storage_fund">storage_fund</Link>.total_balance(),
-            // TODO: remove(obsolete)
-            stake_subsidy_amount,
             total_gas_fees: computation_charge,
             total_stake_rewards_distributed: total_validator_rewards_distributed,
-            burnt_leftover_amount,
             burnt_tokens_amount,
             minted_tokens_amount
         }

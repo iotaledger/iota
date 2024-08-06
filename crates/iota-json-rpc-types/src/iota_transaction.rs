@@ -1385,7 +1385,7 @@ impl Display for IotaTransactionBlock {
                     Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
                     _ => Base64::from_bytes(tx_sig.as_ref()).encoded(), /* the signatures for
                                                                          * multisig and zklogin
-                                                                         * are not iotated to be
+                                                                         * are not suited to be
                                                                          * parsed out. they
                                                                          * should be interpreted
                                                                          * as a whole */

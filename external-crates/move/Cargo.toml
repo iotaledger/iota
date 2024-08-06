@@ -2,10 +2,10 @@
 resolver = "2"
 
 members = [
-    "crates/*",
-    "move-execution/v0/crates/move-bytecode-verifier",
-    "move-execution/v0/crates/move-vm-runtime",
-    "move-execution/v0/crates/move-stdlib",
+  "crates/*",
+  "move-execution/v0/crates/move-bytecode-verifier",
+  "move-execution/v0/crates/move-stdlib",
+  "move-execution/v0/crates/move-vm-runtime",
 ]
 
 # Dependencies that should be kept in sync through the whole workspace
@@ -110,6 +110,6 @@ opt-level = 3
 # use release settings to reduce memory pressure in the linking step in CI
 [profile.ci]
 inherits = "test"
-debug = 0           # for saving disk space during linking
+debug = 0 # for saving disk space during linking
 incremental = false
 codegen-units = 16

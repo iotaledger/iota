@@ -31,6 +31,7 @@ iota-keys.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+rustls = "0.23"
 shared-crypto.workspace = true
 tracing.workspace = true
 
@@ -42,7 +43,6 @@ tracing.workspace = true
 async-recursion.workspace = true
 dirs.workspace = true
 rand.workspace = true
-rustls = "0.23"
 tempfile.workspace = true
 
 [[example]]
