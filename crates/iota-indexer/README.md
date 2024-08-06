@@ -15,7 +15,7 @@ Iota indexer is an off-fullnode service to serve data from Iota protocol, includ
 
 ## Database Schema
 
-For a more in depth information check the [Database Schema](./schema.md).
+For more in depth information check the [Database Schema](./schema.md).
 
 ## Steps to run locally
 

@@ -77,12 +77,7 @@ These are the following tables indexes:
 | package, module, func, tx_sequence_number |
 |            tx_sequence_number             |
                                    
-- ### Tx Senders
-|        Keys        | Condition |
-|:------------------:|:---------:|
-| tx_sequence_number |    ASC    |
-
-- ### Tx Recipients
+- ### Tx Senders,  Tx Recipients
 |        Keys        | Condition |
 |:------------------:|:---------:|
 | tx_sequence_number |    ASC    |
@@ -91,12 +86,7 @@ These are the following tables indexes:
 ## Partitions
 Some tables also provide dedicated partitions:
 
-- ### Transactions
-|            Keys            |             Condition             |
-|:--------------------------:|:---------------------------------:|
-| checkpoint_sequence_number | FOR VALUES FROM (0) TO (MAXVALUE) |
-
-- ### Objects History
+- ### Transactions, Objects History
 |            Keys            |             Condition             |
 |:--------------------------:|:---------------------------------:|
 | checkpoint_sequence_number | FOR VALUES FROM (0) TO (MAXVALUE) |
