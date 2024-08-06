@@ -97,8 +97,11 @@ const getResultsForAddress = async (
             limit: 1,
         }),
     ]);
+    // Note: we need to query owned objects separately
+    // because genesis addresses might not be involved in any transaction yet.
+    const { data: ownedObjects } = await client.getOwnedObjects({ owner: normalized });
 
-    if (!from.data?.length && !to.data?.length) return null;
+    if (!from.data?.length && !to.data?.length && !ownedObjects?.length) return null;
 
     return [
         {
