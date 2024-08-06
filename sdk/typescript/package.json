@@ -147,6 +147,7 @@
         "@scure/bip39": "^1.2.1",
         "@suchipi/femver": "^1.0.0",
         "bech32": "^2.0.0",
+        "dotenv": "^16.4.5",
         "gql.tada": "^1.4.1",
         "graphql": "^16.8.1",
         "superstruct": "^1.0.3",
