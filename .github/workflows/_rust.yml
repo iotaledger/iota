@@ -26,13 +26,33 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
-  lints:
+  rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
 
+  external-lints:
+    uses: ./.github/workflows/_external_rust_lints.yml
+
   rust-tests:
-    needs: lints
+    needs:
+      - rust-lints
+      - external-lints
     uses: ./.github/workflows/_rust_tests.yml
 
+  external-tests:
+    needs:
+      - rust-lints
+      - external-lints
+    uses: ./.github/workflows/_external_rust_tests.yml
+
+  mysticeti-tests:
+    needs:
+      - rust-lints
+      - external-lints
+    uses: ./.github/workflows/_mysticeti_tests.yml
+
   execution-cut:
-    needs: rust-tests
+    needs:
+      - rust-tests
+      - external-tests
+      - mysticeti-tests
     uses: ./.github/workflows/_execution_cut.yml

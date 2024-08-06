@@ -98,22 +98,12 @@ jobs:
     uses: ./.github/workflows/_move_tests.yml
 
   rust:
-    needs: diff
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
-    uses: ./.github/workflows/_rust.yml
-
-  external:
-    needs: diff
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
-    uses: ./.github/workflows/_external.yml
-
-  mysticeti:
     needs:
       - diff
       - dprint-format
       - typos
     if: ${{ needs.diff.outputs.isRust == 'true' }}
-    uses: ./.github/workflows/_mysticeti.yml
+    uses: ./.github/workflows/_rust.yml
 
   e2e:
     needs:
