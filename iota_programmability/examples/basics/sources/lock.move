@@ -28,19 +28,19 @@ module basics::lock {
     /// and contains all the needed information to open the Lock.
     public struct Key<phantom T: store + key> has key, store {
         id: UID,
-        keyFor: ID,
+        key_for: ID,
     }
 
     /// Returns an ID of a Lock for a given Key.
     public fun key_for<T: store + key>(key: &Key<T>): ID {
-        key.keyFor
+        key.key_for
     }
 
     /// Lock some content inside a shared object. A Key is created and is
     /// sent to the transaction sender.
     public fun create<T: store + key>(obj: T, ctx: &mut TxContext): Key<T> {
         let id = object::new(ctx);
-        let keyFor = object::uid_to_inner(&id);
+        let key_for = object::uid_to_inner(&id);
 
         transfer::public_share_object(Lock<T> {
             id,
@@ -48,7 +48,7 @@ module basics::lock {
         });
 
         Key<T> {
-            keyFor,
+            key_for,
             id: object::new(ctx)
         }
     }
@@ -61,7 +61,7 @@ module basics::lock {
         key: &Key<T>,
     ) {
         assert!(option::is_none(&lock.locked), ELockIsFull);
-        assert!(&key.keyFor == object::borrow_id(lock), EKeyMismatch);
+        assert!(&key.key_for == object::borrow_id(lock), EKeyMismatch);
 
         option::fill(&mut lock.locked, obj);
     }
@@ -75,7 +75,7 @@ module basics::lock {
         key: &Key<T>,
     ): T {
         assert!(option::is_some(&lock.locked), ELockIsEmpty);
-        assert!(&key.keyFor == object::borrow_id(lock), EKeyMismatch);
+        assert!(&key.key_for == object::borrow_id(lock), EKeyMismatch);
 
         option::extract(&mut lock.locked)
     }
