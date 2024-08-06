@@ -4,11 +4,8 @@
 
 module nfts::chat {
     use std::ascii::{Self, String};
-    use std::option::{Self, Option, some};
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-    use std::vector::length;
+    use std::option::some;
+
 
     /// Max text length.
     const MAX_TEXT_LENGTH: u64 = 512;
@@ -17,7 +14,7 @@ module nfts::chat {
     const ETextOverflow: u64 = 0;
 
     /// Iota Chat NFT (i.e., a post, retweet, like, chat message etc).
-    struct Chat has key, store {
+    public struct Chat has key, store {
         id: UID,
         // The ID of the chat app.
         app_id: address,
@@ -44,7 +41,7 @@ module nfts::chat {
         metadata: vector<u8>,
         ctx: &mut TxContext,
     ) {
-        assert!(length(&text) <= MAX_TEXT_LENGTH, ETextOverflow);
+        assert!(vector::length(&text) <= MAX_TEXT_LENGTH, ETextOverflow);
         let chat = Chat {
             id: object::new(ctx),
             app_id,
