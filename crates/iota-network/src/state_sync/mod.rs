@@ -185,10 +185,10 @@ impl PeerHeights {
             .filter(|(_peer_id, info)| info.on_same_chain_as_us)
     }
 
-    // Returns a bool that indicates if the update was done successfully.
-    //
-    // This will return false if the given peer doesn't have an entry or is not on
-    // the same chain as us
+    /// Returns a bool that indicates if the update was done successfully.
+    ///
+    /// This will return false if the given peer doesn't have an entry or is not
+    /// on the same chain as us
     pub fn update_peer_info(
         &mut self,
         peer_id: PeerId,
@@ -357,6 +357,7 @@ impl Iterator for PeerBalancer {
 
 #[derive(Clone, Debug)]
 enum StateSyncMessage {
+    // Node will send this to StateSyncEventLoop in order to kick off the state sync process.
     StartSyncJob,
     // Validators will send this to the StateSyncEventLoop in order to kick off notifying our
     // peers of the new checkpoint.
@@ -374,6 +375,7 @@ struct StateSyncEventLoop<S> {
     /// Weak reference to our own mailbox
     weak_sender: mpsc::WeakSender<StateSyncMessage>,
 
+    /// A set of all spawned tasks.
     tasks: JoinSet<()>,
     sync_checkpoint_summaries_task: Option<AbortHandle>,
     sync_checkpoint_contents_task: Option<AbortHandle>,
@@ -460,9 +462,12 @@ where
         loop {
             tokio::select! {
                 now = interval.tick() => {
+                    // query the latest checkpoint of connected peers that are on the
+                    // same chain as us. And check if download_limit_layer needs to be pruned or not.
                     self.handle_tick(now.into_std());
                 },
                 maybe_message = self.mailbox.recv() => {
+                    // handle StateSyncMessage.
                     // Once all handles to our mailbox have been dropped this
                     // will yield `None` and we can terminate the event loop
                     if let Some(message) = maybe_message {
@@ -472,8 +477,10 @@ where
                     }
                 },
                 peer_event = peer_events.recv() => {
+                    // handle new and closed peer connections.
                     self.handle_peer_event(peer_event);
                 },
+                // resolve the spawned tasks.
                 Some(task_result) = self.tasks.join_next() => {
                     match task_result {
                         Ok(()) => {},
@@ -489,14 +496,17 @@ where
                         },
                     };
 
+                    // The sync_checkpoint_contents task is expected to run indefinitely.
                     if matches!(&self.sync_checkpoint_contents_task, Some(t) if t.is_finished()) {
                         panic!("sync_checkpoint_contents task unexpectedly terminated")
                     }
 
+                    // Clean up sync_checkpoint_summaries_task if it's finished.
                     if matches!(&self.sync_checkpoint_summaries_task, Some(t) if t.is_finished()) {
                         self.sync_checkpoint_summaries_task = None;
                     }
 
+                    // The sync_checkpoint_from_archive_task task is expected to run indefinitely.
                     if matches!(&self.sync_checkpoint_from_archive_task, Some(t) if t.is_finished()) {
                         panic!("sync_checkpoint_from_archive task unexpectedly terminated")
                     }
@@ -589,7 +599,7 @@ where
                 .collect::<Vec<_>>();
         }
 
-        // If this is the last checkpoint of a epoch, we need to make sure
+        // If this is the last checkpoint of an epoch, we need to make sure
         // new committee is in store before we verify newer checkpoints in next epoch.
         // This could happen before this validator's reconfiguration finishes, because
         // state sync does not reconfig.
@@ -618,6 +628,7 @@ where
         // We don't care if no one is listening as this is a broadcast channel
         let _ = self.checkpoint_event_sender.send(checkpoint.clone());
 
+        // Notify connected peers of the new checkpoint
         self.spawn_notify_peers_of_checkpoint(checkpoint);
     }
 
@@ -677,6 +688,9 @@ where
         }
     }
 
+    /// Starts syncing checkpoint summaries if there are peers that have a
+    /// higher known checkpoint than us. Only one sync task is allowed to
+    /// run at a time.
     fn maybe_start_checkpoint_summary_sync_task(&mut self) {
         // Only run one sync task at a time
         if self.sync_checkpoint_summaries_task.is_some() {
@@ -723,6 +737,10 @@ where
         }
     }
 
+    /// Triggers the checkpoint contents sync task if
+    /// highest_verified_checkpoint > highest_synced_checkpoint and there
+    /// are peers that have highest_known_checkpoint >
+    /// highest_synced_checkpoint.
     fn maybe_trigger_checkpoint_contents_sync_task(
         &mut self,
         target_sequence_channel: &watch::Sender<CheckpointSequenceNumber>,
@@ -768,6 +786,8 @@ where
     }
 }
 
+/// Sends a notification of the new checkpoint to all connected peers that are
+/// on the same chain as us.
 async fn notify_peers_of_checkpoint(
     network: anemo::Network,
     peer_heights: Arc<RwLock<PeerHeights>>,
@@ -777,6 +797,7 @@ async fn notify_peers_of_checkpoint(
     let futs = peer_heights
         .read()
         .unwrap()
+        // Filter out any peers who is not on the same chain as us
         .peers_on_same_chain()
         // Filter out any peers who we know already have a checkpoint higher than this one
         .filter_map(|(peer_id, info)| {
@@ -793,6 +814,8 @@ async fn notify_peers_of_checkpoint(
     futures::future::join_all(futs).await;
 }
 
+/// Queries a peer for their latest PeerStateSyncInfo and
+/// keep the updated info in PeerHeights.
 async fn get_latest_from_peer(
     our_genesis_checkpoint_digest: CheckpointDigest,
     peer: anemo::Peer,
@@ -907,6 +930,10 @@ async fn query_peer_for_latest_info(
     }
 }
 
+/// Queries and update the latest checkpoint of connected peers that are on the
+/// same chain as us. If the received highest checkpoint of any peer is higher
+/// than the current one, we will start syncing via
+/// StateSyncMessage::StartSyncJob.
 async fn query_peers_for_their_latest_checkpoint(
     network: anemo::Network,
     peer_heights: Arc<RwLock<PeerHeights>>,
@@ -959,6 +986,10 @@ async fn query_peers_for_their_latest_checkpoint(
     }
 }
 
+/// Queries connected peers for checkpoints from sequence
+/// current+1 to the target, the received checkpoints will be verified and
+/// stored in the store. Checkpoints in temoprary store (peer_heights) will be
+/// cleaned up after syncing.
 async fn sync_to_checkpoint<S>(
     network: anemo::Network,
     store: S,
@@ -1120,6 +1151,9 @@ where
     Ok(())
 }
 
+/// Syncs checkpoint contents from one of the archive_readers if the
+/// highest_synced_checkpoint < lowest_checkpoint among peers. The requesting
+/// checkpoint range is from highest_synced_checkpoint+1 to lowest_checkpoint.
 async fn sync_checkpoint_contents_from_archive<S>(
     network: anemo::Network,
     archive_readers: ArchiveReaderBalancer,
@@ -1129,6 +1163,7 @@ async fn sync_checkpoint_contents_from_archive<S>(
     S: WriteStore + Clone + Send + Sync + 'static,
 {
     loop {
+        // get connected peers that are on the same chain as us
         let peers: Vec<_> = peer_heights
             .read()
             .unwrap()
@@ -1187,6 +1222,11 @@ async fn sync_checkpoint_contents_from_archive<S>(
     }
 }
 
+/// Syncs checkpoint contents from peers if the target sequence cursor, which is
+/// changed via target_sequence_channel, is greater than the current one. The
+/// requesting checkpoint range is from current_sequence+1 to
+/// target_sequence_cursor. It will also periodically notify the peers of our
+/// latest synced checkpoint.
 async fn sync_checkpoint_contents<S>(
     network: anemo::Network,
     store: S,
@@ -1262,7 +1302,7 @@ async fn sync_checkpoint_contents<S>(
             },
         }
 
-        // Start new tasks up to configured concurrency limits.
+        // Start syncing tasks up to configured concurrency limits.
         while current_sequence < target_sequence_cursor
             && checkpoint_contents_tasks.len() < checkpoint_content_download_concurrency
         {
@@ -1306,6 +1346,8 @@ async fn sync_checkpoint_contents<S>(
 }
 
 #[instrument(level = "debug", skip_all, fields(sequence_number = ?checkpoint.sequence_number()))]
+/// Requests a single checkpoint contents from peers if the store does not
+/// have it.
 async fn sync_one_checkpoint_contents<S>(
     network: anemo::Network,
     store: S,
@@ -1354,6 +1396,9 @@ where
 }
 
 #[instrument(level = "debug", skip_all)]
+/// Request the full checkpoint contents from peers if the store does not
+/// already have it. Requests are sent to peer one by one, until the contents
+/// are successfully retrieved.
 async fn get_full_checkpoint_contents<S>(
     peers: PeerBalancer,
     store: S,

@@ -30,6 +30,8 @@ use crate::{
 };
 
 #[tokio::test]
+// Test that the server stores the pushed checkpoint summary and triggers the
+// sync job.
 async fn server_push_checkpoint() {
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     let (ordered_checkpoints, _, _sequence_number_to_digest, _checkpoints) =
