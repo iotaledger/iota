@@ -6,6 +6,7 @@ import cx from 'classnames';
 import { Badge, BadgeType } from '../../atoms';
 import { Title } from '@/lib';
 import { ArrowDown, ArrowUp } from '@iota/ui-icons';
+import { ICON_STYLE } from './accordion.classes';
 
 interface AccordionProps {
     /**
@@ -56,9 +57,9 @@ export function Accordion({
 
     const arrow = (() => {
         if (isExpanded) {
-            return <ArrowUp className="h-5 w-5" />;
+            return <ArrowUp className={ICON_STYLE} />;
         }
-        return <ArrowDown className="h-5 w-5" />;
+        return <ArrowDown className={ICON_STYLE} />;
     })();
 
     return (
