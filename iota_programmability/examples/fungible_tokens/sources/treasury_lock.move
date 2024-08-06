@@ -11,11 +11,8 @@
 /// can mint new Coins up to a pre-defined per epoch limit. This can be used e.g.
 /// to create a faucet.
 module fungible_tokens::treasury_lock {
-    use iota::object::{Self, UID, ID};
     use iota::coin::{Self, TreasuryCap};
     use iota::balance::{Balance};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use iota::vec_set::{Self, VecSet};
 
     /// This mint capability instance is banned.
@@ -24,7 +21,7 @@ module fungible_tokens::treasury_lock {
     const EMintAmountTooLarge: u64 = 1;
 
     /// Encapsulates the `TreasuryCap` and stores the list of banned mint authorities.
-    struct TreasuryLock<phantom T> has key {
+    public struct TreasuryLock<phantom T> has key {
         id: UID,
         treasury_cap: TreasuryCap<T>,
         banned_mint_authorities: VecSet<ID>
@@ -32,12 +29,12 @@ module fungible_tokens::treasury_lock {
 
     /// Admin capability for `TreasuryLock`. Bearer has the power to create, ban,
     /// and unban mint capabilities (`MintCap`)
-    struct LockAdminCap<phantom T> has key, store {
+    public struct LockAdminCap<phantom T> has key, store {
         id: UID
     }
 
     /// Capability allowing the bearer to mint new Coins up to a pre-defined per epoch limit.
-    struct MintCap<phantom T> has key, store {
+    public struct MintCap<phantom T> has key, store {
         id: UID,
         max_mint_per_epoch: u64,
         last_epoch: u64,
@@ -169,12 +166,9 @@ module fungible_tokens::treasury_lock {
 
 #[test_only]
 module fungible_tokens::treasury_lock_tests {
-    use std::option;
     use iota::test_scenario::{Self, Scenario};
     use iota::balance::{Self, Balance};
-    use iota::transfer;
     use iota::coin;
-    use iota::object::{Self};
     use iota::test_utils;
     use fungible_tokens::treasury_lock::{Self, TreasuryLock, LockAdminCap, MintCap, create_and_transfer_mint_cap, new_lock, mint_balance};
 
@@ -182,10 +176,10 @@ module fungible_tokens::treasury_lock_tests {
     const USER: address = @0xB0B;
 
     // one time witness for the coin used in tests
-    struct TREASURY_LOCK_TESTS has drop {}
+    public struct TREASURY_LOCK_TESTS has drop {}
 
     fun user_with_mint_cap_scenario(): Scenario {
-        let scenario_ = test_scenario::begin(ADMIN);
+        let mut scenario_ = test_scenario::begin(ADMIN);
         let scenario = &mut scenario_;
 
         // create a currency and lock it
@@ -214,8 +208,8 @@ module fungible_tokens::treasury_lock_tests {
     }
 
     fun user_mint_balance(scenario: &mut Scenario, amount: u64): Balance<TREASURY_LOCK_TESTS> {
-        let mint_cap = test_scenario::take_from_sender<MintCap<TREASURY_LOCK_TESTS>>(scenario);
-        let lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
+        let mut mint_cap = test_scenario::take_from_sender<MintCap<TREASURY_LOCK_TESTS>>(scenario);
+        let mut lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
 
         let balance = mint_balance(
             &mut lock,
@@ -233,7 +227,7 @@ module fungible_tokens::treasury_lock_tests {
 
     #[test]
     fun test_user_can_mint() {
-        let scenario_ = user_with_mint_cap_scenario();
+        let mut scenario_ = user_with_mint_cap_scenario();
         let scenario = &mut scenario_;
 
         // user uses its capability to mint 300 coins
@@ -253,7 +247,7 @@ module fungible_tokens::treasury_lock_tests {
     #[test]
     #[expected_failure(abort_code = treasury_lock::EMintAmountTooLarge)]
     fun test_minting_over_limit_fails() {
-        let scenario_ = user_with_mint_cap_scenario();
+        let mut scenario_ = user_with_mint_cap_scenario();
         let scenario = &mut scenario_;
 
         // mint 300 coins
@@ -295,7 +289,7 @@ module fungible_tokens::treasury_lock_tests {
 
     #[test]
     fun test_minted_amount_resets_at_epoch_change() {
-        let scenario_ = user_with_mint_cap_scenario();
+        let mut scenario_ = user_with_mint_cap_scenario();
         let scenario = &mut scenario_;
 
         // mint 300 coins
@@ -326,7 +320,7 @@ module fungible_tokens::treasury_lock_tests {
     #[test]
     #[expected_failure(abort_code = treasury_lock::EMintCapBanned)]
     fun test_banned_cap_cannot_mint() {
-        let scenario_ = user_with_mint_cap_scenario();
+        let mut scenario_ = user_with_mint_cap_scenario();
         let scenario = &mut scenario_;
 
         // get the mint cap ID for reference
@@ -352,7 +346,7 @@ module fungible_tokens::treasury_lock_tests {
         test_scenario::next_tx(scenario, ADMIN);
         {
             let admin_cap = test_scenario::take_from_sender<LockAdminCap<TREASURY_LOCK_TESTS>>(scenario);
-            let lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
+            let mut lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
 
             treasury_lock::ban_mint_cap_id(
                 &admin_cap,
@@ -379,7 +373,7 @@ module fungible_tokens::treasury_lock_tests {
 
     #[test]
     fun test_user_can_mint_after_unban() {
-        let scenario_ = user_with_mint_cap_scenario();
+        let mut scenario_ = user_with_mint_cap_scenario();
         let scenario = &mut scenario_;
 
         // get the mint cap ID for reference
@@ -404,7 +398,7 @@ module fungible_tokens::treasury_lock_tests {
         test_scenario::next_tx(scenario, ADMIN);
         {
             let admin_cap = test_scenario::take_from_sender<LockAdminCap<TREASURY_LOCK_TESTS>>(scenario);
-            let lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
+            let mut lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
 
             treasury_lock::ban_mint_cap_id(
                 &admin_cap,
@@ -420,7 +414,7 @@ module fungible_tokens::treasury_lock_tests {
         test_scenario::next_tx(scenario, ADMIN);
         {
             let admin_cap = test_scenario::take_from_sender<LockAdminCap<TREASURY_LOCK_TESTS>>(scenario);
-            let lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
+            let mut lock = test_scenario::take_shared<TreasuryLock<TREASURY_LOCK_TESTS>>(scenario);
 
             treasury_lock::unban_mint_cap_id(
                 &admin_cap,
