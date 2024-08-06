@@ -1,15 +1,7 @@
 name: Mysticeti tests
 
 on:
-  push:
-    branches:
-      - "develop"
-      - "devnet"
-      - "testnet"
-      - "mainnet"
-      - "releases/iota-*-release"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
   workflow_dispatch:
     inputs:
       iota_repo_ref:

@@ -1,19 +1,6 @@
 name: Rust crates
 
-on:
-  push:
-    branches:
-      - "develop"
-      - "devnet"
-      - "testnet"
-      - "mainnet"
-      - "releases/iota-*-release"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+on: [workflow_call]
 
 env:
   CARGO_TERM_COLOR: always

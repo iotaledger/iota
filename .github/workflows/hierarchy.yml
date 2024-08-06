@@ -1,4 +1,4 @@
-name: Dprint Format
+name: Hierarchy
 
 on:
   push:
@@ -24,3 +24,18 @@ jobs:
         run: cargo install dprint
       - name: Check dprint formatting
         run: dprint check
+
+  rust:
+    needs:
+      - dprint-format
+    uses: ./.github/workflows/_rust.yml
+
+  external:
+    needs:
+      - dprint-format
+    uses: ./.github/workflows/_external.yml
+
+  mysticeti:
+    needs:
+      - dprint-format
+    uses: ./.github/workflows/_mysticeti.yml
