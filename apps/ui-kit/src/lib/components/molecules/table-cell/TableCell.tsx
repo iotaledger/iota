@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import React from 'react';
-import { BadgeType, Badge } from '../../atoms';
+import { BadgeType, Badge, Checkbox } from '../../atoms';
 import { TableCellType } from './table-cell.enums';
 import { Copy } from '@iota/ui-icons';
 import cx from 'classnames';
@@ -9,7 +9,7 @@ interface TableCellBaseProps {
     /**
      * The label of the cell.
      */
-    label: string;
+    label?: string;
     /**
      * If the cell is the last in the row and should not have a border.
      */
@@ -60,8 +60,29 @@ type TableCellAvatarText = {
     leadingElement: React.JSX.Element;
 };
 
+type TableCellCheckbox = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Checkbox;
+    /**
+     * The state of the checkbox.
+     */
+    isChecked?: boolean;
+    /**
+     * The function to call when the checkbox is clicked.
+     */
+    onChange?: () => void;
+};
+
 export type TableCellProps = TableCellBaseProps &
-    (TableCellText | TableCellTextToCopy | TableCellBadge | TableCellAvatarText);
+    (
+        | TableCellText
+        | TableCellTextToCopy
+        | TableCellBadge
+        | TableCellAvatarText
+        | TableCellCheckbox
+    );
 
 export function TableCell(props: TableCellProps): JSX.Element {
     const { type, label, hasLastBorderNoneClass } = props;
@@ -104,6 +125,8 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         <span className="text-label-lg">{label}</span>
                     </div>
                 );
+            case TableCellType.Checkbox:
+                return <Checkbox />;
             default:
                 return null;
         }

@@ -52,12 +52,11 @@ export function Checkbox({
 
     return (
         <label
-            className={cx('group flex', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
+            className={cx('group flex', isLabelFirst ? 'flex-row-reverse' : 'flex-row', {
                 disabled: isDisabled,
                 'gap-x-2': label,
             })}
         >
-            <LabelText label={label} />
             <div className="relative h-5 w-5">
                 <input
                     type="checkbox"
@@ -71,6 +70,7 @@ export function Checkbox({
                     <CheckmarkIcon width={16} height={16} />
                 </span>
             </div>
+            <LabelText label={label} />
         </label>
     );
 }

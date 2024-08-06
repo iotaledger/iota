@@ -33,7 +33,7 @@ const meta = {
 
         const rows: TableCellProps[][] = [
             [
-                { type: TableCellType.Text, label: '1.' },
+                { type: TableCellType.Checkbox },
                 {
                     type: TableCellType.AvatarText,
                     leadingElement: <IotaLogoSmall />,
@@ -46,7 +46,7 @@ const meta = {
                 { type: TableCellType.Text, label: '12.03.2019' },
             ],
             [
-                { type: TableCellType.Text, label: '2.' },
+                { type: TableCellType.Checkbox },
                 { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Jane Smith' },
                 { type: TableCellType.Badge, badgeType: BadgeType.Neutral, label: '25' },
                 { type: TableCellType.Text, label: 'Graphic Designer' },
@@ -55,7 +55,7 @@ const meta = {
                 { type: TableCellType.Text, label: '12.03.2019' },
             ],
             [
-                { type: TableCellType.Text, label: '3.' },
+                { type: TableCellType.Checkbox },
                 { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Sam Johnson' },
                 { type: TableCellType.Badge, badgeType: BadgeType.PrimarySoft, label: '40' },
                 { type: TableCellType.Text, label: 'Project Manager' },

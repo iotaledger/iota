@@ -68,8 +68,11 @@ export function TableHeaderCell({
             )}
         >
             <div className={cx('flex flex-row items-center gap-1', textColorClass, textSizeClass)}>
-                {hasCheckbox && <Checkbox onChange={onCheckboxClick} />}
-                {label && <span>{label}</span>}
+                {hasCheckbox ? (
+                    <Checkbox onChange={onCheckboxClick} label={label} />
+                ) : (
+                    <span>{label}</span>
+                )}
                 {hasSort && sortOrder === 'asc' && (
                     <SortByUp className="ml-auto h-4 w-4 cursor-pointer" onClick={handleSort} />
                 )}

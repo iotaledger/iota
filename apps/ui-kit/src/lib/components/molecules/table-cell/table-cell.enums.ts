@@ -6,4 +6,5 @@ export enum TableCellType {
     TextToCopy = 'text-to-copy',
     Badge = 'badge',
     AvatarText = 'avatar-text',
+    Checkbox = 'checkbox',
 }
