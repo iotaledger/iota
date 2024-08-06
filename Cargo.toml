@@ -132,7 +132,6 @@ members = [
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
-  "crates/iotans-indexer",
   "crates/mysten-common",
   "crates/mysten-metrics",
   "crates/mysten-network",
