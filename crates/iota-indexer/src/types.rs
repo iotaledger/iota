@@ -102,7 +102,6 @@ pub struct IndexedEpochInfo {
     pub storage_rebate: Option<u64>,
     pub total_gas_fees: Option<u64>,
     pub total_stake_rewards_distributed: Option<u64>,
-    pub burnt_leftover_amount: Option<u64>,
     pub epoch_commitments: Option<Vec<CheckpointCommitment>>,
     pub burnt_tokens_amount: Option<u64>,
     pub minted_tokens_amount: Option<u64>,
@@ -146,7 +145,6 @@ impl IndexedEpochInfo {
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
             storage_charge: Some(event.storage_charge),
             storage_rebate: Some(event.storage_rebate),
-            burnt_leftover_amount: Some(event.burnt_leftover_amount),
             total_gas_fees: Some(event.total_gas_fees),
             total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
             epoch_commitments: last_checkpoint_summary
