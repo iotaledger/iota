@@ -2,7 +2,7 @@
 #
 # Copy in all crates, Cargo.toml and Cargo.lock unmodified,
 # and build the application.
-FROM rust:bullseye AS builder
+FROM rust:bullseye AS base
 ARG PROFILE=release
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
@@ -16,14 +16,28 @@ COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
 
+FROM base AS builder-light
+
+RUN cargo build --profile ${PROFILE} --bin iota-test-validator
+
+FROM builder-light AS builder
+
 RUN cargo build --profile ${PROFILE} \
     --bin iota-node \
     --bin iota \
     --bin iota-faucet \
     --bin stress \
     --bin iota-cluster-test \
-    --bin iota-tool \
-    --bin iota-test-validator
+    --bin iota-tool
+
+# Light runtime for iota-test-validator
+FROM debian:bullseye-slim AS runtime-light
+WORKDIR "$WORKDIR/iota"
+
+# iota-tool needs libpq at runtime
+RUN apt-get update && apt-get install -y libpq5 libpq-dev
+
+COPY --from=builder-light /iota/target/release/iota-test-validator /usr/local/bin
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
