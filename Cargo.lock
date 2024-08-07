@@ -3495,6 +3495,7 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "bcs",
+ "bip32",
  "iota-keys",
  "iota-move-build",
  "iota-sdk 0.1.2",
