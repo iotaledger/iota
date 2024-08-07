@@ -19,23 +19,33 @@ use iota_sdk::{
         },
     },
 };
+use iota_types::stardust::coin_type::CoinType;
 use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
+    test_outputs::{
+        IOTA_COIN_TYPE, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, SHIMMER_COIN_TYPE,
+    },
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
 const MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
-const COIN_TYPE: u32 = 4218;
 const OWNING_ALIAS_COUNT: u32 = 10;
 
-pub(crate) async fn outputs(rng: &mut StdRng) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(
+    rng: &mut StdRng,
+    coin_type: CoinType,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
+    let address_derivation_coin_type = match coin_type {
+        CoinType::Iota => IOTA_COIN_TYPE,
+        CoinType::Shimmer => SHIMMER_COIN_TYPE,
+    };
+
     let alias_owners = secret_manager
-        .generate_ed25519_addresses(COIN_TYPE, 0, 0..OWNING_ALIAS_COUNT, None)
+        .generate_ed25519_addresses(address_derivation_coin_type, 0, 0..OWNING_ALIAS_COUNT, None)
         .await?;
 
     // create 10 different alias outputs with each owning various other assets

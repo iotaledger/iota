@@ -34,15 +34,17 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
 
+pub const IOTA_COIN_TYPE: u32 = 4218;
 const IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
 
+pub const SHIMMER_COIN_TYPE: u32 = 4219;
 pub const STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO: u64 = 1_813_620_509_061_365;
 const SHIMMER_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0x4c337ea67697cb8dd0267cced8d9b51c479eb61dea04842138dcef31218d63810000";
 
-const MERGE_MILESTONE_INDEX: u32 = 7669900;
-const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
+pub const MERGE_MILESTONE_INDEX: u32 = 7669900;
+pub const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
 pub const fn to_micros(n: u64) -> u64 {
     match n.checked_mul(1_000_000) {
@@ -81,11 +83,11 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
 
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = [
-        alias_ownership::outputs(&mut rng).await?,
-        stardust_mix::outputs(&mut rng, &mut vested_index).await?,
-        vesting_schedule_entity::outputs(&mut rng, &mut vested_index).await?,
-        vesting_schedule_iota_airdrop::outputs(&mut rng, &mut vested_index).await?,
-        vesting_schedule_portfolio_mix::outputs(&mut rng, &mut vested_index).await?,
+        alias_ownership::outputs(&mut rng, coin_type).await?,
+        stardust_mix::outputs(&mut rng, &mut vested_index, coin_type).await?,
+        vesting_schedule_entity::outputs(&mut rng, &mut vested_index, coin_type).await?,
+        vesting_schedule_iota_airdrop::outputs(&mut rng, &mut vested_index, coin_type).await?,
+        vesting_schedule_portfolio_mix::outputs(&mut rng, &mut vested_index, coin_type).await?,
     ]
     .concat();
 
