@@ -357,39 +357,39 @@ module defi::pool_tests {
 
     // Tests section
     #[test] fun test_init_pool() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_init_pool_(&mut scenario);
         test::end(scenario);
     }
     #[test] fun test_add_liquidity() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_add_liquidity_(&mut scenario);
         test::end(scenario);
     }
     #[test] fun test_swap_iota() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_swap_iota_(&mut scenario);
         test::end(scenario);
     }
     #[test] fun test_swap_tok() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_swap_tok_(&mut scenario);
         test::end(scenario);
     }
     #[test] fun test_withdraw_almost_all() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_withdraw_almost_all_(&mut scenario);
         test::end(scenario);
     }
     #[test] fun test_withdraw_all() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_withdraw_all_(&mut scenario);
         test::end(scenario);
     }
 
     // Non-sequential tests
     #[test] fun test_math() {
-        let scenario = scenario();
+        let mut scenario = scenario();
         test_math_(&mut scenario);
         test::end(scenario);
     }
@@ -446,7 +446,7 @@ module defi::pool_tests {
 
         next_tx(test, theguy);
         {
-            let pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
+            let mut pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
             let pool_mut = &mut pool;
             let (amt_iota, amt_tok, lsp_supply) = pool::get_amounts(pool_mut);
 
@@ -472,7 +472,7 @@ module defi::pool_tests {
 
         next_tx(test, the_guy);
         {
-            let pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
+            let mut pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
             let pool_mut = &mut pool;
 
             let token = pool::swap_iota(pool_mut, mint<IOTA>(5000000, ctx(test)), ctx(test));
@@ -495,7 +495,7 @@ module defi::pool_tests {
 
         next_tx(test, owner);
         {
-            let pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
+            let mut pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
             let pool_mut = &mut pool;
 
             let iota = pool::swap_token(pool_mut, mint<BEEP>(1000, ctx(test)), ctx(test));
@@ -517,7 +517,7 @@ module defi::pool_tests {
         next_tx(test, owner);
         {
             let lsp = mint<LSP<POOLEY, BEEP>>(31622000 - 1, ctx(test));
-            let pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
+            let mut pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
             let pool_mut = &mut pool;
 
             let (iota, tok) = pool::remove_liquidity(pool_mut, lsp, ctx(test));
@@ -543,7 +543,7 @@ module defi::pool_tests {
         next_tx(test, owner);
         {
             let lsp = mint<LSP<POOLEY, BEEP>>(31622000, ctx(test));
-            let pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
+            let mut pool = test::take_shared<Pool<POOLEY, BEEP>>(test);
             let pool_mut = &mut pool;
 
             let (iota, tok) = pool::remove_liquidity(pool_mut, lsp, ctx(test));

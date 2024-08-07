@@ -9,7 +9,6 @@ module games::hero {
     use iota::math;
     use iota::iota::IOTA;
     use iota::coin::{Coin, value};
-    use iota::coin::mint_for_testing;
 
     /// Our hero!
     public struct Hero has key, store {
@@ -352,6 +351,7 @@ module games::hero {
     fun slay_boar_test() {
 
         use iota::test_scenario;
+        use iota::coin::mint_for_testing;
 
         let admin = @0xAD014;
         let player = @0x0;
