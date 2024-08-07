@@ -23,9 +23,11 @@ services:
       - --faucet-port=9123
       - --epoch-duration-ms=120000
       - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
+    expose:
+      - 9000
     ports:
-      - "127.0.0.1:9000:9000/tcp"
-      - "127.0.0.1:9123:9123/tcp"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9123:9123"
 
   indexer-sync:
     image: iota-indexer
@@ -35,7 +37,7 @@ services:
       args:
         - GIT_REVISION
         - BUILD_DATE
-        - PROFILE=debug
+        - PROFILE=dev
     container_name: indexer-sync
     hostname: indexer-sync
     restart: on-failure
