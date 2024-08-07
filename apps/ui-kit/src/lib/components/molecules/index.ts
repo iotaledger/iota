@@ -3,11 +3,12 @@
 
 export * from './segmented-button';
 export * from './title';
-export * from './text-field';
+export * from './input';
 export * from './navbar-item';
 export * from './account';
 export * from './dropdown';
 export * from './table-cell';
+export * from './table-header-cell';
 export * from './selector-field';
 export * from './search';
 export * from './card';

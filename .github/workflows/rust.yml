@@ -96,7 +96,10 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: cargo test
-        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.2
+        # iota-sdk version needs to be explicitly defined here due to this bug
+        # https://github.com/rust-lang/cargo/issues/12891
+        # (we have the stardust iota-sdk package as a dependency)
+        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
 
   diff:
     runs-on: [self-hosted]
@@ -172,7 +175,7 @@ jobs:
           cargo test --doc
       - name: rustdoc
         run: |
-          cargo doc --workspace --no-deps
+          cargo doc --all-features --workspace --no-deps
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
         with:
