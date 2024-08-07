@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{str::FromStr, sync::Arc, time::SystemTime};
 
 use bytes::Bytes;
