@@ -1836,6 +1836,9 @@ importers:
       '@types/node':
         specifier: ^20.4.2
         version: 20.4.2
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       graphql-config:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@20.4.2)(graphql@16.8.1)
