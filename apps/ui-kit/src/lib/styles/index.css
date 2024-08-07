@@ -84,12 +84,15 @@
 
 @supports selector(::-webkit-scrollbar) {
     *::-webkit-scrollbar {
-        @apply w-1.5;
+        @apply w-3.5;
     }
+
     *::-webkit-scrollbar-track {
-        @apply shadow-none;
+        @apply rounded-xl bg-transparent;
     }
+
     *::-webkit-scrollbar-thumb {
-        @apply rounded-xl bg-neutral-80 dark:bg-neutral-30;
+        @apply shadow-[inset_0_0_10px_10px] shadow-neutral-80 dark:shadow-neutral-30;
+        @apply rounded-xl border-4 border-solid border-transparent;
     }
 }
