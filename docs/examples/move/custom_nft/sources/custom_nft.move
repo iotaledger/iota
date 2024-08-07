@@ -1,8 +1,12 @@
 module custom_nft::custom_nft {
-    use iota::url::Url;
-    use stardust::nft::Nft;
     use std::string::String;
+
     use iota::event;
+    use iota::url::Url;
+
+    use stardust::nft::Nft;
+
+    use custom_nft::collection::Collection;
 
     /// An example NFT that can be minted by anybody
     public struct CustomNFT has key, store {
@@ -54,6 +58,22 @@ module custom_nft::custom_nft {
         mint(*nft_metadata.name(), *nft_metadata.description(), *nft_metadata.uri(), *nft_metadata.collection_name(), ctx);
 
         stardust::nft::destroy(stardust_nft)
+    }
+
+    public fun mint_with_collection(
+        collection: &Collection,
+        name: String,
+        description: Option<String>,
+        url: Url,
+        ctx: &mut TxContext
+    ) {
+        mint(
+            name,
+            description,
+            url,
+            *collection.name(),
+            ctx
+        )
     }
 
     #[allow(lint(self_transfer))]
