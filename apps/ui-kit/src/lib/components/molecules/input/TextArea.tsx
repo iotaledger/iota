@@ -146,7 +146,14 @@ export function TextArea({
                 />
                 {!isInputContentVisible && (
                     <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">
-                        <div className="h-full w-full rounded bg-neutral-92/60 dark:bg-neutral-10/60" />
+                        {Array(3)
+                            .fill(null)
+                            .map((_, index) => ({
+                                width: index === 2 ? 'w-1/2' : 'w-full',
+                            }))
+                            .map(({ width }, index) => (
+                                <Bar key={index} width={width} />
+                            ))}
                     </div>
                 )}
                 {isVisibilityToggleEnabled && (
@@ -161,3 +168,7 @@ export function TextArea({
         </InputWrapper>
     );
 }
+
+const Bar = ({ width }: { width: string }) => (
+    <div className={`h-2 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`} />
+);
