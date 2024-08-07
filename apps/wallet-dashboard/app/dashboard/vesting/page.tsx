@@ -20,18 +20,19 @@ function VestingDashboardPage(): JSX.Element {
 
     const timelockedMapped = timelockedObjects ? mapTimelockObjects(timelockedObjects) : [];
     const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
-    const objectIds: string[] = timelockedMapped.map((timelocked) => timelocked.id.id) || [];
 
+    const unlockTimelockedObjects = timelockedMapped?.filter(
+        (timelockedObject) => timelockedObject.expirationTimestampMs <= Number(currentEpochMs),
+    );
+    const unlockTimelockedbjectIds: string[] =
+        unlockTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
     const { data: unlockAllTimelockedObjects } = useCollectUnlockTimelockedObjects(
         account?.address || '',
-        objectIds,
+        unlockTimelockedbjectIds,
     );
 
     const handleCollect = () => {
-        const unlockTimelockedObjects = timelockedMapped?.filter(
-            (timelockedObject) => timelockedObject.expirationTimestampMs <= Number(currentEpochMs),
-        );
-        if (!unlockAllTimelockedObjects?.transaction || unlockTimelockedObjects.length === 0) {
+        if (!unlockAllTimelockedObjects?.transaction) {
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
         } else {
