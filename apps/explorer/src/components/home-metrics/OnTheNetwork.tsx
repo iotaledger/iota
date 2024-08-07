@@ -9,10 +9,14 @@ import { Heading } from '@iota/ui';
 import { Card, Divider } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();
     const { data: referenceGasPrice } = useIotaClientQuery('getReferenceGasPrice');
+    const { data: totalSupply } = useIotaClientQuery('getTotalSupply', {
+        coinType: IOTA_TYPE_ARG,
+    });
     const gasPriceFormatted =
         typeof referenceGasPrice === 'bigint'
             ? formatBalance(referenceGasPrice, 0, CoinFormat.FULL)
@@ -69,6 +73,12 @@ export function OnTheNetwork(): JSX.Element {
                         orientation="horizontal"
                         label="Objects"
                         amount={networkMetrics?.totalObjects}
+                        size="sm"
+                    />
+                    <FormattedStatsAmount
+                        orientation="horizontal"
+                        label="Totaly Supply"
+                        amount={totalSupply?.value}
                         size="sm"
                     />
                 </div>
