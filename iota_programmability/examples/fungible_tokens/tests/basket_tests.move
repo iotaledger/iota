@@ -15,7 +15,7 @@ module fungible_tokens::basket_tests {
     public fun test_mint_burn() {
         let user = @0xA;
 
-        let scenario_val = test_scenario::begin(user);
+        let mut scenario_val = test_scenario::begin(user);
         let scenario = &mut scenario_val;
         {
             let ctx = test_scenario::ctx(scenario);
@@ -23,7 +23,7 @@ module fungible_tokens::basket_tests {
         };
         test_scenario::next_tx(scenario, user);
         {
-            let reserve_val = test_scenario::take_shared<Reserve>(scenario);
+            let mut reserve_val = test_scenario::take_shared<Reserve>(scenario);
             let reserve = &mut reserve_val;
             let ctx = test_scenario::ctx(scenario);
             assert!(basket::total_supply(reserve) == 0, 0);

@@ -47,7 +47,7 @@ async fn advance_epoch_tx_test() {
     let tasks: Vec<_> = states
         .iter()
         .map(|state| async {
-            let (_system_state, effects) = state
+            let (_system_state, _system_epoch_info_event, effects) = state
                 .create_and_execute_advance_epoch_tx(
                     &state.epoch_store_for_testing(),
                     &GasCostSummary::new(0, 0, 0, 0),

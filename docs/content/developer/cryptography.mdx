@@ -10,8 +10,21 @@ IOTA defines its cryptography primitives, such as public key, signature, aggrega
 
 Transaction authentication features on IOTA provide security against unauthorized access to on-chain data. Transaction Authentication provides an overview of related topics.
 
-Go to [Transaction Authentication](./transaction-auth.mdx).
+Go to [Transaction Authentication](./cryptography/transaction-auth.mdx).
+
+## Checkpoint Verification
+
+Checkpoints define the history of the IOTA blockchain, similarly to how blocks define the history of traditional blockchains like Bitcoin or Ethereum.
+For Full nodes and validators to trust a checkpoint, they must first verify it. Verification ensures that the checkpoint is a true checkpoint that the IOTA validator committee created.
+
+Go to [Checkpoint Verification](./cryptography/checkpoint-verification.mdx).
+
+## Smart Contract Cryptography
+
+Effective use of cryptography keeps your smart contract transactions secure on the IOTA blockchain.
+
+Go to [Cryptography in Smart Contracts](./cryptography/on-chain.mdx).
 
 ## Related links
 
-- [Cryptography guides](../how-to/cryptography.mdx): See the cryptography guides for instruction on applying these concepts.
+- [Cryptography guides](cryptography/on-chain.mdx): See the cryptography guides for instruction on applying these concepts.

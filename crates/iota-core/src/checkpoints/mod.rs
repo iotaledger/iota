@@ -32,6 +32,7 @@ use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
+    event::SystemEpochInfoEvent,
     gas::GasCostSummary,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
@@ -1140,7 +1141,7 @@ impl CheckpointBuilder {
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
-                let system_state_obj = self
+                let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
                         &epoch_rolling_gas_cost_summary,
                         timestamp_ms,
@@ -1149,6 +1150,12 @@ impl CheckpointBuilder {
                         sequence_number,
                     )
                     .await?;
+
+                // SAFETY: The number of minted and burnt tokens easily fit into an i64 and due
+                // to those small numbers, no overflows will occur during conversion or
+                // subtraction.
+                let epoch_supply_change = system_epoch_info_event.minted_tokens_amount as i64
+                    - system_epoch_info_event.burnt_tokens_amount as i64;
 
                 let committee = system_state_obj.get_current_epoch_committee().committee;
 
@@ -1184,6 +1191,7 @@ impl CheckpointBuilder {
                         system_state_obj.protocol_version(),
                     ),
                     epoch_commitments,
+                    epoch_supply_change,
                 })
             } else {
                 None
@@ -1261,9 +1269,8 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-        // TODO: Check whether we must use anyhow::Result or can we use IotaResult.
-    ) -> anyhow::Result<IotaSystemState> {
-        let (system_state, effects) = self
+    ) -> IotaResult<(IotaSystemState, SystemEpochInfoEvent)> {
+        let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
                 &self.epoch_store,
@@ -1274,7 +1281,7 @@ impl CheckpointBuilder {
             .await?;
         checkpoint_effects.push(effects);
         signatures.push(vec![]);
-        Ok(system_state)
+        Ok((system_state, system_epoch_info_event))
     }
 
     /// For the given roots return complete list of effects to include in

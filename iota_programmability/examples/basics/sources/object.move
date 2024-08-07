@@ -4,16 +4,13 @@
 
 /// An example of a custom object with comments explaining the relevant bits
 module basics::object {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     /// A custom iota object. Every object must have the `key` attribute
     /// (indicating that it is allowed to be a key in the iota global object
     /// pool), and must have a field `id: UID` corresponding to its iota ObjId.
     /// Other object attributes present at the protocol level (authenticator,
     /// sequence number, TxDigest, ...) are intentionally not exposed here.
-    struct Object has key {
+    public struct Object has key {
         id: UID,
         /// Custom objects can have fields of arbitrary type...
         custom_field: u64,
@@ -26,13 +23,13 @@ module basics::object {
     /// An object that can be stored inside global objects or other child
     /// objects, but cannot be placed in the global object pool on its own.
     /// Note that it doesn't need an ID field.
-    struct ChildObject has store {
+    public struct ChildObject has store {
         a_field: bool,
     }
 
     /// An object that can live either in the global object pool or as a nested
     /// object.
-    struct AnotherObject has key, store {
+    public struct AnotherObject has key, store {
         id: UID,
     }
 
