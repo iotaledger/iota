@@ -414,7 +414,18 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
+        let stakes = self
+            .inner
+            .multi_get_objects_in_blocking_task(timelocked_staked_iota_ids)
+            .await?
+            .into_iter()
+            .map(|stored_object| {
+                let object = iota_types::object::Object::try_from(stored_object)?;
+                TimelockedStakedIota::try_from(&object).map_err(IndexerError::from)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.get_delegated_timelocked_stakes(stakes)
             .await
             .map_err(Into::into)
     }
