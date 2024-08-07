@@ -60,8 +60,6 @@ const meta: Meta<CustomStoryProps> = {
 
 export default meta;
 
-// type Story = StoryObj<typeof meta>;
-
 export const Default: StoryObj<CustomStoryProps> = {
     render: Template,
     args: {

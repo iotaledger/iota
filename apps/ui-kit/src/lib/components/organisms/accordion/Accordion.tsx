@@ -4,6 +4,7 @@
 import React, { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { ArrowDown } from '@iota/ui-icons';
+import { Button, ButtonType } from '@/lib';
 import { ICON_STYLE } from './accordion.classes';
 
 interface AccordionHeaderProps {
@@ -30,17 +31,26 @@ interface AccordionContentProps {
     isExpanded: boolean;
 }
 
-export function AccordionHeader(props: PropsWithChildren<AccordionHeaderProps>) {
+export function AccordionHeader({
+    onToggle,
+    children,
+    isExpanded,
+}: PropsWithChildren<AccordionHeaderProps>) {
     return (
         <div
-            onClick={props.onToggle}
-            className="state-layer relative flex cursor-pointer items-center justify-between gap-8 rounded-xl pr-md--rs"
+            onClick={onToggle}
+            className="state-layer relative flex cursor-pointer items-center justify-between gap-8 rounded-xl py-sm--rs pr-md--rs"
         >
-            {props.children}
-            <ArrowDown
-                className={cx(ICON_STYLE, {
-                    'rotate-180': props.isExpanded,
-                })}
+            {children}
+            <Button
+                type={ButtonType.Ghost}
+                icon={
+                    <ArrowDown
+                        className={cx(ICON_STYLE, {
+                            'rotate-180': isExpanded,
+                        })}
+                    />
+                }
             />
         </div>
     );
@@ -49,7 +59,7 @@ export function AccordionHeader(props: PropsWithChildren<AccordionHeaderProps>) 
 export function AccordionContent(props: PropsWithChildren<AccordionContentProps>) {
     return (
         <div
-            className={cx('border-box px-lg pb-md--rs pt-xs--rs', {
+            className={cx('rounded-b-xl px-lg pb-md pt-xs', {
                 hidden: !props.isExpanded,
             })}
         >
@@ -59,5 +69,5 @@ export function AccordionContent(props: PropsWithChildren<AccordionContentProps>
 }
 
 export function Accordion({ children }: { children: React.ReactNode }): React.JSX.Element {
-    return <div className="rounded-xl">{children}</div>;
+    return <div className="bg-neutral-100 dark:bg-neutral-6">{children}</div>;
 }
