@@ -6,27 +6,24 @@ import { useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-interface HeaderTemplateProps {
+interface PageTemplateProps {
     title?: string;
     children: ReactNode;
-    closeHeaderTemplate?: () => void;
-    setShowModal?: (showModal: boolean) => void;
+    closePageTemplate?: () => void;
     isTitleCentered?: boolean;
     displayBackButton?: boolean;
 }
 
-function HeaderTemplate({
+function PageTemplate({
     title,
     children,
-    closeHeaderTemplate,
-    setShowModal,
+    closePageTemplate,
     isTitleCentered,
     displayBackButton,
-}: HeaderTemplateProps) {
+}: PageTemplateProps) {
     const closeModal = useCallback(() => {
-        closeHeaderTemplate && closeHeaderTemplate();
-        setShowModal && setShowModal(false);
-    }, [closeHeaderTemplate, setShowModal]);
+        closePageTemplate && closePageTemplate();
+    }, [closePageTemplate]);
     const navigate = useNavigate();
 
     return (
@@ -44,4 +41,4 @@ function HeaderTemplate({
     );
 }
 
-export default HeaderTemplate;
+export default PageTemplate;
