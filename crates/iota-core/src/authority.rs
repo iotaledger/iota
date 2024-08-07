@@ -2974,26 +2974,8 @@ impl AuthorityState {
             cur_epoch_store.epoch()
         );
 
-        match self
-            .execution_cache
-            .expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))
-        {
-            Ok(_) => {
-                info!("Iota conservation consistency check passed");
-            }
-            Err(err) => {
-                if cfg!(debug_assertions) {
-                    panic!("Iota conservation consistency check failed: {err}");
-                } else {
-                    // Comment from original authors:
-                    // We cannot panic in production yet because it is known that there are some
-                    // inconsistencies in testnet. We will enable this once we make it balanced
-                    // again in testnet.
-                    warn!("Iota conservation consistency check failed: {err}");
-                    return Err(err);
-                }
-            }
-        }
+        self.execution_cache
+            .expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))?;
 
         // check for root state hash consistency with live object set
         if expensive_safety_check_config.enable_state_consistency_check() {
