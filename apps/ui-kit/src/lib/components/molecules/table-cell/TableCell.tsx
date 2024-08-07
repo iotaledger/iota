@@ -17,7 +17,7 @@ interface TableCellBaseProps {
     /**
      * Whether the cell content should be centered.
      */
-    isCellContentCentered?: boolean;
+    isContentCentered?: boolean;
 }
 
 type TableCellText = {
@@ -78,7 +78,7 @@ type TableCellCheckbox = {
      */
     onChange?: (checked: boolean) => void;
     /**
-     * If the cell is indeterminate.
+     * If true the checkbox will override the styles to show an indeterminate state.
      */
     isIndeterminate?: boolean;
 };
@@ -93,7 +93,7 @@ export type TableCellProps = TableCellBaseProps &
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
-    const { type, label, hasLastBorderNoneClass, isCellContentCentered } = props;
+    const { type, label, hasLastBorderNoneClass, isContentCentered } = props;
 
     const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
@@ -152,7 +152,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
             className={cx(
                 'h-14 border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
                 { 'last:border-none': hasLastBorderNoneClass },
-                { 'flex items-center justify-center': isCellContentCentered },
+                { 'flex items-center justify-center': isContentCentered },
             )}
         >
             <Cell />

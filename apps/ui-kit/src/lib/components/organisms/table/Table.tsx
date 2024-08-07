@@ -184,7 +184,7 @@ function TableRowCheckbox({
     if (type === TableRowType.Header) {
         return (
             <TableHeaderCell
-                isCellContentCentered
+                isContentCentered
                 hasCheckbox
                 onCheckboxChange={(checked) => {
                     toggleHeaderChecked(checked);
@@ -199,7 +199,7 @@ function TableRowCheckbox({
 
     return (
         <TableCell
-            isCellContentCentered
+            isContentCentered
             onChange={(checked) => {
                 if (rowIndex !== undefined) {
                     const checkboxValues = toggleRowChecked?.(checked, rowIndex);

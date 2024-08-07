@@ -50,7 +50,7 @@ export interface TableHeaderCellProps {
     /**
      * Whether the cell content should be centered.
      */
-    isCellContentCentered?: boolean;
+    isContentCentered?: boolean;
 }
 
 export function TableHeaderCell({
@@ -60,7 +60,7 @@ export function TableHeaderCell({
     hasCheckbox,
     isChecked,
     isIndeterminate,
-    isCellContentCentered,
+    isContentCentered,
     onSortClick,
     onCheckboxChange,
 }: TableHeaderCellProps): JSX.Element {
@@ -90,7 +90,7 @@ export function TableHeaderCell({
         >
             <div
                 className={cx('flex flex-row items-center gap-1', textColorClass, textSizeClass, {
-                    'justify-center': isCellContentCentered,
+                    'justify-center': isContentCentered,
                 })}
             >
                 {hasCheckbox ? (
