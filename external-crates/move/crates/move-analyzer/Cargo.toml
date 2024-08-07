@@ -17,11 +17,11 @@ derivative = "2.2"
 dunce.workspace = true
 im.workspace = true
 itertools.workspace = true
-lsp-server = "0.5"
+lsp-server = "0.7"
 lsp-types = "0.90"
 serde_json.workspace = true
 tempfile.workspace = true
-url = "2.2"
+url = "2.5"
 vfs.workspace = true
 
 move-command-line-common.workspace = true

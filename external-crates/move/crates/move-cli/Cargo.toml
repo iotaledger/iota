@@ -11,6 +11,7 @@ description = "CLI frontend for the Move compiler and VM"
 
 [dependencies]
 anyhow.workspace = true
+bcs.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 colored.workspace = true
@@ -19,8 +20,6 @@ similar.workspace = true
 tempfile.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
-
-bcs.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true

@@ -23,12 +23,13 @@ fastcrypto-zkp.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
+iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 itertools.workspace = true
 mysten-metrics.workspace = true
 mysten-network.workspace = true
 narwhal-config.workspace = true
 narwhal-crypto.workspace = true
-num-bigint = { workspace = true, default-features = false, features = ["rand"] }
+num-bigint = { workspace = true, features = ["rand"] }
 num-rational = "0.4"
 num-traits = "0.2"
 once_cell.workspace = true
@@ -56,7 +57,6 @@ typed-store-error.workspace = true
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-protocol-config.workspace = true
-iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-command-line-common.workspace = true

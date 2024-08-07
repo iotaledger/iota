@@ -11,7 +11,7 @@ description = "Types for Move VM"
 
 [dependencies]
 proptest = { workspace = true, optional = true }
-serde = { workspace = true, features = ["derive", "rc"] }
+serde.workspace = true
 smallvec.workspace = true
 
 bcs.workspace = true

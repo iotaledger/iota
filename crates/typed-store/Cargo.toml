@@ -12,14 +12,13 @@ description = "a typed database interface"
 async-trait.workspace = true
 bcs.workspace = true
 bincode.workspace = true
-collectable = "0.0"
+collectable = "0.0.2"
 eyre.workspace = true
 fdlimit.workspace = true
 hdrhistogram.workspace = true
-iota-macros.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
-ouroboros = "0.17"
+ouroboros = "0.18"
 prometheus.workspace = true
 rand.workspace = true
 rocksdb.workspace = true
@@ -29,6 +28,8 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing.workspace = true
 typed-store-error.workspace = true
+
+iota-macros.workspace = true
 
 [dev-dependencies]
 once_cell.workspace = true

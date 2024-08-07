@@ -29,7 +29,7 @@ static PACKAGE_PROCESS_MUTEX: Lazy<NamedLock> = Lazy::new(|| {
 /// across processes, this is why we grab both a thread lock and process lock.
 pub(crate) struct PackageLock {
     _thread_lock: MutexGuard<'static, ()>,
-    _process_lock: NamedLockGuard<'static>,
+    _process_lock: NamedLockGuard,
 }
 
 impl PackageLock {

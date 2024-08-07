@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-clap = { version = "4.1", features = ["derive"] }
+clap.workspace = true
 colored.workspace = true
 comfy-table.workspace = true
 diesel.workspace = true

@@ -42,7 +42,7 @@ tonic-build.workspace = true
 [dev-dependencies]
 ed25519-consensus.workspace = true
 telemetry-subscribers.workspace = true
-tempfile = "3.3"
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 iota-swarm-config.workspace = true

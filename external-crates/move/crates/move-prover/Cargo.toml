@@ -23,7 +23,7 @@ itertools.workspace = true
 log.workspace = true
 once_cell.workspace = true
 serde.workspace = true
-simplelog = "0.9"
+simplelog = "0.12"
 toml.workspace = true
 
 [dev-dependencies]

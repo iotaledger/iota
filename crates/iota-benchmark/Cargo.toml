@@ -44,7 +44,7 @@ tracing.workspace = true
 move-core-types.workspace = true
 mysten-metrics.workspace = true
 narwhal-node.workspace = true
-sysinfo = "0.27"
+sysinfo = "0.31"
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]

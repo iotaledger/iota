@@ -10,7 +10,7 @@ repository = "https://github.com/diem/diem"
 description = "Move language benchmarks"
 
 [dependencies]
-criterion = "0.3"
+criterion = "0.3" # Version 0.5 is incompatable with criterion-cpu-time
 criterion-cpu-time = "0.1"
 once_cell.workspace = true
 
