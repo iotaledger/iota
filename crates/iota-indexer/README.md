@@ -26,7 +26,7 @@ Install local [Postgres server](https://www.postgresql.org/download/). Platform-
 #### Postgres (MacOS)
 
 - install local [Postgres server](https://www.postgresql.org/download/).
-    - You can also `brew install postgresql@15` and then add the following to your `~/.zshrc` or `~/.zprofile`, etc:
+  - You can also `brew install postgresql@15` and then add the following to your `~/.zshrc` or `~/.zprofile`, etc:
 
 ```sh
 export LDFLAGS="-L/opt/homebrew/opt/postgresql@15/lib"
