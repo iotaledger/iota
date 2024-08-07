@@ -4,11 +4,7 @@
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::BufWriter,
-};
+use std::{collections::BTreeMap, fs::File, io::BufWriter};
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};

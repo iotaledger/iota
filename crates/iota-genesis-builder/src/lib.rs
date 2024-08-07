@@ -84,7 +84,6 @@ const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
 const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
 
-pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
 pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
@@ -1442,8 +1441,6 @@ pub fn split_timelocks(
 pub enum SnapshotSource {
     /// Local uncompressed file.
     Local(PathBuf),
-    /// Local file compressed with brotli.
-    LocalBrotli(PathBuf),
     /// Remote file (S3) with gzip compressed file
     S3(SnapshotUrl),
 }
@@ -1454,10 +1451,6 @@ impl SnapshotSource {
         Ok(match self {
             SnapshotSource::Local(path) => Box::new(BufReader::new(File::open(path)?)),
             SnapshotSource::S3(snapshot_url) => Box::new(snapshot_url.to_reader()?),
-            SnapshotSource::LocalBrotli(path) => Box::new(brotli::Decompressor::new(
-                File::open(path)?,
-                BROTLI_COMPRESSOR_BUFFER_SIZE,
-            )),
         })
     }
 }
