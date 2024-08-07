@@ -16,6 +16,13 @@ export interface Timelocked {
     label?: string;
 }
 
+export interface TimelockedIotaResponse {
+    id: UID;
+    locked: string;
+    expiration_timestamp_ms: string;
+    label?: string;
+}
+
 export interface StakedIota {
     id: UID;
     poolId: string;
@@ -27,6 +34,21 @@ export interface TimelockedStakedIota {
     id: UID;
     stakedIota: StakedIota;
     expirationTimestampMs: number;
+    label?: string;
+}
+
+export interface TimelockedStakedIotaResponse {
+    id: UID;
+    expiration_timestamp_ms: string;
+    staked_iota: {
+        type: string;
+        fields: {
+            id: UID;
+            pool_id: string;
+            principal: string;
+            stake_activation_epoch: string;
+        };
+    };
     label?: string;
 }
 

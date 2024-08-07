@@ -15,8 +15,9 @@ import {
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
     Timelocked,
+    TimelockedIotaResponse,
     TimelockedStakedIota,
-    UID,
+    TimelockedStakedIotaResponse,
     VestingOverview,
 } from '../../interfaces';
 import { isTimelocked, isTimelockedStakedIota, isVesting } from '../timelock';
@@ -192,19 +193,43 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): Timelocked[] 
                 id: { id: '' },
                 locked: { value: 0 },
                 expirationTimestampMs: 0,
-                label: '0',
             };
         }
-        const fields = iotaObject.content.fields as unknown as {
-            id: UID;
-            locked: string;
-            expiration_timestamp_ms: string;
-            label: string;
-        };
+        const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
         return {
             id: fields.id,
             locked: { value: Number(fields.locked) },
             expirationTimestampMs: Number(fields.expiration_timestamp_ms),
+            label: fields.label,
+        };
+    });
+}
+
+export function mapStakedTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedStakedIota[] {
+    return iotaObjects.map((iotaObject) => {
+        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
+            return {
+                id: { id: '' },
+                stakedIota: {
+                    id: { id: '' },
+                    poolId: '',
+                    stakeActivationEpoch: 0,
+                    principal: { value: 0 },
+                },
+                expirationTimestampMs: 0,
+            };
+        }
+
+        const fields = iotaObject.content.fields as unknown as TimelockedStakedIotaResponse;
+        return {
+            id: fields.id,
+            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
+            stakedIota: {
+                id: fields.staked_iota.fields.id,
+                poolId: fields.staked_iota.fields.pool_id,
+                stakeActivationEpoch: Number(fields.staked_iota.fields.stake_activation_epoch),
+                principal: { value: Number(fields.staked_iota.fields.principal) },
+            },
             label: fields.label,
         };
     });

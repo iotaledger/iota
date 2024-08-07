@@ -4,19 +4,26 @@
 'use client';
 
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
-import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
-import { TIMELOCK_TYPE, useGetAllTimelockedObjects } from '@iota/core';
+import { getVestingOverview, mapStakedTimelockObjects, mapTimelockObjects } from '@/lib/utils';
+import { TIMELOCK_STAKED_TYPE, TIMELOCK_TYPE, useGetAllOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
-    const timelockedObjectsWithoutStaking = timelockedObjects?.filter(
-        (timelocked) => timelocked.type === TIMELOCK_TYPE,
+    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
+        StructType: TIMELOCK_TYPE,
+    });
+    const { data: stakedTimelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
+        StructType: TIMELOCK_STAKED_TYPE,
+    });
+
+    const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
+    const stakedTimelockedMapped = mapStakedTimelockObjects(stakedTimelockedObjects || []);
+    const vestingSchedule = getVestingOverview(
+        [...timelockedMapped, ...stakedTimelockedMapped],
+        Number(currentEpochMs),
     );
-    const timelockedMapped = mapTimelockObjects(timelockedObjectsWithoutStaking || []);
-    const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
 
     return (
         <div className="flex flex-col items-center justify-center space-y-4 pt-12">
