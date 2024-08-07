@@ -73,6 +73,10 @@ type TableCellCheckbox = {
      * The function to call when the checkbox is clicked.
      */
     onChange?: (checked: boolean) => void;
+    /**
+     * If the cell is indeterminate.
+     */
+    isIndeterminate?: boolean;
 };
 
 export type TableCellProps = TableCellBaseProps &
@@ -126,8 +130,14 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     </div>
                 );
             case TableCellType.Checkbox:
-                const { isChecked, onChange } = props;
-                return <Checkbox isChecked={isChecked} onChange={onChange} />;
+                const { isChecked, onChange, isIndeterminate } = props;
+                return (
+                    <Checkbox
+                        isChecked={isChecked}
+                        onChange={onChange}
+                        isIndeterminate={isIndeterminate}
+                    />
+                );
             default:
                 return null;
         }
