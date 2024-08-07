@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example demonstrating the transfer stardust::NFT to custom user's NFT.
-//! In order to work, it requires a network with test objects
+//! Example demonstrating the conversion of a stardust NFT into a custom user's
+//! NFT. In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
 use std::{fs, path::PathBuf};
@@ -29,7 +29,7 @@ use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
-const RANDOM_NFT_PACKAGE_PATH: &str = "../move/random_nft";
+const CUSTOM_NFT_PACKAGE_PATH: &str = "../move/custom_nft";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -44,9 +44,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!("{sender:?}");
 
-    // Get a package id of custom nft module
-    let random_nft_package_id =
-        publish_random_nft_package(sender, &mut keystore, &iota_client, RANDOM_NFT_PACKAGE_PATH)
+    // Publish the package of a custom NFT collection and then get the package id.
+    let custom_nft_package_id =
+        publish_custom_nft_package(sender, &mut keystore, &iota_client, CUSTOM_NFT_PACKAGE_PATH)
             .await?;
 
     // Get a gas coin
@@ -76,7 +76,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("Nft output not found"))?;
 
     let nft_output_object_ref = nft_output_object.object_ref();
-    // Create a PTB
+
+    // Create a PTB that extracts the stardust NFT from an NFTOutput and then calls
+    // the `random_nft::convert` method for converting it into a custom NFT of the
+    // collection just published.
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let type_arguments = vec![GAS::type_tag()];
@@ -99,8 +102,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // Call conversion function in order to create custom nft from stardust nft
             // asset.
             builder.programmable_move_call(
-                random_nft_package_id,
-                ident_str!("random_nft").to_owned(),
+                custom_nft_package_id,
+                ident_str!("custom_nft").to_owned(),
                 ident_str!("convert").to_owned(),
                 vec![],
                 vec![nft_asset],
@@ -183,7 +186,7 @@ fn clean_keystore() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn publish_random_nft_package(
+async fn publish_custom_nft_package(
     sender: IotaAddress,
     keystore: &mut FileBasedKeystore,
     iota_client: &IotaClient,
@@ -250,12 +253,14 @@ async fn publish_random_nft_package(
     );
 
     // Extract package id from the transaction effects
-    if let Some(effects) = transaction_response.effects {
-        if let Some(package_ref) = effects.created().first() {
-            let package_id = package_ref.reference.object_id;
-            println!("Package ID: {}", package_id);
-            return Ok(package_id);
-        }
-    }
-    Err(anyhow!("Package publishing failed"))
+    let tx_effects = transaction_response
+        .effects
+        .expect("Transaction has no effects");
+    let package_ref = tx_effects
+        .created()
+        .first()
+        .expect("There are no created objects");
+    let package_id = package_ref.reference.object_id;
+    println!("Package ID: {}", package_id);
+    Ok(package_id)
 }

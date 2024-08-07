@@ -1,11 +1,11 @@
-module random_nft::random_nft {
+module custom_nft::custom_nft {
     use iota::url::Url;
     use stardust::nft::Nft;
     use std::string::String;
     use iota::event;
 
     /// An example NFT that can be minted by anybody
-    public struct RandomNFT has key, store {
+    public struct CustomNFT has key, store {
         id: UID,
         /// Name for the token
         name: String,
@@ -15,12 +15,12 @@ module random_nft::random_nft {
         url: Url,
 
         collection_name: Option<String>
-        // TODO: allow custom attributes
+        // Allow custom attributes
     }
 
     // ===== Events =====
 
-    public struct RandomNFTMinted has copy, drop {
+    public struct CustomNFTMinted has copy, drop {
         // The Object ID of the NFT
         object_id: ID,
         // The creator of the NFT
@@ -32,17 +32,17 @@ module random_nft::random_nft {
     // ===== Public view functions =====
 
     /// Get the NFT's `name`
-    public fun name(nft: &RandomNFT): &String {
+    public fun name(nft: &CustomNFT): &String {
         &nft.name
     }
 
     /// Get the NFT's `description`
-    public fun description(nft: &RandomNFT): &Option<String> {
+    public fun description(nft: &CustomNFT): &Option<String> {
         &nft.description
     }
 
     /// Get the NFT's `url`
-    public fun url(nft: &RandomNFT): &Url {
+    public fun url(nft: &CustomNFT): &Url {
         &nft.url
     }
 
@@ -57,8 +57,8 @@ module random_nft::random_nft {
     }
 
     #[allow(lint(self_transfer))]
-    /// Create a new RandomNFT
-    public fun mint(
+    /// Create a new CustomNFT
+    fun mint(
         name: String,
         description: Option<String>,
         url: Url,
@@ -66,7 +66,7 @@ module random_nft::random_nft {
         ctx: &mut TxContext
     ) {
         let sender = ctx.sender();
-        let nft = RandomNFT {
+        let nft = CustomNFT {
             id: object::new(ctx),
             name,
             description,
@@ -74,7 +74,7 @@ module random_nft::random_nft {
             collection_name
         };
 
-        event::emit(RandomNFTMinted {
+        event::emit(CustomNFTMinted {
             object_id: object::id(&nft),
             creator: sender,
             name: nft.name,
@@ -84,8 +84,8 @@ module random_nft::random_nft {
     }
 
     /// Permanently delete `nft`
-    public fun burn(nft: RandomNFT, _: &mut TxContext) {
-        let RandomNFT { id, name: _, description: _, url: _ , collection_name: _ } = nft;
+    public fun burn(nft: CustomNFT, _: &mut TxContext) {
+        let CustomNFT { id, name: _, description: _, url: _ , collection_name: _ } = nft;
         id.delete()
     }
 }

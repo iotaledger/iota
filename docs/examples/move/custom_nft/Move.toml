@@ -1,5 +1,5 @@
 [package]
-name = "random_nft"
+name = "custom_nft"
 edition = "2024.beta"
 
 [dependencies]
@@ -7,4 +7,4 @@ Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
 Stardust = { local = "../../../../crates/iota-framework/packages/stardust" }
 
 [addresses]
-random_nft = "0x0"
+custom_nft = "0x0"
