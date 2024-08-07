@@ -16,3 +16,4 @@ export * from './list-item';
 export * from './header';
 export * from './panel';
 export * from './tooltip';
+export * from './info-box';

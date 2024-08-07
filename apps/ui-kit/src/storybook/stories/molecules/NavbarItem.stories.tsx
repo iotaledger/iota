@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { NavbarItem, NavbarItemType } from '@/components';
 import { Home } from '@iota/ui-icons';
 
-const meta = {
+const meta: Meta<typeof NavbarItem> = {
     component: NavbarItem,
     tags: ['autodocs'],
     render: (props) => {
