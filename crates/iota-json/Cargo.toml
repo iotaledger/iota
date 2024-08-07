@@ -23,4 +23,4 @@ move-core-types.workspace = true
 iota-framework.workspace = true
 iota-move-build.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
-test-fuzz = "3.0"
+test-fuzz.workspace = true

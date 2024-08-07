@@ -19,7 +19,7 @@ pathdiff = "0.2"
 petgraph.workspace = true
 regex.workspace = true
 serde.workspace = true
-similar = "2.4"
+similar.workspace = true
 stacker = "0.1"
 vfs.workspace = true
 
