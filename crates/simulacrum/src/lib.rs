@@ -270,6 +270,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             next_epoch_committee: new_epoch_state.committee().voting_rights.clone(),
             next_epoch_protocol_version,
             epoch_commitments: vec![],
+            // Do not simulate supply changes for now.
+            epoch_supply_change: 0,
         };
         let committee = CommitteeWithKeys::new(&self.keystore, self.epoch_state.committee());
         let (checkpoint, contents, _) = self.checkpoint_builder.build_end_of_epoch(
