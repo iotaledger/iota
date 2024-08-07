@@ -24,10 +24,7 @@
 /// ```
 module nfts::marketplace {
     use iota::dynamic_object_field as ofield;
-    use iota::tx_context::{Self, TxContext};
-    use iota::object::{Self, ID, UID};
     use iota::coin::{Self, Coin};
-    use iota::transfer;
 
     /// For when amount paid does not match the expected.
     const EAmountIncorrect: u64 = 0;
@@ -37,13 +34,13 @@ module nfts::marketplace {
     /// A shared `Marketplace`. Can be created by anyone using the
     /// `create` function. One instance of `Marketplace` accepts
     /// only one type of Coin - `COIN` for all its listings.
-    struct Marketplace<phantom COIN> has key {
+    public struct Marketplace<phantom COIN> has key {
         id: UID,
     }
 
     /// A single listing which contains the listed item and its
     /// price in [`Coin<COIN>`].
-    struct Listing has key, store {
+    public struct Listing has key, store {
         id: UID,
         ask: u64,
         owner: address,
@@ -63,7 +60,7 @@ module nfts::marketplace {
         ctx: &mut TxContext
     ) {
         let item_id = object::id(&item);
-        let listing = Listing {
+        let mut listing = Listing {
             ask,
             id: object::new(ctx),
             owner: tx_context::sender(ctx),
@@ -80,7 +77,7 @@ module nfts::marketplace {
         ctx: &TxContext
     ): T {
         let Listing {
-            id,
+            mut id,
             owner,
             ask: _,
         } = ofield::remove(&mut marketplace.id, item_id);
@@ -111,7 +108,7 @@ module nfts::marketplace {
         paid: Coin<COIN>,
     ): T {
         let Listing {
-            id,
+            mut id,
             ask,
             owner
         } = ofield::remove(&mut marketplace.id, item_id);
@@ -169,15 +166,13 @@ module nfts::marketplace {
 
 #[test_only]
 module nfts::marketplaceTests {
-    use iota::object::{Self, UID};
-    use iota::transfer;
     use iota::coin;
     use iota::iota::IOTA;
     use iota::test_scenario::{Self, Scenario};
     use nfts::marketplace;
 
     // Simple Kitty-NFT data structure.
-    struct Kitty has key, store {
+    public struct Kitty has key, store {
         id: UID,
         kitty_id: u8
     }

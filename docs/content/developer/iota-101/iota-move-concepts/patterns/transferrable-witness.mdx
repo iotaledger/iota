@@ -8,10 +8,6 @@ For these rather rare scenarios, a storable witness is a good solution.
 
 ```move
 module examples::transferable_witness {
-  use iota::transfer;
-  use iota::object::{Self, UID};
-  use iota::tx_context::{Self, TxContext};
-
 
 /// Witness now has a `store` that allows us to store it inside a wrapper.
   public struct WITNESS has store, drop {}

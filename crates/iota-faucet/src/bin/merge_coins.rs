@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{str::FromStr, time::Duration};
 
 use iota_config::{iota_config_dir, IOTA_CLIENT_CONFIG};

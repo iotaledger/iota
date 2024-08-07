@@ -38,7 +38,7 @@ pub struct Intent {
 }
 ```
 
-To see a detailed definition for each field, see each enum definition [in the source code](https://github.com/iotaledger/iota/blob/0dc1a38f800fc2d8fabe11477fdef702058cf00d/crates/iota-types/src/intent.rs).
+To see a detailed definition for each field, see each enum definition [in the source code](https://github.com/iotaledger/iota/blob/cb515773e83495bff09569764bef70120c21474f/crates/shared-crypto/src/intent.rs#L91).
 
 The serialization of an `Intent` is a 3-byte array where each field is represented by a byte.
 
@@ -73,7 +73,7 @@ Under the hood, the `new_secure` method in Rust and the `signData` method in Typ
 
 ## Authority Signature
 
-The authority signature is created using the protocol key. The data that it commits to is also an intent message `intent || message`. See all available intent scopes [in the source code](https://github.com/iotaledger/iota/blob/0dc1a38f800fc2d8fabe11477fdef702058cf00d/crates/iota-types/src/intent.rs#L66)
+The authority signature is created using the protocol key. The data that it commits to is also an intent message `intent || message`. See all available intent scopes [in the source code](https://github.com/iotaledger/iota/blob/cb515773e83495bff09569764bef70120c21474f/crates/shared-crypto/src/intent.rs#L62)
 
 ### How to Generate Proof of Possession for an Authority
 
@@ -85,7 +85,5 @@ To generate a proof of possession in Rust, see implementation at `fn generate_pr
 
 # Implementation
 
-1. [Struct and enum definitions](https://github.com/iotaledger/iota/blob/0dc1a38f800fc2d8fabe11477fdef702058cf00d/crates/iota-types/src/intent.rs)
-2. [Test](https://github.com/iotaledger/iota/blob/d009e82fa35bda4f2b3e7a86a9529d36c32a8159/crates/iota-types/src/unit_tests/intent_tests.rs)
-3. User transaction intent signing [PR 1](https://github.com/iotaledger/iota/pull/6445), [PR 2](https://github.com/iotaledger/iota/pull/8321)
-4. Authority intent signing [PR 1](https://github.com/iotaledger/iota/pull/8154), [PR 2](https://github.com/iotaledger/iota/pull/8726)
+1. [Struct and enum definitions](https://github.com/iotaledger/iota/blob/develop/crates/shared-crypto/src/intent.rs)
+2. [Test](https://github.com/iotaledger/iota/blob/develop/crates/iota-types/src/unit_tests/intent_tests.rs)
