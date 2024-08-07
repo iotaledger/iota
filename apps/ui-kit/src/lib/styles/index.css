@@ -91,3 +91,15 @@
     scrollbar-width: thin;
     scrollbar-color: theme('colors.neutral.80') transparent;
 }
+
+@supports selector(::-webkit-scrollbar) {
+    *::-webkit-scrollbar {
+        @apply w-1.5;
+    }
+    *::-webkit-scrollbar-track {
+        @apply shadow-none;
+    }
+    *::-webkit-scrollbar-thumb {
+        @apply rounded-[6px] bg-neutral-80 dark:bg-neutral-30;
+    }
+}
