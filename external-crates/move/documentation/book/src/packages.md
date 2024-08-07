@@ -3,11 +3,11 @@
 Packages allow Move programmers to more easily re-use code and share it across projects. The Move
 package system allows programmers to easily:
 
--   Define a package containing Move code;
--   Parameterize a package by [named addresses](./primitive-types/address.md);
--   Import and use packages in other Move code and instantiate named addresses;
--   Build packages and generate associated compilation artifacts from packages; and
--   Work with a common interface around compiled Move artifacts.
+- Define a package containing Move code;
+- Parameterize a package by [named addresses](./primitive-types/address.md);
+- Import and use packages in other Move code and instantiate named addresses;
+- Build packages and generate associated compilation artifacts from packages; and
+- Work with a common interface around compiled Move artifacts.
 
 ## Package Layout and Manifest Syntax
 
@@ -184,12 +184,12 @@ package managers as well.
 
 This section contains the core information needed in the lockfile:
 
--   The version of the lockfile (needed for backwards compatibility checking, and versioning
-    lockfile changes in the future).
--   The hash of the `Move.toml` file that was used to generate this lock file.
--   The hash of the `Move.lock` file of all dependencies. If no depencies are present, this will be
-    an empty string.
--   The list of dependencies.
+- The version of the lockfile (needed for backwards compatibility checking, and versioning
+  lockfile changes in the future).
+- The hash of the `Move.toml` file that was used to generate this lock file.
+- The hash of the `Move.lock` file of all dependencies. If no depencies are present, this will be
+  an empty string.
+- The list of dependencies.
 
 ```
 [move]
@@ -291,10 +291,10 @@ exact value assigned to it.
 With these two different declaration methods, there are two ways that information about named
 addresses can flow in the package graph:
 
--   The former ("unassigned named addresses") allows named address values to flow from the
-    importation site to the declaration site.
--   The latter ("assigned named addresses") allows named address values to flow from the declaration
-    site upwards in the package graph to usage sites.
+- The former ("unassigned named addresses") allows named address values to flow from the
+  importation site to the declaration site.
+- The latter ("assigned named addresses") allows named address values to flow from the declaration
+  site upwards in the package graph to usage sites.
 
 With these two methods for flowing named address information throughout the package graph the rules
 around scoping and renaming become important to understand.

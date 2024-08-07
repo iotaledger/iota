@@ -201,7 +201,6 @@ module iota_system::iota_system_state_inner {
         storage_fund_balance: u64,
         total_gas_fees: u64,
         total_stake_rewards_distributed: u64,
-        burnt_leftover_amount: u64,
         burnt_tokens_amount: u64,
         minted_tokens_amount: u64,
     }
@@ -839,7 +838,7 @@ module iota_system::iota_system_state_inner {
         let storage_charge_value = storage_charge.value();
         let computation_charge = computation_reward.value();
 
-        let (mut total_validator_rewards, minted_tokens_amount, burnt_tokens_amount) = match_computation_reward_to_target_reward(
+        let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_reward_to_target_reward(
             validator_target_reward,
             computation_reward,
             &mut self.iota_treasury_cap,
@@ -874,9 +873,8 @@ module iota_system::iota_system_state_inner {
         // Because of precision issues with integer divisions, we expect that there will be some
         // remaining balance in `total_validator_rewards`.
         let leftover_staking_rewards = total_validator_rewards;
-        let burnt_leftover_amount = leftover_staking_rewards.value();
-
-        // Burning leftover rewards
+        // Burn any remaining leftover rewards.
+        burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
         self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
         let refunded_storage_rebate =
@@ -897,7 +895,6 @@ module iota_system::iota_system_state_inner {
                 storage_fund_balance: self.storage_fund.total_balance(),
                 total_gas_fees: computation_charge,
                 total_stake_rewards_distributed: total_validator_rewards_distributed,
-                burnt_leftover_amount,
                 burnt_tokens_amount,
                 minted_tokens_amount
             }

@@ -1,39 +1,28 @@
-
 <a name="0x1_bit_vector"></a>
 
 # Module `0x1::bit_vector`
 
-
-
--  [Struct `BitVector`](#0x1_bit_vector_BitVector)
--  [Constants](#@Constants_0)
--  [Function `new`](#0x1_bit_vector_new)
--  [Function `set`](#0x1_bit_vector_set)
--  [Function `unset`](#0x1_bit_vector_unset)
--  [Function `shift_left`](#0x1_bit_vector_shift_left)
--  [Function `is_index_set`](#0x1_bit_vector_is_index_set)
--  [Function `length`](#0x1_bit_vector_length)
--  [Function `longest_set_sequence_starting_at`](#0x1_bit_vector_longest_set_sequence_starting_at)
-
+- [Struct `BitVector`](#0x1_bit_vector_BitVector)
+- [Constants](#@Constants_0)
+- [Function `new`](#0x1_bit_vector_new)
+- [Function `set`](#0x1_bit_vector_set)
+- [Function `unset`](#0x1_bit_vector_unset)
+- [Function `shift_left`](#0x1_bit_vector_shift_left)
+- [Function `is_index_set`](#0x1_bit_vector_is_index_set)
+- [Function `length`](#0x1_bit_vector_length)
+- [Function `longest_set_sequence_starting_at`](#0x1_bit_vector_longest_set_sequence_starting_at)
 
 <pre><code></code></pre>
-
-
 
 <a name="0x1_bit_vector_BitVector"></a>
 
 ## Struct `BitVector`
 
-
-
 <pre><code><b>struct</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
-
-
 <details>
 <summary>Fields</summary>
-
 
 <dl>
 <dt>
@@ -50,58 +39,42 @@
 </dd>
 </dl>
 
-
 </details>
 
 <a name="@Constants_0"></a>
 
 ## Constants
 
-
 <a name="0x1_bit_vector_EINDEX"></a>
 
 The provided index is out of bounds
 
-
 <pre><code><b>const</b> <a href="bit_vector.md#0x1_bit_vector_EINDEX">EINDEX</a>: u64 = 131072;
 </code></pre>
-
-
 
 <a name="0x1_bit_vector_ELENGTH"></a>
 
 An invalid length of bitvector was given
 
-
 <pre><code><b>const</b> <a href="bit_vector.md#0x1_bit_vector_ELENGTH">ELENGTH</a>: u64 = 131073;
 </code></pre>
-
-
 
 <a name="0x1_bit_vector_MAX_SIZE"></a>
 
 The maximum allowed bitvector size
 
-
 <pre><code><b>const</b> <a href="bit_vector.md#0x1_bit_vector_MAX_SIZE">MAX_SIZE</a>: u64 = 1024;
 </code></pre>
-
-
 
 <a name="0x1_bit_vector_new"></a>
 
 ## Function `new`
 
-
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_new">new</a>(length: u64): <a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_new">new</a>(length: u64): <a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a> {
     <b>assert</b>!(length &gt; 0, <a href="bit_vector.md#0x1_bit_vector_ELENGTH">ELENGTH</a>);
@@ -120,8 +93,6 @@ The maximum allowed bitvector size
 }
 </code></pre>
 
-
-
 </details>
 
 <a name="0x1_bit_vector_set"></a>
@@ -130,15 +101,11 @@ The maximum allowed bitvector size
 
 Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_set">set</a>(bitvector: &<b>mut</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>, bit_index: u64)
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_set">set</a>(bitvector: &<b>mut</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a>, bit_index: u64) {
     <b>assert</b>!(bit_index &lt; <a href="vector.md#0x1_vector_length">vector::length</a>(&bitvector.bit_field), <a href="bit_vector.md#0x1_bit_vector_EINDEX">EINDEX</a>);
@@ -146,8 +113,6 @@ Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless o
     *x = <b>true</b>;
 }
 </code></pre>
-
-
 
 </details>
 
@@ -157,15 +122,11 @@ Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless o
 
 Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_unset">unset</a>(bitvector: &<b>mut</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>, bit_index: u64)
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_unset">unset</a>(bitvector: &<b>mut</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a>, bit_index: u64) {
     <b>assert</b>!(bit_index &lt; <a href="vector.md#0x1_vector_length">vector::length</a>(&bitvector.bit_field), <a href="bit_vector.md#0x1_bit_vector_EINDEX">EINDEX</a>);
@@ -173,8 +134,6 @@ Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless
     *x = <b>false</b>;
 }
 </code></pre>
-
-
 
 </details>
 
@@ -185,15 +144,11 @@ Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless
 Shift the <code>bitvector</code> left by <code>amount</code>. If <code>amount</code> is greater than the
 bitvector's length the bitvector will be zeroed out.
 
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_shift_left">shift_left</a>(bitvector: &<b>mut</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>, amount: u64)
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_shift_left">shift_left</a>(bitvector: &<b>mut</b> <a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a>, amount: u64) {
     <b>if</b> (amount &gt;= bitvector.length) {
@@ -223,8 +178,6 @@ bitvector's length the bitvector will be zeroed out.
 }
 </code></pre>
 
-
-
 </details>
 
 <a name="0x1_bit_vector_is_index_set"></a>
@@ -234,23 +187,17 @@ bitvector's length the bitvector will be zeroed out.
 Return the value of the bit at <code>bit_index</code> in the <code>bitvector</code>. <code><b>true</b></code>
 represents "1" and <code><b>false</b></code> represents a 0
 
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_is_index_set">is_index_set</a>(bitvector: &<a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>, bit_index: u64): bool
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_is_index_set">is_index_set</a>(bitvector: &<a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a>, bit_index: u64): bool {
     <b>assert</b>!(bit_index &lt; <a href="vector.md#0x1_vector_length">vector::length</a>(&bitvector.bit_field), <a href="bit_vector.md#0x1_bit_vector_EINDEX">EINDEX</a>);
     *<a href="vector.md#0x1_vector_borrow">vector::borrow</a>(&bitvector.bit_field, bit_index)
 }
 </code></pre>
-
-
 
 </details>
 
@@ -260,22 +207,16 @@ represents "1" and <code><b>false</b></code> represents a 0
 
 Return the length (number of usable bits) of this bitvector
 
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_length">length</a>(bitvector: &<a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>): u64
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_length">length</a>(bitvector: &<a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a>): u64 {
     <a href="vector.md#0x1_vector_length">vector::length</a>(&bitvector.bit_field)
 }
 </code></pre>
-
-
 
 </details>
 
@@ -287,15 +228,11 @@ Returns the length of the longest sequence of set bits starting at (and
 including) <code>start_index</code> in the <code>bitvector</code>. If there is no such
 sequence, then <code>0</code> is returned.
 
-
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_longest_set_sequence_starting_at">longest_set_sequence_starting_at</a>(bitvector: &<a href="bit_vector.md#0x1_bit_vector_BitVector">bit_vector::BitVector</a>, start_index: u64): u64
 </code></pre>
 
-
-
 <details>
 <summary>Implementation</summary>
-
 
 <pre><code><b>public</b> <b>fun</b> <a href="bit_vector.md#0x1_bit_vector_longest_set_sequence_starting_at">longest_set_sequence_starting_at</a>(bitvector: &<a href="bit_vector.md#0x1_bit_vector_BitVector">BitVector</a>, start_index: u64): u64 {
     <b>assert</b>!(start_index &lt; bitvector.length, <a href="bit_vector.md#0x1_bit_vector_EINDEX">EINDEX</a>);
@@ -311,9 +248,6 @@ sequence, then <code>0</code> is returned.
 }
 </code></pre>
 
-
-
 </details>
-
 
 [//]: # ("File containing references which can be used from documentation")

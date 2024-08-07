@@ -228,7 +228,7 @@ pub enum IotaClientCommands {
         limit: usize,
     },
 
-    /// List all Iota environments
+    /// List all IOTA environments
     Envs,
 
     /// Execute a Signed Transaction. This is useful when the user prefers to
@@ -326,7 +326,7 @@ pub enum IotaClientCommands {
         derivation_path: Option<DerivationPath>,
     },
 
-    /// Add new Iota environment.
+    /// Add new IOTA environment.
     #[clap(name = "new-env")]
     NewEnv {
         #[clap(long)]

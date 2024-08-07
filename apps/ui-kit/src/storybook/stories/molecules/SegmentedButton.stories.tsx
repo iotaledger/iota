@@ -12,7 +12,7 @@ import {
 import { ComponentProps, useState } from 'react';
 import { PlaceholderReplace } from '@iota/ui-icons';
 
-const meta = {
+const meta: Meta<typeof SegmentedButton> = {
     component: SegmentedButton,
     tags: ['autodocs'],
     render: (props) => {

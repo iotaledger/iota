@@ -4,7 +4,7 @@
 import { TableHeader } from '@/lib/components/atoms';
 import type { Meta, StoryObj } from '@storybook/react';
 
-const meta = {
+const meta: Meta<typeof TableHeader> = {
     component: TableHeader,
     tags: ['autodocs'],
     render: (props) => {

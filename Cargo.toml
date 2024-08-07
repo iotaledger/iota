@@ -132,7 +132,6 @@ members = [
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
-  "crates/iotans-indexer",
   "crates/mysten-common",
   "crates/mysten-metrics",
   "crates/mysten-network",
@@ -169,7 +168,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.1.2"
+version = "0.1.3"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
