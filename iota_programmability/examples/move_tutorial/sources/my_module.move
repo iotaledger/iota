@@ -4,9 +4,6 @@
 
 module my_first_package::my_module {
     // Part 1: imports
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     // Part 2: struct definitions
     public struct Sword has key, store {
