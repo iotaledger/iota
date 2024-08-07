@@ -43,7 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .bcs_bytes,
     )?;
 
-    println!("Basic Output infos: {:?}", basic_output);
+    println!("Basic Output infos: {basic_output:?}");
 
     if let Some(sdruc) = basic_output.storage_deposit_return {
         println!("Storage Deposit Return Unlock Condition infos: {:?}", sdruc);
