@@ -12,9 +12,9 @@ import {
     CardType,
     CardImage,
     CardBody,
+    CardActionType,
     CardAction,
     ImageType,
-    CardActionType,
 } from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
