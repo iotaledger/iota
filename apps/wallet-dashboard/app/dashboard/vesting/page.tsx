@@ -28,9 +28,8 @@ function VestingDashboardPage(): JSX.Element {
     );
 
     const handleCollect = () => {
-        // Update Date.now() when #1217 is merged
         const unlockTimelockedObjects = timelockedMapped?.filter(
-            (timelockedObject) => timelockedObject.expirationTimestampMs <= Date.now(),
+            (timelockedObject) => timelockedObject.expirationTimestampMs <= Number(currentEpochMs),
         );
         if (!unlockAllTimelockedObjects?.transaction || unlockTimelockedObjects.length === 0) {
             addNotification('There was an error with the transaction', NotificationType.Error);
