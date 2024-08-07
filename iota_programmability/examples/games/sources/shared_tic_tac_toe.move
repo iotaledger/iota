@@ -16,12 +16,8 @@
 // As we can see, by using shared object, the implementation is much
 // simpler than the other implementation.
 module games::shared_tic_tac_toe {
-    use std::vector;
 
-    use iota::object::{Self, ID, UID};
     use iota::event;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     // Game status
     const IN_PROGRESS: u8 = 0;
@@ -44,7 +40,7 @@ module games::shared_tic_tac_toe {
     /// The cell to place a new mark at is already oocupied.
     const ECellOccupied: u64 = 3;
 
-    struct TicTacToe has key {
+    public struct TicTacToe has key {
         id: UID,
         gameboard: vector<vector<u8>>,
         cur_turn: u8,
@@ -53,11 +49,11 @@ module games::shared_tic_tac_toe {
         o_address: address,
     }
 
-    struct Trophy has key {
+    public struct Trophy has key {
         id: UID,
     }
 
-    struct GameEndEvent has copy, drop {
+    public struct GameEndEvent has copy, drop {
         // The Object ID of the game object
         game_id: ID,
     }

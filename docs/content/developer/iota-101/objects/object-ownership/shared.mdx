@@ -13,12 +13,9 @@ The following example creates a shop to sell digital donuts. Everyone needs acce
 
 ```move
 module examples::donuts {
-    use iota::transfer;
     use iota::iota::IOTA;
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, UID};
     use iota::balance::{Self, Balance};
-    use iota::tx_context::{Self, TxContext};
 
     /// For when Coin balance is too low.
     const ENotEnough: u64 = 0;

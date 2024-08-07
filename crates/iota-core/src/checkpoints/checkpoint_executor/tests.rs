@@ -246,6 +246,9 @@ pub async fn test_checkpoint_executor_cross_epoch() {
             &executor,
             accumulator,
             &ExpensiveSafetyCheckConfig::default(),
+            // Since the expensive checks are disabled, per the line above, the value we pass here
+            // won't be used.
+            0,
         )
         .await
         .unwrap();
@@ -459,6 +462,10 @@ async fn sync_end_of_epoch_checkpoint(
             next_epoch_committee: new_committee.committee().voting_rights.clone(),
             next_epoch_protocol_version: ProtocolVersion::MIN,
             epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
+            // Do not simulate supply changes in tests.
+            // We would need to build this checkpoint after the below execution of advance_epoch to
+            // obtain this number from the SystemEpochInfoEvent.
+            epoch_supply_change: 0,
         }),
     );
     authority_state

@@ -7,20 +7,13 @@
 /// one using single-owner objects only and the other using shared
 /// objects.
 module nfts::auction_lib {
-    use std::option::{Self, Option};
 
     use iota::coin;
     use iota::balance::{Self, Balance};
     use iota::iota::IOTA;
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self,TxContext};
-
-    friend nfts::auction;
-    friend nfts::shared_auction;
 
     /// Stores information about an auction bid.
-    struct BidData has store {
+    public struct BidData has store {
         /// Coin representing the current (highest) bid.
         funds: Balance<IOTA>,
         /// Address of the highest bidder.
@@ -29,7 +22,7 @@ module nfts::auction_lib {
 
     /// Maintains the state of the auction owned by a trusted
     /// auctioneer.
-    struct Auction<T:  key + store> has key {
+    public struct Auction<T:  key + store> has key {
         id: UID,
         /// Item to be sold. It only really needs to be wrapped in
         /// Option if Auction represents a shared object but we do it
@@ -41,13 +34,13 @@ module nfts::auction_lib {
         bid_data: Option<BidData>,
     }
 
-    public(friend) fun auction_owner<T: key + store>(auction: &Auction<T>): address {
+    public(package) fun auction_owner<T: key + store>(auction: &Auction<T>): address {
         auction.owner
     }
 
     /// Creates an auction. This is executed by the owner of the asset to be
     /// auctioned.
-    public(friend) fun create_auction<T: key + store>(
+    public(package) fun create_auction<T: key + store>(
         to_sell: T, ctx: &mut TxContext
     ): Auction<T> {
         // A question one might asked is how do we know that to_sell
@@ -133,7 +126,7 @@ module nfts::auction_lib {
     public fun end_and_destroy_auction<T: key + store>(
         auction: Auction<T>, ctx: &mut TxContext
     ) {
-        let Auction { id, to_sell, owner, bid_data } = auction;
+        let Auction { id, mut to_sell, owner, mut bid_data } = auction;
         object::delete(id);
 
         end_auction(&mut to_sell, owner, &mut bid_data, ctx);

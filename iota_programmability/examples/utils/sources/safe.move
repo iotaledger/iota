@@ -5,9 +5,7 @@
 /// The Safe standard is a minimalistic shared wrapper around a coin. It provides a way for users to provide third-party dApps with
 /// the capability to transfer coins away from their wallets, if they are provided with the correct permission.
 module utils::safe {
-    use iota::object::{Self, ID, UID};
-    use iota::tx_context::{TxContext, sender};
-    use iota::transfer;
+    use iota::tx_context::sender;
     use iota::balance::{Self, Balance};
     use iota::coin::{Self, Coin};
     use iota::vec_set::{Self, VecSet};
@@ -24,13 +22,13 @@ module utils::safe {
     ///
     /// @ownership: Shared
     ///
-    struct Safe<phantom T> has key {
+    public struct Safe<phantom T> has key {
         id: UID,
         balance: Balance<T>,
         allowed_safes: VecSet<ID>,
     }
 
-    struct OwnerCapability<phantom T> has key, store {
+    public struct OwnerCapability<phantom T> has key, store {
         id: UID,
         safe_id: ID,
     }
@@ -40,7 +38,7 @@ module utils::safe {
     ///
     /// @ownership: Owned
     ///
-    struct TransferCapability<phantom T> has store, key {
+    public struct TransferCapability<phantom T> has store, key {
         id: UID,
         safe_id: ID,
         // The amount that the user is able to transfer.

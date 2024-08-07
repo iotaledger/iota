@@ -22,7 +22,7 @@ module owned_no_tto::cash_register {
     use iota::coin::{Self, Coin};
     use iota::event;
 
-    struct PaymentProcessed has copy, drop { payment_id: u64, amount: u64 }
+    public struct PaymentProcessed has copy, drop { payment_id: u64, amount: u64 }
 
     public fun process_payment(payment: IdentifiedPayment): Coin<IOTA> {
         let (payment_id, coin) = identified_payment::unpack(payment);

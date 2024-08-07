@@ -6,12 +6,9 @@
 module flash_lender::example {
     use iota::balance::{Self, Balance};
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::TxContext;
 
     /// A shared object offering flash loans to any buyer willing to pay `fee`.
-    struct FlashLender<phantom T> has key {
+    public struct FlashLender<phantom T> has key {
         id: UID,
         /// Amount available to be lent to prospective borrowers
         to_lend: Balance<T>,
@@ -29,7 +26,7 @@ module flash_lender::example {
     /// Thus the only way to get rid of it is to call `repay` at some point in
     /// the transaction that created it, forcing the debtor to pay back the
     /// debt in a successful transaction.
-    struct Receipt<phantom T> {
+    public struct Receipt<phantom T> {
         /// ID of the flash lender object the debtor borrowed from.
         flash_lender_id: ID,
         /// Total funds to repay: amount borrowed + the fee.
@@ -38,7 +35,7 @@ module flash_lender::example {
 
     /// One `AdminCap` is created for every `FlashLender`.  Its owner can
     /// control the funds held in that `FlashLender`.
-    struct AdminCap has key, store {
+    public struct AdminCap has key, store {
         id: UID,
         flash_lender_id: ID,
     }
@@ -188,7 +185,7 @@ module flash_lender::example {
 
     #[test]
     fun test_flash_loan() {
-        let ts = ts::begin(@0x0);
+        let mut ts = ts::begin(@0x0);
 
         // Admin creates a flash lender with 100 coins and a fee of 1 coin.
         {
@@ -203,11 +200,11 @@ module flash_lender::example {
         {
             ts::next_tx(&mut ts, ALICE);
 
-            let lender = ts::take_shared(&ts);
+            let mut lender = ts::take_shared(&ts);
             let (loan, receipt) = loan(&mut lender, 10, ts::ctx(&mut ts));
 
             // Simulate Alice making enough profit to repay.
-            let profit = coin::mint_for_testing<IOTA>(1, ts::ctx(&mut ts));
+            let mut profit = coin::mint_for_testing<IOTA>(1, ts::ctx(&mut ts));
             coin::join(&mut profit, loan);
 
             repay(&mut lender, profit, receipt);
@@ -218,7 +215,7 @@ module flash_lender::example {
         {
             ts::next_tx(&mut ts, ADMIN);
             let cap = ts::take_from_sender(&ts);
-            let lender: FlashLender<IOTA> = ts::take_shared(&ts);
+            let mut lender: FlashLender<IOTA> = ts::take_shared(&ts);
 
             // Max loan increased because of the fee payment
             assert!(max_loan(&lender) == 101, 0);

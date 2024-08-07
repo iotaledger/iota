@@ -29,7 +29,6 @@
 module nfts::shared_auction {
     use iota::coin::{Self, Coin};
     use iota::iota::IOTA;
-    use iota::tx_context::{Self, TxContext};
 
     use nfts::auction_lib::{Self, Auction};
 

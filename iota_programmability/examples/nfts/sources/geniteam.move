@@ -3,16 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module nfts::geniteam {
-    use iota::object::{Self, ID, UID};
+
     use iota::object_bag::{Self, ObjectBag};
     use iota::object_table::{Self, ObjectTable};
     use iota::dynamic_object_field;
     use nfts::typed_id::{Self, TypedID};
-    use iota::tx_context::{Self, TxContext};
-    use std::option::{Self, Option};
-    use iota::transfer;
     use std::ascii::{Self, String};
-    use std::vector;
 
     /// Trying to add more than 1 farm to a Player
     const ETooManyFarms: u64 = 1;
@@ -20,7 +16,7 @@ module nfts::geniteam {
     /// Invalid cosmetic slot
     const EInvalidCosmeticsSlot: u64 = 4;
 
-    struct Player has key {
+    public struct Player has key {
         id: UID,
         player_name: String,
         water_runes_count: u64,
@@ -37,7 +33,7 @@ module nfts::geniteam {
         inventory: ObjectBag,
     }
 
-    struct Farm has key, store {
+    public struct Farm has key, store {
         id: UID,
         farm_name: String,
         farm_img_index: u64,
@@ -55,7 +51,7 @@ module nfts::geniteam {
         applied_farm_cosmetic_1:  Option<TypedID<FarmCosmetic>>,
     }
 
-    struct Monster has key, store {
+    public struct Monster has key, store {
         id: UID,
         monster_name: String,
         monster_img_index: u64,
@@ -76,13 +72,13 @@ module nfts::geniteam {
 
     }
 
-    struct FarmCosmetic has key, store{
+    public struct FarmCosmetic has key, store{
         id: UID,
         cosmetic_type: u8,
         display: String,
     }
 
-    struct MonsterCosmetic has key, store {
+    public struct MonsterCosmetic has key, store {
         id: UID,
         cosmetic_type: u8,
         display: String,
@@ -354,11 +350,10 @@ module nfts::geniteam {
 
 // temp duplicate to unblock
 module nfts::typed_id {
-    use iota::object::{Self, ID};
 
     /// An ID of an of type `T`. See `ID` for more details
     /// By construction, it is guaranteed that the `ID` represents an object of type `T`
-    struct TypedID<phantom T: key> has copy, drop, store {
+    public struct TypedID<phantom T: key> has copy, drop, store {
         id: ID,
     }
 

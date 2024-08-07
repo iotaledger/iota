@@ -184,9 +184,7 @@ In the `sources` folder, create a source file named `day_of_week.move`. Copy and
 
 ```move
 module policy::day_of_week {
-    use iota::object::{Self, UID};
     use iota::package;
-    use iota::tx_context::TxContext;
 
     public struct UpgradeCap has key, store {
         id: UID,
@@ -271,9 +269,7 @@ The final code in your `day_of_week.move` file should resemble the following:
 
 ```move
 module policy::day_of_week {
-    use iota::object::{Self, UID};
     use iota::package;
-    use iota::tx_context::TxContext;
 
     public struct UpgradeCap has key, store {
         id: UID,

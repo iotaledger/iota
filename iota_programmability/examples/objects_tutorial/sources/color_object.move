@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module tutorial::color_object {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
-    struct ColorObject has key {
+    public struct ColorObject has key {
         id: UID,
         red: u8,
         green: u8,
@@ -77,8 +74,6 @@ module tutorial::color_object {
 module tutorial::color_object_tests {
     use iota::test_scenario;
     use tutorial::color_object::{Self, ColorObject};
-    use iota::object;
-    use iota::tx_context;
 
     // == Tests covered in Chapter 1 ==
 
@@ -86,7 +81,7 @@ module tutorial::color_object_tests {
     fun test_create() {
         let owner = @0x1;
         // Create a ColorObject and transfer it to @owner.
-        let scenario_val = test_scenario::begin(owner);
+        let mut scenario_val = test_scenario::begin(owner);
         let scenario = &mut scenario_val;
         {
             let ctx = test_scenario::ctx(scenario);
@@ -115,7 +110,7 @@ module tutorial::color_object_tests {
     #[test]
     fun test_copy_into() {
         let owner = @0x1;
-        let scenario_val = test_scenario::begin(owner);
+        let mut scenario_val = test_scenario::begin(owner);
         let scenario = &mut scenario_val;
         // Create two ColorObjects owned by `owner`, and obtain their IDs.
         let (id1, id2) = {
@@ -130,7 +125,7 @@ module tutorial::color_object_tests {
         };
         test_scenario::next_tx(scenario, owner);
         {
-            let obj1 = test_scenario::take_from_sender_by_id<ColorObject>(scenario, id1);
+            let mut obj1 = test_scenario::take_from_sender_by_id<ColorObject>(scenario, id1);
             let obj2 = test_scenario::take_from_sender_by_id<ColorObject>(scenario, id2);
             let (red, green, blue) = color_object::get_color(&obj1);
             assert!(red == 255 && green == 255 && blue == 255, 0);
@@ -153,7 +148,7 @@ module tutorial::color_object_tests {
     fun test_delete() {
         let owner = @0x1;
         // Create a ColorObject and transfer it to @owner.
-        let scenario_val = test_scenario::begin(owner);
+        let mut scenario_val = test_scenario::begin(owner);
         let scenario = &mut scenario_val;
         {
             let ctx = test_scenario::ctx(scenario);
@@ -177,7 +172,7 @@ module tutorial::color_object_tests {
     fun test_transfer() {
         let owner = @0x1;
         // Create a ColorObject and transfer it to @owner.
-        let scenario_val = test_scenario::begin(owner);
+        let mut scenario_val = test_scenario::begin(owner);
         let scenario = &mut scenario_val;
         {
             let ctx = test_scenario::ctx(scenario);
@@ -208,7 +203,7 @@ module tutorial::color_object_tests {
     #[test]
     fun test_immutable() {
         let sender1 = @0x1;
-        let scenario_val = test_scenario::begin(sender1);
+        let mut scenario_val = test_scenario::begin(sender1);
         let scenario = &mut scenario_val;
         {
             let ctx = test_scenario::ctx(scenario);

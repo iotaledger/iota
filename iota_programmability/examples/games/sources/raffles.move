@@ -11,15 +11,12 @@
 /// - small_raffle uses a simpler approach with no tickets.
 
 module games::raffle_with_tickets {
-    use std::option::{Self, Option};
+
     use iota::balance::{Self, Balance};
     use iota::clock::{Self, Clock};
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, ID, UID};
     use iota::random::{Self, Random, new_generator};
     use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::tx_context::TxContext;
 
     /// Error codes
     const EGameInProgress: u64 = 0;
@@ -30,7 +27,7 @@ module games::raffle_with_tickets {
     const ENoParticipants: u64 = 4;
 
     /// Game represents a set of parameters of a single game.
-    struct Game has key {
+    public struct Game has key {
         id: UID,
         cost_in_iota: u64,
         participants: u32,
@@ -40,7 +37,7 @@ module games::raffle_with_tickets {
     }
 
     /// Ticket represents a participant in a single game.
-    struct Ticket has key {
+    public struct Ticket has key {
         id: UID,
         game_id: ID,
         participant_index: u32,
@@ -68,7 +65,7 @@ module games::raffle_with_tickets {
         assert!(game.end_time <= clock::timestamp_ms(clock), EGameInProgress);
         assert!(option::is_none(&game.winner), EGameAlreadyCompleted);
         assert!(game.participants > 0, ENoParticipants);
-        let generator = new_generator(r, ctx);
+        let mut generator = new_generator(r, ctx);
         let winner = random::generate_u32_in_range(&mut generator, 1, game.participants);
         game.winner = option::some(winner);
     }
@@ -136,12 +133,10 @@ module games::small_raffle {
     use iota::balance::{Self, Balance};
     use iota::clock::{Self, Clock};
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, UID};
     use iota::random::{Self, Random, new_generator};
     use iota::iota::IOTA;
     use iota::table::{Self, Table};
-    use iota::transfer;
-    use iota::tx_context::{TxContext, sender};
+    use iota::tx_context::sender;
 
     /// Error codes
     const EGameInProgress: u64 = 0;
@@ -152,7 +147,7 @@ module games::small_raffle {
     const MaxParticipants: u32 = 500;
 
     /// Game represents a set of parameters of a single game.
-    struct Game has key {
+    public struct Game has key {
         id: UID,
         cost_in_iota: u64,
         participants: u32,
@@ -181,9 +176,9 @@ module games::small_raffle {
     /// Gas based attacks are not possible since the gas cost of this function is independent of the winner.
     entry fun close(game: Game, r: &Random, clock: &Clock, ctx: &mut TxContext) {
         assert!(game.end_time <= clock::timestamp_ms(clock), EGameInProgress);
-        let Game { id, cost_in_iota: _, participants, end_time: _, balance, participants_table } = game;
+        let Game { id, cost_in_iota: _, participants, end_time: _, balance, mut participants_table } = game;
         if (participants > 0) {
-            let generator = new_generator(r, ctx);
+            let mut generator = new_generator(r, ctx);
             let winner = random::generate_u32_in_range(&mut generator, 1, participants);
             let winner_address = *table::borrow(&participants_table, winner);
             let reward = coin::from_balance(balance, ctx);
@@ -192,7 +187,7 @@ module games::small_raffle {
             balance::destroy_zero(balance);
         };
 
-        let i = 1;
+        let mut i = 1;
         while (i <= participants) {
             table::remove(&mut participants_table, i);
             i = i + 1;

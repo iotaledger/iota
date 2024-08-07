@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module locked_stake::locked_stake {
-    use iota::tx_context::TxContext;
     use iota::coin;
     use iota::balance::{Self, Balance};
-    use iota::object::{Self, ID, UID};
     use iota::vec_map::{Self, VecMap};
     use iota::iota::IOTA;
     use iota_system::staking_pool::StakedIota;
@@ -18,7 +16,7 @@ module locked_stake::locked_stake {
 
     /// An object that locks IOTA tokens and stake objects until a given epoch, and allows
     /// staking and unstaking operations when locked.
-    struct LockedStake has key {
+    public struct LockedStake has key {
         id: UID,
         staked_iota: VecMap<ID, StakedIota>,
         iota: Balance<IOTA>,
