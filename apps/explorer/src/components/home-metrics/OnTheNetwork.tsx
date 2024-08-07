@@ -77,7 +77,7 @@ export function OnTheNetwork(): JSX.Element {
                     />
                     <FormattedStatsAmount
                         orientation="horizontal"
-                        label="Totaly Supply"
+                        label="Total Supply"
                         amount={totalSupply?.value}
                         size="sm"
                     />
