@@ -987,8 +987,8 @@ async fn query_peers_for_their_latest_checkpoint(
 }
 
 /// Queries connected peers for checkpoints from sequence
-/// current+1 to the target, the received checkpoints will be verified and
-/// stored in the store. Checkpoints in temoprary store (peer_heights) will be
+/// current+1 to the target. The received checkpoints will be verified and
+/// stored in the store. Checkpoints in temporary store (peer_heights) will be
 /// cleaned up after syncing.
 async fn sync_to_checkpoint<S>(
     network: anemo::Network,
