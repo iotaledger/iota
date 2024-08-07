@@ -60,6 +60,17 @@ const meta = {
     tags: ['autodocs'],
     args: {
         hasCheckboxColumn: true,
+        onRowCheckboxChange: (value, index, values) =>
+            console.log(
+                'Checked checkbox at index:',
+                index,
+                'with value:',
+                value,
+                'table values:',
+                values,
+            ),
+        onHeaderCheckboxChange: (value) =>
+            console.log('Checked header checkbox with value:', value),
     },
     render: (props) => {
         return (

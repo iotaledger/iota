@@ -3,7 +3,7 @@
 
 import React, { PropsWithChildren, useEffect } from 'react';
 import cx from 'classnames';
-import { TableRowType, TableProvider, useTableContext } from './TableContext';
+import { TableRowType, TableProvider, useTableContext, TableProviderProps } from './TableContext';
 import { Button, ButtonSize, ButtonType, TableCell, TableCellType, TableHeaderCell } from '@/lib';
 import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/ui-icons';
 
@@ -40,10 +40,6 @@ export type TableProps = {
      * The supporting label of the table.
      */
     supportingLabel?: string;
-    /**
-     * Whether the table has a checkbox column.
-     */
-    hasCheckboxColumn?: boolean;
 };
 
 export function Table({
@@ -56,10 +52,16 @@ export function Table({
     onActionClick,
     supportingLabel,
     hasCheckboxColumn,
+    onRowCheckboxChange,
+    onHeaderCheckboxChange,
     children,
-}: PropsWithChildren<TableProps>): JSX.Element {
+}: PropsWithChildren<TableProps & TableProviderProps>): JSX.Element {
     return (
-        <TableProvider hasCheckboxColumn={hasCheckboxColumn}>
+        <TableProvider
+            hasCheckboxColumn={hasCheckboxColumn}
+            onRowCheckboxChange={onRowCheckboxChange}
+            onHeaderCheckboxChange={onHeaderCheckboxChange}
+        >
             <div className="w-full">
                 <div className="overflow-auto">
                     <table className="w-full table-auto">{children}</table>
@@ -142,13 +144,13 @@ function TableRow({
     rowIndex,
     type = TableRowType.Body,
 }: PropsWithChildren<{ rowIndex?: number; type: TableRowType }>): JSX.Element {
-    const { hasCheckboxColumn, toggleRowChecked } = useTableContext();
+    const { hasCheckboxColumn, registerRowCheckbox } = useTableContext();
 
     useEffect(() => {
         if (rowIndex !== undefined && rowIndex !== null) {
-            toggleRowChecked?.(rowIndex, false);
+            registerRowCheckbox(rowIndex);
         }
-    }, [toggleRowChecked, rowIndex]);
+    }, [registerRowCheckbox, rowIndex]);
 
     return (
         <tr>
@@ -173,8 +175,10 @@ function TableRowCheckbox({
         toggleHeaderChecked,
         toggleRowChecked,
         rowsChecked,
-        headerChecked,
+        isHeaderChecked,
         isHeaderIndeterminate,
+        onRowCheckboxChange,
+        onHeaderCheckboxChange,
     } = useTableContext();
 
     if (type === TableRowType.Header) {
@@ -182,8 +186,11 @@ function TableRowCheckbox({
             <TableHeaderCell
                 isCellContentCentered
                 hasCheckbox
-                onCheckboxChange={toggleHeaderChecked}
-                isChecked={headerChecked}
+                onCheckboxChange={(checked) => {
+                    toggleHeaderChecked(checked);
+                    onHeaderCheckboxChange?.(checked);
+                }}
+                isChecked={isHeaderChecked}
                 columnKey={1}
                 isIndeterminate={isHeaderIndeterminate}
             />
@@ -193,7 +200,12 @@ function TableRowCheckbox({
     return (
         <TableCell
             isCellContentCentered
-            onChange={(checked) => rowIndex !== undefined && toggleRowChecked?.(rowIndex, checked)}
+            onChange={(checked) => {
+                if (rowIndex !== undefined) {
+                    const checkboxValues = toggleRowChecked?.(checked, rowIndex);
+                    onRowCheckboxChange?.(checked, rowIndex, checkboxValues);
+                }
+            }}
             type={TableCellType.Checkbox}
             isChecked={rowIndex !== undefined && rowsChecked?.[rowIndex]}
         />
