@@ -87,20 +87,16 @@ async fn main() -> anyhow::Result<()> {
 
     parse_snapshot::<false>(&current_path, coin_type)?;
 
-    let mut randomness_seed = 0;
-    let mut delegator_address = "";
-    match coin_type {
+    let (randomness_seed, delegator_address) = match coin_type {
         CoinType::Iota => {
             // IOTA coin type values
-            randomness_seed = 0;
-            delegator_address = IF_STARDUST_ADDRESS;
+            (0, IF_STARDUST_ADDRESS)
         }
         CoinType::Shimmer => {
             // Shimmer coin type values
-            randomness_seed = 1;
-            delegator_address = IF_SHIMMER_STARDUST_ADDRESS;
+            (1, IF_SHIMMER_STARDUST_ADDRESS)
         }
-    }
+    };
 
     add_snapshot_test_outputs::<false>(
         &current_path,
