@@ -99,6 +99,7 @@ use jsonrpsee::{
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use move_core_types::language_storage::StructTag;
+use rustls::crypto::{ring, CryptoProvider};
 use serde_json::Value;
 
 use crate::{
@@ -203,6 +204,10 @@ impl IotaClientBuilder {
     /// }
     /// ```
     pub async fn build(self, http: impl AsRef<str>) -> IotaRpcResult<IotaClient> {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
         let client_version = env!("CARGO_PKG_VERSION");
         let mut headers = HeaderMap::new();
         headers.insert(

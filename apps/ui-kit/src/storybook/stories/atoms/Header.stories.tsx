@@ -4,7 +4,7 @@
 import { Header } from '@/lib/components/atoms/header';
 import type { Meta, StoryObj } from '@storybook/react';
 
-const meta = {
+const meta: Meta<typeof Header> = {
     component: Header,
     tags: ['autodocs'],
     render: (props) => {

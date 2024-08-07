@@ -4,7 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { KeyValueInfo, ValueSize } from '@/components';
 
-const meta = {
+const meta: Meta<typeof KeyValueInfo> = {
     component: KeyValueInfo,
     tags: ['autodocs'],
     render: (props) => {
