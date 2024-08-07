@@ -28,6 +28,7 @@ use crate::{
 /// - The only values that can be bound to a transaction script type argument
 ///   are XUS and XDX. Passing any other values will lead to an aborted
 ///   transaction.
+///
 /// The first assumption is checked and will trigger an assert failure if
 /// violated. The second is unchecked, but would be a nice property for the
 /// prover.

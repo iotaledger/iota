@@ -124,7 +124,7 @@ impl DependencyKind {
 
             (DependencyKind::Local(parent), DependencyKind::Local(subdir)) => {
                 parent.push(subdir);
-                *parent = normalize_path(&parent, /* allow_cwd_parent */ true)?;
+                *parent = normalize_path(&*parent, /* allow_cwd_parent */ true)?;
             }
 
             (DependencyKind::Git(git), DependencyKind::Local(subdir)) => {
