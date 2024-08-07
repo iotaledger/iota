@@ -15,7 +15,6 @@ use std::{
     vec,
 };
 
-use anyhow::anyhow;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 pub use authority_notify_read::EffectsNotifyRead;
@@ -65,7 +64,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID},
+    event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -2879,6 +2878,7 @@ impl AuthorityState {
         checkpoint_executor: &CheckpointExecutor,
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
+        epoch_supply_change: i64,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         Self::check_protocol_version(
             supported_protocol_versions,
@@ -2900,7 +2900,8 @@ impl AuthorityState {
             checkpoint_executor,
             accumulator,
             expensive_safety_check_config,
-        );
+            epoch_supply_change,
+        )?;
         self.maybe_reaccumulate_state_hash(
             cur_epoch_store,
             epoch_start_configuration
@@ -2966,27 +2967,15 @@ impl AuthorityState {
         checkpoint_executor: &CheckpointExecutor,
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
-    ) {
+        epoch_supply_change: i64,
+    ) -> IotaResult<()> {
         info!(
             "Performing iota conservation consistency check for epoch {}",
             cur_epoch_store.epoch()
         );
 
-        if let Err(err) = self
-            .execution_cache
-            .expensive_check_iota_conservation(cur_epoch_store)
-        {
-            if cfg!(debug_assertions) {
-                panic!("{}", err);
-            } else {
-                // We cannot panic in production yet because it is known that there are some
-                // inconsistencies in testnet. We will enable this once we make it balanced
-                // again in testnet.
-                warn!("Iota conservation consistency check failed: {}", err);
-            }
-        } else {
-            info!("Iota conservation consistency check passed");
-        }
+        self.execution_cache
+            .expensive_check_iota_conservation(cur_epoch_store, Some(epoch_supply_change))?;
 
         // check for root state hash consistency with live object set
         if expensive_safety_check_config.enable_state_consistency_check() {
@@ -3008,6 +2997,8 @@ impl AuthorityState {
                     .expect("secondary indexes are inconsistent");
             }
         }
+
+        Ok(())
     }
 
     fn expensive_check_is_consistent_state(
@@ -4446,7 +4437,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
-    ) -> anyhow::Result<(IotaSystemState, TransactionEffects)> {
+    ) -> IotaResult<(IotaSystemState, SystemEpochInfoEvent, TransactionEffects)> {
         let mut txns = Vec::new();
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
@@ -4497,8 +4488,8 @@ impl AuthorityState {
             //   packages, reconfigure, and most likely shut down in the new epoch (this
             //   validator likely doesn't support the new protocol version, or else it
             //   should have had the packages.)
-            return Err(anyhow!(
-                "missing system packages: cannot form ChangeEpochTx"
+            return Err(IotaError::from(
+                "missing system packages: cannot form ChangeEpochTx",
             ));
         };
 
@@ -4563,8 +4554,8 @@ impl AuthorityState {
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
-            return Err(anyhow::anyhow!(
-                "change epoch tx has already been executed via state sync"
+            return Err(IotaError::from(
+                "change epoch tx has already been executed via state sync",
             ));
         }
 
@@ -4588,16 +4579,23 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
+        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
+        let system_epoch_info_event = temporary_store
+            .events
+            .data
+            .iter()
+            .find(|event| event.is_system_epoch_info_event())
+            .expect("end of epoch tx must emit system epoch info event");
+        let system_epoch_info_event = bcs::from_bytes::<SystemEpochInfoEvent>(
+            &system_epoch_info_event.contents,
+        )
+        .expect("deserialization should succeed since we asserted that the event is of this type");
 
         // We must write tx and effects to the state sync tables so that state sync is
         // able to deliver to the transaction to CheckpointExecutor after it is
         // included in a certified checkpoint.
         self.execution_cache
-            .insert_transaction_and_effects(&tx, &effects)
-            .map_err(|err| {
-                let err: anyhow::Error = err.into();
-                err
-            })?;
+            .insert_transaction_and_effects(&tx, &effects)?;
 
         info!(
             "Effects summary of the change epoch transaction: {:?}",
@@ -4606,7 +4604,7 @@ impl AuthorityState {
         epoch_store.record_checkpoint_builder_is_safe_mode_metric(system_obj.safe_mode());
         // The change epoch transaction cannot fail to execute.
         assert!(effects.status().is_ok());
-        Ok((system_obj, effects))
+        Ok((system_obj, system_epoch_info_event, effects))
     }
 
     /// This function is called at the very end of the epoch.

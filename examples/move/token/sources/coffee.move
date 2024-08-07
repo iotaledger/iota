@@ -5,11 +5,10 @@
 /// This example illustrates how to use the `Token` without a `TokenPolicy`. And
 /// only rely on `TreasuryCap` for minting and burning tokens.
 module examples::coffee {
-    use iota::tx_context::{sender, TxContext};
+    use iota::tx_context::sender;
     use iota::coin::{Self, TreasuryCap, Coin};
     use iota::balance::{Self, Balance};
     use iota::token::{Self, Token};
-    use iota::object::{Self, UID};
     use iota::iota::IOTA;
 
     /// Error code for incorrect amount.
@@ -22,11 +21,11 @@ module examples::coffee {
     const COFFEE_PRICE: u64 = 10_000_000_000;
 
     /// OTW for the Token.
-    struct COFFEE has drop {}
+    public struct COFFEE has drop {}
 
     /// The shop that sells Coffee and allows to buy a Coffee if the customer
     /// has 10 COFFEE points.
-    struct CoffeeShop has key {
+    public struct CoffeeShop has key {
         id: UID,
         /// The treasury cap for the `COFFEE` points.
         coffee_points: TreasuryCap<COFFEE>,
@@ -36,7 +35,7 @@ module examples::coffee {
 
     /// Event marking that a Coffee was purchased; transaction sender serves as
     /// the customer ID.
-    struct CoffeePurchased has copy, store, drop {}
+    public struct CoffeePurchased has copy, store, drop {}
 
     // Create and share the `CoffeeShop` object.
     fun init(otw: COFFEE, ctx: &mut TxContext) {
@@ -86,7 +85,7 @@ module examples::coffee {
     /// `COFFEE` point for the transfer.
     public fun transfer(
         app: &mut CoffeeShop,
-        points: Token<COFFEE>,
+        mut points: Token<COFFEE>,
         recipient: address,
         ctx: &mut TxContext
     ) {

@@ -4,13 +4,12 @@
 
 #[test_only]
 module games::raffles_tests {
-    use std::option;
+
     use iota::clock;
     use iota::coin::{Self, Coin};
     use iota::random::{Self, update_randomness_state_for_testing, Random};
     use iota::iota::IOTA;
     use iota::test_scenario::{Self, Scenario};
-    use iota::transfer;
     use games::small_raffle;
 
     use games::raffle_with_tickets;
@@ -27,13 +26,13 @@ module games::raffles_tests {
         let user3 = @0x2;
         let user4 = @0x3;
 
-        let scenario_val = test_scenario::begin(user1);
+        let mut scenario_val = test_scenario::begin(user1);
         let scenario = &mut scenario_val;
 
         // Setup randomness
         random::create_for_testing(test_scenario::ctx(scenario));
         test_scenario::next_tx(scenario, user1);
-        let random_state = test_scenario::take_shared<Random>(scenario);
+        let mut random_state = test_scenario::take_shared<Random>(scenario);
         update_randomness_state_for_testing(
             &mut random_state,
             0,
@@ -46,14 +45,14 @@ module games::raffles_tests {
         let end_time = 100;
         raffle_with_tickets::create(end_time, 10, test_scenario::ctx(scenario));
         test_scenario::next_tx(scenario, user1);
-        let game = test_scenario::take_shared<raffle_with_tickets::Game>(scenario);
+        let mut game = test_scenario::take_shared<raffle_with_tickets::Game>(scenario);
         assert!(raffle_with_tickets::get_cost_in_iota(&game) == 10, 1);
         assert!(raffle_with_tickets::get_participants(&game) == 0, 1);
         assert!(raffle_with_tickets::get_end_time(&game) == end_time, 1);
         assert!(raffle_with_tickets::get_winner(&game) == option::none(), 1);
         assert!(raffle_with_tickets::get_balance(&game) == 0, 1);
 
-        let clock = clock::create_for_testing(test_scenario::ctx(scenario));
+        let mut clock = clock::create_for_testing(test_scenario::ctx(scenario));
         clock::set_for_testing(&mut clock, 10);
 
         // Play with 4 users (everything here is deterministic)
@@ -108,13 +107,13 @@ module games::raffles_tests {
         let user3 = @0x2;
         let user4 = @0x3;
 
-        let scenario_val = test_scenario::begin(user1);
+        let mut scenario_val = test_scenario::begin(user1);
         let scenario = &mut scenario_val;
 
         // Setup randomness
         random::create_for_testing(test_scenario::ctx(scenario));
         test_scenario::next_tx(scenario, user1);
-        let random_state = test_scenario::take_shared<Random>(scenario);
+        let mut random_state = test_scenario::take_shared<Random>(scenario);
         update_randomness_state_for_testing(
             &mut random_state,
             0,
@@ -127,13 +126,13 @@ module games::raffles_tests {
         let end_time = 100;
         small_raffle::create(end_time, 10, test_scenario::ctx(scenario));
         test_scenario::next_tx(scenario, user1);
-        let game = test_scenario::take_shared<small_raffle::Game>(scenario);
+        let mut game = test_scenario::take_shared<small_raffle::Game>(scenario);
         assert!(small_raffle::get_cost_in_iota(&game) == 10, 1);
         assert!(small_raffle::get_participants(&game) == 0, 1);
         assert!(small_raffle::get_end_time(&game) == end_time, 1);
         assert!(small_raffle::get_balance(&game) == 0, 1);
 
-        let clock = clock::create_for_testing(test_scenario::ctx(scenario));
+        let mut clock = clock::create_for_testing(test_scenario::ctx(scenario));
         clock::set_for_testing(&mut clock, 10);
 
         // Play with 4 users (everything here is deterministic)
