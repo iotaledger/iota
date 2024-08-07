@@ -15,6 +15,38 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// The `ReadApi` trait provides a set of asynchronous methods for reading data
+/// on the IOTA network. This trait is designed to be used in an RPC context,
+/// allowing clients to fetch information about transactions, objects,
+/// checkpoints, events, and protocol configurations.
+///
+/// The following methods are available in this trait:
+///
+/// - `get_transaction_block`: Returns the transaction for a given digest.
+/// - `multi_get_transaction_blocks`: Returns an ordered list of transactions
+///   for given digests.
+/// - `get_object`: Returns the object information for a specified object ID.
+/// - `multi_get_objects`: Retrieves object information for a list of specified
+///   object IDs.
+/// - `try_get_past_object`: Returns the object at a specified version, if
+///   available.
+/// - `try_multi_get_past_objects`: Retrieves objects at specified versions, if
+///   available.
+/// - `get_loaded_child_objects`: Fetches the loaded child objects for a given
+///   transaction digest.
+/// - `get_checkpoint`: Returns a checkpoint for a given checkpoint ID.
+/// - `get_checkpoints`: Fetches a list of checkpoints.
+/// - `get_checkpoints_deprecated_limit`: Fetches a list of checkpoints
+///   (deprecated).
+/// - `get_events`: Returns transaction events for a given transaction digest.
+/// - `get_total_transaction_blocks`: Returns the total number of transaction
+///   blocks known to the server.
+/// - `get_latest_checkpoint_sequence_number`: Returns the sequence number of
+///   the latest executed checkpoint.
+/// - `get_protocol_config`: Fetches the protocol configuration for a given
+///   version.
+/// - `get_chain_identifier`: Returns the first four bytes of the chain's
+///   genesis checkpoint digest.
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {

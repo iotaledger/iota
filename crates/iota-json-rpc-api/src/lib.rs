@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This crate provides various APIs for interacting with the IOTA blockchain.
+//! It includes methods for querying data, building and executing transactions,
+//! managing governance-related data, and more.
+
 use anyhow::anyhow;
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
@@ -26,13 +30,23 @@ pub use transaction_builder::{
 };
 pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
+/// Methods for querying coin-related data.
 mod coin;
+/// Methods for accessing extended information on the IOTA blockchain, such as
+/// epoch information and network statistics.
 mod extended;
+/// Methods for querying governance-related data.
 mod governance;
+/// Methods for indexing data on the IOTA blockchain.
 mod indexer;
+/// Utility methods for analyzing Move packages, modules, structs, and
+/// functions.
 mod move_utils;
+/// Methods for reading data from the IOTA blockchain.
 mod read;
+/// Methods for building transactions.
 mod transaction_builder;
+/// Methods for writing data to the IOTA blockchain.
 mod write;
 
 const RPC_QUERY_MAX_RESULT_LIMIT: &str = "RPC_QUERY_MAX_RESULT_LIMIT";

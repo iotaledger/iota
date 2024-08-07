@@ -11,6 +11,26 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// The `GovernanceReadApi` trait provides a set of asynchronous methods for
+/// accessing governance-related data on the IOTA blockchain. This trait is
+/// designed to be used in an RPC context, allowing clients to fetch information
+/// about delegated stakes, committees, system state, gas prices, and validator
+/// APYs.
+///
+/// The following methods are available in this trait:
+///
+/// - `get_stakes_by_ids`: Fetches a list of delegated stakes by their IDs.
+/// - `get_stakes`: Retrieves all delegated stakes owned by a specified address.
+/// - `get_timelocked_stakes_by_ids`: Fetches a list of delegated timelocked
+///   stakes by their IDs.
+/// - `get_timelocked_stakes`: Retrieves all delegated timelocked stakes owned
+///   by a specified address.
+/// - `get_committee_info`: Returns committee information for a specified epoch.
+/// - `get_latest_iota_system_state`: Returns a summary of the latest IOTA
+///   system state object.
+/// - `get_reference_gas_price`: Retrieves the reference gas price for the
+///   network.
+/// - `get_validators_apy`: Returns the validator annual percentage yield (APY).
 #[open_rpc(namespace = "iotax", tag = "Governance Read API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait GovernanceReadApi {

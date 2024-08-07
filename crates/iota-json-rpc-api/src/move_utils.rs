@@ -12,6 +12,23 @@ use iota_open_rpc_macros::open_rpc;
 use iota_types::base_types::ObjectID;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// The `MoveUtils` trait provides a set of asynchronous methods for analyzing
+/// Move packages on the IOTA network. This trait is designed to be used
+/// in an RPC context, allowing clients to fetch and analyze the structure and
+/// argument types of Move modules, structs, and functions.
+///
+/// The following methods are available in this trait:
+///
+/// - `get_move_function_arg_types`: Returns the argument types of a Move
+///   function based on normalized types.
+/// - `get_normalized_move_modules_by_package`: Fetches structured
+///   representations of all modules in a given package.
+/// - `get_normalized_move_module`: Retrieves a structured representation of a
+///   specified Move module.
+/// - `get_normalized_move_struct`: Returns a structured representation of a
+///   specified Move struct.
+/// - `get_normalized_move_function`: Fetches a structured representation of a
+///   specified Move function.
 #[open_rpc(namespace = "iota", tag = "Move Utils")]
 #[rpc(server, client, namespace = "iota")]
 pub trait MoveUtils {
