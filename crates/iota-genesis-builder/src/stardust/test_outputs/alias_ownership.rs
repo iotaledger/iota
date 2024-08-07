@@ -50,6 +50,7 @@ pub(crate) async fn outputs(rng: &mut StdRng) -> anyhow::Result<Vec<(OutputHeade
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(alias_owner))
         .finish()?;
         let alias_address = AliasAddress::new(*alias_output.alias_id());
+        outputs.push((alias_output_header, alias_output.into()));
 
         // let this alias own various other assets, that may themselves own other assets
         let max_depth = rng.gen_range(1usize..5);

@@ -139,7 +139,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         <div className="flex w-full">
                             <Card
                                 header={
-                                    <div className="grid w-full grid-cols-2 divide-x divide-y-0 divide-solid divide-gray-45">
+                                    <div className="divide-gray-45 grid w-full grid-cols-2 divide-x divide-y-0 divide-solid">
                                         <CardItem title="Your Stake">
                                             <StakeAmount balance={totalStake} variant="heading5" />
                                         </CardItem>
@@ -155,10 +155,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                                 }
                                 padding="none"
                             >
-                                <div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
+                                <div className="divide-gray-45 flex divide-x divide-y-0 divide-solid">
                                     <CardItem
                                         title={
-                                            <div className="flex items-start gap-1 text-steel-darker">
+                                            <div className="text-steel-darker flex items-start gap-1">
                                                 APY
                                                 <div className="text-steel">
                                                     <IconTooltip
@@ -192,7 +192,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
                                     <CardItem
                                         title={
-                                            <div className="flex gap-1 text-steel-darker">
+                                            <div className="text-steel-darker flex gap-1">
                                                 Commission
                                                 <div className="text-steel">
                                                     <IconTooltip

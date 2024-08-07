@@ -92,6 +92,9 @@ export type CompressedSignature =
       }
     | {
           Secp256r1: string;
+      }
+    | {
+          ZkLogin: string;
       };
 export type IotaParsedData =
     | {
@@ -113,6 +116,24 @@ export interface DelegatedStake {
     /** Validator's Address. */
     validatorAddress: string;
 }
+export interface DelegatedTimelockedStake {
+    stakes: TimelockedStake[];
+    stakingPool: string;
+    validatorAddress: string;
+}
+/** Additional arguments supplied to dev inspect beyond what is allowed in today's API. */
+export interface DevInspectArgs {
+    /** The gas budget for the transaction. */
+    gasBudget?: string | null;
+    /** The gas objects used to pay for the transaction. */
+    gasObjects?: [string, string, string][] | null;
+    /** The sponsor of the gas for the transaction, might be different from the sender. */
+    gasSponsor?: string | null;
+    /** Whether to return the raw transaction data and effects. */
+    showRawTxnDataAndEffects?: boolean | null;
+    /** Whether to skip transaction checks for the transaction. */
+    skipChecks?: boolean | null;
+}
 /** The response from processing a dev inspect transaction */
 export interface DevInspectResults {
     /**
@@ -125,6 +146,10 @@ export interface DevInspectResults {
     error?: string | null;
     /** Events that likely would be generated if the transaction is actually run. */
     events: IotaEvent[];
+    /** The raw effects of the transaction that was dev inspected. */
+    rawEffects?: number[];
+    /** The raw transaction data that was dev inspected. */
+    rawTxnData?: number[];
     /** Execution results (including return values) from executing the transactions */
     results?: IotaExecutionResult[] | null;
 }
@@ -209,7 +234,11 @@ export type IotaEventFilter =
       } /** Return events emitted in a specified Package. */
     | {
           Package: string;
-      } /** Return events emitted in a specified Move module. */
+      } /**
+     * Return events emitted in a specified Move module. If the event is defined in Module A but emitted in
+     * a tx with Module B, query `MoveModule` by module B returns the event. Query `MoveEventModule` by
+     * module A returns the event too.
+     */
     | {
           MoveModule: {
               /** the module name */
@@ -217,10 +246,17 @@ export type IotaEventFilter =
               /** the Move package ID */
               package: string;
           };
-      } /** Return events with the given move event struct name */
+      } /**
+     * Return events with the given Move event struct name (struct tag). For example, if the event is
+     * defined in `0xabcd::MyModule`, and named `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
+     */
     | {
           MoveEventType: string;
-      } /** Return events with the given move event module name */
+      } /**
+     * Return events with the given Move module name where the event struct is defined. If the event is
+     * defined in Module A but emitted in a tx with Module B, query `MoveEventModule` by module A returns
+     * the event. Query `MoveModule` by module B returns the event too.
+     */
     | {
           MoveEventModule: {
               /** the module name */
@@ -326,459 +362,6 @@ export type InputObjectKind =
               mutable?: boolean;
           };
       };
-export interface LoadedChildObject {
-    objectId: string;
-    sequenceNumber: string;
-}
-export interface LoadedChildObjectsResponse {
-    loadedChildObjects: LoadedChildObject[];
-}
-export interface MoveCallParams {
-    arguments: unknown[];
-    function: string;
-    module: string;
-    packageObjectId: string;
-    typeArguments?: string[];
-}
-export type IotaMoveFunctionArgType =
-    | 'Pure'
-    | {
-          Object: ObjectValueKind;
-      };
-export type MoveStruct =
-    | MoveValue[]
-    | {
-          fields: {
-              [key: string]: MoveValue;
-          };
-          type: string;
-      }
-    | {
-          [key: string]: MoveValue;
-      };
-export type MoveValue =
-    | number
-    | boolean
-    | string
-    | MoveValue[]
-    | string
-    | {
-          id: string;
-      }
-    | MoveStruct
-    | null;
-/** The struct that contains signatures and public keys necessary for authenticating a MultiSig. */
-export interface MultiSig {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: number;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKey;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
-/**
- * Deprecated, use [struct MultiSig] instead. The struct that contains signatures and public keys
- * necessary for authenticating a MultiSigLegacy.
- */
-export interface MultiSigLegacy {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: string;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKeyLegacy;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
-/** The struct that contains the public key used for authenticating a MultiSig. */
-export interface MultiSigPublicKey {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
-}
-/**
- * Deprecated, use [struct MultiSigPublicKey] instead. The struct that contains the public key used for
- * authenticating a MultiSig.
- */
-export interface MultiSigPublicKeyLegacy {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
-}
-/**
- * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
- * information.
- */
-export type IotaObjectChange =
-    /** Module published */
-    | {
-          digest: string;
-          modules: string[];
-          packageId: string;
-          type: 'published';
-          version: string;
-      } /** Transfer objects to new address / wrap in another object */
-    | {
-          digest: string;
-          objectId: string;
-          objectType: string;
-          recipient: ObjectOwner;
-          sender: string;
-          type: 'transferred';
-          version: string;
-      } /** Object mutated. */
-    | {
-          digest: string;
-          objectId: string;
-          objectType: string;
-          owner: ObjectOwner;
-          previousVersion: string;
-          sender: string;
-          type: 'mutated';
-          version: string;
-      } /** Delete object */
-    | {
-          objectId: string;
-          objectType: string;
-          sender: string;
-          type: 'deleted';
-          version: string;
-      } /** Wrapped object */
-    | {
-          objectId: string;
-          objectType: string;
-          sender: string;
-          type: 'wrapped';
-          version: string;
-      } /** New object creation */
-    | {
-          digest: string;
-          objectId: string;
-          objectType: string;
-          owner: ObjectOwner;
-          sender: string;
-          type: 'created';
-          version: string;
-      };
-export interface IotaObjectData {
-    /**
-     * Move object content or package content in BCS, default to be None unless
-     * IotaObjectDataOptions.showBcs is set to true
-     */
-    bcs?: RawData | null;
-    /**
-     * Move object content or package content, default to be None unless IotaObjectDataOptions.showContent
-     * is set to true
-     */
-    content?: IotaParsedData | null;
-    /** Base64 string representing the object digest */
-    digest: string;
-    /**
-     * The Display metadata for frontend UI rendering, default to be None unless
-     * IotaObjectDataOptions.showContent is set to true This can also be None if the struct type does not
-     * have Display defined See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
-     */
-    display?: DisplayFieldsResponse | null;
-    objectId: string;
-    /** The owner of this object. Default to be None unless IotaObjectDataOptions.showOwner is set to true */
-    owner?: ObjectOwner | null;
-    /**
-     * The digest of the transaction that created or last mutated this object. Default to be None unless
-     * IotaObjectDataOptions.showPreviousTransaction is set to true
-     */
-    previousTransaction?: string | null;
-    /**
-     * The amount of IOTA we would rebate if this object gets deleted. This number is re-calculated each
-     * time the object is mutated based on the present storage gas price.
-     */
-    storageRebate?: string | null;
-    /** The type of the object. Default to be None unless IotaObjectDataOptions.showType is set to true */
-    type?: string | null;
-    /** Object version. */
-    version: string;
-}
-export interface IotaObjectDataOptions {
-    /** Whether to show the content in BCS format. Default to be False */
-    showBcs?: boolean;
-    /**
-     * Whether to show the content(i.e., package content or Move struct content) of the object. Default to
-     * be False
-     */
-    showContent?: boolean;
-    /** Whether to show the Display metadata of the object for frontend rendering. Default to be False */
-    showDisplay?: boolean;
-    /** Whether to show the owner of the object. Default to be False */
-    showOwner?: boolean;
-    /** Whether to show the previous transaction digest of the object. Default to be False */
-    showPreviousTransaction?: boolean;
-    /** Whether to show the storage rebate of the object. Default to be False */
-    showStorageRebate?: boolean;
-    /** Whether to show the type of the object. Default to be False */
-    showType?: boolean;
-}
-export type ObjectRead =
-    /** The object exists and is found with this version */
-    | {
-          details: IotaObjectData;
-          status: 'VersionFound';
-      } /** The object does not exist */
-    | {
-          details: string;
-          status: 'ObjectNotExists';
-      } /** The object is found to be deleted with this version */
-    | {
-          details: IotaObjectRef;
-          status: 'ObjectDeleted';
-      } /** The object exists but not found with this version */
-    | {
-          details: [string, string];
-          status: 'VersionNotFound';
-      } /** The asked object version is higher than the latest */
-    | {
-          details: {
-              asked_version: string;
-              latest_version: string;
-              object_id: string;
-          };
-          status: 'VersionTooHigh';
-      };
-export interface IotaObjectRef {
-    /** Base64 string representing the object digest */
-    digest: string;
-    /** Hex code as string representing the object id */
-    objectId: string;
-    /** Object version. */
-    version: string;
-}
-export type ObjectResponseError =
-    | {
-          code: 'notExists';
-          object_id: string;
-      }
-    | {
-          code: 'dynamicFieldNotFound';
-          parent_object_id: string;
-      }
-    | {
-          code: 'deleted';
-          /** Base64 string representing the object digest */
-          digest: string;
-          object_id: string;
-          /** Object version. */
-          version: string;
-      }
-    | {
-          code: 'unknown';
-      }
-    | {
-          code: 'displayError';
-          error: string;
-      };
-export interface IotaObjectResponseQuery {
-    /** If None, no filter will be applied */
-    filter?: IotaObjectDataFilter | null;
-    /** config which fields to include in the response, by default only digest is included */
-    options?: IotaObjectDataOptions | null;
-}
-export type ObjectValueKind = 'ByImmutableReference' | 'ByMutableReference' | 'ByValue';
-export interface OwnedObjectRef {
-    owner: ObjectOwner;
-    reference: IotaObjectRef;
-}
-export type ObjectOwner =
-    /** Object is exclusively owned by a single address, and is mutable. */
-    | {
-          AddressOwner: string;
-      } /**
-     * Object is exclusively owned by a single object, and is mutable. The object ID is converted to
-     * IotaAddress as IotaAddress is universal.
-     */
-    | {
-          ObjectOwner: string;
-      } /** Object is shared, can be used by any address, and is mutable. */
-    | {
-          Shared: {
-              /** The version at which the object became shared */
-              initial_shared_version: string;
-          };
-      }
-    | 'Immutable';
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedCheckpoints {
-    data: Checkpoint[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedCoins {
-    data: CoinStruct[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedDynamicFieldInfos {
-    data: DynamicFieldInfo[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedEvents {
-    data: IotaEvent[];
-    hasNextPage: boolean;
-    nextCursor?: EventId | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedStrings {
-    data: string[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedObjectsResponse {
-    data: IotaObjectResponse[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedTransactionResponse {
-    data: IotaTransactionBlockResponse[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-export interface ProtocolConfig {
-    attributes: {
-        [key: string]: ProtocolConfigValue | null;
-    };
-    featureFlags: {
-        [key: string]: boolean;
-    };
-    maxSupportedProtocolVersion: string;
-    minSupportedProtocolVersion: string;
-    protocolVersion: string;
-}
-export type ProtocolConfigValue =
-    | {
-          u32: string;
-      }
-    | {
-          u64: string;
-      }
-    | {
-          f64: string;
-      };
-export type PublicKey =
-    | {
-          Ed25519: string;
-      }
-    | {
-          Secp256k1: string;
-      }
-    | {
-          Secp256r1: string;
-      };
-export type RPCTransactionRequestParams =
-    | {
-          transferObjectRequestParams: TransferObjectParams;
-      }
-    | {
-          moveCallRequestParams: MoveCallParams;
-      };
-export type RawData =
-    | {
-          bcsBytes: string;
-          dataType: 'moveObject';
-          hasPublicTransfer: boolean;
-          type: string;
-          version: string;
-      }
-    | {
-          dataType: 'package';
-          id: string;
-          linkageTable: {
-              [key: string]: UpgradeInfo;
-          };
-          moduleMap: {
-              [key: string]: string;
-          };
-          typeOriginTable: TypeOrigin[];
-          version: string;
-      };
-export type Signature =
-    | {
-          Ed25519IotaSignature: string;
-      }
-    | {
-          Secp256k1IotaSignature: string;
-      }
-    | {
-          Secp256r1IotaSignature: string;
-      };
-export type StakeObject =
-    | {
-          principal: string;
-          stakeActiveEpoch: string;
-          stakeRequestEpoch: string;
-          /** ID of the StakedIota receipt object. */
-          stakedIotaId: string;
-          status: 'Pending';
-      }
-    | {
-          principal: string;
-          stakeActiveEpoch: string;
-          stakeRequestEpoch: string;
-          /** ID of the StakedIota receipt object. */
-          stakedIotaId: string;
-          estimatedReward: string;
-          status: 'Active';
-      }
-    | {
-          principal: string;
-          stakeActiveEpoch: string;
-          stakeRequestEpoch: string;
-          /** ID of the StakedIota receipt object. */
-          stakedIotaId: string;
-          status: 'Unstaked';
-      };
 export interface IotaActiveJwk {
     epoch: string;
     jwk: IotaJWK;
@@ -852,6 +435,8 @@ export interface CoinMetadata {
 }
 export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
+    | 'RandomnessStateCreate'
+    | 'CoinDenyListStateCreate'
     | {
           ChangeEpoch: IotaChangeEpoch;
       }
@@ -1027,6 +612,8 @@ export interface IotaSystemStateSummary {
     inactivePoolsId: string;
     /** Number of inactive staking pools. */
     inactivePoolsSize: string;
+    /** The current IOTA supply. */
+    iotaTotalSupply: string;
     /**
      * Maximum number of active validators at any moment. We do not allow the number of validators in any
      * epoch to go above this.
@@ -1054,35 +641,17 @@ export interface IotaSystemStateSummary {
     safeModeComputationRewards: string;
     /** Amount of non-refundable storage fee accumulated during safe mode. */
     safeModeNonRefundableStorageFee: string;
-    /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
-    safeModeStorageRebates: string;
     /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */
     safeModeStorageCharges: string;
-    /** Balance of IOTA set aside for stake subsidies that will be drawn down over time. */
-    stakeSubsidyBalance: string;
-    /** The amount of stake subsidy to be drawn down per epoch. This amount decays and decreases over time. */
-    stakeSubsidyCurrentDistributionAmount: string;
-    /**
-     * The rate at which the distribution amount decays at the end of each period. Expressed in basis
-     * points.
-     */
-    stakeSubsidyDecreaseRate: number;
-    /**
-     * This counter may be different from the current epoch number if in some epochs we decide to skip the
-     * subsidy.
-     */
-    stakeSubsidyDistributionCounter: string;
-    /** Number of distributions to occur before the distribution amount decays. */
-    stakeSubsidyPeriodLength: string;
-    /** The starting epoch in which stake subsidies start being paid out */
-    stakeSubsidyStartEpoch: string;
+    /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
+    safeModeStorageRebates: string;
     /** ID of the object that maps from staking pool's ID to the iota address of a validator. */
     stakingPoolMappingsId: string;
     /** Number of staking pool mappings. */
     stakingPoolMappingsSize: string;
     /**
-     * The non-refundable portion of the storage fund coming from storage reinvestment, non-refundable
-     * storage rebates and any leftover staking rewards.
+     * The non-refundable portion of the storage fund coming from non-refundable storage rebates and any
+     * leftover staking rewards.
      */
     storageFundNonRefundableBalance: string;
     /** The storage rebates of all the objects on-chain stored in the storage fund. */
@@ -1168,6 +737,7 @@ export interface IotaValidatorSummary {
     exchangeRatesSize: string;
     gasPrice: string;
     imageUrl: string;
+    iotaAddress: string;
     name: string;
     netAddress: string;
     networkPubkeyBytes: string;
@@ -1206,14 +776,501 @@ export interface IotaValidatorSummary {
     stakingPoolId: string;
     /** The total number of IOTA tokens in this pool. */
     stakingPoolIotaBalance: string;
-    iotaAddress: string;
     votingPower: string;
     workerAddress: string;
     workerPubkeyBytes: string;
 }
+export interface LoadedChildObject {
+    objectId: string;
+    sequenceNumber: string;
+}
+export interface LoadedChildObjectsResponse {
+    loadedChildObjects: LoadedChildObject[];
+}
+export interface MoveCallParams {
+    arguments: unknown[];
+    function: string;
+    module: string;
+    packageObjectId: string;
+    typeArguments?: string[];
+}
+export type IotaMoveFunctionArgType =
+    | 'Pure'
+    | {
+          Object: ObjectValueKind;
+      };
+export type MoveStruct =
+    | MoveValue[]
+    | {
+          fields: {
+              [key: string]: MoveValue;
+          };
+          type: string;
+      }
+    | {
+          [key: string]: MoveValue;
+      };
+export type MoveValue =
+    | number
+    | boolean
+    | string
+    | MoveValue[]
+    | string
+    | {
+          id: string;
+      }
+    | MoveStruct
+    | null;
+/** The struct that contains signatures and public keys necessary for authenticating a MultiSig. */
+export interface MultiSig {
+    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
+    bitmap: number;
+    /**
+     * The public key encoded with each public key with its signature scheme used along with the
+     * corresponding weight.
+     */
+    multisig_pk: MultiSigPublicKey;
+    /** The plain signature encoded with signature scheme. */
+    sigs: CompressedSignature[];
+}
+/**
+ * Deprecated, use [struct MultiSig] instead. The struct that contains signatures and public keys necessary
+ * for authenticating a MultiSigLegacy.
+ */
+export interface MultiSigLegacy {
+    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
+    bitmap: string;
+    /**
+     * The public key encoded with each public key with its signature scheme used along with the
+     * corresponding weight.
+     */
+    multisig_pk: MultiSigPublicKeyLegacy;
+    /** The plain signature encoded with signature scheme. */
+    sigs: CompressedSignature[];
+}
+/** The struct that contains the public key used for authenticating a MultiSig. */
+export interface MultiSigPublicKey {
+    /** A list of public key and its corresponding weight. */
+    pk_map: [PublicKey, number][];
+    /**
+     * If the total weight of the public keys corresponding to verified signatures is larger than
+     * threshold, the MultiSig is verified.
+     */
+    threshold: number;
+}
+/**
+ * Deprecated, use [struct MultiSigPublicKey] instead. The struct that contains the public key used for
+ * authenticating a MultiSig.
+ */
+export interface MultiSigPublicKeyLegacy {
+    /** A list of public key and its corresponding weight. */
+    pk_map: [PublicKey, number][];
+    /**
+     * If the total weight of the public keys corresponding to verified signatures is larger than
+     * threshold, the MultiSig is verified.
+     */
+    threshold: number;
+}
+/**
+ * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
+ * information.
+ */
+export type IotaObjectChange =
+    /** Module published */
+    | {
+          digest: string;
+          modules: string[];
+          packageId: string;
+          type: 'published';
+          version: string;
+      } /** Transfer objects to new address / wrap in another object */
+    | {
+          digest: string;
+          objectId: string;
+          objectType: string;
+          recipient: ObjectOwner;
+          sender: string;
+          type: 'transferred';
+          version: string;
+      } /** Object mutated. */
+    | {
+          digest: string;
+          objectId: string;
+          objectType: string;
+          owner: ObjectOwner;
+          previousVersion: string;
+          sender: string;
+          type: 'mutated';
+          version: string;
+      } /** Delete object */
+    | {
+          objectId: string;
+          objectType: string;
+          sender: string;
+          type: 'deleted';
+          version: string;
+      } /** Wrapped object */
+    | {
+          objectId: string;
+          objectType: string;
+          sender: string;
+          type: 'wrapped';
+          version: string;
+      } /** New object creation */
+    | {
+          digest: string;
+          objectId: string;
+          objectType: string;
+          owner: ObjectOwner;
+          sender: string;
+          type: 'created';
+          version: string;
+      };
+export interface IotaObjectData {
+    /**
+     * Move object content or package content in BCS, default to be None unless
+     * IotaObjectDataOptions.showBcs is set to true
+     */
+    bcs?: RawData | null;
+    /**
+     * Move object content or package content, default to be None unless IotaObjectDataOptions.showContent
+     * is set to true
+     */
+    content?: IotaParsedData | null;
+    /** Base64 string representing the object digest */
+    digest: string;
+    /**
+     * The Display metadata for frontend UI rendering, default to be None unless
+     * IotaObjectDataOptions.showContent is set to true This can also be None if the struct type does not
+     * have Display defined See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
+     */
+    display?: DisplayFieldsResponse | null;
+    objectId: string;
+    /** The owner of this object. Default to be None unless IotaObjectDataOptions.showOwner is set to true */
+    owner?: ObjectOwner | null;
+    /**
+     * The digest of the transaction that created or last mutated this object. Default to be None unless
+     * IotaObjectDataOptions. showPreviousTransaction is set to true
+     */
+    previousTransaction?: string | null;
+    /**
+     * The amount of IOTA we would rebate if this object gets deleted. This number is re-calculated each
+     * time the object is mutated based on the present storage gas price.
+     */
+    storageRebate?: string | null;
+    /** The type of the object. Default to be None unless IotaObjectDataOptions.showType is set to true */
+    type?: string | null;
+    /** Object version. */
+    version: string;
+}
+export interface IotaObjectDataOptions {
+    /** Whether to show the content in BCS format. Default to be False */
+    showBcs?: boolean;
+    /**
+     * Whether to show the content(i.e., package content or Move struct content) of the object. Default to
+     * be False
+     */
+    showContent?: boolean;
+    /** Whether to show the Display metadata of the object for frontend rendering. Default to be False */
+    showDisplay?: boolean;
+    /** Whether to show the owner of the object. Default to be False */
+    showOwner?: boolean;
+    /** Whether to show the previous transaction digest of the object. Default to be False */
+    showPreviousTransaction?: boolean;
+    /** Whether to show the storage rebate of the object. Default to be False */
+    showStorageRebate?: boolean;
+    /** Whether to show the type of the object. Default to be False */
+    showType?: boolean;
+}
+export type ObjectRead =
+    /** The object exists and is found with this version */
+    | {
+          details: IotaObjectData;
+          status: 'VersionFound';
+      } /** The object does not exist */
+    | {
+          details: string;
+          status: 'ObjectNotExists';
+      } /** The object is found to be deleted with this version */
+    | {
+          details: IotaObjectRef;
+          status: 'ObjectDeleted';
+      } /** The object exists but not found with this version */
+    | {
+          details: [string, string];
+          status: 'VersionNotFound';
+      } /** The asked object version is higher than the latest */
+    | {
+          details: {
+              asked_version: string;
+              latest_version: string;
+              object_id: string;
+          };
+          status: 'VersionTooHigh';
+      };
+export interface IotaObjectRef {
+    /** Base64 string representing the object digest */
+    digest: string;
+    /** Hex code as string representing the object id */
+    objectId: string;
+    /** Object version. */
+    version: string;
+}
+export type ObjectResponseError =
+    | {
+          code: 'notExists';
+          object_id: string;
+      }
+    | {
+          code: 'dynamicFieldNotFound';
+          parent_object_id: string;
+      }
+    | {
+          code: 'deleted';
+          /** Base64 string representing the object digest */
+          digest: string;
+          object_id: string;
+          /** Object version. */
+          version: string;
+      }
+    | {
+          code: 'unknown';
+      }
+    | {
+          code: 'displayError';
+          error: string;
+      };
+export interface IotaObjectResponseQuery {
+    /** If None, no filter will be applied */
+    filter?: IotaObjectDataFilter | null;
+    /** config which fields to include in the response, by default only digest is included */
+    options?: IotaObjectDataOptions | null;
+}
+export type ObjectValueKind = 'ByImmutableReference' | 'ByMutableReference' | 'ByValue';
+export interface OwnedObjectRef {
+    owner: ObjectOwner;
+    reference: IotaObjectRef;
+}
+export type ObjectOwner =
+    /** Object is exclusively owned by a single address, and is mutable. */
+    | {
+          AddressOwner: string;
+      } /**
+     * Object is exclusively owned by a single object, and is mutable. The object ID is converted to
+     * IotaAddress as IotaAddress is universal.
+     */
+    | {
+          ObjectOwner: string;
+      } /** Object is shared, can be used by any address, and is mutable. */
+    | {
+          Shared: {
+              /** The version at which the object became shared */
+              initial_shared_version: string;
+          };
+      }
+    | 'Immutable';
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedCheckpoints {
+    data: Checkpoint[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedCoins {
+    data: CoinStruct[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedDynamicFieldInfos {
+    data: DynamicFieldInfo[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedEvents {
+    data: IotaEvent[];
+    hasNextPage: boolean;
+    nextCursor?: EventId | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedObjectsResponse {
+    data: IotaObjectResponse[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedStrings {
+    data: string[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedTransactionResponse {
+    data: IotaTransactionBlockResponse[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+export interface ProtocolConfig {
+    attributes: {
+        [key: string]: ProtocolConfigValue | null;
+    };
+    featureFlags: {
+        [key: string]: boolean;
+    };
+    maxSupportedProtocolVersion: string;
+    minSupportedProtocolVersion: string;
+    protocolVersion: string;
+}
+export type ProtocolConfigValue =
+    | {
+          u16: string;
+      }
+    | {
+          u32: string;
+      }
+    | {
+          u64: string;
+      }
+    | {
+          f64: string;
+      };
+export type PublicKey =
+    | {
+          Ed25519: string;
+      }
+    | {
+          Secp256k1: string;
+      }
+    | {
+          Secp256r1: string;
+      }
+    | {
+          ZkLogin: string;
+      };
+export type RPCTransactionRequestParams =
+    | {
+          transferObjectRequestParams: TransferObjectParams;
+      }
+    | {
+          moveCallRequestParams: MoveCallParams;
+      };
+export type RawData =
+    | {
+          bcsBytes: string;
+          dataType: 'moveObject';
+          hasPublicTransfer: boolean;
+          type: string;
+          version: string;
+      }
+    | {
+          dataType: 'package';
+          id: string;
+          linkageTable: {
+              [key: string]: UpgradeInfo;
+          };
+          moduleMap: {
+              [key: string]: string;
+          };
+          typeOriginTable: TypeOrigin[];
+          version: string;
+      };
+export type Signature =
+    | {
+          Ed25519IotaSignature: string;
+      }
+    | {
+          Secp256k1IotaSignature: string;
+      }
+    | {
+          Secp256r1IotaSignature: string;
+      };
+export type StakeObject =
+    | {
+          principal: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
+          /** ID of the StakedIota receipt object. */
+          stakedIotaId: string;
+          status: 'Pending';
+      }
+    | {
+          principal: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
+          /** ID of the StakedIota receipt object. */
+          stakedIotaId: string;
+          estimatedReward: string;
+          status: 'Active';
+      }
+    | {
+          principal: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
+          /** ID of the StakedIota receipt object. */
+          stakedIotaId: string;
+          status: 'Unstaked';
+      };
 export interface CoinSupply {
     value: string;
 }
+export type TimelockedStake =
+    | {
+          expirationTimestampMs: string;
+          label?: string | null;
+          principal: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
+          timelockedStakedIotaId: string;
+          status: 'Pending';
+      }
+    | {
+          expirationTimestampMs: string;
+          label?: string | null;
+          principal: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
+          timelockedStakedIotaId: string;
+          estimatedReward: string;
+          status: 'Active';
+      }
+    | {
+          expirationTimestampMs: string;
+          label?: string | null;
+          principal: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
+          timelockedStakedIotaId: string;
+          status: 'Unstaked';
+      };
 export interface IotaTransactionBlock {
     data: TransactionBlockData;
     txSignatures: string[];
@@ -1320,10 +1377,23 @@ export type IotaTransactionBlockKind =
           kind: 'AuthenticatorStateUpdate';
           new_active_jwks: IotaActiveJwk[];
           round: string;
+      } /** A transaction which updates global randomness state */
+    | {
+          epoch: string;
+          kind: 'RandomnessStateUpdate';
+          random_bytes: number[];
+          randomness_round: string;
       } /** The transaction which occurs only at the end of the epoch */
     | {
           kind: 'EndOfEpochTransaction';
           transactions: IotaEndOfEpochTransactionKind[];
+      }
+    | {
+          commit_timestamp_ms: string;
+          consensus_commit_digest: string;
+          epoch: string;
+          kind: 'ConsensusCommitPrologueV2';
+          round: string;
       };
 export interface IotaTransactionBlockResponse {
     balanceChanges?: BalanceChange[] | null;
@@ -1338,6 +1408,7 @@ export interface IotaTransactionBlockResponse {
     errors?: string[];
     events?: IotaEvent[] | null;
     objectChanges?: IotaObjectChange[] | null;
+    rawEffects?: number[];
     /**
      * BCS encoded [SenderSignedData] that includes input object references returns empty array if
      * `show_raw_transaction` is false
@@ -1358,6 +1429,8 @@ export interface IotaTransactionBlockResponseOptions {
     showInput?: boolean;
     /** Whether to show object_changes. Default to be False */
     showObjectChanges?: boolean;
+    /** Whether to show raw transaction effects. Default to be False */
+    showRawEffects?: boolean;
     /** Whether to show bcs-encoded transaction input data */
     showRawInput?: boolean;
 }

@@ -425,7 +425,6 @@ mod test {
                 SupportedProtocolVersions::new_for_testing(starting_version, max_ver),
             )
             .with_objects(init_framework.into_iter().map(|p| p.genesis_object()))
-            .with_stake_subsidy_start_epoch(10)
             .build()
             .await;
 

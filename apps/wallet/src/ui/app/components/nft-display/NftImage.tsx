@@ -100,11 +100,11 @@ export function NftImage({
                     className={cl(
                         imgCls,
                         'flex flex-col flex-nowrap items-center justify-center',
-                        'select-none gap-2 bg-placeholderGradient01 uppercase text-steel-dark',
+                        'text-steel-dark select-none gap-2 bg-placeholderGradient01 uppercase',
                     )}
                     title={title}
                 >
-                    <Image32 className="h-6 w-6 text-3xl text-steel" />
+                    <Image32 className="text-steel h-6 w-6 text-3xl" />
                     {showLabel ? (
                         <span className="text-captionSmall font-medium">No media</span>
                     ) : null}

@@ -144,11 +144,6 @@ impl Epoch {
             .map(BigInt::from)
     }
 
-    /// The amount added to total gas fees to make up the total stake rewards.
-    async fn total_stake_subsidies(&self) -> Option<BigInt> {
-        self.stored.stake_subsidy_amount.map(BigInt::from)
-    }
-
     /// The storage fund available in this epoch.
     /// This fund is used to redistribute storage fees from past transactions
     /// to future validators.

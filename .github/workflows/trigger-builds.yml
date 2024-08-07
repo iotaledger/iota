@@ -13,23 +13,23 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   docker-images:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     steps:
-      - name: Dispatch Docker Builds in MystenLabs/iota-operations
+      - name: Dispatch Docker Builds in iotaledger/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
         with:
-          repository: MystenLabs/iota-operations
+          repository: iotaledger/iota-operations
           token: ${{ secrets.DOCKER_BINARY_BUILDS_DISPATCH }}
           event-type: build-docker-images
           client-payload: '{"iota_commit": "${{ github.sha }}", "docker_hub_tag": "${{ github.ref }}"}'
 
   release-binaries:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     steps:
-      - name: Dispatch Release binaries builds in MystenLabs/iota-operations
+      - name: Dispatch Release binaries builds in iotaledger/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
         with:
-          repository: MystenLabs/iota-operations
+          repository: iotaledger/iota-operations
           token: ${{ secrets.DOCKER_BINARY_BUILDS_DISPATCH }}
           event-type: build-release-binaries
           client-payload: '{"iota_commit": "${{ github.sha }}"}'

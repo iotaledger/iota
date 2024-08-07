@@ -148,7 +148,7 @@ export type IconTooltipProps = Omit<TooltipProps, 'children'>;
 export function IconTooltip(props: IconTooltipProps) {
     return (
         <Tooltip {...props}>
-            <Info16 className="shrink-0 font-normal text-steel" />
+            <Info16 className="text-steel shrink-0 font-normal" />
         </Tooltip>
     );
 }

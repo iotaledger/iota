@@ -1,15 +1,23 @@
 # Default fallback, if no other path below this matches someone from the `move` team has to review
 * @iotaledger/l1-core
 
-# Everything within the SDK folder 
+# Everything within the SDK folder
 /sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
 
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
 
+# l1-core-infra team
+/crates/iota-json-rpc*/ @iotaledger/l1-core-infra
+/crates/iota-graphql*/ @iotaledger/l1-core-infra
+/crates/iota-indexer/ @iotaledger/l1-core-infra
+/crates/iota-rest-api/ @iotaledger/l1-core-infra
+
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
 /crates/iota-sdk/ @iotaledger/dev-tools
+/crates/iota-open-rpc/ @iotaledger/dev-tools
+/crates/iota-open-rpc-macros/ @iotaledger/dev-tools
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
 /apps/ @iotaledger/boxfish @iotaledger/tooling
@@ -23,7 +31,6 @@
 .prettierignore @iotaledger/boxfish @iotaledger/tooling
 graphql.config.ts @iotaledger/boxfish @iotaledger/tooling
 package.json @iotaledger/boxfish @iotaledger/tooling
-pnpm-lock.yaml @iotaledger/boxfish @iotaledger/tooling
 pnpm-workspace.yaml @iotaledger/boxfish @iotaledger/tooling
 prettier.config.js @iotaledger/boxfish @iotaledger/tooling
 turbo.json @iotaledger/boxfish @iotaledger/tooling
@@ -42,5 +49,6 @@ vercel.json @iotaledger/boxfish @iotaledger/tooling
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
 
-# Disable code ownership as it is generated and does not need review
+# Disable code ownership for these auto-generated files
 /Cargo.lock
+/pnpm-lock.yaml

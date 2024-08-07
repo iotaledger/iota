@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     fmt::{Debug, Display, Formatter},
     fs,
@@ -614,11 +615,11 @@ impl KeyToolCommand {
                     })
                 }
                 _ => {
-                    let (iota_address, skp, _scheme, phrase) =
+                    let (iota_address, ikp, _scheme, phrase) =
                         generate_new_key(key_scheme, derivation_path, word_length)?;
                     let file = format!("{iota_address}.key");
-                    write_keypair_to_file(&skp, file)?;
-                    let mut key = Key::from(&skp);
+                    write_keypair_to_file(&ikp, file)?;
+                    let mut key = Key::from(&ikp);
                     key.mnemonic = Some(phrase);
                     CommandOutput::Generate(key)
                 }
@@ -640,10 +641,10 @@ impl KeyToolCommand {
                 }
 
                 match IotaKeyPair::decode(&input_string) {
-                    Ok(skp) => {
+                    Ok(ikp) => {
                         info!("Importing Bech32 encoded private key to keystore");
-                        let key = Key::from(&skp);
-                        keystore.add_key(alias, skp)?;
+                        let key = Key::from(&ikp);
+                        keystore.add_key(alias, ikp)?;
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
@@ -653,20 +654,20 @@ impl KeyToolCommand {
                             key_scheme,
                             derivation_path,
                         )?;
-                        let skp = keystore.get_key(&iota_address)?;
-                        let key = Key::from(skp);
+                        let ikp = keystore.get_key(&iota_address)?;
+                        let key = Key::from(ikp);
                         CommandOutput::Import(key)
                     }
                 }
             }
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let skp = keystore.get_key(&address)?;
+                let ikp = keystore.get_key(&address)?;
                 let key = ExportedKey {
-                    exported_private_key: skp
+                    exported_private_key: ikp
                         .encode()
                         .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key: Key::from(skp),
+                    key: Key::from(ikp),
                 };
                 CommandOutput::Export(key)
             }
@@ -791,8 +792,8 @@ impl KeyToolCommand {
             KeyToolCommand::Show { file } => {
                 let res = read_keypair_from_file(&file);
                 match res {
-                    Ok(skp) => {
-                        let key = Key::from(&skp);
+                    Ok(ikp) => {
+                        let key = Key::from(&ikp);
                         CommandOutput::Show(key)
                     }
                     Err(_) => match read_authority_keypair_from_file(&file) {
@@ -927,9 +928,9 @@ impl KeyToolCommand {
                 };
                 let intent_msg = IntentMessage::new(Intent::personal_message(), msg.clone());
 
-                let skp =
+                let ikp =
                     IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
-                let s = Signature::new_secure(&intent_msg, &skp);
+                let s = Signature::new_secure(&intent_msg, &ikp);
 
                 let sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
                     get_zklogin_inputs(), // this is for the fixed keypair
@@ -950,16 +951,16 @@ impl KeyToolCommand {
                 test_multisig,
                 sign_with_sk,
             } => {
-                let skp = if fixed {
+                let ikp = if fixed {
                     IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
                 } else {
                     IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rand::thread_rng()))
                 };
-                println!("Ephemeral keypair: {:?}", skp.encode());
-                let pk = skp.public();
-                let ephemeral_key_identifier: IotaAddress = (&skp.public()).into();
+                println!("Ephemeral keypair: {:?}", ikp.encode());
+                let pk = ikp.public();
+                let ephemeral_key_identifier: IotaAddress = (&ikp.public()).into();
                 println!("Ephemeral key identifier: {ephemeral_key_identifier}");
-                keystore.add_key(None, skp)?;
+                keystore.add_key(None, ikp)?;
 
                 let mut eph_pk_bytes = vec![pk.flag()];
                 eph_pk_bytes.extend(pk.as_ref());
@@ -1200,8 +1201,8 @@ pub async fn fetch_jwks(
 }
 
 impl From<&IotaKeyPair> for Key {
-    fn from(skp: &IotaKeyPair) -> Self {
-        Key::from(skp.public())
+    fn from(ikp: &IotaKeyPair) -> Self {
+        Key::from(ikp.public())
     }
 }
 
@@ -1309,7 +1310,7 @@ impl Debug for CommandOutput {
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
-    let skp = match IotaKeyPair::decode(&value) {
+    let ikp = match IotaKeyPair::decode(&value) {
         Ok(s) => s,
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
@@ -1322,7 +1323,7 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                 IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
             }
             Err(_) => match IotaKeyPair::decode_base64(&value) {
-                Ok(skp) => skp,
+                Ok(ikp) => ikp,
                 Err(_) => match Ed25519KeyPair::decode_base64(&value) {
                     Ok(kp) => IotaKeyPair::Ed25519(kp),
                     Err(_) => return Err(anyhow!("Invalid private key encoding")),
@@ -1332,10 +1333,10 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
     };
 
     Ok(ConvertOutput {
-        bech32_with_flag: skp.encode().map_err(|_| anyhow!("Cannot encode keypair"))?,
-        base64_with_flag: skp.encode_base64(),
-        hex_without_flag: Hex::encode(&skp.to_bytes()[1..]),
-        scheme: skp.public().scheme().to_string(),
+        bech32_with_flag: ikp.encode().map_err(|_| anyhow!("Cannot encode keypair"))?,
+        base64_with_flag: ikp.encode_base64(),
+        hex_without_flag: Hex::encode(&ikp.to_bytes()[1..]),
+        scheme: ikp.public().scheme().to_string(),
     })
 }
 

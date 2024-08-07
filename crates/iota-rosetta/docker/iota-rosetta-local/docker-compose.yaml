@@ -2,7 +2,7 @@
 version: "3.9"
 services:
   iota-network:
-    image: mysten/iota-rosetta-local
+    image: iotaledger/iota-rosetta-local
     ports:
       - "9000:9000"
     expose:
@@ -13,7 +13,7 @@ services:
       - |
           /usr/local/bin/iota start
   rosetta-online:
-    image: mysten/iota-rosetta-local
+    image: iotaledger/iota-rosetta-local
     ports:
       - "9002:9002"
     expose:
@@ -28,7 +28,7 @@ services:
     stdin_open: true
     tty: true
   rosetta-offline:
-    image: mysten/iota-rosetta-local
+    image: iotaledger/iota-rosetta-local
     ports:
       - "9003:9003"
     expose:

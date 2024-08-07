@@ -509,9 +509,9 @@ async fn zklogin_test_cached_proof_wrong_key() {
     // 1
     // );
 
-    let (skp, _eph_pk, zklogin) =
+    let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
-    let ephemeral_key = match skp {
+    let ephemeral_key = match ikp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
@@ -643,9 +643,9 @@ async fn setup_zklogin_network(
     AuthorityServerHandle,
     NetworkAuthorityClient,
 )> {
-    let (skp, _eph_pk, zklogin) =
+    let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")?[1];
-    let ephemeral_key = match skp {
+    let ephemeral_key = match ikp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
@@ -769,9 +769,9 @@ async fn zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authorty state with some objects under a zklogin address.
-    let (skp, _eph_pk, zklogin) =
+    let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
-    let ephemeral_key = match skp {
+    let ephemeral_key = match ikp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };

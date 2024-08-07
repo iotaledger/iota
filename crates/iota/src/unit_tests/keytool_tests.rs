@@ -290,8 +290,9 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
+    #[rustfmt::skip]
     // Test case matches with
-    // /mysten/iota/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts
+    // /iotaledger/iota/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
@@ -330,8 +331,9 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
+    #[rustfmt::skip]
     // Test case matches with
-    // /mysten/iota/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
+    // /iotaledger/iota/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
@@ -370,8 +372,9 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
+    #[rustfmt::skip]
     // Test case matches with
-    // /mysten/iota/sdk/typescript/test/unit/cryptography/secp256r1-keypair.test.ts
+    // /iotaledger/iota/sdk/typescript/test/unit/cryptography/secp256r1-keypair.test.ts
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "act wing dilemma glory episode region allow mad tourist humble muffin oblige",

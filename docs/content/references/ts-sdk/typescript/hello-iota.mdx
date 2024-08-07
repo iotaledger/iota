@@ -57,7 +57,7 @@ Create a new `index.js` file in the root of your project with the following code
 ```js
 import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 import { getFaucetHost, requestIotaFromFaucetv1 } from '@iota/iota.js/faucet';
-import { MICROS_PER_IOTA } from '@iota/iota.js/utils';
+import { NANOS_PER_IOTA } from '@iota/iota.js/utils';
 
 // replace <YOUR_IOTA_ADDRESS> with your actual address, which is in the form 0x123...
 const MY_ADDRESS = '<YOUR_IOTA_ADDRESS>';
@@ -65,9 +65,9 @@ const MY_ADDRESS = '<YOUR_IOTA_ADDRESS>';
 // create a new IotaClient object pointing to the network you want to use
 const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
 
-// Convert MICROS to Iota
+// Convert NANOS to Iota
 const balance = (balance) => {
-    return Number.parseInt(balance.totalBalance) / Number(MICROS_PER_IOTA);
+    return Number.parseInt(balance.totalBalance) / Number(NANOS_PER_IOTA);
 };
 
 // store the JSON representation for the IOTA the address owns before using faucet

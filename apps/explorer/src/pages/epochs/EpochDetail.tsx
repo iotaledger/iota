@@ -118,10 +118,6 @@ export default function EpochDetail() {
                                 amount={epochData.endOfEpochInfo?.totalStake}
                             />
                             <IotaStats
-                                label="Stake Subsidies"
-                                amount={epochData.endOfEpochInfo?.stakeSubsidyAmount}
-                            />
-                            <IotaStats
                                 label="Stake Rewards"
                                 amount={epochData.endOfEpochInfo?.totalStakeRewardsDistributed}
                             />

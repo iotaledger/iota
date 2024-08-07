@@ -51,14 +51,10 @@ impl GovernanceReadApi {
         let system_state_summary: IotaSystemStateSummary =
             self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch;
-        let stake_subsidy_start_epoch = system_state_summary.stake_subsidy_start_epoch;
 
         let exchange_rate_table = exchange_rates(self, system_state_summary).await?;
 
-        let apys = iota_json_rpc::governance_api::calculate_apys(
-            stake_subsidy_start_epoch,
-            exchange_rate_table,
-        );
+        let apys = iota_json_rpc::governance_api::calculate_apys(exchange_rate_table);
 
         Ok(ValidatorApys { apys, epoch })
     }
@@ -416,7 +412,18 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
+        let stakes = self
+            .inner
+            .multi_get_objects_in_blocking_task(timelocked_staked_iota_ids)
+            .await?
+            .into_iter()
+            .map(|stored_object| {
+                let object = iota_types::object::Object::try_from(stored_object)?;
+                TimelockedStakedIota::try_from(&object).map_err(IndexerError::from)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.get_delegated_timelocked_stakes(stakes)
             .await
             .map_err(Into::into)
     }

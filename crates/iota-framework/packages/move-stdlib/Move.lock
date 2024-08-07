@@ -6,6 +6,6 @@ manifest_digest = "774F1883683AAACD2512A2B6C01188350E10E5A035E065A8CF110CE44A564
 deps_digest = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
 
 [move.toolchain-version]
-compiler-version = "1.22.0"
+compiler-version = "0.1.4"
 edition = "legacy"
 flavor = "iota"

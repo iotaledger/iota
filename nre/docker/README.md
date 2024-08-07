@@ -80,8 +80,8 @@ sudo docker compose down
 2. Update docker-compose.yaml to reference the new image
 
 ```
--    image: mysten/iota-node:<OLD_IOTA_SHA>
-+    image: mysten/iota-node:<NEW_IOTA_SHA>
+-    image: iotaledger/iota-node:<OLD_IOTA_SHA>
++    image: iotaledger/iota-node:<NEW_IOTA_SHA>
 ```
 
 3. Start docker compose in detached mode:

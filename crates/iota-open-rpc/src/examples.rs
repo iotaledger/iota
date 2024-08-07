@@ -1198,7 +1198,8 @@ impl RpcExampleProvider {
         Examples::new(
             "iotax_getDynamicFields",
             vec![ExamplePairing::new(
-                "Gets dynamic fields for the object the request provides in a paginated list of `limit` dynamic field results per page. The default limit is 50.",
+                "Gets dynamic fields for the object the request provides in a paginated list of `limit` \
+                dynamic field results per page. The default limit is 50.",
                 vec![
                     ("parent_object_id", json!(object_id)),
                     ("cursor", json!(ObjectID::new(self.rng.gen()))),
@@ -1310,7 +1311,10 @@ impl RpcExampleProvider {
         Examples::new(
             "iotax_getOwnedObjects",
             vec![ExamplePairing::new(
-                "Returns all the objects the address provided in the request owns and that match the filter. By default, only the digest value is returned, but the request returns additional information by setting the relevant keys to true. A cursor value is also provided, so the list of results begin after that value.",
+                "Returns all the objects the address provided in the request owns and that match the filter. \
+                By default, only the digest value is returned, but the request returns additional information \
+                by setting the relevant keys to true. A cursor value is also provided, so the list of results \
+                begin after that value.",
                 vec![
                     ("address", json!(owner)),
                     ("query", json!(query)),
@@ -1503,7 +1507,10 @@ impl RpcExampleProvider {
         Examples::new(
             "iotax_resolveNameServiceNames",
             vec![ExamplePairing::new(
-                "Returns the IotaNS name for the address the request provides. Currently, the API returns only the first name in cases where there are multiple. Future support will use the cursor ID and limit values in the request to control pagination of the response for addresses with multiple names.",
+                "Returns the IotaNS name for the address the request provides. \
+                Currently, the API returns only the first name in cases where there are multiple. \
+                Future support will use the cursor ID and limit values in the request to control \
+                pagination of the response for addresses with multiple names.",
                 vec![
                     ("address", json!(object_id)),
                     ("cursor", json!(next_cursor)),

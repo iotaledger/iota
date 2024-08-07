@@ -45,7 +45,7 @@ export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
                 <Text variant="captionSmall" weight="semibold">
                     View on Explorer
                 </Text>
-                <ArrowUpRight12 className="text-pSubtitle text-steel" />
+                <ArrowUpRight12 className="text-steel text-pSubtitle" />
             </div>
         </Card>
     );

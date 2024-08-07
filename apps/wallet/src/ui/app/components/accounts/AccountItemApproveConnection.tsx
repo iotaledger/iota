@@ -31,10 +31,10 @@ export function AccountItemApproveConnection({
     return (
         <div
             className={clsx(
-                'group cursor-pointer rounded-xl border border-solid border-hero/10 px-4 py-3',
+                'border-hero/10 group cursor-pointer rounded-xl border border-solid px-4 py-3',
                 'flex items-center justify-start gap-3',
                 selected ? 'bg-white/80 shadow-card-soft' : 'bg-white/40 hover:bg-white/60',
-                disabled ? 'border-transparent !bg-hero-darkest/10' : 'hover:shadow',
+                disabled ? '!bg-hero-darkest/10 border-transparent' : 'hover:shadow',
             )}
         >
             <AccountIcon account={account} />
@@ -42,7 +42,7 @@ export function AccountItemApproveConnection({
             <div className="flex flex-col items-start gap-1 overflow-hidden">
                 <div
                     className={clsx(
-                        'truncate font-sans text-body font-semibold group-hover:text-steel-darker',
+                        'group-hover:text-steel-darker truncate font-sans text-body font-semibold',
                         selected ? 'text-steel-darker' : 'text-steel-dark',
                         disabled && '!text-steel-darker',
                     )}
@@ -80,7 +80,7 @@ export function AccountItemApproveConnection({
                 ) : null}
 
                 <div
-                    className={clsx(`ml-auto flex items-center justify-center text-hero/10`, {
+                    className={clsx(`text-hero/10 ml-auto flex items-center justify-center`, {
                         'text-success': selected,
                     })}
                 >

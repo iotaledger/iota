@@ -794,6 +794,7 @@ export const RPC_METHODS: {
             ),
             epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
             inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
+            iotaTotalSupply: String(systemState.iotaTotalSupply),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
@@ -812,17 +813,7 @@ export const RPC_METHODS: {
             ),
             safeModeStorageRebates: String(systemState.safeMode?.gasSummary?.storageRebate),
             safeModeStorageCharges: String(systemState.safeMode?.gasSummary?.storageCost),
-            stakeSubsidyBalance: String(systemState.systemStakeSubsidy?.balance),
-            stakeSubsidyCurrentDistributionAmount: String(
-                systemState.systemStakeSubsidy?.currentDistributionAmount,
-            ),
-            stakeSubsidyDecreaseRate: systemState.systemStakeSubsidy?.decreaseRate!,
-            stakeSubsidyDistributionCounter: String(
-                systemState.systemStakeSubsidy?.distributionCounter,
-            ),
-            stakeSubsidyPeriodLength: String(systemState.systemStakeSubsidy?.periodLength),
-            stakeSubsidyStartEpoch: String(systemState.systemParameters?.stakeSubsidyStartEpoch),
-            stakingPoolMappingsSize: String(systemState.validatorSet?.stakePoolMappingsSize),
+            stakingPoolMappingsSize: String(systemState.validatorSet?.stakingPoolMappingsSize),
             storageFundNonRefundableBalance: String(systemState.storageFund?.nonRefundableBalance),
             storageFundTotalObjectStorageRebates: String(
                 systemState.storageFund?.totalObjectStorageRebates,

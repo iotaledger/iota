@@ -69,7 +69,7 @@ module iota_system::rewards_distribution_tests {
     }
 
     #[test]
-    fun test_stake_subsidy() {
+    fun test_rewards_with_big_amounts() {
         set_up_iota_system_state_with_big_amounts();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;

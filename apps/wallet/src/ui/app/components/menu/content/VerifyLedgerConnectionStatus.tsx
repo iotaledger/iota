@@ -42,7 +42,7 @@ export function VerifyLedgerConnectionStatus({
         case VerificationStatus.Unknown:
             if (isPending) {
                 return (
-                    <div className="flex gap-1 text-hero-dark">
+                    <div className="text-hero-dark flex gap-1">
                         <LoadingIndicator color="inherit" />
                         <Text variant="bodySmall">Please confirm on your Ledger...</Text>
                     </div>

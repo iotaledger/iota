@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   diff:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     outputs:
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
@@ -30,7 +30,7 @@ jobs:
     name: Localnet
     needs: diff
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true'
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     services:
       postgres:
         image: postgres
@@ -69,11 +69,11 @@ jobs:
 
       - name: Run TS SDK e2e tests
         if: ${{ needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isRust == 'true'}}
-        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @mysten/iota.js test:e2e'
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota.js test:e2e'
 
       - name: Run RPC/GrpahQL comaptability e2e tests
         if: ${{ needs.diff.outputs.isGraphQlTransport == 'true' || needs.diff.outputs.isRust == 'true'}}
-        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @mysten/graphql-transport test:e2e'
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
       - name: Build explorer
         if: ${{ needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isRust == 'true'}}
@@ -114,7 +114,7 @@ jobs:
     needs: diff
     # TODO: add wallet e2e to the `if` condition when available
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     services:
       postgres:
         image: postgres
@@ -143,7 +143,7 @@ jobs:
     needs: diff
     # TODO: add wallet e2e to the `if` condition when available
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     services:
       postgres:
         image: postgres

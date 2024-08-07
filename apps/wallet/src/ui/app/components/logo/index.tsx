@@ -24,7 +24,7 @@ function Logo({ network }: LogoProps) {
         LogoComponent = NETWORK_LOGOS[network];
     }
 
-    return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;
+    return <LogoComponent className="text-gray-90 h-7 w-walletLogo" />;
 }
 
 export default Logo;

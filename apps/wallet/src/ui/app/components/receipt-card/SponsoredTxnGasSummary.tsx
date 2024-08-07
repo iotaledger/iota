@@ -18,7 +18,7 @@ export function SponsoredTxnGasSummary({ totalGas, sponsor }: SponsoredTxnGasSum
     const [sponsorTotalAmount, sponsorTotalAmountSymbol] = useFormatCoin(totalGas, IOTA_TYPE_ARG);
 
     return (
-        <div className="flex w-full flex-col gap-3.5 border-x-0 border-b-0 border-t border-solid border-steel/20 py-3.5 first:pt-0">
+        <div className="border-steel/20 flex w-full flex-col gap-3.5 border-x-0 border-b-0 border-t border-solid py-3.5 first:pt-0">
             <Text variant="body" weight="medium" color="steel">
                 Gas Fees
             </Text>

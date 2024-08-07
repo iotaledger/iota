@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [tooling-runners]
+    runs-on: [self-hosted]
     steps:
       - name: Clean up tag name '${{ env.TAG_NAME }}' and create artifact name
         shell: bash
@@ -36,8 +36,6 @@ jobs:
         with:
           ref: ${{ env.iota_branch }}
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
-        with:
-          version: 9
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:

@@ -12,9 +12,29 @@ crate. This document will give a high to mid-level overview of the migration pro
 
 :::
 
+## Design Principles
 
+- The migration aims to move away from the Stardust-based ledger concepts and transform assets into their pure
+object-based Move representation. After completing the migration flow, users should see move assets that semantically
+resemble the former Stardust assets in their wallet.
+- Stardust Assets on the legacy ledger level are encapsulated in Outputs. An asset is semantically a valuable resource,
+while an output is a container with spending rules that holds the valuable resource.
+- We aim to mimic this hierarchy between assets and their containers in the genesis move ledger state, that is, to
+ensure that spending conditions still hold. Once the containers are unlocked and destroyed during a user-initiated
+claiming/migration transaction, the encapsulated assets will be extracted and sent to the user address and the move
+containers will be destroyed.
+- We intentionally do not include constructors in move for such containers, as we want to discourage their use after the
+migration. They will only be created in the genesis ledger state via the migration script.
 
-:::info
+## Foundry Outputs & Native Tokens
+
+Foundry Outputs in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
+are established ways for these operations, in particular using
+[`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin) and
+[`TreasuryCap`](../../references/framework/iota-framework/coin.mdx#resource-treasurycap). The two main goals of the
+foundry migration are to convert it to a [`CoinManager`](../../references/framework/iota-framework/coin_manager.mdx),
+a type introduced in the Move IOTA framework in order to simplify working with the `TreasuryCap`, and to a `Coin<IOTA>`
+to hold the IOTA tokens of the foundry itself.
 
 A unique coin type, `Coin<XYZ>,` is represented by the one-time witness `XYZ` defined in its own package. Therefore, a
 corresponding package must be created for each foundry defining the native token's one-time witness and initial minting
@@ -29,6 +49,24 @@ identifier (e.g., containing UTF-8 characters), a random identifier for the toke
 uses generic defaults. As much as possible, though, the migration attempts to do as little modifications to the UTXO as
 possible. The package template is filled with the extracted data, compiled, and published.
 
+The result of the foundry migration is the following:
+
+- A package representing the native token, in particular containing a one-time witness representing the unique type of
+the native token (to be used as `Coin<package_id::token_name::NativeTokenOneTimeWitness>`; abbreviated in the rest of
+this document).
+- A `CoinManager` and `CoinManagerTreasuryCap` object, the latter of which is owned by the address of the alias that
+owned the original foundry.
+- A minted coin (`Coin<NativeTokenOneTimeWitness>`) containing the entire circulating supply of the native tokens owned
+by the `0x0` address.
+- A gas coin (`Coin<IOTA>`) containing the migrated IOTA tokens of the foundry, owned by the address of the alias that
+owned the original foundry.
+
+After this process, the minted coin sits on the `0x0` address with the entire minted supply. When other output types are
+migrated that contain a balance of _this_ native token, then that balance is split off of the minted coin into a new
+`Coin` object, which is then owned by the migrated output. If, by the end of this process, a non-zero balance remains on
+the minted coin, it is left at the zero address. This means they were burned in Stardust and, therefore, are effectively
+also burned on the Move ledger, as no one controls the `0x0` address.
+
 In Move, the `TreasuryCap` type uses a `u64` representation (within
 [`Balance`](../../references/framework/iota-framework/balance.mdx#struct-balance)) as its maximum supply. Since
 Stardust allows for `u256` to be used, in some rare cases, the maximum or circulating supply may exceed the maximum
@@ -40,28 +78,6 @@ migrated tokens are multiplied by `MAX_U64_SUPPLY / stardust_circulating_supply`
 proportionally to fit within the maximum supply of `MAX_U64_SUPPLY`. This maintains the token ratio of the Native Token
 in Stardust with the `TreasuryCap` constraints. Note that in cases where the ratio is very small, this might result in a
 Native Token balance of 0.
-
-:::
-
-## Foundries Outputs
-
-The result of the foundry migration is the following:
-
-- A package representing the native token, in particular containing a one-time witness representing the unique type of
-  the native token (to be used as `Coin<package_id::token_name::NativeTokenOneTimeWitness>`; abbreviated in the rest of
-  this document).
-- A `CoinManager` and `CoinManagerTreasuryCap` object, the latter of which is owned by the address of the alias that
-  owned the original foundry.
-- A minted coin (`Coin<NativeTokenOneTimeWitness>`) containing the entire circulating supply of the native tokens owned
-  by the `0x0` address.
-- A gas coin (`Coin<IOTA>`) containing the migrated IOTA tokens of the foundry, owned by the address of the alias that
-  owned the original foundry.
-
-After this process, the minted coin sits on the `0x0` address with the entire minted supply. When other output types that 
-contain a balance of _this_ native token are migrated, then that balance is split off of the minted coin into a new
-`Coin` object, which is then owned by the migrated output. If a non-zero balance remains on
-the minted coin by the end of this process, it is left at the zero address. This means they were burned in Stardust and, 
-therefore, are effectively also burned on the Move ledger, as no one controls the `0x0` address.
 
 ## Output Migration Design
 
@@ -116,19 +132,19 @@ Alias Outputs are migrated to two Move objects:
 Other noteworthy points:
 
 - The `AliasOutput` is owned by the address in the Stardust output's `Governor Address Unlock Condition`. There is no
-  concept of a state controller on the Move side, and so the `State Controller` address from Stardust is functionally
-  discarded, although it can be accessed in the `Alias` object.
+concept of a state controller on the Move side, and so the `State Controller` address from Stardust is functionally
+discarded, although it can be accessed in the `Alias` object.
 - The `AliasOutput` object has a freshly generated `UID` while the `Alias` has its `UID` set to the `Alias ID` of the
-  Stardust output. If the `Alias ID` was zeroed in the Stardust output, it is computed according to the protocol rules
-  from [TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Alias` object in Move has a zeroed
-  `UID`.
+Stardust output. If the `Alias ID` was zeroed in the Stardust output, it is computed according to the protocol rules
+from [TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Alias` object in Move has a zeroed
+`UID`.
 - The Foundry Counter in Stardust is used to give foundries a unique ID. The Foundry ID is the concatenation of
-  `Address || Serial Number || Token Scheme Type`. In Move the foundries are represented by unique packages that define
-  the corresponding Coin Type (a one-time witness) of the Native Token. Because the foundry counter can no longer be
-  enforced to be incremented when a new package is deployed, which defines a native token and is owned by that Alias,
-  the Foundry Counter becomes meaningless. Hence, it is not migrated and has no equivalent field in Move. The same count
-  can be determined (off-chain) by counting the number of `TreasuryCap`s the Alias owns. The Stardust constraint that
-  foundries can only be owned by aliases is no longer enforced in the Move version.
+`Address || Serial Number || Token Scheme Type`. In Move the foundries are represented by unique packages that define
+the corresponding Coin Type (a one-time witness) of the Native Token. Because the foundry counter can no longer be
+enforced to be incremented when a new package is deployed, which defines a native token and is owned by that Alias,
+the Foundry Counter becomes meaningless. Hence, it is not migrated and has no equivalent field in Move. The same count
+can be determined (off-chain) by counting the number of `TreasuryCap`s the Alias owns. The Stardust constraint that
+foundries can only be owned by aliases is no longer enforced in the Move version.
 
 ## NFT Outputs
 
@@ -140,12 +156,12 @@ Much like Alias Outputs, NFT Outputs are migrated to two Move objects:
 Other noteworthy points:
 
 - The `NftOutput` is owned by the address in the Stardust output's `Address Unlock Condition` or if an
-  `Expiration Unlock Condition` is present, by either of the two addresses in that unlock condition.
+`Expiration Unlock Condition` is present, by either of the two addresses in that unlock condition.
 - The `NftOutput` object has a freshly generated `UID` while the `Nft` has its `UID` set to the `Nft ID` of the Stardust
-  output. If the `Nft ID` was zeroed in the Stardust output, it is computed according to the protocol rules from
-  [TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
+output. If the `Nft ID` was zeroed in the Stardust output, it is computed according to the protocol rules from
+[TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
 - The `Nft` move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the Stardust
-  NFT, if possible. If the Stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis.
+NFT, if possible. If the Stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis.
 
 You can examine the `convert_immutable_metadata` function in the migration code for more
 details.

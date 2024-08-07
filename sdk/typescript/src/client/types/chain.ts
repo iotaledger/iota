@@ -58,7 +58,6 @@ export type EndOfEpochInfo = {
     storageCharge: string;
     storageRebate: string;
     storageFundBalance: string;
-    stakeSubsidyAmount: string;
     totalGasFees: string;
     totalStakeRewardsDistributed: string;
     leftoverStorageFundInflow: string;

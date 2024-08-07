@@ -1,43 +1,56 @@
 ---
-title: Connect to a Local Network
+description: Guide to setting up and using a local IOTA network for development and testing.
+tags: [ local network, development, testing, CLI, wallet, ts, sdk]
 ---
+# Local Development
 
-Use a IOTA local network to test your dApps against the latest changes to IOTA, and to prepare for the next IOTA release to the Devnet or Testnet network. To set up a local network, IOTA provides the `iota-test-validator` binary. The `iota-test-validator` starts a local network that includes a IOTA Full node, a IOTA validator, and a IOTA faucet. You can use the included faucet to get test IOTA to use on the local network.
+You can create a local IOTA network to develop and test your dApps with the latest changes in the IOTA repository. You
+can set it up using the `iota-test-validator` binary, which will start a local IOTA Full node, an IOTA validator, and a
+test token faucet.
 
-If you haven't already, you need to [install IOTA](iota-install.mdx) on your system.
+## Prerequisites
 
-## Start the local network
+You should [install IOTA](iota-install.mdx) to interact with the local node.
 
-To start the local network, run the following command from your `iota` root folder.
+## Start a Local Network
+
+You can start a local network by running the following command from your `iota` root folder.
 
 ```bash
 RUST_LOG="off,iota_node=info" cargo run --bin iota-test-validator
 ```
 
-The command starts the `iota-test-validator`. The `RUST_LOG`=`off,iota_node=info` turns off logging for all components except
-iota-node. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
+The command will start the `iota-test-validator`. The `RUST_LOG`=`off,iota_node=info` turns off logging for all
+components except iota-node. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
 
-**Important:** Each time you start the `iota-test-validator`, the network starts as a new network with no previous data. The local network is not persistent.
+:::danger No persistence
 
-To customize your local IOTA network, such as changing the port used, include additional parameters in the command to start `iota-test-validator`:
+Data on the local network is not persistent. This means that every time you start the `iota-test-validator`, the network
+will not have any record of your previous addresses or transactions.
 
-```
-OPTIONS:
-        --epoch-duration-ms <EPOCH_DURATION_MS>
-            The duration for epochs (defaults to one minute) [default: 60000]
+:::
 
-        --faucet-port <FAUCET_PORT>
-            Port to start the IOTA faucet on [default: 9123]
+## Customize a Local Network
 
-        --fullnode-rpc-port <FULLNODE_RPC_PORT>
-            Port to start the Fullnode RPC server on [default: 9000]
-```
+You can add the following additional parameters to the [start command](#start-a-local-network) to customize your
+network:
+
+* `--epoch-duration-ms <EPOCH_DURATION_MS>`:  Change epoch duration from the default one minute to your desired value.
+* `--faucet-port <FAUCET_PORT>`: Change the port where the IOTA faucet starts.
+* `--fullnode-rpc-port <FULLNODE_RPC_PORT>`: Change the port where the Full-node RPC server starts.
+
+:::tip Validator Help
 
 Use `iota-test-validator --help` to see these options in your console.
 
-### Access your local Full node
+:::
 
-Use the following command to retrieve the total transaction count from your local network:
+## Interact With Your Local Node
+
+### Using cURL
+
+You can use cURL to send JSON requests to your local node. The following example will retrieve the total transaction
+count from your local network:
 
 ```bash
 curl --location --request POST 'http://127.0.0.1:9000' \
@@ -54,70 +67,83 @@ If successful, the response resembles the following:
 
 ```json
 {
-    "jsonrpc": "2.0",
-    "result": 168,
-    "id": 1
+  "jsonrpc": "2.0",
+  "result": 168,
+  "id": 1
 }
 ```
 
-## Connect the IOTA Client CLI to your local network
+### Using the IOTA Client CLI
 
-You can use the IOTA Client CLI with any IOTA network. By default it connects to IOTA Devnet. To connect to your local network, create a new environment alias named `local` that sets the RPC URL the client uses to your local network.
+#### Create a local env
+
+The IOTA Client CLI is compatible with all IOTA networks. You only need to specify the RPC URL by passing
+the `--rpc <RPC URL>` parameter. We recommend that you also assign an alias to the network by passing
+the `--alias <ALIAS>` parameter so you can easily access this env in the future.
 
 ```shell
 iota client new-env --alias local --rpc http://127.0.0.1:9000
 ```
 
-Next, use the following command to set the active environment to the new `local` environment you created.
+#### Connect to the local env
+
+After [creating the env](#create-a-local-env), you can use the `switch`  command to set it as the current active
+environment:
 
 ```
 iota client switch --env local
 ```
 
-The command returns:
-
-`Active environment switched to [local]`
-
-You can check the current active environment with the following command:
+You can check the current active environment with the following command, which should return the environment alias you
+assigned:
 
 ```bash
 iota client active-env
 ```
 
-The command returns:
+#### Show the current active address
 
-`local`
-
-## Show the current active address
-
-The IOTA Client CLI uses the active address for command if you don't specify one. Use the following command to show the active address on your local network.
+The IOTA Client CLI will default to the active address if you don't specify an address. You can use the following
+command to show the current active address on your local network.
 
 ```
 iota client active-address
 ```
 
-The command returns an address:
+:::tip Get All Addresses
 
-`0xbc33e6e4818f9f2ef77d020b35c24be738213e64d9e58839ee7b4222029610de`
+You can also use the `iota client addresses` command to see all the addresses on your local network.
 
-Use the active address to get test IOTA to use on your local network. Use the `iota client addresses` command to see all of the addresses on your local network.
-
-**Note:** The address returned when you run the command is unique and does not match the one used in this example.
-
-## Use the local faucet {#use-the-local-faucet}
-
-Transactions on your local network require IOTA coins to pay for gas fees just like other networks. To send coins to a IOTA Wallet connected to your local network, see [Set up a local IOTA Wallet](#set-up-a-local-iota-wallet). You can use the address for the local IOTA Wallet with the faucet.
-
-IOTA CLI provides the `iota client faucet` command to get coins from the faucet. In the most basic case, run `iota client faucet` and wait up to 60 seconds for the coins to reach your wallet. Use `iota client gas` to check for the new coins.
-
-:::info
-The `faucet` command uses the active address and the active network environment by default. If you need to pass in a different address or faucet server URL, check the `help` menu. If you're using a different network than a local network or the public ones (fullnode.network.iota.io), you will have to pass the URL to the faucet server.
 :::
 
+#### Use the local faucet
 
-### Check the gas coin objects for the active address
+Even though it's a local network, transactions still require [gas](../../about-iota/tokenomics/gas-in-iota.mdx). You can use
 
-After you get coins from the faucet, use the following command to view the coin objects for the address:
+You can use the  `iota client faucet` command to get coins from your local faucet. Keep in mind that it may take up to
+one minute
+to complete your request. You can check if your coins have arrived using the `iota client gas` command.
+
+:::info Faucet Help
+
+The `faucet` command uses the active address and the active network environment by default. If you need to pass in a
+different address or faucet server URL, check the `help` menu. If you're using a different network than a local
+or public one, you must pass the URL to the faucet server.
+
+:::
+
+:::note IOTA Wallet
+
+To send coins to a
+IOTA Wallet is connected to your local network. See [Set up a local IOTA Wallet](#set-up-a-local-iota-wallet). You can use
+the address for the local IOTA Wallet with the faucet.
+
+:::
+
+#### Check the gas coin objects for the active address
+
+After you [get coins from the faucet](#use-the-local-faucet), you can use the following command to view the coin objects
+for the address:
 
 ```shell
 iota client gas
@@ -131,59 +157,69 @@ The response resembles the following, but with different IDs:
 ├────────────────────────────────────────────────────────────────────┼────────────┤
 │ 0x1d790713c1c3441a307782597c088f11230c47e609af2cec97f393123ea4de45 │ 200000000  │
 │ 0x20c1d5ad2e8693953fca09fd2fec0fbc52a787e0a0f77725220d36a09a5b312d │ 200000000  │
-│ 0x236714566110f5624516faa0da215ad29f8daa611e8b651d1e972168207567b2 │ 200000000  │
-│ 0xc81f30256bb04ad84bc4a92017cffd7c1f98286e028fa504d8515ad72ddd1088 │ 200000000  │
-│ 0xf61c8b21b305cc8e062b3a37de8c3a37583e17f437a449a2ab42321d019aeeb4 │ 200000000  │
+│ [...]                                                              │            │ 
 ╰────────────────────────────────────────────────────────────────────┴────────────╯
 ```
 
-## Install IOTA Wallet locally
+## Install IOTA Wallet Locally
 
-To install and use the apps locally, you must first install [pnpm](https://pnpm.io/installation). Use the instructions appropriate for your operating system.
+### Prerequisites
 
-After you install `pnpm`, use the following command to install the required dependencies in your workspace:
+* [pnpm](https://pnpm.io/installation).
+
+### Install Dependencies
+
+After you install `pnpm`, you should run the following command from the root folder of IOTA to install the necessary dependencies:
 
 ```shell
 pnpm install
 ```
 
-After the installation completes, run the following command to install IOTA Wallet:
+### Build
+
+After the installation completes, run the following command to build the IOTA Wallet:
 
 ```shell
 pnpm turbo build
 ```
 
-If you encounter an error from turbo build, confirm that there is no `package-lock.json`. If the file exists, remove it and then run the command again.
+### Set Up a Local IOTA Wallet
 
-## Set up a local IOTA Wallet
+You can use a local IOTA Wallet to test with your local network.
 
-You can also use a local IOTA Wallet to test with your local network.
+#### Configure the Wallet
 
-**Note:** To run the command you must have `pnpm` installed. See [Install IOTA Wallet locally](#install-iota-wallet-locally) for details.
+Before you start the IOTA Wallet app, update its default environment to point to your local network. First,
+make a copy of `iota/apps/wallet/configs/environment/.env.defaults` and rename it to `.env` in the same directory. In
+your `.env` file, edit the first line to read `API_ENV=local` and then save the file.
 
-Before you start the IOTA Wallet app, update its default environment to point to your local network. To do so, first make a copy of `iota/apps/wallet/configs/environment/.env.defaults` and rename it to `.env` in the same directory. In your `.env` file, edit the first line to read `API_ENV=local` and then save the file.
-
-Run the following command from the `iota` root folder to start IOTA Wallet on your local network:
+Run the following command from the `iota` root folder to start the IOTA Wallet on your local network:
 
 ```bash
-pnpm wallet dev
+pnpm wallet build
 ```
 
-### Add local IOTA Wallet to Chrome
+### Add a Local IOTA Wallet to Chrome
 
 After you build your local version of IOTA Wallet, you can add the extension to Chrome:
 
 1. Open a Chrome browser to `chrome://extensions`.
-1. Click the **Developer mode** toggle to enable, if it's not already on.
-1. Click the **Load unpacked** button and select your `iota/apps/wallet/dist` directory.
+2. Click the **Developer mode** toggle to enable if it's not already on.
+3. Click the **Load unpacked** button and select your `apps/wallet/dist` directory in your local copy of the [IOTA repository](../advanced/iota-repository.mdx).
 
-Consult the IOTA Wallet [Readme](https://github.com/iotaledger/iota/blob/main/apps/wallet/README.md#install-the-extension-to-chrome) for more information on working with a locally built wallet on Chrome.
+Consult the IOTA
+Wallet [Readme](https://github.com/iotaledger/iota/blob/main/apps/wallet/README.md#install-the-extension-to-chrome) for
+more information on working with a locally built wallet on Chrome is needed.
 
 ## Generate example data
 
 Use the TypeScript SDK to add example data to your network.
 
-**Note:** To run the command you must complete the `Pre-requisites for Building Apps locally` section first.
+:::note
+
+Before running the command, you must complete the `Prerequisites for Building Apps locally` section.
+
+:::
 
 Run the following command from the `iota` root folder:
 
@@ -195,12 +231,28 @@ For additional information about example data for testing, see [https://github.c
 
 ## Troubleshooting
 
-If you do not use [Node.js 18](https://nodejs.org/de/blog/announcements/v18-release-announce), you might see the following message:
+If you do not use [Node.js 18](https://nodejs.org/de/blog/announcements/v18-release-announce), you might see the
+following message:
 
-`Retrying requesting from faucet: Retry failed: fetch is not defined`
+`Retrying requesting from the faucet: Retry failed: fetch is not defined`
 
 To resolve this, switch or update to Node.js 18 and then try again.
 
 ## Test with the IOTA TypeScript SDK
 
-The published version of the IOTA TypeScript SDK might be an earlier version than the version of IOTA you installed for your local network. To make sure you're using the latest version of the SDK, use the `experimental`-tagged version (for example, `0.0.0-experimental-20230317184920`) in the [Current Tags](https://www.npmjs.com/package/@iota/iota.js/v/0.0.0-experimental-20230127130009?activeTab=versions) section of the IOTA NPM registry.
+The published version of the IOTA TypeScript SDK might be an earlier version than the version of IOTA you installed for
+your local network. To make sure you're using the latest version of the SDK, use a local built version of SDK. 
+
+In your local checkout of the [IOTA repository](../advanced/iota-repository.mdx) make sure you are using the same branch as the network you are developing against. Run 
+```bash
+pnpm install && pnpm build
+```
+ to compile the SDK.
+
+To use the local built SDK in your project go to your project folder and execute 
+
+```bash
+pnpm add <PATH_TO_YOUR_REPO>/sdk/typescript
+``` 
+
+and the locally compiled version of `iota/iota.js` package will be installed for your application.

@@ -45,7 +45,7 @@ export function ActiveCoinsCard({
                             to={`/send/select?${new URLSearchParams({
                                 type: activeCoin.coinType,
                             }).toString()}`}
-                            className="flex w-full items-center gap-2 overflow-hidden rounded-2lg border border-solid border-gray-45 no-underline"
+                            className="border-gray-45 flex w-full items-center gap-2 overflow-hidden rounded-2lg border border-solid no-underline"
                         >
                             <CoinItem
                                 coinType={activeCoin.coinType}
@@ -56,7 +56,7 @@ export function ActiveCoinsCard({
                     )
                 ) : (
                     <div className="flex w-full flex-col">
-                        <div className="mt-2 flex flex-col items-center justify-between divide-x-0 divide-y divide-solid divide-gray-45">
+                        <div className="divide-gray-45 mt-2 flex flex-col items-center justify-between divide-x-0 divide-y divide-solid">
                             {coins?.map(({ coinType, totalBalance }) => (
                                 <Link
                                     to={`/send?${new URLSearchParams({

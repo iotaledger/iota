@@ -3,12 +3,16 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { ButtonSegment, SegmentedButton } from '@/components';
-import { SegmentedButtonType } from '@/lib/components';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    SegmentedButton,
+    SegmentedButtonType,
+} from '@/components';
 import { ComponentProps, useState } from 'react';
 import { PlaceholderReplace } from '@iota/ui-icons';
 
-const meta = {
+const meta: Meta<typeof SegmentedButton> = {
     component: SegmentedButton,
     tags: ['autodocs'],
     render: (props) => {
@@ -29,10 +33,11 @@ const meta = {
 
         return (
             <div className="flex flex-col items-start">
-                <SegmentedButton type={props.type}>
+                <SegmentedButton type={props.type} shape={props.shape}>
                     {elements.map((element, index) => (
                         <ButtonSegment
                             key={element.label}
+                            type={props.shape}
                             onClick={() => handleElementClick(index)}
                             {...element}
                         />
@@ -55,5 +60,48 @@ export const Default: Story = {
                 options: Object.values(SegmentedButtonType),
             },
         },
+        shape: {
+            control: {
+                type: 'select',
+                options: Object.values(ButtonSegmentType),
+            },
+        },
+    },
+};
+
+export const Underlined: Story = {
+    args: {
+        type: SegmentedButtonType.Transparent,
+        shape: ButtonSegmentType.Underlined,
+    },
+    render: (props) => {
+        const [elements, setElements] = useState<ComponentProps<typeof ButtonSegment>[]>([
+            { label: 'Label 1', selected: true, type: ButtonSegmentType.Underlined },
+            { label: 'Label 2', icon: <PlaceholderReplace />, type: ButtonSegmentType.Underlined },
+            { label: 'Label 3', type: ButtonSegmentType.Underlined },
+            { label: 'Label 4', disabled: true, type: ButtonSegmentType.Underlined },
+        ]);
+
+        const handleElementClick = (clickedIndex: number) => {
+            const updatedElements = elements.map((element, index) => ({
+                ...element,
+                selected: index === clickedIndex,
+            }));
+            setElements(updatedElements);
+        };
+
+        return (
+            <div className="flex flex-col items-start">
+                <SegmentedButton type={props.type} shape={props.shape}>
+                    {elements.map((element, index) => (
+                        <ButtonSegment
+                            key={element.label}
+                            onClick={() => handleElementClick(index)}
+                            {...element}
+                        />
+                    ))}
+                </SegmentedButton>
+            </div>
+        );
     },
 };

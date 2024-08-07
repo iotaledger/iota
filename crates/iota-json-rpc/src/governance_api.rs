@@ -439,10 +439,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
             .await
             .map_err(|e| error_object_from_rpc(e.into()))?;
 
-        let apys = calculate_apys(
-            system_state_summary.stake_subsidy_start_epoch,
-            exchange_rate_table,
-        );
+        let apys = calculate_apys(exchange_rate_table);
 
         Ok(ValidatorApys {
             apys,
@@ -451,18 +448,15 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 }
 
-pub fn calculate_apys(
-    // TODO: Will be properly fixed in the stake subsidy removal PR.
-    _stake_subsidy_start_epoch: u64,
-    exchange_rate_table: Vec<ValidatorExchangeRates>,
-) -> Vec<ValidatorApy> {
+pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<ValidatorApy> {
     let mut apys = vec![];
 
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
+        let exchange_rates_count = rates.rates.len();
         let exchange_rates = rates.rates.into_iter().map(|(_, rate)| rate);
 
-        // we need at least 2 data points to calculate apy
-        let average_apy = if exchange_rates.clone().count() >= 2 {
+        // We need at least 2 data points to calculate apy.
+        let average_apy = if exchange_rates_count >= 2 {
             // rates are sorted by epoch in descending order.
             let er_e = exchange_rates.clone().dropping(1);
             // rate e+1
@@ -515,7 +509,7 @@ fn test_apys_calculation_filter_outliers() {
         })
         .collect();
 
-    let apys = calculate_apys(20, exchange_rates);
+    let apys = calculate_apys(exchange_rates);
 
     for apy in apys {
         println!("{}: {}", address_map[&apy.address], apy.apy);

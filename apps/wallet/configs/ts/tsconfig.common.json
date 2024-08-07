@@ -10,7 +10,7 @@
         "forceConsistentCasingInFileNames": true,
         "strict": true,
         "noFallthroughCasesInSwitch": true,
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "resolveJsonModule": true,
         "noEmit": false,
         "isolatedModules": true,

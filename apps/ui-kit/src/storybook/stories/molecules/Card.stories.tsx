@@ -16,7 +16,7 @@ import {
     CardType,
     ImageType,
     ImageShape,
-} from '@/components/molecules/card';
+} from '@/components';
 
 type CardCustomProps = CardProps & {
     imageType: CardImageProps['type'];

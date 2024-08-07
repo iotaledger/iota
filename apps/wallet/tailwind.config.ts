@@ -5,18 +5,11 @@
 import preset from '@iota/core/tailwind.config';
 import { type Config } from 'tailwindcss';
 import animatePlugin from 'tailwindcss-animate';
+import { uiKitStaticPreset } from '@iota/apps-ui-kit';
 
 export default {
-    presets: [preset],
-
-    /*
-     * NOTE: The Tailwind CSS reset doesn't mix well with the existing styles.
-     * We currently disable the CSS reset and expect components to adapt accordingly.
-     * When we fix this, we should use the following as a CSS reset: @tailwind base;
-     */
-    corePlugins: {
-        preflight: false,
-    },
+    presets: [preset, uiKitStaticPreset],
+    content: ['./src/**/*.{js,jsx,ts,tsx}', './node_modules/@iota/apps-ui-kit/**/*.js'],
     theme: {
         extend: {
             colors: {
