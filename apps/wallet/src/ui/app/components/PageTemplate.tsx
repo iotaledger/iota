@@ -9,30 +9,30 @@ import { useNavigate } from 'react-router-dom';
 interface PageTemplateProps {
     title?: string;
     children: ReactNode;
-    closePageTemplate?: () => void;
+    onClose?: () => void;
     isTitleCentered?: boolean;
-    displayBackButton?: boolean;
+    showBackButton?: boolean;
 }
 
 function PageTemplate({
     title,
     children,
-    closePageTemplate,
+    onClose: closePageTemplate,
     isTitleCentered,
-    displayBackButton,
+    showBackButton,
 }: PageTemplateProps) {
     const closeModal = useCallback(() => {
         closePageTemplate && closePageTemplate();
     }, [closePageTemplate]);
     const navigate = useNavigate();
-
+    const handleBack = useCallback(() => navigate(-1), [navigate]);
     return (
         <div className="h-full w-full">
             {title && (
                 <Header
                     titleCentered={isTitleCentered}
                     title={title}
-                    onBack={displayBackButton ? () => navigate(-1) : undefined}
+                    onBack={showBackButton ? handleBack : undefined}
                     onClose={closeModal}
                 />
             )}

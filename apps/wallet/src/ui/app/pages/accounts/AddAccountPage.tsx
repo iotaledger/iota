@@ -55,8 +55,8 @@ export function AddAccountPage() {
         <PageTemplate
             title="Add Profile"
             isTitleCentered
-            closePageTemplate={() => navigate('/')}
-            displayBackButton
+            onClose={() => navigate('/')}
+            showBackButton
         >
             <div className="flex h-full w-full flex-col gap-4 ">
                 <div className="flex flex-col gap-y-4">
