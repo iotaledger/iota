@@ -6,10 +6,10 @@
 !/dapps
 !/.config
 !/*.js
+!/docs
 
 # ignore markdown and yml files because they are covered by dprint
 **/*.md
-**/*.mdx
 **/*.yml
 **/*.yaml
 

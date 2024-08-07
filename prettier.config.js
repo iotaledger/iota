@@ -50,5 +50,11 @@ module.exports = {
                 proseWrap: 'always',
             },
         },
+        {
+            files: 'docs/**/*',
+            options: {
+                proseWrap: 'always',
+            },
+        },
     ],
 };
