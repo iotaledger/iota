@@ -8,8 +8,6 @@ module nfts::discount_coupon_tests {
     use iota::coin::{Self, Coin};
     use iota::iota::IOTA;
     use iota::test_scenario::Self;
-    use iota::transfer;
-    use iota::tx_context::TxContext;
 
     const ISSUER_ADDRESS: address = @0xA001;
     const USER1_ADDRESS: address = @0xB001;
@@ -29,7 +27,7 @@ module nfts::discount_coupon_tests {
 
     #[test]
     fun test_mint_then_transfer() {
-        let scenario_val = test_scenario::begin(ISSUER_ADDRESS);
+        let mut scenario_val = test_scenario::begin(ISSUER_ADDRESS);
         let scenario = &mut scenario_val;
         {
             init(test_scenario::ctx(scenario));

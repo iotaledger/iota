@@ -7,9 +7,8 @@
 module basics::clock {
     use iota::clock::{Self, Clock};
     use iota::event;
-    use iota::tx_context::TxContext;
 
-    struct TimeEvent has copy, drop {
+    public struct TimeEvent has copy, drop {
         timestamp_ms: u64,
     }
 

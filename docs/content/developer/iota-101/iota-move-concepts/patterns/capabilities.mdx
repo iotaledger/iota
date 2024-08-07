@@ -7,10 +7,7 @@ A capability is a pattern that allows authorizing actions with an object. For ex
 
 ```move
 module examples::item {
-    use iota::transfer;
-    use iota::object::{Self, UID};
-    use std::string::{Self, String};
-    use iota::tx_context::{Self, TxContext};
+    use std::string::String;
 
     /// Type that marks Capability to create new `Item`s.
     public struct AdminCap has key { id: UID }
@@ -27,4 +24,5 @@ module examples::item {
     }
 
     /// The entry function can not be called if `AdminCap` is not passed as
+}
 ```

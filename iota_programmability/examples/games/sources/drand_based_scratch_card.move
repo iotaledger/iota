@@ -30,11 +30,8 @@ module games::drand_based_scratch_card {
     use iota::balance::{Self};
     use iota::coin::{Self, Coin};
     use iota::hmac::hmac_sha3_256;
-    use iota::object::{Self, ID, UID};
 
     use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     /// Error codes
     const EInvalidDeposit: u64 = 0;
@@ -45,7 +42,7 @@ module games::drand_based_scratch_card {
     const EInvalidGame: u64 = 6;
 
     /// Game represents a set of parameters of a single game.
-    struct Game has key {
+    public struct Game has key {
         id: UID,
         creator: address,
         reward_amount: u64,
@@ -55,7 +52,7 @@ module games::drand_based_scratch_card {
     }
 
     /// Reward that is attached to a specific game. Can be withdrawn once.
-    struct Reward has key {
+    public struct Reward has key {
         id: UID,
         game_id: ID,
         balance: Balance<IOTA>,
@@ -63,14 +60,14 @@ module games::drand_based_scratch_card {
 
     /// Ticket represents a participant in a single game.
     /// Can be deconstructed only by the owner.
-    struct Ticket has key, store {
+    public struct Ticket has key, store {
         id: UID,
         game_id: ID,
     }
 
     /// Winner represents a participant that won in a specific game.
     /// Can be consumed by the take_reward.
-    struct Winner has key, store {
+    public struct Winner has key, store {
         id: UID,
         game_id: ID,
     }

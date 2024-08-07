@@ -34,14 +34,11 @@
 ///      `Locked` object that the respective objects resided in immediately
 ///      before being sent to the custodian.
 module escrow::owned {
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     use escrow::lock::{Self, Locked, Key};
 
     /// An object held in escrow
-    struct Escrow<T: key + store> has key {
+    public struct Escrow<T: key + store> has key {
         id: UID,
 
         /// Owner of `escrowed`
@@ -184,7 +181,7 @@ module escrow::owned {
 
     #[test]
     fun test_successful_swap() {
-        let ts = ts::begin(@0x0);
+        let mut ts = ts::begin(@0x0);
 
         // Alice locks the object they want to trade
         let (i1, ik1) = {
@@ -256,7 +253,7 @@ module escrow::owned {
     #[test]
     #[expected_failure(abort_code = EMismatchedSenderRecipient)]
     fun test_mismatch_sender() {
-        let ts = ts::begin(@0x0);
+        let mut ts = ts::begin(@0x0);
 
         let ik1 = {
             ts::next_tx(&mut ts, ALICE);
@@ -309,7 +306,7 @@ module escrow::owned {
     #[test]
     #[expected_failure(abort_code = EMismatchedExchangeObject)]
     fun test_mismatch_object() {
-        let ts = ts::begin(@0x0);
+        let mut ts = ts::begin(@0x0);
 
         let ik1 = {
             ts::next_tx(&mut ts, ALICE);
@@ -361,7 +358,7 @@ module escrow::owned {
     #[test]
     #[expected_failure(abort_code = EMismatchedExchangeObject)]
     fun test_object_tamper() {
-        let ts = ts::begin(@0x0);
+        let mut ts = ts::begin(@0x0);
 
         // Alice locks the object they want to trade
         let ik1 = {
@@ -399,7 +396,7 @@ module escrow::owned {
             ts::next_tx(&mut ts, BOB);
             let k: Key = ts::take_from_sender(&ts);
             let l: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
-            let c = lock::unlock(l, k);
+            let mut c = lock::unlock(l, k);
 
             let _dust = coin::split(&mut c, 1, ts::ctx(&mut ts));
             let (l, k) = lock::lock(c, ts::ctx(&mut ts));
@@ -421,7 +418,7 @@ module escrow::owned {
 
     #[test]
     fun test_return_to_sender() {
-        let ts = ts::begin(@0x0);
+        let mut ts = ts::begin(@0x0);
 
         // Alice locks the object they want to trade
         let cid = {

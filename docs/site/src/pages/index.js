@@ -80,7 +80,7 @@ export default function Home() {
             <Link className={styles.cardLink} to="./about-iota/tokenomics">
               Tokenomics
             </Link>
-            <Link className={styles.cardLink} to="./developer/cryptography/explanations/cryptography">
+            <Link className={styles.cardLink} to="./developer/cryptography">
               Cryptography
             </Link>
             <Link className={styles.cardLink} to="./developer/standards">
