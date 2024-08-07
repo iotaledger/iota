@@ -48,6 +48,10 @@ module custom_nft::custom_nft {
 
     // ===== Entrypoints =====
     
+    /// The developer of CustomNft package could tie minting to several conditions, 
+    /// for example only accept Stardust nfts from a certain issuer, with a certain name/collection name, NftId even.
+    /// Only the `immutable_issuer` and `id` fields count as proof for an Nft belonging to the original collection. 
+    /// The developer could technically mint the same NFT on the running stardust network before the mainnet switch and fake the name and metadata.
     public fun convert(stardust_nft: Nft, ctx: &mut TxContext) {
         let nft_metadata = stardust_nft.immutable_metadata();
 
