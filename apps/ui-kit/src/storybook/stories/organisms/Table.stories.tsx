@@ -2,7 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { TableCellProps, TableCellType, BadgeType, Table } from '@/lib';
+import {
+    TableCellProps,
+    TableCellType,
+    TableCell,
+    TableHeaderCell,
+    BadgeType,
+    Table,
+    TableBody,
+    TableHeader,
+    TableHeaderRow,
+    TableBodyRow,
+} from '@/lib';
 import { Globe, IotaLogoSmall } from '@iota/ui-icons';
 
 const headersData = [
@@ -47,10 +58,30 @@ const rowsData: TableCellProps[][] = [
 const meta = {
     component: Table,
     tags: ['autodocs'],
+    args: {
+        hasCheckboxColumn: true,
+    },
     render: (props) => {
         return (
             <div className="container mx-auto p-4">
-                <Table {...props} />
+                <Table {...props}>
+                    <TableHeader>
+                        <TableHeaderRow>
+                            {headersData.map((header, index) => (
+                                <TableHeaderCell key={index} {...header} />
+                            ))}
+                        </TableHeaderRow>
+                    </TableHeader>
+                    <TableBody>
+                        {rowsData.map((row, rowIndex) => (
+                            <TableBodyRow key={rowIndex} rowIndex={rowIndex}>
+                                {row.map((cell, cellIndex) => (
+                                    <TableCell key={cellIndex} {...cell} />
+                                ))}
+                            </TableBodyRow>
+                        ))}
+                    </TableBody>
+                </Table>
             </div>
         );
     },
@@ -65,8 +96,6 @@ export const Default: Story = {
         supportingLabel: '10.7k records',
         hasPagination: true,
         actionLabel: 'Action',
-        headers: headersData,
-        rows: rowsData,
         hasCheckboxColumn: true,
     },
 };

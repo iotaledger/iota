@@ -14,6 +14,10 @@ interface TableCellBaseProps {
      * If the cell is the last in the row and should not have a border.
      */
     hasLastBorderNoneClass?: boolean;
+    /**
+     * Whether the cell content should be centered.
+     */
+    isCellContentCentered?: boolean;
 }
 
 type TableCellText = {
@@ -89,7 +93,7 @@ export type TableCellProps = TableCellBaseProps &
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
-    const { type, label, hasLastBorderNoneClass } = props;
+    const { type, label, hasLastBorderNoneClass, isCellContentCentered } = props;
 
     const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
@@ -148,6 +152,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
             className={cx(
                 'h-14 border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
                 { 'last:border-none': hasLastBorderNoneClass },
+                { 'flex items-center justify-center': isCellContentCentered },
             )}
         >
             <Cell />
