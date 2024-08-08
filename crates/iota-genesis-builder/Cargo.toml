@@ -10,7 +10,6 @@ publish = false
 anyhow.workspace = true
 bcs.workspace = true
 bigdecimal = "0.4"
-brotli = "6.0"
 camino.workspace = true
 clap.workspace = true
 fastcrypto.workspace = true
