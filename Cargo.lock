@@ -5897,7 +5897,6 @@ dependencies = [
  "anyhow",
  "bcs",
  "bigdecimal",
- "brotli",
  "camino",
  "clap",
  "fastcrypto",
