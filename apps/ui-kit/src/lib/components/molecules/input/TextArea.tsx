@@ -153,7 +153,10 @@ export function TextArea({
 
                 {isVisibilityToggleEnabled && (
                     <span className="absolute bottom-4 right-4 flex">
-                        <UnstyledButton onClick={onToggleButtonClick}>
+                        <UnstyledButton
+                            onClick={onToggleButtonClick}
+                            className="text-neutral-10 dark:text-neutral-92"
+                        >
                             {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
                         </UnstyledButton>
                     </span>
