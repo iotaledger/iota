@@ -10,8 +10,7 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The purpose of the `CoinReadApi` is to provide access to
-/// coin-related data such as coins owned by an address,
+/// Provides access to coin-related data such as coins owned by an address,
 /// balances, or metadata.
 #[open_rpc(namespace = "iotax", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "iotax")]

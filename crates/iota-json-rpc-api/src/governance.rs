@@ -11,9 +11,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The purpose of the `GovernanceReadApi` is to provide validator and
-/// staking-related data such as current committee info, delegated stakes, and
-/// APY.
+/// Provides access to validator and staking-related data such as current
+/// committee info, delegated stakes, and APY.
 #[open_rpc(namespace = "iotax", tag = "Governance Read API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait GovernanceReadApi {

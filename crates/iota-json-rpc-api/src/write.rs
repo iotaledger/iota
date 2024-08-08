@@ -13,7 +13,7 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The purpose of the `WriteApi` trait is to provide methods for executing and
+/// Provides methods for executing and
 /// testing transactions.
 #[open_rpc(namespace = "iota", tag = "Write API")]
 #[rpc(server, client, namespace = "iota")]

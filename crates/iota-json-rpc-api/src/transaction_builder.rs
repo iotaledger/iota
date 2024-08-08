@@ -15,7 +15,7 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The purpose of the `TransactionBuilder` trait is to provide methods for
+/// Provides methods for
 /// constructing transactions such as transferring objects, sending coins,
 /// performing Move calls, or managing stakes.
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]

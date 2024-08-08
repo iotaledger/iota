@@ -30,21 +30,21 @@ pub use transaction_builder::{
 };
 pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
-/// APIs to query coin-related data.
+/// Methods to query coin-related data.
 mod coin;
-/// APIs to query system info and metrics.
+/// Methods to query system info and metrics.
 mod extended;
-/// APIs to query validator and staking-related data.
+/// Methods to query validator and staking-related data.
 mod governance;
-/// APIs to query transactions, events, or objects.
+/// Methods to query transactions, events, or objects.
 mod indexer;
-/// APIs to more easily work with Move packages, modules and functions.
+/// Methods to more easily work with Move packages, modules and functions.
 mod move_utils;
-/// APIs to read transaction related data.
+/// Methods to read transaction related data.
 mod read;
-/// APIs to build transactions.
+/// Methods to build transactions.
 mod transaction_builder;
-/// APIs to execute and test transactions.
+/// Methods to execute and test transactions.
 mod write;
 
 const RPC_QUERY_MAX_RESULT_LIMIT: &str = "RPC_QUERY_MAX_RESULT_LIMIT";
