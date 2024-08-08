@@ -3,7 +3,25 @@
 
 import { ThemeConfig } from 'tailwindcss/types/config';
 
-export type TailwindCustomFonts = ThemeConfig['fontSize'];
+type TailwindFontSize = ThemeConfig['fontSize'];
+
+export type TailwindFontSizeConfig = Partial<{
+    lineHeight: string;
+    letterSpacing: string;
+    fontWeight: string | number;
+}>;
+
+export type TailwindCustomFonts = Record<
+    string,
+    [
+        string,
+        Partial<{
+            lineHeight: string;
+            letterSpacing: string;
+            fontWeight: string | number;
+        }>,
+    ]
+>;
 
 export const TEXT_LABEL_CLASSES: TailwindCustomFonts = {
     'text-label-sm': [
@@ -30,7 +48,7 @@ export const TEXT_LABEL_CLASSES: TailwindCustomFonts = {
             fontWeight: 500,
         },
     ],
-};
+} satisfies TailwindFontSize;
 
 export const TEXT_BODY_CLASSES: TailwindCustomFonts = {
     'text-body-sm': [
