@@ -8,11 +8,145 @@
   - Explains what commands need to be called in a PTB to claim the assets
   - Describes transaction sponsorship from iota addresses for shimmer claiming
 
+## IOTA tokens automatic migration 
+
+
+## Output types to Move Objects
+
+
+## Examples of Stardust asset claim transactions
+
+In the following, some examples of transactions for claiming the Stardust assets will be presented. Different commands in a [PTB](../iota-101/transactions/ptb/prog-txn-blocks.mdx) are used depending on the claiming scenario, that varies depending on the Stardust Output type and composition.
+
+### Basic Output
+
+An address can own `BasicOutput` objects that needs to be unlocked. In this case, some off-chain queries can be used to check the unlock conditions of the `BasicOutput` and asses if it can be unlocked.    
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/check-basic-output-unlock-conditions.rs#L20-L56
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+#### Claim of a Basic Output
+Once a Basic Output can be unlocked the claim of its assets can start
+
+1. The first step is to fetch the `BasicOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L74-L99
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+
+2. Then we check the native tokens that possibily were held by this output. A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the `OTW` used for the native token `Coin`. 
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L101-L128
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+3. Finally, a PTB can be created using the `basic_output` as input and the `Bag` keys for iterating the native tokens extracted. 
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L131-L195
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+### Nft Output
+
+An address can own `NftOutput` objects that needs to be unlocked. 
+In this case, some off-chain queries can be used to check the unlock conditions of the `NftOutput` and asses if it can be unlocked. 
+Check the example above, as it works the same as the [`Basic Output`](#basic-output).
+    
+#### Claim of a Nft Output
+Once a Nft Output can be unlocked the claim of its assets can start
+
+1. The first step is to fetch the `NftOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L54-L78
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+
+2. Then we check the native tokens that possibily were held by this output. A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the `OTW` used for the native token `Coin`. 
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L80-L105
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+3. Finally, a PTB can be created using the `nft_output` as input and the `Bag` keys for iterating the native tokens extracted.
+An Nft Output is different from a Basic Output as it contains the `Nft` object. 
+In fact, the main purpose of claiming is extracting the `Nft` object from the `NftOutput`.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L107-L173
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
 
 #### Conversion of a Nft Output into a custom Nft
 This topic outlines the process of converting an stardust Nft into a custom Nft.
 
-You need to have a prepared custom Nft package that you want to convert the Stardust Nft onto:
+You need to have a prepared custom Nft package that you want to convert the Stardust Nft You need to have a prepared custom Nft package that you want to convert the Stardust Nft into. 
+The following is an example of a simple module for representing a `CustomNFT`, minting it, burning it and converting it from a Stardust `Nft`:
 
 <Tabs>
 <TabItem value="move" label="Move">
@@ -32,7 +166,7 @@ You need to have a prepared custom Nft package that you want to convert the Star
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L48-L50
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L206-L223
 ```
 
 </TabItem>
@@ -41,22 +175,8 @@ You need to have a prepared custom Nft package that you want to convert the Star
 </TabItem>
 </Tabs>
 
-
-2. The `Nft output` object is retrieved using its object ID.
-
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L63-L78
-```
-
-</TabItem>
-<TabItem value="ts" label="TypeScript">
-
-</TabItem>
-</Tabs>
-
-3. Create a PTB that extracts the stardust Nft from an NftOutput and then calls the `random_nft::convert` method for converting it into a custom NFT of the collection just published.
+2. Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then calls the `custom_nft::convert` method for converting it into a `CustomNFT` of the collection just published. 
+This conversion method extracts the Stardust `Nft` metadata and uses it for minting a new NFT.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
@@ -69,3 +189,17 @@ You need to have a prepared custom Nft package that you want to convert the Star
 
 </TabItem>
 </Tabs>
+
+### Alias Output
+
+#### Claim of a Alias Output
+
+#### Conversion of an Alias Output into a custom Object
+
+### Foundry Output
+
+#### Claim of a Foundry Output
+
+
+## Sponsoring your Shimmer claiming
+
