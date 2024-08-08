@@ -73,7 +73,7 @@ export function AccordionContent({
 
 export function Accordion({ children }: { children: React.ReactNode }): React.JSX.Element {
     return (
-        <div className="rounded-xl border border-shader-inverted-dark-8 bg-neutral-100 dark:bg-neutral-6">
+        <div className="rounded-xl border border-shader-neutral-light-8 bg-neutral-100 dark:border-shader-neutral-dark-8 dark:bg-neutral-6">
             {children}
         </div>
     );
