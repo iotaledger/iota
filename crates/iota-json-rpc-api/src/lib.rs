@@ -30,23 +30,21 @@ pub use transaction_builder::{
 };
 pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
-/// Methods for querying coin-related data.
+/// APIs to query coin-related data.
 mod coin;
-/// Methods for accessing extended information on the IOTA blockchain, such as
-/// epoch information and network statistics.
+/// APIs to query system info and metrics.
 mod extended;
-/// Methods for querying governance-related data.
+/// APIs to query validator and staking-related data.
 mod governance;
-/// Methods for indexing data on the IOTA blockchain.
+/// APIs to query transactions, events, or objects.
 mod indexer;
-/// Utility methods for analyzing Move packages, modules, structs, and
-/// functions.
+/// APIs to more easily work with Move packages, modules and functions.
 mod move_utils;
-/// Methods for reading data from the IOTA blockchain.
+/// APIs to read transaction related data.
 mod read;
-/// Methods for building transactions.
+/// APIs to build transactions.
 mod transaction_builder;
-/// Methods for writing data to the IOTA blockchain.
+/// APIs to execute and test transactions.
 mod write;
 
 const RPC_QUERY_MAX_RESULT_LIMIT: &str = "RPC_QUERY_MAX_RESULT_LIMIT";

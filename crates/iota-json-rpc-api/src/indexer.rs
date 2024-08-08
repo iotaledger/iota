@@ -16,8 +16,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The purpose of the `IndexerApi` trait is to provide methods for indexing
-/// and querying transactions, events, or objects.
+/// The purpose of the `IndexerApi` trait is to provide methods for querying
+/// transactions, events, or objects.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {
