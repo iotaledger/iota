@@ -12,7 +12,7 @@
 		"iota-wallet",
 		"iota-explorer",
 		"wallet-dashboard",
-		"apps-ui-kit",
+		"@iota/apps-ui-kit",
 		"apps-backend",
 		"@iota/core",
 		"@iota/ui",
