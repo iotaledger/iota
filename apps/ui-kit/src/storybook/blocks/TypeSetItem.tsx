@@ -42,9 +42,9 @@ export function TypeSetItem({ sampleText, sizeText, fontClass }: TypeSetItemProp
     }, [ref.current]);
 
     return (
-        <div className="flex flex-row items-start gap-x-4">
+        <div className="flex flex-row items-start gap-x-md">
             {styles && (
-                <div className="text-label-sm text-gray-500">
+                <div className="text-xs text-neutral-60">
                     {styles[FontStyleProperties.FontSize]}
                 </div>
             )}
@@ -59,9 +59,9 @@ export function TypeSetItem({ sampleText, sizeText, fontClass }: TypeSetItemProp
                             .map(([key, value], index) => (
                                 <Fragment key={index}>
                                     {index > 0 && (
-                                        <span className="text-label-sm text-gray-500">|</span>
+                                        <span className="text-xs text-neutral-60">|</span>
                                     )}
-                                    <span className="text-label-sm text-neutral-60">
+                                    <span className="text-xs text-neutral-60">
                                         {key}: {value}
                                     </span>
                                 </Fragment>
