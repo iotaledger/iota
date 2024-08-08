@@ -81,7 +81,7 @@ export async function setupWithFundedAddress(
     await retry(() => requestIotaFromFaucetV0({ host: DEFAULT_FAUCET_URL, recipient: address }), {
         backoff: 'EXPONENTIAL',
         // overall timeout in 60 seconds
-        timeout: 1000 * 60,
+        timeout: 1000 * 180,
         // skip retry if we hit the rate-limit error
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         retryIf: (error: any) => !(error instanceof FaucetRateLimitError),
