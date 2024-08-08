@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -38,6 +39,7 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
         url: currentURL.href,
     });
 }
+
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
