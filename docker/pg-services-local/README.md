@@ -45,14 +45,14 @@ $ docker compose up -d
 > have not been built already.
 >
 > If you want to rebuild an image, after you made some local changes, say in
-> `iota-indexer`, it is advised to use `docker compose build` for the particular
+> `iota-indexer`, it is advised to use the `build` subcommand for the particular
 > image you want to rebuild. E.g.
 >
 > ```
 > $ docker compose build indexer-sync
 > ```
 >
-> Running `docker compose build` would rebuild all images affected by your
+> Running `docker compose build` without specifying a service, would rebuild all images affected by your
 > changes, and thus is not recommended. To understand why, consider that changes
 > in `iota-indexer`, or `iota-graphql-rpc` would cause the `iota-test-validator` image to rebuild.
 > The `local-network` service however uses `iota-test-validator` as a node cluster
