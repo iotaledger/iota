@@ -3,7 +3,7 @@ services:
     image: iota-test-validator
     build:
       context: ../../
-      dockerfile: docker/iota-tools/Dockerfile.iota-test-validator
+      dockerfile: docker/iota-test-validator/Dockerfile
       args:
         - GIT_REVISION
         - BUILD_DATE
