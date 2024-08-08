@@ -7,3 +7,75 @@
   - Demonstrates through examples for each output type the resulting move objects
   - Explains what commands need to be called in a PTB to claim the assets
   - Describes transaction sponsorship from iota addresses for shimmer claiming
+
+### Address unlock condition
+
+For this example, we're using `Alias output` as it has an `Alias object` that owns `Nft output`.
+
+Before we start the unlock process, we have to get Iota coins due to sponsorship flow:
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L60
+```
+
+</TabItem>
+</Tabs>
+
+1. The first step is to fetch the `AliasOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L74-L90
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+
+2. By using the dynamic field function with the `alias` filter, we gather the alias object itself.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L95-L105
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+3. Some objects are owned by the Alias object. In this case we filter them by type using the `NftOutput` type.
+Applying the fitler to get `Nft output` owned by Alias.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L109-L130
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+4. Create PTB that unlocks the `Nft output` using funtion - `unlock_alias_address_owned_nft`.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L132-L241
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
