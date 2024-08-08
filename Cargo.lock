@@ -3497,6 +3497,7 @@ dependencies = [
  "bcs",
  "bip32",
  "iota-keys",
+ "iota-move-build",
  "iota-sdk 0.1.2",
  "move-core-types",
  "serde_json",
