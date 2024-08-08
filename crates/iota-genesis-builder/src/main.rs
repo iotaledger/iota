@@ -4,11 +4,7 @@
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::{BufWriter, Write},
-};
+use std::{collections::BTreeMap, fs::File, io::BufWriter};
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -18,7 +14,6 @@ use iota_genesis_builder::{
         parse::HornetSnapshotParser,
         types::output_header::OutputHeader,
     },
-    BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
 };
 use iota_sdk::types::block::{
@@ -38,13 +33,6 @@ use tracing_subscriber::FmtSubscriber;
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
-    #[clap(
-        short,
-        long,
-        default_value_t = false,
-        help = "Compress the resulting object snapshot"
-    )]
-    compress: bool,
     #[clap(long, help = "Disable global snapshot verification")]
     disable_global_snapshot_verification: bool,
 }
@@ -108,16 +96,7 @@ fn main() -> Result<()> {
 
     // Prepare the writer for the objects snapshot
     let output_file = File::create(OBJECT_SNAPSHOT_FILE_PATH)?;
-    let object_snapshot_writer: Box<dyn Write> = if cli.compress {
-        Box::new(brotli::CompressorWriter::new(
-            output_file,
-            BROTLI_COMPRESSOR_BUFFER_SIZE,
-            BROTLI_COMPRESSOR_QUALITY,
-            BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
-        ))
-    } else {
-        Box::new(BufWriter::new(output_file))
-    };
+    let object_snapshot_writer = BufWriter::new(output_file);
 
     match coin_type {
         CoinType::Shimmer => {
