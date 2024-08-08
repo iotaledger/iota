@@ -39,10 +39,7 @@ The following example illustrates how you could use a OTW:
 /// - cannot be packed manually
 /// - has a `drop` ability
 module examples::one_time_witness_registry {
-    use iota::tx_context::TxContext;
-    use iota::object::{Self, UID};
     use std::string::String;
-    use iota::transfer;
 
     // This dependency allows us to check whether type
     // is a one-time witness (OTW)
@@ -80,7 +77,6 @@ module examples::one_time_witness_registry {
 /// Example of spawning an OTW.
 module examples::my_otw {
     use std::string;
-    use iota::tx_context::TxContext;
     use examples::one_time_witness_registry as registry;
 
     /// Type is named after the module but uppercased

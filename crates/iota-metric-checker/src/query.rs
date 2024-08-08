@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
 use prometheus_http_query::Client;

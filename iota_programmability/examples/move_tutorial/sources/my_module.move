@@ -4,18 +4,15 @@
 
 module my_first_package::my_module {
     // Part 1: imports
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     // Part 2: struct definitions
-    struct Sword has key, store {
+    public struct Sword has key, store {
         id: UID,
         magic: u64,
         strength: u64,
     }
 
-    struct Forge has key {
+    public struct Forge has key {
         id: UID,
         swords_created: u64,
     }
@@ -66,7 +63,7 @@ module my_first_package::my_module {
         let admin = @0xBABE;
 
         // first transaction to emulate module initialization
-        let scenario_val = test_scenario::begin(admin);
+        let mut scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
         {
             init(test_scenario::ctx(scenario));
@@ -95,7 +92,7 @@ module my_first_package::my_module {
         let final_owner = @0xFACE;
 
         // first transaction to emulate module initialization
-        let scenario_val = test_scenario::begin(admin);
+        let mut scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
         {
             init(test_scenario::ctx(scenario));
@@ -103,7 +100,7 @@ module my_first_package::my_module {
         // second transaction executed by admin to create the sword
         test_scenario::next_tx(scenario, admin);
         {
-            let forge = test_scenario::take_from_sender<Forge>(scenario);
+            let mut forge = test_scenario::take_from_sender<Forge>(scenario);
             // create the sword and transfer it to the initial owner
             sword_create(&mut forge, 42, 7, initial_owner, test_scenario::ctx(scenario));
             test_scenario::return_to_sender(scenario, forge)
@@ -134,7 +131,7 @@ module my_first_package::my_module {
     #[test]
     public fun test_sword_create() {
         // create a dummy TxContext for testing
-        let ctx = tx_context::dummy();
+        let mut ctx = tx_context::dummy();
 
         // create a sword
         let sword = Sword {
