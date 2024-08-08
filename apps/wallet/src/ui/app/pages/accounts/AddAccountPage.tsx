@@ -1,13 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 import {
+    Header,
     Card,
     CardType,
     CardImage,
@@ -26,7 +26,6 @@ import { useAppSelector } from '../../hooks';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
-import PageTemplate from '../../components/PageTemplate';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -39,7 +38,6 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
         url: currentURL.href,
     });
 }
-
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -52,13 +50,14 @@ export function AddAccountPage() {
     const createAccountsMutation = useCreateAccountsMutation();
 
     return (
-        <PageTemplate
-            title="Add Profile"
-            isTitleCentered
-            onClose={() => navigate('/')}
-            showBackButton
-        >
-            <div className="flex h-full w-full flex-col gap-4 ">
+        <div className="h-full w-full">
+            <Header
+                title="Add Profile"
+                titleCentered
+                onClose={() => navigate('/')}
+                onBack={() => navigate('/')}
+            />
+            <div className="flex h-full w-full flex-col gap-4 bg-white p-md">
                 <div className="flex flex-col gap-y-4">
                     <div className="flex flex-col gap-y-2">
                         <span className="text-label-lg text-neutral-60">
@@ -157,7 +156,7 @@ export function AddAccountPage() {
                     }}
                 />
             )}
-        </PageTemplate>
+        </div>
     );
 }
 
