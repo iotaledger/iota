@@ -5,10 +5,7 @@
 /// A simple allowlist rule - allows only the addresses on the allowlist to
 /// perform an Action.
 module examples::allowlist_rule {
-    use std::option;
-    use std::vector;
     use iota::bag::{Self, Bag};
-    use iota::tx_context::TxContext;
     use iota::token::{
         Self,
         TokenPolicy,
@@ -20,7 +17,7 @@ module examples::allowlist_rule {
     const EUserNotAllowed: u64 = 0;
 
     /// The Rule witness.
-    struct Allowlist has drop {}
+    public struct Allowlist has drop {}
 
     /// Verifies that the sender and the recipient (if set) are both on the
     /// `allowlist_rule` for a given action.
@@ -57,7 +54,7 @@ module examples::allowlist_rule {
     public fun add_records<T>(
         policy: &mut TokenPolicy<T>,
         cap: &TokenPolicyCap<T>,
-        addresses: vector<address>,
+        mut addresses: vector<address>,
         ctx: &mut TxContext,
     ) {
         if (!has_config(policy)) {
@@ -75,7 +72,7 @@ module examples::allowlist_rule {
     public fun remove_records<T>(
         policy: &mut TokenPolicy<T>,
         cap: &TokenPolicyCap<T>,
-        addresses: vector<address>,
+        mut addresses: vector<address>,
     ) {
         let config_mut = config_mut(policy, cap);
 

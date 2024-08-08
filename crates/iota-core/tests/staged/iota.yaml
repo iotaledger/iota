@@ -285,6 +285,7 @@ EndOfEpochData:
   - epochCommitments:
       SEQ:
         TYPENAME: CheckpointCommitment
+  - epochSupplyChange: I64
 EndOfEpochTransactionKind:
   ENUM:
     0:
