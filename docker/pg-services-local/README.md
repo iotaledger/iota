@@ -33,6 +33,33 @@ $ docker compose up -d graphql-server
 $ docker compose up -d graphql-server indexer-rpc
 ```
 
+or simply
+
+```
+$ docker compose up -d
+```
+
+> [!NOTE]
+>
+> `docker compose up [<service>]` only builds the required docker images if they
+> have not been built already.
+>
+> If you want to rebuild an image, after you made some local changes, say in
+> `iota-indexer`, it is advised to use `docker compose build` for the particular
+> image you want to rebuild. E.g.
+>
+> ```
+> $ docker compose build indexer-sync
+> ```
+>
+> Running `docker compose build` would rebuild all images affected by your
+> changes, and thus is not recommended. To understand why, consider that changes
+> in `iota-indexer`, or `iota-graphql-rpc` would cause the `iota-test-validator` image to rebuild.
+> The `local-network` service however uses `iota-test-validator` as a node cluster
+> without an indexer service or a GraphQL service. Thus rebuilding the image for every
+> change during a normal development workflow would hinder development
+> unnecessarily.
+
 ### Dependencies
 
 As mentioned, these applications depend on the following services that start by default:
