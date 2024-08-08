@@ -146,14 +146,7 @@ export function TextArea({
                 />
                 {!isInputContentVisible && (
                     <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-2 px-md py-sm peer-[.not-visible]:select-none">
-                        {Array(3)
-                            .fill(null)
-                            .map(({ width }, index, array) => (
-                                <VisibilityOffBar
-                                    key={index}
-                                    halfWidth={index === array.length - 1}
-                                />
-                            ))}
+                        <VisibilityOffBar rows={3} halfWidthRow={3} />
                     </div>
                 )}
                 {isVisibilityToggleEnabled && (
@@ -169,7 +162,24 @@ export function TextArea({
     );
 }
 
-function VisibilityOffBar({ halfWidth }: { halfWidth?: boolean }) {
-    const width = halfWidth ? 'w-1/2' : 'w-full';
-    return <div className={`h-2.5 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`} />;
+interface VisibilityOffBarProps {
+    rows: number;
+    halfWidthRow?: number;
+}
+
+function VisibilityOffBar({ rows, halfWidthRow }: VisibilityOffBarProps) {
+    return (
+        <>
+            {Array.from({ length: rows }).map((_, index) => {
+                const isHalfWidth = halfWidthRow === index + 1;
+                const width = isHalfWidth ? 'w-1/2' : 'w-full';
+                return (
+                    <div
+                        key={index}
+                        className={`h-2.5 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`}
+                    />
+                );
+            })}
+        </>
+    );
 }
