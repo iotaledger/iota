@@ -15,9 +15,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// Provides methods for
-/// constructing transactions such as transferring objects, sending coins,
-/// performing Move calls, or managing stakes.
+/// Provides methods for constructing transactions such as transferring objects,
+/// sending coins, performing Move calls, or managing stakes.
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]
 pub trait TransactionBuilder {

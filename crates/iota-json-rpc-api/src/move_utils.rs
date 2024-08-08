@@ -12,8 +12,8 @@ use iota_open_rpc_macros::open_rpc;
 use iota_types::base_types::ObjectID;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// Provides utility functions to more
-/// easily work with Move packages, modules and functions.
+/// Provides utility functions to more easily work with Move packages, modules
+/// and functions.
 #[open_rpc(namespace = "iota", tag = "Move Utils")]
 #[rpc(server, client, namespace = "iota")]
 pub trait MoveUtils {

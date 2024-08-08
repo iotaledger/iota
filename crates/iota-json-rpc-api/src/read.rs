@@ -15,9 +15,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// Provides methods for reading
-/// transaction related data such as transaction blocks, checkpoints, and
-/// protocol configuration.
+/// Provides methods for reading transaction related data such as transaction
+/// blocks, checkpoints, and protocol configuration.
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {
