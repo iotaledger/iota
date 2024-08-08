@@ -48,7 +48,6 @@ const Template: StoryFn<CustomStoryProps> = (args) => {
 
 const meta: Meta<CustomStoryProps> = {
     title: 'Organisms/Accordion',
-    // component: Accordion,
     tags: ['autodocs'],
     argTypes: {
         title: { control: 'text' },

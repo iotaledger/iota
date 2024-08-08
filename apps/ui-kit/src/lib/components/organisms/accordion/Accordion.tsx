@@ -39,7 +39,7 @@ export function AccordionHeader({
     return (
         <div
             onClick={onToggle}
-            className="state-layer relative flex cursor-pointer items-center justify-between gap-8 rounded-xl py-sm--rs pr-md--rs"
+            className="state-layer relative flex cursor-pointer items-center justify-between gap-md py-sm--rs pr-md--rs"
         >
             {children}
             <Button
@@ -56,18 +56,21 @@ export function AccordionHeader({
     );
 }
 
-export function AccordionContent(props: PropsWithChildren<AccordionContentProps>) {
+export function AccordionContent({
+    isExpanded,
+    children,
+}: PropsWithChildren<AccordionContentProps>) {
     return (
         <div
-            className={cx('rounded-b-xl px-lg pb-md pt-xs', {
-                hidden: !props.isExpanded,
+            className={cx('px-lg pb-md pt-xs', {
+                hidden: !isExpanded,
             })}
         >
-            {props.children}
+            {children}
         </div>
     );
 }
 
 export function Accordion({ children }: { children: React.ReactNode }): React.JSX.Element {
-    return <div className="bg-neutral-100 dark:bg-neutral-6">{children}</div>;
+    return <div className="rounded-xl border bg-neutral-100 dark:bg-neutral-6">{children}</div>;
 }
