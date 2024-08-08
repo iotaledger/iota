@@ -145,14 +145,14 @@ export function TextArea({
                     minLength={minLength}
                 />
                 {!isInputContentVisible && (
-                    <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">
+                    <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-2 px-md py-sm peer-[.not-visible]:select-none">
                         {Array(3)
                             .fill(null)
-                            .map((_, index) => ({
-                                width: index === 2 ? 'w-1/2' : 'w-full',
-                            }))
-                            .map(({ width }, index) => (
-                                <Bar key={index} width={width} />
+                            .map(({ width }, index, array) => (
+                                <VisibilityOffBar
+                                    key={index}
+                                    halfWidth={index === array.length - 1}
+                                />
                             ))}
                     </div>
                 )}
@@ -169,6 +169,7 @@ export function TextArea({
     );
 }
 
-const Bar = ({ width }: { width: string }) => (
-    <div className={`h-2 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`} />
-);
+function VisibilityOffBar({ halfWidth }: { halfWidth?: boolean }) {
+    const width = halfWidth ? 'w-1/2' : 'w-full';
+    return <div className={`h-2.5 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`} />;
+}
