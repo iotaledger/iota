@@ -52,11 +52,11 @@ export function Checkbox({
 
     return (
         <label
-            className={cx('group flex gap-x-2', isLabelFirst ? 'flex-row' : 'flex-row-reverse', {
+            className={cx('group inline-flex', isLabelFirst ? 'flex-row-reverse' : 'flex-row', {
                 disabled: isDisabled,
+                'gap-x-2': label,
             })}
         >
-            <LabelText label={label} />
             <div className="relative h-5 w-5">
                 <input
                     type="checkbox"
@@ -66,10 +66,11 @@ export function Checkbox({
                     disabled={isDisabled}
                     onChange={(e) => onChange?.(e.target.checked)}
                 />
-                <span className="absolute inset-0 flex h-full w-full items-center justify-center text-neutral-40 peer-disabled:text-neutral-70 peer-disabled:text-opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:text-opacity-40">
+                <span className="absolute inset-0 flex h-full w-full items-center justify-center text-neutral-40 peer-enabled:cursor-pointer peer-disabled:text-neutral-70 peer-disabled:text-opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:text-opacity-40">
                     <CheckmarkIcon width={16} height={16} />
                 </span>
             </div>
+            <LabelText label={label} />
         </label>
     );
 }

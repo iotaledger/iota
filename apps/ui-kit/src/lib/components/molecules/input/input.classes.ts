@@ -10,3 +10,5 @@ export const BORDER_CLASSES =
     'px-md py-sm rounded-lg border border-neutral-80 group-[.enabled]:cursor-text group-[.errored]:border-error-30 hover:group-[.enabled]:border-neutral-50  dark:border-neutral-60 dark:hover:border-neutral-60 dark:group-[.errored]:border-error-80 [&:has(input:focus)]:border-primary-30';
 export const INPUT_NUMBER_CLASSES =
     '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
+export const LABEL_CLASSES =
+    'flex flex-col gap-y-2 text-label-lg text-neutral-40 dark:text-neutral-60';

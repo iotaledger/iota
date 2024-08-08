@@ -3,23 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module tutorial::simple_warrior {
-    use std::option::{Self, Option};
 
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-
-    struct Sword has key, store {
+    public struct Sword has key, store {
         id: UID,
         strength: u8,
     }
 
-    struct Shield has key, store {
+    public struct Shield has key, store {
         id: UID,
         armor: u8,
     }
 
-    struct SimpleWarrior has key {
+    public struct SimpleWarrior has key {
         id: UID,
         sword: Option<Sword>,
         shield: Option<Shield>,

@@ -21,9 +21,6 @@ It is also possible to create a `public entry` function, which can be called by 
 
 ```move
 module entry_functions::example {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     public struct Foo has key {
         id: UID,
