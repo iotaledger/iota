@@ -13,11 +13,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The `WriteApi` trait provides a set of asynchronous methods for writing and
-/// executing transactions on the IOTA network. This trait is designed to be
-/// used in an RPC context, allowing clients to execute transactions, run
-/// transactions in dev-inspect mode, and perform dry runs to simulate
-/// transaction execution without committing the effects.
+/// The purpose of the `WriteApi` trait is to provide methods for executing and
+/// testing transactions.
 #[open_rpc(namespace = "iota", tag = "Write API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait WriteApi {

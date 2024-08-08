@@ -10,11 +10,9 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The `CoinReadApi` trait provides a set of asynchronous methods for querying
-/// coin-related data on the IOTA blockchain. This trait is designed to be used
-/// in an RPC context, allowing clients to fetch various types of information
-/// about coins owned by an address, including balances, metadata,
-/// and total supply.
+/// The purpose of the `CoinReadApi` is to provide access to
+/// coin-related data such as coins owned by an address,
+/// balances, or metadata.
 #[open_rpc(namespace = "iotax", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait CoinReadApi {

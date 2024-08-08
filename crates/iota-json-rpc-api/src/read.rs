@@ -15,10 +15,9 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The `ReadApi` trait provides a set of asynchronous methods for reading data
-/// on the IOTA network. This trait is designed to be used in an RPC context,
-/// allowing clients to fetch information about transactions, objects,
-/// checkpoints, events, and protocol configurations.
+/// The purpose of the `ReadApi` trait is to provide methods for reading
+/// transaction related data such as transaction blocks, checkpoints, and
+/// protocol configuration.
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {

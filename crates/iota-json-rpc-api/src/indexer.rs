@@ -16,10 +16,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The `IndexerApi` trait provides a set of asynchronous methods for indexing
-/// and querying data on the IOTA network. This trait is designed to be used
-/// in an RPC context, allowing clients to efficiently fetch and subscribe to
-/// data related to transactions, events, objects, and more.
+/// The purpose of the `IndexerApi` trait is to provide methods for indexing
+/// and querying transactions, events, or objects.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {

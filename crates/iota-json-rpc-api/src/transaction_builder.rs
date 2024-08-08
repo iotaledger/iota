@@ -15,11 +15,9 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The `TransactionBuilder` trait provides a set of asynchronous methods for
-/// constructing transactions on the IOTA network. This trait is designed to be
-/// used in an RPC context, allowing clients to create transactions for
-/// transferring objects, sending coins, executing Move calls, and managing
-/// stakes.
+/// The purpose of the `TransactionBuilder` trait is to provide methods for
+/// constructing transactions such as transferring objects, sending coins,
+/// performing Move calls, or managing stakes.
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]
 pub trait TransactionBuilder {

@@ -9,10 +9,8 @@ use iota_open_rpc_macros::open_rpc;
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// The `ExtendedApi` trait provides a set of asynchronous methods for accessing
-/// extended information on the IOTA blockchain. This trait is designed to be
-/// used in an RPC context, allowing clients to fetch detailed data related to
-/// epochs and transactions.
+/// The purpose of the `ExtendedApi` trait is to provide methods for accessing
+/// system info and metrics.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait ExtendedApi {
