@@ -8,14 +8,14 @@
   - Explains what commands need to be called in a PTB to claim the assets
   - Describes transaction sponsorship from iota addresses for shimmer claiming
 
-### NFT Output
+### Nft Output
 
-An address can own `NFTOutput` objects that needs to be unlocked. 
-In this case, some off-chain queries can be used to check the unlock conditions of the `NFTOutput` and asses if it can be unlocked. 
+An address can own `NftOutput` objects that needs to be unlocked. 
+In this case, some off-chain queries can be used to check the unlock conditions of the `NftOutput` and asses if it can be unlocked. 
 Check the example above, as it works the same as the [`Basic Output`](#basic-output).
     
-#### Claim of a NFT Output
-Once a NFT Output can be unlocked the claim of its assets can start
+#### Claim of a Nft Output
+Once a Nft Output can be unlocked the claim of its assets can start
 
 1. The first step is to fetch the `NftOutput` object needed to be claimed.
 
@@ -47,7 +47,8 @@ Once a NFT Output can be unlocked the claim of its assets can start
 </Tabs>
 
 3. Finally, a PTB can be created using the `nft_output` as input and the `Bag` keys for iterating the native tokens extracted.
-The NFT is different from the `basic output` as it contains the NFT object, the main purpose of claiming is extracting Nft object from the `Nft output`.
+An Nft Output is different from a Basic Output as it contains the `Nft` object. 
+In fact, the main purpose of claiming is extracting the `Nft` object from the `NftOutput`.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
