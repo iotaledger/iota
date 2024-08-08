@@ -9,9 +9,11 @@ import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { useCollectUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useQueryClient } from '@tanstack/react-query';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const queryClient = useQueryClient();
 
     const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -36,15 +38,31 @@ function VestingDashboardPage(): JSX.Element {
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
         } else {
-            signAndExecuteTransactionBlock({
-                transactionBlock: unlockAllTimelockedObjects.transaction,
-            })
-                .then(() => {
-                    addNotification('Transfer transaction has been sent');
-                })
-                .catch(() => {
-                    addNotification('Transfer transaction was not sent', NotificationType.Error);
-                });
+            signAndExecuteTransactionBlock(
+                {
+                    transactionBlock: unlockAllTimelockedObjects.transaction,
+                },
+                {
+                    onSuccess: (result) => {
+                        console.log('executed transaction', result.digest);
+                        queryClient.invalidateQueries({
+                            queryKey: ['get-all-timelocked-objects'], // Correct usage
+                        });
+                        addNotification('Transfer transaction has been sent');
+                    },
+                    onError: (result) => {
+                        console.error(
+                            'error to execute unlock all timelocked object transaction',
+                            result,
+                        );
+
+                        addNotification(
+                            'Transfer transaction was not sent',
+                            NotificationType.Error,
+                        );
+                    },
+                },
+            );
         }
     };
     const handleStake = () => {
