@@ -889,12 +889,12 @@ async fn test_handle_transaction_response() {
         &sender_kp,
         666, // this is a dummy value which does not matter
     ));
-    let package_not_found_error = IotaError::UserInputError {
+    let package_not_found_error = IotaError::UserInput {
         error: UserInputError::DependentPackageNotFound {
             package_id: gas_object.0,
         },
     };
-    let object_not_found_error = IotaError::UserInputError {
+    let object_not_found_error = IotaError::UserInput {
         error: UserInputError::ObjectNotFound {
             object_id: gas_object.0,
             version: Some(gas_object.1),
@@ -1068,7 +1068,7 @@ async fn test_handle_transaction_response() {
             matches!(
                 e,
                 IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. }
-                    | IotaError::RpcError(..)
+                    | IotaError::Rpc(..)
             )
         },
     )
@@ -1144,7 +1144,7 @@ async fn test_handle_transaction_response() {
             matches!(
                 e,
                 IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. }
-                    | IotaError::RpcError(..)
+                    | IotaError::Rpc(..)
             )
         },
     )
@@ -1231,7 +1231,7 @@ async fn test_handle_transaction_response() {
             matches!(
                 e,
                 IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. }
-                    | IotaError::RpcError(..)
+                    | IotaError::Rpc(..)
                     | IotaError::ByzantineAuthoritySuspicion { .. }
             )
         },
@@ -1301,12 +1301,7 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::UserInputError { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::UserInput { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1330,12 +1325,7 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::UserInputError { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::UserInput { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1359,12 +1349,7 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::UserInputError { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::UserInput { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1387,12 +1372,7 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::FatalTransaction { .. }
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::UserInputError { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::UserInput { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1415,12 +1395,7 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::FatalTransaction { .. }
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::UserInputError { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::UserInput { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1448,12 +1423,7 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::FatalTransaction { .. }
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::UserInputError { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::UserInput { .. } | IotaError::Rpc(..)),
     )
     .await;
 }
@@ -1493,12 +1463,12 @@ async fn test_handle_conflicting_transaction_response() {
         obj_ref: conflicting_object,
         pending_transaction: *conflicting_tx2.digest(),
     };
-    let retryable_error = IotaError::RpcError("RPC".into(), "Error".into());
+    let retryable_error = IotaError::Rpc("RPC".into(), "Error".into());
     let non_retryable_error = IotaError::ByzantineAuthoritySuspicion {
         authority: authority_keys[0].0,
         reason: "Faulty".into(),
     };
-    let object_not_found_error = IotaError::UserInputError {
+    let object_not_found_error = IotaError::UserInput {
         error: UserInputError::ObjectNotFound {
             object_id: conflicting_object.0,
             version: Some(conflicting_object.1),
@@ -1531,12 +1501,7 @@ async fn test_handle_conflicting_transaction_response() {
                 } if conflicting_tx_digest_to_retry.is_none()
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::ObjectLockConflict { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::ObjectLockConflict { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1564,12 +1529,7 @@ async fn test_handle_conflicting_transaction_response() {
                 } if conflicting_tx_digest_to_retry.is_none()
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::ObjectLockConflict { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::ObjectLockConflict { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1596,12 +1556,7 @@ async fn test_handle_conflicting_transaction_response() {
                 } if *conflicting_tx_digest_to_retry == Some(*conflicting_tx2.digest())
             )
         },
-        |e| {
-            matches!(
-                e,
-                IotaError::ObjectLockConflict { .. } | IotaError::RpcError(..)
-            )
-        },
+        |e| matches!(e, IotaError::ObjectLockConflict { .. } | IotaError::Rpc(..)),
     )
     .await;
 
@@ -1726,7 +1681,7 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                IotaError::ObjectLockConflict { .. } | IotaError::UserInputError { .. }
+                IotaError::ObjectLockConflict { .. } | IotaError::UserInput { .. }
             )
         },
     )
@@ -1767,7 +1722,7 @@ async fn test_handle_conflicting_transaction_response() {
             matches!(
                 e,
                 IotaError::ObjectLockConflict { .. }
-                    | IotaError::UserInputError { .. }
+                    | IotaError::UserInput { .. }
                     | IotaError::ByzantineAuthoritySuspicion { .. }
             )
         },
@@ -1924,7 +1879,7 @@ async fn test_handle_overload_response() {
         queue_len: 100,
         threshold: 100,
     };
-    let rpc_error = IotaError::RpcError("RPC".into(), "Error".into());
+    let rpc_error = IotaError::Rpc("RPC".into(), "Error".into());
 
     // Have 2f + 1 validators return the overload error and we should get the
     // `SystemOverload` error.
@@ -1947,7 +1902,7 @@ async fn test_handle_overload_response() {
         |e| {
             matches!(
                 e,
-                IotaError::TooManyTransactionsPendingExecution { .. } | IotaError::RpcError(..)
+                IotaError::TooManyTransactionsPendingExecution { .. } | IotaError::Rpc(..)
             )
         },
     )
@@ -1974,7 +1929,7 @@ async fn test_handle_overload_response() {
         |e| {
             matches!(
                 e,
-                IotaError::TooManyTransactionsPendingExecution { .. } | IotaError::RpcError(..)
+                IotaError::TooManyTransactionsPendingExecution { .. } | IotaError::Rpc(..)
             )
         },
     )
@@ -2011,7 +1966,7 @@ async fn test_handle_overload_retry_response() {
     let overload_error = IotaError::ValidatorOverloadedRetryAfter {
         retry_after_secs: 0,
     };
-    let rpc_error = IotaError::RpcError("RPC".into(), "Error".into());
+    let rpc_error = IotaError::Rpc("RPC".into(), "Error".into());
 
     // Have 2f + 1 validators return the overload error and we should get the
     // `SystemOverload` error.
@@ -2031,7 +1986,7 @@ async fn test_handle_overload_retry_response() {
         |e| {
             matches!(
                 e,
-                IotaError::ValidatorOverloadedRetryAfter { .. } | IotaError::RpcError(..)
+                IotaError::ValidatorOverloadedRetryAfter { .. } | IotaError::Rpc(..)
             )
         },
     )
@@ -2058,7 +2013,7 @@ async fn test_handle_overload_retry_response() {
         |e| {
             matches!(
                 e,
-                IotaError::ValidatorOverloadedRetryAfter { .. } | IotaError::RpcError(..)
+                IotaError::ValidatorOverloadedRetryAfter { .. } | IotaError::Rpc(..)
             )
         },
     )
@@ -2456,7 +2411,7 @@ fn set_retryable_tx_info_response_error(
     clients: &mut BTreeMap<AuthorityName, HandleTransactionTestAuthorityClient>,
     authority_keys: &[(AuthorityName, AuthorityKeyPair)],
 ) {
-    let error = IotaError::RpcError("RPC".into(), "Error".into());
+    let error = IotaError::Rpc("RPC".into(), "Error".into());
     set_tx_info_response_with_error(clients, authority_keys.iter(), error);
 }
 

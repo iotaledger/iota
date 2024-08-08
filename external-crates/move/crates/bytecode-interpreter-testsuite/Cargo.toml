@@ -2,16 +2,15 @@
 name = "bytecode-interpreter-testsuite"
 version = "0.1.0"
 authors = ["Diem Association <opensource@diem.com>"]
-publish = false
 edition = "2021"
 license = "Apache-2.0"
+publish = false
 
 [dev-dependencies]
-
 # diem dependencies
-move-stackless-bytecode-interpreter.workspace = true
 move-command-line-common.workspace = true
 move-prover-test-utils.workspace = true
+move-stackless-bytecode-interpreter.workspace = true
 move-stdlib.workspace = true
 move-unit-test.workspace = true
 

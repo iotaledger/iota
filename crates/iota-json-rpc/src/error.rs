@@ -84,9 +84,9 @@ pub enum Error {
 impl From<IotaError> for Error {
     fn from(e: IotaError) -> Self {
         match e {
-            IotaError::UserInputError { error } => Self::UserInputError(error),
-            IotaError::IotaObjectResponseError { error } => Self::IotaObjectResponseError(error),
-            IotaError::UnsupportedFeatureError { error } => Self::UnsupportedFeature(error),
+            IotaError::UserInput { error } => Self::UserInputError(error),
+            IotaError::IotaObjectResponse { error } => Self::IotaObjectResponseError(error),
+            IotaError::UnsupportedFeature { error } => Self::UnsupportedFeature(error),
             IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),
             ),
@@ -180,7 +180,7 @@ impl From<Error> for RpcError {
                         let inner_error_str = match err {
                             // TODO(wlmyng): update IotaError display trait to render UserInputError
                             // with display
-                            IotaError::UserInputError { error } => error.to_string(),
+                            IotaError::UserInput { error } => error.to_string(),
                             _ => err.to_string(),
                         };
 
@@ -252,7 +252,7 @@ impl From<Error> for RpcError {
                                     // So, we take an easier route and consider them non-retryable
                                     // at all. Combining this with the sorting above, clients will
                                     // see the dominant error first.
-                                    IotaError::UserInputError { error } => Some(error.to_string()),
+                                    IotaError::UserInput { error } => Some(error.to_string()),
                                     _ => {
                                         if err.is_retryable().0 {
                                             None
@@ -476,7 +476,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::GasBalanceTooLow {
                                 gas_balance: 10,
                                 needed_gas_amount: 100,
@@ -486,7 +486,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::ObjectVersionUnavailableForConsumption {
                                 provided_obj_ref: test_object_ref(),
                                 current_version: 10.into(),
@@ -514,7 +514,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
                                 object_id: test_object_ref().0,
                                 version: None,
@@ -524,7 +524,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        IotaError::RpcError("Hello".to_string(), "Testing".to_string()),
+                        IotaError::Rpc("Hello".to_string(), "Testing".to_string()),
                         0,
                         vec![],
                     ),
