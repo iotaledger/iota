@@ -53,7 +53,7 @@ export function Snackbar({
             className={cx(
                 'transition-all duration-300 ease-out',
                 'z-99 bottom-0',
-                'flex w-full items-center justify-between gap-1 rounded-md py-sm pl-md pr-sm',
+                'flex w-full items-center justify-between gap-xxs rounded-md py-sm pl-md pr-sm',
                 BACKGROUND_COLOR[type],
             )}
         >
