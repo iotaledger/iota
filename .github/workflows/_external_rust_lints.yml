@@ -32,4 +32,4 @@ jobs:
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: cargo move-clippy
         run: |
-          cargo +stable ci-clippy-external
+          cargo ci-clippy-external
