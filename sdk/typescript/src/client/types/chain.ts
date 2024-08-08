@@ -59,7 +59,7 @@ export type EndOfEpochInfo = {
     storageFundBalance: string;
     totalGasFees: string;
     totalStakeRewardsDistributed: string;
-    burnTokensAmount: string;
+    burntTokensAmount: string;
     mintedTokensAmount: string;
 };
 
