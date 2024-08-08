@@ -6,8 +6,17 @@
 import { CardLayout } from '_app/shared/card-layout';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
-import { ThumbUpFill32 } from '@iota/icons';
-import { Button, ButtonType, Checkbox, TextArea } from '@iota/apps-ui-kit';
+import PageTemplate from '_components/PageTemplate';
+import {
+    Button,
+    ButtonType,
+    Checkbox,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    TextArea,
+} from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -26,6 +35,7 @@ export function BackupMnemonicPage() {
         [accountSources, accountSourceID],
     );
     const isOnboardingFlow = !!state?.onboarding;
+
     const [showPasswordDialog, setShowPasswordDialog] = useState(false);
     const [passwordConfirmed, setPasswordConfirmed] = useState(false);
     const requirePassword = !isOnboardingFlow || !!selectedSource?.isLocked;
@@ -52,101 +62,83 @@ export function BackupMnemonicPage() {
         return <Navigate to="/" replace />;
     }
     return (
-        <Loading loading={isPending}>
-            {showPasswordDialog ? (
-                <CardLayout>
-                    <VerifyPasswordModal
-                        open
-                        onClose={() => {
-                            navigate(-1);
-                        }}
-                        onVerify={async (password) => {
-                            await passphraseMutation.mutateAsync({
-                                password,
-                                accountSourceID: selectedSource!.id,
-                            });
-                            setPasswordConfirmed(true);
-                            setShowPasswordDialog(false);
-                        }}
-                    />
-                </CardLayout>
-            ) : (
-                <div className="flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col items-center justify-between gap-4 bg-white p-md text-center">
-                    <div className="flex flex-col gap-4">
-                        <div className="flex flex-col items-center gap-6 px-md py-sm">
+        <PageTemplate title={'Export Mnemonic'}>
+            <Loading loading={isPending}>
+                {showPasswordDialog ? (
+                    <CardLayout>
+                        <VerifyPasswordModal
+                            open
+                            onClose={() => {
+                                navigate(-1);
+                            }}
+                            onVerify={async (password) => {
+                                await passphraseMutation.mutateAsync({
+                                    password,
+                                    accountSourceID: selectedSource!.id,
+                                });
+                                setPasswordConfirmed(true);
+                                setShowPasswordDialog(false);
+                            }}
+                        />
+                    </CardLayout>
+                ) : (
+                    <div className="flex h-full flex-col items-center justify-between">
+                        <div className="flex flex-col gap-md">
                             {isOnboardingFlow && (
-                                <div className="flex w-fit rounded-lg bg-tertiary-90 p-[10px]">
-                                    <ThumbUpFill32
-                                        width={20}
-                                        height={20}
-                                        className="text-tertiary-30"
-                                    />
+                                <div className="flex flex-col items-center gap-md px-md py-sm text-center">
+                                    <h3 className="text-headline-lg text-neutral-10">
+                                        Wallet Created Successfully!
+                                    </h3>
                                 </div>
                             )}
-                            <h3 className="text-[24px] text-headline-md text-neutral-10">
-                                {isOnboardingFlow
-                                    ? 'Wallet Created Successfully!'
-                                    : 'Backup Recovery Phrase'}
-                            </h3>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 text-center">
-                            <div className="text-[14px] text-title-sm text-neutral-60">
-                                Mnemonic
-                            </div>
-                            <div className="text-[14px] text-title-sm text-neutral-60">
-                                Your recovery phrase makes it easy to
-                                <br />
-                                back up and restore your account.
-                            </div>
-                        </div>
+                            <InfoBox
+                                icon={<Info />}
+                                type={InfoBoxType.Default}
+                                title={
+                                    'Never disclose your secret mnemonic. Anyone can take over your wallet with it.'
+                                }
+                                style={InfoBoxStyle.Default}
+                            />
 
-                        <div className="flex flex-grow flex-col flex-nowrap">
-                            <Loading loading={passphraseMutation.isPending}>
-                                {passphraseMutation.data ? (
-                                    <>
-                                        <TextArea
-                                            value={passphraseMutation.data.join(' ')}
-                                            isVisibilityToggleEnabled
-                                            rows={5}
-                                        />
-                                    </>
-                                ) : (
-                                    <Alert>
-                                        {(passphraseMutation.error as Error)?.message ||
-                                            'Something went wrong'}
-                                    </Alert>
-                                )}
-                            </Loading>
-                        </div>
-                        <div>
-                            <div className="mb-1 text-[14px] text-title-sm text-neutral-60">
-                                Warning
-                            </div>
-                            <div className="text-[14px] text-title-sm text-neutral-60">
-                                Never disclose your secret recovery phrase.
-                                <br />
-                                Anyone can take over your account with it.
+                            <div className="flex flex-grow flex-col flex-nowrap">
+                                <Loading loading={passphraseMutation.isPending}>
+                                    {passphraseMutation.data ? (
+                                        <>
+                                            <TextArea
+                                                value={passphraseMutation.data.join(' ')}
+                                                isVisibilityToggleEnabled
+                                                rows={5}
+                                            />
+                                        </>
+                                    ) : (
+                                        <Alert>
+                                            {(passphraseMutation.error as Error)?.message ||
+                                                'Something went wrong'}
+                                        </Alert>
+                                    )}
+                                </Loading>
                             </div>
                         </div>
-                    </div>
-                    <div className={'flex w-full flex-col gap-2'}>
                         {isOnboardingFlow ? (
-                            <div className="flex w-full text-left">
-                                <Checkbox
-                                    label={'I saved my recovery phrase'}
-                                    onChange={() => setPasswordCopied(!passwordCopied)}
+                            <div className={'flex w-full flex-col'}>
+                                <div className="flex w-full py-sm--rs">
+                                    <Checkbox
+                                        label="I saved my recovery phrase"
+                                        onChange={() => setPasswordCopied(!passwordCopied)}
+                                    />
+                                </div>
+                                <div className="pt-sm--rs" />
+                                <Button
+                                    onClick={() => navigate('/')}
+                                    type={ButtonType.Primary}
+                                    disabled={!passwordCopied && isOnboardingFlow}
+                                    text="Open Wallet"
                                 />
                             </div>
                         ) : null}
-                        <Button
-                            onClick={() => navigate('/')}
-                            type={ButtonType.Primary}
-                            disabled={!passwordCopied && isOnboardingFlow}
-                            text="Open Wallet"
-                        />
                     </div>
-                </div>
-            )}
-        </Loading>
+                )}
+            </Loading>
+        </PageTemplate>
     );
 }

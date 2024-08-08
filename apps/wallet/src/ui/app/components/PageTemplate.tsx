@@ -27,7 +27,7 @@ function PageTemplate({
     const navigate = useNavigate();
     const handleBack = useCallback(() => navigate(-1), [navigate]);
     return (
-        <div className="h-full w-full">
+        <div className="flex h-full w-full flex-col">
             {title && (
                 <Header
                     titleCentered={isTitleCentered}
