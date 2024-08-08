@@ -3,6 +3,7 @@
 
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 import { InputProps } from './Input';
+import { UnstyledButton } from '../../atoms';
 import cx from 'classnames';
 
 type TrailingElementProps = Pick<InputProps, 'trailingElement' | 'isContentVisible'>;
@@ -24,20 +25,20 @@ export function InputTrailingElement({
 
     if (onToggleButtonClick) {
         return (
-            <button
+            <UnstyledButton
                 onClick={onToggleButtonClick}
                 className={cx('text-neutral-10 dark:text-neutral-92')}
             >
                 {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
-            </button>
+            </UnstyledButton>
         );
     }
 
     if (onClearInput) {
         return (
-            <button className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
+            <UnstyledButton className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
                 <Close />
-            </button>
+            </UnstyledButton>
         );
     }
 }

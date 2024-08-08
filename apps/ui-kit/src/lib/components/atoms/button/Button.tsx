@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { ButtonSize, ButtonType } from './button.enums';
+import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
     PADDINGS_ONLY_ICON,
@@ -39,6 +39,28 @@ interface ButtonProps {
      * The onClick event of the button.
      */
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    /**
+     * The html type of the button.
+     */
+    htmlType?: ButtonHtmlType;
+}
+
+type ButtonPropsForIcon = Pick<ButtonProps, 'htmlType'> &
+    Omit<React.HTMLProps<HTMLButtonElement>, 'type'> & {
+        children?: React.ReactNode;
+    };
+
+export function UnstyledButton({
+    htmlType = ButtonHtmlType.Button,
+    children,
+    className,
+    ...buttonProps
+}: ButtonPropsForIcon): React.JSX.Element {
+    return (
+        <button type={htmlType} {...buttonProps} className={cx('appearance-none', className)}>
+            {children}
+        </button>
+    );
 }
 
 export function Button({
@@ -46,6 +68,7 @@ export function Button({
     text,
     disabled,
     onClick,
+    htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
@@ -56,6 +79,7 @@ export function Button({
     return (
         <button
             onClick={onClick}
+            type={htmlType}
             className={cx(
                 'state-layer relative flex rounded-full disabled:opacity-40',
                 paddingClasses,
