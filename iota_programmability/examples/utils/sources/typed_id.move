@@ -8,7 +8,7 @@
 /// Additionally, it can be helpful for disambiguating between different IDs in an object.
 /// For example
 /// ```
-/// struct MyObject has key {
+/// public struct MyObject has key {
 ///   id: VersionedID,
 ///   child1: TypedID<A>,
 ///   child2: TypedID<B>,
@@ -17,11 +17,10 @@
 /// We then know that `child1` is an ID for an object of type `A` and that `child2` is an `ID`
 /// of an object of type `B`
 module utils::typed_id {
-    use iota::object::{Self, ID};
 
     /// An ID of an of type `T`. See `ID` for more details
     /// By construction, it is guaranteed that the `ID` represents an object of type `T`
-    struct TypedID<phantom T: key> has copy, drop, store {
+    public struct TypedID<phantom T: key> has copy, drop, store {
         id: ID,
     }
 
