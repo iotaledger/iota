@@ -286,7 +286,7 @@ jobs:
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
-        run: cargo +stable ci-clippy
+        run: cargo ci-clippy
 
   rustfmt:
     needs: diff
