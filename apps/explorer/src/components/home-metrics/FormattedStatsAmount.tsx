@@ -26,7 +26,7 @@ export function FormattedStatsAmount({
     const [formattedAmount, postfix] = formatAmountParts(amount);
 
     return (
-        <StatsWrapper {...props} postfix={props.postfix ? props.postfix : postfix}>
+        <StatsWrapper {...props} postfix={postfix}>
             {formattedAmount}
         </StatsWrapper>
     );
