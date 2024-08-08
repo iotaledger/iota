@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { InputTrailingElement } from './InputTrailingElement';
 import cx from 'classnames';
-import { InputWrapper, InputWrapperProps, SecondaryText } from './InputWrapper';
+import { InputWrapper, InputWrapperProps } from './InputWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
@@ -14,6 +14,7 @@ import {
 } from './input.classes';
 import { InputType } from './input.enums';
 import { InputPropsByType } from './input.types';
+import { SecondaryText } from '../../atoms/secondary-text';
 
 type InputPickedProps = Pick<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -169,7 +170,7 @@ export function Input({
                     )}
                 />
 
-                {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
+                {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
 
                 {(trailingElement ||
                     (inputProps.type === InputType.Password &&
