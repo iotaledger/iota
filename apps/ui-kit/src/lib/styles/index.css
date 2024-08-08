@@ -13,13 +13,13 @@
     .text-display-sm,
     .text-headline-lg,
     .text-headline-md,
-    .text-headline-sm,
-    .text-title-lg,
-    .text-title-md,
-    .text-title-sm {
+    .text-headline-sm {
         @apply font-alliance-no2;
     }
 
+    .text-title-lg,
+    .text-title-md,
+    .text-title-sm,
     .text-body-lg,
     .text-body-md,
     .text-body-sm,
