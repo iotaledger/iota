@@ -15,6 +15,10 @@ Iota indexer is an off-fullnode service to serve data from Iota protocol, includ
 
 ## Steps to run locally
 
+### Using docker compose
+
+See [pg-services-local](../../docker/pg-services-local/README.md).
+
 ### Prerequisites
 
 Install local [Postgres server](https://www.postgresql.org/download/). Platform-specific instructions follow.
