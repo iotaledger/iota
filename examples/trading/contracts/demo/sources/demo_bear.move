@@ -5,21 +5,20 @@
 module demo::demo_bear {
     use std::string::{String, utf8};
 
-    use iota::object::{Self, UID};
-    use iota::tx_context::{TxContext, sender};
     use iota::package;
     use iota::display;
+    use iota::tx_context::sender;
 
     /// our demo struct.
-    struct DemoBear has key, store {
+    public struct DemoBear has key, store {
         id: UID,
         name: String
     }
 
     /// our OTW to create display.
-    struct DEMO_BEAR has drop {}
+    public struct DEMO_BEAR has drop {}
 
-    // It's recommened to create Display using PTBs instead of 
+    // It's recommened to create Display using PTBs instead of
     // directly on the contracts.
     // We are only creating it here for demo purposes (one-step setup).
     fun init(otw: DEMO_BEAR, ctx: &mut TxContext){
@@ -41,7 +40,7 @@ module demo::demo_bear {
         ];
 
         // Get a new `Display` object for the `Hero` type.
-        let display = display::new_with_fields<DemoBear>(
+        let mut display = display::new_with_fields<DemoBear>(
             &publisher, keys, values, ctx
         );
 

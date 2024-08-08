@@ -8,12 +8,9 @@ Events are the main way to track actions on chain. The following example include
 ```move
 /// Extended example of a shared object. Now with addition of events!
 module examples::donuts_with_events {
-    use iota::transfer;
     use iota::iota::IOTA;
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, ID, UID};
     use iota::balance::{Self, Balance};
-    use iota::tx_context::{Self, TxContext};
 
     // This is the only dependency you need for events.
     use iota::event;
