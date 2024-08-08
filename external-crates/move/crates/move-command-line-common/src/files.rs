@@ -202,7 +202,6 @@ pub fn try_exists_vfs(vfs_path: &VfsPath) -> VfsResult<bool> {
 ///   predicate
 /// - Any file explicitly passed in `paths`, it will include that file in the
 ///   result, regardless of the file extension
-///
 /// It implements the same functionality as find_filenames above but for the
 /// virtual file system
 pub fn find_filenames_vfs<Predicate: FnMut(&VfsPath) -> bool>(
@@ -237,7 +236,6 @@ pub fn find_filenames_vfs<Predicate: FnMut(&VfsPath) -> bool>(
 ///   `MOVE_EXTENSION` found recursively in that directory
 /// - If `keep_specified_files` any file explicitly passed in `paths`, will be
 ///   added to the result Otherwise, they will be discarded
-///
 /// It implements the same functionality as find_move_filenames above but for
 /// the virtual file system
 pub fn find_move_filenames_vfs(

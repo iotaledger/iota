@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
+use std::{collections::BTreeSet, fmt};
 
 use move_ir_types::location::*;
 
@@ -63,6 +63,17 @@ pub enum MemberEntry {
 pub enum NameSpace {
     LeadingAccess,
     ModuleMembers,
+}
+
+pub struct AliasMap {
+    unused: BTreeSet<AliasEntry>,
+    // the start of an access path, excludes functions
+    leading_access: UniqueMap<Name, LeadingAccessEntry>,
+    // a module member is expected, not a module
+    // For now, this excludes local variables because the only case where this can overlap is with
+    // macro lambdas, but those have to have a leading `$` and cannot conflict with module members
+    module_members: UniqueMap<Name, MemberEntry>,
+    previous: Option<Box<AliasMap>>,
 }
 
 pub struct ParserExplicitUseFun {
@@ -380,5 +391,30 @@ impl fmt::Debug for AliasMapBuilder {
                 writeln!(f, "])")
             }
         }
+    }
+}
+
+impl fmt::Debug for AliasMap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+        let Self {
+            unused,
+            leading_access,
+            module_members,
+            previous,
+        } = self;
+        writeln!(f, "AliasMap(\n  unused: [")?;
+        for entry in unused {
+            writeln!(f, "    {entry:?},")?;
+        }
+        writeln!(f, "],\n  modules: [")?;
+        for (_, alias, entry) in leading_access {
+            writeln!(f, "    {alias} => {entry:?}")?;
+        }
+        writeln!(f, "],\n  members: [")?;
+        for (_, alias, entry) in module_members {
+            writeln!(f, "    {alias} => {entry:?}")?;
+        }
+        writeln!(f, "])")?;
+        writeln!(f, "--> PREVIOUS \n: {previous:?}")
     }
 }
