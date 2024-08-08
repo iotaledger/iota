@@ -10,6 +10,5 @@ export * from './dropdown';
 export * from './table-cell';
 export * from './select';
 export * from './table-header-cell';
-export * from './selector-field';
 export * from './search';
 export * from './card';
