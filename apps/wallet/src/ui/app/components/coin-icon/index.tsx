@@ -4,9 +4,10 @@
 
 import { ImageIcon } from '_app/shared/image-icon';
 import { useCoinMetadata } from '@iota/core';
-import { Iota, Unstaked } from '@iota/icons';
+import { Unstaked } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { IotaLogoMark } from '@iota/ui-icons';
 
 const imageStyle = cva(['rounded-full flex'], {
     variants: {
@@ -28,9 +29,7 @@ const imageStyle = cva(['rounded-full flex'], {
 });
 
 function IotaCoin() {
-    return (
-        <Iota className="flex h-full w-full items-center justify-center rounded-full p-1.5 text-body text-white" />
-    );
+    return <IotaLogoMark className="h-full w-full" />;
 }
 
 interface NonIotaCoinProps {
