@@ -32,7 +32,6 @@ The order is important:
 
 See [pg-services-local](../../docker/pg-services-local/README.md).
 
-
 ### Setting up local db
 
 The graphql service is backed by a db based on the db schema in [iota-indexer](../iota-indexer/src/schema.rs). To spin up a local db, follow the instructions at [iota-indexer](../iota-indexer/README.md) until "Running standalone indexer".
