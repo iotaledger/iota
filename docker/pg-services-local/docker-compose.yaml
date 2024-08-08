@@ -1,13 +1,12 @@
 services:
   local-network:
-    image: iota-tools
+    image: iota-test-validator
     build:
       context: ../../
-      dockerfile: docker/iota-tools/Dockerfile
+      dockerfile: docker/iota-tools/Dockerfile.iota-test-validator
       args:
         - GIT_REVISION
         - BUILD_DATE
-      target: runtime-light
     container_name: local-network
     hostname: local-network
     restart: on-failure
