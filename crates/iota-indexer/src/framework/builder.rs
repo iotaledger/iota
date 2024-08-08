@@ -7,6 +7,8 @@ use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use super::{fetcher::CheckpointFetcher, Handler};
 use crate::metrics::IndexerMetrics;
 
+use anyhow::Result;
+
 pub struct IndexerBuilder {
     rest_url: Option<String>,
     handlers: Vec<Box<dyn Handler>>,
@@ -52,7 +54,7 @@ impl IndexerBuilder {
         self
     }
 
-    pub async fn run(self) {
+    pub async fn run(self) -> Result<()> {
         let (downloaded_checkpoint_data_sender, downloaded_checkpoint_data_receiver) =
             mysten_metrics::metered_channel::channel(
                 self.checkpoint_buffer_size,
@@ -82,6 +84,6 @@ impl IndexerBuilder {
             self.handlers,
             self.metrics.clone(),
         )
-        .await;
+        .await
     }
 }

@@ -91,9 +91,8 @@ impl Indexer {
             vec![Box::new(checkpoint_handler)],
             metrics,
         )
-        .await;
-
-        Ok(())
+        .await
+        .map_err(|e| IndexerError::UncategorizedError(e))
     }
 
     pub async fn start_reader(
