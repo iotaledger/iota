@@ -90,7 +90,7 @@ module conventions::profile {
 
 module conventions::defi {
 
-  use conventions::profile::{Self, Profile};
+  use conventions::profile::Profile;
 
   public fun get_tokens(profile: &Profile) {
 
@@ -129,9 +129,6 @@ Name the functions that create objects as `new`.
 ```move
 module conventions::object {
 
-  use iota::object::{Self, UID};
-  use iota::tx_context::TxContext;
-
   public struct Object has key, store {
     id: UID
   }
@@ -151,8 +148,6 @@ Library modules that share objects should provide two functions: one to create t
 ```move
 module conventions::profile {
 
-  use iota::object::{Self, UID};
-  use iota::tx_context::TxContext;
   use iota::transfer::share_object;
 
   public struct Profile has key {
@@ -179,8 +174,6 @@ Name the functions that return a reference as `<PROPERTY-NAME>_mut` or `<PROPERT
 module conventions::profile {
 
   use std::string::String;
-
-  use iota::object::UID;
 
   public struct Profile has key {
     id: UID,
@@ -249,8 +242,6 @@ module conventions::profile {
 
   use std::string::String;
 
-  use iota::object::UID;
-
   public struct Profile has key, store {
     id: UID,
     /// The age of the user
@@ -268,7 +259,6 @@ Provide functions to delete objects. Destroy empty objects with the function `de
 ```move
 module conventions::wallet {
 
-  use iota::object::{Self, UID};
   use iota::balance::{Self, Balance};
   use iota::iota::IOTA;
 
@@ -300,10 +290,7 @@ Keep your functions pure to maintain composability. Do not use `transfer::transf
 ```move
 module conventions::amm {
 
-  use iota::transfer;
   use iota::coin::Coin;
-  use iota::object::UID;
-  use iota::tx_context::{Self, TxContext};
 
   public struct Pool has key {
     id: UID
@@ -343,7 +330,6 @@ Pass the `Coin` object by value with the right amount directly because it's bett
 module conventions::amm {
 
   use iota::coin::Coin;
-  use iota::object::UID;
 
   public struct Pool has key {
     id: UID
@@ -371,11 +357,9 @@ To maintain composability, use capabilities instead of addresses for access cont
 module conventions::access_control {
 
   use iota::iota::IOTA;
-  use iota::object::UID;
   use iota::balance::Balance;
   use iota::coin::{Self, Coin};
   use iota::table::{Self, Table};
-  use iota::tx_context::{Self, TxContext};
 
   public struct Account has key, store {
     id: UID,
@@ -420,10 +404,8 @@ module conventions::vesting_wallet {
 
   use iota::iota::IOTA;
   use iota::coin::Coin;
-  use iota::object::UID;
   use iota::table::Table;
   use iota::balance::Balance;
-  use iota::tx_context::TxContext;
 
   public struct OwnedWallet has key {
     id: UID,
@@ -465,8 +447,6 @@ In admin-gated functions, the first parameter should be the capability. It helps
 module conventions::social_network {
 
   use std::string::String;
-
-  use iota::object::UID;
 
   public struct Account has key {
     id: UID,

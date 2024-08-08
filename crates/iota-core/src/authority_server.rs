@@ -295,7 +295,7 @@ impl ValidatorService {
         transaction.validity_check(epoch_store.protocol_config())?;
 
         if !epoch_store.protocol_config().zklogin_auth() && transaction.has_zklogin_sig() {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "zklogin is not enabled on this network".to_string(),
             }
             .into());
@@ -304,14 +304,14 @@ impl ValidatorService {
         if !epoch_store.protocol_config().supports_upgraded_multisig()
             && transaction.has_upgraded_multisig()
         {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "upgraded multisig format not enabled on this network".to_string(),
             }
             .into());
         }
 
         if !epoch_store.randomness_state_enabled() && transaction.is_randomness_reader() {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "randomness is not enabled on this network".to_string(),
             }
             .into());

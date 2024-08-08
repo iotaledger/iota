@@ -8,9 +8,6 @@
 /// Enables "get free capy" functionality. A single account can request
 /// up to 2 capys; then it aborts.
 module capy::eden {
-    use std::option::{Self, Option};
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
     use iota::dynamic_field as dfield;
 
     use capy::capy::{Self, Capy, CapyRegistry};
@@ -19,7 +16,7 @@ module capy::eden {
     const EMaxBred: u64 = 0;
 
     /// A shared object containing 2 Capys for free breeding.
-    struct Eden has key {
+    public struct Eden has key {
         id: UID,
         capy_one: Option<Capy>,
         capy_two: Option<Capy>,
