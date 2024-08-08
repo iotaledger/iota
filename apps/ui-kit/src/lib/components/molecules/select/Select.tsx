@@ -6,7 +6,7 @@ import cx from 'classnames';
 import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
-import { InputWrapper } from '../input/InputWrapper';
+import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
 import { ListItem } from '../../atoms';
 
 export type SelectOption =
@@ -111,7 +111,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 caption={caption}
                 disabled={disabled}
                 errorMessage={errorMessage}
-                useDivAsLabel
+                labelHtmlTag={LabelHtmlTag.Div}
             >
                 <div className="relative flex w-full flex-col">
                     <button
@@ -137,7 +137,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
                             {supportingText && (
                                 <div className={cx(!placeholder && !selectedValue && 'ml-auto')}>
-                                    <SecondaryText noErrorStyles>{supportingText}</SecondaryText>
+                                    <SecondaryText>{supportingText}</SecondaryText>
                                 </div>
                             )}
                         </div>

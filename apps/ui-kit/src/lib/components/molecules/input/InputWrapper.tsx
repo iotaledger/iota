@@ -4,6 +4,12 @@
 import cx from 'classnames';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { LABEL_CLASSES } from './input.classes';
+import { createElement } from 'react';
+
+export enum LabelHtmlTag {
+    Label = 'label',
+    Div = 'div',
+}
 
 export interface InputWrapperProps {
     /**
@@ -33,7 +39,7 @@ export interface InputWrapperProps {
     /**
      * Use a div as a label instead of a label element
      */
-    useDivAsLabel?: boolean;
+    labelHtmlTag?: LabelHtmlTag;
 }
 
 export function InputWrapper({
@@ -43,7 +49,7 @@ export function InputWrapper({
     errorMessage,
     amountCounter,
     required,
-    useDivAsLabel,
+    labelHtmlTag = LabelHtmlTag.Label,
     children,
 }: React.PropsWithChildren<InputWrapperProps>) {
     return (
@@ -56,10 +62,10 @@ export function InputWrapper({
             })}
         >
             {label ? (
-                <LabelOrDiv useDivAsLabel={useDivAsLabel}>
+                <LabelWrapper labelHtmlTag={labelHtmlTag}>
                     {label}
                     {children}
-                </LabelOrDiv>
+                </LabelWrapper>
             ) : (
                 children
             )}
@@ -71,7 +77,7 @@ export function InputWrapper({
                 )}
             >
                 {(errorMessage || caption) && (
-                    <SecondaryText>{errorMessage || caption}</SecondaryText>
+                    <SecondaryText hasErrorStyles>{errorMessage || caption}</SecondaryText>
                 )}
                 {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
             </div>
@@ -79,16 +85,11 @@ export function InputWrapper({
     );
 }
 
-function LabelOrDiv({
-    useDivAsLabel,
+function LabelWrapper({
+    labelHtmlTag,
     children,
-}: {
-    useDivAsLabel?: boolean;
+}: Required<Pick<InputWrapperProps, 'labelHtmlTag'>> & {
     children: React.ReactNode;
 }) {
-    if (useDivAsLabel) {
-        return <div className={LABEL_CLASSES}>{children}</div>;
-    } else {
-        return <label className={LABEL_CLASSES}>{children}</label>;
-    }
+    return createElement(labelHtmlTag, { className: LABEL_CLASSES }, children);
 }

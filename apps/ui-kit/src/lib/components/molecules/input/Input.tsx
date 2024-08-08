@@ -170,7 +170,7 @@ export function Input({
                     )}
                 />
 
-                {supportingText && <SecondaryText noErrorStyles>{supportingText}</SecondaryText>}
+                {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
 
                 {(trailingElement ||
                     (inputProps.type === InputType.Password &&
