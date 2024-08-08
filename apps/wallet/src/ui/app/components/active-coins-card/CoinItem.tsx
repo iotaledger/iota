@@ -14,6 +14,7 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 interface CoinItemProps {
     coinType: string;
@@ -33,7 +34,7 @@ export function CoinItem({
     subtitle,
 }: CoinItemProps) {
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
-    const isIota = coinType.includes('iota');
+    const isIota = coinType === IOTA_TYPE_ARG;
 
     return (
         <Card type={CardType.Default} isDisabled={!isActive}>
