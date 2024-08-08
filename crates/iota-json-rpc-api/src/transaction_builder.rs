@@ -20,35 +20,6 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 /// used in an RPC context, allowing clients to create transactions for
 /// transferring objects, sending coins, executing Move calls, and managing
 /// stakes.
-///
-/// The following methods are available in this trait:
-///
-/// - `transfer_object`: Creates an unsigned transaction to transfer an object
-///   from one address to another.
-/// - `transfer_iota`: Creates an unsigned transaction to send IOTA coin objects
-///   to an IOTA address.
-/// - `pay`: Sends `Coin<T>` to a list of addresses, where `T` can be any coin
-///   type.
-/// - `pay_iota`: Sends IOTA coins to a list of addresses.
-/// - `pay_all_iota`: Sends all IOTA coins to one recipient.
-/// - `move_call`: Creates an unsigned transaction to execute a Move call on the
-///   network.
-/// - `publish`: Creates an unsigned transaction to publish a Move package.
-/// - `split_coin`: Creates an unsigned transaction to split a coin object into
-///   multiple coins.
-/// - `split_coin_equal`: Creates an unsigned transaction to split a coin object
-///   into multiple equal-sized coins.
-/// - `merge_coin`: Creates an unsigned transaction to merge multiple coins into
-///   one coin.
-/// - `batch_transaction`: Creates an unsigned batched transaction.
-/// - `request_add_stake`: Adds stake to a validator's staking pool using
-///   multiple coins.
-/// - `request_withdraw_stake`: Withdraws stake from a validator's staking pool.
-/// - `request_add_timelocked_stake`: Adds timelocked stake to a validator's
-///   staking pool using multiple balances.
-/// - `request_withdraw_timelocked_stake`: Withdraws timelocked stake from a
-///   validator's staking pool.
-
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]
 pub trait TransactionBuilder {

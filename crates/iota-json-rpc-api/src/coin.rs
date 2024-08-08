@@ -15,20 +15,6 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 /// in an RPC context, allowing clients to fetch various types of information
 /// about coins owned by an address, including balances, metadata,
 /// and total supply.
-///
-/// The following methods are available in this trait:
-///
-/// - `get_coins`: Retrieves a list of coin objects of an optionally specified
-///   type owned by a given address.
-/// - `get_all_coins`: Retrieves a list of all coin objects owned by a specified
-///   address.
-/// - `get_balance`: Obtains the total balance of a specific coin type for a
-///   given address.
-/// - `get_all_balances`: Returns the total balance of all coin types for a
-///   given address.
-/// - `get_coin_metadata`: Fetches metadata (such as symbol and decimals) for a
-///   specific coin type.
-/// - `get_total_supply`: Retrieves the total supply for a specific coin type.
 #[open_rpc(namespace = "iotax", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait CoinReadApi {

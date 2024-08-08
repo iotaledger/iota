@@ -20,26 +20,6 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 /// and querying data on the IOTA network. This trait is designed to be used
 /// in an RPC context, allowing clients to efficiently fetch and subscribe to
 /// data related to transactions, events, objects, and more.
-///
-/// The following methods are available in this trait:
-///
-/// - `get_owned_objects`: Retrieves a list of objects owned by a specified
-///   address and based on query criteria.
-/// - `query_transaction_blocks`: Retrieves a list of transaction blocks based
-///   on query criteria.
-/// - `query_events`: Retrieves a list of events based on query criteria.
-/// - `subscribe_event`: Subscribes to a stream of IOTA events based on filter
-///   criteria.
-/// - `subscribe_transaction`: Subscribes to a stream of IOTA transaction
-///   effects.
-/// - `get_dynamic_fields`: Retrieves a list of dynamic field objects owned by
-///   an object.
-/// - `get_dynamic_field_object`: Retrieves the dynamic field object information
-///   for a specified object.
-/// - `resolve_name_service_address`: Resolves an name to an address using the
-///   name service.
-/// - `resolve_name_service_names`: Resolves an address to names using the name
-///   service.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {

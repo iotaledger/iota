@@ -13,16 +13,6 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 /// extended information on the IOTA blockchain. This trait is designed to be
 /// used in an RPC context, allowing clients to fetch detailed data related to
 /// epochs and transactions.
-///
-/// The following methods are available in this trait:
-///
-/// - `get_epochs`: Fetches a list of epoch information with optional pagination
-///   and ordering.
-/// - `get_current_epoch`: Retrieves the current epoch information.
-/// - `query_objects`: Retrieves a paginated list of queried objects based on
-///   query criteria.
-/// - `get_total_transactions`: Returns the total number of transactions on the
-///   IOTA blockchain.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait ExtendedApi {
