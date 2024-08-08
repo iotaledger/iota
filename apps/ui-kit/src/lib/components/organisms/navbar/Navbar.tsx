@@ -86,7 +86,12 @@ export function Navbar({
                         <NavbarItem
                             {...item}
                             isSelected={item.id === activeId}
-                            onClick={() => onClickItem(item.id)}
+                            onClick={(e) => {
+                                if (item.onClick) {
+                                    item.onClick(e);
+                                }
+                                onClickItem(item.id);
+                            }}
                         />
                     </div>
                 ))}
