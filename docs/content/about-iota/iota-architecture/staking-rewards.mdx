@@ -1,29 +1,49 @@
----
-title: Validator Staking and Rewards
-draft: true
----
-
 import StakingPoolReqs from "../../_snippets/staking-pool-reqs.mdx";
 
-IOTA is a Delegated-Proof-of-Stake (DPoS) system, where the voting power of validators is granted by stakes delegated to them from IOTA token holders. When rewards are distributed at the end of each epoch, validators receive their share of the rewards based on their performance and their commission rate. The rewards auto-compound as validators staking pools receive new delegated stakes.
+IOTA uses a Delegated Proof-of-Stake (DPoS) system, where [validators](../tokenomics/validators-staking.mdx) get their
+voting power from IOTA token holders who delegate their stakes to them.
+When rewards are distributed at the end of each [epoch](epochs.mdx),
+validators receive their [rewards](#rewards-distribution) based on their [performance](#performance)
+and [commission rate](#commission-rate).
+The rewards automatically increase as validators' staking pools receive new delegated stakes.
 
-## Staking on IOTA versus other blockchains
+## Staking on IOTA vs. Other Blockchains
 
-The IOTA staking mechanism has a few features that might be different from staking on other blockchains:
+The IOTA staking mechanism has some unique features compared to other blockchains:
 
-- Staking is self-custodial on IOTA: stakers keep their staked IOTA tokens in an owned object.
-- Staking rewards auto-compound on IOTA due to its liquidity-pool-inspired design.
-- When a user requests to stake with a validator, their stake starts counting towards the voting power of that validator for the epoch after the current epoch. Similarly, when a user withdraws their stake, their stake stops counting the epoch after the current epoch.
+### Self-custodial Staking
+
+Stakers keep their staked IOTA tokens in their own account.
+
+### Auto-compounding Rewards
+
+Rewards automatically reinvest due to a liquidity-pool-inspired design.
+
+### Staking Timing
+
+When a user stakes with a validator, their stake counts towards the validator's voting power starting from the next
+epoch. Similarly, when a user withdraws their stake, it stops counting from the next epoch.
 
 <StakingPoolReqs />
 
-## Rewards distribution
+## Rewards Distribution
 
-At the end of each epoch, gas fees collected, together with stake subsidies, are distributed among validators and stakers as staking rewards. The amount of rewards a validator gets depends on the following factors:
+At the end of each [epoch](epochs.mdx), gas fees and stake subsidies are distributed among validators and stakers as
+rewards. The amount of rewards a validator gets depends on:
 
-- Performance. If a validator does not operate performantly, other validators may choose to report them via the tallying rule. The entire staking rewards of the reported validator are slashed for the epoch.
-- Commission rate. Commission rate determines the cut of staking rewards a validator is taking from their stakers. For example, if a validator has commission rate at 10%, then 10% of all staking rewards of stakers with this validator are given to the validator each epoch as new stake objects owned by the validator.
+### Performance
 
-## Rewards withdrawal
+If a validator underperforms, other validators can report them, causing the reported validator to lose all their rewards
+for that epoch.
 
-Because validator rewards are distributed to them as regular stake objects, staking rewards withdrawal works exactly the same for validators as for stakers. More precisely, a validator can call the  [`0x3::iota_system::request_withdraw_stake`](https://github.com/iotaledger/iota/blob/6234ae2cc8137f3a2a34cd0aa1ac4fd5f31260e2/crates/iota-framework/packages/iota-system/sources/iota_system.move#L272) function to withdraw their stake and receive their rewards.
+### Commission Rate
+
+This is the percentage a validator takes from their stakers' rewards.
+For example, if a validator's commission rate is 10%, they take 10% of the rewards each epoch as new stake objects.
+
+### Rewards Withdrawal
+
+Validators receive rewards as regular stake objects, so they withdraw their staking rewards the same way as stakers.
+Validators can call
+the [`0x3::iota_system::request_withdraw_stake`](https://github.com/iotaledger/iota/blob/6234ae2cc8137f3a2a34cd0aa1ac4fd5f31260e2/crates/iota-framework/packages/iota-system/sources/iota_system.move#L272)
+function to withdraw their stake and receive their rewards.

@@ -2,72 +2,53 @@
 
 :::tip
 
-IOTA is the ninth letter of the Greek alphabet (Ι, ι) and is used figuratively in English to mean a very small amount,
-reflecting its status as one of the smallest Greek letters.
+IOTA is the ninth letter of the Greek alphabet (Ι, ι) and is used figuratively in English to mean a very small amount, reflecting its status as one of the smallest Greek letters.
 
 :::
 
-The IOTA ecosystem enables programmability in both [Layer 1](#layer-1) and [Layer 2](#layer-2) using [Move](#move)
-and [EVM/Solidity](#evm) smart contracts respectively.
+The IOTA ecosystem enables programmability in both [Layer 1](#layer-1) and [Layer 2](#layer-2) using [Move](#move) and [EVM/Solidity](#evm) smart contracts respectively.
 
 ## Layer 1
 
 ### Move
 
-Move is a powerful, secure programming language designed specifically for digital asset management and smart
-contracts. Its unique features make it an ideal choice for developers working in the blockchain space. Here are the key
-features of Move:
+Move is a powerful, secure programming language designed specifically for digital asset management and smart contracts. Its unique features make it an ideal choice for developers working in the blockchain space. Here are the key features of Move:
 
 #### Object-Centric Design
 
-Move is fundamentally object-centric, allowing developers to intuitively model complex data structures and interactions
-. In Move, you can define objects representing assets, users, contracts, and more, facilitating a natural
-and straightforward way to manage state and behavior.
+Move is fundamentally object-centric, allowing developers to intuitively model complex data structures and interactions. In Move, you can define objects representing assets, users, contracts, and more, facilitating a natural and straightforward way to manage state and behavior.
 
 #### Performance
 
-Move is based on the object model, not a shared global state. This allows transactions to be executed in parallel, which
-translates into a network with high throughput, less congestion, and therefore lower [gas](#gas-on-iota) fees.
+Move is based on the object model, not a shared global state. This allows transactions to be executed in parallel, which translates into a network with high throughput, less congestion, and therefore lower [gas](#gas-on-iota) fees.
 
 #### Security
 
-Move is based on Rust, a programming language known for
-its [performance and safety](iota-architecture/iota-security.mdx). It's almost impossible to make a
-mistake that the compiler won't catch before you deploy your smart contract. Additionally, given the object-centric
-approach, assets that reside in your account can't be accessed without your account keys. These features allow for more
-complex smart contract applications, as any mistakes outside implementation logic will be caught before deploying.
+Move is based on Rust, a programming language known for its [performance and safety](iota-architecture/iota-security.mdx). It's almost impossible to make a mistake that the compiler won't catch before you deploy your smart contract. Additionally, given the object-centric approach, assets that reside in your account can't be accessed without your account keys. These features allow for more complex smart contract applications, as any mistakes outside implementation logic will be caught before deploying.
 
 ### Networks
 
 #### IOTA Mainnet
 
-The IOTA Mainnet processes production transaction blocks. The IOTA Mainnet's tokens have a real-world value, so we
-recommend that you use the IOTA Testnet or Devnet to develop your application.
+The IOTA Mainnet processes production transaction blocks. The IOTA Mainnet's tokens have a real-world value, so we recommend that you use the IOTA Testnet or Devnet to develop your application.
 
 #### IOTA Testnet
 
-The IOTA Testnet serves as a staging network and quality assurance. You can use this network to test your dApps and
-verify that planned changes do not adversely impact performance before deploying them to production.
+The IOTA Testnet serves as a staging network and quality assurance. You can use this network to test your dApps and verify that planned changes do not adversely impact performance before deploying them to production.
 
 #### IOTA Devnet
 
-The IOTA Devnet is used to develop new features. You can use this network to code with the latest planned features
-of IOTA.
+The IOTA Devnet is used to develop new features. You can use this network to code with the latest planned features of IOTA.
 
 ## Layer 2
 
 ### EVM
 
-[EVM](https://ethereum.org/en/developers/docs/evm/) stands for "Ethereum Virtual Machine" and is currently the tried and
-tested virtual machines running most smart contract networks.
+[EVM](https://ethereum.org/en/developers/docs/evm/) stands for "Ethereum Virtual Machine" and is currently the tried and tested virtual machine running most smart contract networks.
 
-[Solidity](https://soliditylang.org/) is the programming language of choice for the EVM. It was created for this
-specific purpose.
+[Solidity](https://soliditylang.org/) is the programming language of choice for the EVM. It was created for this specific purpose.
 
-The main benefit of using EVM/Solidity is its sheer amount of resources from years of development. The [IOTA Smart
-Contracts](../developer/iota-evm/introduction.mdx) implementation is fully compatible with all of them. If you have
-experience developing other EVM-based chains, you will feel right at home. Any existing contracts you've written will
-need no changes to function on IOTA Smart Contracts.
+The main benefit of using EVM/Solidity is its sheer amount of resources from years of development. The [IOTA Smart Contracts](../developer/iota-evm/introduction.mdx) implementation is fully compatible with all of them. If you have experience developing other EVM-based chains, you will feel right at home. Any existing contracts you've written will need no changes to function on IOTA Smart Contracts.
 
 ### Networks
 
@@ -77,13 +58,11 @@ IOTA EVM is the Layer 2 EVM running on top of the [IOTA Mainnet](./tokenomics/io
 
 #### IOTA EVM Testnet
 
-IOTA EVM Testnet is the Layer 2 EVM running on top of the IOTA Testnet network. This network is subject to occasional
-resets (no data retention), usually announced with a one-week grace period.
+IOTA EVM Testnet is the Layer 2 EVM running on top of the IOTA Testnet network. This network is subject to occasional resets (no data retention), usually announced with a one-week grace period.
 
 ## IOTA Tokens
 
-The [IOTA token](./tokenomics/iota-token.mdx) is the main token in the IOTA ecosystem. One IOTA can be divided into
-smaller one billion NANOs.
+The [IOTA token](./tokenomics/iota-token.mdx) is the main token in the IOTA ecosystem. One IOTA can be divided into smaller units called NANOs, with one IOTA being equivalent to one billion NANOs.
 
 ### Gas on IOTA
 
@@ -91,9 +70,4 @@ Transactions on the IOTA network require [gas](./tokenomics/gas-in-iota.mdx) fee
 
 ## Consensus on IOTA
 
-IOTA uses a delegated proof-of-stake (DPoS) consensus mechanism to validate on-chain transaction
-blocks. [Validators](../operator/validator-committee.mdx) on the IOTA network must secure a certain amount of IOTA
-tokens on
-the IOTA Mainnet to demonstrate their commitment to the network's security. This approach aligns the interests of all
-validators with those of IOTA users, ensuring an efficient and secure blockchain without the high energy demands of
-earlier blockchains.
+IOTA uses a delegated proof-of-stake (DPoS) consensus mechanism to validate on-chain transaction blocks. [Validators](../operator/validator-committee.mdx) on the IOTA network must secure a certain amount of IOTA tokens on the IOTA Mainnet to demonstrate their commitment to the network's security. This approach aligns the interests of all validators with those of IOTA users, ensuring an efficient and secure blockchain without the high energy demands of earlier blockchains.
