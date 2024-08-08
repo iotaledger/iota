@@ -4,16 +4,13 @@
 
 /// Demonstrates wrapping objects using the `Option` type.
 module simple_warrior::example {
-    use std::option::{Self, Option};
-    use iota::object::{Self, UID};
-    use iota::tx_context::TxContext;
 
-    struct Sword has key, store {
+    public struct Sword has key, store {
         id: UID,
         strength: u8,
     }
 
-    struct Warrior has key, store {
+    public struct Warrior has key, store {
         id: UID,
         sword: Option<Sword>,
     }
@@ -47,9 +44,9 @@ module simple_warrior::example {
 
     #[test]
     fun test_equip_empty() {
-        let ts = ts::begin(@0xA);
+        let mut ts = ts::begin(@0xA);
         let s = new_sword(42, ts::ctx(&mut ts));
-        let w = new_warrior(ts::ctx(&mut ts));
+        let mut w = new_warrior(ts::ctx(&mut ts));
 
         equip(&mut w, s);
 
@@ -64,10 +61,10 @@ module simple_warrior::example {
 
     #[test]
     fun test_equip_unequip() {
-        let ts = ts::begin(@0xA);
+        let mut ts = ts::begin(@0xA);
         let s1 = new_sword(21, ts::ctx(&mut ts));
         let s2 = new_sword(42, ts::ctx(&mut ts));
-        let w = new_warrior(ts::ctx(&mut ts));
+        let mut w = new_warrior(ts::ctx(&mut ts));
 
         equip(&mut w, s1);
 
@@ -90,8 +87,8 @@ module simple_warrior::example {
     #[test]
     #[expected_failure(abort_code = ENotEquipped)]
     fun test_unequip_empty() {
-        let ts = ts::begin(@0xA);
-        let w = new_warrior(ts::ctx(&mut ts));
+        let mut ts = ts::begin(@0xA);
+        let mut w = new_warrior(ts::ctx(&mut ts));
         let _s = unequip(&mut w);
         abort 1337
     }
@@ -99,10 +96,10 @@ module simple_warrior::example {
     #[test]
     #[expected_failure(abort_code = EAlreadyEquipped)]
     fun test_equip_already_equipped() {
-        let ts = ts::begin(@0xA);
+        let mut ts = ts::begin(@0xA);
         let s1 = new_sword(21, ts::ctx(&mut ts));
         let s2 = new_sword(42, ts::ctx(&mut ts));
-        let w = new_warrior(ts::ctx(&mut ts));
+        let mut w = new_warrior(ts::ctx(&mut ts));
 
         equip(&mut w, s1);
         equip(&mut w, s2);
