@@ -6,6 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { Input, InputType } from '@/lib/components/molecules/input';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import { ComponentProps, useCallback, useEffect, useState } from 'react';
+import { UnstyledButton } from '@/lib';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -118,12 +119,12 @@ export const WithMaxTrailingButton: Story = {
 
         const TrailingMaxButton = () => {
             return (
-                <button
+                <UnstyledButton
                     onClick={onMaxClick}
                     className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs"
                 >
                     <span className="font-inter text-label-md">Max</span>
-                </button>
+                </UnstyledButton>
             );
         };
 
