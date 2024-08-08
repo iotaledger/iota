@@ -357,14 +357,16 @@ impl Iterator for PeerBalancer {
 
 #[derive(Clone, Debug)]
 enum StateSyncMessage {
-    // Node will send this to StateSyncEventLoop in order to kick off the state sync process.
+    /// Node will send this to StateSyncEventLoop in order to kick off the state
+    /// sync process.
     StartSyncJob,
-    // Validators will send this to the StateSyncEventLoop in order to kick off notifying our
-    // peers of the new checkpoint.
+    /// Validators will send this to the StateSyncEventLoop in order to kick off
+    /// notifying our peers of the new checkpoint.
     VerifiedCheckpoint(Box<VerifiedCheckpoint>),
-    // Notification that the checkpoint content sync task will send to the event loop in the event
-    // it was able to successfully sync a checkpoint's contents. If multiple checkpoints were
-    // synced at the same time, only the highest checkpoint is sent.
+    /// Notification that the checkpoint content sync task will send to the
+    /// event loop in the event it was able to successfully sync a
+    /// checkpoint's contents. If multiple checkpoints were synced at the
+    /// same time, only the highest checkpoint is sent.
     SyncedCheckpoint(Box<VerifiedCheckpoint>),
 }
 
@@ -462,7 +464,7 @@ where
         loop {
             tokio::select! {
                 now = interval.tick() => {
-                    // query the latest checkpoint of connected peers that are on the
+                    // Query the latest checkpoint of connected peers that are on the
                     // same chain as us. And check if download_limit_layer needs to be pruned or not.
                     self.handle_tick(now.into_std());
                 },
