@@ -9,11 +9,10 @@ use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::output::Output,
 };
-use iota_types::stardust::coin_type::CoinType;
 use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
-    test_outputs::{new_vested_output, IOTA_COIN_TYPE, MERGE_TIMESTAMP_SECS, SHIMMER_COIN_TYPE},
+    test_outputs::{new_vested_output, MERGE_TIMESTAMP_SECS},
     types::output_header::OutputHeader,
 };
 
@@ -25,18 +24,13 @@ const VESTING_WEEKS_FREQUENCY: usize = 2;
 pub(crate) async fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
-    coin_type: CoinType,
+    coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
-    let address_derivation_coin_type = match coin_type {
-        CoinType::Iota => IOTA_COIN_TYPE,
-        CoinType::Shimmer => SHIMMER_COIN_TYPE,
-    };
-
     let address = secret_manager
-        .generate_ed25519_addresses(address_derivation_coin_type, 0, 0..1, None)
+        .generate_ed25519_addresses(coin_type, 0, 0..1, None)
         .await?[0];
     // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't
     // lose precision.

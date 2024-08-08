@@ -15,14 +15,10 @@ use iota_sdk::{
         },
     },
 };
-use iota_types::stardust::coin_type::CoinType;
 use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
-    test_outputs::{
-        new_vested_output, IOTA_COIN_TYPE, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS,
-        SHIMMER_COIN_TYPE,
-    },
+    test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
@@ -44,20 +40,15 @@ const ADDRESSES: &[[u32; 3]] = &[
 pub(crate) async fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
-    coin_type: CoinType,
+    coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
-    let address_derivation_coin_type = match coin_type {
-        CoinType::Iota => IOTA_COIN_TYPE,
-        CoinType::Shimmer => SHIMMER_COIN_TYPE,
-    };
-
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager
             .generate_ed25519_addresses(
-                address_derivation_coin_type,
+                coin_type,
                 *account_index,
                 *address_index..address_index + 1,
                 (*internal == 1).then_some(GenerateAddressOptions::internal()),

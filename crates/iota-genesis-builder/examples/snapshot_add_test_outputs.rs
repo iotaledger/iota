@@ -12,9 +12,6 @@ use iota_genesis_builder::stardust::{
 };
 use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 
-pub const IF_SHIMMER_STARDUST_ADDRESS: &str =
-    "smr1qqzhsp9x3m22l55wlclawlw25536e3rgghep77awcfrgh60uxhxuq6vlak7";
-
 #[derive(Parser, Debug)]
 #[clap(about = "Tool for generating Iota and Shimmer Hornet full-snapshot files with test data")]
 struct Cli {

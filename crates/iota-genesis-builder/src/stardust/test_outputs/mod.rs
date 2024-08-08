@@ -81,13 +81,29 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
+    let address_derivation_coin_type = match coin_type {
+        CoinType::Iota => IOTA_COIN_TYPE,
+        CoinType::Shimmer => SHIMMER_COIN_TYPE,
+    };
+
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = [
-        alias_ownership::outputs(&mut rng, coin_type).await?,
-        stardust_mix::outputs(&mut rng, &mut vested_index, coin_type).await?,
-        vesting_schedule_entity::outputs(&mut rng, &mut vested_index, coin_type).await?,
-        vesting_schedule_iota_airdrop::outputs(&mut rng, &mut vested_index, coin_type).await?,
-        vesting_schedule_portfolio_mix::outputs(&mut rng, &mut vested_index, coin_type).await?,
+        alias_ownership::outputs(&mut rng, address_derivation_coin_type).await?,
+        stardust_mix::outputs(&mut rng, &mut vested_index, address_derivation_coin_type).await?,
+        vesting_schedule_entity::outputs(&mut rng, &mut vested_index, address_derivation_coin_type)
+            .await?,
+        vesting_schedule_iota_airdrop::outputs(
+            &mut rng,
+            &mut vested_index,
+            address_derivation_coin_type,
+        )
+        .await?,
+        vesting_schedule_portfolio_mix::outputs(
+            &mut rng,
+            &mut vested_index,
+            address_derivation_coin_type,
+        )
+        .await?,
     ]
     .concat();
 
