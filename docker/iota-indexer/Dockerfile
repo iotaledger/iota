@@ -21,7 +21,7 @@ COPY narwhal narwhal
 COPY external-crates external-crates
 
 RUN cargo build --profile ${PROFILE} --bin iota-indexer
-RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-graphql-rpc ./
+RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-indexer ./
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
