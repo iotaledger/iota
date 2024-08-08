@@ -82,7 +82,7 @@ export function OnTheNetwork(): JSX.Element {
                         orientation="horizontal"
                         label="Total Supply"
                         size="sm"
-                        postfix="IOTA"
+                        postfix={totalSupplyFormatted !== null ? 'IOTA' : null}
                     >
                         {totalSupplyFormatted}
                     </StatsWrapper>
