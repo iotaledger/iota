@@ -12,7 +12,8 @@
 #### Conversion of a Nft Output into a custom Nft
 This topic outlines the process of converting an stardust Nft into a custom Nft.
 
-You need to have a prepared custom Nft package that you want to convert the Stardust Nft onto:
+You need to have a prepared custom Nft package that you want to convert the Stardust Nft You need to have a prepared custom Nft package that you want to convert the Stardust Nft into. 
+The following is an example of a simple module for representing a `CustomNFT`, minting it, burning it and converting it from a Stardust `Nft`:
 
 <Tabs>
 <TabItem value="move" label="Move">
@@ -32,7 +33,7 @@ You need to have a prepared custom Nft package that you want to convert the Star
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L48-L50
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L206-L223
 ```
 
 </TabItem>
@@ -41,22 +42,8 @@ You need to have a prepared custom Nft package that you want to convert the Star
 </TabItem>
 </Tabs>
 
-
-2. The `Nft output` object is retrieved using its object ID.
-
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L63-L78
-```
-
-</TabItem>
-<TabItem value="ts" label="TypeScript">
-
-</TabItem>
-</Tabs>
-
-3. Create a PTB that extracts the stardust Nft from an NftOutput and then calls the `random_nft::convert` method for converting it into a custom NFT of the collection just published.
+2. Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then calls the `custom_nft::convert` method for converting it into a `CustomNFT` of the collection just published. 
+This conversion method extracts the Stardust `Nft` metadata and uses it for minting a new NFT.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
