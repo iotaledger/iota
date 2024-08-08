@@ -1,98 +1,65 @@
-# IOTA Private Network
+# Services relying on postgres db
+
+This docker-compose configuration allows launching instances of the `iota-indexer` and `iota-graphql-rpc` applications for local development purposes.
+
+These applications require a running postgres server, and in the absence of
+persistence for the server data, a local network to sync the database with.
+
+For this configuration we have opted out of persisting the database data. Users
+that want to enable persistence should use the `iota-private-network` compose
+configuration.
 
 ## Requirements
 
 - [Docker Compose](https://docs.docker.com/engine/install/)
-- [yq](https://github.com/mikefarah/yq)
 
-## Steps
+## Start the services
 
-### 1. Build Docker Images
-
-Run the following commands to build the necessary Docker images:
-
-#### iota-node
-
-```bash
-../iota-node/build.sh -t iota-node --no-cache
-```
-
-#### iota-indexer
-
-```bash
-../iota-indexer/build.sh -t iota-indexer --no-cache
-```
-
-#### iota-tools
-
-```bash
-../iota-tools/build.sh -t iota-tools --no-cache
-```
-
-### 2. Bootstrap the Network
-
-Generate the genesis files and validators’ configuration:
-
-```bash
-./bootstrap.sh
-```
-
-### 3. Start the Network
-
-The script supports different modes, which can be used individually or in combination. Regardless of the mode chosen, the validators will always be active.
-
-- faucet: Brings up one fullnode, and faucet.
-- backup: Brings up one fullnode with backup features enabled. This includes generating database snapshots, formal snapshots, and enabling archive mode. If you do not want to enable archive mode, comment out the configuration in `configs/fullnode/backup.yaml`.
-- indexer: Brings up one fullnode, one indexer, and a PostgreSQL database.
-- indexer-cluster: Brings up two fullnodes, two indexers, and a PostgreSQL cluster with a primary and replica database. indexer-1 uses the primary PostgreSQL, while indexer-2 uses the replica.
-- all: Brings up all services.
-
-#### Example
-
-To bring up everything:
-
-```bash
-./run.sh all
-```
-
-To bring up 4 validators, three full nodes (one with the backup feature enabled), one indexer, and one faucet, use the following command:
+### `iota-indexer` rpc worker
 
 ```
-./run.sh faucet backup indexer
+$ docker compose up -d indexer-rpc
 ```
 
-### Ports
+### `iota-graphql-rpc` server
 
-- fullnode-1:
-  - JSON-RPC: http://127.0.0.1:9000
-  - Metrics: http://127.0.0.1:9184
+```
+$ docker compose up -d graphql-server
+```
 
-- fullnode-2:
-  - JSON-RPC: http://127.0.0.1:9001
-  - Metrics: http://127.0.0.1:9185
+### `iota-indexer` rpc worker and `iota-graphql-rpc` server
 
-- fullnode-3:
-  - JSON-RPC: http://127.0.0.1:9002
-  - Metrics: http://127.0.0.1:9186
+```
+$ docker compose up -d graphql-server indexer-rpc
+```
 
-- fullnode-4:
-  - JSON-RPC: http://127.0.0.1:9003
-  - Metrics: http://127.0.0.1:9187
+### Dependencies
 
-- faucet-1:
-  - JSON-RPC: http://127.0.0.1:5003
-  - Metrics: http://127.0.0.1:9188
+As mentioned, these applications depend on the following services that start by default:
 
-- indexer-1:
-  - JSON-RPC: http://127.0.0.1:9004
-  - Metrics: http://127.0.0.1:9181
+- A running local network with test data.
 
-- indexer-2:
-  - JSON-RPC: http://127.0.0.1:9005
-  - Metrics: http://127.0.0.1:9182
+  To start in isolation
 
-- postgres_primary:
-  - PostgreSQL: http://127.0.0.1:5432
+  ```
+  $ docker compose up -d local-network
+  ```
 
-- postgres_replica:
-  - PostgreSQL: http://127.0.0.1:5433
+- A running postgres server
+
+  To start in isolation
+
+  ```
+  $ docker compose up -d postgres
+  ```
+
+- An `iota-indexer` sync worker on top of `local-network`, and `postgres`
+
+  To start
+
+  ```
+  $ docker compose up -d indexer-sync
+  ```
+
+  It should be noted that this does not expose any public interface, its sole
+  purpose being synchronizing the database with the ledger state.
