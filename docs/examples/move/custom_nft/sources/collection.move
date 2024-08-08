@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module custom_nft::collection {
     use std::string::String;
 
@@ -8,91 +11,103 @@ module custom_nft::collection {
     // ===== Errors =====
 
     /// For when someone tries to drop a `Collection` with a wrong capability.
-    const EWrongCollectionCreatorCap: u64 = 0;
+    const EWrongCollectionControllerCap: u64 = 0;
 
     // ===== Structures =====
 
-    /// A capability allowing the bearer to create an NFT collection.
-    /// A `stardust::alias::Alias` instance can be converted into `CollectionCreatorCap`.
-    public struct CollectionCreatorCap has key {
+    /// A capability allowing the bearer to create or drop an NFT collection.
+    /// A `stardust::alias::Alias` instance can be converted into `CollectionControllerCap` in this example,
+    /// since an alias address could be used as a collections controller in Stardust.
+    /// 
+    /// NOTE: To simplify the example, `CollectionControllerCap` is publicly transferable, but to make sure that it can be created,
+    /// dropped and owned only by the related `stardust::alias::Alias` owner, we can remove the `store` ability and transfer a created
+    /// capability to the sender in the constructor.
+    public struct CollectionControllerCap has key, store {
         id: UID,
     }
 
     /// An NFT collection.
-    /// Can be used to mint a collection-related NFT.
-    public struct Collection has key {
+    /// Can be created by a `CollectionControllerCap` owner and used to mint collection-related NFTs.
+    /// Can be dropped only by it's `CollectionControllerCap` owner. Once a collection is dropped,
+    /// it is impossible to mint new collection-related NFTs.
+    ///
+    /// NOTE: To simplify the example, `Collection` is publicly transferable, but to make sure that it can be created,
+    /// dropped and owned only by the related `CollectionControllerCap` owner, we can remove the `store` ability and transfer a created
+    /// capability to the sender in the constructor.
+    public struct Collection has key, store {
         id: UID,
-
-        /// The related `CollectionCreatorCap` ID.
+        /// The related `CollectionControllerCap` ID.
         cap_id: ID,
-
         /// The collection name.
-        name: Option<String>,
+        name: String,
     }
 
     // ===== Events =====
 
-    /// Event marking when a `stardust::alias::Alias` has been converted into `CollectionCreatorCap`.
+    /// Event marking when a `stardust::alias::Alias` has been converted into `CollectionControllerCap`.
     public struct StardustAliasConverted has copy, drop {
-        // The `CollectionCreatorCap` ID.
+        /// The `stardust::alias::Alias` ID.
+        alias_id: ID,
+        /// The `CollectionControllerCap` ID.
         cap_id: ID,
     }
 
-    /// Event marking when a `CollectionCreatorCap` has been dropped.
-    public struct CollectionCreatorCapDropped has copy, drop {
-        // The `CollectionCreatorCap` ID.
+    /// Event marking when a `CollectionControllerCap` has been dropped.
+    public struct CollectionControllerCapDropped has copy, drop {
+        /// The `CollectionControllerCap` ID.
         cap_id: ID,
     }
 
     /// Event marking when a `Collection` has been created.
     public struct CollectionCreated has copy, drop {
-        // The collection ID.
+        /// The collection ID.
         collection_id: ID,
     }
 
     /// Event marking when a `Collection` has been dropped.
     public struct CollectionDropped has copy, drop {
-        // The collection ID.
+        /// The collection ID.
         collection_id: ID,
     }
 
     // ===== Public view functions =====
 
     /// Get the Collection's `name`
-    public fun name(nft: &Collection): &Option<String> {
+    public fun name(nft: &Collection): &String {
         &nft.name
     }
 
     // ===== Entrypoints =====
 
-    /// Converts a `stardust::alias::Alias` into `CollectionCreatorCap`.
-    public fun convert_alias_to_collection_creator_cap(stardust_alias: Alias, ctx: &mut TxContext): CollectionCreatorCap {
-        let cap = CollectionCreatorCap {
+    /// Convert a `stardust::alias::Alias` into `CollectionControllerCap`.
+    public fun convert_alias_to_collection_controller_cap(stardust_alias: Alias, ctx: &mut TxContext): CollectionControllerCap {
+        let cap = CollectionControllerCap {
             id: object::new(ctx)
         };
 
-        stardust::alias::destroy(stardust_alias);
-
         event::emit(StardustAliasConverted {
+            alias_id: object::id(&stardust_alias),
             cap_id: object::id(&cap),
         });
+
+        stardust::alias::destroy(stardust_alias);
 
         cap
     }
 
-    /// Drops a `CollectionCreatorCap` instance.
-    public fun drop_collection_creator_cap(cap: CollectionCreatorCap) {
-        event::emit(CollectionCreatorCapDropped {
+    /// Drop a `CollectionControllerCap` instance.
+    public fun drop_collection_controller_cap(cap: CollectionControllerCap) {
+        event::emit(CollectionControllerCapDropped {
             cap_id: object::id(&cap),
         });
 
-        let CollectionCreatorCap { id } = cap;
+        let CollectionControllerCap { id } = cap;
 
         object::delete(id)
     }
 
-    /// Creates a `Collection` instance.
-    public fun create_collection(cap: &CollectionCreatorCap, name: Option<String>, ctx: &mut TxContext): Collection {
+    /// Create a `Collection` instance.
+    public fun create_collection(cap: &CollectionControllerCap, name: String, ctx: &mut TxContext): Collection {
         let collection = Collection {
             id: object::new(ctx),
             cap_id: object::id(cap),
@@ -106,10 +121,9 @@ module custom_nft::collection {
         collection
     }
 
-    /// Drops a `Collection` instance.
-    /// Once a collection is dropped, it is impossible to mint collection-related NFTs.
-    public fun drop_collection(cap: &CollectionCreatorCap, collection: Collection) {
-        assert!(object::borrow_id(cap) == &collection.cap_id, EWrongCollectionCreatorCap);
+    /// Drop a `Collection` instance.
+    public fun drop_collection(cap: &CollectionControllerCap, collection: Collection) {
+        assert!(object::borrow_id(cap) == &collection.cap_id, EWrongCollectionControllerCap);
 
         event::emit(CollectionDropped {
             collection_id: object::id(&collection),
