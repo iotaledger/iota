@@ -469,7 +469,7 @@ where
                     self.handle_tick(now.into_std());
                 },
                 maybe_message = self.mailbox.recv() => {
-                    // handle StateSyncMessage.
+                    // Handle StateSyncMessage.
                     // Once all handles to our mailbox have been dropped this
                     // will yield `None` and we can terminate the event loop
                     if let Some(message) = maybe_message {
@@ -479,18 +479,18 @@ where
                     }
                 },
                 peer_event = peer_events.recv() => {
-                    // handle new and closed peer connections.
+                    // Handle new and closed peer connections.
                     self.handle_peer_event(peer_event);
                 },
-                // resolve the spawned tasks.
+                // Resolve the spawned tasks.
                 Some(task_result) = self.tasks.join_next() => {
                     match task_result {
                         Ok(()) => {},
                         Err(e) => {
                             if e.is_cancelled() {
-                                // avoid crashing on ungraceful shutdown
+                                // Avoid crashing on ungraceful shutdown
                             } else if e.is_panic() {
-                                // propagate panics.
+                                // Propagate panics.
                                 std::panic::resume_unwind(e.into_panic());
                             } else {
                                 panic!("task failed: {e}");
@@ -716,7 +716,7 @@ where
                 .as_ref()
                 .map(|x| x.sequence_number())
         {
-            // start sync job
+            // Start sync job
             let task = sync_to_checkpoint(
                 self.network.clone(),
                 self.store.clone(),
@@ -758,7 +758,7 @@ where
 
         if highest_verified_checkpoint.sequence_number()
             > highest_synced_checkpoint.sequence_number()
-            // skip if we aren't connected to any peers that can help
+            // Skip if we aren't connected to any peers that can help
             && self
                 .peer_heights
                 .read()
@@ -916,7 +916,7 @@ async fn query_peer_for_latest_info(
     };
 
     // Then we try the old query
-    // TODO: remove this once the new feature stabilizes
+    // TODO: Remove this once the new feature stabilizes
     let request = Request::new(GetCheckpointSummaryRequest::Latest).with_timeout(timeout);
     let response = client
         .get_checkpoint_summary(request)
@@ -1023,7 +1023,7 @@ where
         peer_heights.clone(),
         PeerCheckpointRequestType::Summary,
     );
-    // range of the next sequence_numbers to fetch
+    // Range of the next sequence_numbers to fetch
     let mut request_stream = (current.sequence_number().checked_add(1).unwrap()
         ..=*checkpoint.sequence_number())
         .map(|next| {
@@ -1052,7 +1052,7 @@ where
                         .and_then(Response::into_inner)
                         .tap_none(|| trace!("peer unable to help sync"))
                     {
-                        // peer didn't give us a checkpoint with the height that we requested
+                        // Peer didn't give us a checkpoint with the height that we requested
                         if *checkpoint.sequence_number() != next {
                             tracing::debug!(
                                 "peer returned checkpoint with wrong sequence number: expected {next}, got {}",
@@ -1061,7 +1061,7 @@ where
                             continue;
                         }
 
-                        // peer gave us a checkpoint whose digest does not match pinned digest
+                        // Peer gave us a checkpoint whose digest does not match pinned digest
                         let checkpoint_digest = checkpoint.digest();
                         if let Ok(pinned_digest_index) = pinned_checkpoints.binary_search_by_key(
                             checkpoint.sequence_number(),
@@ -1165,7 +1165,7 @@ async fn sync_checkpoint_contents_from_archive<S>(
     S: WriteStore + Clone + Send + Sync + 'static,
 {
     loop {
-        // get connected peers that are on the same chain as us
+        // Get connected peers that are on the same chain as us
         let peers: Vec<_> = peer_heights
             .read()
             .unwrap()
