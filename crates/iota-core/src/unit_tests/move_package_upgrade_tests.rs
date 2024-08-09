@@ -1438,7 +1438,7 @@ async fn test_upgrade_more_than_max_packages_error() {
         .unwrap_err();
     assert_eq!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::MaxPublishCountExceeded {
                 max_publish_commands: max_pub_cmd,
                 publish_count: max_pub_cmd + 2,

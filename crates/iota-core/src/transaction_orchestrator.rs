@@ -366,7 +366,7 @@ where
                     LOCAL_EXECUTION_TIMEOUT
                 );
                 metrics.local_execution_timeout.inc();
-                Err(IotaError::TimeoutError)
+                Err(IotaError::Timeout)
             }
             Ok(Err(err)) => {
                 debug!(
@@ -374,7 +374,7 @@ where
                     "Executing tx locally by orchestrator failed with error: {:?}", err
                 );
                 metrics.local_execution_failure.inc();
-                Err(IotaError::TransactionOrchestratorLocalExecutionError {
+                Err(IotaError::TransactionOrchestratorLocalExecution {
                     error: err.to_string(),
                 })
             }
