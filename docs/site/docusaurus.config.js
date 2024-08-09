@@ -149,7 +149,7 @@ const config = {
         typesenseServerConfig: {
           nodes: [
             {
-              host: '35.153.177.198',
+              host: '107.22.242.52',
               port: 8108,
               protocol: 'http',
             },
