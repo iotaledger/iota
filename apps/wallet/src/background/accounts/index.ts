@@ -11,13 +11,13 @@ import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads
 import { fromB64 } from '@iota/iota.js/utils';
 import Dexie from 'dexie';
 
-import { getAccountSourceByID } from '../account-sources';
-import { accountSourcesEvents } from '../account-sources/events';
-import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
-import { SeedAccountSource } from '../account-sources/SeedAccountSource';
-import { type UiConnection } from '../connections/UiConnection';
-import { backupDB, getDB } from '../db';
-import { makeUniqueKey } from '../storage-utils';
+import { getAccountSourceByID } from '_src/background/account-sources';
+import { accountSourcesEvents } from '_src/background/account-sources/events';
+import { MnemonicAccountSource } from '_src/background/account-sources/MnemonicAccountSource';
+import { SeedAccountSource } from '_src/background/account-sources/SeedAccountSource';
+import { type UiConnection } from '_src/background/connections/UiConnection';
+import { backupDB, getDB } from '_src/background/db';
+import { makeUniqueKey } from '_src/background/storage-utils';
 import {
     AccountType,
     isKeyPairExportableAccount,

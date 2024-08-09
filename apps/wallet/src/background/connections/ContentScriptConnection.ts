@@ -33,8 +33,8 @@ import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import type { Runtime } from 'webextension-polyfill';
 
-import { getAccountsStatusData } from '../accounts';
-import NetworkEnv from '../NetworkEnv';
+import { getAccountsStatusData } from '_src/background/accounts';
+import NetworkEnv from '_src/background/NetworkEnv';
 import { Connection } from './Connection';
 
 export class ContentScriptConnection extends Connection {

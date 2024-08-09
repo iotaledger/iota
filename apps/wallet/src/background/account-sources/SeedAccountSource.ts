@@ -8,11 +8,11 @@ import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';
 
 import { getAccountSources } from '.';
-import { getAllAccounts } from '../accounts';
-import { SeedAccount, type SeedSerializedAccount } from '../accounts/SeedAccount';
-import { setupAutoLockAlarm } from '../auto-lock-accounts';
-import { backupDB, getDB } from '../db';
-import { makeUniqueKey } from '../storage-utils';
+import { getAllAccounts } from '_src/background/accounts';
+import { SeedAccount, type SeedSerializedAccount } from '_src/background/accounts/SeedAccount';
+import { setupAutoLockAlarm } from '_src/background/auto-lock-accounts';
+import { backupDB, getDB } from '_src/background/db';
+import { makeUniqueKey } from '_src/background/storage-utils';
 import {
     AccountSource,
     AccountSourceType,

@@ -8,8 +8,8 @@ import {
     type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
 
-import { type UiConnection } from '../connections/UiConnection';
-import { getDB } from '../db';
+import { type UiConnection } from '_src/background/connections/UiConnection';
+import { getDB } from '_src/background/db';
 import { AccountSourceType, type AccountSourceSerialized } from './AccountSource';
 import { MnemonicAccountSource } from './MnemonicAccountSource';
 import { SeedAccountSource } from './SeedAccountSource';

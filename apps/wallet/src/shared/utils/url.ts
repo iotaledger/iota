@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getUrlWithDeviceId } from '../analytics/amplitude';
+import { getUrlWithDeviceId } from '_src/shared/analytics/amplitude';
 
 const IOTA_DAPPS = ['iotafrens.com', 'iotans.io'];
 

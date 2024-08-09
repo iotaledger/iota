@@ -4,12 +4,12 @@
 
 import { type Serializable } from '_src/shared/cryptography/keystore';
 
-import { getDB } from '../db';
+import { getDB } from '_src/background/db';
 import {
     clearEphemeralValue,
     getEphemeralValue,
     setEphemeralValue,
-} from '../session-ephemeral-values';
+} from '_src/background/session-ephemeral-values';
 
 export enum AccountSourceType {
     Mnemonic = 'mnemonic',
