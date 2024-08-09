@@ -10,7 +10,7 @@ use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Methods served exclusively by the indexer, supporting queries using refined
-/// queries and providing access to system info and metrics.
+/// filters and providing access to system info and metrics.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait ExtendedApi {
