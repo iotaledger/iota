@@ -1,4 +1,7 @@
-# Grouped and alpabetically sorted tags
+# Add tags that are used in the documentation here.
+# Tags are used to categorize content and make it easier to find.
+# Tags should be in alphabetical order and kebab-case.
+
 # Diataxis
 explanation:
   label: Explanation
@@ -36,11 +39,6 @@ solidity:
 typescript:
   label: TypeScript
   description: TypeScript programming language.
-
-# SDK
-sdk:
-  label: SDK
-  description: Software Development Kit.
 
 # VMs
 evm:
@@ -92,9 +90,36 @@ core-contract:
   label: Core Contract
   description: Core Contract for interacting with L1.
 
+core-contract-blob:
+  label: Blob Core Contract
+
+core-contract-blocklog:
+  label: Blocklog Core Contract
+
+core-contract-errors:
+  label: Errors Core Contract
+
+core-contract-governance:
+  label: Governance Core Contract
+
+core-contract-root:
+  label: Root Core Contract
+
+erc20:
+  label: ERC20
+  description: ERC20 token standard.
+
+erc721:
+  label: ERC721
+  description: ERC721 token standard.
+
 isc:
   label: ISC
   description: IOTA Smart Contracts.
+
+isc-accounts:
+  label: ISC Accounts
+  description: IOTA Smart Contract accounts.
 
 magic:
   label: Magic Smart Contract
@@ -108,14 +133,47 @@ on-ledger:
   label: On-Ledger Request
   description: On-Ledger Request.
 
-# Keywords
-cli:
-  label: CLI
-  description: Command Line Interface.
+# Crypto
+address:
+  label: Address
+  description: Identifier for a wallet.
+
+balance:
+  label: Balance
+  description: Amount of tokens.
 
 consensus:
   label: Consensus
   description: Agreement among a group of people.
+
+faucet:
+  label: Faucet
+  description: Service that provides tokens.
+
+native-token:
+  label: Native Token
+  description: Token on L1.
+
+nft:
+  label: NFT
+  description: Non-fungible token.
+
+state:
+  label: State
+  description: Current condition of a system.
+
+# Development
+sdk:
+  label: SDK
+  description: Software Development Kit.
+
+cli:
+  label: CLI
+  description: Command Line Interface.
+
+crates:
+  label: Crates
+  description: The IOTA Rust crates.
 
 getting-started:
   label: Getting Started
@@ -125,10 +183,6 @@ install:
   label: Install
   description: Add to a system.
 
-nft:
-  label: NFT
-  description: Non-fungible token.
-
 quickstart:
   label: Quickstart
   description: Get started quickly.
@@ -137,6 +191,14 @@ randomness:
   label: Randomness
   description: On chain randomness.
 
+repository:
+  label: Repository
+  description: The IOTA repository.
+
 setup:
   label: Setup
   description: Prepare for use.
+
+testing:
+  label: Testing
+  description: Process of evaluating code.
