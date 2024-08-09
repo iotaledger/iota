@@ -4,7 +4,7 @@
 # and build the application.
 FROM rust:bullseye AS builder
 ARG PROFILE=release
-ENV OUT_DIR=$PROFILE
+ENV PROFILE=$PROFILE
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "$WORKDIR/iota"
