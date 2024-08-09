@@ -63,7 +63,7 @@ export function Button({
             onClick={onClick}
             type={htmlType}
             className={cx(
-                'state-layer relative flex justify-center rounded-full disabled:opacity-40',
+                'state-layer relative flex rounded-full disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
             )}
