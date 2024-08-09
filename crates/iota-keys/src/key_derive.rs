@@ -19,6 +19,7 @@ use iota_types::{
 use slip10_ed25519::derive_ed25519_private_key;
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;
+pub const DERIVATION_PATH_COIN_TYPE_SHIMMER: u32 = 4219;
 pub const DERVIATION_PATH_PURPOSE_ED25519: u32 = 44;
 pub const DERVIATION_PATH_PURPOSE_SECP256K1: u32 = 54;
 pub const DERVIATION_PATH_PURPOSE_SECP256R1: u32 = 74;
@@ -82,8 +83,11 @@ pub fn validate_path(
                     if let &[purpose, coin_type, account, change, address] = p.as_ref() {
                         if Some(purpose)
                             == ChildNumber::new(DERVIATION_PATH_PURPOSE_ED25519, true).ok()
-                            && Some(coin_type)
+                            && (Some(coin_type)
                                 == ChildNumber::new(DERIVATION_PATH_COIN_TYPE, true).ok()
+                                || Some(coin_type)
+                                    == ChildNumber::new(DERIVATION_PATH_COIN_TYPE_SHIMMER, true)
+                                        .ok())
                             && account.is_hardened()
                             && change.is_hardened()
                             && address.is_hardened()
