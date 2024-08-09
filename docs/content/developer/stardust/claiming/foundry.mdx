@@ -4,3 +4,85 @@
 
 ## Claim of a Foundry Output
 
+Before we start the unlock process, we have to get Iota coins due to sponsorship flow:
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L77-96
+```
+
+</TabItem>
+</Tabs>
+
+1. The first step is to fetch an `AliasOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L147-L159
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+
+2. By using the dynamic field function with the `alias` filter, we gather the alias object itself.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L164-174
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+3. Some objects are owned by the Alias object. In this case we filter them by type using the `CoinManagerTreasuryCap` type.
+Applying the fitler to get `CoinManagerTreasuryCap` owned by Alias.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L178-216
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+4. Extract the foundry token type from manager treasury cap object
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L220-227
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+5. Create PTB that claims the CoinManagerTreasuryCap related to the `Foundry Output` from the `Alias Output` using `unlock_alias_address_owned_coinmanager_treasury` function.
+
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L231-300
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
