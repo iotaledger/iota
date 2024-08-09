@@ -54,14 +54,13 @@ export type EndOfEpochInfo = {
     protocolVersion: string;
     referenceGasPrice: string;
     totalStake: string;
-    storageFundReinvestment: string;
     storageCharge: string;
     storageRebate: string;
     storageFundBalance: string;
-    stakeSubsidyAmount: string;
     totalGasFees: string;
     totalStakeRewardsDistributed: string;
-    leftoverStorageFundInflow: string;
+    burntTokensAmount: string;
+    mintedTokensAmount: string;
 };
 
 export type CheckpointPage = {

@@ -6,9 +6,7 @@
 module common::identified_payment {
     use iota::iota::IOTA;
     use iota::coin::{Self, Coin};
-    use iota::object::{Self, UID};
-    use iota::transfer::{Self, Receiving};
-    use iota::tx_context::{Self, TxContext};
+    use iota::transfer::Receiving;
     use iota::event;
     use iota::dynamic_field;
 
@@ -20,7 +18,7 @@ module common::identified_payment {
     /// NB: This has the `store` ability to allow the `make_shared_payment`
     ///     function. Without this `IdentifiedPayment` could be `key` only and
     ///     custom transfer and receiving rules can be written for it.
-    struct IdentifiedPayment has key, store {
+    public struct IdentifiedPayment has key, store {
         id: UID, 
         payment_id: u64,
         coin: Coin<IOTA>,
@@ -32,16 +30,16 @@ module common::identified_payment {
     /// server that you specified in your tip can receive it.
     /// Since this object is `key` only it can only be transferred and
     /// received by functions defined in this module.
-    struct EarmarkedPayment has key {
+    public struct EarmarkedPayment has key {
         id: UID, 
         payment: IdentifiedPayment,
-        for: address,
+        for_address: address,
     }
 
     /// Event emitted when a payment is made. This contains the `payment_id`
     /// that the payment is being made for, the `payment_amount` that is being made,
     /// and the `originator` of the payment.
-    struct SentPaymentEvent has copy, drop {
+    public struct SentPaymentEvent has copy, drop {
         payment_id: u64,
         paid_to: address,
         payment_amount: u64,
@@ -50,7 +48,7 @@ module common::identified_payment {
 
     /// Event emitted when a payment is processed. This contains the
     /// `payment_id` of the payment, and the amount processed.
-    struct ProcessedPaymentEvent has copy, drop {
+    public struct ProcessedPaymentEvent has copy, drop {
         payment_id: u64,
         payment_amount: u64,
     }
@@ -121,8 +119,8 @@ module common::identified_payment {
     /// defining a custom receive rule that specifies that only `for` can receive
     /// the payment no matter what object it was sent to.
     public fun receive(parent: &mut UID, ticket: Receiving<EarmarkedPayment>, ctx: &TxContext): IdentifiedPayment {
-        let EarmarkedPayment { id, payment, for } = transfer::receive(parent, ticket);
-        assert!(tx_context::sender(ctx) == for, ENotEarmarkedForSender);
+        let EarmarkedPayment { id, payment, for_address } = transfer::receive(parent, ticket);
+        assert!(tx_context::sender(ctx) == for_address, ENotEarmarkedForSender);
         object::delete(id);
         payment
     }

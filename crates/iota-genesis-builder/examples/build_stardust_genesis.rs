@@ -16,13 +16,6 @@ use rand::rngs::OsRng;
     about = "Example Tool for generating a genesis file from a Stardust Migration Objects snapshot"
 )]
 struct Cli {
-    #[clap(
-        short,
-        long,
-        default_value_t = false,
-        help = "Decompress the input object snapshot"
-    )]
-    decompress: bool,
     #[clap(long, default_value_t = OBJECT_SNAPSHOT_FILE_PATH.to_string(), help = "Path to the Stardust Migration Objects snapshot file")]
     snapshot_path: String,
 }
@@ -34,11 +27,7 @@ fn main() -> anyhow::Result<()> {
 
     // Prepare the reader for the objects snapshot
     let path = PathBuf::from(cli.snapshot_path);
-    let object_snapshot_source = if cli.decompress {
-        SnapshotSource::LocalBrotli(path)
-    } else {
-        SnapshotSource::Local(path)
-    };
+    let object_snapshot_source = SnapshotSource::Local(path);
 
     // Start building
     let mut builder = Builder::new().add_migration_source(object_snapshot_source);

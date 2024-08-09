@@ -128,12 +128,10 @@ pub struct AuthorityPerpetualTables {
     /// objects pruner progress
     pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 
-    /// Expected total amount of IOTA in the network. This is expected to remain
-    /// constant throughout the lifetime of the network. We check it at the
-    /// end of each epoch if expensive checks are enabled. We cannot use 10B
-    /// today because in tests we often inject extra gas objects into
-    /// genesis.
-    pub(crate) expected_network_iota_amount: DBMap<(), u64>,
+    /// The total IOTA supply and the epoch at which it was stored.
+    /// We check and update it at the end of each epoch if expensive checks are
+    /// enabled.
+    pub(crate) total_iota_supply: DBMap<(), TotalIotaSupplyCheck>,
 
     /// Expected imbalance between storage fund balance and the sum of storage
     /// rebate of all live objects. This could be non-zero due to bugs in
@@ -149,6 +147,15 @@ pub struct AuthorityPerpetualTables {
     /// per-epoch, and all previous epochs other than the current epoch may
     /// be pruned safely.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
+}
+
+/// The total IOTA supply used during conservation checks.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct TotalIotaSupplyCheck {
+    /// The IOTA supply at the time of `last_check_epoch`.
+    pub(crate) total_supply: u64,
+    /// The epoch at which the total supply was last checked or updated.
+    pub(crate) last_check_epoch: EpochId,
 }
 
 impl AuthorityPerpetualTables {
@@ -424,7 +431,7 @@ impl AuthorityPerpetualTables {
         self.root_state_hash_by_epoch.unsafe_clear()?;
         self.epoch_start_configuration.unsafe_clear()?;
         self.pruned_checkpoint.unsafe_clear()?;
-        self.expected_network_iota_amount.unsafe_clear()?;
+        self.total_iota_supply.unsafe_clear()?;
         self.expected_storage_fund_imbalance.unsafe_clear()?;
         self.object_per_epoch_marker_table.unsafe_clear()?;
         self.objects.rocksdb.flush()?;

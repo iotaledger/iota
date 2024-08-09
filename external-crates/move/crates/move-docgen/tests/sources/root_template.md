@@ -1,4 +1,3 @@
-
 # A Root Documentation Template
 
 This document contains the description of multiple move scripts.

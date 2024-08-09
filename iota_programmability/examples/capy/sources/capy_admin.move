@@ -7,7 +7,6 @@
 module capy::capy_admin {
     use capy::capy::{Self, CapyManagerCap, CapyRegistry, Capy};
     use capy::capy_market::{Self, CapyMarket};
-    use iota::tx_context::TxContext;
 
     entry fun add_gene(
         cap: &CapyManagerCap,

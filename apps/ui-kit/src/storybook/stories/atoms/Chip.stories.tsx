@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { Chip } from '@/components/atoms/chip/Chip';
 import { PlaceholderReplace } from '@iota/ui-icons';
 
-const meta = {
+const meta: Meta<typeof Chip> = {
     component: Chip,
     tags: ['autodocs'],
     render: (props) => {
