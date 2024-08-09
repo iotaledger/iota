@@ -762,7 +762,7 @@ const developer = [
                     {
                         type: 'doc',
                         label: 'Output unlockable by an Alias/Nft Address',
-                        id: 'developer/stardust/claiming/address-uc',
+                        id: 'developer/stardust/claiming/address-unlock',
                     },
                     {
                         type: 'doc',
