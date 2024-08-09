@@ -27,9 +27,16 @@ export function NavbarItemVertical({
     const disabledClasses = isDisabled
         ? 'cursor-not-allowed opacity-60'
         : 'state-layer cursor-pointer ';
+    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (isDisabled) {
+            e.preventDefault();
+            return;
+        }
+        onClick?.(e);
+    };
     return (
         <div
-            onClick={onClick}
+            onClick={handleClick}
             className={cx(
                 'relative inline-flex w-full flex-row items-center justify-between rounded-full p-sm',
                 backgroundColors,

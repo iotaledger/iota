@@ -37,10 +37,6 @@ export interface NavbarProps {
      * Callback when the navbar is toggled.
      */
     onToggleNavbar?: () => void;
-    /**
-     * Indicates if some items are disabled.
-     */
-    areSomeItemsDisabled?: boolean;
 }
 
 export function Navbar({
@@ -49,7 +45,6 @@ export function Navbar({
     onClickItem,
     isCollapsable = false,
     onToggleNavbar,
-    areSomeItemsDisabled = false,
 }: NavbarProps) {
     return (
         <div
@@ -92,10 +87,10 @@ export function Navbar({
                             {...item}
                             isSelected={item.id === activeId}
                             onClick={(e) => {
-                                if (!areSomeItemsDisabled) {
-                                    if (item.onClick) {
-                                        item.onClick(e);
-                                    }
+                                if (item.onClick) {
+                                    item.onClick(e);
+                                }
+                                if (!item.isDisabled) {
                                     onClickItem(item.id);
                                 }
                             }}

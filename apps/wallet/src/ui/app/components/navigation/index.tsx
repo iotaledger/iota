@@ -46,7 +46,6 @@ export function Navigation() {
                 items={NAVBAR_ITEMS}
                 activeId={activeRouteId}
                 onClickItem={(id) => setActiveRouteId(id)}
-                areSomeItemsDisabled={activeAccount?.isLocked}
             />
         </div>
     );

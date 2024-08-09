@@ -31,9 +31,16 @@ export function NavbarItemHorizontal({
     const badgePositionClasses = text ? BADGE_WITH_TEXT : BADGE_WITHOUT_TEXT;
     const textClasses = isSelected ? SELECTED_TEXT : UNSELECTED_TEXT;
     const disabledClasses = isDisabled ? 'cursor-not-allowed opacity-60' : 'state-layer';
+    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (isDisabled) {
+            e.preventDefault();
+            return;
+        }
+        onClick?.(e);
+    };
     return (
         <div
-            onClick={onClick}
+            onClick={handleClick}
             className={cx(
                 'inline-flex cursor-pointer flex-col items-center justify-center space-y-1',
             )}
