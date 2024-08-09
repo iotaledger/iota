@@ -3,7 +3,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { InputWrapper, InputWrapperProps } from './InputWrapper';
-import { InputTrailingElement } from './InputTrailingElement';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
@@ -11,6 +10,8 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import cx from 'classnames';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 
 type InputPickedProps = Pick<
     React.TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -149,12 +150,15 @@ export function TextArea({
                         <VisibilityOffBar rows={3} halfWidthRow={3} />
                     </div>
                 )}
+
                 {isVisibilityToggleEnabled && (
                     <span className="absolute bottom-4 right-4 flex">
-                        <InputTrailingElement
-                            onToggleButtonClick={onToggleButtonClick}
-                            isContentVisible={isInputContentVisible}
-                        />
+                        <ButtonUnstyled
+                            onClick={onToggleButtonClick}
+                            className="text-neutral-10 dark:text-neutral-92"
+                        >
+                            {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+                        </ButtonUnstyled>
                     </span>
                 )}
             </div>
