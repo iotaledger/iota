@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
-import { ButtonSize, ButtonType } from './button.enums';
+import React, { ButtonHTMLAttributes } from 'react';
+import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
     PADDINGS_ONLY_ICON,
@@ -14,7 +14,7 @@ import {
 } from './button.classes';
 import cx from 'classnames';
 
-interface ButtonProps {
+export interface ButtonProps {
     /**
      * The size of the button.
      */
@@ -39,6 +39,10 @@ interface ButtonProps {
      * The onClick event of the button.
      */
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    /**
+     * The html type of the button.
+     */
+    htmlType?: ButtonHTMLAttributes<HTMLButtonElement>['type'];
 }
 
 export function Button({
@@ -46,6 +50,7 @@ export function Button({
     text,
     disabled,
     onClick,
+    htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
@@ -56,6 +61,7 @@ export function Button({
     return (
         <button
             onClick={onClick}
+            type={htmlType}
             className={cx(
                 'state-layer relative flex rounded-full disabled:opacity-40',
                 paddingClasses,
