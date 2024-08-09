@@ -11,6 +11,7 @@ import {
     TEXT_COLOR,
     FOCUS_CLASSES,
 } from './chip.classes';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 
 interface ChipProps {
     /**
@@ -42,7 +43,7 @@ interface ChipProps {
 export function Chip({ label, showClose, selected, onClose, avatar, icon }: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
-        <button
+        <ButtonUnstyled
             className={cx(
                 'border',
                 ROUNDED_CLASS,
@@ -65,11 +66,11 @@ export function Chip({ label, showClose, selected, onClose, avatar, icon }: Chip
                 {avatar ?? icon}
                 <span className="text-body-md">{label}</span>
                 {showClose && (
-                    <span onClick={onClose} className="cursor-pointer text-body-md">
+                    <ButtonUnstyled onClick={onClose} className="cursor-pointer text-body-md">
                         &#x2715;
-                    </span>
+                    </ButtonUnstyled>
                 )}
             </span>
-        </button>
+        </ButtonUnstyled>
     );
 }

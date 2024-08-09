@@ -1089,7 +1089,7 @@ mod tests {
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
             mock_state.expect_get_balance().returning(move |_, _| {
-                Err(IotaError::ExecutionError("mock db error".to_string()).into())
+                Err(IotaError::Execution("mock db error".to_string()).into())
             });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
