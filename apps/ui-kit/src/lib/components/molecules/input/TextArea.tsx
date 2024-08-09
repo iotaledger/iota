@@ -3,7 +3,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { InputWrapper, InputWrapperProps } from './InputWrapper';
-import { InputTrailingElement } from './InputTrailingElement';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
@@ -11,6 +10,8 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import cx from 'classnames';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 
 type InputPickedProps = Pick<
     React.TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -145,19 +146,44 @@ export function TextArea({
                     minLength={minLength}
                 />
                 {!isInputContentVisible && (
-                    <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-1 px-md py-sm peer-[.not-visible]:select-none">
-                        <div className="h-full w-full rounded bg-neutral-92/60 dark:bg-neutral-10/60" />
+                    <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-2 px-md py-sm peer-[.not-visible]:select-none">
+                        <VisibilityOffBar rows={3} halfWidthRow={3} />
                     </div>
                 )}
+
                 {isVisibilityToggleEnabled && (
                     <span className="absolute bottom-4 right-4 flex">
-                        <InputTrailingElement
-                            onToggleButtonClick={onToggleButtonClick}
-                            isContentVisible={isInputContentVisible}
-                        />
+                        <ButtonUnstyled
+                            onClick={onToggleButtonClick}
+                            className="text-neutral-10 dark:text-neutral-92"
+                        >
+                            {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+                        </ButtonUnstyled>
                     </span>
                 )}
             </div>
         </InputWrapper>
+    );
+}
+
+interface VisibilityOffBarProps {
+    rows: number;
+    halfWidthRow?: number;
+}
+
+function VisibilityOffBar({ rows, halfWidthRow }: VisibilityOffBarProps) {
+    return (
+        <>
+            {Array.from({ length: rows }).map((_, index) => {
+                const isHalfWidth = halfWidthRow === index + 1;
+                const width = isHalfWidth ? 'w-1/2' : 'w-full';
+                return (
+                    <div
+                        key={index}
+                        className={`h-2.5 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`}
+                    />
+                );
+            })}
+        </>
     );
 }

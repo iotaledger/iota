@@ -99,7 +99,7 @@ pub(crate) fn store_checkpoint_locally(
             .into_iter()
             .zip(&input_object_keys)
             .map(|(object, object_key)| {
-                object.ok_or(IotaError::UserInputError {
+                object.ok_or(IotaError::UserInput {
                     error: UserInputError::ObjectNotFound {
                         object_id: object_key.0,
                         version: Some(object_key.1),
@@ -119,7 +119,7 @@ pub(crate) fn store_checkpoint_locally(
             .into_iter()
             .zip(&output_object_keys)
             .map(|(object, object_key)| {
-                object.ok_or(IotaError::UserInputError {
+                object.ok_or(IotaError::UserInput {
                     error: UserInputError::ObjectNotFound {
                         object_id: object_key.0,
                         version: Some(object_key.1),
@@ -145,19 +145,19 @@ pub(crate) fn store_checkpoint_locally(
     };
 
     std::fs::create_dir_all(&path).map_err(|err| {
-        IotaError::FileIOError(format!(
+        IotaError::FileIO(format!(
             "failed to save full checkpoint content locally {:?}",
             err
         ))
     })?;
 
     Blob::encode(&checkpoint_data, BlobEncoding::Bcs)
-        .map_err(|_| IotaError::TransactionSerializationError {
+        .map_err(|_| IotaError::TransactionSerialization {
             error: "failed to serialize full checkpoint content".to_string(),
         }) // Map the first error
         .and_then(|blob| {
             std::fs::write(path.join(file_name), blob.to_bytes()).map_err(|_| {
-                IotaError::FileIOError("failed to save full checkpoint content locally".to_string())
+                IotaError::FileIO("failed to save full checkpoint content locally".to_string())
             })
         })?;
 
