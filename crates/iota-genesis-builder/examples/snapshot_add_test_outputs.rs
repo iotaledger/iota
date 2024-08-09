@@ -13,7 +13,7 @@ use iota_genesis_builder::stardust::{
 use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for generating Iota and Shimmer Hornet full-snapshot files with test data")]
+#[clap(about = "Tool for adding test data to Iota and Shimmer Hornet full-snapshots")]
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
