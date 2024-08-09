@@ -7,6 +7,10 @@
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/iota-genesis-builder/ @kodemartin @miker83z
 
+# vm-language team
+/iota-execution/ @miker83z @valeriyr
+/external-crates/ @miker83z @valeriyr
+
 # l1-core-infra team
 /crates/iota-json-rpc*/ @iotaledger/l1-core-infra
 /crates/iota-graphql*/ @iotaledger/l1-core-infra
