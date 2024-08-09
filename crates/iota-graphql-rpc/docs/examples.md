@@ -41,7 +41,6 @@
 #### &emsp;&emsp;[Filter On Generic Type](#720886)
 #### &emsp;&emsp;[Filter On Type](#720887)
 #### &emsp;&emsp;[Filter Owner](#720888)
-#### &emsp;&emsp;[Object Connection](#720889)
 ### [Owner](#12)
 #### &emsp;&emsp;[Dynamic Field](#786420)
 #### &emsp;&emsp;[Dynamic Field Connection](#786421)
@@ -918,30 +917,6 @@
 >          }
 >        }
 >      }
->    }
->  }
->}</pre>
-
-### <a id=720889></a>
-### Object Connection
-
-><pre>{
->  objects {
->    nodes {
->      version
->      digest
->      storageRebate
->      previousTransactionBlock {
->        digest
->        sender { defaultIotansName }
->        gasInput {
->          gasPrice
->          gasBudget
->        }
->      }
->    }
->    pageInfo {
->      endCursor
 >    }
 >  }
 >}</pre>
