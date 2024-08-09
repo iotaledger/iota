@@ -10,7 +10,7 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import cx from 'classnames';
-import { UnstyledButton } from '../../atoms';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 
 type InputPickedProps = Pick<
@@ -153,12 +153,12 @@ export function TextArea({
 
                 {isVisibilityToggleEnabled && (
                     <span className="absolute bottom-4 right-4 flex">
-                        <UnstyledButton
+                        <ButtonUnstyled
                             onClick={onToggleButtonClick}
                             className="text-neutral-10 dark:text-neutral-92"
                         >
                             {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
-                        </UnstyledButton>
+                        </ButtonUnstyled>
                     </span>
                 )}
             </div>

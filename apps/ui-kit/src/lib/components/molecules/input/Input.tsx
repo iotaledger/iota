@@ -14,8 +14,8 @@ import {
 import { InputType } from './input.enums';
 import { InputPropsByType } from './input.types';
 import { SecondaryText } from '../../atoms/secondary-text';
-import { UnstyledButton } from '../../atoms';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 
 type InputPickedProps = Pick<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -199,18 +199,18 @@ function InputTrailingElement({
 
     if (showClearInput) {
         return (
-            <UnstyledButton className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
+            <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
                 <Close />
-            </UnstyledButton>
+            </ButtonUnstyled>
         );
     } else if (showPasswordToggle) {
         return (
-            <UnstyledButton
+            <ButtonUnstyled
                 onClick={onToggleButtonClick}
                 className="text-neutral-10 dark:text-neutral-92"
             >
                 {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
-            </UnstyledButton>
+            </ButtonUnstyled>
         );
     } else if (showTrailingElement) {
         return <Fragment>{trailingElement}</Fragment>;

@@ -5,7 +5,6 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { Button } from '@/components/atoms/button/Button';
 import { ButtonSize, ButtonType } from '@/components/atoms/button';
-import { Close } from '@iota/ui-icons';
 
 const meta: Meta<typeof Button> = {
     component: Button,
@@ -42,18 +41,5 @@ export const Default: Story = {
         disabled: {
             control: 'boolean',
         },
-    },
-};
-
-export const IconOnlyButton: Story = {
-    args: {
-        type: ButtonType.Icon,
-        icon: <Close className="text-neutral-12 dark:text-neutral-90" />,
-        onClick: () => {
-            alert('Button clicked');
-        },
-    },
-    render: (props) => {
-        return <Button {...props} />;
     },
 };

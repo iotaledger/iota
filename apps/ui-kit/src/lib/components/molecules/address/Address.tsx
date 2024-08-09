@@ -4,7 +4,7 @@
 import React from 'react';
 import cx from 'classnames';
 import { Copy, ArrowTopRight } from '@iota/ui-icons';
-import { UnstyledButton } from '../button';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 
 interface AddressProps {
     /**
@@ -40,20 +40,20 @@ export function Address({
         <div className="group flex flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
             {isCopyable && (
-                <UnstyledButton
+                <ButtonUnstyled
                     onClick={onCopy}
                     className="opacity-0 focus:opacity-100 group-hover:opacity-100"
                 >
                     <Copy />
-                </UnstyledButton>
+                </ButtonUnstyled>
             )}
             {isExternal && (
-                <UnstyledButton
+                <ButtonUnstyled
                     onClick={onOpen}
                     className="opacity-0 focus:opacity-100 group-hover:opacity-100"
                 >
                     <ArrowTopRight />
-                </UnstyledButton>
+                </ButtonUnstyled>
             )}
         </div>
     );

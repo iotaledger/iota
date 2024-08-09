@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { ButtonHTMLAttributes } from 'react';
 import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
@@ -14,7 +14,7 @@ import {
 } from './button.classes';
 import cx from 'classnames';
 
-interface ButtonProps {
+export interface ButtonProps {
     /**
      * The size of the button.
      */
@@ -42,25 +42,7 @@ interface ButtonProps {
     /**
      * The html type of the button.
      */
-    htmlType?: ButtonHtmlType;
-}
-
-type ButtonPropsForIcon = Pick<ButtonProps, 'htmlType'> &
-    Omit<React.HTMLProps<HTMLButtonElement>, 'type'> & {
-        children?: React.ReactNode;
-    };
-
-export function UnstyledButton({
-    htmlType = ButtonHtmlType.Button,
-    children,
-    className,
-    ...buttonProps
-}: ButtonPropsForIcon): React.JSX.Element {
-    return (
-        <button type={htmlType} {...buttonProps} className={cx('appearance-none', className)}>
-            {children}
-        </button>
-    );
+    htmlType?: ButtonHTMLAttributes<HTMLButtonElement>['type'];
 }
 
 export function Button({
