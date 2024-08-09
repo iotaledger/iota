@@ -6,7 +6,7 @@ import { TextArea } from '@/lib/components/molecules/input';
 import { useEffect, useState } from 'react';
 import { Button } from '@/lib';
 
-const meta = {
+const meta: Meta<typeof TextArea> = {
     component: TextArea,
     tags: ['autodocs'],
 } satisfies Meta<typeof TextArea>;

@@ -13,7 +13,7 @@ import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecove
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
-import PageTemplate from '../../components/PageTemplate';
+import { PageTemplate } from '../../components/PageTemplate';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();

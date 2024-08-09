@@ -14,7 +14,7 @@ interface PageTemplateProps {
     showBackButton?: boolean;
 }
 
-function PageTemplate({
+export function PageTemplate({
     title,
     children,
     onClose,
@@ -33,9 +33,7 @@ function PageTemplate({
                     onClose={onClose}
                 />
             )}
-            <div className="w-full flex-1 overflow-hidden bg-white p-md">{children}</div>
+            <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
         </div>
     );
 }
-
-export default PageTemplate;

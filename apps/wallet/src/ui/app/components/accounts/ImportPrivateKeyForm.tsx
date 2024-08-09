@@ -9,9 +9,16 @@ import { z } from 'zod';
 
 import { privateKeyValidation } from '../../helpers/validation/privateKeyValidation';
 import { Form } from '../../shared/forms/Form';
-import Alert from '../alert';
-import { Button, ButtonType, ButtonHtmlType } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    ButtonHtmlType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { TextAreaField } from '../../shared/forms/TextAreaField';
+import { Exclamation } from '@iota/ui-icons';
 
 const formSchema = z.object({
     privateKey: privateKeyValidation,
@@ -22,6 +29,9 @@ type FormValues = z.infer<typeof formSchema>;
 interface ImportPrivateKeyFormProps {
     onSubmit: SubmitHandler<FormValues>;
 }
+
+const HEXADECIMAL_KEY_MESSAGE =
+    'Importing Hex encoded Private Key will soon be deprecated, please use Bech32 encoded private key that starts with "iotaprivkey" instead';
 
 export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
     const form = useZodForm({
@@ -40,10 +50,12 @@ export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
         <Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
             <TextAreaField label="Enter Private Key" rows={4} {...register('privateKey')} />
             {isHexadecimal ? (
-                <Alert mode="warning">
-                    Importing Hex encoded Private Key will soon be deprecated, please use Bech32
-                    encoded private key that starts with "iotaprivkey" instead
-                </Alert>
+                <InfoBox
+                    type={InfoBoxType.Default}
+                    supportingText={HEXADECIMAL_KEY_MESSAGE}
+                    icon={<Exclamation />}
+                    style={InfoBoxStyle.Elevated}
+                />
             ) : null}
             <div className="mt-auto flex gap-xs pt-xs">
                 <Button

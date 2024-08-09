@@ -9,22 +9,15 @@ import {
     useAccountsFormContext,
 } from '../../components/accounts/AccountsFormContext';
 import { ImportPrivateKeyForm } from '../../components/accounts/ImportPrivateKeyForm';
-import { Header } from '@iota/apps-ui-kit';
+import { PageTemplate } from '../../components/PageTemplate';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
 
     return (
-        <>
-            <Header
-                title="Import Private Key"
-                titleCentered
-                onBack={() => {
-                    navigate(-1);
-                }}
-            />
-            <div className="flex h-full w-full flex-col items-center bg-neutral-100 p-md">
+        <PageTemplate title="Import Private Key" isTitleCentered showBackButton>
+            <div className="flex h-full w-full flex-col items-center ">
                 <div className="w-full grow">
                     <ImportPrivateKeyForm
                         onSubmit={({ privateKey }) => {
@@ -41,6 +34,6 @@ export function ImportPrivateKeyPage() {
                     />
                 </div>
             </div>
-        </>
+        </PageTemplate>
     );
 }
