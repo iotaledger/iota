@@ -13,13 +13,13 @@
     .text-display-sm,
     .text-headline-lg,
     .text-headline-md,
-    .text-headline-sm,
-    .text-title-lg,
-    .text-title-md,
-    .text-title-sm {
+    .text-headline-sm {
         @apply font-alliance-no2;
     }
 
+    .text-title-lg,
+    .text-title-md,
+    .text-title-sm,
     .text-body-lg,
     .text-body-md,
     .text-body-sm,
@@ -79,5 +79,20 @@
         &::after {
             @apply bg-primary-80;
         }
+    }
+}
+
+@supports selector(::-webkit-scrollbar) {
+    *::-webkit-scrollbar {
+        @apply w-3.5;
+    }
+
+    *::-webkit-scrollbar-track {
+        @apply rounded-xl bg-transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        @apply shadow-[inset_0_0_10px_10px] shadow-neutral-80 dark:shadow-neutral-30;
+        @apply rounded-xl border-4 border-solid border-transparent;
     }
 }
