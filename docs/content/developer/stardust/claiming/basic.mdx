@@ -1,0 +1,71 @@
+---
+ title: Claiming Basic Outputs
+---
+
+An address can own `BasicOutput` objects that needs to be unlocked. In this case, some off-chain queries can be used to check the unlock conditions of the `BasicOutput` and asses if it can be unlocked.    
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/check-basic-output-unlock-conditions.rs#L20-L56
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+## Claim of a Basic Output
+Once a Basic Output can be unlocked the claim of its assets can start
+
+1. The first step is to fetch the `BasicOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L74-L99
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+
+2. Then we check the native tokens that were possibly held by this output. A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the `OTW` used for the native token `Coin`.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L101-L128
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+3. Finally, a PTB can be created using the `basic_output` as input and the `Bag` keys for iterating the native tokens extracted. 
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L131-L195
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
