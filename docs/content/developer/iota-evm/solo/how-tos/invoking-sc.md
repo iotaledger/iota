@@ -5,6 +5,9 @@ tags:
   - how-to
   - on-ledger
   - off-ledger
+  - evm
+  - solo
+  - testing
 ---
 
 # Invoking Smart Contracts

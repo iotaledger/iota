@@ -2,7 +2,10 @@
 description: Calling smart contract view functions with Solo.
 image: /img/iota-evm/tutorial/call_view.png
 tags:
-    - how-to
+  - how-to
+  - evm
+  - solo
+  - testing
 ---
 
 # Calling a View

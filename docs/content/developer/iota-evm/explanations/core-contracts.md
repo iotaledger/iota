@@ -4,6 +4,7 @@ image: /img/banner/banner_wasp_core_contracts_overview.png
 tags:
   - core-contract
   - reference
+  - evm
 ---
 
 # Core Contracts

@@ -4,6 +4,7 @@ image: /img/logo/WASP_logo_dark.png
 tags:
   - pruning
   - snapshot
+  - evm
 ---
 
 # State Manager

@@ -3,6 +3,9 @@ description: Deploying Wasm smart contracts with Solo.
 image: /img/iota-evm/tutorial/send_request.png
 tags:
   - how-to
+  - evm
+  - solo
+  - testing
 ---
 
 # Deploying Wasm Smart Contracts

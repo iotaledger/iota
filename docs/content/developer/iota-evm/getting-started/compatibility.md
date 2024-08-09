@@ -2,9 +2,9 @@
 description: Compatibility between the ISC EVM layer and existing Ethereum smart contracts and tooling.
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - evm
-    - solidity
-    - reference
+  - evm
+  - solidity
+  - reference
 ---
 
 # EVM Compatibility in IOTA Smart Contracts

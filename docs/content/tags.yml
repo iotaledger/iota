@@ -115,7 +115,7 @@ erc721:
 
 isc:
   label: ISC
-  description: IOTA Smart Contracts.
+  description: IOTA L2 Smart Contracts.
 
 isc-accounts:
   label: ISC Accounts
@@ -132,6 +132,14 @@ off-ledger:
 on-ledger:
   label: On-Ledger Request
   description: On-Ledger Request.
+
+schema:
+  label: Schema Tool
+  description: Schema Tool for ISC WASM.
+
+solo:
+  label: Solo Testing Tool
+  description: Solo Testing Tool for ISC.
 
 # Crypto
 address:

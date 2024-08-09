@@ -1,5 +1,5 @@
 ---
-description: 'Explore the how-to guides for IOTA Smart Contracts, offering step-by-step instructions on various topics and functionalities.'
+description: Explore the how-to guides for IOTA Smart Contracts, offering step-by-step instructions on various topics and functionalities.
 image: /img/logo/WASP_logo_dark.png
 tags:
   - evm

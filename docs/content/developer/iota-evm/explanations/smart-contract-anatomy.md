@@ -2,7 +2,8 @@
 description: Each smart contract instance has a program with a collection of entry points and a state.
 image: /img/iota-evm/tutorial/SC-structure.png
 tags:
-    - explanation
+  - explanation
+  - evm
 ---
 
 # Anatomy of a Smart Contract

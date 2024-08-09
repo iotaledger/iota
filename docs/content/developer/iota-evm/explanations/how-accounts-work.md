@@ -1,10 +1,10 @@
 ---
-description: 'IOTA Smart Contracts chains keep a ledger of on-chain account balances. On-chain accounts are identified
-by an AgentID.'
+description: IOTA Smart Contracts chains keep a ledger of on-chain account balances. On-chain accounts are identified by an AgentID.
 image: /img/iota-evm/tutorial/accounts.png
 tags:
-    - explanation
-    - isc-accounts
+  - explanation
+  - isc-accounts
+  - evm
 ---
 
 # How Accounts Work

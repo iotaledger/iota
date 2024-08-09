@@ -2,7 +2,10 @@
 description: What happens when a smart contract invocation fails?
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - how-to
+  - how-to
+  - evm
+  - solo
+  - testing
 ---
 
 # Error Handling

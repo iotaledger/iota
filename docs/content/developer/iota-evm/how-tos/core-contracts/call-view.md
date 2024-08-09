@@ -2,10 +2,10 @@
 description: With call and callView you can interact with any core contract
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - magic
-    - core-contract
-    - evm
-    - solidity
+  - magic
+  - core-contract
+  - evm
+  - solidity
 ---
 
 # Interact with any Core contract
