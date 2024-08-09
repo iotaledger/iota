@@ -23,22 +23,27 @@ export function NavbarItemHorizontal({
     isSelected,
     hasBadge,
     onClick,
+    isDisabled = false,
 }: Omit<NavbarItemProps, 'type'>): React.JSX.Element {
     const fillClasses = isSelected ? SELECTED_ICON : UNSELECTED_ICON;
     const paddingClasses = text ? PADDING_WITH_TEXT : PADDING_WITHOUT_TEXT;
     const backgroundColors = isSelected && SELECTED_BACKGROUND;
     const badgePositionClasses = text ? BADGE_WITH_TEXT : BADGE_WITHOUT_TEXT;
     const textClasses = isSelected ? SELECTED_TEXT : UNSELECTED_TEXT;
+    const disabledClasses = isDisabled ? 'cursor-not-allowed opacity-60' : 'state-layer';
     return (
         <div
             onClick={onClick}
-            className="inline-flex cursor-pointer flex-col items-center justify-center space-y-1"
+            className={cx(
+                'inline-flex cursor-pointer flex-col items-center justify-center space-y-1',
+            )}
         >
             <div
                 className={cx(
-                    'state-layer relative inline-flex rounded-full',
+                    'relative inline-flex rounded-full',
                     paddingClasses,
                     backgroundColors,
+                    disabledClasses,
                 )}
             >
                 <div className={cx('inline-flex [&_svg]:h-6 [&_svg]:w-6', fillClasses)}>{icon}</div>

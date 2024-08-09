@@ -16,33 +16,37 @@ export function Navigation() {
         navigate('/tokens');
     };
 
-    const onAssetsClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const onAssetsClick = () => {
         navigate('/nfts');
-        if (activeAccount?.isLocked) {
-            e.preventDefault();
-        }
     };
 
-    const onActivityClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const onActivityClick = () => {
         navigate('/transactions');
-        if (activeAccount?.isLocked) {
-            e.preventDefault();
-        }
     };
 
     const NAVBAR_ITEMS: NavbarItemWithId[] = [
         { id: 'home', icon: <Home />, onClick: onHomeClick },
-        { id: 'assets', icon: <Assets />, onClick: onAssetsClick },
-        { id: 'activity', icon: <Activity />, onClick: onActivityClick },
+        {
+            id: 'assets',
+            icon: <Assets />,
+            onClick: onAssetsClick,
+            isDisabled: activeAccount?.isLocked,
+        },
+        {
+            id: 'activity',
+            icon: <Activity />,
+            onClick: onActivityClick,
+            isDisabled: activeAccount?.isLocked,
+        },
     ];
     const [activeRouteId, setActiveRouteId] = useState<string>(NAVBAR_ITEMS[0].id);
-
     return (
         <div className="sticky bottom-0 w-full shrink-0 rounded-tl-md rounded-tr-md border-b-0 bg-white">
             <Navbar
                 items={NAVBAR_ITEMS}
                 activeId={activeRouteId}
                 onClickItem={(id) => setActiveRouteId(id)}
+                areSomeItemsDisabled={activeAccount?.isLocked}
             />
         </div>
     );
