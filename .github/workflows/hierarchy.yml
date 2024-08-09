@@ -46,6 +46,14 @@ jobs:
   typos:
     uses: ./.github/workflows/_typos.yml
 
+  license-check:
+    name: license-check
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run license check
+        run: cargo ci-license
+
   docusaurus:
     needs: diff
     if: ${{ needs.diff.outputs.isDoc == 'true' }}
@@ -84,6 +92,7 @@ jobs:
     needs:
       - diff
       - dprint-format
+      - license-check
       - typos
     uses: ./.github/workflows/_turborepo.yml
 
@@ -91,6 +100,7 @@ jobs:
     needs:
       - diff
       - dprint-format
+      - license-check
       - typos
     if: ${{ needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' }}
     uses: ./.github/workflows/_move_tests.yml
@@ -99,6 +109,7 @@ jobs:
     needs:
       - diff
       - dprint-format
+      - license-check
       - typos
     if: ${{ needs.diff.outputs.isRust == 'true' }}
     uses: ./.github/workflows/_rust.yml
@@ -107,6 +118,7 @@ jobs:
     needs:
       - diff
       - dprint-format
+      - license-check
       - typos
     uses: ./.github/workflows/_e2e.yml
     with:

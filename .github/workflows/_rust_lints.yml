@@ -3,18 +3,6 @@ name: Rust lints
 on: [workflow_call]
 
 jobs:
-  license-check:
-    name: license-check
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-
-      - name: Install cargo-license-template
-        run: cargo install --force cargo-license-template
-
-      - name: Run cargo-license-template
-        run: cargo ci-license
-
   rustfmt:
     runs-on: [self-hosted]
     steps:
@@ -33,7 +21,6 @@ jobs:
 
   clippy:
     needs:
-      - license-check
       - rustfmt
       - cargo-deny
     runs-on: [self-hosted]
