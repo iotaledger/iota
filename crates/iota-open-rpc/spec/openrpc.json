@@ -3034,11 +3034,11 @@
               "name": "past_objects",
               "value": [
                 {
-                  "objectId": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449",
+                  "objectId": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d",
                   "version": "4"
                 },
                 {
-                  "objectId": "0xe81109dc075f537067726d63dd5287100e177404a969989215da2abfbfc098cf",
+                  "objectId": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
                   "version": "12"
                 }
               ]
@@ -3062,8 +3062,33 @@
               {
                 "status": "VersionFound",
                 "details": {
-                  "objectId": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449",
+                  "objectId": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d",
                   "version": "4",
+                  "digest": "GcteyqtLYTc7Fig8CKtspCafwf6muuDgMtDUA1jrYKae",
+                  "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+                  "owner": {
+                    "AddressOwner": "0xb01f2f3f227a90090e6777f19aa10fd9e64e29dd4e8da119481d1a7c3c050dc5"
+                  },
+                  "previousTransaction": "6QcGEYeKTxceVnzLrGuMT2XfPyvsh56cfhXA3ofKtYxY",
+                  "storageRebate": "100",
+                  "content": {
+                    "dataType": "moveObject",
+                    "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+                    "hasPublicTransfer": true,
+                    "fields": {
+                      "balance": "10000",
+                      "id": {
+                        "id": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "status": "VersionFound",
+                "details": {
+                  "objectId": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
+                  "version": "12",
                   "digest": "F34PCnEHm5GAP5ksDKPSdRMKz49JiqrvLUTZsiojqJS2",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3076,34 +3101,9 @@
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "hasPublicTransfer": true,
                     "fields": {
-                      "balance": "10000",
-                      "id": {
-                        "id": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449"
-                      }
-                    }
-                  }
-                }
-              },
-              {
-                "status": "VersionFound",
-                "details": {
-                  "objectId": "0xe81109dc075f537067726d63dd5287100e177404a969989215da2abfbfc098cf",
-                  "version": "12",
-                  "digest": "FvrqyqH5yA85sziA2NoPGJ8N23kmTxeXQh4HyJAbB7c2",
-                  "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                  "owner": {
-                    "AddressOwner": "0x13090a95287cde98d711fc27217b81e08d494bdb70c3b42f0fe27be8eb500568"
-                  },
-                  "previousTransaction": "6XEirxRenmgbeg4tviP43bAKsosqgySXwoBxGEWQVTii",
-                  "storageRebate": "100",
-                  "content": {
-                    "dataType": "moveObject",
-                    "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-                    "hasPublicTransfer": true,
-                    "fields": {
                       "balance": "20000",
                       "id": {
-                        "id": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449"
+                        "id": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d"
                       }
                     }
                   }
@@ -6164,6 +6164,7 @@
         "type": "object",
         "required": [
           "epochCommitments",
+          "epochSupplyChange",
           "nextEpochCommittee",
           "nextEpochProtocolVersion"
         ],
@@ -6174,6 +6175,11 @@
             "items": {
               "$ref": "#/components/schemas/CheckpointCommitment"
             }
+          },
+          "epochSupplyChange": {
+            "description": "The number of tokens that were minted (if positive) or burnt (if negative) in this epoch.",
+            "type": "integer",
+            "format": "int64"
           },
           "nextEpochCommittee": {
             "description": "next_epoch_committee is `Some` if and only if the current checkpoint is the last checkpoint of an epoch. Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch, which is often useful to get epoch level summary stats like total gas cost of an epoch, or the total number of transactions from genesis to the end of an epoch. The committee is stored as a vector of validator pub key and stake pairs. The vector should be sorted based on the Committee data structure.",
@@ -9671,35 +9677,6 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/IotaObjectResponse"
-            }
-          },
-          "hasNextPage": {
-            "type": "boolean"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "Page_for_String_and_ObjectID": {
-        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
-        "type": "object",
-        "required": [
-          "data",
-          "hasNextPage"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "string"
             }
           },
           "hasNextPage": {
