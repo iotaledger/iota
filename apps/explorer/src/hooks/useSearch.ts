@@ -102,7 +102,7 @@ const getResultsForAddress = async (
     // because genesis addresses might not be involved in any transaction yet.
     let ownedObjects = [];
     if (!from.data?.length && !to.data?.length) {
-        const response = await client.getOwnedObjects({ owner: normalized });
+        const response = await client.getOwnedObjects({ owner: normalized, limit: 1 });
         ownedObjects = response.data;
     }
 
