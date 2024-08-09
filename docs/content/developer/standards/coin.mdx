@@ -174,13 +174,14 @@ let deny_list = ptb.obj(ObjectArg::SharedObject {
     mutable: true,
 })?;
 let deny_cap = ptb.obj(ObjectArg::ImmOrOwnedObject(deny_cap))?;
-let address = ptb.pure(cmd.address())?;
+let address_to_ban = IotaAddress::from_str("0x...")?;
+let address_to_ban_arg = ptb.pure(address_to_ban)?;
 ptb.command(Command::move_call(
     IOTA_FRAMEWORK_PACKAGE_ID,
     Identifier::from(COIN_MODULE_NAME),
-    Identifier::from_str("deny_list_add".to_string())?,
+    Identifier::from_str("deny_list_add")?,
     vec![<otw-type>],
-    vec![deny_list, deny_cap, address],
+    vec![deny_list, deny_cap, address_to_ban_arg],
 ));
 
 let builder = ptb.finish();
@@ -191,7 +192,7 @@ let builder = ptb.finish();
     - `SequenceNumber` is the `initial_shared_version` of the `DenyList` singleton.
 - `deny_cap` is the `ObjectRef` (`(ObjectID, SequenceNumber, ObjectDigest)`) of the `DenyCap<REGULATED_COIN>` the publisher has received.
 - `otw_type` is the `TypeTag` created from `<PACKAGE_ID>::regulated_coin::REGULATED_COIN` type.
-- `cmd.address()` returns the address to ban as an `IotaAddress`.
+- `address_to_ban` is the address to ban as an `IotaAddress`.
 
 </TabItem>
 

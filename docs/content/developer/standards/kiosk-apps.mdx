@@ -208,15 +208,15 @@ Use the `disable<Ext>(kiosk: &mut Kiosk, cap: &KioskOwnerCap)` function to disab
 
 **Example PTB**
 
-```move
-let txb = new TransactionBuilder();
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
+```javascript
+let txb = new TransactionBlock();
+let kioskArg = txb.object('<ID>');
+let capArg = txb.object('<ID>');
 
 txb.moveCall({
     target: '0x2::kiosk_extension::disable',
     arguments: [ kioskArg, capArg ],
-    typeArguments: '<letter_box_package>::letterbox_ext::Extension'
+    typeArguments: [ '<letter_box_package>::letterbox_ext::Extension' ]
 });
 ```
 
@@ -228,14 +228,14 @@ The call fails if the storage is not empty.
 
 **Example PTB**
 
-```move
-let txb = new TransactionBuilder();
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
+```javascript
+let txb = new TransactionBlock();
+let kioskArg = txb.object('<ID>');
+let capArg = txb.object('<ID>');
 
 txb.moveCall({
     target: '0x2::kiosk_extension::remove',
     arguments: [ kioskArg, capArg ],
-    typeArguments: '<letter_box_package>::letterbox_ext::Extension'
+    typeArguments: [ '<letter_box_package>::letterbox_ext::Extension' ]
 });
 ```
