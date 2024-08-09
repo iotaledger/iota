@@ -877,7 +877,7 @@ async fn test_entry_point_vector_empty() {
     .unwrap_err();
     assert_eq!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -907,7 +907,7 @@ async fn test_entry_point_vector_empty() {
     .unwrap_err();
     assert_eq!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -2765,7 +2765,7 @@ async fn test_make_move_vec_empty() {
     .unwrap_err();
     assert_eq!(
         result,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -2808,7 +2808,7 @@ async fn test_object_no_id_error() {
     path.extend(["src", "unit_tests", "data", "object_no_id"]);
     let res = build_config.build(path);
 
-    matches!(res.err(), Some(IotaError::ExecutionError(err_str)) if
+    matches!(res.err(), Some(IotaError::Execution(err_str)) if
                  err_str.contains("IotaMoveVerificationError")
                  && err_str.contains("First field of struct NotObject must be 'id'"));
 }
