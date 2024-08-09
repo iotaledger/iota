@@ -45,6 +45,7 @@ use super::{
 use crate::{
     authority::{
         authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{
             get_store_object_pair, ObjectContentDigest, StoreObject, StoreObjectPair,
             StoreObjectWrapper,
@@ -1658,6 +1659,7 @@ impl AuthorityStore {
         self: &Arc<Self>,
         type_layout_store: T,
         old_epoch_store: &AuthorityPerEpochStore,
+        epoch_supply_change: Option<i64>,
     ) -> IotaResult
     where
         T: TypeLayoutStore + Send + Copy,
@@ -1762,7 +1764,11 @@ impl AuthorityStore {
             .perpetual_tables
             .expected_storage_fund_imbalance
             .get(&())
-            .expect("DB read cannot fail")
+            .map_err(|err| {
+                IotaError::from(
+                    format!("failed to read expected storage fund imbalance: {err}").as_str(),
+                )
+            })?
         {
             fp_ensure!(
                 imbalance == expected_imbalance,
@@ -1777,38 +1783,97 @@ impl AuthorityStore {
             self.perpetual_tables
                 .expected_storage_fund_imbalance
                 .insert(&(), &imbalance)
-                .expect("DB write cannot fail");
+                .map_err(|err| {
+                    IotaError::from(
+                        format!("failed to write expected storage fund imbalance: {err}").as_str(),
+                    )
+                })?;
         }
 
-        // TODO: Temporarily disabled since the inflation/deflation tokenomics changes
-        // violate this invariant. We need a deeper investigation whether we
-        // want to keep this check in some form or another. For instance, we
-        // could consider checking that the supply changes by at most X tokens
-        // per epoch (where X = validator_target_reward), but it's unclear whether that
-        // would really have any benefit.
+        let total_supply = self
+            .perpetual_tables
+            .total_iota_supply
+            .get(&())
+            .map_err(|err| {
+                IotaError::from(format!("failed to read total iota supply: {err}").as_str())
+            })?;
 
-        // if let Some(expected_iota) = self
-        // .perpetual_tables
-        // .expected_network_iota_amount
-        // .get(&())
-        // .expect("DB read cannot fail")
-        // {
-        // fp_ensure!(
-        // total_iota == expected_iota,
-        // IotaError::from(
-        // format!(
-        // "Inconsistent state detected at epoch {}: total iota: {}, expecting {}",
-        // system_state.epoch, total_iota, expected_iota
-        // )
-        // .as_str()
-        // )
-        // );
-        // } else {
-        // self.perpetual_tables
-        // .expected_network_iota_amount
-        // .insert(&(), &total_iota)
-        // .expect("DB write cannot fail");
-        // }
+        match total_supply.zip(epoch_supply_change) {
+            // Only execute the check if both are set and the supply value was set in the last
+            // epoch. We have to assume the supply changes every epoch and therefore we
+            // cannot run the check with a supply value from any epoch earlier than the
+            // last one. This can happen if the check was disabled for some time.
+            Some((old_supply, epoch_supply_change))
+                if old_supply.last_check_epoch + 1 == old_epoch_store.epoch() =>
+            {
+                let expected_new_supply = if epoch_supply_change >= 0 {
+                    old_supply
+                        .total_supply
+                        .checked_add(epoch_supply_change.unsigned_abs())
+                        .ok_or_else(|| {
+                            IotaError::from(
+                              format!(
+                                  "Inconsistent state detected at epoch {}: old supply {} + supply change {} overflowed",
+                                  system_state.epoch, old_supply.total_supply, epoch_supply_change
+                              ).as_str())
+                        })?
+                } else {
+                    old_supply.total_supply.checked_sub(epoch_supply_change.unsigned_abs()).ok_or_else(|| {
+                      IotaError::from(
+                        format!(
+                            "Inconsistent state detected at epoch {}: old supply {} - supply change {} underflowed",
+                            system_state.epoch, old_supply.total_supply, epoch_supply_change
+                        ).as_str())
+                    })?
+                };
+
+                fp_ensure!(
+                    total_iota == expected_new_supply,
+                    IotaError::from(
+                        format!(
+                            "Inconsistent state detected at epoch {}: total iota: {}, expecting {}",
+                            system_state.epoch, total_iota, expected_new_supply
+                        )
+                        .as_str()
+                    )
+                );
+
+                let new_supply = TotalIotaSupplyCheck {
+                    total_supply: expected_new_supply,
+                    last_check_epoch: old_epoch_store.epoch(),
+                };
+
+                self.perpetual_tables
+                    .total_iota_supply
+                    .insert(&(), &new_supply)
+                    .map_err(|err| {
+                        IotaError::from(
+                            format!("failed to write total iota supply: {err}").as_str(),
+                        )
+                    })?;
+            }
+            // If either one is None or if the last value is from an older epoch,
+            // we update the value in the table since we're at genesis and cannot execute the check.
+            _ => {
+                info!("Skipping total supply check");
+
+                let supply = TotalIotaSupplyCheck {
+                    total_supply: total_iota,
+                    last_check_epoch: old_epoch_store.epoch(),
+                };
+
+                self.perpetual_tables
+                    .total_iota_supply
+                    .insert(&(), &supply)
+                    .map_err(|err| {
+                        IotaError::from(
+                            format!("failed to write total iota supply: {err}").as_str(),
+                        )
+                    })?;
+
+                return Ok(());
+            }
+        };
 
         Ok(())
     }

@@ -179,8 +179,6 @@ Because the `receive_object` function is generic over the object being received,
 ```move
 module examples::shared_object_auth {
     use iota::transfer::{Self, Receiving};
-    use iota::object;
-    use iota::tx_context::{Self, TxContext};
     const EAccessDenied: u64 = 0;
     const AuthorizedReceiverAddr: address = @0xB0B;
 
@@ -219,11 +217,9 @@ Importantly, the address that coins are to be sent with this `Account` object re
 
 ```move
 module examples::account {
-    use iota::transfer::{Self, Receiving};
+    use iota::transfer::Receiving;
     use iota::coin::{Self, Coin};
-    use iota::object;
     use iota::dynamic_field as df;
-    use iota::tx_context::TxContext;
 
     const EBalanceDONE: u64 = 1;
 
@@ -286,8 +282,7 @@ You can implement a simple version of this with the following module where the `
 
 ```move
 module examples::soul_bound {
-    use iota::transfer::{Self, Receiving};
-    use iota::object::{Self, UID, ID};
+    use iota::transfer::Receiving;
 
     /// This object has `key` only  -- if this had `store` we would not be
     /// able to ensure it is bound to whatever address we sent it to
@@ -304,7 +299,7 @@ module examples::soul_bound {
         // The object ID of the object that needs to be returned.
         // This field is required to prevent swapping of soul bound objects if
         // multiple are present in the same transaction.
-        object_id: ID, 
+        object_id: ID,
         // The address (object ID) it needs to be returned to.
         return_to: address,
     }
@@ -317,7 +312,7 @@ module examples::soul_bound {
     /// `ReturnReceipt` that must be destroyed in the transaction by calling `return_object`.
     public fun get_object(parent: &mut UID, soul_bound_ticket: Receiving<SoulBound>): (SoulBound, ReturnReceipt) {
         let soul_bound = transfer::receive(parent, soul_bound_ticket);
-        let return_receipt = ReturnReceipt { 
+        let return_receipt = ReturnReceipt {
             return_to: object::uid_to_address(parent),
             object_id: object::id(&soul_bound),
         };
