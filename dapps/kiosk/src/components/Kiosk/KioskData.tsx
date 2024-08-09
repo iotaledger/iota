@@ -11,7 +11,7 @@ import { toast } from 'react-hot-toast';
 import { useKioskDetails } from '../../hooks/kiosk';
 import { useWithdrawMutation } from '../../mutations/kiosk';
 import { TANSTACK_KIOSK_DATA_KEY } from '../../utils/constants';
-import { formatIota, microsToIota } from '../../utils/utils';
+import { formatIota, nanoToIota } from '../../utils/utils';
 import { Button } from '../Base/Button';
 import { ExplorerLink } from '../Base/ExplorerLink';
 import { Loading } from '../Base/Loading';
@@ -33,7 +33,7 @@ export function KioskData({ kioskId }: { kioskId: string }) {
         },
     });
 
-    const profits = formatIota(microsToIota(kiosk?.profits));
+    const profits = formatIota(nanoToIota(kiosk?.profits));
 
     if (isPending) return <Loading />;
     return (
