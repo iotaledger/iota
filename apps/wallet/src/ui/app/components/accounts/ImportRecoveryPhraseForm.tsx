@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import Alert from '../alert';
-import { TextField, TextFieldType, Button, ButtonType, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { Input, InputType, Button, ButtonType, ButtonHtmlType } from '@iota/apps-ui-kit';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 
@@ -94,14 +94,14 @@ export function ImportRecoveryPhraseForm({
             className="relative flex h-full flex-col justify-between"
             onSubmit={handleSubmit(onSubmit)}
         >
-            <div className="grid grid-cols-2 gap-2 pb-md">
+            <div className="grid h-full grid-cols-2 gap-2 overflow-auto pb-md">
                 {recoveryPhrase.map((_, index) => {
                     const recoveryPhraseId = `recoveryPhrase.${index}` as const;
                     return (
-                        <TextField
+                        <Input
                             key={recoveryPhraseId}
                             supportingText={String(index + 1)}
-                            type={TextFieldType.Password}
+                            type={InputType.Password}
                             isVisibilityToggleEnabled={false}
                             disabled={isSubmitting}
                             placeholder="Word"
