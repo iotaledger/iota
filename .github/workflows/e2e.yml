@@ -92,8 +92,6 @@ jobs:
 
       - name: Run Local net
         run: cargo run --bin iota-test-validator -- --epoch-duration-ms 10000 &
-      - name: Set Wallet env
-        run: echo "API_ENV=local" > "$PWD/apps/wallet/configs/environment/.env"
       - name: Build Wallet
         # need to run Wallet e2e when its upstream(TS SDK and Rust) or itself is changed
         if: ${{ needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'}}
