@@ -47,14 +47,14 @@ pub async fn start_console(
         version.push('-');
         version.push_str(git_rev);
     }
-    writeln!(out, "--- Iota Console {version} ---")?;
+    writeln!(out, "--- IOTA Console {version} ---")?;
     writeln!(out)?;
     writeln!(out, "{}", context.config.deref())?;
 
     let client = context.get_client().await?;
     writeln!(
         out,
-        "Connecting to Iota full node. API version {}",
+        "Connecting to IOTA full node. API version {}",
         client.api_version()
     )?;
 
@@ -76,7 +76,7 @@ pub async fn start_console(
     }
 
     writeln!(out)?;
-    writeln!(out, "Welcome to the Iota interactive console.")?;
+    writeln!(out, "Welcome to the IOTA interactive console.")?;
     writeln!(out)?;
 
     let mut shell = Shell::new(
