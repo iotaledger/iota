@@ -6,6 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { Input, InputType } from '@/lib/components/molecules/input';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import { ComponentProps, useCallback, useEffect, useState } from 'react';
+import { ButtonUnstyled } from '@/lib/components/atoms/button/ButtonUnstyled';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -27,7 +28,7 @@ function InputStory({
     return (
         <Input
             {...props}
-            onChange={(value) => setInputValue(value)}
+            onChange={(e) => setInputValue(e.target.value)}
             value={inputValue}
             onClearInput={() => setInputValue('')}
             leadingIcon={withLeadingIcon ? <PlaceholderReplace /> : undefined}
@@ -98,8 +99,8 @@ export const WithMaxTrailingButton: Story = {
             setInputValue('10');
         }
 
-        const onChange = useCallback((value: string) => {
-            setInputValue(value);
+        const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+            setInputValue(e.target.value);
         }, []);
 
         function checkInputValidity(value: string) {
@@ -118,12 +119,12 @@ export const WithMaxTrailingButton: Story = {
 
         const TrailingMaxButton = () => {
             return (
-                <button
+                <ButtonUnstyled
                     onClick={onMaxClick}
                     className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs"
                 >
                     <span className="font-inter text-label-md">Max</span>
-                </button>
+                </ButtonUnstyled>
             );
         };
 
