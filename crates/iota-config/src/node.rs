@@ -15,7 +15,7 @@ use anyhow::Result;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_protocol_config::{Chain, SupportedProtocolVersions};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     committee::EpochId,
     crypto::{
         get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -126,15 +126,6 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_service_package_address: Option<IotaAddress>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_service_registry_id: Option<ObjectID>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_service_reverse_registry_id: Option<ObjectID>,
 
     #[serde(default)]
     pub transaction_deny_config: TransactionDenyConfig,

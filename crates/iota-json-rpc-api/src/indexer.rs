@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -104,25 +104,4 @@ pub trait IndexerApi {
         /// The Name of the dynamic field
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
-
-    /// Return the resolved address given resolver and name
-    #[rustfmt::skip]
-    #[method(name = "resolveNameServiceAddress")]
-    async fn resolve_name_service_address(
-        &self,
-        /// The name to resolve
-        name: String,
-    ) -> RpcResult<Option<IotaAddress>>;
-
-    /// Return the resolved names given address,
-    /// if multiple names are resolved, the first one is the primary name.
-    #[rustfmt::skip]
-    #[method(name = "resolveNameServiceNames")]
-    async fn resolve_name_service_names(
-        &self,
-        /// The address to resolve
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>>;
 }
