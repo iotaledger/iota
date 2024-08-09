@@ -325,7 +325,7 @@ async fn exchange_rates(
         .await?
     {
         let pool_id: iota_types::id::ID = bcs::from_bytes(&df.bcs_name).map_err(|e| {
-            iota_types::error::IotaError::ObjectDeserializationError {
+            iota_types::error::IotaError::ObjectDeserialization {
                 error: e.to_string(),
             }
         })?;
@@ -364,11 +364,9 @@ async fn exchange_rates(
         {
             let dynamic_field = df
                 .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(
-                    || iota_types::error::IotaError::ObjectDeserializationError {
-                        error: "dynamic field malformed".to_owned(),
-                    },
-                )?;
+                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserialization {
+                    error: "dynamic field malformed".to_owned(),
+                })?;
 
             rates.push((dynamic_field.name, dynamic_field.value));
         }
@@ -414,7 +412,18 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
-        self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
+        let stakes = self
+            .inner
+            .multi_get_objects_in_blocking_task(timelocked_staked_iota_ids)
+            .await?
+            .into_iter()
+            .map(|stored_object| {
+                let object = iota_types::object::Object::try_from(stored_object)?;
+                TimelockedStakedIota::try_from(&object).map_err(IndexerError::from)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.get_delegated_timelocked_stakes(stakes)
             .await
             .map_err(Into::into)
     }

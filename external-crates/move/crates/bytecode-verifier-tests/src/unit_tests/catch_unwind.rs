@@ -1,6 +1,9 @@
 // Copyright (c) The Move Contributors
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::panic::{self, PanicInfo};
+
 use fail::FailScenario;
 use move_binary_format::file_format::empty_module;
 use move_core_types::{
@@ -8,7 +11,6 @@ use move_core_types::{
     vm_status::StatusCode,
 };
 use move_vm_config::verifier::VerifierConfig;
-use std::panic::{self, PanicInfo};
 
 #[ignore]
 #[test]

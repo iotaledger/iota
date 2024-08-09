@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { LabelText, LabelTextSize } from '@/components';
 
-const meta = {
+const meta: Meta<typeof LabelText> = {
     component: LabelText,
     tags: ['autodocs'],
     render: (props) => {

@@ -8,12 +8,9 @@
 /// - everyone can increment a counter by 1
 /// - the owner of the counter can reset it to any value
 module basics::counter {
-    use iota::transfer;
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
 
     /// A shared counter.
-    struct Counter has key {
+    public struct Counter has key {
         id: UID,
         owner: address,
         value: u64
@@ -70,7 +67,7 @@ module basics::counter_test {
         let owner = @0xC0FFEE;
         let user1 = @0xA1;
 
-        let scenario_val = test_scenario::begin(user1);
+        let mut scenario_val = test_scenario::begin(user1);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, owner);
@@ -80,7 +77,7 @@ module basics::counter_test {
 
         test_scenario::next_tx(scenario, user1);
         {
-            let counter_val = test_scenario::take_shared<counter::Counter>(scenario);
+            let mut counter_val = test_scenario::take_shared<counter::Counter>(scenario);
             let counter = &mut counter_val;
 
             assert!(counter::owner(counter) == owner, 0);
@@ -94,7 +91,7 @@ module basics::counter_test {
 
         test_scenario::next_tx(scenario, owner);
         {
-            let counter_val = test_scenario::take_shared<counter::Counter>(scenario);
+            let mut counter_val = test_scenario::take_shared<counter::Counter>(scenario);
             let counter = &mut counter_val;
 
             assert!(counter::owner(counter) == owner, 0);
@@ -107,7 +104,7 @@ module basics::counter_test {
 
         test_scenario::next_tx(scenario, user1);
         {
-            let counter_val = test_scenario::take_shared<counter::Counter>(scenario);
+            let mut counter_val = test_scenario::take_shared<counter::Counter>(scenario);
             let counter = &mut counter_val;
 
             assert!(counter::owner(counter) == owner, 0);

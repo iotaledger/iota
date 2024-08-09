@@ -14,7 +14,7 @@ import {
 } from './button.classes';
 import cx from 'classnames';
 
-interface ButtonProps {
+export interface ButtonProps {
     /**
      * The size of the button.
      */
@@ -66,6 +66,7 @@ export function Button({
     return (
         <button
             onClick={onClick}
+            type={htmlType}
             className={cx(
                 'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:opacity-40',
                 paddingClasses,

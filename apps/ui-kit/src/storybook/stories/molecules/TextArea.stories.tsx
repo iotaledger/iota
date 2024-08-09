@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-
-import { TextArea } from '@/components/molecules/text-field';
+import { TextArea } from '@/lib/components/molecules/input';
 import { useEffect, useState } from 'react';
 import { Button } from '@/lib';
 
-const meta = {
+const meta: Meta<typeof TextArea> = {
     component: TextArea,
     tags: ['autodocs'],
 } satisfies Meta<typeof TextArea>;

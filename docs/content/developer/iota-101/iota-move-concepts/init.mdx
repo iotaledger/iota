@@ -23,10 +23,6 @@ The following example demonstrates a valid `init` function in a module:
 
 ```move
 module examples::one_timer {
-    use iota::transfer;
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
-
     /// The one of a kind - created in the module initializer.
     public struct CreatorCapability has key {
         id: UID

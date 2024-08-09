@@ -49,9 +49,6 @@ You can't access wrapped objects by their ID in the object store, you must acces
 
 ```move
 module example::wrapped {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     public struct Inner has key, store {
         id: UID,
@@ -176,6 +173,7 @@ There is a notion of versioning in package manifest files, existing in both the 
 [package]
 name = "some_pkg"
 version = "1.0.0"
+edition = "2024.beta"
 
 [dependencies]
 another_pkg = { git = "https://github.com/another_pkg/another_pkg.git" , version = "2.0.0"}

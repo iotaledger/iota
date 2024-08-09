@@ -226,7 +226,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
             .fullnode
             .get_system_state()
             .map_err(|e| {
-                IotaError::IotaSystemStateReadError(format!(
+                IotaError::IotaSystemStateRead(format!(
                     "Failed to get system state from fullnode: {}",
                     e
                 ))
