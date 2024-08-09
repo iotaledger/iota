@@ -101,6 +101,31 @@ jobs:
         # (we have the stardust iota-sdk package as a dependency)
         run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
 
+  check-unused-deps:
+    name: Check Unused Dependencies of ${{ matrix.components }}
+    strategy:
+      matrix:
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
+    runs-on: [self-hosted]
+    needs: changes
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps -p ${{matrix.components}}
+
+  check-unused-deps-iota-sdk:
+    name: Check Unused Dependencies of iota-sdk
+    if: needs.iota-sdk-changes.outputs.iota-sdk == 'true'
+    runs-on: [self-hosted]
+    needs: iota-sdk-changes
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps -p iota-sdk@0.1.4
+
   diff:
     runs-on: [self-hosted]
     outputs:

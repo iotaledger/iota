@@ -86,6 +86,20 @@ jobs:
           -p ${{matrix.components}}
           --profile ci
 
+  check-unused-deps:
+    name: Check Unused Dependencies of ${{ matrix.components }}
+    strategy:
+      matrix:
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
+    runs-on: [self-hosted]
+    needs: changes
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps-external -p ${{matrix.components}}
+
   clippy:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
