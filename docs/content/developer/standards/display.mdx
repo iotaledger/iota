@@ -45,24 +45,21 @@ The following represents the template the `init` function defines:
 /// to use it to get the `Display<Hero>` object - a way to describe a
 /// type for the ecosystem.
 module examples::my_hero {
-    use iota::tx_context::{sender, TxContext};
     use std::string::{utf8, String};
-    use iota::transfer;
-    use iota::object::{Self, UID};
 
     // The creator bundle: these two packages often go together.
     use iota::package;
     use iota::display;
 
     /// The Hero - an outstanding collection of digital art.
-    struct Hero has key, store {
+    public struct Hero has key, store {
         id: UID,
         name: String,
         image_url: String,
     }
 
     /// One-Time-Witness for the module.
-    struct MY_HERO has drop {}
+    public struct MY_HERO has drop {}
 
     /// In the module initializer one claims the `Publisher` object
     /// to then create a `Display`. The `Display` is initialized with
@@ -100,15 +97,15 @@ module examples::my_hero {
         let publisher = package::claim(otw, ctx);
 
         // Get a new `Display` object for the `Hero` type.
-        let display = display::new_with_fields<Hero>(
+        let mut display = display::new_with_fields<Hero>(
             &publisher, keys, values, ctx
         );
 
         // Commit first version of `Display` to apply changes.
         display::update_version(&mut display);
 
-        transfer::public_transfer(publisher, sender(ctx));
-        transfer::public_transfer(display, sender(ctx));
+        transfer::public_transfer(publisher, ctx.sender());
+        transfer::public_transfer(display, ctx.sender());
     }
 
     /// Anyone can mint their `Hero`!
@@ -172,10 +169,10 @@ The following example demonstrates how to create a pet capability:
 
 ```move
 module pet::utility {
-   /// A capability which grants Pet Manager permission to add
-   /// new genes and manage the Pet Market.
-   struct PetManagerCap has key, store {
-    id: UID
+    /// A capability which grants Pet Manager permission to add
+    /// new genes and manage the Pet Market.
+    public struct PetManagerCap has key, store {
+      id: UID
   }
 }
 ```
@@ -189,12 +186,12 @@ The following example demonstrates how to create a Pet:
 
 ```move
 module pet::pet_items {
-   /// A wearable Pet item. For some items there can be an
-   /// unlimited supply. And items with the same name are identical.
-   struct PetItem has key, store {
+    /// A wearable Pet item. For some items there can be an
+    /// unlimited supply. And items with the same name are identical.
+    public struct PetItem has key, store {
         id: UID,
         name: String
-   }
+    }
 }
 ```
 
@@ -208,13 +205,13 @@ The following example demonstrates how to implement dynamic image generation:
 
 ```move
 module pet::pet {
-   /// A Pet - very diverse object with different combination
-   /// of genes. Created dynamically. For images, a dynamic SVG
-   /// generation is used.
-   struct Pet has key, store {
-    id: UID,
-    genes: vector<u8>
-   }
+    /// A Pet - very diverse object with different combination
+    /// of genes. Created dynamically. For images, a dynamic SVG
+    /// generation is used.
+    public struct Pet has key, store {
+        id: UID,
+        genes: vector<u8>
+    }
 }
 ```
 
@@ -224,13 +221,13 @@ This is the simplest scenario - an object represents everything itself. It is ve
 
 ```move
 module iota::devnet_nft {
-   /// A Collectible with static data.
-   /// URL, name and description are set only once during minting.
-   struct DevNetNFT has key, store {
-       id: UID,
-       name: String,
-       description: String,
-       url: Url,
-   }
+    /// A Collectible with static data.
+    /// URL, name and description are set only once during minting.
+    public struct DevNetNFT has key, store {
+        id: UID,
+        name: String,
+        description: String,
+        url: Url,
+    }
 }
 ```

@@ -35,12 +35,11 @@ You can attach custom dynamic fields to your kiosks that anyone can then read (b
 ```move
 module examples::kiosk_name_ext {
     use std::string::String;
-    use std::option::{Self, Option};
     use iota::dynamic_field as df;
     use iota::kiosk::{Self, Kiosk, KioskOwnerCap};
 
     /// The dynamic field key for the Kiosk Name extension.
-    struct KioskName has copy, store, drop {}
+    public struct KioskName has copy, store, drop {}
 
     /// Add a name to the Kiosk (in this implementation it can be called only once).
     public fun add(self: &mut Kiosk, cap: &KioskOwnerCap, name: String) {
@@ -98,13 +97,14 @@ The signature of the `kiosk_extension::add` function requires the app witness, m
 
 ```move
 module examples::letterbox_ext {
-    // ... dependencies
+    use iota::kiosk_extension;
+    use iota::kiosk::{Kiosk, KioskOwnerCap};
 
     /// The expected set of permissions for extension. It requires `place`.
     const PERMISSIONS: u128 = 1;
 
     /// The Witness struct used to identify and authorize the extension.
-    struct Extension has drop {}
+    public struct Extension has drop {}
 
     /// Install the Letterbox extension into the Kiosk.
     public fun add(kiosk: &mut Kiosk, cap: &KioskOwnerCap, ctx: &mut TxContext) {
@@ -140,13 +140,14 @@ It's considered good practice to define a constant containing permissions of the
 
 ```move
 module examples::letterbox_ext {
-    // ... dependencies
+    use iota::kiosk_extension;
+    use iota::kiosk::{Kiosk, KioskOwnerCap};
 
     /// The expected set of permissions for the app. It requires `place`.
     const PERMISSIONS: u128 = 1;
 
     /// The Witness struct used to identify and authorize the app.
-    struct Extension has drop {}
+    public struct Extension has drop {}
 
     /// Install the Letterbox extension into the Kiosk.
     public fun add(kiosk: &mut Kiosk, cap: &KioskOwnerCap, ctx: &mut TxContext) {
@@ -161,16 +162,25 @@ If an app requests and is granted permissions (and isn't disabled), it can acces
 
 ```move
 module examples::letterbox_ext {
-    // ...
+    use iota::kiosk_extension;
+    use iota::kiosk::Kiosk;
+    use iota::transfer_policy::TransferPolicy;
+
+    /// The Witness struct used to identify and authorize the app.
+    public struct Extension has drop {}
+    /// Our example object we want to place in the kiosk.
+    public struct Letter has key, store {
+      id: UID,
+    }
 
     /// Emitted when trying to place an item without permissions.
     const ENotEnoughPermissions: u64 = 1;
 
     /// Place a letter into the kiosk without the `KioskOwnerCap`.
-    public fun place(kiosk: &mut Kiosk, letter: Letter, policy: &TransferPolicy<T>) {
-        assert!(kiosk_extension::can_place<Extension>(kiosk), ENotEnoughPermissions)
+    public fun place(kiosk: &mut Kiosk, letter: Letter, policy: &TransferPolicy<Letter>) {
+        assert!(kiosk_extension::can_place<Extension>(kiosk), ENotEnoughPermissions);
 
-        kiosk_extension::place(Extension {}, kiosk, letter, policy)
+        kiosk_extension::place(Extension {}, kiosk, letter, policy);
     }
 }
 ```
