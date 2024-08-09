@@ -24,7 +24,7 @@ Once an Nft Output can be unlocked the claim of its assets can start
 </Tabs>
 
 
-2. Then we check the native tokens that possibily were held by this output. A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the `OTW` used for the native token `Coin`. 
+2. Then we check the native tokens that were possibly held by this output. A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the `OTW` used for the native token `Coin`.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
@@ -58,12 +58,12 @@ In fact, the main purpose of claiming is extracting the `Nft` object from the `N
 This topic outlines the process of converting an stardust Nft into a custom Nft.
 
 You need to have a prepared custom Nft package that you want to convert the Stardust Nft You need to have a prepared custom Nft package that you want to convert the Stardust Nft into. 
-The following is an example of a simple module for representing a `CustomNFT`, minting it, burning it and converting it from a Stardust `Nft`:
+The following is an example of a simple module for representing a custom NFT, minting it, burning it and converting it from a Stardust `Nft`:
 
 <Tabs>
 <TabItem value="move" label="Move">
 
-```move file=<rootDir>/docs/examples/move/custom_nft/sources/custom_nft.move
+```move file=<rootDir>/docs/examples/move/custom_nft/sources/nft.move
 ```
 
 </TabItem>
@@ -78,7 +78,7 @@ The following is an example of a simple module for representing a `CustomNFT`, m
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L206-L223
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L210-L227
 ```
 
 </TabItem>
@@ -87,13 +87,13 @@ The following is an example of a simple module for representing a `CustomNFT`, m
 </TabItem>
 </Tabs>
 
-2. Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then calls the `custom_nft::convert` method for converting it into a `CustomNFT` of the collection just published. 
+2. Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then calls the `custom_nft::nft::convert` method for converting it into a `custom_nft::nft::Nft` of the collection just published. 
 This conversion method extracts the Stardust `Nft` metadata and uses it for minting a new NFT.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L83-L137
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L84-L141
 ```
 
 </TabItem>
