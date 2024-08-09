@@ -320,10 +320,10 @@ pub enum IotaObjectResponseError {
 )]
 pub enum IotaError {
     #[error("Error checking transaction input objects: {:?}", error)]
-    UserInputError { error: UserInputError },
+    UserInput { error: UserInputError },
 
     #[error("Error checking transaction object: {:?}", error)]
-    IotaObjectResponseError { error: IotaObjectResponseError },
+    IotaObjectResponse { error: IotaObjectResponseError },
 
     #[error("Expecting a single owner, shared ownership found")]
     UnexpectedOwnerType,
@@ -451,7 +451,7 @@ pub enum IotaError {
     #[error("Module not found in package: {module_name:?}.")]
     ModuleNotFound { module_name: String },
     #[error("Type error while binding function arguments: {error:?}.")]
-    TypeError { error: String },
+    Type { error: String },
     #[error("Circular object ownership detected")]
     CircularObjectOwnership,
 
@@ -508,7 +508,7 @@ pub enum IotaError {
     },
 
     #[error("Authority Error: {error:?}")]
-    GenericAuthorityError { error: String },
+    GenericAuthority { error: String },
 
     #[error("Failed to dispatch subscription: {error:?}")]
     FailedToDispatchSubscription { error: String },
@@ -520,15 +520,15 @@ pub enum IotaError {
     ExtraFieldFailedToDeserialize { error: String },
 
     #[error("Failed to execute transaction locally by Orchestrator: {error:?}")]
-    TransactionOrchestratorLocalExecutionError { error: String },
+    TransactionOrchestratorLocalExecution { error: String },
 
     // Errors returned by authority and client read API's
     #[error("Failure serializing transaction in the requested format: {:?}", error)]
-    TransactionSerializationError { error: String },
+    TransactionSerialization { error: String },
     #[error("Failure serializing object in the requested format: {:?}", error)]
-    ObjectSerializationError { error: String },
+    ObjectSerialization { error: String },
     #[error("Failure deserializing object in the requested format: {:?}", error)]
-    ObjectDeserializationError { error: String },
+    ObjectDeserialization { error: String },
     #[error("Event store component is not active on this node")]
     NoEventStore,
 
@@ -551,9 +551,9 @@ pub enum IotaError {
 
     // Cryptography errors.
     #[error("Signature key generation error: {0}")]
-    SignatureKeyGenError(String),
+    SignatureKeyGen(String),
     #[error("Key Conversion Error: {0}")]
-    KeyConversionError(String),
+    KeyConversion(String),
     #[error("Invalid Private Key provided")]
     InvalidPrivateKey,
 
@@ -567,7 +567,7 @@ pub enum IotaError {
     #[error("Validator has stopped operations for this epoch")]
     EpochEnded,
     #[error("Error when advancing epoch: {:?}", error)]
-    AdvanceEpochError { error: String },
+    AdvanceEpoch { error: String },
 
     #[error("Transaction Expired")]
     TransactionExpired,
@@ -575,19 +575,19 @@ pub enum IotaError {
     // These are errors that occur when an RPC fails and is simply the utf8 message sent in a
     // Tonic::Status
     #[error("{1} - {0}")]
-    RpcError(String, String),
+    Rpc(String, String),
 
     #[error("Use of disabled feature: {:?}", error)]
-    UnsupportedFeatureError { error: String },
+    UnsupportedFeature { error: String },
 
     #[error("Unable to communicate with the Quorum Driver channel: {:?}", error)]
-    QuorumDriverCommunicationError { error: String },
+    QuorumDriverCommunication { error: String },
 
     #[error("Operation timed out")]
-    TimeoutError,
+    Timeout,
 
     #[error("Error executing {0}")]
-    ExecutionError(String),
+    Execution(String),
 
     #[error("Invalid committee composition")]
     InvalidCommittee(String),
@@ -599,10 +599,10 @@ pub enum IotaError {
     IndexStoreNotAvailable,
 
     #[error("Failed to read dynamic field from table in the object store: {0}")]
-    DynamicFieldReadError(String),
+    DynamicFieldRead(String),
 
     #[error("Failed to read or deserialize system state related data structures on-chain: {0}")]
-    IotaSystemStateReadError(String),
+    IotaSystemStateRead(String),
 
     #[error("Unexpected version error: {0}")]
     UnexpectedVersion(String),
@@ -614,10 +614,10 @@ pub enum IotaError {
     Unknown(String),
 
     #[error("Failed to perform file operation: {0}")]
-    FileIOError(String),
+    FileIO(String),
 
     #[error("Failed to get JWK")]
-    JWKRetrievalError,
+    JWKRetrieval,
 
     #[error("Storage error: {0}")]
     Storage(String),
@@ -666,7 +666,7 @@ impl From<iota_protocol_config::Error> for IotaError {
 
 impl From<ExecutionError> for IotaError {
     fn from(error: ExecutionError) -> Self {
-        IotaError::ExecutionError(error.to_string())
+        IotaError::Execution(error.to_string())
     }
 }
 
@@ -676,7 +676,7 @@ impl From<Status> for IotaError {
         if let Ok(iota_error) = result {
             iota_error
         } else {
-            Self::RpcError(
+            Self::Rpc(
                 status.message().to_owned(),
                 status.code().description().to_owned(),
             )
@@ -711,7 +711,7 @@ impl From<ExecutionErrorKind> for IotaError {
 
 impl From<&str> for IotaError {
     fn from(error: &str) -> Self {
-        IotaError::GenericAuthorityError {
+        IotaError::GenericAuthority {
             error: error.to_string(),
         }
     }
@@ -722,21 +722,21 @@ impl TryFrom<IotaError> for UserInputError {
 
     fn try_from(err: IotaError) -> Result<Self, Self::Error> {
         match err {
-            IotaError::UserInputError { error } => Ok(error),
-            other => anyhow::bail!("error {:?} is not UserInputError", other),
+            IotaError::UserInput { error } => Ok(error),
+            other => anyhow::bail!("error {:?} is not UserInput", other),
         }
     }
 }
 
 impl From<UserInputError> for IotaError {
     fn from(error: UserInputError) -> Self {
-        IotaError::UserInputError { error }
+        IotaError::UserInput { error }
     }
 }
 
 impl From<IotaObjectResponseError> for IotaError {
     fn from(error: IotaObjectResponseError) -> Self {
-        IotaError::IotaObjectResponseError { error }
+        IotaError::IotaObjectResponse { error }
     }
 }
 
@@ -756,14 +756,14 @@ impl IotaError {
     pub fn is_retryable(&self) -> (bool, bool) {
         let retryable = match self {
             // Network error
-            IotaError::RpcError { .. } => true,
+            IotaError::Rpc { .. } => true,
 
             // Reconfig error
             IotaError::ValidatorHaltedAtEpochEnd => true,
             IotaError::MissingCommitteeAtEpoch(..) => true,
             IotaError::WrongEpoch { .. } => true,
 
-            IotaError::UserInputError { error } => {
+            IotaError::UserInput { error } => {
                 match error {
                     // Only ObjectNotFound and DependentPackageNotFound is potentially retryable
                     UserInputError::ObjectNotFound { .. } => true,
@@ -782,7 +782,7 @@ impl IotaError {
             IotaError::ValidatorOverloadedRetryAfter { .. } => true,
 
             // Non retryable error
-            IotaError::ExecutionError(..) => false,
+            IotaError::Execution(..) => false,
             IotaError::ByzantineAuthoritySuspicion { .. } => false,
             IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. } => false,
             IotaError::TxAlreadyFinalizedWithDifferentUserSigs => false,
@@ -798,7 +798,7 @@ impl IotaError {
 
     pub fn is_object_or_package_not_found(&self) -> bool {
         match self {
-            IotaError::UserInputError { error } => {
+            IotaError::UserInput { error } => {
                 matches!(
                     error,
                     UserInputError::ObjectNotFound { .. }
