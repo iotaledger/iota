@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { Button } from '_app/shared/ButtonUI';
 import { CardLayout } from '_app/shared/card-layout';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
@@ -19,6 +18,7 @@ import {
 import { Info } from '@iota/ui-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '../../hooks/useAccountSources';
@@ -27,6 +27,8 @@ import { AccountSourceType } from '_src/background/account-sources/AccountSource
 
 export function BackupMnemonicPage() {
     const [passwordCopied, setPasswordCopied] = useState(false);
+    const [passphraseCopied, setPassphraseCopied] = useState(false);
+
     const { state } = useLocation();
     const { accountSourceID } = useParams();
     const { data: accountSources, isPending } = useAccountSources();
@@ -61,8 +63,24 @@ export function BackupMnemonicPage() {
     if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
         return <Navigate to="/" replace />;
     }
+
+    const handleCopy = async () => {
+        if (!passphraseMutation?.data) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(passphraseMutation.data.join(' '));
+            setPassphraseCopied(true);
+            setTimeout(() => {
+                setPassphraseCopied(false);
+            }, 1000);
+        } catch {
+            toast.error('Failed to copy');
+        }
+    };
+
     return (
-        <PageTemplate title={'Export Mnemonic'}>
+        <PageTemplate title={'Export Mnemonic'} isTitleCentered>
             <Loading loading={isPending}>
                 {showPasswordDialog ? (
                     <CardLayout>
@@ -82,7 +100,9 @@ export function BackupMnemonicPage() {
                         />
                     </CardLayout>
                 ) : (
-                    <div className="flex h-full flex-col items-center justify-between">
+                    <div
+                        className={`flex h-full flex-col items-center ${isOnboardingFlow ? 'justify-between' : ''}`}
+                    >
                         <div className="flex flex-col gap-md">
                             {isOnboardingFlow && (
                                 <div className="flex flex-col items-center gap-md px-md py-sm text-center">
@@ -135,7 +155,15 @@ export function BackupMnemonicPage() {
                                     text="Open Wallet"
                                 />
                             </div>
-                        ) : null}
+                        ) : (
+                            <div className={'flex w-full flex-col pt-sm'}>
+                                <Button
+                                    onClick={handleCopy}
+                                    type={ButtonType.Primary}
+                                    text={passphraseCopied ? 'Copied' : 'Copy'}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
             </Loading>
