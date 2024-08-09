@@ -2,7 +2,100 @@
  title: Claiming Alias Outputs
 ---
 
-## Claim of a Alias Output
+An address can own `AliasOutput` objects that need to be unlocked. 
+In this case, some off-chain queries can be used to check the unlock conditions of the `AliasOutput` and asses if it can be unlocked. 
+Check the [`NftOutput`](nft.mdx) example, as it works the same way.
+
+## Claim of an Alias Output
+
+Once an `AliasOutput` is unlocked, claiming of its assets can be started:
+
+1. The first step is to fetch an `AliasOutput` object needed to be claimed.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L74-L99
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+
+2. Then we check the native tokens that were possibly held by this output.
+A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are bag indexes.
+In the case of the native tokens, the keys are strings representing the `OTW` used for the native token declaration.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L101-L128
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+3. Finally, a PTB can be created using the `alias_output_object_ref` as input and the native token keys.
+An `AliasOutput` is different from an `NftOutput` as it contains the `Alias` object. 
+In fact, the main purpose of claiming is extracting the `Alias` object from the `AliasOutput`.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L130-L198
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
 
 ## Conversion of an Alias Output into a custom Object
+
+We need to have a custom package prepared that contains a logic for converting an `Alias` into a new entity usable for your project. 
+
+Since an alias address could be used as an NFT collections controller in Stardust,
+this topic outlines an example of the process of converting a Stardust `Alias` into `CollectionControllerCap`.
+
+The following example extends the one described in the [Conversion of an Nft Output into a custom Nft](nft.mdx#conversion-of-an-nft-output-into-a-custom-nft) documentation:
+
+<Tabs>
+<TabItem value="move" label="Move">
+
+The `collection.move` module extends the `custom_nft` package to make it possible to work with NFT collections:
+
+```move file=<rootDir>/docs/examples/move/custom_nft/sources/collection.move
+```
+
+Also, the `nft.move` module was extended with the following function:
+
+```move file=<rootDir>/docs/examples/move/custom_nft/sources/nft.move#L82-L97
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
+
+Once the package is prepared, we can extract and use a Stardust `Alias` in a single transaction:
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-migration.rs#L122-L247
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+</TabItem>
+</Tabs>
 

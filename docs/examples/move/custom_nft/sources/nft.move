@@ -121,7 +121,7 @@ module custom_nft::nft {
         nft
     }
 
-    /// Permanently delete the `nft` instance.
+    /// Permanently delete the `Nft` instance.
     public fun burn(nft: Nft) {
         let Nft {
             id,
