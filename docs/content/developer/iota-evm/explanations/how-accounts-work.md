@@ -4,6 +4,7 @@ by an AgentID.'
 image: /img/iota-evm/tutorial/accounts.png
 tags:
     - explanation
+    - isc-accounts
 ---
 
 # How Accounts Work

@@ -4,6 +4,7 @@ factory for the chain.'
 image: /img/logo/WASP_logo_dark.png
 tags:
 - core-contract
+- core-contract-root
 - reference
 ---
 
