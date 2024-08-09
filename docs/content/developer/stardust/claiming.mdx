@@ -8,73 +8,38 @@
   - Explains what commands need to be called in a PTB to claim the assets
   - Describes transaction sponsorship from iota addresses for shimmer claiming
 
-### Address unlock condition
+## IOTA tokens automatic migration 
 
-For this example, we're using `Alias output` as it has an `Alias object` that owns `Nft output`.
 
-Before we start the unlock process, we have to get Iota coins due to sponsorship flow:
-<Tabs>
-<TabItem value="rs" label="Rust">
+## Output types to Move Objects
 
-```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L60
-```
 
-</TabItem>
-</Tabs>
+## Examples of Stardust asset claim transactions
 
-1. The first step is to fetch the `AliasOutput` object needed to be claimed.
+In the following, some examples of transactions for claiming the Stardust assets will be presented. Different commands in a [PTB](../iota-101/transactions/ptb/prog-txn-blocks.mdx) are used depending on the claiming scenario, that varies depending on the Stardust Output type and composition.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+### Basic Output
 
-```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L74-L90
-```
+Go to [Basic Output](claiming/basic.mdx).
 
-</TabItem>
-<TabItem value="ts" label="TypeScript">
+### Nft Output
 
-</TabItem>
-</Tabs>
+Go to [Nft Output](claiming/nft.mdx).
 
-2. By using the dynamic field function with the `alias` filter, we gather the alias object itself.
+### Alias Output
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+Go to [Alias Output](claiming/alias.mdx).
 
-```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L95-L105
-```
+### Foundry Output
 
-</TabItem>
-<TabItem value="ts" label="TypeScript">
+Go to [Foundry Output](claiming/foundry.mdx).
 
-</TabItem>
-</Tabs>
+### Output unlockable by an Alias/Nft Address
 
-3. Some objects are owned by the Alias object. In this case we filter them by type using the `NftOutput` type.
-Applying the fitler to get `Nft output` owned by Alias.
+Go to [Output unlockable by an Alias/Nft Address](claiming/address-uc.mdx).
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+## Sponsoring your Shimmer claiming
 
-```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L109-L130
-```
+In the case in which some assets are owned by a Shimmer address that helds no IOTA tokens (needed to pay for gas), then a claiming can benefit by the process of self-sponsoring. This means that an address owning IOTA tokens can be used by the same user to sponsor a transaction claiming Shimmer assets. 
 
-</TabItem>
-<TabItem value="ts" label="TypeScript">
-
-</TabItem>
-</Tabs>
-
-4. Create PTB that unlocks the `Nft output` using funсtion - `unlock_alias_address_owned_nft`.
-
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L132-L241
-```
-
-</TabItem>
-<TabItem value="ts" label="TypeScript">
-
-</TabItem>
-</Tabs>
+Go to [Self-sponsor Shimmer Claimings](claiming/self-sponsor.mdx).

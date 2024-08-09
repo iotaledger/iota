@@ -36,6 +36,14 @@ name = "basic-output-claim"
 path = "stardust/basic-output-claim.rs"
 
 [[example]]
+name = "check-basic-output-unlock-conditions"
+path = "stardust/check-basic-output-unlock-conditions.rs"
+
+[[example]]
+name = "alias-migration"
+path = "stardust/alias-migration.rs"
+
+[[example]]
 name = "nft-migration"
 path = "stardust/nft-migration.rs"
 
