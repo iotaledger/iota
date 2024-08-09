@@ -4,6 +4,7 @@ who is the chain owner, and the fees for request execution.'
 image: /img/logo/WASP_logo_dark.png
 tags:
 - core-contract
+- core-contract-governance
 - reference
 ---
 

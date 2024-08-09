@@ -3,6 +3,7 @@ description: The `blobs` contract maintains a registry of _blobs_ (a collection 
 image: /img/logo/WASP_logo_dark.png
 tags:
   - core-contract
+  - core-contract-blob
   - reference
 ---
 

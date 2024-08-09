@@ -3,6 +3,7 @@ description: How to get the balance of L1 assets on L2
 image: /img/logo/WASP_logo_dark.png
 tags:
   - evm
+  - balance
   - how-to
 ---
 

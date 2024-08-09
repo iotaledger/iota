@@ -5,6 +5,7 @@ tags:
   - nft
   - evm
   - how-to
+  - erc721
 ---
 
 # Use as ERC721

@@ -4,6 +4,7 @@ request receipts.'
 image: /img/logo/WASP_logo_dark.png
 tags:
 - core-contract
+- core-contract-errors
 - reference
 ---
 

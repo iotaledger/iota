@@ -4,6 +4,7 @@ pairs which represents use case-specific data stored in the chain by its smart c
 image: /img/iota-evm/chain0.png
 tags:
   - explanation
+  - state
 ---
 
 # State, Transitions, and State Anchoring
