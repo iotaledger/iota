@@ -5,7 +5,7 @@
 import { CONSTANTS, QueryKey } from "@/constants";
 import { useTransactionExecution } from "@/hooks/useTransactionExecution";
 import { useCurrentAccount } from "@iota/dapp-kit";
-import { TransactionBlock } from "@iota/iota.js/transactions";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 /**

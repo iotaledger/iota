@@ -7,11 +7,15 @@ import type {
     DevInspectResults,
     IotaObjectChangePublished,
     IotaTransactionBlockResponse,
-} from '@iota/iota.js/client';
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { FaucetRateLimitError, getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+} from '@iota/iota-sdk/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import {
+    FaucetRateLimitError,
+    getFaucetHost,
+    requestIotaFromFaucetV0,
+} from '@iota/iota-sdk/faucet';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import tmp from 'tmp';
 import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
@@ -50,7 +54,7 @@ export function getClient(): IotaClient {
     });
 }
 
-// TODO: expose these testing utils from @iota/iota.js
+// TODO: expose these testing utils from @iota/iota-sdk
 export async function setupIotaClient() {
     const keypair = Ed25519Keypair.generate();
     const address = keypair.getPublicKey().toIotaAddress();
@@ -66,7 +70,7 @@ export async function setupIotaClient() {
     return new TestToolbox(keypair, client);
 }
 
-// TODO: expose these testing utils from @iota/iota.js
+// TODO: expose these testing utils from @iota/iota-sdk
 export async function publishPackage(packagePath: string, toolbox?: TestToolbox) {
     // TODO: We create a unique publish address per publish, but we really could share one for all publishes.
     if (!toolbox) {

@@ -9,7 +9,7 @@ import {
     useSignAndExecuteTransactionBlock,
 } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
-import { TransactionBlock, getPureSerializationType } from '@iota/iota.js/transactions';
+import { TransactionBlock, getPureSerializationType } from '@iota/iota-sdk/transactions';
 import { Button } from '@iota/ui';
 import { useMutation } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -21,7 +21,7 @@ import { DisclosureBox, Input } from '~/components/ui';
 import { useFunctionParamsDetails, useFunctionTypeArguments } from '~/hooks';
 import { FunctionExecutionResult } from './FunctionExecutionResult';
 
-import type { IotaMoveNormalizedFunction } from '@iota/iota.js/client';
+import type { IotaMoveNormalizedFunction } from '@iota/iota-sdk/client';
 import type { TypeOf } from 'zod';
 
 const argsSchema = z.object({

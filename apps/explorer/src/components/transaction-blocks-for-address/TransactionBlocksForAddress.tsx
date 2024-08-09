@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type TransactionFilter } from '@iota/iota.js/client';
+import { type TransactionFilter } from '@iota/iota-sdk/client';
 import { Heading, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
 
