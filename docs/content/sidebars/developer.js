@@ -187,8 +187,11 @@ const developer = [
     {
         type: 'category',
         label: 'Standards',
+        link: {
+          type: 'doc',
+          id: 'developer/standards',
+        },
         items: [
-            'developer/standards/standards',
             'developer/standards/coin',
             'developer/standards/coin-manager',
             {
