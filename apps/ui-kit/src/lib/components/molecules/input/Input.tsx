@@ -1,8 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, useEffect, useRef, useState } from 'react';
-import { InputTrailingElement } from './InputTrailingElement';
+import { forwardRef, Fragment, useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { InputWrapper, InputWrapperProps } from './InputWrapper';
 import {
@@ -14,6 +13,8 @@ import {
 } from './input.classes';
 import { InputType } from './input.enums';
 import { SecondaryText } from '../../atoms/secondary-text';
+import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 
 type InputPickedProps = Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -117,14 +118,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         inputRef.current = element;
     }
 
-    const showClearButton = Boolean(
-        inputProps.type === InputType.Text && value && onClearInput && !disabled,
-    );
-
-    const showVisibilityToggle = Boolean(
-        inputProps.type === InputType.Password && isVisibilityToggleEnabled && !disabled,
-    );
-
     return (
         <InputWrapper
             label={label}
@@ -165,22 +158,47 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
                 />
 
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
-
-                {showClearButton ? (
-                    <InputTrailingElement
-                        onClearInput={onClearInput}
-                        trailingElement={trailingElement}
-                    />
-                ) : showVisibilityToggle ? (
-                    <InputTrailingElement
-                        isContentVisible={isInputContentVisible}
-                        onToggleButtonClick={onToggleButtonClick}
-                        trailingElement={trailingElement}
-                    />
-                ) : (
-                    trailingElement
-                )}
+                <InputTrailingElement
+                    value={value}
+                    type={inputProps.type}
+                    onClearInput={onClearInput}
+                    isContentVisible={isInputContentVisible}
+                    trailingElement={trailingElement}
+                    onToggleButtonClick={onToggleButtonClick}
+                />
             </div>
         </InputWrapper>
     );
 });
+
+function InputTrailingElement({
+    value,
+    type,
+    onClearInput,
+    isContentVisible,
+    trailingElement,
+    onToggleButtonClick,
+}: InputProps & { onToggleButtonClick: (e: React.MouseEvent<HTMLButtonElement>) => void }) {
+    const showClearInput = Boolean(type === InputType.Text && value && onClearInput);
+    const showPasswordToggle = Boolean(type === InputType.Password && onToggleButtonClick);
+    const showTrailingElement = Boolean(trailingElement && !showClearInput && !showPasswordToggle);
+
+    if (showClearInput) {
+        return (
+            <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
+                <Close />
+            </ButtonUnstyled>
+        );
+    } else if (showPasswordToggle) {
+        return (
+            <ButtonUnstyled
+                onClick={onToggleButtonClick}
+                className="text-neutral-10 dark:text-neutral-92"
+            >
+                {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+            </ButtonUnstyled>
+        );
+    } else if (showTrailingElement) {
+        return <Fragment>{trailingElement}</Fragment>;
+    }
+}
