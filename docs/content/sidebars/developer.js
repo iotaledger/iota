@@ -733,13 +733,12 @@ const developer = [
             'developer/stardust/migration-process',
             {
                 type: 'category',
-                label: 'Claiming',
+                label: 'Claiming Stardust Assets',
+                link: {
+                    type: 'doc',
+                    id: 'developer/stardust/claiming',
+                },
                 items: [
-                    {
-                        type: 'doc',
-                        label: 'Claiming Stardust Assets',
-                        id: 'developer/stardust/claiming/claiming',
-                    },
                     {
                         type: 'doc',
                         label: 'Basic Outputs',
