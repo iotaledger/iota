@@ -1,4 +1,4 @@
-# Services relying on postgres db
+# Services relying on postgres database
 
 This docker-compose configuration allows launching instances of the `iota-indexer` and `iota-graphql-rpc` applications for local development purposes.
 
