@@ -74,7 +74,6 @@ export function Button({
                 fullWidth && 'w-full',
             )}
             disabled={disabled}
-            type={htmlType}
         >
             {icon && <span className={cx(textColors)}>{icon}</span>}
             {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
