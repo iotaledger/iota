@@ -2,6 +2,8 @@
  title: Claiming an Output unlockable by an Alias/Nft Address
 ---
 
+In Stardust outputs presented an Address Unlock Condition or similarly, in the case of the Alias Output, a Governor Address Unlock Condition. In the new ledger, this mechanism is represented as an address owning the associated Output object. Most of the times the address is directly managed through a keypair by a user, but sometimes this address could represent another object. In this case, that object owns the interested Output object. Coming from the Stardust migration, only `Alias` and `Nft` objects can own other Output objects.       
+
 ## Claim of an Output owned by another Alias/Nft Output
 
 ### Address unlock condition
