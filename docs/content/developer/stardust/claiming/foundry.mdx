@@ -6,16 +6,6 @@ As seen in the [Move Models](../move-models) page, the Foundry Output does not h
   
 ## Claim of a Foundry Output
 
-Before we start the unlock process, we have to get Iota coins due to sponsorship flow:
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L77-L96
-```
-
-</TabItem>
-</Tabs>
-
 1. The first step is to fetch an `AliasOutput` object that needs to be claimed.
 
 <Tabs>
@@ -31,7 +21,7 @@ Before we start the unlock process, we have to get Iota coins due to sponsorship
 </Tabs>
 
 
-2. By using the dynamic field function with the `alias` filter, we gather the alias object itself.
+2. By using the dynamic field function with the "alias" dynamic field key filter, we gather the `Alias` object itself.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
