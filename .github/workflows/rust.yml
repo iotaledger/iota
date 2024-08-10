@@ -121,9 +121,6 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
 
-      - name: Install cargo-license-template
-        run: cargo install --force cargo-license-template
-
       - name: Run cargo-license-template
         run: cargo ci-license
 
@@ -175,7 +172,7 @@ jobs:
           cargo test --doc
       - name: rustdoc
         run: |
-          cargo doc --workspace --no-deps
+          cargo doc --all-features --workspace --no-deps
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
         with:
@@ -283,7 +280,7 @@ jobs:
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
-        run: cargo +stable ci-clippy
+        run: cargo ci-clippy
 
   rustfmt:
     needs: diff

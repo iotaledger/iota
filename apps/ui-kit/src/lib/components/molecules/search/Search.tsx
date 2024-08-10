@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { Fragment } from 'react';
 import cx from 'classnames';
 import { Search as SearchIcon } from '@iota/ui-icons';
-import { Divider, ListItem, SearchBarType } from '@/components';
+import { Divider, SearchBarType } from '@/components';
 import {
     BACKGROUND_COLORS,
     SUGGESTIONS_WRAPPER_STYLE,
@@ -14,6 +14,7 @@ import {
 export interface Suggestion {
     id: string;
     label: string;
+    supportingText?: string;
 }
 
 export interface SearchProps {
@@ -45,6 +46,10 @@ export interface SearchProps {
      * The type of the search bar. Can be 'outlined' or 'filled'.
      */
     type?: SearchBarType;
+    /**
+     * Render suggestion.
+     */
+    renderSuggestion: (suggestion: Suggestion, index: number) => React.ReactNode;
 }
 
 export function Search({
@@ -52,18 +57,13 @@ export function Search({
     suggestions,
     onSearchValueChange,
     placeholder,
-    onSuggestionClick,
     onKeyDown,
     type = SearchBarType.Outlined,
+    renderSuggestion,
 }: SearchProps): React.JSX.Element {
     function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
         const value = event.target.value;
         onSearchValueChange(value);
-    }
-
-    function handleSuggestionClick(suggestion: Suggestion) {
-        onSearchValueChange(suggestion.label);
-        onSuggestionClick?.(suggestion);
     }
 
     const showSuggestions = suggestions && suggestions.length > 0;
@@ -107,15 +107,10 @@ export function Search({
                     )}
                 >
                     <Divider width="w-11/12" />
-                    {suggestions.map((suggestion) => (
-                        <ListItem
-                            key={suggestion.id}
-                            showRightIcon={false}
-                            onClick={() => handleSuggestionClick(suggestion)}
-                            hideBottomBorder
-                        >
-                            {suggestion.label}
-                        </ListItem>
+                    {suggestions.map((suggestion, index) => (
+                        <Fragment key={suggestion.id}>
+                            {renderSuggestion(suggestion, index)}
+                        </Fragment>
                     ))}
                 </div>
             )}

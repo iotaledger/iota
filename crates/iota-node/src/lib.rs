@@ -176,7 +176,7 @@ mod simulator {
             iota_types::zk_login_util::DEFAULT_JWK_BYTES,
             &OIDCProvider::Twitch,
         )
-        .map_err(|_| IotaError::JWKRetrievalError)
+        .map_err(|_| IotaError::JWKRetrieval)
     }
 
     thread_local! {
@@ -1457,7 +1457,7 @@ impl IotaNode {
     pub fn get_google_jwk_bytes(&self) -> Result<Vec<u8>, IotaError> {
         Ok(get_google_jwk_bytes()
             .read()
-            .map_err(|_| IotaError::JWKRetrievalError)?
+            .map_err(|_| IotaError::JWKRetrieval)?
             .to_vec())
     }
 
@@ -1775,7 +1775,7 @@ impl IotaNode {
         let client = reqwest::Client::new();
         fetch_jwks(provider, &client)
             .await
-            .map_err(|_| IotaError::JWKRetrievalError)
+            .map_err(|_| IotaError::JWKRetrieval)
     }
 }
 
