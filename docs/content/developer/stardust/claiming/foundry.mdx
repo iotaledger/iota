@@ -2,6 +2,8 @@
  title: Claiming Foundry Outputs
 ---
 
+As seen in the [Move Models](../move-models) page, the Foundry Output does not have a direct representation in Move. So claiming a Foundry Output actually means claiming a `CoinManagerTreasuryCap` extracted from the `AliasOutput` originally controlling the Foundry in Stardust. This capability can be used to manage the supply of the `Coin` created during the migration to represent the native token controlled by the Foundry.
+  
 ## Claim of a Foundry Output
 
 Before we start the unlock process, we have to get Iota coins due to sponsorship flow:
