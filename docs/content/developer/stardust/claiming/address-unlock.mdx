@@ -61,7 +61,7 @@ Applying the filter to get `Nft output` owned by Alias.
 </TabItem>
 </Tabs>
 
-4. Create PTB that unlocks the `Nft output` using funсtion - `unlock_alias_address_owned_nft`.
+4. Create PTB that firstly extracts the assets from the `AliasOutput` and then it uses the extracted `Alias` to "address unlock" the `NftOutput` using the funсtion `unlock_alias_address_owned_nft`.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
