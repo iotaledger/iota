@@ -6,18 +6,7 @@ In Stardust outputs presented an Address Unlock Condition or similarly, in the c
 
 ## Claim of an Output owned by another Alias/Nft object
 
-
 For this example, we're using an `AliasOutput` to extract an `Alias` object that owns an `NftOutput`.
-
-Before we start the unlock process, we have to get Iota coins due to sponsorship flow:
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/address_unlock_condition.rs#L313-L332
-```
-
-</TabItem>
-</Tabs>
 
 1. The first step is to fetch the `AliasOutput` object that is needed for claiming the `NftOutput`.
 
