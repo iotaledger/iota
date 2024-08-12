@@ -25,7 +25,7 @@ export function mapGraphQLCheckpointToRpcCheckpoint(
             nextEpochProtocolVersion: String(
                 endOfEpochTx.kind.transactions.nodes[0].epoch?.protocolConfigs.protocolVersion,
             ),
-            epochSupplyChange: 0, // TODO
+            epochSupplyChange: 0, // TODO: https://github.com/iotaledger/iota/issues/1738
         };
     }
 
