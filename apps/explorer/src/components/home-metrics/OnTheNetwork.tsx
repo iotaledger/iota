@@ -9,7 +9,7 @@ import { Heading } from '@iota/ui';
 import { Card, Divider } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
-import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();

@@ -8,7 +8,7 @@ import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useResolveIotaNSName } from '@iota/core';
 import { CheckFill16 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 
 interface AccountItemApproveConnectionProps {

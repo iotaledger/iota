@@ -4,16 +4,15 @@
 
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
-
-import { Checkbox } from './controls/Checkbox';
 import FormField from './FormField';
+import { Checkbox } from '@iota/apps-ui-kit';
 
 type CheckboxFieldProps = {
     name: string;
     label: ReactNode;
-} & Omit<ComponentProps<'button'>, 'ref'>;
+} & Omit<ComponentProps<'input'>, 'ref'>;
 
-export const CheckboxField = forwardRef<HTMLButtonElement, CheckboxFieldProps>(
+export const CheckboxField = forwardRef<HTMLInputElement, CheckboxFieldProps>(
     ({ label, name, ...props }, forwardedRef) => {
         const { control } = useFormContext();
         return (
@@ -22,14 +21,16 @@ export const CheckboxField = forwardRef<HTMLButtonElement, CheckboxFieldProps>(
                 name={name}
                 render={({ field: { onChange, name, value } }) => (
                     <FormField name={name}>
-                        <Checkbox
-                            label={label}
-                            onCheckedChange={onChange}
-                            name={name}
-                            checked={value}
-                            ref={forwardedRef}
-                            {...props}
-                        />
+                        <div className="flex justify-start">
+                            <Checkbox
+                                label={label}
+                                onCheckedChange={onChange}
+                                name={name}
+                                isChecked={value}
+                                ref={forwardedRef}
+                                {...props}
+                            />
+                        </div>
                     </FormField>
                 )}
             />

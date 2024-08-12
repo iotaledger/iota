@@ -15,7 +15,7 @@
     "trailingComma": "all"
   },
   "dependencies": {
-    "@iota/iota.js": "workspace:*",
+    "@iota/iota-sdk": "workspace:*",
     "@iota/kiosk": "workspace:*",
     "commander": "^11.0.0"
   }

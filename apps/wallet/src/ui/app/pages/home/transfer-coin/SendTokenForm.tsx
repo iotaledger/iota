@@ -23,8 +23,8 @@ import {
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
-import { type CoinStruct } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { type CoinStruct } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { Field, Form, Formik, useFormikContext } from 'formik';
 import { useEffect, useMemo } from 'react';

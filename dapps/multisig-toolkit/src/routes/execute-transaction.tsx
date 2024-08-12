@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { parseSerializedSignature } from '@iota/iota.js/cryptography';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { parseSerializedSignature } from '@iota/iota-sdk/cryptography';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';

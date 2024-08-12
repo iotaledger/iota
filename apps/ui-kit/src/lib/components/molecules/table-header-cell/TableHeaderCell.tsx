@@ -46,7 +46,7 @@ export interface TableHeaderCellProps {
     /**
      * On Checkbox change.
      */
-    onCheckboxChange?: (checked: boolean) => void;
+    onCheckboxChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     /**
      * Whether the cell content should be centered.
      */
@@ -97,7 +97,7 @@ export function TableHeaderCell({
                     <Checkbox
                         isChecked={isChecked}
                         isIndeterminate={isIndeterminate}
-                        onChange={onCheckboxChange}
+                        onCheckedChange={onCheckboxChange}
                     />
                 ) : (
                     <span>{label}</span>
