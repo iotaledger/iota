@@ -40,7 +40,7 @@
     },
     "devDependencies": {
         "@iota/dapp-kit": "workspace:*",
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "@tailwindcss/forms": "^0.5.4",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.2.7",

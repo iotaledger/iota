@@ -16,6 +16,7 @@
 		"apps-backend",
 		"@iota/core",
 		"@iota/ui",
+		"@iota/apps-ui-kit",
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli"

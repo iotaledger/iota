@@ -12,6 +12,7 @@ import {
 } from './button-segment.classes';
 import cx from 'classnames';
 import { ButtonSegmentType } from './button-segment.enums';
+import { ButtonUnstyled } from '../button/ButtonUnstyled';
 
 interface ButtonSegmentProps {
     /**
@@ -62,7 +63,7 @@ export function ButtonSegment({
     const borderRadius = isUnderlined ? '' : 'rounded-full';
     const textSize = isUnderlined ? 'text-title-md' : 'text-label-lg';
     return (
-        <button
+        <ButtonUnstyled
             onClick={onClick}
             className={cx(
                 'enabled:state-layer relative flex items-center disabled:opacity-40',
@@ -81,6 +82,6 @@ export function ButtonSegment({
                 {icon && <span>{icon}</span>}
                 <span className="font-inter">{label}</span>
             </div>
-        </button>
+        </ButtonUnstyled>
     );
 }

@@ -10,7 +10,7 @@
         "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\""
     },
     "dependencies": {
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "@nestjs/cache-manager": "^2.2.2",
         "@nestjs/common": "^10.0.0",
         "@nestjs/config": "^3.2.2",

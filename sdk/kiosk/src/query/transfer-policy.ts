@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaClient } from '@iota/iota.js/client';
-import { isValidIotaAddress } from '@iota/iota.js/utils';
+import type { IotaClient } from '@iota/iota-sdk/client';
+import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 
 import { bcs } from '../bcs.js';
 import type { TransferPolicy, TransferPolicyCap } from '../types/index.js';

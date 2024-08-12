@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type EndOfEpochInfo } from '@iota/iota.js/client';
+import { type EndOfEpochInfo } from '@iota/iota-sdk/client';
 
 interface StorageFundFlow {
     netInflow: bigint | null;
@@ -11,11 +11,7 @@ interface StorageFundFlow {
 }
 
 export function getEpochStorageFundFlow(endOfEpochInfo: EndOfEpochInfo | null): StorageFundFlow {
-    const fundInflow = endOfEpochInfo
-        ? BigInt(endOfEpochInfo.storageFundReinvestment) +
-          BigInt(endOfEpochInfo.storageCharge) +
-          BigInt(endOfEpochInfo.leftoverStorageFundInflow)
-        : null;
+    const fundInflow = endOfEpochInfo ? BigInt(endOfEpochInfo.storageCharge) : null;
 
     const fundOutflow = endOfEpochInfo ? BigInt(endOfEpochInfo.storageRebate) : null;
 

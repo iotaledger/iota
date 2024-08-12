@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 
 import { getNormalizedFunctionParameterTypeDetails } from '~/lib/utils';
 
-import type { IotaMoveNormalizedType } from '@iota/iota.js/client';
+import type { IotaMoveNormalizedType } from '@iota/iota-sdk/client';
 
 interface FunctionParamsDetails {
     params: IotaMoveNormalizedType[];

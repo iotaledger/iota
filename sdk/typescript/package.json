@@ -1,5 +1,5 @@
 {
-    "name": "@iota/iota.js",
+    "name": "@iota/iota-sdk",
     "author": "Mysten Labs <build@mystenlabs.com>",
     "description": "Iota TypeScript API(Work in Progress)",
     "homepage": "https://sdk.mystenlabs.com",
@@ -98,7 +98,7 @@
         "test:unit": "vitest run unit __tests__",
         "test:e2e": "wait-on http://127.0.0.1:9123 -l --timeout 180000 && vitest run e2e",
         "test:e2e:nowait": "vitest run e2e",
-        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator -- --with-indexer --use-indexer-v2 --pg-port 5435 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
+        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator -- --with-indexer --pg-port 5435 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
         "prepublishOnly": "pnpm build",
         "size": "size-limit",
         "analyze": "size-limit --why",
@@ -128,6 +128,7 @@
         "@types/tmp": "^0.2.3",
         "@types/ws": "^8.5.9",
         "cross-env": "^7.0.3",
+        "dotenv": "^16.4.5",
         "graphql-config": "^5.0.3",
         "msw": "^1.2.2",
         "tmp": "^0.2.1",

@@ -53,7 +53,7 @@ impl ChildObjectResolver for InMemoryStorage {
             });
         }
         if child_object.version() > child_version_upper_bound {
-            return Err(IotaError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeature {
                 error: "TODO InMemoryStorage::read_child_object does not yet support bounded reads"
                     .to_owned(),
             });

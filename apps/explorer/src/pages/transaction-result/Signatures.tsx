@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import {
     parseSerializedSignature,
     type PublicKey,
     type SignatureScheme,
-} from '@iota/iota.js/cryptography';
-import { parsePartialSignatures } from '@iota/iota.js/multisig';
-import { normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
-import { publicKeyFromRawBytes } from '@iota/iota.js/verify';
+} from '@iota/iota-sdk/cryptography';
+import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
+import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
+import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 import { Text } from '@iota/ui';
 
 import { AddressLink, DescriptionItem, DescriptionList, TabHeader } from '~/components/ui';

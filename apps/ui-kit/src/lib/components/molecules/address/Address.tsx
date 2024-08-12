@@ -4,6 +4,7 @@
 import React from 'react';
 import cx from 'classnames';
 import { Copy, ArrowTopRight } from '@iota/ui-icons';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 
 interface AddressProps {
     /**
@@ -21,11 +22,11 @@ interface AddressProps {
     /**
      * The onCopy event of the Address  (optional).
      */
-    onCopy?: (e: React.MouseEvent<SVGElement>) => void;
+    onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
      * The onOpen event of the Address  (optional).
      */
-    onOpen?: (e: React.MouseEvent<SVGElement>) => void;
+    onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function Address({
@@ -39,13 +40,20 @@ export function Address({
         <div className="group flex flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
             {isCopyable && (
-                <Copy className="hidden cursor-pointer group-hover:flex" onClick={onCopy} />
+                <ButtonUnstyled
+                    onClick={onCopy}
+                    className="opacity-0 focus:opacity-100 group-hover:opacity-100"
+                >
+                    <Copy />
+                </ButtonUnstyled>
             )}
             {isExternal && (
-                <ArrowTopRight
-                    className="hidden cursor-pointer group-hover:flex"
+                <ButtonUnstyled
                     onClick={onOpen}
-                />
+                    className="opacity-0 focus:opacity-100 group-hover:opacity-100"
+                >
+                    <ArrowTopRight />
+                </ButtonUnstyled>
             )}
         </div>
     );

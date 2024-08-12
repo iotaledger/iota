@@ -43,6 +43,6 @@
         "vitest": "^0.33.0"
     },
     "dependencies": {
-        "@iota/iota.js": "workspace:*"
+        "@iota/iota-sdk": "workspace:*"
     }
 }

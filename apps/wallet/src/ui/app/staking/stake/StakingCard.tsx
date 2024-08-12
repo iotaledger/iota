@@ -24,8 +24,8 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';
-import type { StakeObject } from '@iota/iota.js/client';
-import { MICROS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { StakeObject } from '@iota/iota-sdk/client';
+import { MICROS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';

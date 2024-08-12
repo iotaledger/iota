@@ -9,9 +9,9 @@ import type {
     IotaArgument,
     IotaClient,
     IotaMoveNormalizedModule,
-} from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
 
 import type {
     ObjectFilter,
@@ -242,7 +242,7 @@ export const RPC_METHODS: {
         );
 
         return {
-            value: (BigInt(metadata.supply!) * 10n ** BigInt(metadata.decimals!)).toString(),
+            value: BigInt(metadata.supply!).toString(),
         };
     },
     async getMoveFunctionArgTypes(transport, [pkg, module, fn]) {
