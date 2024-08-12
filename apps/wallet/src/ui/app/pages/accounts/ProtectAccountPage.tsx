@@ -17,7 +17,7 @@ import { AccountsFormType } from '../../components/accounts/AccountsFormContext'
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
-import { Header } from '@iota/apps-ui-kit';
+import { PageTemplate } from '../../components/PageTemplate';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -113,13 +113,12 @@ export function ProtectAccountPage() {
     }
 
     return (
-        <div className="flex h-screen w-full flex-col items-center bg-white">
-            <Header
-                title="Create Password"
-                titleCentered
-                onClose={() => navigate(-1)}
-                onBack={() => navigate(-1)}
-            />
+        <PageTemplate
+            title="Create Password"
+            isTitleCentered
+            showBackButton
+            onClose={() => navigate(-1)}
+        >
             <Loading loading={showVerifyPasswordView === null}>
                 {showVerifyPasswordView ? (
                     <VerifyPasswordModal
@@ -128,20 +127,18 @@ export function ProtectAccountPage() {
                         onVerify={(password) => createAccountCallback(password, accountsFormType)}
                     />
                 ) : (
-                    <div className="w-full grow p-md">
-                        <ProtectAccountForm
-                            cancelButtonText="Back"
-                            submitButtonText="Create Wallet"
-                            onSubmit={async ({ password, autoLock }) => {
-                                await autoLockMutation.mutateAsync({
-                                    minutes: autoLockDataToMinutes(autoLock),
-                                });
-                                await createAccountCallback(password.input, accountsFormType);
-                            }}
-                        />
-                    </div>
+                    <ProtectAccountForm
+                        cancelButtonText="Back"
+                        submitButtonText="Create Wallet"
+                        onSubmit={async ({ password, autoLock }) => {
+                            await autoLockMutation.mutateAsync({
+                                minutes: autoLockDataToMinutes(autoLock),
+                            });
+                            await createAccountCallback(password.input, accountsFormType);
+                        }}
+                    />
                 )}
             </Loading>
-        </div>
+        </PageTemplate>
     );
 }
