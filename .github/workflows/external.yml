@@ -87,10 +87,11 @@ jobs:
           --profile ci
 
   check-unused-deps:
-    name: Check Unused Dependencies of ${{ matrix.components }}
+    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
     strategy:
       matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
+        flags: ["--all-features", "--no-default-features"]
       fail-fast: false
     runs-on: [self-hosted]
     needs: changes
@@ -98,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps-external -p ${{matrix.components}}
+        run: cargo +nightly ci-udeps-external -p ${{matrix.components}} ${{ matrix.flags }}
 
   clippy:
     needs: diff
