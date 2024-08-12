@@ -5,11 +5,7 @@
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
 import { useMutation } from '@tanstack/react-query';
 
-import {
-    useAccountsFormContext,
-    AccountsFormType,
-    type AccountsFormValues,
-} from '_components/accounts/AccountsFormContext';
+import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/Account';
 
@@ -33,11 +29,13 @@ function validateAccountFormValues<T extends AccountsFormType>(
     }
     return true;
 }
+
 enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
     Ledger = 'Ledger',
 }
+
 const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
     AccountsFormType,
     AddedAccountsProperties['accountType']

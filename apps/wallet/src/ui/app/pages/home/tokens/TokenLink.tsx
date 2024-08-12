@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinItem } from '_components/active-coins-card/CoinItem';
+import { CoinItem } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type CoinBalance } from '@iota/iota.js/client';
 import { MICROS_PER_IOTA } from '@iota/iota.js/utils';

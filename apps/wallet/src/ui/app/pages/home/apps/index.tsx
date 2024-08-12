@@ -3,11 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Content } from '_app/shared/bottom-menu-layout';
-import FiltersPortal from '_components/filters-tags';
-import AppsPlayGround, { ConnectedAppsCard } from '_components/iota-apps';
+import { FiltersPortal, AppsPlayGround, ConnectedAppsCard, type DAppEntry } from '_components';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
 import { Feature } from '_src/shared/experimentation/features';
-import type { DAppEntry } from '_src/ui/app/components/iota-apps/IotaApp';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect } from 'react';

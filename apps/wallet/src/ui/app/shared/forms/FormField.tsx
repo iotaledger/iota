@@ -5,7 +5,7 @@
 import { type ReactNode } from 'react';
 import { useFormContext } from 'react-hook-form';
 
-import Alert from '../../components/alert';
+import { Alert } from '_components';
 import { FormLabel } from './FormLabel';
 
 interface FormFieldProps {

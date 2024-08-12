@@ -5,14 +5,11 @@
 import { Button } from '_app/shared/ButtonUI';
 import { CardLayout } from '_app/shared/card-layout';
 import { Text } from '_app/shared/text';
-import Alert from '_components/alert';
-import Loading from '_components/loading';
-import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
+import { Alert, Loading, HideShowDisplayBox, VerifyPasswordModal } from '_components';
 import { ArrowLeft16, Check12 } from '@iota/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { VerifyPasswordModal } from '_components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';

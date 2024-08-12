@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { LoadingIndicator } from '_components/loading/LoadingIndicator';
 import { CheckStroke16, Info16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
@@ -52,7 +52,7 @@ const MODE_TO_ICON = {
     loading: <LoadingIndicator color="inherit" />,
 };
 
-export default function Alert({
+export function Alert({
     children,
     noBorder,
     rounded,

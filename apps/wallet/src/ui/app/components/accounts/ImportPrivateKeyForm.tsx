@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { privateKeyValidation } from '../../helpers/validation/privateKeyValidation';
 import { Form } from '../../shared/forms/Form';
 import { TextAreaField } from '../../shared/forms/TextAreaField';
-import Alert from '_components/alert';
+import { Alert } from '_components';
 
 const formSchema = z.object({
     privateKey: privateKeyValidation,

@@ -6,8 +6,7 @@ import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout'
 import { Button } from '_app/shared/ButtonUI';
 import { Card, CardItem } from '_app/shared/card';
 import { Text } from '_app/shared/text';
-import Alert from '_components/alert';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { Alert, LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     formatDelegatedStake,

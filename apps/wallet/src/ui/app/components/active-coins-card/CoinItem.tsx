@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { CoinIcon } from '_components/coin-icon';
+import { CoinIcon } from '_components';
 import { useFormatCoin } from '@iota/core';
 import { type ReactNode } from 'react';
 

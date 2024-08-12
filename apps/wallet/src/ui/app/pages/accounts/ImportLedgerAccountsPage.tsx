@@ -14,16 +14,15 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
 import {
+    AccountsFormType,
+    useAccountsFormContext,
     LedgerAccountList,
     type SelectableLedgerAccount,
-} from '_components/ledger/LedgerAccountList';
-import {
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
-} from '_components/ledger/useDeriveLedgerAccounts';
-import Overlay from '_components/overlay';
+    Overlay,
+} from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '../../hooks/useAccounts';
 

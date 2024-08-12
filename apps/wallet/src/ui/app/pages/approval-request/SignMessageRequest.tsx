@@ -6,7 +6,7 @@ import { type SignMessageApprovalRequest } from '_payloads/transactions/Approval
 import { toUtf8OrB64 } from '_src/shared/utils';
 import { useMemo } from 'react';
 
-import { UserApproveContainer } from '_components/user-approve-container';
+import { UserApproveContainer } from '_components';
 import { useAppDispatch } from '../../hooks';
 import { useAccountByAddress } from '../../hooks/useAccountByAddress';
 import { useSigner } from '../../hooks/useSigner';

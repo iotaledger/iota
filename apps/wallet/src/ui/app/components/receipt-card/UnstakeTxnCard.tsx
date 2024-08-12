@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
-import { TxnAmount } from '_components/receipt-card/TxnAmount';
+import { TxnAmount } from '_components';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
 import type { IotaEvent } from '@iota/iota.js/client';

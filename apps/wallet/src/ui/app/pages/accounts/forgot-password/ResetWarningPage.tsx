@@ -6,7 +6,7 @@ import { Button } from '_app/shared/ButtonUI';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { Navigate, useNavigate } from 'react-router-dom';
 
-import { RecoverAccountsGroup } from '_components/accounts/RecoverAccountsGroup';
+import { RecoverAccountsGroup } from '_components';
 import { useAccountGroups } from '../../../hooks/useAccountGroups';
 import { Heading } from '../../../shared/heading';
 import { Text } from '../../../shared/text';

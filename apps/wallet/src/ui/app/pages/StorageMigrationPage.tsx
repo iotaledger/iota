@@ -5,8 +5,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
-import LoadingIndicator from '_components/loading/LoadingIndicator';
-import { PasswordInputDialog } from '_components/PasswordInputDialog';
+import { LoadingIndicator, PasswordInputDialog } from '_components';
 import { useBackgroundClient } from '../hooks/useBackgroundClient';
 import { useStorageMigrationStatus } from '../hooks/useStorageMigrationStatus';
 import { CardLayout } from '../shared/card-layout';

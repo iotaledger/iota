@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl } from '_components/menu/hooks';
+import { useNextMenuUrl, Loading } from '_components';
 import { useAppSelector } from '_hooks';
 import { getCustomNetwork } from '_src/shared/api-env';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
@@ -14,7 +14,6 @@ import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@io
 import { getNetwork, Network } from '@iota/iota.js/client';
 import Browser from 'webextension-polyfill';
 
-import Loading from '_components/loading';
 import { MenuLayout } from './MenuLayout';
 import MenuListItem from './MenuListItem';
 

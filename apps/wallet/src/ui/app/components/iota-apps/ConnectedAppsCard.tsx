@@ -12,7 +12,7 @@ import { useEffect, useMemo } from 'react';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
-import Loading from '_components/loading';
+import { Loading } from '_components';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 

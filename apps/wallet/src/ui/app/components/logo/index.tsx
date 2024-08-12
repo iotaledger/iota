@@ -17,7 +17,7 @@ const NETWORK_LOGOS = {
     [Network.Custom]: IotaCustomRpc,
 };
 
-function Logo({ network }: LogoProps) {
+export function Logo({ network }: LogoProps) {
     let LogoComponent = NETWORK_LOGOS[Network.Custom];
 
     if (network && NETWORK_LOGOS[network]) {

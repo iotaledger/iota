@@ -3,7 +3,7 @@
 
 import { useInitializedGuard } from '_src/ui/app/hooks';
 import { useNavigate } from 'react-router-dom';
-import Overlay from '_components/overlay';
+import { Overlay } from '_components';
 import { AccountsFinderView } from './AccountsFinderView';
 
 export function AccountsFinderPage() {

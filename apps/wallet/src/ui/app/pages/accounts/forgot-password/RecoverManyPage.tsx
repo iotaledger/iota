@@ -3,21 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
-import { ImportRecoveryPhraseForm } from '_src/ui/app/components/accounts/ImportRecoveryPhraseForm';
-import Overlay from '_src/ui/app/components/overlay';
+import {
+    ImportRecoveryPhraseForm,
+    Overlay,
+    RecoverAccountsGroup,
+    ImportSeedForm,
+} from '_components';
 import { useRecoveryDataMutation } from '_src/ui/app/hooks/useRecoveryDataMutation';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { RecoverAccountsGroup } from '_components/accounts/RecoverAccountsGroup';
 import { useAccountGroups } from '../../../hooks/useAccountGroups';
 import { useAccountSources } from '../../../hooks/useAccountSources';
 import { Button } from '../../../shared/ButtonUI';
 import { Heading } from '../../../shared/heading';
 import { Text } from '../../../shared/text';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
-import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { AccountType } from '_src/background/accounts/Account';
 

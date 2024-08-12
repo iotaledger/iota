@@ -6,7 +6,7 @@ import { ButtonOrLink } from '_src/ui/app/shared/utils/ButtonOrLink';
 import { HamburgerOpen24 as HamburgerOpenIcon, Settings24 as SettingsIcon } from '@iota/icons';
 import { cx } from 'class-variance-authority';
 
-import { useMenuIsOpen, useNextMenuUrl } from '_components/menu/hooks';
+import { useMenuIsOpen, useNextMenuUrl } from '_components';
 
 export function WalletSettingsButton() {
     const isOpen = useMenuIsOpen();

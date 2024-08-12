@@ -3,15 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
-import NumberInput from '_components/number-input';
+import { LoadingIndicator, NumberInput, Alert } from '_components';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useField, useFormikContext } from 'formik';
 import type { ComponentProps, ReactNode } from 'react';
 import { forwardRef } from 'react';
 
-import Alert from '_components/alert';
 import { Pill, type PillProps } from './Pill';
 
 const styles = cva(

@@ -6,7 +6,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
 import { useFeature } from '@growthbook/growthbook-react';
 
-import ExternalLink from '_components/external-link';
+import { ExternalLink } from '_components';
 
 export type BannerProps = {
     enabled: boolean;

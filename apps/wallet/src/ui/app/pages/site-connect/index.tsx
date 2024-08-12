@@ -2,9 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountItemApproveConnection } from '_components/accounts/AccountItemApproveConnection';
-import Loading from '_components/loading';
-import { UserApproveContainer } from '_components/user-approve-container';
+import {
+    AccountItemApproveConnection,
+    Loading,
+    UserApproveContainer,
+    AccountMultiSelectWithControls,
+    Alert,
+    SectionHeader,
+} from '_components';
 import { useAppDispatch, useAppSelector } from '_hooks';
 import type { RootState } from '_redux/RootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
@@ -13,9 +18,6 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { AccountMultiSelectWithControls } from '_components/accounts/AccountMultiSelect';
-import Alert from '_components/alert';
-import { SectionHeader } from '_components/SectionHeader';
 import { useAccountGroups } from '../../hooks/useAccountGroups';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';

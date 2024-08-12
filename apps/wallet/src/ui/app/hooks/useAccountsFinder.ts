@@ -4,7 +4,7 @@
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountsFinder, type AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useIotaClient } from '@iota/dapp-kit';
-import { useIotaLedgerClient } from '_components/ledger/IotaLedgerClientProvider';
+import { useIotaLedgerClient } from '_components';
 import { useMemo } from 'react';
 import type {
     SourceStrategyToFind,

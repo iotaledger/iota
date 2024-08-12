@@ -2,13 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary } from '_components/error-boundary';
-import { MenuContent } from '_components/menu';
-import { Navigation } from '_components/navigation';
+import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
 import { createContext, useState, type ReactNode } from 'react';
 
-import { WalletSettingsButton } from '_components/menu/button/WalletSettingsButton';
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';

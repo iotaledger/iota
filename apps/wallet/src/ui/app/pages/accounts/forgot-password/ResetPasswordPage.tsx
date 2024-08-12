@@ -7,7 +7,7 @@ import { useResetPasswordMutation } from '_src/ui/app/hooks/useResetPasswordMuta
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
 
-import { ProtectAccountForm } from '_components/accounts/ProtectAccountForm';
+import { ProtectAccountForm } from '_components';
 import { autoLockDataToMinutes } from '../../../hooks/useAutoLockMinutes';
 import { Heading } from '../../../shared/heading';
 import { useForgotPasswordContext } from './ForgotPasswordPage';

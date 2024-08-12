@@ -11,7 +11,7 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import Alert from '_components/alert';
+import { Alert } from '_components';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 
@@ -25,7 +25,7 @@ const formSchema = z.object({
         }),
 });
 
-export type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
 interface ImportRecoveryPhraseFormProps {
     submitButtonText: string;

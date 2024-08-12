@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl } from '_components/menu/hooks';
+import { useNextMenuUrl, Loading, Overlay } from '_components';
 import {
     autoLockDataToMinutes,
     parseAutoLock,
@@ -16,8 +16,6 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 import { AutoLockSelector, zodSchema } from '_components/accounts/AutoLockSelector';
-import Loading from '_components/loading';
-import Overlay from '_components/overlay';
 
 export function AutoLockAccounts() {
     const mainMenuUrl = useNextMenuUrl(true, '/');
