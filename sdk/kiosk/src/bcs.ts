@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@iota/iota.js/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 
 import {
     KIOSK_PURCHASE_CAP,

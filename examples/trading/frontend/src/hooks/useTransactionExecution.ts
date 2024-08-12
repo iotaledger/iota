@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useSignTransactionBlock, useIotaClient } from "@iota/dapp-kit";
-import { IotaTransactionBlockResponse } from "@iota/iota.js/client";
-import { TransactionBlock } from "@iota/iota.js/transactions";
+import { IotaTransactionBlockResponse } from "@iota/iota-sdk/client";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import toast from "react-hot-toast";
 
 /**

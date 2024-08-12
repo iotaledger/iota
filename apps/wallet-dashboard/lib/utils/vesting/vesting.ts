@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DelegatedTimelockedStake, IotaObjectData } from '@iota/iota.js/client';
+import { DelegatedTimelockedStake, IotaObjectData } from '@iota/iota-sdk/client';
 import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
