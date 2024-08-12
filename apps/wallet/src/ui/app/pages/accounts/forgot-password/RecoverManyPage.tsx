@@ -10,12 +10,12 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { RecoverAccountsGroup } from '../../../components/accounts/RecoverAccountsGroup';
-import { useAccountGroups } from '../../../hooks/useAccountGroups';
-import { useAccountSources } from '../../../hooks/useAccountSources';
-import { Button } from '../../../shared/ButtonUI';
-import { Heading } from '../../../shared/heading';
-import { Text } from '../../../shared/text';
+import { RecoverAccountsGroup } from '_components/accounts/RecoverAccountsGroup';
+import { useAccountGroups } from '_app/hooks/useAccountGroups';
+import { useAccountSources } from '_app/hooks/useAccountSources';
+import { Button } from '_app/shared/ButtonUI';
+import { Heading } from '_app/shared/heading';
+import { Text } from '_app/shared/text';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';

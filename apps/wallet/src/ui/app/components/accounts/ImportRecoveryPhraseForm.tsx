@@ -11,7 +11,7 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import Alert from '../alert';
+import Alert from '_components/alert';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 

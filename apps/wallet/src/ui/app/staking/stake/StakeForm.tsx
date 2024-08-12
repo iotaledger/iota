@@ -20,7 +20,7 @@ import {
 import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
 
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
+import { useActiveAddress, useTransactionGasBudget } from '_app/hooks';
 import { type FormValues } from './StakingCard';
 
 const HIDE_MAX = true;

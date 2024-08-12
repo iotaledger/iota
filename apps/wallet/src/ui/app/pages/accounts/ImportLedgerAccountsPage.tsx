@@ -14,21 +14,18 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import {
-    AccountsFormType,
-    useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
+import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
 import {
     LedgerAccountList,
     type SelectableLedgerAccount,
-} from '../../components/ledger/LedgerAccountList';
+} from '_components/ledger/LedgerAccountList';
 import {
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
-} from '../../components/ledger/useDeriveLedgerAccounts';
-import Overlay from '../../components/overlay';
-import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
-import { useAccounts } from '../../hooks/useAccounts';
+} from '_components/ledger/useDeriveLedgerAccounts';
+import Overlay from '_components/overlay';
+import { getIotaApplicationErrorMessage } from '_app/helpers/errorMessages';
+import { useAccounts } from '_app/hooks/useAccounts';
 
 const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
 

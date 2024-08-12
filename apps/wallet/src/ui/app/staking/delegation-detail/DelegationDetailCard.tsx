@@ -29,10 +29,10 @@ import { MICROS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
-import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { Heading } from '../../shared/heading';
-import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { StakeAmount } from '../home/StakeAmount';
+import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { Heading } from '_app/shared/heading';
+import { getDelegationDataByStakeId } from '_app/staking/getDelegationByStakeId';
+import { StakeAmount } from '_app/staking/home/StakeAmount';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;

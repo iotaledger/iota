@@ -6,8 +6,8 @@ import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import React, { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { useUnlockMutation } from '../../hooks/useUnlockMutation';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { useUnlockMutation } from '_app/hooks/useUnlockMutation';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
 interface UnlockAccountContextType {

@@ -4,12 +4,9 @@
 import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
-import {
-    AccountsFormType,
-    useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportSeedForm } from '../../components/accounts/ImportSeedForm';
-import { Heading } from '../../shared/heading';
+import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
+import { ImportSeedForm } from '_components/accounts/ImportSeedForm';
+import { Heading } from '_app/shared/heading';
 
 export function ImportSeedPage() {
     const navigate = useNavigate();

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '../shared/text';
+import { Text } from '_app/shared/text';
 
 interface SectionHeaderProps {
     title: string;

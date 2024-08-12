@@ -17,12 +17,12 @@ import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
 
-import { useAccountSources } from '../../hooks/useAccountSources';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { PasswordInput } from '../../shared/forms/controls/PasswordInput';
-import { Form } from '../../shared/forms/Form';
-import FormField from '../../shared/forms/FormField';
-import { Link } from '../../shared/Link';
+import { useAccountSources } from '_app/hooks/useAccountSources';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { PasswordInput } from '_app/shared/forms/controls/PasswordInput';
+import { Form } from '_app/shared/forms/Form';
+import FormField from '_app/shared/forms/FormField';
+import { Link } from '_app/shared/Link';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 const formSchema = z.object({

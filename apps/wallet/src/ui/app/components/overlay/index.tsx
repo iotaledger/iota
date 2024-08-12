@@ -7,9 +7,9 @@ import cl from 'clsx';
 import { useCallback } from 'react';
 import type { ReactNode } from 'react';
 
-import useAppSelector from '../../hooks/useAppSelector';
-import { AppType } from '../../redux/slices/app/AppType';
-import { Portal } from '../../shared/Portal';
+import useAppSelector from '_app/hooks/useAppSelector';
+import { AppType } from '_redux/slices/app/AppType';
+import { Portal } from '_app/shared/Portal';
 import st from './Overlay.module.scss';
 
 interface OverlayProps {

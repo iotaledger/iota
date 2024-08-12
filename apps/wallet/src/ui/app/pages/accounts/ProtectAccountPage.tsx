@@ -8,18 +8,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { ProtectAccountForm } from '../../components/accounts/ProtectAccountForm';
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
-import Loading from '../../components/loading';
-import { useAccounts } from '../../hooks/useAccounts';
-import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
-import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
-import { Heading } from '../../shared/heading';
-import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
+import { ProtectAccountForm } from '_components/accounts/ProtectAccountForm';
+import { VerifyPasswordModal } from '_components/accounts/VerifyPasswordModal';
+import Loading from '_components/loading';
+import { useAccounts } from '_app/hooks/useAccounts';
+import { autoLockDataToMinutes } from '_app/hooks/useAutoLockMinutes';
+import { useAutoLockMinutesMutation } from '_app/hooks/useAutoLockMinutesMutation';
+import { useCreateAccountsMutation } from '_app/hooks/useCreateAccountMutation';
+import { Heading } from '_app/shared/heading';
+import { AccountsFormType } from '_components/accounts/AccountsFormContext';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { AllowedAccountSourceTypes } from '../../accounts-finder';
+import { AllowedAccountSourceTypes } from '_app/accounts-finder';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,

@@ -10,9 +10,9 @@ import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect, useMemo } from 'react';
 
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { permissionsSelectors } from '../../redux/slices/permissions';
-import Loading from '../loading';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { permissionsSelectors } from '_redux/slices/permissions';
+import Loading from '_components/loading';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 

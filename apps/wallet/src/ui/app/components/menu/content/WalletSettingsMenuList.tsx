@@ -14,7 +14,7 @@ import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@io
 import { getNetwork, Network } from '@iota/iota.js/client';
 import Browser from 'webextension-polyfill';
 
-import Loading from '../../loading';
+import Loading from '_components/loading';
 import { MenuLayout } from './MenuLayout';
 import MenuListItem from './MenuListItem';
 

@@ -19,7 +19,7 @@ import {
 import type { IotaEvent } from '@iota/iota.js/client';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
-import { Card } from '../../shared/transaction-summary/Card';
+import { Card } from '_app/shared/transaction-summary/Card';
 
 interface StakeTxnCardProps {
     event: IotaEvent;

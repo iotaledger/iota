@@ -6,7 +6,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Route, Routes } from 'react-router-dom';
 
 import { HiddenAssetsPage, NftsPage } from '..';
-import { HiddenAssetsProvider } from '../hidden-assets/HiddenAssetsProvider';
+import { HiddenAssetsProvider } from '_pages/home/hidden-assets/HiddenAssetsProvider';
 
 function AssetsPage() {
     if (useUnlockedGuard()) {

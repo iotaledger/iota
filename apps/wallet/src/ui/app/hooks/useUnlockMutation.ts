@@ -4,7 +4,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 
-import { type BackgroundClient } from '../background-client';
+import { type BackgroundClient } from '_app/background-client';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useUnlockMutation() {

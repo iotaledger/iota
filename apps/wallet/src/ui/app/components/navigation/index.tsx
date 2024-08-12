@@ -8,7 +8,7 @@ import { Activity32, Apps32, Nft132, Tokens32 } from '@iota/icons';
 import cl from 'clsx';
 import { NavLink } from 'react-router-dom';
 
-import { useActiveAccount } from '../../hooks/useActiveAccount';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import st from './Navigation.module.scss';
 
 export function Navigation() {

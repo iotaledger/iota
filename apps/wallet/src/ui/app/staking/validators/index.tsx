@@ -12,7 +12,7 @@ import {
 } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 
-import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { SelectValidatorCard } from './SelectValidatorCard';
 import { ValidatorsCard } from './ValidatorsCard';
 

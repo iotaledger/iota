@@ -11,13 +11,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { Button } from '../../shared/ButtonUI';
-import { Text } from '../../shared/text';
-import { DAppInfoCard } from '../DAppInfoCard';
-import { DAppPermissionsList } from '../DAppPermissionsList';
-import { SummaryCard } from '../SummaryCard';
-import { WalletListSelect } from '../WalletListSelect';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { Button } from '_app/shared/ButtonUI';
+import { Text } from '_app/shared/text';
+import { DAppInfoCard } from '_components/DAppInfoCard';
+import { DAppPermissionsList } from '_components/DAppPermissionsList';
+import { SummaryCard } from '_components/SummaryCard';
+import { WalletListSelect } from '_components/WalletListSelect';
 import { type DAppEntry } from './IotaApp';
 
 export interface DisconnectAppProps extends Omit<DAppEntry, 'description' | 'tags'> {

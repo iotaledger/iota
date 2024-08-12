@@ -6,10 +6,10 @@ import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 
-import { CheckboxField } from '../../shared/forms/CheckboxField';
-import { Input } from '../../shared/forms/controls/Input';
-import FormField from '../../shared/forms/FormField';
-import { SelectField } from '../../shared/forms/SelectField';
+import { CheckboxField } from '_app/shared/forms/CheckboxField';
+import { Input } from '_app/shared/forms/controls/Input';
+import FormField from '_app/shared/forms/FormField';
+import { SelectField } from '_app/shared/forms/SelectField';
 
 const LOCK_INTERVALS = [
     { id: 'day', label: 'Day' },

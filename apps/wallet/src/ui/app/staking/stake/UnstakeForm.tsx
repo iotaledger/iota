@@ -10,9 +10,9 @@ import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
 
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
-import { GAS_SYMBOL } from '../../redux/slices/iota-objects/Coin';
-import { Heading } from '../../shared/heading';
+import { useActiveAddress, useTransactionGasBudget } from '_app/hooks';
+import { GAS_SYMBOL } from '_redux/slices/iota-objects/Coin';
+import { Heading } from '_app/shared/heading';
 
 export interface StakeFromProps {
     stakedIotaId: string;

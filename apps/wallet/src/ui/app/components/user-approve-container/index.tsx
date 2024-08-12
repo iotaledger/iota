@@ -7,10 +7,10 @@ import cn from 'clsx';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { useAccountByAddress } from '../../hooks/useAccountByAddress';
-import { Button } from '../../shared/ButtonUI';
-import { UnlockAccountButton } from '../accounts/UnlockAccountButton';
-import { DAppInfoCard } from '../DAppInfoCard';
+import { useAccountByAddress } from '_app/hooks/useAccountByAddress';
+import { Button } from '_app/shared/ButtonUI';
+import { UnlockAccountButton } from '_components/accounts/UnlockAccountButton';
+import { DAppInfoCard } from '_components/DAppInfoCard';
 
 interface UserApproveContainerProps {
     children: ReactNode | ReactNode[];

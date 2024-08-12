@@ -12,9 +12,9 @@ import { ArrowLeft16, Check12 } from '@iota/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
-import { useAccountSources } from '../../hooks/useAccountSources';
-import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
+import { VerifyPasswordModal } from '_components/accounts/VerifyPasswordModal';
+import { useAccountSources } from '_app/hooks/useAccountSources';
+import { useExportPassphraseMutation } from '_app/hooks/useExportPassphraseMutation';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function BackupMnemonicPage() {

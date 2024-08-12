@@ -8,7 +8,7 @@ import { X32 } from '@iota/icons';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Portal } from '../../../shared/Portal';
+import { Portal } from '_app/shared/Portal';
 
 export type InterstitialConfig = {
     enabled: boolean;

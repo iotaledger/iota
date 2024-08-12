@@ -6,12 +6,12 @@ import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useMutation } from '@tanstack/react-query';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
-import Alert from '../../components/alert';
-import { HideShowDisplayBox } from '../../components/HideShowDisplayBox';
-import Loading from '../../components/loading';
-import Overlay from '../../components/overlay';
-import { useAccounts } from '../../hooks/useAccounts';
+import { VerifyPasswordModal } from '_components/accounts/VerifyPasswordModal';
+import Alert from '_components/alert';
+import { HideShowDisplayBox } from '_components/HideShowDisplayBox';
+import Loading from '_components/loading';
+import Overlay from '_components/overlay';
+import { useAccounts } from '_app/hooks/useAccounts';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();

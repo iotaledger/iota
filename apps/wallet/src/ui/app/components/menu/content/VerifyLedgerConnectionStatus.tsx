@@ -13,8 +13,8 @@ import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { useIotaLedgerClient } from '../../ledger/IotaLedgerClientProvider';
-import LoadingIndicator from '../../loading/LoadingIndicator';
+import { useIotaLedgerClient } from '_components/ledger/IotaLedgerClientProvider';
+import LoadingIndicator from '_components/loading/LoadingIndicator';
 
 export interface VerifyLedgerConnectionLinkProps {
     accountAddress: string;

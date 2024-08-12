@@ -5,8 +5,8 @@
 import { cx } from 'class-variance-authority';
 import { useMemo } from 'react';
 
-import { useAccounts } from '../hooks/useAccounts';
-import { Link } from '../shared/Link';
+import { useAccounts } from '_app/hooks/useAccounts';
+import { Link } from '_app/shared/Link';
 import { SummaryCard } from './SummaryCard';
 import { WalletListSelectItem, type WalletListSelectItemProps } from './WalletListSelectItem';
 

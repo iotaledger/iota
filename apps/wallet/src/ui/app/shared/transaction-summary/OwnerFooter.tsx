@@ -7,7 +7,7 @@ import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerL
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { getOwnerDisplay } from '@iota/core';
 
-import { Text } from '../text';
+import { Text } from '_app/shared/text';
 import { SummaryCardFooter } from './Card';
 
 export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: string }) {

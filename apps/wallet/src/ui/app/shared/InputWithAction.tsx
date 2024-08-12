@@ -11,7 +11,7 @@ import { useField, useFormikContext } from 'formik';
 import type { ComponentProps, ReactNode } from 'react';
 import { forwardRef } from 'react';
 
-import Alert from '../components/alert';
+import Alert from '_components/alert';
 import { Pill, type PillProps } from './Pill';
 
 const styles = cva(

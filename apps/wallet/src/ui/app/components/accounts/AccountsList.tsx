@@ -8,10 +8,10 @@ import { Filter16, Plus12 } from '@iota/icons';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { useMemo, useState } from 'react';
 
-import { useAccountGroups } from '../../hooks/useAccountGroups';
-import { useActiveAccount } from '../../hooks/useActiveAccount';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { Heading } from '../../shared/heading';
+import { useAccountGroups } from '_app/hooks/useAccountGroups';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { Heading } from '_app/shared/heading';
 import { AccountListItem } from './AccountListItem';
 import { FooterLink } from './FooterLink';
 

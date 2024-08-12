@@ -5,7 +5,7 @@
 import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota.js/cryptography';
 
-import { MnemonicAccountSource } from '_src/background/account-sources/MnemonicAccountSource';
+import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import {
     Account,
     AccountType,

@@ -4,7 +4,7 @@
 import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota.js/cryptography';
 
-import { SeedAccountSource } from '_src/background/account-sources/SeedAccountSource';
+import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import {
     Account,
     AccountType,

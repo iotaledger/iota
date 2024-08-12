@@ -14,7 +14,7 @@ import { useOnScreen } from '@iota/core';
 import { useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
+import { useHiddenAssets } from '_pages/home/hidden-assets/HiddenAssetsProvider';
 import AssetsOptionsMenu from './AssetsOptionsMenu';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';

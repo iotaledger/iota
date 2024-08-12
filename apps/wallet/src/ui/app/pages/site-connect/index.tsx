@@ -13,12 +13,12 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { AccountMultiSelectWithControls } from '../../components/accounts/AccountMultiSelect';
-import Alert from '../../components/alert';
-import { SectionHeader } from '../../components/SectionHeader';
-import { useAccountGroups } from '../../hooks/useAccountGroups';
-import { useActiveAccount } from '../../hooks/useActiveAccount';
-import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
+import { AccountMultiSelectWithControls } from '_components/accounts/AccountMultiSelect';
+import Alert from '_components/alert';
+import { SectionHeader } from '_components/SectionHeader';
+import { useAccountGroups } from '_app/hooks/useAccountGroups';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
+import { PageMainLayoutTitle } from '_app/shared/page-main-layout/PageMainLayoutTitle';
 import st from './SiteConnectPage.module.scss';
 
 function SiteConnectPage() {

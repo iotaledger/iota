@@ -5,12 +5,9 @@
 import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
-import {
-    AccountsFormType,
-    useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportPrivateKeyForm } from '../../components/accounts/ImportPrivateKeyForm';
-import { Heading } from '../../shared/heading';
+import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
+import { ImportPrivateKeyForm } from '_components/accounts/ImportPrivateKeyForm';
+import { Heading } from '_app/shared/heading';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();

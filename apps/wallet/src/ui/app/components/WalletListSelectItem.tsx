@@ -7,7 +7,7 @@ import { formatAddress } from '@iota/iota.js/utils';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import { useEffect, useRef } from 'react';
 
-import { Text } from '../shared/text';
+import { Text } from '_app/shared/text';
 
 const styles = cva('transition flex flex-row flex-nowrap items-center gap-3 py-2 cursor-pointer', {
     variants: {

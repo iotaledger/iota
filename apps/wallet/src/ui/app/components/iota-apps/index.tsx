@@ -11,7 +11,7 @@ import { useFeature } from '@growthbook/growthbook-react';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { permissionsSelectors } from '../../redux/slices/permissions';
+import { permissionsSelectors } from '_redux/slices/permissions';
 import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';

@@ -5,7 +5,7 @@ import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
 
-import { Card } from '../Card';
+import { Card } from '_app/shared/transaction-summary/Card';
 
 interface TotalAmountProps {
     amount?: string;

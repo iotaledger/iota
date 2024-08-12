@@ -4,7 +4,7 @@
 
 import { CoinIcon } from '_src/ui/app/components/coin-icon';
 
-import { Text } from '../../text';
+import { Text } from '_app/shared/text';
 
 export interface CoinsStackProps {
     coinTypes: string[];

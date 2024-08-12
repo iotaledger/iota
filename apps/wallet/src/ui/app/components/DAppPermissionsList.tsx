@@ -5,7 +5,7 @@
 import type { PermissionType } from '_messages/payloads/permissions';
 import { CheckFill12 } from '@iota/icons';
 
-import { Text } from '../shared/text';
+import { Text } from '_app/shared/text';
 
 export interface DAppPermissionsListProps {
     permissions: PermissionType[];

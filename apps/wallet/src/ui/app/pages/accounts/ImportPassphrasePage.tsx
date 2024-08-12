@@ -6,12 +6,9 @@ import { Text } from '_app/shared/text';
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
 import { useNavigate } from 'react-router-dom';
 
-import {
-    AccountsFormType,
-    useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
-import { Heading } from '../../shared/heading';
+import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
+import { ImportRecoveryPhraseForm } from '_components/accounts/ImportRecoveryPhraseForm';
+import { Heading } from '_app/shared/heading';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();

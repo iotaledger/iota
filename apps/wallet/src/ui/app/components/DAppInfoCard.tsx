@@ -7,9 +7,9 @@ import { getValidDAppUrl } from '_src/shared/utils';
 import { CheckFill16 } from '@iota/icons';
 import cn from 'clsx';
 
-import { useAccountByAddress } from '../hooks/useAccountByAddress';
-import { Heading } from '../shared/heading';
-import { Link } from '../shared/Link';
+import { useAccountByAddress } from '_app/hooks/useAccountByAddress';
+import { Heading } from '_app/shared/heading';
+import { Link } from '_app/shared/Link';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
 import { LockUnlockButton } from './accounts/LockUnlockButton';

@@ -5,7 +5,7 @@
 import Overlay from '_components/overlay';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { SelectValidatorCard } from '../validators/SelectValidatorCard';
+import { SelectValidatorCard } from '_app/staking/validators/SelectValidatorCard';
 import StakingCard from './StakingCard';
 
 function StakePage() {

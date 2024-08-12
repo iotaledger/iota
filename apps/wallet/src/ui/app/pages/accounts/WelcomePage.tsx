@@ -8,7 +8,7 @@ import { useFullscreenGuard, useInitializedGuard } from '_hooks';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { IotaLogoWeb } from '@iota/ui-icons';
 
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
+import { useCreateAccountsMutation } from '_app/hooks/useCreateAccountMutation';
 
 export function WelcomePage() {
     const createAccountsMutation = useCreateAccountsMutation();

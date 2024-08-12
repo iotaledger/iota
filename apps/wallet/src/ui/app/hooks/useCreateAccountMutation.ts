@@ -9,7 +9,7 @@ import {
     useAccountsFormContext,
     AccountsFormType,
     type AccountsFormValues,
-} from '../components/accounts/AccountsFormContext';
+} from '_components/accounts/AccountsFormContext';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/Account';
 

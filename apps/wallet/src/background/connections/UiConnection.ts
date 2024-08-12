@@ -35,30 +35,26 @@ import {
     accountSourcesHandleUIMessage,
     getAccountSourceByID,
     getAllSerializedUIAccountSources,
-} from '_src/background/account-sources';
-import { accountSourcesEvents } from '_src/background/account-sources/events';
-import { MnemonicAccountSource } from '_src/background/account-sources/MnemonicAccountSource';
+} from '../account-sources';
+import { accountSourcesEvents } from '../account-sources/events';
+import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import {
     accountsHandleUIMessage,
     addNewAccounts,
     getAccountsByAddress,
     getAllSerializedUIAccounts,
-} from '_src/background/accounts';
-import { accountsEvents } from '_src/background/accounts/events';
-import {
-    getAutoLockMinutes,
-    notifyUserActive,
-    setAutoLockMinutes,
-} from '_src/background/auto-lock-accounts';
-import { backupDB, getDB, SETTINGS_KEYS } from '_src/background/db';
-import { clearStatus, doMigration, getStatus } from '_src/background/storage-migration';
-import NetworkEnv from '_src/background/NetworkEnv';
+} from '../accounts';
+import { accountsEvents } from '../accounts/events';
+import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
+import { backupDB, getDB, SETTINGS_KEYS } from '../db';
+import { clearStatus, doMigration, getStatus } from '../storage-migration';
+import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
-import { SeedAccountSource } from '_src/background/account-sources/SeedAccountSource';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { SeedAccountSource } from '../account-sources/SeedAccountSource';
+import { AccountSourceType } from '../account-sources/AccountSource';
 import { isDeriveBipPathAccountsFinder, isPersistAccountsFinder } from '_payloads/accounts-finder';
-import type { SerializedAccount } from '_src/background/accounts/Account';
-import { LedgerAccount } from '_src/background/accounts/LedgerAccount';
+import type { SerializedAccount } from '../accounts/Account';
+import { LedgerAccount } from '../accounts/LedgerAccount';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';

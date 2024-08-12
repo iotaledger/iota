@@ -17,7 +17,7 @@ import { useTransactionSummary } from '@iota/core';
 import { TransactionBlock } from '@iota/iota.js/transactions';
 import { useMemo, useState } from 'react';
 
-import { ConfirmationModal } from '../../../shared/ConfirmationModal';
+import { ConfirmationModal } from '_app/shared/ConfirmationModal';
 import { GasFees } from './GasFees';
 import { TransactionDetails } from './TransactionDetails';
 

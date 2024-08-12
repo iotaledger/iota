@@ -15,11 +15,11 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 
-import { useAccounts } from '../../hooks/useAccounts';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { Button } from '../../shared/ButtonUI';
-import { Form } from '../../shared/forms/Form';
-import { TextField } from '../../shared/forms/TextField';
+import { useAccounts } from '_app/hooks/useAccounts';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { Button } from '_app/shared/ButtonUI';
+import { Form } from '_app/shared/forms/Form';
+import { TextField } from '_app/shared/forms/TextField';
 
 const formSchema = z.object({
     nickname: z.string().trim(),

@@ -10,13 +10,13 @@ import {
 } from '@iota/iota.js/cryptography';
 import { blake2b } from '@noble/hashes/blake2b';
 
-import { setupAutoLockAlarm } from '_src/background/auto-lock-accounts';
-import { getDB } from '_src/background/db';
+import { setupAutoLockAlarm } from '../auto-lock-accounts';
+import { getDB } from '../db';
 import {
     clearEphemeralValue,
     getEphemeralValue,
     setEphemeralValue,
-} from '_src/background/session-ephemeral-values';
+} from '../session-ephemeral-values';
 import { accountsEvents } from './events';
 
 export enum AccountType {

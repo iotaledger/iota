@@ -4,7 +4,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 
-import { useActiveAccount } from '../../hooks/useActiveAccount';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { AccountIcon } from './AccountIcon';
 import { AccountItem } from './AccountItem';
 import { LockUnlockButton } from './LockUnlockButton';

@@ -6,7 +6,7 @@ import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient }
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
-import { useHiddenAssets } from '../pages/home/hidden-assets/HiddenAssetsProvider';
+import { useHiddenAssets } from '_pages/home/hidden-assets/HiddenAssetsProvider';
 
 type OwnedAssets = {
     visual: IotaObjectData[];

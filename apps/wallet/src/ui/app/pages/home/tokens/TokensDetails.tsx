@@ -40,7 +40,7 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import Interstitial, { type InterstitialConfig } from '../interstitial';
+import Interstitial, { type InterstitialConfig } from '_pages/home/interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
 import { TokenIconLink } from './TokenIconLink';

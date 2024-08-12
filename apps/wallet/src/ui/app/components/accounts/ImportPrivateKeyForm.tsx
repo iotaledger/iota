@@ -8,10 +8,10 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import { privateKeyValidation } from '../../helpers/validation/privateKeyValidation';
-import { Form } from '../../shared/forms/Form';
-import { TextAreaField } from '../../shared/forms/TextAreaField';
-import Alert from '../alert';
+import { privateKeyValidation } from '_app/helpers/validation/privateKeyValidation';
+import { Form } from '_app/shared/forms/Form';
+import { TextAreaField } from '_app/shared/forms/TextAreaField';
+import Alert from '_components/alert';
 
 const formSchema = z.object({
     privateKey: privateKeyValidation,

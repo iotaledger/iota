@@ -18,14 +18,11 @@ import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';
 
 import { getAccountSources } from '.';
-import { getAllAccounts } from '_src/background/accounts';
-import {
-    MnemonicAccount,
-    type MnemonicSerializedAccount,
-} from '_src/background/accounts/MnemonicAccount';
-import { setupAutoLockAlarm } from '_src/background/auto-lock-accounts';
-import { backupDB, getDB } from '_src/background/db';
-import { makeUniqueKey } from '_src/background/storage-utils';
+import { getAllAccounts } from '../accounts';
+import { MnemonicAccount, type MnemonicSerializedAccount } from '../accounts/MnemonicAccount';
+import { setupAutoLockAlarm } from '../auto-lock-accounts';
+import { backupDB, getDB } from '../db';
+import { makeUniqueKey } from '../storage-utils';
 import {
     AccountSource,
     AccountSourceType,

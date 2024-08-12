@@ -5,9 +5,9 @@
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { CheckFill16 } from '@iota/icons';
 
-import { Link } from '../../shared/Link';
-import { Text } from '../../shared/text';
-import { Tooltip } from '../../shared/tooltip';
+import { Link } from '_app/shared/Link';
+import { Text } from '_app/shared/text';
+import { Tooltip } from '_app/shared/tooltip';
 import { AccountListItem } from './AccountListItem';
 
 export interface RecoverAccountsGroupProps {

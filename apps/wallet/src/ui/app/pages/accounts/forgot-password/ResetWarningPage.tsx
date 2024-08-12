@@ -6,11 +6,11 @@ import { Button } from '_app/shared/ButtonUI';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { Navigate, useNavigate } from 'react-router-dom';
 
-import { RecoverAccountsGroup } from '../../../components/accounts/RecoverAccountsGroup';
-import { useAccountGroups } from '../../../hooks/useAccountGroups';
-import { Heading } from '../../../shared/heading';
-import { Text } from '../../../shared/text';
-import { getGroupTitle } from '../manage/AccountGroup';
+import { RecoverAccountsGroup } from '_components/accounts/RecoverAccountsGroup';
+import { useAccountGroups } from '_app/hooks/useAccountGroups';
+import { Heading } from '_app/shared/heading';
+import { Text } from '_app/shared/text';
+import { getGroupTitle } from '_pages/accounts/manage/AccountGroup';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 
 export function ResetWarningPage() {

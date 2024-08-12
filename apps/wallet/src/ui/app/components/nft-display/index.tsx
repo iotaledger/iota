@@ -11,8 +11,8 @@ import { formatAddress } from '@iota/iota.js/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 
-import { useResolveVideo } from '../../hooks/useResolveVideo';
-import { Text } from '../../shared/text';
+import { useResolveVideo } from '_app/hooks/useResolveVideo';
+import { Text } from '_app/shared/text';
 import { Kiosk } from './Kiosk';
 
 const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {

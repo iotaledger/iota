@@ -15,9 +15,9 @@ import { useZodForm } from '@iota/core';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { AutoLockSelector, zodSchema } from '../../accounts/AutoLockSelector';
-import Loading from '../../loading';
-import Overlay from '../../overlay';
+import { AutoLockSelector, zodSchema } from '_components/accounts/AutoLockSelector';
+import Loading from '_components/loading';
+import Overlay from '_components/overlay';
 
 export function AutoLockAccounts() {
     const mainMenuUrl = useNextMenuUrl(true, '/');

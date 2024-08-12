@@ -6,8 +6,8 @@ import clsx from 'clsx';
 import { forwardRef, type ComponentProps, type ReactNode, type Ref } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
 
-import LoadingIndicator from '../../components/loading/LoadingIndicator';
-import { Tooltip } from '../tooltip';
+import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { Tooltip } from '_app/shared/tooltip';
 
 interface WithTooltipProps {
     title?: ReactNode;

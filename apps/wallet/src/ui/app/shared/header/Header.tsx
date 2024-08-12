@@ -6,7 +6,7 @@ import { type Network } from '@iota/iota.js/client';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-import Logo from '../../components/logo';
+import Logo from '_components/logo';
 
 interface HeaderProps {
     network: Network;
