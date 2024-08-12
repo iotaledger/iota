@@ -14,16 +14,13 @@ interface PageTemplateProps {
     showBackButton?: boolean;
 }
 
-function PageTemplate({
+export function PageTemplate({
     title,
     children,
-    onClose: closePageTemplate,
+    onClose,
     isTitleCentered,
     showBackButton,
 }: PageTemplateProps) {
-    const closeModal = useCallback(() => {
-        closePageTemplate && closePageTemplate();
-    }, [closePageTemplate]);
     const navigate = useNavigate();
     const handleBack = useCallback(() => navigate(-1), [navigate]);
     return (
@@ -33,12 +30,10 @@ function PageTemplate({
                     titleCentered={isTitleCentered}
                     title={title}
                     onBack={showBackButton ? handleBack : undefined}
-                    onClose={closeModal}
+                    onClose={onClose}
                 />
             )}
-            <div className="h-full w-full bg-white p-md">{children}</div>
+            <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
         </div>
     );
 }
-
-export default PageTemplate;

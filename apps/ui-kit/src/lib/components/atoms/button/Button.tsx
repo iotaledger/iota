@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { ButtonHTMLAttributes } from 'react';
+import React from 'react';
 import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
@@ -40,9 +40,13 @@ export interface ButtonProps {
      */
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
-     * The html type of the button.
+     * Whether the button should have the full width.
      */
-    htmlType?: ButtonHTMLAttributes<HTMLButtonElement>['type'];
+    fullWidth?: boolean;
+    /**
+     * The type of the button. Available options are 'button', 'submit', 'reset'.
+     */
+    htmlType?: ButtonHtmlType;
 }
 
 export function Button({
@@ -50,6 +54,7 @@ export function Button({
     text,
     disabled,
     onClick,
+    fullWidth,
     htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
@@ -63,16 +68,15 @@ export function Button({
             onClick={onClick}
             type={htmlType}
             className={cx(
-                'state-layer relative flex rounded-full disabled:opacity-40',
+                'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
+                fullWidth && 'w-full',
             )}
             disabled={disabled}
         >
-            <div className="flex flex-row items-center justify-center gap-2">
-                {icon && <span className={cx(textColors)}>{icon}</span>}
-                {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
-            </div>
+            {icon && <span className={cx(textColors)}>{icon}</span>}
+            {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
         </button>
     );
 }

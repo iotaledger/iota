@@ -28,7 +28,7 @@ function InputStory({
     return (
         <Input
             {...props}
-            onChange={(value) => setInputValue(value)}
+            onChange={(e) => setInputValue(e.target.value)}
             value={inputValue}
             onClearInput={() => setInputValue('')}
             leadingIcon={withLeadingIcon ? <PlaceholderReplace /> : undefined}
@@ -99,8 +99,8 @@ export const WithMaxTrailingButton: Story = {
             setInputValue('10');
         }
 
-        const onChange = useCallback((value: string) => {
-            setInputValue(value);
+        const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+            setInputValue(e.target.value);
         }, []);
 
         function checkInputValidity(value: string) {
