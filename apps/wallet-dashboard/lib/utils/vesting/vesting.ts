@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaObjectData } from '@iota/iota.js/client';
+import { DelegatedTimelockedStake, IotaObjectData } from '@iota/iota.js/client';
 import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
@@ -17,7 +17,6 @@ import {
     Timelocked,
     TimelockedIotaResponse,
     TimelockedStakedIota,
-    TimelockedStakedIotaResponse,
     VestingOverview,
 } from '../../interfaces';
 import { isTimelocked, isTimelockedStakedIota, isVesting } from '../timelock';
@@ -205,32 +204,25 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): Timelocked[] 
     });
 }
 
-export function mapStakedTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedStakedIota[] {
-    return iotaObjects.map((iotaObject) => {
-        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
+export function timelockObjectsFromIotaObjects(
+    stakedTimelockedObjects: DelegatedTimelockedStake[],
+): TimelockedStakedIota[] {
+    const result: TimelockedStakedIota[] = [];
+    stakedTimelockedObjects.map((stakedTimelockedObject) => {
+        const stakeMapped: TimelockedStakedIota[] = stakedTimelockedObject.stakes.map((stake) => {
             return {
-                id: { id: '' },
+                id: { id: stake.timelockedStakedIotaId },
+                expirationTimestampMs: Number(stake.expirationTimestampMs),
                 stakedIota: {
-                    id: { id: '' },
-                    poolId: '',
-                    stakeActivationEpoch: 0,
-                    principal: { value: 0 },
+                    id: { id: stake.timelockedStakedIotaId },
+                    poolId: stakedTimelockedObject.stakingPool,
+                    stakeActivationEpoch: Number(stake.stakeRequestEpoch),
+                    principal: { value: Number(stake.principal) },
                 },
-                expirationTimestampMs: 0,
+                label: stake.label,
             };
-        }
-
-        const fields = iotaObject.content.fields as unknown as TimelockedStakedIotaResponse;
-        return {
-            id: fields.id,
-            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
-            stakedIota: {
-                id: fields.staked_iota.fields.id,
-                poolId: fields.staked_iota.fields.pool_id,
-                stakeActivationEpoch: Number(fields.staked_iota.fields.stake_activation_epoch),
-                principal: { value: Number(fields.staked_iota.fields.principal) },
-            },
-            label: fields.label,
-        };
+        });
+        result.push(...stakeMapped);
     });
+    return result;
 }

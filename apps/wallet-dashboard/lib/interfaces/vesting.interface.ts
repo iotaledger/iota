@@ -34,22 +34,7 @@ export interface TimelockedStakedIota {
     id: UID;
     stakedIota: StakedIota;
     expirationTimestampMs: number;
-    label?: string;
-}
-
-export interface TimelockedStakedIotaResponse {
-    id: UID;
-    expiration_timestamp_ms: string;
-    staked_iota: {
-        type: string;
-        fields: {
-            id: UID;
-            pool_id: string;
-            principal: string;
-            stake_activation_epoch: string;
-        };
-    };
-    label?: string;
+    label?: string | null | undefined;
 }
 
 export enum SupplyIncreaseUserType {
