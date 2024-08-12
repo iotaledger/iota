@@ -115,6 +115,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
                         <ButtonUnstyled
                             onClick={onToggleButtonClick}
                             className="text-neutral-10 dark:text-neutral-92"
+                            tabIndex={-1}
                         >
                             {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
                         </ButtonUnstyled>

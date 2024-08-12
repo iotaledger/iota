@@ -29,6 +29,7 @@ export const CheckboxField = forwardRef<HTMLInputElement, CheckboxFieldProps>(
                                 isChecked={value}
                                 ref={forwardedRef}
                                 {...props}
+                                isDisabled={props.disabled}
                             />
                         </div>
                     </FormField>

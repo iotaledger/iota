@@ -187,7 +187,11 @@ function InputTrailingElement({
 
     if (showClearInput) {
         return (
-            <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
+            <ButtonUnstyled
+                className="text-neutral-10 dark:text-neutral-92"
+                onClick={onClearInput}
+                tabIndex={-1}
+            >
                 <Close width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
             </ButtonUnstyled>
         );
@@ -196,6 +200,7 @@ function InputTrailingElement({
             <ButtonUnstyled
                 onClick={onToggleButtonClick}
                 className="text-neutral-10 dark:text-neutral-92"
+                tabIndex={-1}
             >
                 {isContentVisible ? (
                     <VisibilityOn width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
