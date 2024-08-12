@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // import { faker } from '@faker-js/faker';
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { IotansClient } from '../src';

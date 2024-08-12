@@ -102,7 +102,7 @@ importers:
 
   apps/apps-backend:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@nestjs/cache-manager':
@@ -214,7 +214,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -314,7 +314,7 @@ importers:
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/ui':
@@ -764,7 +764,7 @@ importers:
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -1086,7 +1086,7 @@ importers:
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@tanstack/react-query':
@@ -1144,7 +1144,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -1199,7 +1199,7 @@ importers:
 
   dapps/kiosk-cli:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -1278,7 +1278,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@tailwindcss/forms':
@@ -1330,7 +1330,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@types/react':
@@ -1399,7 +1399,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@mdx-js/react':
@@ -1564,7 +1564,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@types/node':
@@ -1586,7 +1586,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../typescript
       '@radix-ui/colors':
@@ -1647,7 +1647,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../typescript
       '@radix-ui/colors':
@@ -1705,7 +1705,7 @@ importers:
 
   sdk/dapp-kit:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@iota/wallet-standard':
@@ -1802,7 +1802,7 @@ importers:
       '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       graphql:
@@ -1854,7 +1854,7 @@ importers:
 
   sdk/iotans-toolkit:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
@@ -1879,7 +1879,7 @@ importers:
 
   sdk/kiosk:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
@@ -2065,7 +2065,7 @@ importers:
 
   sdk/wallet-standard:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@wallet-standard/core':
@@ -2084,7 +2084,7 @@ importers:
       '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@noble/hashes':
