@@ -6,7 +6,7 @@ import type {
     TransactionArgument,
     TransactionBlock,
     TransactionObjectArgument,
-} from '@iota/iota.js/transactions';
+} from '@iota/iota-sdk/transactions';
 
 import * as kioskTx from '../tx/kiosk.js';
 import { convertToPersonalTx, transferPersonalCapTx } from '../tx/personal-kiosk.js';

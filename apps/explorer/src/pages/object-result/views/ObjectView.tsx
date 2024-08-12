@@ -4,13 +4,13 @@
 
 import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight16, Info16 } from '@iota/icons';
-import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota.js/client';
+import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
     IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
-} from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/utils';
 import { Heading, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';

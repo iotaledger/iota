@@ -4,7 +4,7 @@
 
 import { Tab } from '@headlessui/react';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 

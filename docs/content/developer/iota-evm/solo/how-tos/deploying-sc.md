@@ -2,16 +2,10 @@
 description: Deploying Wasm smart contracts with Solo.
 image: /img/iota-evm/tutorial/send_request.png
 tags:
-  - testing
-  - PostRequestSync
-  - PostRequestOffLedger
-  - send
-  - requests
-  - post
+  - how-to
+  - evm
   - solo
-  - on-ledger
-  - off-ledger
-  - how-tos
+  - testing
 ---
 
 # Deploying Wasm Smart Contracts

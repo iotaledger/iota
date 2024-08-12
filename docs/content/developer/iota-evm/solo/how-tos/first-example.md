@@ -2,12 +2,10 @@
 description: Example of a _Solo_ test. It deploys a new chain and invokes some view calls.
 image: /img/logo/WASP_logo_dark.png
 tags:
-    - testing framework
-    - golang
-    - solo
-    - example
-    - new chain
-    - how-tos
+  - how-to
+  - evm
+  - solo
+  - testing
 ---
 
 # First Example

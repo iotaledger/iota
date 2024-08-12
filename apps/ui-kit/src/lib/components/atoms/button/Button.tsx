@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { ButtonSize, ButtonType } from './button.enums';
+import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
     PADDINGS_ONLY_ICON,
@@ -14,7 +14,7 @@ import {
 } from './button.classes';
 import cx from 'classnames';
 
-interface ButtonProps {
+export interface ButtonProps {
     /**
      * The size of the button.
      */
@@ -39,6 +39,14 @@ interface ButtonProps {
      * The onClick event of the button.
      */
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    /**
+     * Whether the button should have the full width.
+     */
+    fullWidth?: boolean;
+    /**
+     * The type of the button. Available options are 'button', 'submit', 'reset'.
+     */
+    htmlType?: ButtonHtmlType;
 }
 
 export function Button({
@@ -46,6 +54,8 @@ export function Button({
     text,
     disabled,
     onClick,
+    fullWidth,
+    htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
@@ -56,17 +66,17 @@ export function Button({
     return (
         <button
             onClick={onClick}
+            type={htmlType}
             className={cx(
-                'state-layer relative flex rounded-full disabled:opacity-40',
+                'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
+                fullWidth && 'w-full',
             )}
             disabled={disabled}
         >
-            <div className="flex flex-row items-center justify-center gap-2">
-                {icon && <span className={cx(textColors)}>{icon}</span>}
-                {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
-            </div>
+            {icon && <span className={cx(textColors)}>{icon}</span>}
+            {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
         </button>
     );
 }

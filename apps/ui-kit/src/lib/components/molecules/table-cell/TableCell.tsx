@@ -76,7 +76,7 @@ type TableCellCheckbox = {
     /**
      * The function to call when the checkbox is clicked.
      */
-    onChange?: (checked: boolean) => void;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     /**
      * If true the checkbox will override the styles to show an indeterminate state.
      */
@@ -138,7 +138,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 return (
                     <Checkbox
                         isChecked={isChecked}
-                        onChange={onChange}
+                        onCheckedChange={onChange}
                         isIndeterminate={isIndeterminate}
                     />
                 );

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { DryRunTransactionBlockResponse, GasCostSummary } from '@iota/iota.js/src/client';
+import { DryRunTransactionBlockResponse, GasCostSummary } from '@iota/iota-sdk/src/client';
 import { ReactNode } from 'react';
 
 import { ObjectLink } from '../ObjectLink';

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin, formatBalance, CoinFormat } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Heading, Text } from '@iota/ui';
 
 type DelegationAmountProps = {

@@ -1,5 +1,8 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ConnectButton, useCurrentAccount } from "@iota/dapp-kit";
-import { isValidIotaObjectId } from "@iota/iota.js/utils";
+import { isValidIotaObjectId } from "@iota/iota-sdk/utils";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
 import { useState } from "react";
 import { Counter } from "./Counter";

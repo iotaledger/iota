@@ -24,21 +24,21 @@ const DERIVATION_PATH_SECP256K1 = `m/54'/4218'/0'/0/0`;
 const TEST_CASES = [
     [
         'film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm',
-        'ImR/7u82MGC9QgWhZxoV8QoSNnZZGLG19jjYLzPPxGk=',
-        '0xa2d14fad60c56049ecf75246a481934691214ce413e6a8ae2fe6834c173a6133',
-        'NwIObhuKot7QRWJu4wWCC5ttOgEfN7BrrVq1draImpDZqtKEaWjNNRKKfWr1FL4asxkBlQd8IwpxpKSTzcXMAQ==',
+        'e2BQLLmX+Ykl1g8bpJIEyon3f7Urhjlqk0Lz1BRmwho=',
+        '0x9f8e5379678525edf768d7b507dc1ba9016fc4f0eac976ab7f74077d95fba312',
+        'G6mBG9YpJjopAG0XvJE7CPXmWw9Rx1RFzbi7BOaOwh0OckXC3eoHC40kWGVS0sMSPnw8sed6aAEnWnZ5EXx3Ag==',
     ],
     [
         'require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level',
-        'vG6hEnkYNIpdmWa/WaLivd1FWBkxG+HfhXkyWgs9uP4=',
-        '0x1ada6e6f3f3e4055096f606c746690f1108fcc2ca479055cc434a3e1d3f758aa',
-        '8BSMw/VdYSXxbpl5pp8b5ylWLntTWfBG3lSvAHZbsV9uD2/YgsZDbhVba4rIPhGTn3YvDNs3FOX5+EIXMup3Bw==',
+        'DyWpaP6u6fghsuEG/nR75Zc8pL9dCslo9y84FmCE5TQ=',
+        '0x862738192e40540e0a5c9a5aca636f53b0cd76b0a9bef3386e05647feb4914ac',
+        'MlTruVTOFz1GXQzSkIWoNmkzXrIRQxp1vKxuSFFfQacxQz6sqZR+PpRifHwqp6n3KMgutq/Q0J0PWhI2n6LSAA==',
     ],
     [
         'organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake',
-        'arEzeF7Uu90jP4Sd+Or17c+A9kYviJpCEQAbEt0FHbU=',
-        '0xe69e896ca10f5a77732769803cc2b5707f0ab9d4407afb5e4b4464b89769af14',
-        '/ihBMku1SsqK+yDxNY47N/tAREZ+gWVTvZrUoCHsGGR9CoH6E7SLKDRYY9RnwBw/Bt3wWcdJ0Wc2Q3ioHIlzDA==',
+        '3kA3AThQsJsxb7WWx45yOZ0DUJzf+/BckV0gKlgsUmo=',
+        '0x2391788ca49c7f0f00699bc2bad45f80c343b4d1df024285c132259433d7ff31',
+        'UJEPE2EIXvcsRwpP3MM1DlOsUjDBmrfykn9Ztewsr78UE78ZhuqUHtbeSrLTdnCyMgHipSKwxL5PEYz654DJDw==',
     ],
 ];
 
@@ -50,21 +50,21 @@ const TEST_CASES = [
 const TEST_CASES_SECP256K1 = [
     [
         'film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm',
-        'Ar2Vs2ei2HgaCIvcsAVAZ6bKYXhDfRTlF432p8Wn4lsL',
-        '0x9e8f732575cc5386f8df3c784cd3ed1b53ce538da79926b2ad54dcc1197d2532',
-        'y7a8KDd9Py4i5GIka7zAFSHOCOTVLm9ibDx3wPd6WsQa7C1FUdxz32+h5TYmNNWUpTRgWgdBAeG9OgAnDBg0cQ==',
+        'AsLKpMJAxwoRo5T4JCdKAVCdCH7dvfF7yQxLi9etcxR4',
+        '0x8520d58dde1ab268349b9a46e5124ae6fe7e4c61df4ca2bc9c97d3c4d07b0b55',
+        'sQqwpFAP9KXUrQDL/ltD3xXfNce16TaWwP83O4r5CD4XAPJgGO/lrUw+I7ec7FIgk3PSyktcALehBaBl95mgfg==',
     ],
     [
         'require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level',
-        'A5IcrmWDxl0J/4MNkrtE1AvwiLZiqih9tjttcGlafw+m',
-        '0x9fd5a804ed6b46d36949ff7434247f0fd594673973ece24aede6b86a7b5dae01',
-        'ijfLeBFowLQjuUD9h6/q9cmuZGg1Afo0ZgZJsZrJsIt2FSFddIomOzqnan3v1T9aW14aBMAlymUELgryib4Q/A==',
+        'ApoKn4lYZqNSwz1P8bAjGDiduZfaW3pKPp/IwJ/neSBU',
+        '0x3740d570eefba29dfc0fdd5829848902064e31ecd059ca05c401907fa8646f61',
+        'idUbzBef+CDWLX+y8yzk2Pn6UnV7xwvypQfJ74TzcYpz4bSFE/t7I90Gq5pGAagxYCZYhOModfezUvgH35cwXQ==',
     ],
     [
         'organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake',
-        'AuEiECTZwyHhqStzpO/RNBXO89/Wa8oc4BtoneKnl6h8',
-        '0x60287d7c38dee783c2ab1077216124011774be6b0764d62bd05f32c88979d5c5',
-        'qAZyBPNUOtr2uKNByx9HNpWlDxQrOCjtMajYXGTAtWMnTp1cFYMe6QyT0EsYJ0t5xKtK8xq29yChbpsHWz94qA==',
+        'AlZDfLhVwZpYuc8ZkDhwJpWmq57E5Kswk4Ph/erI6VEN',
+        '0x943b852c37fef403047e06ff5a2fa216557a4386212fb29554babdd3e1899da5',
+        'A11EgmPIeNGcD+XpNh87wgD7MObrC4HX56kpC93TVJZk76c6Bijm7E4D6JM1iyzDIECOqaLDbcmBnoAQTEutxA==',
     ],
 ];
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin, CoinFormat, formatBalance } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
 
 type StakeColumnProps = {

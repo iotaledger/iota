@@ -4,7 +4,7 @@
 
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { Kiosk, KioskTransaction } from '@iota/kiosk';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 

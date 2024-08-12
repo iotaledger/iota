@@ -1,6 +1,6 @@
 ---
 description: Guide to setting up and using a local IOTA network for development and testing.
-tags: [ local network, development, testing, CLI, wallet, ts, sdk]
+tags: [ how-to, install, setup, cli, typescript, sdk, testing ]
 ---
 # Local Development
 
@@ -224,7 +224,7 @@ Before running the command, you must complete the `Prerequisites for Building Ap
 Run the following command from the `iota` root folder:
 
 ```bash
-pnpm --filter @iota/iota.js test:e2e
+pnpm --filter @iota/iota-sdk test:e2e
 ```
 
 For additional information about example data for testing, see [https://github.com/iotaledger/iota/tree/develop/sdk/typescript#testing](https://github.com/iotaledger/iota/tree/develop/sdk/typescript#testing).
@@ -255,4 +255,4 @@ To use the local built SDK in your project go to your project folder and execute
 pnpm add <PATH_TO_YOUR_REPO>/sdk/typescript
 ``` 
 
-and the locally compiled version of `iota/iota.js` package will be installed for your application.
+and the locally compiled version of `@iota/iota-sdk` package will be installed for your application.

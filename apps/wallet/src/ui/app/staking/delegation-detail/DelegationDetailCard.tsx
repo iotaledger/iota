@@ -24,8 +24,8 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@iota/icons';
-import { Network, type StakeObject } from '@iota/iota.js/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Network, type StakeObject } from '@iota/iota-sdk/client';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
