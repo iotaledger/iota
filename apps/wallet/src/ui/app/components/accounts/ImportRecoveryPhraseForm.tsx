@@ -103,7 +103,7 @@ export function ImportRecoveryPhraseForm({
             className="relative flex h-full flex-col justify-between"
             onSubmit={handleSubmit(onSubmit)}
         >
-            <div className="grid h-full grid-cols-2 gap-2 overflow-auto pb-md">
+            <div className="grid grid-cols-2 gap-2 overflow-auto pb-md">
                 {recoveryPhrase.map((_, index) => {
                     const recoveryPhraseId = `recoveryPhrase.${index}` as const;
                     return (
@@ -124,7 +124,7 @@ export function ImportRecoveryPhraseForm({
                 })}
             </div>
 
-            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm">
+            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 py-sm">
                 {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
                     <InfoBox
                         type={InfoBoxType.Default}
