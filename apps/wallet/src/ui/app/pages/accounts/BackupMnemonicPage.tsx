@@ -5,7 +5,7 @@
 import { CardLayout } from '_app/shared/card-layout';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
-import PageTemplate from '_components/PageTemplate';
+import { PageTemplate } from '_components/PageTemplate';
 import {
     Button,
     ButtonType,
@@ -80,7 +80,7 @@ export function BackupMnemonicPage() {
     };
 
     return (
-        <PageTemplate title={'Export Mnemonic'} isTitleCentered>
+        <PageTemplate title="Export Mnemonic" isTitleCentered>
             <Loading loading={isPending}>
                 {showPasswordDialog ? (
                     <CardLayout>
@@ -105,11 +105,9 @@ export function BackupMnemonicPage() {
                     >
                         <div className="flex flex-col gap-md">
                             {isOnboardingFlow && (
-                                <div className="flex flex-col items-center gap-md px-md py-sm text-center">
-                                    <h3 className="text-headline-lg text-neutral-10">
-                                        Wallet Created Successfully!
-                                    </h3>
-                                </div>
+                                <h3 className="text-center text-headline-lg text-neutral-10">
+                                    Wallet Created Successfully!
+                                </h3>
                             )}
                             <InfoBox
                                 icon={<Info />}
@@ -138,13 +136,21 @@ export function BackupMnemonicPage() {
                                     )}
                                 </Loading>
                             </div>
+                            <div className="flex justify-end">
+                                <Button
+                                    onClick={handleCopy}
+                                    type={ButtonType.Secondary}
+                                    text={passphraseCopied ? 'Copied' : 'Copy'}
+                                />
+                            </div>
                         </div>
                         {isOnboardingFlow ? (
-                            <div className={'flex w-full flex-col'}>
+                            <div className="flex w-full flex-col">
                                 <div className="flex w-full py-sm--rs">
                                     <Checkbox
+                                        name="recovery-phrase"
                                         label="I saved my recovery phrase"
-                                        onChange={() => setPasswordCopied(!passwordCopied)}
+                                        onCheckedChange={() => setPasswordCopied(!passwordCopied)}
                                     />
                                 </div>
                                 <div className="pt-sm--rs" />
@@ -156,7 +162,7 @@ export function BackupMnemonicPage() {
                                 />
                             </div>
                         ) : (
-                            <div className={'flex w-full flex-col pt-sm'}>
+                            <div className="flex w-full flex-col pt-sm">
                                 <Button
                                     onClick={handleCopy}
                                     type={ButtonType.Primary}
