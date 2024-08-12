@@ -183,10 +183,12 @@ function InputTrailingElement({
     const showPasswordToggle = Boolean(type === InputType.Password && onToggleButtonClick);
     const showTrailingElement = Boolean(trailingElement && !showClearInput && !showPasswordToggle);
 
+    const ICON_WIDTH_HEIGHT = 20;
+
     if (showClearInput) {
         return (
             <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
-                <Close />
+                <Close width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
             </ButtonUnstyled>
         );
     } else if (showPasswordToggle) {
@@ -195,7 +197,11 @@ function InputTrailingElement({
                 onClick={onToggleButtonClick}
                 className="text-neutral-10 dark:text-neutral-92"
             >
-                {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+                {isContentVisible ? (
+                    <VisibilityOn width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
+                ) : (
+                    <VisibilityOff width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
+                )}
             </ButtonUnstyled>
         );
     } else if (showTrailingElement) {
