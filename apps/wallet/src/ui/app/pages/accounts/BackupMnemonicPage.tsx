@@ -136,13 +136,15 @@ export function BackupMnemonicPage() {
                                     )}
                                 </Loading>
                             </div>
-                            <div className="flex justify-end">
-                                <Button
-                                    onClick={handleCopy}
-                                    type={ButtonType.Secondary}
-                                    text={passphraseCopied ? 'Copied' : 'Copy'}
-                                />
-                            </div>
+                            {isOnboardingFlow && (
+                                <div className="flex justify-end">
+                                    <Button
+                                        onClick={handleCopy}
+                                        type={ButtonType.Secondary}
+                                        text={passphraseCopied ? 'Copied' : 'Copy'}
+                                    />
+                                </div>
+                            )}
                         </div>
                         {isOnboardingFlow ? (
                             <div className="flex w-full flex-col">
