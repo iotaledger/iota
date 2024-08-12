@@ -23,47 +23,43 @@ function VestingDashboardPage(): JSX.Element {
     const timelockedMapped = timelockedObjects ? mapTimelockObjects(timelockedObjects) : [];
     const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
 
-    const unlockTimelockedObjects = timelockedMapped?.filter(
+    const unlockedTimelockedObjects = timelockedMapped?.filter(
         (timelockedObject) => timelockedObject.expirationTimestampMs <= Number(currentEpochMs),
     );
-    const unlockTimelockedbjectIds: string[] =
-        unlockTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
+    const unlockedTimelockedbjectIds: string[] =
+        unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
     const { data: unlockAllTimelockedObjects } = useCollectUnlockTimelockedObjects(
         account?.address || '',
-        unlockTimelockedbjectIds,
+        unlockedTimelockedbjectIds,
     );
 
     const handleCollect = () => {
-        if (!unlockAllTimelockedObjects?.transaction) {
-            addNotification('There was an error with the transaction', NotificationType.Error);
+        if (!unlockAllTimelockedObjects?.transactionBlock) {
+            addNotification('Failed to create a Transaction', NotificationType.Error);
             return;
-        } else {
-            signAndExecuteTransactionBlock(
-                {
-                    transactionBlock: unlockAllTimelockedObjects.transaction,
-                },
-                {
-                    onSuccess: (result) => {
-                        console.log('executed transaction', result.digest);
-                        queryClient.invalidateQueries({
-                            queryKey: ['get-all-timelocked-objects'], // Correct usage
-                        });
-                        addNotification('Transfer transaction has been sent');
-                    },
-                    onError: (result) => {
-                        console.error(
-                            'error to execute unlock all timelocked object transaction',
-                            result,
-                        );
-
-                        addNotification(
-                            'Transfer transaction was not sent',
-                            NotificationType.Error,
-                        );
-                    },
-                },
-            );
         }
+        signAndExecuteTransactionBlock(
+            {
+                transactionBlock: unlockAllTimelockedObjects.transactionBlock,
+            },
+            {
+                onSuccess: (result) => {
+                    console.log('executed transaction', result.digest);
+                    queryClient.invalidateQueries({
+                        queryKey: ['get-all-timelocked-objects'],
+                    });
+                    addNotification('Transaction has been sent');
+                },
+                onError: (result) => {
+                    console.error(
+                        'error to execute unlock all timelocked object transaction',
+                        result,
+                    );
+
+                    addNotification('Transaction was not sent', NotificationType.Error);
+                },
+            },
+        );
     };
     const handleStake = () => {
         console.log('Stake');

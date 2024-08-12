@@ -4,24 +4,26 @@
 import { TransactionBlock } from '@iota/iota.js/transactions';
 import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS } from '@iota/iota.js/utils';
 
-interface Options {
+interface UnlockAllTimelockedObjectTransactionOptions {
     address: string;
     objectIds: string[];
 }
 
-export function unlockAllTimelockedObjectTransaction({ address, objectIds }: Options) {
+export function createUnlockAllTimelockedObjectsTransaction({
+    address,
+    objectIds,
+}: UnlockAllTimelockedObjectTransactionOptions) {
     const ptb = new TransactionBlock();
     const coins: { index: number; resultIndex: number; kind: 'NestedResult' }[] = [];
 
-    for (let index = 0; index < objectIds.length; index++) {
-        const objectId = objectIds[index];
+    for (const objectId of objectIds) {
         const [unlock] = ptb.moveCall({
             target: `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock`,
             typeArguments: [`${IOTA_FRAMEWORK_ADDRESS}::balance::Balance<${IOTA_TYPE_ARG}>`],
             arguments: [ptb.object(objectId)],
         });
 
-        // Convert Balance in Coin
+        // Convert Balance to Coin
         const [coin] = ptb.moveCall({
             target: `${IOTA_FRAMEWORK_ADDRESS}::coin::from_balance`,
             typeArguments: [IOTA_TYPE_ARG],
