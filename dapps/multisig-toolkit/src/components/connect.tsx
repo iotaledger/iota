@@ -9,7 +9,7 @@ import {
     useDisconnectWallet,
     useSwitchAccount,
 } from '@iota/dapp-kit';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 

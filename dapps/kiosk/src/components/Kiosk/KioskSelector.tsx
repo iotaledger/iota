@@ -4,7 +4,7 @@
 
 import { Listbox, Transition } from '@headlessui/react';
 import { KioskOwnerCap } from '@iota/kiosk';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import classNames from 'clsx';
 import { Fragment } from 'react';
 

@@ -8,8 +8,8 @@ import type {
     IotaObjectData,
     IotaObjectDataFilter,
     IotaObjectResponse,
-} from '@iota/iota.js/client';
-import { isValidIotaAddress } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 
 import type {
     FetchKioskOptions,

@@ -4,7 +4,7 @@
 
 import { useFormatCoin } from '@iota/core';
 import { ArrowShowAndHideRight12, Warning16 } from '@iota/icons';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';

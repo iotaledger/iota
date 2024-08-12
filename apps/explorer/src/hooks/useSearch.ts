@@ -4,13 +4,13 @@
 
 import { isIotaNSName, useIotaNSEnabled } from '@iota/core';
 import { useIotaClientQuery, useIotaClient } from '@iota/dapp-kit';
-import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota.js/client';
+import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
     isValidIotaObjectId,
     normalizeIotaObjectId,
-} from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);

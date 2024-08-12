@@ -8,7 +8,7 @@ import { LoadingIndicator } from '@iota/ui';
 import { FieldItem } from './FieldItem';
 import { Banner } from '~/components/ui';
 
-import type { DynamicFieldName } from '@iota/iota.js/client';
+import type { DynamicFieldName } from '@iota/iota-sdk/client';
 
 interface UnderlyingObjectCardProps {
     parentId: string;

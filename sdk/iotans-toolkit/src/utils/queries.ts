@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaClient, IotaObjectResponse } from '@iota/iota.js/client';
+import type { IotaClient, IotaObjectResponse } from '@iota/iota-sdk/client';
 
 // get NFT's owner from RPC.
 export const getOwner = async (client: IotaClient, nftId: string): Promise<string | null> => {

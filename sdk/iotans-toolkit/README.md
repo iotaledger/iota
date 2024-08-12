@@ -20,7 +20,7 @@ You can also use yarn or pnpm.
 Create an instance of IotansClient:
 
 ```typescript
-import { IotaClient } from '@iota/iota.js/client';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { IotansClient } from '@iota/iotans-toolkit';
 
 const client = new IotaClient();

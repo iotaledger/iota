@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { Chip } from '@/components/atoms/chip/Chip';
+import { Chip } from '@/components/molecules/chip/Chip';
 import { PlaceholderReplace } from '@iota/ui-icons';
 
 const meta: Meta<typeof Chip> = {

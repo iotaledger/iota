@@ -233,20 +233,6 @@ impl ReadApiServer for ReadApi {
         })
     }
 
-    async fn get_checkpoints_deprecated_limit(
-        &self,
-        cursor: Option<BigInt<u64>>,
-        limit: Option<BigInt<u64>>,
-        descending_order: bool,
-    ) -> RpcResult<CheckpointPage> {
-        self.get_checkpoints(
-            cursor,
-            limit.map(|l| l.into_inner() as usize),
-            descending_order,
-        )
-        .await
-    }
-
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
         self.inner
             .get_transaction_events_in_blocking_task(transaction_digest)

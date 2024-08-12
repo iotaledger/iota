@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getCustomNetwork } from '_src/shared/api-env';
-import { getNetwork, Network } from '@iota/iota.js/client';
+import { getNetwork, Network } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 import {
