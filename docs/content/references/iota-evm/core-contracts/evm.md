@@ -3,15 +3,8 @@ description: 'The evm core contract provides the necessary infrastructure to acc
 EVM code.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-- smart contracts
-- core
-- root
-- initialization
-- entry points
-- fees
-- ownership
-- views
+- core-contract
+- evm
 - reference
 ---
 
