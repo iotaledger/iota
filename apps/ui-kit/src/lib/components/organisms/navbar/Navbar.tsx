@@ -86,7 +86,14 @@ export function Navbar({
                         <NavbarItem
                             {...item}
                             isSelected={item.id === activeId}
-                            onClick={() => onClickItem(item.id)}
+                            onClick={(e) => {
+                                if (item.onClick) {
+                                    item.onClick(e);
+                                }
+                                if (!item.isDisabled) {
+                                    onClickItem(item.id);
+                                }
+                            }}
                         />
                     </div>
                 ))}
