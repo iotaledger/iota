@@ -37,7 +37,12 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
             form={form}
             onSubmit={onSubmit}
         >
-            <TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
+            <TextAreaField
+                label="Enter Seed"
+                rows={5}
+                {...register('seed')}
+                errorMessage={form.formState.errors.seed?.message}
+            />
             <div className="flex flex-row justify-stretch gap-2.5">
                 <Button
                     type={ButtonType.Secondary}
