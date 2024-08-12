@@ -241,7 +241,7 @@ with their corresponding disclosure digests.</p>
 <dd><p>A parsed <a href="https://www.w3.org/TR/2023/WD-vc-status-list-20230427/#statuslist2021credential">StatusList2021Credential</a>.</p>
 </dd>
 <dt><a href="#StatusList2021CredentialBuilder">StatusList2021CredentialBuilder</a></dt>
-<dd><p>Builder type to construct valid <a href="#StatusList2021Credential">StatusList2021Credential</a> istances.</p>
+<dd><p>Builder type to construct valid <a href="#StatusList2021Credential">StatusList2021Credential</a> instances.</p>
 </dd>
 <dt><a href="#StatusList2021Entry">StatusList2021Entry</a></dt>
 <dd><p><a href="https://www.w3.org/TR/2023/WD-vc-status-list-20230427/#statuslist2021entry">StatusList2021Entry</a> implementation.</p>
@@ -3147,7 +3147,7 @@ Options to declare validation criteria for [Jpt](#Jpt).
 <a name="new_JptCredentialValidationOptions_new"></a>
 
 ### new JptCredentialValidationOptions([opts])
-Creates a new default istance.
+Creates a new default instance.
 
 
 | Param | Type |
@@ -4664,7 +4664,7 @@ Only supports `RevocationBitmap2022`.
 <a name="JwtCredentialValidator.checkStatusWithStatusList2021"></a>
 
 ### JwtCredentialValidator.checkStatusWithStatusList2021(credential, status_list, status_check)
-Checks wheter the credential status has been revoked using `StatusList2021`.
+Checks whether the credential status has been revoked using `StatusList2021`.
 
 **Kind**: static method of [<code>JwtCredentialValidator</code>](#JwtCredentialValidator)  
 
