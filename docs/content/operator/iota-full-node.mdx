@@ -1,6 +1,6 @@
 ---
 title: IOTA Full Node Configuration
-description: Operate a IOTA Full node to validate blockchain activities, like transactions, checkpoints, and epoch changes.  
+description: Operate an IOTA Full node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
 ---
 
 :::info
@@ -34,19 +34,19 @@ This synchronization process requires listening to at a minimum 2f+1 validators 
 
 ## Architecture 
 
-A IOTA Full node is essentially a read-only view of the network state. Unlike validator nodes, Full nodes cannot sign transactions, although they can validate the integrity of the chain by re-executing transactions that a quorum of validators previously committed.
+An IOTA Full node is essentially a read-only view of the network state. Unlike validator nodes, Full nodes cannot sign transactions, although they can validate the integrity of the chain by re-executing transactions that a quorum of validators previously committed.
 
-Today, a IOTA Full node maintains the full history of the chain.
+Today, an IOTA Full node maintains the full history of the chain.
 
 Validator nodes store only the latest transactions on the frontier of the object graph (for example, transactions with >0 unspent output objects).
 
 ## Full node setup 
 
-Follow the instructions here to run your own IOTA Full.
+Follow the instructions here to run your own IOTA Full node.
 
 ### Hardware requirements 
 
-Suggested minimum hardware to run a IOTA Full node:
+Suggested minimum hardware to run an IOTA Full node:
 
 - CPUs: 8 physical cores / 16 vCPUs
 - RAM: 128 GB
@@ -54,7 +54,7 @@ Suggested minimum hardware to run a IOTA Full node:
 
 ### Software requirements 
 
-IOTA recommends running IOTA Full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also run a IOTA Full node on macOS.
+IOTA recommends running IOTA Full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also run an IOTA Full node on macOS.
 
 Make sure to [update Rust](https://doc.rust-lang.org/book/ch01-01-installation.html#updating-and-uninstalling).
 
@@ -80,11 +80,11 @@ cmake
 
 ## Configure a Full node 
 
-You can configure a IOTA Full node either using Docker or by building from source.
+You can configure an IOTA Full node either using Docker or by building from source.
 
 ### Using Docker Compose 
 
-Follow the instructions in the [Full node Docker Readme](https://github.com/iotaledger/iota/tree/develop/docker/fullnode#readme) to run a IOTA Full node using Docker, including [resetting the environment](https://github.com/iotaledger/iota/tree/develop/docker/fullnode#reset-the-environment).
+Follow the instructions in the [Full node Docker Readme](https://github.com/iotaledger/iota/tree/develop/docker/fullnode#readme) to run an IOTA Full node using Docker, including [resetting the environment](https://github.com/iotaledger/iota/tree/develop/docker/fullnode#reset-the-environment).
 
 ### Setting up a local IOTA repository 
 
@@ -272,7 +272,7 @@ garbage collection. However, without pruning, this can result in database perfor
 amounts of storage space. IOTA identifies the objects that are eligible for pruning in each checkpoint, and then performs
 the pruning in the background.
 
-You can enable pruning for a IOTA node by adding the `authority-store-pruning-config` config to `fullnode.yaml` file:
+You can enable pruning for an IOTA node by adding the `authority-store-pruning-config` config to `fullnode.yaml` file:
 ```yaml
 authority-store-pruning-config:
   # Number of epoch dbs to keep 

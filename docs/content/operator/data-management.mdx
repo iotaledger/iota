@@ -3,26 +3,26 @@ title: Data Management
 description: A high-level description of data management on the IOTA network that you can use to optimize your IOTA Full node configuration. 
 ---
 
-Managing the data on your IOTA Full node is critical to ensuring a healthy IOTA network. This topic provides a high-level description of data management on IOTA Full nodes that you can use to optimize your Full node configuration. For more information about IOTA Full nodes, such as pruning policies and archival settings, see [Run a IOTA Full Node](iota-full-node.mdx).
+Managing the data on your IOTA Full node is critical to ensuring a healthy IOTA network. This topic provides a high-level description of data management on IOTA Full nodes that you can use to optimize your Full node configuration. For more information about IOTA Full nodes, such as pruning policies and archival settings, see [Run an IOTA Full Node](iota-full-node.mdx).
 
 ## Basic IOTA Full node functionality
 
-The minimal version of a IOTA Full node executes all of the transactions IOTA validators commit. IOTA Full nodes also orchestrate the submitting of new transactions to the system:
+The minimal version of an IOTA Full node executes all of the transactions IOTA validators commit. IOTA Full nodes also orchestrate the submitting of new transactions to the system:
 
 ![Basic IOTA Full node functionality](images/fn-basic-functionality.png "A diagram that shows the operations of a basic IOTA Full node.")
 
 The preceding image shows how data flows through a Full node:
 
-1. **`State sync` protocol:** A IOTA Full node performs the following to achieve state synchronization:
+1. **`State sync` protocol:** An IOTA Full node performs the following to achieve state synchronization:
    - Retrieves the information about the committed checkpoints via the p2p gossip-like protocol
    - Executes the transactions locally to verify that effects match the effects certified by the quorum of the validators
    - Updates the local state with the latest object values accordingly.
-2. **RPCs:** A IOTA Full node exposes IOTA RPC endpoints for querying the latest state of the system, including both the latest state metadata (such as, `iota_getProtocolConfig`), and the latest state object data (`iota_getObject)`.
+2. **RPCs:** An IOTA Full node exposes IOTA RPC endpoints for querying the latest state of the system, including both the latest state metadata (such as, `iota_getProtocolConfig`), and the latest state object data (`iota_getObject)`.
 3. **Transaction submission:** Each IOTA Full node orchestrates transaction submission to the quorum of the IOTA Validators, and, optionally if configured, locally executes the finalized transactions (called fast path execution), which circumvents the wait for checkpoint synchronization.
 
 ## IOTA Full node Data and RPC types
 
-A IOTA Full Node stores multiple categories of data in its permanent store.
+An IOTA Full Node stores multiple categories of data in its permanent store.
 
 :::info
 
@@ -52,7 +52,7 @@ IOTA plans to migrate the RPC endpoints that require additional indexing away fr
 
 ## IOTA Archival data
 
-A IOTA archive instance stores the full IOTA transaction history since genesis in a database agnostic format. This includes information about transactions (with client authentication), effects, events, and checkpoints. As such, archival storage can be used for data auditing and for replaying historic transactions.
+An IOTA archive instance stores the full IOTA transaction history since genesis in a database agnostic format. This includes information about transactions (with client authentication), effects, events, and checkpoints. As such, archival storage can be used for data auditing and for replaying historic transactions.
 
 :::info
 
@@ -60,11 +60,11 @@ The current archival storage format doesn't include historic object versions.
 
 :::
 
-As a Full node operator, you can [enable archival fallback for your Full node](./archives.mdx#set-up-archival-fallback) by specifying the URL to upload archival data. Currently, the IOTA Foundation manages a IOTA archive and stores it in AWS S3. To ensure a healthy network, we encourage the IOTA community to set  up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
+As a Full node operator, you can [enable archival fallback for your Full node](./archives.mdx#set-up-archival-fallback) by specifying the URL to upload archival data. Currently, the IOTA Foundation manages an IOTA archive and stores it in AWS S3. To ensure a healthy network, we encourage the IOTA community to set  up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
 
 A Full Node that starts from scratch can replay (and thus re-verify) transactions that occurred since IOTA genesis from the given archive via [configuring Archival Fallback](./archives.mdx#set-up-archival-fallback) in the `fullnode.yaml` configuration file to point to the S3 bucket that stores the archive.
 
-A IOTA Full node that fails to retrieve checkpoints from its peers via state sync protocol falls back to downloading the missing checkpoints from its pre-configured archive. This fallback enables a Full node to catch up with the rest of the system regardless of the pruning policies of its peers.
+An IOTA Full node that fails to retrieve checkpoints from its peers via state sync protocol falls back to downloading the missing checkpoints from its pre-configured archive. This fallback enables a Full node to catch up with the rest of the system regardless of the pruning policies of its peers.
 
 ## IOTA Full node pruning policies
 

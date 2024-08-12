@@ -7,7 +7,7 @@ This guide focuses on running the IOTA node software as a validator.
 
 ## Requirements
 
-To run a IOTA Validator a machine with the following is required:
+To run an IOTA Validator a machine with the following is required:
 - CPU: 24 physical cores (or 48 virtual cores)
 - Memory: 128 GB
 - Storage: 4 TB NVME
@@ -282,7 +282,7 @@ After a validator is reported by `2f + 1` other validators by voting power, thei
 
 ### Joining the validator set
 
-In order for a IOTA address to join the validator set, they need to first sign up as a validator candidate by calling `iota_system::request_add_validator_candidate` with their metadata and initial configs:
+In order for an IOTA address to join the validator set, they need to first sign up as a validator candidate by calling `iota_system::request_add_validator_candidate` with their metadata and initial configs:
 
 ```bash
 iota client call --package 0x3 --module iota_system --function request_add_validator_candidate --args 0x5 {protocol_pubkey_bytes} {network_pubkey_bytes} {worker_pubkey_bytes} {proof_of_possession} {name} {description} {image_url} {project_url} {net_address} {p2p_address} {primary_address} {worker_address} {gas_price} {commission_rate} --gas-budget 10000
