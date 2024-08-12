@@ -26,7 +26,7 @@ import { useAppSelector } from '../../hooks';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
-import PageTemplate from '../../components/PageTemplate';
+import { PageTemplate } from '../../components/PageTemplate';
 
 enum CardActionTitle {
     CreateNew = 'CreateNew',
