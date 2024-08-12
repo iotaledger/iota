@@ -15,17 +15,14 @@
 /// - the current implementation is not optimized for a large number of records
 /// and the final one will feature better collection type;
 module examples::denylist_rule {
-    use std::option;
-    use std::vector;
     use iota::bag::{Self, Bag};
-    use iota::tx_context::TxContext;
     use iota::token::{Self, TokenPolicy, TokenPolicyCap, ActionRequest};
 
     /// Trying to `verify` but the sender or the recipient is on the denylist.
     const EUserBlocked: u64 = 0;
 
     /// The Rule witness.
-    struct Denylist has drop {}
+    public struct Denylist has drop {}
 
     /// Verifies that the sender and the recipient (if set) are not on the
     /// denylist for the given action.
@@ -61,7 +58,7 @@ module examples::denylist_rule {
     public fun add_records<T>(
         policy: &mut TokenPolicy<T>,
         cap: &TokenPolicyCap<T>,
-        addresses: vector<address>,
+        mut addresses: vector<address>,
         ctx: &mut TxContext
     ) {
         if (!has_config(policy)) {
@@ -79,7 +76,7 @@ module examples::denylist_rule {
     public fun remove_records<T>(
         policy: &mut TokenPolicy<T>,
         cap: &TokenPolicyCap<T>,
-        addresses: vector<address>,
+        mut addresses: vector<address>,
         _ctx: &mut TxContext
     ) {
         let config_mut = config_mut(policy, cap);
@@ -121,13 +118,13 @@ module examples::denylist_rule_tests {
     // transaction is confirmed.
     fun denylist_pass_not_on_the_list() {
         let ctx = &mut iota::tx_context::dummy();
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
 
         // first add the list for action and then add records
         token::add_rule_for_action<TEST, Denylist>(&mut policy, &cap, utf8(b"action"), ctx);
         denylist::add_records(&mut policy, &cap, vector[ @0x1 ], ctx);
 
-        let request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
+        let mut request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
 
         denylist::verify(&policy, &mut request, ctx);
         token::confirm_request(&policy, request, ctx);
@@ -139,12 +136,12 @@ module examples::denylist_rule_tests {
     // transaction fails with `EUserBlocked`.
     fun denylist_on_the_list_banned_fail() {
         let ctx = &mut iota::tx_context::dummy();
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
 
         token::add_rule_for_action<TEST, Denylist>(&mut policy, &cap, utf8(b"action"), ctx);
         denylist::add_records(&mut policy, &cap, vector[ @0x0 ], ctx);
 
-        let request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
+        let mut request = token::new_request(utf8(b"action"), 100, none(), none(), ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 
@@ -156,12 +153,12 @@ module examples::denylist_rule_tests {
     // transaction fails with `EUserBlocked`.
     fun denylist_recipient_on_the_list_banned_fail() {
         let ctx = &mut iota::tx_context::dummy();
-        let (policy, cap) = test::get_policy(ctx);
+        let (mut policy, cap) = test::get_policy(ctx);
 
         token::add_rule_for_action<TEST, Denylist>(&mut policy, &cap, utf8(b"action"), ctx);
         denylist::add_records(&mut policy, &cap, vector[ @0x1 ], ctx);
 
-        let request = token::new_request(utf8(b"action"), 100, some(@0x1), none(), ctx);
+        let mut request = token::new_request(utf8(b"action"), 100, some(@0x1), none(), ctx);
 
         denylist::verify(&policy, &mut request, ctx);
 

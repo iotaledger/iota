@@ -10,9 +10,10 @@ import {
     useAccountsFormContext,
 } from '../../components/accounts/AccountsFormContext';
 import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
-import { Button, ButtonType, Header } from '@iota/apps-ui-kit';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
+import { PageTemplate } from '../../components/PageTemplate';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();
@@ -25,30 +26,23 @@ export function ImportPassphrasePage() {
 
     const BUTTON_ICON_CLASSES = 'w-5 h-5 text-neutral-10';
     return (
-        <>
-            <Header
-                title="Import Mnemonic"
-                titleCentered
-                onBack={() => {
-                    navigate(-1);
-                }}
-            />
-            <div className="flex flex-col overflow-auto bg-neutral-100">
-                <div className="flex flex-col items-end gap-4 p-md pb-0 ">
-                    <div>
-                        <Button
-                            text={isTextVisible ? 'Hide Text' : 'Show Text'}
-                            icon={
-                                isTextVisible ? (
-                                    <VisibilityOff className={BUTTON_ICON_CLASSES} />
-                                ) : (
-                                    <VisibilityOn className={BUTTON_ICON_CLASSES} />
-                                )
-                            }
-                            onClick={handleShowTextClick}
-                            type={ButtonType.Secondary}
-                        />
-                    </div>
+        <PageTemplate title="Import Mnemonic" isTitleCentered showBackButton>
+            <div className="flex h-full flex-col gap-md">
+                <div className="flex w-full flex-col items-end">
+                    <Button
+                        text={isTextVisible ? 'Hide Text' : 'Show Text'}
+                        icon={
+                            isTextVisible ? (
+                                <VisibilityOff className={BUTTON_ICON_CLASSES} />
+                            ) : (
+                                <VisibilityOn className={BUTTON_ICON_CLASSES} />
+                            )
+                        }
+                        onClick={handleShowTextClick}
+                        type={ButtonType.Secondary}
+                    />
+                </div>
+                <div className="flex h-full flex-col overflow-hidden">
                     <ImportRecoveryPhraseForm
                         cancelButtonText="Back"
                         submitButtonText="Add Profile"
@@ -69,6 +63,6 @@ export function ImportPassphrasePage() {
                     />
                 </div>
             </div>
-        </>
+        </PageTemplate>
     );
 }

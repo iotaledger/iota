@@ -4,10 +4,7 @@
 
 module nfts::discount_coupon {
     use iota::coin;
-    use iota::object::{Self, UID};
     use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     /// Sending to wrong recipient.
     const EWrongRecipient: u64 = 0;
@@ -16,7 +13,7 @@ module nfts::discount_coupon {
     const EOutOfRangeDiscount: u64 = 1;
 
     /// Discount coupon NFT.
-    struct DiscountCoupon has key {
+    public struct DiscountCoupon has key {
         id: UID,
         // coupon issuer
         issuer: address,

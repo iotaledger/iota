@@ -162,6 +162,10 @@ pub struct EndOfEpochData {
 
     /// Commitments to epoch specific state (e.g. live object set)
     pub epoch_commitments: Vec<CheckpointCommitment>,
+
+    /// The number of tokens that were minted (if positive) or burnt (if
+    /// negative) in this epoch.
+    pub epoch_supply_change: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -324,7 +328,7 @@ impl CertifiedCheckpointSummary {
             let content_digest = *contents.digest();
             fp_ensure!(
                 content_digest == self.data().content_digest,
-                IotaError::GenericAuthorityError {
+                IotaError::GenericAuthority {
                     error: format!(
                         "Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions",
                         self.data(),

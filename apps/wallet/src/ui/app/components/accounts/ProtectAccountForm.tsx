@@ -13,7 +13,7 @@ import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinute
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
-import { Button, ButtonHtmlType, ButtonType, TextField, TextFieldType } from '@iota/apps-ui-kit';
+import { Button, ButtonHtmlType, ButtonType, Input, InputType } from '@iota/apps-ui-kit';
 
 function addDot(str: string | undefined) {
     if (str && !str.endsWith('.')) {
@@ -103,22 +103,24 @@ export function ProtectAccountForm({
     return (
         <Form className="flex h-full flex-col justify-between" form={form} onSubmit={onSubmit}>
             <div className="flex h-full flex-col gap-6">
-                <TextField
+                <Input
                     autoFocus
-                    type={TextFieldType.Password}
+                    type={InputType.Password}
                     isVisibilityToggleEnabled
                     label="Create Password"
                     placeholder="Password"
                     errorMessage={form.formState.errors.password?.input?.message}
                     {...register('password.input')}
+                    name="password.input"
                 />
-                <TextField
-                    type={TextFieldType.Password}
+                <Input
+                    type={InputType.Password}
                     isVisibilityToggleEnabled
                     label="Confirm Password"
                     placeholder="Password"
                     errorMessage={form.formState.errors.password?.confirmation?.message}
                     {...register('password.confirmation')}
+                    name="password.confirmation"
                 />
                 <AutoLockSelector />
             </div>

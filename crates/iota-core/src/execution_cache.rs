@@ -147,7 +147,7 @@ pub trait ExecutionCacheRead: Send + Sync {
                             version: Some(object_ref.1),
                         }
                     };
-                    return Err(IotaError::UserInputError { error });
+                    return Err(IotaError::UserInput { error });
                 }
                 Some(object) => {
                     result.push(object);
@@ -558,6 +558,7 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
     fn expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
+        epoch_supply_change: Option<i64>,
     ) -> IotaResult;
 
     fn checkpoint_db(&self, path: &Path) -> IotaResult;
@@ -785,9 +786,13 @@ macro_rules! implement_passthrough_traits {
             fn expensive_check_iota_conservation(
                 &self,
                 old_epoch_store: &AuthorityPerEpochStore,
+                epoch_supply_change: Option<i64>,
             ) -> IotaResult {
-                self.store
-                    .expensive_check_iota_conservation(self, old_epoch_store)
+                self.store.expensive_check_iota_conservation(
+                    self,
+                    old_epoch_store,
+                    epoch_supply_change,
+                )
             }
 
             fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {

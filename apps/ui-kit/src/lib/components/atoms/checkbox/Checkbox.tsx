@@ -72,15 +72,11 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
 
         return (
             <div
-                className={cx(
-                    'group flex gap-x-2',
-                    isLabelFirst ? 'flex-row' : 'flex-row-reverse',
-                    {
-                        disabled: isDisabled,
-                    },
-                )}
+                className={cx('group inline-flex', isLabelFirst ? 'flex-row-reverse' : 'flex-row', {
+                    disabled: isDisabled,
+                    'gap-x-2': label,
+                })}
             >
-                <LabelText label={label} name={name} />
                 <input
                     id={name}
                     name={name}
@@ -90,7 +86,6 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
                     ref={assignRefs}
                     disabled={isDisabled}
                     onChange={(e) => {
-                        console.log('click');
                         onCheckedChange?.(e);
                     }}
                 />
@@ -100,6 +95,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
                 >
                     <CheckmarkIcon width={16} height={16} />
                 </span>
+                <LabelText label={label} name={name} />
             </div>
         );
     },

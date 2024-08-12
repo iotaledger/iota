@@ -51,7 +51,7 @@ async fn test_zklogin_feature_deny() {
         .await
         .unwrap_err();
 
-    assert!(matches!(err, IotaError::UnsupportedFeatureError { .. }));
+    assert!(matches!(err, IotaError::UnsupportedFeature { .. }));
 }
 
 #[sim_test]
