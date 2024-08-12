@@ -7,7 +7,7 @@ import { Button } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
-import { useCollectUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
+import { useUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -28,7 +28,7 @@ function VestingDashboardPage(): JSX.Element {
     );
     const unlockedTimelockedbjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
-    const { data: unlockAllTimelockedObjects } = useCollectUnlockTimelockedObjects(
+    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjects(
         account?.address || '',
         unlockedTimelockedbjectIds,
     );

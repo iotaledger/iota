@@ -5,7 +5,7 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { createUnlockAllTimelockedObjectsTransaction } from '../utils';
 import { useQuery } from '@tanstack/react-query';
 
-export function useCollectUnlockTimelockedObjects(address: string, objectIds: string[]) {
+export function useUnlockTimelockedObjects(address: string, objectIds: string[]) {
     const client = useIotaClient();
 
     return useQuery({
