@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { IotaEvent } from '@iota/iota.js/client';
+import { IotaEvent } from '@iota/iota-sdk/client';
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../db';

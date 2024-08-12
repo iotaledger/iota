@@ -4,8 +4,8 @@
 
 import { useTransactionData, useTransactionGasBudget } from '_src/ui/app/hooks';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
-import { type TransactionBlock } from '@iota/iota.js/transactions';
-import { formatAddress } from '@iota/iota.js/utils';
+import { type TransactionBlock } from '@iota/iota-sdk/transactions';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 import { DescriptionItem, DescriptionList } from './DescriptionList';
 import { SummaryCard } from './SummaryCard';

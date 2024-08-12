@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@iota/dapp-kit": "^0.12.2",
-    "@iota/iota.js": "^0.50.1",
+    "@iota/iota-sdk": "^0.50.1",
     "@radix-ui/colors": "^3.0.0",
     "@radix-ui/react-icons": "^1.3.0",
     "@radix-ui/themes": "^2.0.0",

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaCallArg } from '@iota/iota.js/client';
+import { type IotaCallArg } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 
 import { ProgrammableTxnBlockCard } from '~/components';

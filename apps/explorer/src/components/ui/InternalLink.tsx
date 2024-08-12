@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isIotaNSName } from '@iota/core';
-import { formatAddress, formatDigest } from '@iota/iota.js/utils';
+import { formatAddress, formatDigest } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/components/ui';

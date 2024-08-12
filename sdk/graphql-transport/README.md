@@ -13,7 +13,7 @@ npm install --save @iota/graphql-transport
 
 ```ts
 import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     transport: new IotaClientGraphQLTransport({

@@ -4,7 +4,7 @@
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';

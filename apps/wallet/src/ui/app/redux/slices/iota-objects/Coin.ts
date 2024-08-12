@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaMoveObject, IotaObjectData } from '@iota/iota.js/client';
+import type { IotaMoveObject, IotaObjectData } from '@iota/iota-sdk/client';
 
 const COIN_TYPE = '0x2::coin::Coin';
 const COIN_TYPE_ARG_REGEX = /^0x2::coin::Coin<(.+)>$/;

@@ -10,6 +10,8 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides access to coin-related data such as coins owned by an address,
+/// balances, or metadata.
 #[open_rpc(namespace = "iotax", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait CoinReadApi {
@@ -61,7 +63,7 @@ pub trait CoinReadApi {
         owner: IotaAddress,
     ) -> RpcResult<Vec<Balance>>;
 
-    /// Return metadata(e.g., symbol, decimals) for a coin
+    /// Return metadata (e.g., symbol, decimals) for a coin.
     #[rustfmt::skip]
     #[method(name = "getCoinMetadata")]
     async fn get_coin_metadata(
@@ -70,7 +72,7 @@ pub trait CoinReadApi {
         coin_type: String,
     ) -> RpcResult<Option<IotaCoinMetadata>>;
 
-    /// Return total supply for a coin
+    /// Return total supply for a coin.
     #[rustfmt::skip]
     #[method(name = "getTotalSupply")]
     async fn get_total_supply(

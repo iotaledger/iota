@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ChevronRight12 } from '@iota/icons';
-import { type IotaEvent } from '@iota/iota.js/client';
-import { formatAddress, parseStructTag } from '@iota/iota.js/utils';
+import { type IotaEvent } from '@iota/iota-sdk/client';
+import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';

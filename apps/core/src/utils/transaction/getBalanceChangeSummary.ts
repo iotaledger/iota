@@ -5,8 +5,8 @@ import {
     type DryRunTransactionBlockResponse,
     type ObjectOwner,
     type IotaTransactionBlockResponse,
-} from '@iota/iota.js/client';
-import { normalizeIotaObjectId, parseStructTag } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { normalizeIotaObjectId, parseStructTag } from '@iota/iota-sdk/utils';
 
 export type BalanceChange = {
     coinType: string;
