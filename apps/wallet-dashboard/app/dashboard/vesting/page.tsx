@@ -5,7 +5,7 @@
 
 import { Button } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
-import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
+import { getVestingOverview, isTimelockedUnlocked, mapTimelockObjects } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { useUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
@@ -23,8 +23,8 @@ function VestingDashboardPage(): JSX.Element {
     const timelockedMapped = timelockedObjects ? mapTimelockObjects(timelockedObjects) : [];
     const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
 
-    const unlockedTimelockedObjects = timelockedMapped?.filter(
-        (timelockedObject) => timelockedObject.expirationTimestampMs <= Number(currentEpochMs),
+    const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
+        isTimelockedUnlocked(timelockedObject, Number(currentEpochMs)),
     );
     const unlockedTimelockedbjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];

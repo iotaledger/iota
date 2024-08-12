@@ -19,3 +19,10 @@ export function isTimelocked(obj: Timelocked | TimelockedStakedIota): obj is Tim
 export function isVesting(obj: Timelocked | TimelockedStakedIota): boolean {
     return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
 }
+
+export function isTimelockedUnlocked(
+    timelockedObject: Timelocked | TimelockedStakedIota,
+    currentEpochMs: number,
+): boolean {
+    return timelockedObject.expirationTimestampMs <= Number(currentEpochMs);
+}
