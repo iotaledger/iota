@@ -59,7 +59,7 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
                 disabled={disabled}
             />
             <FormField name="autoLock.timer">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-xs">
                     <Input
                         disabled={disabled || !timerEnabled}
                         type="number"
