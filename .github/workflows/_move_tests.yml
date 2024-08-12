@@ -1,6 +1,6 @@
 name: Move tests
 
-on: [workflow_call]
+on: workflow_call
 
 jobs:
   # This job ensures that Move unit tests are run if there are changes
