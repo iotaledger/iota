@@ -123,6 +123,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      # iota-sdk version needs to be explicitly defined here due to this bug
+      # https://github.com/rust-lang/cargo/issues/12891
+      # (we have the stardust iota-sdk package as a dependency)
       - name: Run Cargo Udeps
         run: cargo +nightly ci-udeps -p iota-sdk@0.1.4
 
