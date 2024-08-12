@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DelegatedStake, StakeObject } from '@iota/iota.js/client';
+import { DelegatedStake, StakeObject } from '@iota/iota-sdk/client';
 
 export type ExtendedDelegatedStake = StakeObject & {
     validatorAddress: string;

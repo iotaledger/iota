@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
-  '@iota/iota.js':
+  '@iota/iota-sdk':
     specifier: ^0.50.1
     version: 0.50.1
   '@prisma/client':
@@ -98,7 +98,7 @@ packages:
       bs58: 5.0.0
     dev: false
 
-  /@iota/iota.js@0.50.1:
+  /@iota/iota-sdk@0.50.1:
     resolution: {integrity: sha512-AY0wb4n6PMTRsDGygzrrTHUK/m5KwKZ4aQcN9cayiwsq2iIhfjGo7uuqMA7Y5UiqvLCoF+z7Ig14Q5qejQ/S/w==}
     engines: {node: '>=16'}
     dependencies:

@@ -65,7 +65,7 @@ jobs:
 
       - name: Run TS SDK e2e tests
         if: inputs.isTypescriptSDK || inputs.isRust
-        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota.js test:e2e'
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota-sdk test:e2e'
 
       - name: Run RPC/GraphQL compatibility e2e tests
         if: inputs.isGraphQlTransport || inputs.isRust

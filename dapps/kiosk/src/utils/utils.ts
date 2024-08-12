@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { KioskListing, KioskOwnerCap } from '@iota/kiosk';
-import { IotaObjectResponse } from '@iota/iota.js/client';
-import { MICROS_PER_IOTA, normalizeIotaAddress } from '@iota/iota.js/utils';
+import { IotaObjectResponse } from '@iota/iota-sdk/client';
+import { MICROS_PER_IOTA, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 // Parse the display of a list of objects into a simple {object_id: display} map
 // to use throughout the app.
