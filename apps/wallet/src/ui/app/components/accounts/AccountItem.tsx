@@ -9,9 +9,9 @@ import { formatAddress } from '@iota/iota.js/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
-import { useAccounts } from '_app/hooks/useAccounts';
-import { useCopyToClipboard } from '_app/hooks/useCopyToClipboard';
-import { useExplorerLink } from '_app/hooks/useExplorerLink';
+import { useAccounts } from '../../hooks/useAccounts';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import { useExplorerLink } from '../../hooks/useExplorerLink';
 import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
 import { IconButton } from '_components/IconButton';
 import { EditableAccountName } from './EditableAccountName';

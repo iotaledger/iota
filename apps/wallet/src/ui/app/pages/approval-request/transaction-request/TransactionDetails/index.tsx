@@ -6,7 +6,7 @@ import { useTransactionData } from '_src/ui/app/hooks';
 import { Tab as HeadlessTab, type TabProps } from '@headlessui/react';
 import { type TransactionBlock } from '@iota/iota.js/transactions';
 
-import { SummaryCard } from '_pages/approval-request/transaction-request/SummaryCard';
+import { SummaryCard } from '../SummaryCard';
 import { Command } from './Command';
 import { Input } from './Input';
 

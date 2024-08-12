@@ -5,7 +5,7 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
 
-import { Text } from '_app/shared/text';
+import { Text } from '../shared/text';
 
 export interface SummaryCardProps {
     header?: string;

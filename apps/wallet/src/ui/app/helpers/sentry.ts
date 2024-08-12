@@ -5,7 +5,7 @@
 import { growthbook } from '_src/ui/app/experimentation/feature-gating';
 import * as Sentry from '@sentry/react';
 
-import { getSentryConfig } from '_shared/sentry-config';
+import { getSentryConfig } from '../../../shared/sentry-config';
 
 export default function initSentry() {
     Sentry.init(

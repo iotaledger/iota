@@ -4,7 +4,7 @@
 
 import { forwardRef } from 'react';
 
-import { Link, type LinkProps } from '_app/shared/Link';
+import { Link, type LinkProps } from '../../shared/Link';
 
 interface FooterLinkProps extends LinkProps {
     icon?: React.ReactNode;

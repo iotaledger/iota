@@ -5,7 +5,7 @@
 import { useContext } from 'react';
 import { createPortal } from 'react-dom';
 
-import { Heading } from '_app/shared/heading';
+import { Heading } from '../heading';
 import { PageMainLayoutContext } from './PageMainLayout';
 
 export type PageMainLayoutTitleProps = {

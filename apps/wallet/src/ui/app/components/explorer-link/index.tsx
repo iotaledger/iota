@@ -7,8 +7,8 @@ import { ArrowUpRight16 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import type { ReactNode } from 'react';
 
-import { useExplorerLink, type ExplorerLinkConfig } from '_app/hooks/useExplorerLink';
-import { Text } from '_app/shared/text';
+import { useExplorerLink, type ExplorerLinkConfig } from '../../hooks/useExplorerLink';
+import { Text } from '../../shared/text';
 import st from './ExplorerLink.module.scss';
 import { ExplorerLinkType } from './ExplorerLinkType';
 

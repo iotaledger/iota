@@ -8,7 +8,7 @@ import { get, set } from 'idb-keyval';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 
-import { Link as InlineLink } from '_app/shared/Link';
+import { Link as InlineLink } from '../../../shared/Link';
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 

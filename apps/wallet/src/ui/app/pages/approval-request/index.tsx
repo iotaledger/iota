@@ -10,9 +10,9 @@ import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
 import Loading from '_components/loading';
-import { useAppSelector } from '_app/hooks';
-import { type RootState } from '_redux/RootReducer';
-import { txRequestsSelectors } from '_redux/slices/transaction-requests';
+import { useAppSelector } from '../../hooks';
+import { type RootState } from '../../redux/RootReducer';
+import { txRequestsSelectors } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
 

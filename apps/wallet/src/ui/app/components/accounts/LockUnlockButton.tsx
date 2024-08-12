@@ -5,7 +5,7 @@
 import { LockLocked16, LockUnlocked16 } from '@iota/icons';
 import { type ComponentPropsWithoutRef } from 'react';
 
-import { Tooltip } from '_app/shared/tooltip';
+import { Tooltip } from '../../shared/tooltip';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 
 interface LockUnlockButtonProps extends ComponentPropsWithoutRef<'button'> {

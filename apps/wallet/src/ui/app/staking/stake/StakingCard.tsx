@@ -35,11 +35,11 @@ import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import Alert from '_components/alert';
-import { getSignerOperationErrorMessage } from '_app/helpers/errorMessages';
-import { useActiveAccount } from '_app/hooks/useActiveAccount';
-import { useSigner } from '_app/hooks/useSigner';
-import { getDelegationDataByStakeId } from '_app/staking/getDelegationByStakeId';
-import { getStakeIotaByIotaId } from '_app/staking/getStakeIotaByIotaId';
+import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
+import { useActiveAccount } from '../../hooks/useActiveAccount';
+import { useSigner } from '../../hooks/useSigner';
+import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
+import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { createValidationSchema } from './utils/validation';

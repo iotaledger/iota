@@ -11,7 +11,7 @@ import Alert from '_components/alert';
 import { HideShowDisplayBox } from '_components/HideShowDisplayBox';
 import Loading from '_components/loading';
 import Overlay from '_components/overlay';
-import { useAccounts } from '_app/hooks/useAccounts';
+import { useAccounts } from '../../hooks/useAccounts';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();

@@ -16,9 +16,9 @@ import { ChevronDown12, ChevronRight12 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import cx from 'clsx';
 
-import { ExpandableList } from '_app/shared/ExpandableList';
-import { Card } from '_app/shared/transaction-summary/Card';
-import { OwnerFooter } from '_app/shared/transaction-summary/OwnerFooter';
+import { ExpandableList } from '../../ExpandableList';
+import { Card } from '../Card';
+import { OwnerFooter } from '../OwnerFooter';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
 
 interface ChevronDownProps {

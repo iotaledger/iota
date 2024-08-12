@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
 import { ImportPrivateKeyForm } from '_components/accounts/ImportPrivateKeyForm';
-import { Heading } from '_app/shared/heading';
+import { Heading } from '../../shared/heading';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();

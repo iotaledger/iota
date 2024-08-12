@@ -8,8 +8,8 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { VerifyPasswordModal } from '_components/accounts/VerifyPasswordModal';
 import Loading from '_components/loading';
 import Overlay from '_components/overlay';
-import { useAccountSources } from '_app/hooks/useAccountSources';
-import { useExportSeedMutation } from '_app/hooks/useExportSeedMutation';
+import { useAccountSources } from '../../hooks/useAccountSources';
+import { useExportSeedMutation } from '../../hooks/useExportSeedMutation';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function ExportSeedPage() {

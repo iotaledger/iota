@@ -4,7 +4,7 @@
 
 import { Outlet } from 'react-router-dom';
 
-import { Toaster } from '_app/shared/toaster';
+import { Toaster } from '../../shared/toaster';
 
 export function AccountsPage() {
     return (

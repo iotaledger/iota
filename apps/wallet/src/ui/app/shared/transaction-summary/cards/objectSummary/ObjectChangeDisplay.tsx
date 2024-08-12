@@ -8,7 +8,7 @@ import { NftImage } from '_src/ui/app/components/nft-display/NftImage';
 import { type IotaObjectChangeWithDisplay } from '@iota/core';
 import { formatAddress } from '@iota/iota.js/utils';
 
-import { Text } from '_app/shared/text';
+import { Text } from '../../../text';
 
 export function ObjectChangeDisplay({ change }: { change: IotaObjectChangeWithDisplay }) {
     const display = change?.display?.data;

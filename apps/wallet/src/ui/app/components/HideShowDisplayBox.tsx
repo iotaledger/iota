@@ -6,9 +6,9 @@ import { Copy16, EyeClose16, EyeOpen16 } from '@iota/icons';
 import { cx } from 'class-variance-authority';
 import { useEffect, useState } from 'react';
 
-import { useCopyToClipboard } from '_app/hooks/useCopyToClipboard';
-import { Link } from '_app/shared/Link';
-import { Text } from '_app/shared/text';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { Link } from '../shared/Link';
+import { Text } from '../shared/text';
 
 const AUTO_HIDE_INTERVAL = 3 * 60 * 1000;
 

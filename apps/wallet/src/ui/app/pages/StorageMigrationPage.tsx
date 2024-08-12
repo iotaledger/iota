@@ -7,10 +7,10 @@ import { toast } from 'react-hot-toast';
 
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { PasswordInputDialog } from '_components/PasswordInputDialog';
-import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
-import { useStorageMigrationStatus } from '_app/hooks/useStorageMigrationStatus';
-import { CardLayout } from '_app/shared/card-layout';
-import { Toaster } from '_app/shared/toaster';
+import { useBackgroundClient } from '../hooks/useBackgroundClient';
+import { useStorageMigrationStatus } from '../hooks/useStorageMigrationStatus';
+import { CardLayout } from '../shared/card-layout';
+import { Toaster } from '../shared/toaster';
 
 export function StorageMigrationPage() {
     const { data } = useStorageMigrationStatus();

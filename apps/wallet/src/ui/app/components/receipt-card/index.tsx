@@ -6,10 +6,10 @@ import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
-import { DateCard } from '_app/shared/date-card';
-import { TransactionSummary } from '_app/shared/transaction-summary';
-import { ExplorerLinkCard } from '_app/shared/transaction-summary/cards/ExplorerLink';
-import { GasSummary } from '_app/shared/transaction-summary/cards/GasSummary';
+import { DateCard } from '../../shared/date-card';
+import { TransactionSummary } from '../../shared/transaction-summary';
+import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
+import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
 import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';

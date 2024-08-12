@@ -7,9 +7,9 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import { seedValidation } from '_app/helpers/validation/seedValidation';
-import { Form } from '_app/shared/forms/Form';
-import { TextAreaField } from '_app/shared/forms/TextAreaField';
+import { seedValidation } from '../../helpers/validation/seedValidation';
+import { Form } from '../../shared/forms/Form';
+import { TextAreaField } from '../../shared/forms/TextAreaField';
 
 const formSchema = z.object({
     seed: seedValidation,

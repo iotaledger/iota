@@ -21,9 +21,9 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Plus12 } from '@iota/icons';
 import { useMemo } from 'react';
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { StakeAmount } from '_app/staking/home/StakeAmount';
-import { StakeCard } from '_app/staking/home/StakedCard';
+import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { StakeAmount } from '../home/StakeAmount';
+import { StakeCard } from '../home/StakedCard';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();

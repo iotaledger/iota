@@ -24,8 +24,8 @@ import {
     type DerivedLedgerAccount,
 } from '_components/ledger/useDeriveLedgerAccounts';
 import Overlay from '_components/overlay';
-import { getIotaApplicationErrorMessage } from '_app/helpers/errorMessages';
-import { useAccounts } from '_app/hooks/useAccounts';
+import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
+import { useAccounts } from '../../hooks/useAccounts';
 
 const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
 

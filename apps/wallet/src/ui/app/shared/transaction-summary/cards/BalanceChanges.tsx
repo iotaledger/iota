@@ -15,8 +15,8 @@ import {
 import classNames from 'clsx';
 import { useMemo } from 'react';
 
-import { Card } from '_app/shared/transaction-summary/Card';
-import { OwnerFooter } from '_app/shared/transaction-summary/OwnerFooter';
+import { Card } from '../Card';
+import { OwnerFooter } from '../OwnerFooter';
 
 interface BalanceChangesProps {
     changes?: BalanceChangeSummary;

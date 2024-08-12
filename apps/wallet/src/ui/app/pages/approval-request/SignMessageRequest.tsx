@@ -7,13 +7,13 @@ import { toUtf8OrB64 } from '_src/shared/utils';
 import { useMemo } from 'react';
 
 import { UserApproveContainer } from '_components/user-approve-container';
-import { useAppDispatch } from '_app/hooks';
-import { useAccountByAddress } from '_app/hooks/useAccountByAddress';
-import { useSigner } from '_app/hooks/useSigner';
-import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
-import { Heading } from '_app/shared/heading';
-import { PageMainLayoutTitle } from '_app/shared/page-main-layout/PageMainLayoutTitle';
-import { Text } from '_app/shared/text';
+import { useAppDispatch } from '../../hooks';
+import { useAccountByAddress } from '../../hooks/useAccountByAddress';
+import { useSigner } from '../../hooks/useSigner';
+import { respondToTransactionRequest } from '../../redux/slices/transaction-requests';
+import { Heading } from '../../shared/heading';
+import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
+import { Text } from '../../shared/text';
 
 export interface SignMessageRequestProps {
     request: SignMessageApprovalRequest;

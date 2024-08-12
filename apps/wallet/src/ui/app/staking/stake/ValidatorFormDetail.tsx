@@ -19,11 +19,11 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { getStakeIotaByIotaId } from '_app/staking/getStakeIotaByIotaId';
-import { getTokenStakeIotaForValidator } from '_app/staking/getTokenStakeIotaForValidator';
-import { StakeAmount } from '_app/staking/home/StakeAmount';
-import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
+import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
+import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
+import { StakeAmount } from '../home/StakeAmount';
+import { ValidatorLogo } from '../validators/ValidatorLogo';
 
 interface ValidatorFormDetailProps {
     validatorAddress: string;

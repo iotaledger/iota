@@ -7,7 +7,7 @@ import { type IotaClient } from '@iota/iota.js/client';
 import type { SerializedSignature } from '@iota/iota.js/cryptography';
 
 import type { BackgroundClient } from '.';
-import { WalletSigner } from '_app/WalletSigner';
+import { WalletSigner } from '../WalletSigner';
 
 export class BackgroundServiceSigner extends WalletSigner {
     readonly #account: SerializedUIAccount;

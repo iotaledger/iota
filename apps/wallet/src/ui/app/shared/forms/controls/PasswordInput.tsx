@@ -5,7 +5,7 @@
 import { EyeClose16, EyeOpen16 } from '@iota/icons';
 import { forwardRef, useState, type ComponentProps } from 'react';
 
-import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
+import { ButtonOrLink } from '../../utils/ButtonOrLink';
 import { Input } from './Input';
 
 type PasswordInputProps = {

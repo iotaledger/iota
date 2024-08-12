@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useInitializedGuard } from '_app/hooks';
-import { Text } from '_app/shared/text';
+import { useInitializedGuard } from '../../hooks';
+import { Text } from '../../shared/text';
 import SadCapy from './SadCapy.svg';
 
 export function RestrictedPage() {

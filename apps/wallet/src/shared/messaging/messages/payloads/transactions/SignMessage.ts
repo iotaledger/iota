@@ -4,7 +4,8 @@
 
 import { type IotaSignMessageOutput } from '@iota/wallet-standard';
 
-import { isBasePayload, type BasePayload, type Payload } from '_payloads';
+import { isBasePayload, type BasePayload } from '../BasePayload';
+import { type Payload } from '../Payload';
 
 export interface SignMessageRequest extends BasePayload {
     type: 'sign-message-request';

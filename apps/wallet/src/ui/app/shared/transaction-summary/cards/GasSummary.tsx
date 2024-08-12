@@ -7,7 +7,7 @@ import { useActiveAddress } from '_src/ui/app/hooks';
 import { useFormatCoin, type GasSummaryType } from '@iota/core';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
-import { Text } from '_app/shared/text';
+import { Text } from '../../text';
 
 interface GasSummaryProps {
     gasSummary?: GasSummaryType;

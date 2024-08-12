@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
 import { ImportRecoveryPhraseForm } from '_components/accounts/ImportRecoveryPhraseForm';
-import { Heading } from '_app/shared/heading';
+import { Heading } from '../../shared/heading';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();

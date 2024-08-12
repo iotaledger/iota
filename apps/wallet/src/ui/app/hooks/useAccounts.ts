@@ -5,7 +5,7 @@
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useQuery } from '@tanstack/react-query';
 
-import { ACCOUNTS_QUERY_KEY } from '_app/helpers/query-client-keys';
+import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useAccounts() {

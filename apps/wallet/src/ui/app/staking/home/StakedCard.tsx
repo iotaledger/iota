@@ -16,7 +16,7 @@ import { cva, cx, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
+import { ValidatorLogo } from '../validators/ValidatorLogo';
 
 export enum StakeState {
     WarmUp = 'WARM_UP',

@@ -4,7 +4,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 
-import { Button } from '_app/shared/ButtonUI';
+import { Button } from '../../shared/ButtonUI';
 import { useUnlockAccount } from './UnlockAccountContext';
 
 export interface UnlockAccountButtonProps {

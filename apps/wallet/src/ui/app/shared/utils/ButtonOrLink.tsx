@@ -7,7 +7,7 @@ import { forwardRef, type ComponentProps, type ReactNode, type Ref } from 'react
 import { Link, type LinkProps } from 'react-router-dom';
 
 import LoadingIndicator from '_components/loading/LoadingIndicator';
-import { Tooltip } from '_app/shared/tooltip';
+import { Tooltip } from '../tooltip';
 
 interface WithTooltipProps {
     title?: ReactNode;

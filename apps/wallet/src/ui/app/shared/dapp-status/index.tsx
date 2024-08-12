@@ -18,8 +18,8 @@ import { ChevronDown12, Dot12 } from '@iota/icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { ButtonConnectedTo } from '_app/shared/ButtonConnectedTo';
+import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { ButtonConnectedTo } from '../ButtonConnectedTo';
 import { appDisconnect } from './actions';
 import st from './DappStatus.module.scss';
 

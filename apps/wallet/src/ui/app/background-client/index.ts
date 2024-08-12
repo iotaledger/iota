@@ -34,10 +34,10 @@ import { toB64 } from '@iota/iota.js/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 
-import { growthbook } from '_app/experimentation/feature-gating';
-import { ACCOUNTS_QUERY_KEY } from '_app/helpers/query-client-keys';
-import { queryClient } from '_app/helpers/queryClient';
-import { ACCOUNT_SOURCES_QUERY_KEY } from '_app/hooks/useAccountSources';
+import { growthbook } from '../experimentation/feature-gating';
+import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
+import { queryClient } from '../helpers/queryClient';
+import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
     type DeriveBipPathAccountsFinder,

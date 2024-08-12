@@ -4,7 +4,7 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { ButtonOrLink, type ButtonOrLinkProps } from '_app/shared/utils/ButtonOrLink';
+import { ButtonOrLink, type ButtonOrLinkProps } from '../shared/utils/ButtonOrLink';
 
 interface IconButtonProps extends ButtonOrLinkProps, VariantProps<typeof buttonStyles> {
     icon: JSX.Element;

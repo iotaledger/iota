@@ -19,10 +19,10 @@ import {
 } from '@iota/apps-ui-kit';
 import { AccountsFormType, useAccountsFormContext } from '_components/accounts/AccountsFormContext';
 import { ConnectLedgerModal } from '_components/ledger/ConnectLedgerModal';
-import { getLedgerConnectionErrorMessage } from '_app/helpers/errorMessages';
-import { useAppSelector } from '_hooks';
-import { useCreateAccountsMutation } from '_app/hooks/useCreateAccountMutation';
-import { AppType } from '_redux/slices/app/AppType';
+import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
+import { useAppSelector } from '../../hooks';
+import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
+import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {

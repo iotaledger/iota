@@ -5,8 +5,8 @@ import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '@io
 import { type IotaObjectResponse } from '@iota/iota.js/client';
 import cl from 'clsx';
 
-import { useActiveAddress } from '_app/hooks';
-import { Text } from '_app/shared/text';
+import { useActiveAddress } from '../../hooks';
+import { Text } from '../../shared/text';
 import { NftImage, type NftImageProps } from './NftImage';
 
 interface KioskProps extends Partial<NftImageProps> {

@@ -9,9 +9,9 @@ import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { useAccountSources } from '_app/hooks/useAccountSources';
-import { Heading } from '_app/shared/heading';
-import { Text } from '_app/shared/text';
+import { useAccountSources } from '../../../hooks/useAccountSources';
+import { Heading } from '../../../shared/heading';
+import { Text } from '../../../shared/text';
 import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 

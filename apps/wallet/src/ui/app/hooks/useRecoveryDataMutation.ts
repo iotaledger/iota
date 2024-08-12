@@ -5,7 +5,7 @@
 import { type PasswordRecoveryData } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { useMutation } from '@tanstack/react-query';
 
-import { useForgotPasswordContext } from '_pages/accounts/forgot-password/ForgotPasswordPage';
+import { useForgotPasswordContext } from '../pages/accounts/forgot-password/ForgotPasswordPage';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useRecoveryDataMutation() {

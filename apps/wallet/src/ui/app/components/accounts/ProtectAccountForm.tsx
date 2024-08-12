@@ -11,11 +11,11 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import zxcvbn from 'zxcvbn';
 
-import { parseAutoLock, useAutoLockMinutes } from '_app/hooks/useAutoLockMinutes';
-import { CheckboxField } from '_app/shared/forms/CheckboxField';
-import { Form } from '_app/shared/forms/Form';
-import { TextField } from '_app/shared/forms/TextField';
-import { Link } from '_app/shared/Link';
+import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinutes';
+import { CheckboxField } from '../../shared/forms/CheckboxField';
+import { Form } from '../../shared/forms/Form';
+import { TextField } from '../../shared/forms/TextField';
+import { Link } from '../../shared/Link';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
 
 function addDot(str: string | undefined) {

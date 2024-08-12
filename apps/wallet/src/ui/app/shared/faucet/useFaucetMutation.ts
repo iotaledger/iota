@@ -5,7 +5,7 @@
 import { getFaucetRequestStatus, requestIotaFromFaucetV1 } from '@iota/iota.js/faucet';
 import { useIsMutating, useMutation, type UseMutationOptions } from '@tanstack/react-query';
 
-import { useActiveAccount } from '_app/hooks/useActiveAccount';
+import { useActiveAccount } from '../../hooks/useActiveAccount';
 
 type UseFaucetMutationOptions = Pick<UseMutationOptions, 'onError'> & {
     host?: string;

@@ -4,7 +4,7 @@
 import { Copy12 } from '@iota/icons';
 import { Text } from '_src/ui/app/shared/text';
 import { formatAddress } from '@iota/iota.js/utils';
-import { useCopyToClipboard } from '_app/hooks/useCopyToClipboard';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { IconButton } from '_components/IconButton';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useBalance, useFormatCoin } from '@iota/core';

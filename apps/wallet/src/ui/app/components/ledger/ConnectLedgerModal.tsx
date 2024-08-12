@@ -15,7 +15,7 @@ import {
 import { Text } from '_src/ui/app/shared/text';
 import { useState } from 'react';
 
-import { Link } from '_app/shared/Link';
+import { Link } from '../../shared/Link';
 
 interface ConnectLedgerModalProps {
     onClose: () => void;

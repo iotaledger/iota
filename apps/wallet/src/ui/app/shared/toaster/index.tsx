@@ -9,7 +9,7 @@ import cl from 'clsx';
 import { Toaster as ToasterLib } from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 
-import { Portal } from '_app/shared/Portal';
+import { Portal } from '../Portal';
 
 export type ToasterProps = {
     bottomNavEnabled?: boolean;

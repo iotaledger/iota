@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react';
 
-import { DEFAULT_SORT_ORDER, groupByType } from '_app/helpers/accounts';
+import { DEFAULT_SORT_ORDER, groupByType } from '../helpers/accounts';
 import { useAccounts } from './useAccounts';
 
 export function useAccountGroups() {

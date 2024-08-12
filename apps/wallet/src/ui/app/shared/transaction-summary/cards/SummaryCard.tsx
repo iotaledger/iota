@@ -5,7 +5,7 @@ import { ChevronDown16, ChevronRight16 } from '@iota/icons';
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 
-import { Text } from '_app/shared/text';
+import { Text } from '../../../shared/text';
 
 interface SummaryCardProps {
     header: ReactNode;

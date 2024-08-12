@@ -4,10 +4,10 @@
 
 import { Route, Routes } from 'react-router-dom';
 
-import { useUnlockedGuard } from '_app/hooks/useUnlockedGuard';
-import { DelegationDetail } from '_app/staking/delegation-detail';
-import StakePage from '_app/staking/stake';
-import { Validators } from '_app/staking/validators';
+import { useUnlockedGuard } from '../../hooks/useUnlockedGuard';
+import { DelegationDetail } from '../delegation-detail';
+import StakePage from '../stake';
+import { Validators } from '../validators';
 
 export function Staking() {
     if (useUnlockedGuard()) {

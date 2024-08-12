@@ -6,8 +6,8 @@ import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { ArrowUpRight12 } from '@iota/icons';
 import { useEffect, useState } from 'react';
 
-import { Text } from '_app/shared/text';
-import { Card } from '_app/shared/transaction-summary/Card';
+import { Text } from '../../text';
+import { Card } from '../Card';
 
 const TIME_TO_WAIT_FOR_EXPLORER = 60 * 1000;
 

@@ -9,11 +9,11 @@ import cn from 'clsx';
 import { createContext, useState, type ReactNode } from 'react';
 
 import { WalletSettingsButton } from '_components/menu/button/WalletSettingsButton';
-import { useAppSelector } from '_app/hooks';
-import { AppType } from '_redux/slices/app/AppType';
-import DappStatus from '_app/shared/dapp-status';
-import { Header } from '_app/shared/header/Header';
-import { Toaster } from '_app/shared/toaster';
+import { useAppSelector } from '../../hooks';
+import { AppType } from '../../redux/slices/app/AppType';
+import DappStatus from '../dapp-status';
+import { Header } from '../header/Header';
+import { Toaster } from '../toaster';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
