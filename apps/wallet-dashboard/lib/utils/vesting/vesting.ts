@@ -6,10 +6,10 @@ import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_STARTING_VESTING_YEAR,
+    SUPPLY_INCREASE_VESTING_LABEL,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
     SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS,
 } from '../../constants';
-
 import {
     SupplyIncreaseUserType,
     SupplyIncreaseVestingPayout,
@@ -20,7 +20,6 @@ import {
     VestingOverview,
 } from '../../interfaces';
 import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
-import { isSupplyIncreaseVestingObject } from '../vesting';
 
 export function getLastSupplyIncreaseVestingPayout(
     objects: (TimelockedObject | TimelockedStakedIota)[],
@@ -226,4 +225,10 @@ export function timelockObjectsFromIotaObjects(
         result.push(...stakeMapped);
     });
     return result;
+}
+
+export function isSupplyIncreaseVestingObject(
+    obj: TimelockedObject | TimelockedStakedIota,
+): boolean {
+    return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
 }
