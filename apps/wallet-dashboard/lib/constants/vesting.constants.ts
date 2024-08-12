@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Timelocked, TimelockedStakedIota } from '../interfaces';
+import { TimelockedObject, TimelockedStakedIota } from '../interfaces';
 import { DAYS_PER_WEEK, DAYS_PER_YEAR, MILLISECONDS_PER_DAY } from './time.constants';
 
 export const SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE = 2 * DAYS_PER_WEEK;
@@ -18,7 +18,7 @@ export const SUPPLY_INCREASE_INVESTOR_VESTING_DURATION = 4; // Years
 export const SUPPLY_INCREASE_VESTING_LABEL =
     '000000000000000000000000000000000000000000000000000000000000107a::stardust_upgrade_label::STARDUST_UPGRADE_LABEL';
 
-export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: Timelocked[] = [
+export const MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS: TimelockedObject[] = [
     {
         id: {
             id: '0xfe755ca67e3a0714f97ec3c49cfc6f3ecdab2673d96b5840294d3a5db376c99',
@@ -680,7 +680,7 @@ export const MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS: TimelockedStakedIota[] = 
 ];
 
 export const MOCKED_VESTING_TIMELOCKED_AND_TIMELOCK_STAKED_OBJECTS: (
-    | Timelocked
+    | TimelockedObject
     | TimelockedStakedIota
 )[] = [
     {

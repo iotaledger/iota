@@ -6,25 +6,25 @@ import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_STARTING_VESTING_YEAR,
+    SUPPLY_INCREASE_VESTING_LABEL,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
     SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS,
 } from '../../constants';
-
 import {
     SupplyIncreaseUserType,
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
-    Timelocked,
     TimelockedIotaResponse,
+    TimelockedObject,
     TimelockedStakedIota,
     VestingOverview,
 } from '../../interfaces';
-import { isTimelocked, isTimelockedStakedIota, isVesting } from '../timelock';
+import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
 
 export function getLastSupplyIncreaseVestingPayout(
-    objects: (Timelocked | TimelockedStakedIota)[],
+    objects: (TimelockedObject | TimelockedStakedIota)[],
 ): SupplyIncreaseVestingPayout | undefined {
-    const vestingObjects = objects.filter(isVesting);
+    const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
 
     if (vestingObjects.length === 0) {
         return undefined;
@@ -38,14 +38,14 @@ export function getLastSupplyIncreaseVestingPayout(
 }
 
 function supplyIncreaseVestingObjectsToPayoutMap(
-    vestingObjects: (Timelocked | TimelockedStakedIota)[],
+    vestingObjects: (TimelockedObject | TimelockedStakedIota)[],
 ): Map<number, SupplyIncreaseVestingPayout> {
     const expirationToVestingPayout = new Map<number, SupplyIncreaseVestingPayout>();
 
     for (const vestingObject of vestingObjects) {
         let objectValue = 0;
-        if (isTimelocked(vestingObject)) {
-            objectValue = (vestingObject as Timelocked).locked.value;
+        if (isTimelockedObject(vestingObject)) {
+            objectValue = (vestingObject as TimelockedObject).locked.value;
         } else if (isTimelockedStakedIota(vestingObject)) {
             objectValue = (vestingObject as TimelockedStakedIota).stakedIota.principal.value;
         }
@@ -111,10 +111,10 @@ export function buildSupplyIncreaseVestingSchedule(
 }
 
 export function getVestingOverview(
-    objects: (Timelocked | TimelockedStakedIota)[],
+    objects: (TimelockedObject | TimelockedStakedIota)[],
     currentEpochTimestamp: number,
 ): VestingOverview {
-    const vestingObjects = objects.filter(isVesting);
+    const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
     const latestPayout = getLastSupplyIncreaseVestingPayout(vestingObjects);
 
     if (vestingObjects.length === 0 || !latestPayout) {
@@ -148,7 +148,7 @@ export function getVestingOverview(
         0,
     );
 
-    const timelockedObjects = vestingObjects.filter(isTimelocked);
+    const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
@@ -185,7 +185,7 @@ export function getSupplyIncreaseVestingPayoutsCount(userType: SupplyIncreaseUse
     return SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * vestingDuration;
 }
 
-export function mapTimelockObjects(iotaObjects: IotaObjectData[]): Timelocked[] {
+export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
     return iotaObjects.map((iotaObject) => {
         if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
             return {
@@ -225,4 +225,10 @@ export function timelockObjectsFromIotaObjects(
         result.push(...stakeMapped);
     });
     return result;
+}
+
+export function isSupplyIncreaseVestingObject(
+    obj: TimelockedObject | TimelockedStakedIota,
+): boolean {
+    return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
 }

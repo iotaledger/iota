@@ -10,7 +10,7 @@ import {
 } from '../../constants';
 
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
-import { isTimelocked, isTimelockedStakedIota } from '../timelock';
+import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
 
 import {
     getVestingOverview,
@@ -220,7 +220,7 @@ describe('vesting overview', () => {
             .reduce((acc, current) => acc + current.stakedIota.principal.value, 0);
         expect(vestingOverview.totalStaked).toEqual(totalStaked);
 
-        const timelockObjects = mixedObjects.filter(isTimelocked);
+        const timelockObjects = mixedObjects.filter(isTimelockedObject);
         const availableClaiming = timelockObjects.reduce(
             (acc, current) =>
                 current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
