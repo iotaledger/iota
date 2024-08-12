@@ -102,10 +102,11 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
 
   check-unused-deps:
-    name: Check Unused Dependencies of ${{ matrix.components }}
+    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
     strategy:
       matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
+        flags: ["--all-features", "--no-default-features"]
       fail-fast: false
     runs-on: [self-hosted]
     needs: changes
@@ -113,13 +114,16 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps -p ${{matrix.components}}
+        run: cargo +nightly ci-udeps -p ${{matrix.components}} ${{ matrix.flags }}
 
   check-unused-deps-iota-sdk:
-    name: Check Unused Dependencies of iota-sdk
+    name: Check Unused Dependencies of iota-sdk (${{ matrix.flags }})
     if: needs.iota-sdk-changes.outputs.iota-sdk == 'true'
     runs-on: [self-hosted]
     needs: iota-sdk-changes
+    strategy:
+      matrix:
+        flags: ["--all-features", "--no-default-features"]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -127,7 +131,7 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/12891
       # (we have the stardust iota-sdk package as a dependency)
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps -p iota-sdk@0.1.4
+        run: cargo +nightly ci-udeps -p iota-sdk@0.1.4 ${{ matrix.flags }}
 
   diff:
     runs-on: [self-hosted]
