@@ -219,11 +219,11 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
   "https://github.com/asonnino/prometheus-parser.git",
   "https://github.com/aya-rs/aya.git",
-  "https://github.com/MystenLabs/mysten-sim.git",
+  "https://github.com/iotaledger/iota-sim.git",
   "https://github.com/MystenLabs/fastcrypto.git",
   "https://github.com/mystenlabs/anemo.git",
   "https://github.com/mystenmark/async-task.git",
-  "https://github.com/mystenmark/tokio-madsim-fork.git",
+  "https://github.com/iotaledger/tokio-madsim-fork.git",
   "https://github.com/nextest-rs/nexlint.git",
   "https://github.com/nextest-rs/datatest-stable.git",
   "https://github.com/tokio-rs/prost",
