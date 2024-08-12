@@ -7,6 +7,7 @@ import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 import { ListItem } from '../../atoms';
 
 export type SelectOption =
@@ -114,8 +115,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 labelHtmlTag={LabelHtmlTag.Div}
             >
                 <div className="relative flex w-full flex-col">
-                    <button
-                        type="button"
+                    <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
                         data-selected-value={value}
@@ -152,7 +152,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                             width={20}
                             height={20}
                         />
-                    </button>
+                    </ButtonUnstyled>
 
                     {isOpen && (
                         <div
