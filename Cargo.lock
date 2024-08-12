@@ -5913,7 +5913,6 @@ dependencies = [
  "fastcrypto",
  "flate2",
  "fs_extra",
- "insta",
  "iota-adapter-v0",
  "iota-config",
  "iota-execution",
@@ -5937,7 +5936,6 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "rand_pcg",
- "rand_regex",
  "rand_seeder",
  "regex",
  "reqwest 0.12.5",
@@ -11228,16 +11226,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
 dependencies = [
  "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand_regex"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b2a9fe2d7d9eeaf3279d1780452a5bbd26b31b27938787ef1c3e930d1e9cfbd"
-dependencies = [
- "rand 0.8.5",
- "regex-syntax 0.6.29",
 ]
 
 [[package]]
