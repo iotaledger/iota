@@ -26,11 +26,11 @@ function VestingDashboardPage(): JSX.Element {
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
         isTimelockedUnlocked(timelockedObject, Number(currentEpochMs)),
     );
-    const unlockedTimelockedbjectIds: string[] =
+    const unlockedTimelockedObjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
     const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjects(
         account?.address || '',
-        unlockedTimelockedbjectIds,
+        unlockedTimelockedObjectIds,
     );
 
     const handleCollect = () => {
@@ -43,19 +43,13 @@ function VestingDashboardPage(): JSX.Element {
                 transactionBlock: unlockAllTimelockedObjects.transactionBlock,
             },
             {
-                onSuccess: (result) => {
-                    console.log('executed transaction', result.digest);
+                onSuccess: () => {
                     queryClient.invalidateQueries({
                         queryKey: ['get-all-timelocked-objects'],
                     });
                     addNotification('Transaction has been sent');
                 },
-                onError: (result) => {
-                    console.error(
-                        'error to execute unlock all timelocked object transaction',
-                        result,
-                    );
-
+                onError: () => {
                     addNotification('Transaction was not sent', NotificationType.Error);
                 },
             },

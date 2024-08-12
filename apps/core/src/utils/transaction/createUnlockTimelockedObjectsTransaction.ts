@@ -4,15 +4,15 @@
 import { TransactionBlock } from '@iota/iota.js/transactions';
 import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS } from '@iota/iota.js/utils';
 
-interface UnlockAllTimelockedObjectTransactionOptions {
+interface CreateUnlockTimelockedObjectTransactionOptions {
     address: string;
     objectIds: string[];
 }
 
-export function createUnlockAllTimelockedObjectsTransaction({
+export function createUnlockTimelockedObjectsTransaction({
     address,
     objectIds,
-}: UnlockAllTimelockedObjectTransactionOptions) {
+}: CreateUnlockTimelockedObjectTransactionOptions) {
     const ptb = new TransactionBlock();
     const coins: { index: number; resultIndex: number; kind: 'NestedResult' }[] = [];
 

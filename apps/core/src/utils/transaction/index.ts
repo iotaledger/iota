@@ -13,4 +13,4 @@ export * from './getObjectChangeLabel';
 export * from './createTokenTransferTransaction';
 export * from './getObjectDisplayLookup';
 export * from './createNftSendValidationSchema';
-export * from './createUnlockAllTimelockedObjectsTransaction';
+export * from './createUnlockTimelockedObjectsTransaction';
