@@ -2,13 +2,13 @@
  title: Claiming Alias Outputs
 ---
 
-An address can own `AliasOutput` objects that need to be unlocked. 
-In this case, some off-chain queries can be used to check the unlock conditions of the `AliasOutput` and assess if it can be unlocked. 
-Check the [`NftOutput`](nft.mdx) example, as it works the same way.
+An address can own `AliasOutput` objects only if before the migration it was set as the Alias Governor Address. 
+In this case, the `AliasOutput` object is an owned object in the ledger and its owner is the Governor address.
+Such address can be directly controlled by a user or by another object (either an `Alias` or `Nft` object). For the latter use case, check the [`Claiming an Output unlockable by an Alias/Nft Address`](address-uc.mdx) example.
 
 ## Claim of an Alias Output
 
-Once an `AliasOutput` is unlocked, claiming of its assets can be started:
+A Governor address can claim the `AliasOutput` assets at any time:
 
 1. The first step is to fetch an `AliasOutput` object needed to be claimed.
 
@@ -42,7 +42,7 @@ In the case of the native tokens, the keys are strings representing the `OTW` us
 </Tabs>
 
 3. Finally, a PTB can be created using the `alias_output_object_ref` as input and the native token keys.
-An `AliasOutput` is different from an `NftOutput` as it contains the `Alias` object. 
+An `AliasOutput` is different from an `NftOutput` or a `BasicOutput` as it contains the `Alias` object.
 In fact, the main purpose of claiming is extracting the `Alias` object from the `AliasOutput`.
 
 <Tabs>
@@ -61,8 +61,8 @@ In fact, the main purpose of claiming is extracting the `Alias` object from the 
 
 We need to have a custom package prepared that contains a logic for converting an `Alias` into a new entity usable for your project. 
 
-Since an alias address could be used as an NFT collections controller in Stardust,
-this topic outlines an example of the process of converting a Stardust `Alias` into `CollectionControllerCap`.
+In Stardust, an alias can be used for different purposes. One of them is acting as an NFT collection controller.
+In the following, an example of the process of converting a Stardust `Alias` into a `CollectionControllerCap` is outlined.
 
 The following example extends the one described in the [Conversion of an Nft Output into a custom Nft](nft.mdx#conversion-of-an-nft-output-into-a-custom-nft) documentation:
 
@@ -85,7 +85,8 @@ Also, the `nft.move` module was extended with the following function:
 </TabItem>
 </Tabs>
 
-Once the package is prepared, we can extract and use a Stardust `Alias` in a single transaction:
+Once the package is prepared, we can extract and use a Stardust `Alias` in a single transaction to create a `CollectionControllerCap`.
+This capability is then used in later transactions for managing new collections.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
