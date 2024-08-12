@@ -347,12 +347,6 @@ pub struct GenesisChainParameters {
     pub chain_start_timestamp_ms: u64,
     pub epoch_duration_ms: u64,
 
-    // Stake Subsidy parameters
-    pub stake_subsidy_start_epoch: u64,
-    pub stake_subsidy_initial_distribution_amount: u64,
-    pub stake_subsidy_period_length: u64,
-    pub stake_subsidy_decrease_rate: u16,
-
     // Validator committee parameters
     pub max_validator_count: u64,
     pub min_validator_joining_stake: u64,
@@ -377,27 +371,6 @@ pub struct GenesisCeremonyParameters {
     /// The duration of an epoch, in milliseconds.
     #[serde(default = "GenesisCeremonyParameters::default_epoch_duration_ms")]
     pub epoch_duration_ms: u64,
-
-    /// The starting epoch in which stake subsidies start being paid out.
-    #[serde(default = "GenesisCeremonyParameters::default_stake_subsidy_start_epoch")]
-    pub stake_subsidy_start_epoch: u64,
-
-    /// The amount of stake subsidy to be drawn down per distribution.
-    /// This amount decays and decreases over time.
-    #[serde(
-        default = "GenesisCeremonyParameters::default_initial_stake_subsidy_distribution_amount"
-    )]
-    pub stake_subsidy_initial_distribution_amount: u64,
-
-    /// Number of distributions to occur before the distribution amount decays.
-    #[serde(default = "GenesisCeremonyParameters::default_stake_subsidy_period_length")]
-    pub stake_subsidy_period_length: u64,
-
-    /// The rate at which the distribution amount decays at the end of each
-    /// period. Expressed in basis points.
-    #[serde(default = "GenesisCeremonyParameters::default_stake_subsidy_decrease_rate")]
-    pub stake_subsidy_decrease_rate: u16,
-    // Most other parameters (e.g. initial gas schedule) should be derived from protocol_version.
 }
 
 impl GenesisCeremonyParameters {
@@ -406,12 +379,7 @@ impl GenesisCeremonyParameters {
             chain_start_timestamp_ms: Self::default_timestamp_ms(),
             protocol_version: ProtocolVersion::MAX,
             allow_insertion_of_extra_objects: true,
-            stake_subsidy_start_epoch: Self::default_stake_subsidy_start_epoch(),
             epoch_duration_ms: Self::default_epoch_duration_ms(),
-            stake_subsidy_initial_distribution_amount:
-                Self::default_initial_stake_subsidy_distribution_amount(),
-            stake_subsidy_period_length: Self::default_stake_subsidy_period_length(),
-            stake_subsidy_decrease_rate: Self::default_stake_subsidy_decrease_rate(),
         }
     }
 
@@ -431,40 +399,11 @@ impl GenesisCeremonyParameters {
         24 * 60 * 60 * 1000
     }
 
-    fn default_stake_subsidy_start_epoch() -> u64 {
-        // Set to highest possible value so that the stake subsidy fund never pays out
-        // rewards.
-        u64::MAX
-    }
-
-    fn default_initial_stake_subsidy_distribution_amount() -> u64 {
-        // 0 IOTA in nanos
-        0
-    }
-
-    fn default_stake_subsidy_period_length() -> u64 {
-        // Set to highest possible value so that the "decrease stake subsidy amount"
-        // code path is never entered which makes it easier to reason about the
-        // stake subsidy fund.
-        u64::MAX
-    }
-
-    fn default_stake_subsidy_decrease_rate() -> u16 {
-        // Due to how stake_subsidy_period_length is set, this values is not important,
-        // since the distribution amount is never decreased.
-        0
-    }
-
     pub fn to_genesis_chain_parameters(&self) -> GenesisChainParameters {
         GenesisChainParameters {
             protocol_version: self.protocol_version.as_u64(),
-            stake_subsidy_start_epoch: self.stake_subsidy_start_epoch,
             chain_start_timestamp_ms: self.chain_start_timestamp_ms,
             epoch_duration_ms: self.epoch_duration_ms,
-            stake_subsidy_initial_distribution_amount: self
-                .stake_subsidy_initial_distribution_amount,
-            stake_subsidy_period_length: self.stake_subsidy_period_length,
-            stake_subsidy_decrease_rate: self.stake_subsidy_decrease_rate,
             max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
             min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
             validator_low_stake_threshold:

@@ -11,11 +11,11 @@ interface SectionHeaderProps {
 export function SectionHeader({ title }: SectionHeaderProps) {
     return (
         <div className="flex items-center justify-center gap-3">
-            <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
+            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
             <Text variant="caption" weight="semibold" color="steel">
                 {title}
             </Text>
-            <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
+            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
         </div>
     );
 }

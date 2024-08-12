@@ -48,7 +48,7 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
                     let obj = storage
                         .get_object(id)
                         .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
-                    NtKind::from_object(obj).map(|nt| (nt.token_type(), nt.value()))
+                    NtKind::from_object(obj).map(|nt| (nt.bag_key(), nt.value()))
                 })
                 .collect::<Result<HashMap<String, u64>, _>>()
         })
@@ -75,14 +75,14 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
             .get(native_token.token_id())
             .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
 
-        let expected_token_type = foundry_data.canonical_coin_type();
+        let expected_bag_key = foundry_data.to_canonical_string(/* with_prefix */ false);
         // The token amounts are scaled so that the total circulating supply does not
         // exceed `u64::MAX`
         let reduced_amount = foundry_data
             .token_scheme_u64
             .adjust_tokens(native_token.amount());
 
-        if let Some(created_value) = created_native_tokens.get(&expected_token_type) {
+        if let Some(created_value) = created_native_tokens.get(&expected_bag_key) {
             ensure!(
                 *created_value == reduced_amount,
                 "created token amount mismatch: found {created_value}, expected {reduced_amount}"
@@ -350,7 +350,7 @@ pub(super) fn verify_coin(output_amount: u64, created_coin: &Coin) -> Result<()>
 }
 
 pub(super) trait NativeTokenKind {
-    fn token_type(&self) -> String;
+    fn bag_key(&self) -> String;
 
     fn value(&self) -> u64;
 
@@ -360,8 +360,8 @@ pub(super) trait NativeTokenKind {
 }
 
 impl NativeTokenKind for (TypeTag, Coin) {
-    fn token_type(&self) -> String {
-        self.0.to_canonical_string(true)
+    fn bag_key(&self) -> String {
+        self.0.to_canonical_string(false)
     }
 
     fn value(&self) -> u64 {
@@ -376,7 +376,7 @@ impl NativeTokenKind for (TypeTag, Coin) {
 }
 
 impl NativeTokenKind for Field<String, Balance> {
-    fn token_type(&self) -> String {
+    fn bag_key(&self) -> String {
         self.name.clone()
     }
 

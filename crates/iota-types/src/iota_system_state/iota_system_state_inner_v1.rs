@@ -44,9 +44,6 @@ pub struct SystemParametersV1 {
     /// The duration of an epoch, in milliseconds.
     pub epoch_duration_ms: u64,
 
-    /// The starting epoch in which stake subsidies start being paid out
-    pub stake_subsidy_start_epoch: u64,
-
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     pub max_validator_count: u64,
@@ -478,7 +475,6 @@ pub struct IotaSystemStateInnerV1 {
     pub parameters: SystemParametersV1,
     pub reference_gas_price: u64,
     pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
-    pub stake_subsidy: StakeSubsidyV1,
     pub safe_mode: bool,
     pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_rewards: Balance,
@@ -487,29 +483,6 @@ pub struct IotaSystemStateInnerV1 {
     pub epoch_start_timestamp_ms: u64,
     pub extra_fields: Bag,
     // TODO: Use getters instead of all pub.
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct StakeSubsidyV1 {
-    /// Balance of IOTA set aside for stake subsidies that will be drawn down
-    /// over time.
-    pub balance: Balance,
-
-    /// Count of the number of times stake subsidies have been distributed.
-    pub distribution_counter: u64,
-
-    /// The amount of stake subsidy to be drawn down per distribution.
-    /// This amount decays and decreases over time.
-    pub current_distribution_amount: u64,
-
-    /// Number of distributions to occur before the distribution amount decays.
-    pub stake_subsidy_period_length: u64,
-
-    /// The rate at which the distribution amount decays at the end of each
-    /// period. Expressed in basis points.
-    pub stake_subsidy_decrease_rate: u16,
-
-    pub extra_fields: Bag,
 }
 
 impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
@@ -666,7 +639,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             storage_fund,
             parameters:
                 SystemParametersV1 {
-                    stake_subsidy_start_epoch,
                     epoch_duration_ms,
                     max_validator_count,
                     min_validator_joining_stake,
@@ -679,15 +651,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             validator_report_records:
                 VecMap {
                     contents: validator_report_records,
-                },
-            stake_subsidy:
-                StakeSubsidyV1 {
-                    balance: stake_subsidy_balance,
-                    distribution_counter: stake_subsidy_distribution_counter,
-                    current_distribution_amount: stake_subsidy_current_distribution_amount,
-                    stake_subsidy_period_length,
-                    stake_subsidy_decrease_rate,
-                    extra_fields: _,
                 },
             safe_mode,
             safe_mode_storage_charges,
@@ -713,11 +676,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
-            stake_subsidy_start_epoch,
             epoch_duration_ms,
-            stake_subsidy_distribution_counter,
-            stake_subsidy_balance: stake_subsidy_balance.value(),
-            stake_subsidy_current_distribution_amount,
             total_stake,
             active_validators: active_validators
                 .into_iter()
@@ -745,8 +704,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
         }
     }
 }

@@ -36,9 +36,6 @@ module nfts::auction {
     use iota::coin::{Self, Coin};
     use iota::balance::Balance;
     use iota::iota::IOTA;
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self,TxContext};
 
     use nfts::auction_lib::{Self, Auction};
 
@@ -48,7 +45,7 @@ module nfts::auction {
     const EWrongAuction: u64 = 1;
 
     /// Represents a bid sent by a bidder to the auctioneer.
-    struct Bid has key {
+    public struct Bid has key {
         id: UID,
         /// Address of the bidder
         bidder: address,

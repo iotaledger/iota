@@ -3,9 +3,9 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { ButtonSegment } from '@/components/atoms/';
+import { ButtonSegment, ButtonSegmentType } from '@/components/atoms/';
 
-const meta = {
+const meta: Meta<typeof ButtonSegment> = {
     component: ButtonSegment,
     tags: ['autodocs'],
     render: (props) => {
@@ -34,6 +34,12 @@ export const Default: Story = {
         },
         disabled: {
             control: 'boolean',
+        },
+        type: {
+            control: {
+                type: 'select',
+                options: Object.values(ButtonSegmentType),
+            },
         },
     },
 };

@@ -41,7 +41,7 @@ env:
 
 jobs:
   changes:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -63,7 +63,7 @@ jobs:
       matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -72,7 +72,7 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   iota-sdk-changes:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: dorny/paths-filter@v3
@@ -90,16 +90,19 @@ jobs:
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     needs: iota-sdk-changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: cargo test
-        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@1.22.0
+        # iota-sdk version needs to be explicitly defined here due to this bug
+        # https://github.com/rust-lang/cargo/issues/12891
+        # (we have the stardust iota-sdk package as a dependency)
+        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
 
   diff:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -113,13 +116,10 @@ jobs:
   license-check:
     name: license-check
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-
-      - name: Install cargo-license-template
-        run: cargo install --force cargo-license-template
 
       - name: Run cargo-license-template
         run: cargo ci-license
@@ -128,7 +128,7 @@ jobs:
     name: release-notes-check
     needs: diff
     if: needs.diff.outputs.isReleaseNotesEligible == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Check Pull Request Description
@@ -160,7 +160,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - [self-hosted-rust]
+          - [self-hosted]
       fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -172,7 +172,7 @@ jobs:
           cargo test --doc
       - name: rustdoc
         run: |
-          cargo doc --workspace --no-deps
+          cargo doc --all-features --workspace --no-deps
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
         with:
@@ -192,7 +192,7 @@ jobs:
   #     name: Simtest ${{ matrix.components }}
   #     needs: changes
   #     timeout-minutes: 45
-  #     runs-on: [self-hosted-rust]
+  #     runs-on: [self-hosted]
   #     strategy:
   #         matrix:
   #             components: ${{ fromJson(needs.changes.outputs.components) }}
@@ -211,12 +211,12 @@ jobs:
 
   # This job ensures that Move unit tests are run if there are changes
   # to Move code but not Rust code (If there are Rust changes, they
-  # will be run as part of a larger test iotate).
+  # will be run as part of a larger test suite).
   move-test:
     needs: diff
     if: needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true'
     timeout-minutes: 10
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
@@ -229,7 +229,7 @@ jobs:
   #   needs: diff
   #   if: needs.diff.outputs.isRust == 'true'
   #   timeout-minutes: 45
-  #   runs-on: [self-hosted-rust]
+  #   runs-on: [self-hosted]
   #   steps:
   #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
 
@@ -263,7 +263,7 @@ jobs:
   clippy:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # pin@v3.0.0
         # this avoids rate-limiting
@@ -280,12 +280,12 @@ jobs:
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
-        run: cargo +stable ci-clippy
+        run: cargo ci-clippy
 
   rustfmt:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install latest nightly
@@ -293,20 +293,11 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly ci-fmt
 
-  dprint-format:
-    runs-on: [self-hosted-rust]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Install dprint
-        run: cargo install dprint
-      - name: Check dprint formatting
-        run: dprint check
-
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: EmbarkStudios/cargo-deny-action@v1
@@ -315,7 +306,7 @@ jobs:
     name: cutting a new execution layer
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install cargo-hakari, and cache the binary
@@ -334,7 +325,7 @@ jobs:
     #  needs: diff
     #  if: needs.diff.outputs.isRust == 'true'
     #  timeout-minutes: 45
-    #  runs-on: [self-hosted-rust]
+    #  runs-on: [self-hosted]
     #  services:
     #    postgres:
     #      image: postgres
@@ -362,7 +353,7 @@ jobs:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
     timeout-minutes: 45
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     env:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespw

@@ -4,7 +4,7 @@ version: "3"
 services:
   validator:
     container_name: validator
-    image: mysten/iota-node:${IOTA_SHA} # UPDATE HERE
+    image: iotaledger/iota-node:${IOTA_SHA} # UPDATE HERE
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info,iota_core=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error

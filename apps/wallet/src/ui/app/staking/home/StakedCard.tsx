@@ -11,7 +11,7 @@ import {
     useGetTimeBeforeEpochNumber,
     type ExtendedDelegatedStake,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -181,7 +181,7 @@ export function StakeCard({
                         activeEpoch={extendedStake.stakeRequestEpoch}
                     />
 
-                    <div className="text-pBody text-steel opacity-0 group-hover:opacity-100">
+                    <div className="text-steel text-pBody opacity-0 group-hover:opacity-100">
                         <IconTooltip
                             tip="Object containing the delegated staked IOTA tokens, owned by each delegator"
                             placement="top"

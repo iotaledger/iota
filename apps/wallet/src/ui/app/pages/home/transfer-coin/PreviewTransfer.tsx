@@ -29,7 +29,7 @@ export function PreviewTransfer({
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
 
     return (
-        <div className="flex w-full flex-col divide-x-0 divide-y divide-solid divide-steel/20 px-2.5">
+        <div className="divide-steel/20 flex w-full flex-col divide-x-0 divide-y divide-solid px-2.5">
             <TxnAmount
                 amount={amountWithoutDecimals.toString()}
                 label="Sending"

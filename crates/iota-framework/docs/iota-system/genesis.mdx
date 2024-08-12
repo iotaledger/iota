@@ -28,7 +28,6 @@ import Link from '@docusaurus/Link';
 <b>use</b> <Link to="../iota-framework/tx_context#0x2_tx_context">0x2::tx_context</Link>;
 <b>use</b> <Link to="iota_system#0x3_iota_system">0x3::iota_system</Link>;
 <b>use</b> <Link to="iota_system_state_inner#0x3_iota_system_state_inner">0x3::iota_system_state_inner</Link>;
-<b>use</b> <Link to="stake_subsidy#0x3_stake_subsidy">0x3::stake_subsidy</Link>;
 <b>use</b> <Link to="timelocked_staking#0x3_timelocked_staking">0x3::timelocked_staking</Link>;
 <b>use</b> <Link to="validator#0x3_validator">0x3::validator</Link>;
 <b>use</b> <Link to="validator_set#0x3_validator_set">0x3::validator_set</Link>;
@@ -197,34 +196,6 @@ chain_start_timestamp_ms: u64</code>
 <dt>
 <code>
 epoch_duration_ms: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
-stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
-stake_subsidy_initial_distribution_amount: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
-stake_subsidy_period_length: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>
-stake_subsidy_decrease_rate: u16</code>
 </dt>
 <dd>
 
@@ -437,7 +408,6 @@ all the information we need in the system.
 
     <b>assert</b>!(iota_treasury_cap.total_supply() == pre_minted_supply, <Link to="genesis#0x3_genesis_EWrongPreMintedSupply">EWrongPreMintedSupply</Link>);
 
-    <b>let</b> subsidy_fund = <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>();
     <b>let</b> <Link to="storage_fund#0x3_storage_fund">storage_fund</Link> = <Link to="../iota-framework/balance#0x2_balance_zero">balance::zero</Link>();
 
     // Create all the `Validator` structs
@@ -507,7 +477,6 @@ all the information we need in the system.
 
     <b>let</b> system_parameters = <Link to="iota_system_state_inner#0x3_iota_system_state_inner_create_system_parameters">iota_system_state_inner::create_system_parameters</Link>(
         genesis_chain_parameters.epoch_duration_ms,
-        genesis_chain_parameters.stake_subsidy_start_epoch,
 
         // Validator committee parameters
         genesis_chain_parameters.max_validator_count,
@@ -519,14 +488,6 @@ all the information we need in the system.
         ctx,
     );
 
-    <b>let</b> <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link> = <Link to="stake_subsidy#0x3_stake_subsidy_create">stake_subsidy::create</Link>(
-        subsidy_fund,
-        genesis_chain_parameters.stake_subsidy_initial_distribution_amount,
-        genesis_chain_parameters.stake_subsidy_period_length,
-        genesis_chain_parameters.stake_subsidy_decrease_rate,
-        ctx,
-    );
-
     <Link to="iota_system#0x3_iota_system_create">iota_system::create</Link>(
         iota_system_state_id,
         iota_treasury_cap,
@@ -535,7 +496,6 @@ all the information we need in the system.
         genesis_chain_parameters.protocol_version,
         genesis_chain_parameters.chain_start_timestamp_ms,
         system_parameters,
-        <Link to="stake_subsidy#0x3_stake_subsidy">stake_subsidy</Link>,
         system_timelock_cap,
         ctx,
     );

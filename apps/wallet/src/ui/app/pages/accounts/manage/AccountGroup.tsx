@@ -57,7 +57,7 @@ const FooterLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLin
         return (
             <ButtonOrLink
                 ref={ref}
-                className="cursor-pointer border-none bg-transparent uppercase text-hero-darkest/40 no-underline outline-none transition hover:text-hero-darkest/50"
+                className="text-hero-darkest/40 hover:text-hero-darkest/50 cursor-pointer border-none bg-transparent uppercase no-underline outline-none transition"
                 to={to}
                 {...props}
             >
@@ -172,14 +172,14 @@ export function AccountGroup({
                 <div className="flex w-full flex-col gap-4">
                     <CollapsiblePrimitive.Trigger asChild>
                         <div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
-                            <ArrowBgFill16 className="h-4 w-4 text-hero-darkest/20 group-data-[state=open]:rotate-90" />
+                            <ArrowBgFill16 className="text-hero-darkest/20 h-4 w-4 group-data-[state=open]:rotate-90" />
                             <Heading variant="heading5" weight="semibold" color="steel-darker">
                                 {getGroupTitle(accounts[0])}
                             </Heading>
-                            <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
+                            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
                             {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
                                 <ButtonOrLink
-                                    className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
                                     onClick={() => {
                                         navigate(
                                             `/accounts/manage/accounts-finder/${accountSourceID}`,
@@ -211,7 +211,7 @@ export function AccountGroup({
                                                 });
                                             }
                                         }}
-                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                        className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
                                     >
                                         <Plus12 />
                                         <Text variant="bodySmall" weight="semibold">

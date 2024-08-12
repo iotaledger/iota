@@ -7,3 +7,4 @@ export * from './useNewStakeTransaction';
 export * from './useNotifications';
 export * from './useSendCoinTransaction';
 export * from './useCreateSendAssetTransaction';
+export * from './useGetCurrentEpochStartTimestamp';

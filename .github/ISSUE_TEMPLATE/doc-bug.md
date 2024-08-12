@@ -1,6 +1,6 @@
 ---
 name: IOTA doc content issue or request
-about: Creates an issue for Sui documentation
+about: Creates an issue for IOTA documentation
 title: 'IOTA doc content issue or request'
 labels: doc-issue
 ---

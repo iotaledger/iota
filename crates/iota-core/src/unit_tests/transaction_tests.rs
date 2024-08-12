@@ -125,7 +125,7 @@ async fn test_empty_sender_signed_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -152,7 +152,7 @@ async fn test_multiple_sender_signed_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -176,7 +176,7 @@ async fn test_duplicate_sender_signed_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -196,7 +196,7 @@ async fn test_empty_gas_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::MissingGasPayment
                 }
             );
@@ -218,7 +218,7 @@ async fn test_duplicate_gas_data() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::MutableObjectUsedMoreThanOnce { .. }
                 }
             );
@@ -279,7 +279,7 @@ async fn test_user_sends_system_transaction() {
         |err| {
             assert_matches!(
                 err,
-                IotaError::UserInputError {
+                IotaError::UserInput {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -509,9 +509,9 @@ async fn zklogin_test_cached_proof_wrong_key() {
     // 1
     // );
 
-    let (skp, _eph_pk, zklogin) =
+    let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
-    let ephemeral_key = match skp {
+    let ephemeral_key = match ikp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
@@ -643,9 +643,9 @@ async fn setup_zklogin_network(
     AuthorityServerHandle,
     NetworkAuthorityClient,
 )> {
-    let (skp, _eph_pk, zklogin) =
+    let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")?[1];
-    let ephemeral_key = match skp {
+    let ephemeral_key = match ikp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
@@ -769,9 +769,9 @@ async fn zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authorty state with some objects under a zklogin address.
-    let (skp, _eph_pk, zklogin) =
+    let (ikp, _eph_pk, zklogin) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
-    let ephemeral_key = match skp {
+    let ephemeral_key = match ikp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
@@ -1097,8 +1097,7 @@ async fn test_very_large_certificate() {
     let err = res.err().unwrap();
     // The resulting error should be a RpcError with a message length too large.
     assert!(
-        matches!(err, IotaError::RpcError(..))
-            && err.to_string().contains("message length too large")
+        matches!(err, IotaError::Rpc(..)) && err.to_string().contains("message length too large")
     );
 }
 
@@ -1200,7 +1199,7 @@ async fn test_handle_certificate_errors() {
 
     assert_matches!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::Unsupported(message)
         } if message == "SenderSignedData must contain exactly one transaction"
     );
@@ -1217,7 +1216,7 @@ async fn test_handle_certificate_errors() {
 
     assert_matches!(
         err,
-        IotaError::UserInputError {
+        IotaError::UserInput {
             error: UserInputError::Unsupported(message)
         } if message == "SenderSignedData must not contain system transaction"
     );

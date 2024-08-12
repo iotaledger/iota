@@ -18,12 +18,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [tooling-runners]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
-        with:
-          version: 9
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
@@ -32,13 +30,8 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Environment Information
-        run: vercel pull ./apps/ui-kit --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --cwd ./apps/ui-kit --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build Project Artifacts
-        run: vercel build --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --cwd ./apps/ui-kit --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
-      - name: Extract Deploy URL
-        id: deploy_url
-        run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
-      - name: Set Vercel Alias
-        run: vercel alias --token=${{ secrets.VERCEL_TOKEN }} set ${{ steps.deploy_url.outputs.DEPLOY_URL }} ${{ secrets.APPS_UI_KIT_VERCEL_PRODUCTION_ALIAS }}
+        run: vercel deploy --cwd ./apps/ui-kit --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }}

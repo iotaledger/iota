@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use anemo_tower::callback::{MakeCallbackHandler, ResponseHandler};
 use iota_macros::fail_point;
 

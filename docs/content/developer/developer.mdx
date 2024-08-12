@@ -1,15 +1,15 @@
 ---
-title: Developer Guides
-description: Guides for developers on the IOTA network. Whether you're just learning how to create smart contracts or are a Move expert, these guides help to fast-track your IOTA development. 
+title: Developer Information
+description: Guides and documents for developers on the IOTA network. Whether you're just learning how to create smart contracts or are a Move expert, these guides help to fast-track your IOTA development. 
 ---
 
-The developer guides are meant to introduce you to the Move programming language and its implementation on the IOTA network through examples, tasks, and conceptual content.  
+The developer section is meant to introduce you to the Move programming language and its implementation on the IOTA network through examples, tasks, and conceptual content. This contains everything a developer needs to get started developing on top of the IOTA network.
 
-## Get started
+## Getting started
 
 If you are completely new to Move, you should start with the aptly named Getting Started section. Topics in that section introduce you to the IOTA monorepo, guide you through installing IOTA binaries, and introduce you to some key core concepts of blockchain technology, particularly how they relate to IOTA. 
 
-Go to [Getting Started](getting-started.mdx).
+Go to [Getting Started](getting-started/getting-started.mdx).
 
 ## Your first dApp
 
@@ -23,26 +23,50 @@ The IOTA 101 section introduces the basics of IOTA that help you create smart co
 
 Go to [IOTA 101](iota-101.mdx).
 
+## IOTA compared to EVM
+
+If you are familiar with EVM/Solidity and want to work with IOTA and Move this section is for you. These topics describe the differences between a traditional EVM chain and way of working compared to IOTA Move based smart contracts. Together with some common implementation examples the nuances between the different ways of working are explained.
+
+Go to [From Solidity/EVM to Move](evm-to-move/evm-to-move.mdx) section.
+
 ## Cryptography
 
 The Cryptography section demonstrates how to secure your smart contracts with cryptography to ensure authentication for access to sensitive data.
 
-Go to [Cryptography](cryptography/how-to/cryptography.mdx).
+Go to [Cryptography](cryptography.mdx).
+
+## Standards
+
+Utilizing standards while developing applications is very important for composability. In this section you can find out all about the standards within the IOTA Move ecosystem for dealing with tokens, NFT like objects, and wallets. 
+
+Go to the [Standards](standards/standards.mdx).
 
 ## Advanced Topics
 
-The Advanced Topics section includes guides for advanced solutions rather than advanced users (like migrating to GraphQL or asset tokenization). These topics assume you are familiar with Move and the IOTA blockchain.
+The Advanced Topics section includes guides for advanced solutions (like asset tokenization). These topics assume you are familiar with Move and the IOTA blockchain.
 
-Go to [Advanced Topics](advanced.mdx).
+Go to the [Advanced Topics](advanced.mdx).
 
-## IOTA developer cheat sheet
+## Developer cheat sheet
 
-The cheat sheet collects notes from IOTA and Move developers into a single location. This document surfaces important information that might get lost in the quantity of content available. Use this often-updated page to see around corners when starting a Move project or to refresh your memory on important concepts to be mindful of. 
+The cheat sheet is a compact overview of solutions for common problems and contains information on how to avoid common pitfalls for IOTA Move developers. This page contains important information that might get lost in the quantity of content available. Use this often-updated page to see around corners when starting a Move project or to refresh your memory on important concepts to be mindful of. 
 
-Go to [IOTA Developer Cheat Sheet](dev-cheat-sheet.mdx).
+Go to the [Developer Cheat Sheet](dev-cheat-sheet.mdx).
 
-## References
+## Solidity/EVM Smart contracts
 
-If you're familiar with both Move and IOTA and just need some reference material to refresh your memory on that function you haven't used in a while, then the References section of the documentation should surface the information you need.
+Everything you need to know about our Layer 2 EVM Support, including working with the IOTA EVM and ShimmerEVM chains. 
 
-Go to [References](../references/references.mdx).
+Go to [EVM Smart Contracts](iota-evm/introduction.mdx).
+
+## Migrating from IOTA/Shimmer Stardust
+
+IOTA Stardust becomes IOTA Rebased, and with it a lot of changes. Most assets are just available on the IOTA Rebased chain once it's available without any manual work but for integrations and in some situations you might need to migrate. This section covers the details of the migration and how you can prepare your integration to be IOTA Rebased compatible.
+
+Go to [Migrating from IOTA/Shimmer Stardust](stardust/stardust-migration.mdx).
+
+## Exchange integration
+
+This section contains the technical details needed to integrate IOTA on a exchange. 
+
+Go to [Exchange integration](exchange-integration/exchange-integration.mdx).

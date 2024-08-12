@@ -111,7 +111,7 @@ fn create_bag_with_pt() {
     );
     let token_as_df = tokens[0].to_rust::<Field<String, Balance>>().unwrap();
     // Verify name
-    let expected_name = coin_type_tag.to_canonical_string(true);
+    let expected_name = coin_type_tag.to_canonical_string(false);
     assert_eq!(token_as_df.name, expected_name);
     // Verify value
     let expected_balance = Balance::new(token_amount);

@@ -4,7 +4,7 @@
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
@@ -59,7 +59,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                     success={summary?.status === 'success'}
                     timestamp={txn.timestampMs ?? undefined}
                 />
-                <section className="-mx-5 min-h-full bg-iota/10">
+                <section className="bg-iota/10 -mx-5 min-h-full">
                     <div className="px-5 py-10">
                         <div className="flex flex-col gap-4">
                             {stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}

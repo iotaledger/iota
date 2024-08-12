@@ -1,8 +1,5 @@
 name: Simulator Tests with Mysticeti Enabled
 
-concurrency:
-  group: ${{ github.workflow }}
-
 on:
   schedule:
     - cron: "0 13 * * *" # UTC timing is every day at 5am PST
@@ -19,6 +16,9 @@ on:
         required: false
         default: "30"
 
+concurrency:
+  group: ${{ github.workflow }}
+
 env:
   # Enable Mysticeti in tests.
   CONSENSUS: "mysticeti"
@@ -34,7 +34,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
 
     steps:
       - name: Install Teleport
@@ -46,7 +46,7 @@ jobs:
         uses: teleport-actions/auth@9091dad16a564f3c5b9c2ec520b234a4872b6879 # pin@v1
         with:
           # Specify the publically accessible address of your Teleport proxy.
-          proxy: proxy.mysten-int.com:443
+          proxy: proxy.iota-int.com:443
           # Specify the name of the join token for your bot.
           token: iota-simtest-token
           # Specify the length of time that the generated credentials should be
@@ -57,7 +57,7 @@ jobs:
       - name: Environment clean
         run: |
           tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && rm -rf ~/iota"
-          tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && cd ~/ && git clone git@github.com:MystenLabs/iota.git"
+          tsh -i ${{ steps.auth.outputs.identity-file }} --ttl 5 ssh ubuntu@simtest-01 "source ~/.bashrc && source ~/.cargo/env && cd ~/ && git clone git@github.com:iotaledger/iota.git"
 
       # Deleting files in tmpfs that usually fill up pretty quickly after each run. Cargo clean to free up space as well.
       - name: Tmpfs and cargo clean

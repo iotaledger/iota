@@ -5,13 +5,13 @@ description: IOTA provides command line tools to interact with the network, its 
 
 import CliCheckInstall from "../_snippets/cli-check-install.mdx";
 
-IOTA provides a command line interface (CLI) tool to interact with the IOTA network, its features, and the Move programming language. The complete iotate of tools is called the IOTA CLI, with commands grouped together by feature. Each group of commands is commonly referred to by its top-level command: IOTA Client CLI, IOTA Console CLI, IOTA Keytool CLI, IOTA Move CLI, and IOTA Validator CLI.
+IOTA provides a command line interface (CLI) tool to interact with the IOTA network, its features, and the Move programming language. The complete suite of tools is called the IOTA CLI, with commands grouped together by feature. Each group of commands is commonly referred to by its top-level command: IOTA Client CLI, IOTA Console CLI, IOTA Keytool CLI, IOTA Move CLI, and IOTA Validator CLI.
 
 <CliCheckInstall />
 
 ## Update CLI
 
-To get the latest version of the CLI, you can run the following command from a terminal or console. Be sure to replace `<BRANCH-NAME>` with `main`, `devnet`, `testnet`, or `mainnet` to get the desired version. For more information on the branches available, see [IOTA Environment Setup](/developer/getting-started/iota-environment.mdx).
+To get the latest version of the CLI, you can run the following command from a terminal or console. Be sure to replace `<BRANCH-NAME>` with `develop`, `devnet`, `testnet`, or `mainnet` to get the desired version. For more information on the branches available, see [IOTA Environment Setup](/developer/getting-started/iota-environment.mdx).
 
 ```shell
 cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features gas-profiler iota

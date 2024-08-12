@@ -4,7 +4,7 @@
 
 import ExternalLink from '_components/external-link';
 import { ArrowUpRight16 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import type { ReactNode } from 'react';
 
 import { useExplorerLink, type ExplorerLinkConfig } from '../../hooks/useExplorerLink';
@@ -47,7 +47,7 @@ export function AddressLink({ address }: { address: string }) {
         <ExplorerLink
             type={ExplorerLinkType.Address}
             address={address}
-            className="inline-block text-hero-dark no-underline"
+            className="text-hero-dark inline-block no-underline"
         >
             <Text variant="subtitle" weight="semibold" truncate mono>
                 {formatAddress(address)}

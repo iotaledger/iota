@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromB64, toB64 } from '@iota/bcs';
-import { bcs, TypeTagSerializer } from '@iota/iota.js/bcs';
+import { bcs, TypeTagSerializer } from '@iota/iota-sdk/bcs';
 import type {
     ExecutionStatus,
     IotaArgument,
@@ -13,7 +13,7 @@ import type {
     IotaTransactionBlockKind,
     IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 import type { Rpc_Transaction_FieldsFragment } from '../generated/queries.js';
 import { mapGraphQLOwnerToRpcOwner } from './owner.js';

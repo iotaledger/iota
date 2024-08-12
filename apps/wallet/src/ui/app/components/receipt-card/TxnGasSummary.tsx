@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
 
@@ -20,7 +20,7 @@ export function TxnGasSummary({ totalGas, transferAmount }: TxnGasSummaryProps) 
     const [gas, symbol] = useFormatCoin(totalGas, IOTA_TYPE_ARG);
 
     return (
-        <div className="flex w-full flex-col items-center gap-3.5 border-x-0 border-b-0 border-t border-solid border-steel/20 py-3.5 first:pt-0">
+        <div className="border-steel/20 flex w-full flex-col items-center gap-3.5 border-x-0 border-b-0 border-t border-solid py-3.5 first:pt-0">
             <div className="flex w-full items-center justify-between">
                 <Text variant="body" weight="medium" color="steel-darker">
                     Gas Fees

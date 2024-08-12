@@ -156,7 +156,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ValidateState => {
-            let builder = Builder::load(&dir)?;
+            let builder = Builder::load(&dir).await?;
             builder.validate()?;
             println!(
                 "Successfully validated ceremony builder at {}",
@@ -168,7 +168,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             recipient_address,
             amount_nanos,
         } => {
-            let mut builder = Builder::load(&dir)?;
+            let mut builder = Builder::load(&dir).await?;
             let token_allocation = TokenAllocation {
                 recipient_address,
                 amount_nanos,
@@ -196,7 +196,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             image_url,
             project_url,
         } => {
-            let mut builder = Builder::load(&dir)?;
+            let mut builder = Builder::load(&dir).await?;
             let keypair: AuthorityKeyPair = read_authority_keypair_from_file(validator_key_file)?;
             let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
             let worker_keypair: NetworkKeyPair = read_network_keypair_from_file(worker_key_file)?;
@@ -226,7 +226,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ListValidators => {
-            let builder = Builder::load(&dir)?;
+            let builder = Builder::load(&dir).await?;
 
             let mut validators = builder
                 .validators()
@@ -270,7 +270,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 .into_iter()
                 .map(SnapshotSource::S3);
 
-            let mut builder = Builder::load(&dir)?;
+            let mut builder = Builder::load(&dir).await?;
             for source in local_snapshots.chain(remote_snapshots) {
                 builder = builder.add_migration_source(source);
             }
@@ -287,7 +287,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
-            let builder = Builder::load(&dir)?;
+            let builder = Builder::load(&dir).await?;
 
             let Some(unsigned_genesis) = builder.unsigned_genesis_checkpoint() else {
                 return Err(anyhow::anyhow!(
@@ -301,7 +301,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         CeremonyCommand::VerifyAndSign { key_file } => {
             let keypair: AuthorityKeyPair = read_authority_keypair_from_file(key_file)?;
 
-            let mut builder = Builder::load(&dir)?;
+            let mut builder = Builder::load(&dir).await?;
 
             check_protocol_version(&builder, protocol_version)?;
 
@@ -323,7 +323,8 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::Finalize => {
-            let builder = Builder::load(&dir)?;
+            let builder = Builder::load(&dir).await?;
+
             check_protocol_version(&builder, protocol_version)?;
 
             let genesis = builder.build();

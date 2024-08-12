@@ -14,6 +14,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
         { title: 'Apps', path: '/dashboard/apps' },
         { title: 'Activity', path: '/dashboard/activity' },
         { title: 'Migrations', path: '/dashboard/migrations' },
+        { title: 'Vesting', path: '/dashboard/vesting' },
     ];
 
     // TODO: check if the wallet is connected and if not redirect to the welcome screen

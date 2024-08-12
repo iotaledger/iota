@@ -14,7 +14,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Collapsible } from '_src/ui/app/shared/collapse';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useGetKioskContents } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { Link, useSearchParams } from 'react-router-dom';
 
 function KioskDetailsPage() {
@@ -34,7 +34,7 @@ function KioskDetailsPage() {
             <PageTitle title="Kiosk" back />
             <Loading loading={isPending}>
                 {!items?.length ? (
-                    <div className="flex flex-1 items-center self-center text-caption font-semibold text-steel-darker">
+                    <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
                         Kiosk is empty
                     </div>
                 ) : (
@@ -71,7 +71,7 @@ function KioskDetailsPage() {
                             label="Kiosk ID"
                             value={
                                 <ExplorerLink
-                                    className="font-mono text-hero-dark no-underline"
+                                    className="text-hero-dark font-mono no-underline"
                                     objectID={kioskId!}
                                     type={ExplorerLinkType.Object}
                                 >

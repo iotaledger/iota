@@ -78,7 +78,7 @@ function BalanceChangeEntries({ changes }: { changes: BalanceChange[] }) {
                     <div
                         className={classNames(
                             'flex flex-col gap-2 pt-2',
-                            recognizedTokenChanges?.length && 'border-t border-gray-45',
+                            recognizedTokenChanges?.length && 'border-gray-45 border-t',
                         )}
                     >
                         {unRecognizedTokenChanges.map((change, index) => (

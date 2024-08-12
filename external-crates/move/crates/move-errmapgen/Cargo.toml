@@ -2,15 +2,15 @@
 name = "move-errmapgen"
 version = "0.1.0"
 authors = ["Diem Association <opensource@diem.com>"]
-publish = false
 edition = "2021"
 license = "Apache-2.0"
+publish = false
 
 [dependencies]
 # Move dependencies
 move-command-line-common.workspace = true
-move-model.workspace = true
 move-core-types.workspace = true
+move-model.workspace = true
 
 # external dependencies
 anyhow.workspace = true
@@ -18,5 +18,5 @@ serde.workspace = true
 
 [dev-dependencies]
 codespan-reporting.workspace = true
-move-prover.workspace = true
 datatest-stable.workspace = true
+move-prover.workspace = true

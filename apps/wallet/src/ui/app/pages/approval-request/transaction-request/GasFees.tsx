@@ -4,8 +4,8 @@
 
 import { useTransactionData, useTransactionGasBudget } from '_src/ui/app/hooks';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
-import { type TransactionBlock } from '@iota/iota.js/transactions';
-import { formatAddress } from '@iota/iota.js/utils';
+import { type TransactionBlock } from '@iota/iota-sdk/transactions';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 import { DescriptionItem, DescriptionList } from './DescriptionList';
 import { SummaryCard } from './SummaryCard';
@@ -26,7 +26,7 @@ export function GasFees({ sender, transaction }: GasFeesProps) {
             header="Estimated Gas Fees"
             badge={
                 isSponsored ? (
-                    <div className="rounded-full bg-white px-1.5 py-0.5 text-captionSmallExtra font-medium uppercase text-success">
+                    <div className="text-success rounded-full bg-white px-1.5 py-0.5 text-captionSmallExtra font-medium uppercase">
                         Sponsored
                     </div>
                 ) : null

@@ -29,7 +29,7 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
                         type={ExplorerLinkType.Address}
                         title={owner}
                         address={owner}
-                        className="font-mono text-body font-medium text-hero-dark no-underline"
+                        className="text-hero-dark font-mono text-body font-medium no-underline"
                     >
                         {ownerDisplay}
                     </ExplorerLink>

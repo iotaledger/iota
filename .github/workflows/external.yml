@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,7 +36,7 @@ env:
 
 jobs:
   changes:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -48,7 +48,7 @@ jobs:
           filters: .github/external-crates-filters.yml
 
   diff:
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -70,7 +70,7 @@ jobs:
       matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -89,7 +89,7 @@ jobs:
   clippy:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - run: rustup component add clippy
@@ -97,12 +97,12 @@ jobs:
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: cargo move-clippy
         run: |
-          cargo +stable ci-clippy-external
+          cargo ci-clippy-external
 
   rustfmt:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install latest nightly
@@ -115,7 +115,7 @@ jobs:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted-rust]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: EmbarkStudios/cargo-deny-action@v1

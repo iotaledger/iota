@@ -11,7 +11,7 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
 import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@iota/icons';
-import { getNetwork, Network } from '@iota/iota.js/client';
+import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
 import Loading from '../../loading';
@@ -29,7 +29,7 @@ function MenuList() {
 
     return (
         <MenuLayout title="Wallet Settings">
-            <div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
+            <div className="divide-gray-45 flex flex-col divide-x-0 divide-y divide-solid">
                 <MenuListItem
                     to={networkUrl}
                     icon={<Domain24 />}

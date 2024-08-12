@@ -11,7 +11,7 @@ use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };
-use tui::{backend::CrosstermBackend, text::Spans, Terminal};
+use ratatui::{backend::CrosstermBackend, text::Line, Terminal};
 
 use crate::tui::TUI;
 
@@ -20,12 +20,10 @@ use crate::tui::TUI;
 /// screen respectively.
 #[derive(Debug, Clone)]
 pub struct TUIOutput<'a> {
-    /// The text to be displayed on the left screen. Each `Spans` in the vector
-    /// is a line.
-    pub left_screen: Vec<Spans<'a>>,
-    /// The text to be displayed on the right screen. Each `Spans` in the vector
-    /// is a line.
-    pub right_screen: Vec<Spans<'a>>,
+    /// The text to be displayed on the left screen.
+    pub left_screen: Vec<Line<'a>>,
+    /// The text to be displayed on the right screen.
+    pub right_screen: Vec<Line<'a>>,
 }
 
 pub trait TUIInterface {
@@ -65,8 +63,13 @@ impl TUIInterface for DebugInterface {
     const RIGHT_TITLE: &'static str = "Right pane";
     fn on_redraw(&mut self, line_number: u16, column_number: u16) -> TUIOutput {
         TUIOutput {
-            left_screen: self.text.iter().map(|x| Spans::from(x.clone())).collect(),
-            right_screen: vec![Spans::from(format!(
+            left_screen: self
+                .text
+                .iter()
+                .map(AsRef::as_ref)
+                .map(Line::from)
+                .collect(),
+            right_screen: vec![Line::from(format!(
                 "line number: {}   column number: {}",
                 line_number, column_number
             ))],
