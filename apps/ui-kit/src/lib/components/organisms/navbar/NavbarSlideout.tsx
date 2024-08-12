@@ -33,11 +33,11 @@ export function NavbarSlideout({
                 )}
             >
                 <div className="flex flex-col gap-2">
-                    <div>
+                    <div className="[&_svg]:h-5 [&_svg]:w-5">
                         <Button
                             type={ButtonType.Ghost}
                             onClick={onToggleNavbar}
-                            icon={<ArrowBack className="h-5 w-5" />}
+                            icon={<ArrowBack />}
                         />
                     </div>
                     {items.map((item) => (
