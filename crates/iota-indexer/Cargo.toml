@@ -15,12 +15,10 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel.workspace = true
-diesel-derive-enum.workspace = true
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
-rayon.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -57,13 +55,9 @@ diesel_migrations.workspace = true
 pg_integration = []
 
 [dev-dependencies]
-criterion.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
-iota-test-transaction-builder.workspace = true
-ntest.workspace = true
 simulacrum.workspace = true
-test-cluster.workspace = true
 
 [[bin]]
 name = "iota-indexer"

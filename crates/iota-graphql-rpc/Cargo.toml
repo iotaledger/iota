@@ -48,7 +48,6 @@ serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
-serial_test.workspace = true
 shared-crypto.workspace = true
 similar.workspace = true
 tap.workspace = true
@@ -76,7 +75,6 @@ iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-swarm-config.workspace = true
 move-bytecode-utils.workspace = true
-simulacrum.workspace = true # todo: cleanup test only deps
 test-cluster.workspace = true
 
 [dev-dependencies]
@@ -85,6 +83,8 @@ hyper.workspace = true
 insta.workspace = true
 iota-framework.workspace = true
 serde_json.workspace = true
+serial_test.workspace = true
+simulacrum.workspace = true
 tower.workspace = true
 
 [features]

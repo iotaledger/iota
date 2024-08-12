@@ -10,7 +10,6 @@ publish = false
 async-trait.workspace = true
 bcs.workspace = true
 eyre.workspace = true
-iota-rest-api.workspace = true
 iota-types.workspace = true
 lru.workspace = true
 move-binary-format.workspace = true

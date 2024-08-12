@@ -10,7 +10,6 @@ publish = false
 proc-macro = true
 
 [dependencies]
-iota-enum-compat-util.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn = { version = "2", features = ["full", "fold", "extra-traits"] }

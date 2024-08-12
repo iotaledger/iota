@@ -33,4 +33,3 @@ tower.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true
-test-utils = { path = "../test-utils", package = "narwhal-test-utils" }

@@ -24,7 +24,6 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 uuid.workspace = true
 
-iota.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-faucet.workspace = true

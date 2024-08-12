@@ -10,11 +10,9 @@ publish = false
 
 [dev-dependencies]
 anyhow.workspace = true
-assert_cmd.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
-expect-test.workspace = true
 eyre.workspace = true
 fs_extra.workspace = true
 futures.workspace = true
