@@ -118,7 +118,7 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
             onClick={onClick}
         >
             <div className="flex gap-2.5">
-                <CoinIcon coinType={coinType} size="md" />
+                <CoinIcon coinType={coinType} />
                 <div className="flex flex-col items-start gap-1">
                     <Text variant="body" color="gray-90" weight="semibold" truncate>
                         {coinMeta?.name || symbol}
