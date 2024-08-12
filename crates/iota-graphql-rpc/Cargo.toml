@@ -91,3 +91,6 @@ tower.workspace = true
 default = ["pg_backend"]
 pg_integration = []
 pg_backend = []
+
+[package.metadata.cargo-udeps.ignore]
+development = ["serial_test", "simulacrum"]
