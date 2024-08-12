@@ -14130,10 +14130,15 @@ dependencies = [
 name = "typed-store-derive"
 version = "0.3.0"
 dependencies = [
+ "eyre",
  "itertools 0.13.0",
  "proc-macro2 1.0.86",
  "quote 1.0.36",
+ "rocksdb",
  "syn 1.0.109",
+ "tempfile",
+ "tokio",
+ "typed-store",
 ]
 
 [[package]]
