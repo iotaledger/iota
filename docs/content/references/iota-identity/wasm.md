@@ -1,7 +1,7 @@
 ---
 title: WASM API Reference
 description: WASM API reference.
-image: /img/Identity_icon.png
+image: /img/identity/icon.png
 tags:
   - WASM
   - API Reference
