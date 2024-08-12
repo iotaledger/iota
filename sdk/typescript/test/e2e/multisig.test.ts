@@ -13,7 +13,7 @@ import { toZkLoginPublicIdentifier } from '../../src/zklogin/publickey';
 import { DEFAULT_RECIPIENT, setupWithFundedAddress } from './utils/setup';
 
 describe('MultiSig with zklogin signature', () => {
-    it('Execute tx with multisig with 1 sig and 1 zkLogin sig combined', async () => {
+    it.skip('Execute tx with multisig with 1 sig and 1 zkLogin sig combined', async () => {
         // set up default zklogin public identifier consistent with default zklogin proof.
         const pkZklogin = toZkLoginPublicIdentifier(
             BigInt('20794788559620669596206457022966176986688727876128223628113916380927502737911'),

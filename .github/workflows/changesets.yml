@@ -10,17 +10,6 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  release:
-    runs-on: self-hosted
-    steps:
-      - name: Dispatch Changesets To Operations
-        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
-        with:
-          repository: iotaledger/iota-operations
-          token: ${{ secrets.CHANGESETS_DEPLOY_DISPATCH }}
-          event-type: changesets
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
-
   version:
     runs-on: self-hosted
     steps:

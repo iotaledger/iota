@@ -6,7 +6,7 @@ import { TextArea } from '@/lib/components/molecules/input';
 import { useEffect, useState } from 'react';
 import { Button } from '@/lib';
 
-const meta = {
+const meta: Meta<typeof TextArea> = {
     component: TextArea,
     tags: ['autodocs'],
 } satisfies Meta<typeof TextArea>;
@@ -59,8 +59,8 @@ export const Default: Story = {
             alert(inputValue);
         }
 
-        function handleOnChange(value: string) {
-            setInputValue(value);
+        function handleOnChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+            setInputValue(e.target.value);
         }
 
         return (

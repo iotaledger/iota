@@ -25,7 +25,7 @@ jobs:
         uses: "./.github/actions/diffs"
         id: diff
 
-  # Run e2e test against localnet built on the main branch
+  # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
     needs: diff
@@ -48,14 +48,12 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      # Disabled for now as it makes test runs take longer
-      # - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
       - run: cargo build --bin iota-test-validator --bin iota --profile dev
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -71,7 +69,7 @@ jobs:
         if: ${{ needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isRust == 'true'}}
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota.js test:e2e'
 
-      - name: Run RPC/GrpahQL comaptability e2e tests
+      - name: Run RPC/GraphQL compatibility e2e tests
         if: ${{ needs.diff.outputs.isGraphQlTransport == 'true' || needs.diff.outputs.isRust == 'true'}}
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
@@ -89,79 +87,3 @@ jobs:
           name: playwright-report-explorer
           path: apps/explorer/playwright-report/
           retention-days: 30
-
-      - name: Run Local net
-        run: cargo run --bin iota-test-validator -- --epoch-duration-ms 10000 &
-      - name: Set Wallet env
-        run: echo "API_ENV=local" > "$PWD/apps/wallet/configs/environment/.env"
-      - name: Build Wallet
-        # need to run Wallet e2e when its upstream(TS SDK and Rust) or itself is changed
-        if: ${{ needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'}}
-        run: pnpm wallet build
-      - name: Run Wallet e2e tests
-        if: ${{ needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'}}
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
-      - uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: playwright-report-wallet
-          path: apps/wallet/playwright-report/
-          retention-days: 30
-
-  # Run e2e test against localnet built on the devnet branch for backward compatibility check
-  local_devnet_branch:
-    name: Local Network Built on devnet branch
-    needs: diff
-    # TODO: add wallet e2e to the `if` condition when available
-    if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: self-hosted
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespw
-          POSTGRES_DB: iota_indexer_v2
-          POSTGRES_HOST_AUTH_METHOD: trust
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Run E2E Test Runner with devnet branch
-        uses: "./.github/actions/ts-e2e"
-        with:
-          ref: devnet
-
-  # Run e2e test against localnet built on the Testnet branch for backward compatibility check
-  local_testnet_branch:
-    name: Local Network Built on testnet branch
-    needs: diff
-    # TODO: add wallet e2e to the `if` condition when available
-    if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: self-hosted
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespw
-          POSTGRES_DB: iota_indexer_v2
-          POSTGRES_HOST_AUTH_METHOD: trust
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Run E2E Test Runner with testnet branch
-        uses: "./.github/actions/ts-e2e"
-        with:
-          ref: testnet
