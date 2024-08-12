@@ -242,7 +242,7 @@ export const RPC_METHODS: {
         );
 
         return {
-            value: (BigInt(metadata.supply!) * 10n ** BigInt(metadata.decimals!)).toString(),
+            value: BigInt(metadata.supply!).toString(),
         };
     },
     async getMoveFunctionArgTypes(transport, [pkg, module, fn]) {

@@ -121,9 +121,6 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
 
-      - name: Install cargo-license-template
-        run: cargo install --force cargo-license-template
-
       - name: Run cargo-license-template
         run: cargo ci-license
 
@@ -283,7 +280,7 @@ jobs:
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
-        run: cargo +stable ci-clippy
+        run: cargo ci-clippy
 
   rustfmt:
     needs: diff

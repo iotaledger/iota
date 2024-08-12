@@ -371,7 +371,7 @@ impl MoveObjectType {
     pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                Err(IotaError::ObjectDeserializationError {
+                Err(IotaError::ObjectDeserialization {
                     error: "Error extracting dynamic object name from Coin object".to_string(),
                 })
             }
@@ -382,7 +382,7 @@ impl MoveObjectType {
     pub fn try_extract_field_value(&self) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                Err(IotaError::ObjectDeserializationError {
+                Err(IotaError::ObjectDeserialization {
                     error: "Error extracting dynamic object value from Coin object".to_string(),
                 })
             }
