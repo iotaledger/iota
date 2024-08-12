@@ -726,7 +726,8 @@ const developer = [
         type: 'category',
         label: 'Exchange integration',
         items: ['developer/exchange-integration/exchange-integration'],
-    },{
+    },
+    {
         type: 'category',
         label: 'Decentralized Identity',
         link: {
@@ -802,35 +803,6 @@ const developer = [
             'developer/iota-identity/workflow',
             'developer/iota-identity/contact',
             'developer/iota-identity/faq',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Integrate Your Exchange',
-        items: [
-            'developer/exchange-integration/exchange-integration',
-
-            {
-                type: 'category',
-                label: 'Migrating IOTA/Shimmer Stardust',
-                link: {
-                    type: 'doc',
-                    id: 'developer/stardust/stardust-migration',
-                },
-                items: [
-                    'developer/stardust/exchanges',
-                    'developer/stardust/move-models',
-                    'developer/stardust/addresses',
-                    'developer/stardust/units',
-                    'developer/stardust/migration-process',
-                    'developer/stardust/claiming',
-                    'developer/stardust/vested',
-                    'developer/stardust/testing',
-                    'developer/stardust/if-tools',
-                    'developer/stardust/faq',
-                    'developer/stardust/advanced',
-                ],
-            },
         ],
     },
     'developer/dev-cheat-sheet',
