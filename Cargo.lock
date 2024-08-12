@@ -8633,7 +8633,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote 1.0.36",
  "syn 2.0.72",
 ]
@@ -8849,7 +8848,6 @@ dependencies = [
  "move-vm-types",
  "once_cell",
  "parking_lot 0.12.3",
- "sha3 0.9.1",
  "smallvec",
  "tracing",
 ]
@@ -8868,7 +8866,6 @@ dependencies = [
  "move-vm-types",
  "once_cell",
  "parking_lot 0.12.3",
- "sha3 0.9.1",
  "smallvec",
  "tracing",
 ]
