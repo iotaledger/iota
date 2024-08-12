@@ -15,6 +15,10 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides methods for reading transaction related data such as transaction
+/// blocks, checkpoints, and protocol configuration. The trait further provides
+/// methods for reading the ledger (current objects) as well its history (past
+/// objects).
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {
