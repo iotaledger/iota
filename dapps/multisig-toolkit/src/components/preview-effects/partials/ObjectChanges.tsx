@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaObjectChange } from '@iota/iota.js/src/client';
+import { IotaObjectChange } from '@iota/iota-sdk/src/client';
 
 import { ObjectLink } from '../ObjectLink';
 import { PreviewCard } from '../PreviewCard';

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ArrowUpRight12 } from '@iota/icons';
-import { type IotaValidatorSummary } from '@iota/iota.js/client';
+import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Heading, Text } from '@iota/ui';
 
 import {

@@ -8,7 +8,7 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 import { VirtualList, TransactionTile } from '@/components';
 import { useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
-import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 function ActivityPage(): JSX.Element {
     const currentAccount = useCurrentAccount();
