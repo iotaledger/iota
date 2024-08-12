@@ -16,59 +16,80 @@ The Indexer pulls checkpoint data from the full node and populates the tables sh
 
 ## Indexes
 
-Below are listed the tables keys with their constraints:
+### Table `checkpoints`
 
-### Checkpoints
+| Index name         | Keys                   |
+| ------------------ | ---------------------- |
+| checkpoints_epoch  | epoch, sequence_number |
+| checkpoints_digest | checkpoint_digest      |
 
-- `epoch, sequence_number`
-- `checkpoint_digest`
+### Table `events`
 
-### Events
+| Index name                        | Keys                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| events_package                    | package, tx_sequence_number, event_sequence_number                      |
+| events_package_module             | package, module, tx_sequence_number, event_sequence_number              |
+| events_event_type                 | event_type, text_pattern_ops, tx_sequence_number, event_sequence_number |
+| events_checkpoint_sequence_number | checkpoint_sequence_number                                              |
 
-- `package, tx_sequence_number, event_sequence_number`
-- `package, module, tx_sequence_number, event_sequence_number`
-- `event_type, text_pattern_ops, tx_sequence_number, event_sequence_number`
-- `checkpoint_sequence_number`
+### Table `objects`
 
-### Objects
+| Index name                         | Keys                       | Condition                                                 |
+| ---------------------------------- | -------------------------- | --------------------------------------------------------- |
+| objects_owner                      | owner_type, owner_id       | WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL |
+| objects_coin                       | owner_id, coin_type        | WHERE coin_type IS NOT NULL AND owner_type = 1            |
+| objects_checkpoint_sequence_number | checkpoint_sequence_number |                                                           |
+| objects_type                       | object_type                |                                                           |
 
-- `owner_type, owner_id` (WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL)
-- `owner_id, coin_type` (WHERE coin_type IS NOT NULL AND owner_type = 1)
-- `checkpoint_sequence_number`
-- `object_type`
+### Table `objects_snapshot`
 
-### Objects Snapshot
+| Index name                                  | Keys                            | Condition                                                 |
+| ------------------------------------------- | ------------------------------- | --------------------------------------------------------- |
+| objects_snapshot_checkpoint_sequence_number | checkpoint_sequence_number      |                                                           |
+| objects_snapshot_coin                       | owner_id, coin_type, object_id  | WHERE coin_type IS NOT NULL AND owner_type = 1            |
+| objects_snapshot_type                       | object_type, object_id          |                                                           |
+| objects_snapshot_owner                      | owner_type, owner_id, object_id | WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL |
 
-- `owner_id, coin_type, object_id` (WHERE coin_type IS NOT NULL AND owner_type = 1)
-- `owner_type, owner_id, object_id` (WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL)
-- `checkpoint_sequence_number`
-- `object_type, object_id`
+### Table `objects_history`
 
-### Objects History
+| Index name            | Keys                                             | Condition                                                 |
+| --------------------- | ------------------------------------------------ | --------------------------------------------------------- |
+| objects_history_owner | checkpoint_sequence_number, owner_type, owner_id | WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL |
+| objects_history_coin  | checkpoint_sequence_number, owner_id, coin_type  | WHERE coin_type IS NOT NULL AND owner_type = 1            |
+| objects_history_type  | checkpoint_sequence_number, object_type          |                                                           |
 
-- `checkpoint_sequence_number, owner_type, owner_id` (WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL)
-- `checkpoint_sequence_number, owner_id, coin_type` (WHERE coin_type IS NOT NULL AND owner_type = 1)
-- `checkpoint_sequence_number, object_type`
+### Table `transactions`
 
-### Transactions
+| Index name                              | Keys                       | Condition                  |
+| --------------------------------------- | -------------------------- | -------------------------- |
+| transactions_transaction_digest         | transaction_digest         |                            |
+| transactions_checkpoint_sequence_number | checkpoint_sequence_number |                            |
+| transactions_transaction_kind           | transaction_kind           | WHERE transaction_kind = 1 |
 
-- `transaction_kind` (WHERE transaction_kind = 1)
-- `transaction_digest`
-- `checkpoint_sequence_number`
+### Table `tx_calls`
 
-### Tx Calls
+| Index name                  | Keys                                      |
+| --------------------------- | ----------------------------------------- |
+| tx_calls_module             | package, module, tx_sequence_number       |
+| tx_calls_func               | package, module, func, tx_sequence_number |
+| tx_calls_tx_sequence_number | tx_sequence_number                        |
 
-- `package, module, tx_sequence_number`
-- `package, module, func, tx_sequence_number`
-- `tx_sequence_number`
+### Table `tx_senders`
 
-### Tx Senders, Tx Recipients
+| Index name                          | Keys               | Condition |
+| ----------------------------------- | ------------------ | --------- |
+| tx_senders_tx_sequence_number_index | tx_sequence_number | ASC       |
 
-- `tx_sequence_number` ASC
+### Tables `tx_recipients`
+
+| Index name                             | Keys               | Condition |
+| -------------------------------------- | ------------------ | --------- |
+| tx_recipients_tx_sequence_number_index | tx_sequence_number | ASC       |
 
 ## Partitions
 
-Below are listed the tables keys with their constraints:
+### Tables `transactions`, `objects_history`
 
-- **Transactions, Objects History:**
-  - `checkpoint_sequence_number` FOR VALUES FROM (0) TO (MAXVALUE)
+|            Keys            |             Condition             |
+| :------------------------: | :-------------------------------: |
+| checkpoint_sequence_number | FOR VALUES FROM (0) TO (MAXVALUE) |
