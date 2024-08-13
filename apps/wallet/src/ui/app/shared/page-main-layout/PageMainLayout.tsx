@@ -40,6 +40,7 @@ export function PageMainLayout({
     const isFullScreen = appType === AppType.Fullscreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
+
     return (
         <div
             className={cn(
@@ -53,6 +54,7 @@ export function PageMainLayout({
                     <LeftContent
                         account={activeAccount?.address}
                         isLedgerAccount={isLedgerAccount}
+                        isLocked={activeAccount?.isLocked}
                     />
                 }
                 middleContent={
@@ -83,20 +85,30 @@ export function PageMainLayout({
 function LeftContent({
     account,
     isLedgerAccount,
+    isLocked,
 }: {
     account: string | undefined;
     isLedgerAccount: boolean | null;
+    isLocked?: boolean;
 }) {
+    const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
-        <div className="flex flex-row items-center gap-sm">
+        <div className="flex flex-row items-center gap-sm p-xs">
             <Link to="/" className="text-gray-90 no-underline">
-                {!isLedgerAccount ? (
-                    <Ledger className="h-6 w-6" />
-                ) : (
-                    <IotaLogoMark className="h-6 w-6" />
-                )}
+                <div
+                    className={cn(
+                        'rounded-full p-1 text-neutral-100 [&_svg]:h-5 [&_svg]:w-5',
+                        backgroundColor,
+                    )}
+                >
+                    {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
+                </div>
             </Link>
-            <span className="text-title-sm text-neutral-10">{formatAddress(account || '')}</span>
+            <Link to="/accounts/manage" className="text-gray-90 no-underline">
+                <span className="text-title-sm text-neutral-10">
+                    {formatAddress(account || '')}
+                </span>
+            </Link>
         </div>
     );
 }
