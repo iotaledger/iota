@@ -3,15 +3,14 @@ title: Claiming Stardust Assets
 description: Describes how to access the migrated assets and tokens
 ---
 
-  - Explains the resulting migrated state for simple coins (exchanges)
-  - Demonstrates through examples for each output type the resulting move objects
-  - Explains what commands need to be called in a PTB to claim the assets
-  - Describes transaction sponsorship from iota addresses for shimmer claiming
+As detailed in the [Stardust Move Models](move-models.mdx), Stardust assets are represented as Move objects within the ledger. Claiming these assets involves enabling original owners to utilize a [Programmable Transaction Block](../iota-101/transactions/ptb/prog-txn-blocks.mdx) to "unlock" assets such as IOTA, Shimmer, custom [`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin)s, or even `Alias` and `Nft` objects. 
 
-## IOTA tokens automatic migration 
+This process takes advantage of Move's unique features to ensure that assets are transferred and unlocked securely and efficiently to their rightful owners.
 
 
 ## Output types to Move Objects
+
+Stardust assets come in the form of Outputs and each Output can be of a different type. For understanding how Outputs have been transformed into Move Objects based on their types, please refer to the [Stardust Move Models](move-models.mdx#summary) page. In here, one or more claiming examples for each Output type will be shown.
 
 
 ## Examples of Stardust asset claim transactions
