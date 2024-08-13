@@ -4,7 +4,7 @@
 
 import { ImageIcon } from '_app/shared/image-icon';
 import { useCoinMetadata } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { IotaLogoMark } from '@iota/ui-icons';
 
 interface NonIotaCoinProps {

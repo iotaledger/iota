@@ -14,7 +14,7 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface CoinItemProps {
     coinType: string;
