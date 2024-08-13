@@ -231,6 +231,7 @@ pub enum KeyToolCommand {
     /// address, Base64 encoded public key, the key scheme, and the key scheme
     /// flag.
     Unpack { keypair: String },
+    // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // /// Given the max_epoch, generate an OAuth url, ask user to paste the
     // /// redirect with id_token, call salt server, then call the prover server,
     // /// create a test transaction, use the ephemeral key to sign and execute it
