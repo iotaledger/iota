@@ -52,5 +52,5 @@ name = "foundry-output-claim"
 path = "stardust/foundry-output-claim.rs"
 
 [[example]]
-name = "self-sponsor"
-path = "stardust/self-sponsor.rs"
+name = "shimmer-self-sponsor"
+path = "stardust/shimmer-self-sponsor.rs"
