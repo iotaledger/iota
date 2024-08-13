@@ -4,11 +4,7 @@
 'use client';
 
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
-import {
-    getVestingOverview,
-    timelockObjectsFromIotaObjects,
-    mapTimelockObjects,
-} from '@/lib/utils';
+import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
 import {
     TIMELOCK_IOTA_TYPE,
     useGetAllOwnedObjects,
@@ -25,9 +21,8 @@ function VestingDashboardPage(): JSX.Element {
     const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
-    const stakedTimelockedMapped = timelockObjectsFromIotaObjects(stakedTimelockedObjects || []);
     const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...stakedTimelockedMapped],
+        [...timelockedMapped, ...(stakedTimelockedObjects || [])],
         Number(currentEpochMs),
     );
 

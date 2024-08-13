@@ -22,17 +22,3 @@ export interface TimelockedIotaResponse {
     expiration_timestamp_ms: string;
     label?: string;
 }
-
-export interface StakedIota {
-    id: UID;
-    poolId: string;
-    stakeActivationEpoch: number;
-    principal: Balance;
-}
-
-export interface TimelockedStakedIota {
-    id: UID;
-    stakedIota: StakedIota;
-    expirationTimestampMs: number;
-    label?: string | null | undefined;
-}
