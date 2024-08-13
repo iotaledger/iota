@@ -36,5 +36,6 @@ export * from './useGetNFTMeta';
 export * from './useIotaAddressValidation';
 export * from './useGetAllOwnedObjects';
 export * from './useGetStakedTimelockedObjects';
+export * from './useGetActiveValidatorsInfo';
 
 export * from './stake';
