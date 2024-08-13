@@ -4,7 +4,7 @@
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
-import { type IotaValidatorSummary } from '@iota/iota.js/client';
+import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 import { type ReactNode, useMemo } from 'react';
 

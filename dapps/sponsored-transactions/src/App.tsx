@@ -8,8 +8,8 @@ import {
     useSignTransactionBlock,
     useIotaClient,
 } from '@iota/dapp-kit';
-import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { ComponentProps, ReactNode, useMemo, useState } from 'react';
 
 import { sponsorTransaction } from './utils/sponsorTransaction';

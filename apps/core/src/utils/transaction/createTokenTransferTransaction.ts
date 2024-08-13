@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinStruct } from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { type CoinStruct } from '@iota/iota-sdk/client';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { parseAmount } from '../parseAmount';
 
 interface Options {

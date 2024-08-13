@@ -6,7 +6,7 @@ import { ImageIcon } from '_app/shared/image-icon';
 import { Text } from '_app/shared/text';
 import { Badge } from '_src/ui/app/shared/Badge';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { useMemo } from 'react';
 

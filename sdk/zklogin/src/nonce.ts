@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { toHEX } from '@iota/bcs';
-import type { PublicKey } from '@iota/iota.js/cryptography';
-import { toBigEndianBytes } from '@iota/iota.js/zklogin';
+import type { PublicKey } from '@iota/iota-sdk/cryptography';
+import { toBigEndianBytes } from '@iota/iota-sdk/zklogin';
 import { randomBytes } from '@noble/hashes/utils';
 import { base64url } from 'jose';
 

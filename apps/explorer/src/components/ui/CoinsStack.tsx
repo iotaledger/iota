@@ -4,7 +4,7 @@
 
 import { useCoinMetadata } from '@iota/core';
 import { Iota, Unstaked } from '@iota/icons';
-import { type CoinMetadata } from '@iota/iota.js/client';
+import { type CoinMetadata } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 
 import { Image } from '~/components/ui';

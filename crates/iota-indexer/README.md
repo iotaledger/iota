@@ -13,6 +13,10 @@ Iota indexer is an off-fullnode service to serve data from Iota protocol, includ
 >   - Nodes expose the `NameServiceConfig` API, whereas indexer instances do not.
 >   - Indexer instance expose the `ExtendedApi`, but nodes do not.
 
+## Database Schema
+
+For more in depth information check the [Database Schema](./schema.md).
+
 ## Steps to run locally
 
 ### Prerequisites
