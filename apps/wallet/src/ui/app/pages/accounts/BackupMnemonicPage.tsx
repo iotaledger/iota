@@ -103,7 +103,7 @@ export function BackupMnemonicPage() {
                                 )}
                             </Loading>
                         </div>
-                        {false && (
+                        {passphraseMutation.data && (
                             <div className="flex justify-end">
                                 <Button
                                     onClick={handleCopy}
