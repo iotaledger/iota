@@ -1,7 +1,7 @@
 [package]
 name = "iota"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -110,7 +110,4 @@ name = "ptb_files_tests"
 harness = false
 
 [features]
-gas-profiler = [
-  "iota-types/gas-profiler",
-  "iota-execution/gas-profiler",
-]
+gas-profiler = ["iota-types/gas-profiler", "iota-execution/gas-profiler"]
