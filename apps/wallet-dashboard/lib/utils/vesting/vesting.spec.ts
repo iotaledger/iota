@@ -150,19 +150,20 @@ describe('vesting overview', () => {
 
     it('should get correct vesting overview data with timelocked staked objects', () => {
         const timelockedStakedObjects = MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS;
-        const lastPayout = timelockedStakedObjects[timelockedStakedObjects.length - 1];
+        const lastPayout = timelockedStakedObjects[timelockedStakedObjects.length - 1].stakes[0];
+        const lastPayoutValue = Number(lastPayout.principal);
         const totalAmount =
             SUPPLY_INCREASE_STAKER_VESTING_DURATION *
             SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
-            lastPayout.stakedIota.principal.value;
+            lastPayoutValue;
 
         const vestingOverview = getVestingOverview(timelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
         const vestingPortfolio = buildVestingPortfolio(
             {
-                amount: lastPayout.stakedIota.principal.value,
-                expirationTimestampMs: lastPayout.expirationTimestampMs,
+                amount: lastPayoutValue,
+                expirationTimestampMs: Number(lastPayout.expirationTimestampMs),
             },
             Date.now(),
         );
@@ -176,10 +177,15 @@ describe('vesting overview', () => {
         expect(vestingOverview.totalLocked).toEqual(lockedAmount);
         expect(vestingOverview.totalUnlocked).toEqual(totalAmount - lockedAmount);
 
-        const totalStaked = timelockedStakedObjects.reduce(
-            (acc, current) => acc + current.stakedIota.principal.value,
-            0,
-        );
+        let totalStaked: number = 0;
+        for (const timelockedStakedObject of timelockedStakedObjects) {
+            const stakesAmount = timelockedStakedObject.stakes.reduce(
+                (acc, current) => acc + Number(current.principal),
+                0,
+            );
+            totalStaked += stakesAmount;
+        }
+
         expect(vestingOverview.totalStaked).toEqual(totalStaked);
 
         // In this scenario there are no objects to stake or claim because they are all staked
@@ -215,9 +221,16 @@ describe('vesting overview', () => {
         expect(vestingOverview.totalLocked).toEqual(lockedAmount);
         expect(vestingOverview.totalUnlocked).toEqual(totalAmount - lockedAmount);
 
-        const totalStaked = mixedObjects
-            .filter(isTimelockedStakedIota)
-            .reduce((acc, current) => acc + current.stakedIota.principal.value, 0);
+        const timelockedStakedObjects = mixedObjects.filter(isTimelockedStakedIota);
+        let totalStaked: number = 0;
+        for (const timelockedStakedObject of timelockedStakedObjects) {
+            const stakesAmount = timelockedStakedObject.stakes.reduce(
+                (acc, current) => acc + Number(current.principal),
+                0,
+            );
+            totalStaked += stakesAmount;
+        }
+
         expect(vestingOverview.totalStaked).toEqual(totalStaked);
 
         const timelockObjects = mixedObjects.filter(isTimelockedObject);

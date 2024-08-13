@@ -16,13 +16,12 @@ import {
     SupplyIncreaseVestingPortfolio,
     TimelockedIotaResponse,
     TimelockedObject,
-    TimelockedStakedIota,
     VestingOverview,
 } from '../../interfaces';
 import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
 
 export function getLastSupplyIncreaseVestingPayout(
-    objects: (TimelockedObject | TimelockedStakedIota)[],
+    objects: (TimelockedObject | DelegatedTimelockedStake)[],
 ): SupplyIncreaseVestingPayout | undefined {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
 
@@ -37,36 +36,48 @@ export function getLastSupplyIncreaseVestingPayout(
     return payouts.sort((a, b) => b.expirationTimestampMs - a.expirationTimestampMs)[0];
 }
 
+function addVestingPayoutToSupplyIncreaseMap(
+    value: number,
+    expirationTimestampMs: number,
+    supplyIncreaseMap: Map<number, SupplyIncreaseVestingPayout>,
+) {
+    if (!supplyIncreaseMap.has(expirationTimestampMs)) {
+        supplyIncreaseMap.set(expirationTimestampMs, {
+            amount: value,
+            expirationTimestampMs: expirationTimestampMs,
+        });
+    } else {
+        const vestingPayout = supplyIncreaseMap.get(expirationTimestampMs);
+        if (vestingPayout) {
+            vestingPayout.amount += value;
+            supplyIncreaseMap.set(expirationTimestampMs, vestingPayout);
+        }
+    }
+}
+
 function supplyIncreaseVestingObjectsToPayoutMap(
-    vestingObjects: (TimelockedObject | TimelockedStakedIota)[],
+    vestingObjects: (TimelockedObject | DelegatedTimelockedStake)[],
 ): Map<number, SupplyIncreaseVestingPayout> {
     const expirationToVestingPayout = new Map<number, SupplyIncreaseVestingPayout>();
 
     for (const vestingObject of vestingObjects) {
-        let objectValue = 0;
         if (isTimelockedObject(vestingObject)) {
-            objectValue = (vestingObject as TimelockedObject).locked.value;
-        } else if (isTimelockedStakedIota(vestingObject)) {
-            objectValue = (vestingObject as TimelockedStakedIota).stakedIota.principal.value;
-        }
-
-        if (!expirationToVestingPayout.has(vestingObject.expirationTimestampMs)) {
-            expirationToVestingPayout.set(vestingObject.expirationTimestampMs, {
-                amount: objectValue,
-                expirationTimestampMs: vestingObject.expirationTimestampMs,
-            });
-        } else {
-            const vestingPayout = expirationToVestingPayout.get(
+            const objectValue = (vestingObject as TimelockedObject).locked.value;
+            addVestingPayoutToSupplyIncreaseMap(
+                objectValue,
                 vestingObject.expirationTimestampMs,
+                expirationToVestingPayout,
             );
-
-            if (!vestingPayout) {
-                continue;
+        } else if (isTimelockedStakedIota(vestingObject)) {
+            for (const vestingStake of vestingObject.stakes) {
+                const objectValue = Number(vestingStake.principal);
+                const expirationTimestampMs = Number(vestingStake.expirationTimestampMs);
+                addVestingPayoutToSupplyIncreaseMap(
+                    objectValue,
+                    expirationTimestampMs,
+                    expirationToVestingPayout,
+                );
             }
-
-            vestingPayout.amount += objectValue;
-
-            expirationToVestingPayout.set(vestingObject.expirationTimestampMs, vestingPayout);
         }
     }
 
@@ -111,7 +122,7 @@ export function buildSupplyIncreaseVestingSchedule(
 }
 
 export function getVestingOverview(
-    objects: (TimelockedObject | TimelockedStakedIota)[],
+    objects: (TimelockedObject | DelegatedTimelockedStake)[],
     currentEpochTimestamp: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
@@ -143,10 +154,14 @@ export function getVestingOverview(
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
 
     const timelockedStakedObjects = vestingObjects.filter(isTimelockedStakedIota);
-    const totalStaked = timelockedStakedObjects.reduce(
-        (acc, current) => acc + current.stakedIota.principal.value,
-        0,
-    );
+    let totalStaked: number = 0;
+    for (const timelockedStakedObject of timelockedStakedObjects) {
+        const stakesAmount = timelockedStakedObject.stakes.reduce(
+            (acc, current) => acc + Number(current.principal),
+            0,
+        );
+        totalStaked += stakesAmount;
+    }
 
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
@@ -204,31 +219,14 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObj
     });
 }
 
-export function timelockObjectsFromIotaObjects(
-    stakedTimelockedObjects: DelegatedTimelockedStake[],
-): TimelockedStakedIota[] {
-    const result: TimelockedStakedIota[] = [];
-    stakedTimelockedObjects.map((stakedTimelockedObject) => {
-        const stakeMapped: TimelockedStakedIota[] = stakedTimelockedObject.stakes.map((stake) => {
-            return {
-                id: { id: stake.timelockedStakedIotaId },
-                expirationTimestampMs: Number(stake.expirationTimestampMs),
-                stakedIota: {
-                    id: { id: stake.timelockedStakedIotaId },
-                    poolId: stakedTimelockedObject.stakingPool,
-                    stakeActivationEpoch: Number(stake.stakeRequestEpoch),
-                    principal: { value: Number(stake.principal) },
-                },
-                label: stake.label,
-            };
-        });
-        result.push(...stakeMapped);
-    });
-    return result;
-}
-
 export function isSupplyIncreaseVestingObject(
-    obj: TimelockedObject | TimelockedStakedIota,
+    obj: TimelockedObject | DelegatedTimelockedStake,
 ): boolean {
-    return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
+    if (isTimelockedObject(obj)) {
+        return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
+    } else if (isTimelockedStakedIota(obj)) {
+        return obj.stakes.some((stake) => stake.label === SUPPLY_INCREASE_VESTING_LABEL);
+    } else {
+        return false;
+    }
 }
