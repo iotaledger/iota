@@ -24,5 +24,5 @@ export function isTimelockedUnlocked(
     timelockedObject: Timelocked | TimelockedStakedIota,
     currentEpochMs: number,
 ): boolean {
-    return timelockedObject.expirationTimestampMs <= Number(currentEpochMs);
+    return timelockedObject.expirationTimestampMs <= currentEpochMs;
 }
