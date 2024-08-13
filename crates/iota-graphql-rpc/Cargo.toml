@@ -8,12 +8,7 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
-async-graphql = { workspace = true, features = [
-    "dataloader",
-    "apollo_tracing",
-    "tracing",
-    "opentelemetry",
-] }
+async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
 async-graphql-axum.workspace = true
 async-graphql-value.workspace = true
 async-trait.workspace = true
@@ -81,7 +76,7 @@ iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-swarm-config.workspace = true
 move-bytecode-utils.workspace = true
-simulacrum.workspace = true            # todo: cleanup test only deps
+simulacrum.workspace = true # todo: cleanup test only deps
 test-cluster.workspace = true
 
 [dev-dependencies]

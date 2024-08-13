@@ -21,11 +21,7 @@ futures.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 hyper-rustls.workspace = true
-hyper-util = { workspace = true, features = [
-    "http2",
-    "client-legacy",
-    "tokio",
-] }
+hyper-util = { workspace = true, features = ["http2", "client-legacy", "tokio"] }
 indicatif.workspace = true
 integer-encoding.workspace = true
 itertools.workspace = true

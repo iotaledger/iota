@@ -7,12 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-async-graphql = { workspace = true, features = [
-    "dataloader",
-    "apollo_tracing",
-    "tracing",
-    "opentelemetry",
-] }
+async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
 axum.workspace = true
 hyper.workspace = true
 iota-graphql-rpc-headers.workspace = true

@@ -23,13 +23,7 @@ prometheus.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
 tap.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = [
-    "sync",
-    "rt",
-    "macros",
-    "time",
-    "test-util",
-] }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "test-util"] }
 tokio-stream.workspace = true
 tower.workspace = true
 tracing.workspace = true

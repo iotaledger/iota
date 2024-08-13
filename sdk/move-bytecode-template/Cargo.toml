@@ -10,9 +10,7 @@ description = "WASM variant of the move-binary-format which allows bytecode temp
 
 [dependencies]
 hex = "0.4.3"
-move-binary-format = { path = "../../external-crates/move/crates/move-binary-format", features = [
-    "wasm",
-] }
+move-binary-format = { path = "../../external-crates/move/crates/move-binary-format", features = ["wasm"] }
 move-core-types = { path = "../../external-crates/move/crates/move-core-types", default-features = false }
 serde = { version = "1.0.124", default-features = false }
 serde-wasm-bindgen = "0.5.0"

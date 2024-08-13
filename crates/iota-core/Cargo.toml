@@ -118,10 +118,7 @@ iota-protocol-config.workspace = true
 
 # moka uses `quanta` by default for timing, which is not compatible with the simulator
 [target.'cfg(msim)'.dependencies]
-moka = { workspace = true, default-features = false, features = [
-    "sync",
-    "atomic64",
-] }
+moka = { workspace = true, default-features = false, features = ["sync", "atomic64"] }
 [target.'cfg(not(msim))'.dependencies]
 moka = { workspace = true, features = ["sync"] }
 
