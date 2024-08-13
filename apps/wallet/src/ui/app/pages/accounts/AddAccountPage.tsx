@@ -28,7 +28,7 @@ import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 import { PageTemplate } from '../../components/PageTemplate';
 
-enum CardActionTitle {
+enum ActionType {
     CreateNew = 'CreateNew',
     ImportPassphrase = 'ImportPassphrase',
     ImportPrivateKey = 'ImportPrivateKey',
@@ -58,14 +58,14 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
-    const cardData = [
+    const cardGroups = [
         {
             title: 'Create a new mnemonic profile',
             cards: [
                 {
                     title: 'Create New',
                     icon: Create,
-                    actionType: CardActionTitle.CreateNew,
+                    actionType: ActionType.CreateNew,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -76,19 +76,19 @@ export function AddAccountPage() {
                 {
                     title: 'Mnemonic',
                     icon: ImportPass,
-                    actionType: CardActionTitle.ImportPassphrase,
+                    actionType: ActionType.ImportPassphrase,
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
                     title: 'Private Key',
                     icon: Key,
-                    actionType: CardActionTitle.ImportPrivateKey,
+                    actionType: ActionType.ImportPrivateKey,
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
                     title: 'Seed',
                     icon: Seed,
-                    actionType: CardActionTitle.ImportSeed,
+                    actionType: ActionType.ImportSeed,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -99,34 +99,34 @@ export function AddAccountPage() {
                 {
                     title: 'Ledger',
                     icon: Ledger,
-                    actionType: CardActionTitle.ImportLedger,
+                    actionType: ActionType.ImportLedger,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
         },
     ];
 
-    const handleCardAction = async (actionType: CardActionTitle) => {
+    const handleCardAction = async (actionType: ActionType) => {
         switch (actionType) {
-            case CardActionTitle.CreateNew:
+            case ActionType.CreateNew:
                 setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
                 ampli.clickedCreateNewAccount({ sourceFlow });
                 navigate(
                     `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
                 );
                 break;
-            case CardActionTitle.ImportPassphrase:
+            case ActionType.ImportPassphrase:
                 ampli.clickedImportPassphrase({ sourceFlow });
                 navigate('/accounts/import-passphrase');
                 break;
-            case CardActionTitle.ImportPrivateKey:
+            case ActionType.ImportPrivateKey:
                 ampli.clickedImportPrivateKey({ sourceFlow });
                 navigate('/accounts/import-private-key');
                 break;
-            case CardActionTitle.ImportSeed:
+            case ActionType.ImportSeed:
                 navigate('/accounts/import-seed');
                 break;
-            case CardActionTitle.ImportLedger:
+            case ActionType.ImportLedger:
                 ampli.openedConnectLedgerFlow({ sourceFlow });
                 if (isPopup) {
                     await openTabWithSearchParam('showLedger', 'true');
@@ -148,7 +148,7 @@ export function AddAccountPage() {
             showBackButton
         >
             <div className="flex h-full w-full flex-col gap-4 ">
-                {cardData.map((group, groupIndex) => (
+                {cardGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="flex flex-col gap-y-2">
                         <span className="text-label-lg text-neutral-60">{group.title}</span>
                         {group.cards.map((card, cardIndex) => (
