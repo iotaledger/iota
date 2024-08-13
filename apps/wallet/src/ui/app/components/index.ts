@@ -7,6 +7,7 @@ export * from './HideShowDisplayBox';
 export * from './IconButton';
 export * from './LabelValueItem';
 export * from './LabelValuesContainer';
+export * from './PageTemplate';
 export * from './PasswordInputDialog';
 export * from './SectionHeader';
 export * from './SummaryCard';
