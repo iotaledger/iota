@@ -54,6 +54,11 @@ impl SystemStateSummary {
         Some(self.native.system_state_version)
     }
 
+    /// The total IOTA supply.
+    async fn iota_total_supply(&self) -> Option<u64> {
+        Some(self.native.iota_total_supply)
+    }
+
     /// Details of the system that are decided during genesis.
     async fn system_parameters(&self) -> Option<SystemParameters> {
         Some(SystemParameters {

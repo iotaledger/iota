@@ -5,14 +5,14 @@
 ### Patch Changes
 
 - Updated dependencies [6984dd1e38]
-  - @iota/iota.js@0.51.1
+  - @iota/iota-sdk@0.51.1
 
 ## 0.4.4
 
 ### Patch Changes
 
 - Updated dependencies [0cafa94027]
-  - @iota/iota.js@0.51.0
+  - @iota/iota-sdk@0.51.0
 
 ## 0.4.3
 
@@ -20,7 +20,7 @@
 
 - 4830361fa4: Updated typescript version
 - Updated dependencies [4830361fa4]
-  - @iota/iota.js@0.50.1
+  - @iota/iota-sdk@0.50.1
 
 ## 0.4.2
 
@@ -32,7 +32,7 @@
 - Updated dependencies [13e922d9b1]
 - Updated dependencies [a34f1cb67d]
 - Updated dependencies [220a766d86]
-  - @iota/iota.js@0.50.0
+  - @iota/iota-sdk@0.50.0
 
 ## 0.4.1
 
@@ -40,7 +40,7 @@
 
 - 9ac0a4ec01: Add extensions to all sdk import paths
 - Updated dependencies [9ac0a4ec01]
-  - @iota/iota.js@0.49.1
+  - @iota/iota-sdk@0.49.1
 
 ## 0.4.0
 
@@ -51,21 +51,21 @@
 ### Patch Changes
 
 - Updated dependencies [e5f9e3ba21]
-  - @iota/iota.js@0.49.0
+  - @iota/iota-sdk@0.49.0
 
 ## 0.3.18
 
 ### Patch Changes
 
 - Updated dependencies [dd362ec1d6]
-  - @iota/iota.js@0.48.1
+  - @iota/iota-sdk@0.48.1
 
 ## 0.3.17
 
 ### Patch Changes
 
 - Updated dependencies [cdcfa76c43]
-  - @iota/iota.js@0.48.0
+  - @iota/iota-sdk@0.48.0
 
 ## 0.3.16
 
@@ -75,14 +75,14 @@
 - Updated dependencies [9ac7e2f3d]
 - Updated dependencies [0259aec82]
 - Updated dependencies [64d45ba27]
-  - @iota/iota.js@0.47.0
+  - @iota/iota-sdk@0.47.0
 
 ## 0.3.15
 
 ### Patch Changes
 
 - Updated dependencies [652bcdd92]
-  - @iota/iota.js@0.46.1
+  - @iota/iota-sdk@0.46.1
 
 ## 0.3.14
 
@@ -93,21 +93,21 @@
 - Updated dependencies [8d1e74e52]
 - Updated dependencies [093554a0d]
 - Updated dependencies [3718a230b]
-  - @iota/iota.js@0.46.0
+  - @iota/iota-sdk@0.46.0
 
 ## 0.3.13
 
 ### Patch Changes
 
 - Updated dependencies [30b47b758]
-  - @iota/iota.js@0.45.1
+  - @iota/iota-sdk@0.45.1
 
 ## 0.3.12
 
 ### Patch Changes
 
 - Updated dependencies [b9afb5567]
-  - @iota/iota.js@0.45.0
+  - @iota/iota-sdk@0.45.0
 
 ## 0.3.11
 
@@ -115,21 +115,21 @@
 
 - Updated dependencies [b48289346]
 - Updated dependencies [11cf4e68b]
-  - @iota/iota.js@0.44.0
+  - @iota/iota-sdk@0.44.0
 
 ## 0.3.10
 
 ### Patch Changes
 
 - Updated dependencies [004fb1991]
-  - @iota/iota.js@0.43.3
+  - @iota/iota-sdk@0.43.3
 
 ## 0.3.9
 
 ### Patch Changes
 
 - Updated dependencies [9b052166d]
-  - @iota/iota.js@0.43.2
+  - @iota/iota-sdk@0.43.2
 
 ## 0.3.8
 
@@ -137,7 +137,7 @@
 
 - Updated dependencies [faa13ded9]
 - Updated dependencies [c5684bb52]
-  - @iota/iota.js@0.43.1
+  - @iota/iota-sdk@0.43.1
 
 ## 0.3.7
 
@@ -148,27 +148,27 @@
 - Updated dependencies [e4484852b]
 - Updated dependencies [71e0a3197]
 - Updated dependencies [1bc430161]
-  - @iota/iota.js@0.43.0
+  - @iota/iota-sdk@0.43.0
 
 ## 0.3.6
 
 ### Patch Changes
 
 - Updated dependencies [fd8589806]
-  - @iota/iota.js@0.42.0
+  - @iota/iota-sdk@0.42.0
 
 ## 0.3.5
 
 ### Patch Changes
 
-- @iota/iota.js@0.41.2
+- @iota/iota-sdk@0.41.2
 
 ## 0.3.4
 
 ### Patch Changes
 
 - Updated dependencies [24c21e1f0]
-  - @iota/iota.js@0.41.1
+  - @iota/iota-sdk@0.41.1
 
 ## 0.3.3
 
@@ -176,7 +176,7 @@
 
 - Updated dependencies [ba8e3b857]
 - Updated dependencies [f4b7b3474]
-  - @iota/iota.js@0.41.0
+  - @iota/iota-sdk@0.41.0
 
 ## 0.3.2
 
@@ -184,23 +184,23 @@
 
 - Updated dependencies [a503cad34]
 - Updated dependencies [8281e3d25]
-  - @iota/iota.js@0.40.0
+  - @iota/iota-sdk@0.40.0
 
 ## 0.3.1
 
 ### Patch Changes
 
 - Updated dependencies [47ea5ec7c]
-  - @iota/iota.js@0.39.0
+  - @iota/iota-sdk@0.39.0
 
 ## 0.3.0
 
 ### Minor Changes
 
-- cc6441f46: Updated types and imports to use new modular exports from the `@iota/iota.js` refactor
-- 6d41059c7: Update to use modular imports from @iota/iota.js
+- cc6441f46: Updated types and imports to use new modular exports from the `@iota/iota-sdk` refactor
+- 6d41059c7: Update to use modular imports from @iota/iota-sdk
 
-  Some methods now accept a `IotaClient` imported from `@iota/iota.js/client` rather than a `JsonRpcProvider`
+  Some methods now accept a `IotaClient` imported from `@iota/iota-sdk/client` rather than a `JsonRpcProvider`
 
 ### Patch Changes
 
@@ -215,14 +215,14 @@
 - Updated dependencies [6d41059c7]
 - Updated dependencies [cc6441f46]
 - Updated dependencies [001148443]
-  - @iota/iota.js@0.38.0
+  - @iota/iota-sdk@0.38.0
 
 ## 0.2.3
 
 ### Patch Changes
 
 - Updated dependencies [34cc7d610]
-  - @iota/iota.js@0.37.1
+  - @iota/iota-sdk@0.37.1
 
 ## 0.2.2
 
@@ -235,7 +235,7 @@
 - Updated dependencies [a17d3678a]
 - Updated dependencies [2f37537d5]
 - Updated dependencies [00484bcc3]
-  - @iota/iota.js@0.37.0
+  - @iota/iota-sdk@0.37.0
 
 ## 0.2.1
 
@@ -245,7 +245,7 @@
 - Updated dependencies [1cfb1c9da3]
 - Updated dependencies [1cfb1c9da3]
 - Updated dependencies [fb3bb9118a]
-  - @iota/iota.js@0.36.0
+  - @iota/iota-sdk@0.36.0
 
 ## 0.2.0
 
@@ -256,4 +256,4 @@
 ### Patch Changes
 
 - Updated dependencies [09d77325a9]
-  - @iota/iota.js@0.35.1
+  - @iota/iota-sdk@0.35.1

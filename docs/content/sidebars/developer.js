@@ -187,8 +187,13 @@ const developer = [
     {
         type: 'category',
         label: 'Standards',
+        link: {
+          type: 'generated-index',
+          title:'IOTA Standards Overview',
+          description: 'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
+          slug: 'developer/standards',
+        },
         items: [
-            'developer/standards/standards',
             'developer/standards/coin',
             'developer/standards/coin-manager',
             {
@@ -232,41 +237,37 @@ const developer = [
         label: 'Cryptography',
         link: {
             type: 'doc',
-            id: 'developer/cryptography/explanations/cryptography',
+            id: 'developer/cryptography',
         },
         items: [
             {
                 type: 'category',
-                label: 'Explanations',
+                label: 'Transaction Authentication',
+                link: {
+                    type: 'doc',
+                    id: 'developer/cryptography/transaction-auth',
+                },
                 items: [
-                    'developer/cryptography/explanations/cryptography',
-                    {
-                        type: 'category',
-                        label: 'Transaction Authentication',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/cryptography/explanations/transaction-auth',
-                        },
-                        items: [
-                            'developer/cryptography/explanations/transaction-auth/keys-addresses',
-                            'developer/cryptography/explanations/transaction-auth/signatures',
-                            'developer/cryptography/explanations/transaction-auth/multisig',
-                            'developer/cryptography/explanations/transaction-auth/offline-signing',
-                            'developer/cryptography/explanations/transaction-auth/intent-signing',
-                        ],
-                    },
-                    'developer/cryptography/explanations/system/checkpoint-verification',
+                    'developer/cryptography/transaction-auth/keys-addresses',
+                    'developer/cryptography/transaction-auth/signatures',
+                    'developer/cryptography/transaction-auth/multisig',
+                    'developer/cryptography/transaction-auth/offline-signing',
+                    'developer/cryptography/transaction-auth/intent-signing',
                 ],
             },
+            'developer/cryptography/checkpoint-verification',
             {
                 type: 'category',
-                label: 'How To',
+                label: 'Smart Contract Cryptography',
+                link: {
+                    type: 'doc',
+                    id: 'developer/cryptography/on-chain',
+                },
                 items: [
-                    'developer/cryptography/how-to/cryptography',
-                    'developer/cryptography/how-to/signing',
-                    'developer/cryptography/how-to/groth16',
-                    'developer/cryptography/how-to/hashing',
-                    'developer/cryptography/how-to/ecvrf',
+                    'developer/cryptography/on-chain/signing',
+                    'developer/cryptography/on-chain/groth16',
+                    'developer/cryptography/on-chain/hashing',
+                    'developer/cryptography/on-chain/ecvrf',
                 ],
             },
         ],

@@ -4,7 +4,7 @@
 
 import { getTotalGasUsed } from '@iota/core';
 import { X12, Dot12 } from '@iota/icons';
-import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { IotaAmount } from '../table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';

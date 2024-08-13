@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import type { WalletAccount } from '@iota/wallet-standard';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import clsx from 'clsx';

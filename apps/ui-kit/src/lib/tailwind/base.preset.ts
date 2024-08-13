@@ -3,12 +3,17 @@
 
 import { Config } from 'tailwindcss';
 import { IOTA_PRIMITIVES_COLOR_PALETTE, SHADER_COLOR_PALETTE } from './constants/colors.constants';
-import { CUSTOM_FONT_SIZES, BORDER_RADIUS, PADDINGS, OPACITY } from './constants';
+import {
+    CUSTOM_FONT_SIZES,
+    BORDER_RADIUS,
+    CUSTOM_SPACING,
+    OPACITY,
+    generateVariableSpacing,
+} from './constants';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
     darkMode: 'class',
-    plugins: [],
     theme: {
         extend: {
             fontSize: {
@@ -17,8 +22,13 @@ export const BASE_CONFIG: Config = {
             borderRadius: {
                 ...BORDER_RADIUS,
             },
-            padding: {
-                ...PADDINGS,
+            spacing: (utils) => {
+                const screens = utils.theme('screens');
+                const variableSpacing = generateVariableSpacing(screens);
+                return {
+                    ...CUSTOM_SPACING,
+                    ...variableSpacing,
+                };
             },
             opacity: {
                 ...OPACITY,

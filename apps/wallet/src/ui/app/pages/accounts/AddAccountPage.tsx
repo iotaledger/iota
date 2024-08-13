@@ -55,8 +55,6 @@ export function AddAccountPage() {
         <div className="h-full w-full">
             <Header
                 title="Add Profile"
-                hasLeftIcon
-                hasRightIcon
                 titleCentered
                 onClose={() => navigate('/')}
                 onBack={() => navigate('/')}

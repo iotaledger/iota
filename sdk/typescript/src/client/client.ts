@@ -89,6 +89,9 @@ import type {
     TryGetPastObjectParams,
     Unsubscribe,
     ValidatorsApy,
+    GetTimelockedStakesParams,
+    DelegatedTimelockedStake,
+    GetTimelockedStakesByIdsParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -490,6 +493,21 @@ export class IotaClient {
     }
 
     /**
+     * Return the timelocked delegated stakes for an address
+     */
+    async getTimelockedStakes(
+        input: GetTimelockedStakesParams,
+    ): Promise<DelegatedTimelockedStake[]> {
+        if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
+            throw new Error('Invalid Iota address');
+        }
+        return await this.transport.request({
+            method: 'iotax_getTimelockedStakes',
+            params: [input.owner],
+        });
+    }
+
+    /**
      * Return the delegated stakes queried by id.
      */
     async getStakesByIds(input: GetStakesByIdsParams): Promise<DelegatedStake[]> {
@@ -501,6 +519,23 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getStakesByIds',
             params: [input.stakedIotaIds],
+        });
+    }
+
+    /**
+     * Return the timelocked delegated stakes queried by id.
+     */
+    async getTimelockedStakesByIds(
+        input: GetTimelockedStakesByIdsParams,
+    ): Promise<DelegatedTimelockedStake[]> {
+        input.timelockedStakedIotaIds.forEach((id) => {
+            if (!id || !isValidIotaObjectId(normalizeIotaObjectId(id))) {
+                throw new Error(`Invalid Iota Timelocked Stake id ${id}`);
+            }
+        });
+        return await this.transport.request({
+            method: 'iotax_getTimelockedStakesByIds',
+            params: [input.timelockedStakedIotaIds],
         });
     }
 

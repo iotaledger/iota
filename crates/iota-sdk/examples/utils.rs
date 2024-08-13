@@ -79,9 +79,6 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
 /// If there is no IOTA owned by the active address, then it will request
 /// IOTA from the faucet.
 pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .unwrap();
     let client = IotaClientBuilder::default().build_testnet().await?;
     println!("Iota testnet version is: {}", client.api_version());
     let mut wallet = retrieve_wallet()?;

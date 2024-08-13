@@ -13,6 +13,7 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides methods for executing and testing transactions.
 #[open_rpc(namespace = "iota", tag = "Write API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait WriteApi {

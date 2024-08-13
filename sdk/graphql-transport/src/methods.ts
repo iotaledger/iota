@@ -9,9 +9,9 @@ import type {
     IotaArgument,
     IotaClient,
     IotaMoveNormalizedModule,
-} from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
 
 import type {
     ObjectFilter,
@@ -242,7 +242,7 @@ export const RPC_METHODS: {
         );
 
         return {
-            value: (BigInt(metadata.supply!) * 10n ** BigInt(metadata.decimals!)).toString(),
+            value: BigInt(metadata.supply!).toString(),
         };
     },
     async getMoveFunctionArgTypes(transport, [pkg, module, fn]) {
@@ -794,6 +794,7 @@ export const RPC_METHODS: {
             ),
             epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
             inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
+            iotaTotalSupply: String(systemState.iotaTotalSupply),
             maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
             minValidatorJoiningStake: String(
                 systemState.systemParameters?.minValidatorJoiningStake,
@@ -812,17 +813,7 @@ export const RPC_METHODS: {
             ),
             safeModeStorageRebates: String(systemState.safeMode?.gasSummary?.storageRebate),
             safeModeStorageCharges: String(systemState.safeMode?.gasSummary?.storageCost),
-            stakeSubsidyBalance: String(systemState.systemStakeSubsidy?.balance),
-            stakeSubsidyCurrentDistributionAmount: String(
-                systemState.systemStakeSubsidy?.currentDistributionAmount,
-            ),
-            stakeSubsidyDecreaseRate: systemState.systemStakeSubsidy?.decreaseRate!,
-            stakeSubsidyDistributionCounter: String(
-                systemState.systemStakeSubsidy?.distributionCounter,
-            ),
-            stakeSubsidyPeriodLength: String(systemState.systemStakeSubsidy?.periodLength),
-            stakeSubsidyStartEpoch: String(systemState.systemParameters?.stakeSubsidyStartEpoch),
-            stakingPoolMappingsSize: String(systemState.validatorSet?.stakePoolMappingsSize),
+            stakingPoolMappingsSize: String(systemState.validatorSet?.stakingPoolMappingsSize),
             storageFundNonRefundableBalance: String(systemState.storageFund?.nonRefundableBalance),
             storageFundTotalObjectStorageRebates: String(
                 systemState.storageFund?.totalObjectStorageRebates,

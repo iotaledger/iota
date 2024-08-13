@@ -30,7 +30,7 @@ that the test is expected to raise an error. There are a number of options that
 can be used with the `#[expected_failure]` annotation to ensure only a failure
 with the specified condition is marked as passing, these options are detailed
 in [Expected Failures](#expected-failures). Only functions that have the
-`#[test]` annotation can also be annotated as an #`[expected_failure]`. 
+`#[test]` annotation can also be annotated as an #`[expected_failure]`.
 
 Some simple examples of using the `#[expected_failure]` annotation are shown below:
 
@@ -125,7 +125,7 @@ module pkg_addr::my_module {
 }
 ```
 
-### 3. `#[expected_failure(out_of_gas, location = <location>)]` 
+### 3. `#[expected_failure(out_of_gas, location = <location>)]`
 
 This specifies that the test is expected to fail with an out of gas error at
 the specified location. The `<location>` must be a valid path to a module
@@ -207,7 +207,7 @@ module pkg_addr::my_module {
 }
 ```
 
-### 5. `#[expected_failure]` 
+### 5. `#[expected_failure]`
 
 This will pass if the test aborts with any error code. Because of this you
 should be incredibly careful using this way of annotating expected tests
@@ -223,7 +223,6 @@ fun test_will_abort_and_pass1() { abort 1 }
 #[expected_failure]
 fun test_will_arith_error_and_pass2() { 1/0; }
 ```
-
 
 ## Test Only Annotations
 
@@ -285,7 +284,7 @@ A simple module using some of the unit testing features is shown in the followin
 First create an empty package and change directory into it:
 
 ```bash
-$ iota move new test_example; cd test_example 
+$ iota move new test_example; cd test_example
 ```
 
 Next add the following module under the `sources` directory:
@@ -420,8 +419,7 @@ Test result: FAILED. Total tests: 3; passed: 0; failed: 3
 #### `-s` or `--statistics`
 
 With these flags you can gather statistics about the tests run and report the
-runtime and gas used for each test. You can additionally add `csv` (`iota move
-test -s csv`) to get the gas usage in a csv output format. For example, if we
+runtime and gas used for each test. You can additionally add `csv` (`iota move test -s csv`) to get the gas usage in a csv output format. For example, if we
 wanted to see the statistics for the tests in the example above:
 
 ```

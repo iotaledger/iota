@@ -11,9 +11,9 @@ import {
     type WalletSigner,
 } from '_src/ui/app/WalletSigner';
 import type { AppThunkConfig } from '_store/thunk-extras';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64 } from '@iota/iota.js/utils';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { fromB64 } from '@iota/iota-sdk/utils';
 import { createAsyncThunk, createEntityAdapter, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 

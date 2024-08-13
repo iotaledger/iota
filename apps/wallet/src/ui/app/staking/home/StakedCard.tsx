@@ -11,7 +11,7 @@ import {
     useGetTimeBeforeEpochNumber,
     type ExtendedDelegatedStake,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';

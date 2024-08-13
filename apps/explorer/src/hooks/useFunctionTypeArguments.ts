@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react';
 
-import type { IotaMoveAbilitySet } from '@iota/iota.js/client';
+import type { IotaMoveAbilitySet } from '@iota/iota-sdk/client';
 
 export function useFunctionTypeArguments(typeArguments: IotaMoveAbilitySet[]) {
     return useMemo(

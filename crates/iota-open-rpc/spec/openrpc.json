@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.1.2"
+    "version": "0.1.4"
   },
   "methods": [
     {
@@ -2033,9 +2033,6 @@
                 "scoring_decision_mad_divisor": {
                   "f64": "2.3"
                 },
-                "storage_fund_reinvest_rate": {
-                  "u64": "0"
-                },
                 "storage_gas_price": {
                   "u64": "76"
                 },
@@ -2917,7 +2914,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumber2"
           }
         },
         {
@@ -6003,7 +6000,7 @@
         }
       },
       "DevInspectArgs": {
-        "description": "Additional rguments supplied to dev inspect beyond what is allowed in today's API.",
+        "description": "Additional arguments supplied to dev inspect beyond what is allowed in today's API.",
         "type": "object",
         "properties": {
           "gasBudget": {
@@ -6030,7 +6027,7 @@
                   "$ref": "#/components/schemas/ObjectID"
                 },
                 {
-                  "$ref": "#/components/schemas/SequenceNumber"
+                  "$ref": "#/components/schemas/SequenceNumber2"
                 },
                 {
                   "$ref": "#/components/schemas/ObjectDigest"
@@ -6226,7 +6223,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumber2"
           }
         }
       },
@@ -6276,6 +6273,7 @@
         "type": "object",
         "required": [
           "epochCommitments",
+          "epochSupplyChange",
           "nextEpochCommittee",
           "nextEpochProtocolVersion"
         ],
@@ -6286,6 +6284,11 @@
             "items": {
               "$ref": "#/components/schemas/CheckpointCommitment"
             }
+          },
+          "epochSupplyChange": {
+            "description": "The number of tokens that were minted (if positive) or burnt (if negative) in this epoch.",
+            "type": "integer",
+            "format": "int64"
           },
           "nextEpochCommittee": {
             "description": "next_epoch_committee is `Some` if and only if the current checkpoint is the last checkpoint of an epoch. Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch, which is often useful to get epoch level summary stats like total gas cost of an epoch, or the total number of transactions from genesis to the end of an epoch. The committee is stored as a vector of validator pub key and stake pairs. The vector should be sorted based on the Committee data structure.",
@@ -6885,7 +6888,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   },
                   "mutable": {
                     "default": true,
@@ -7865,12 +7868,6 @@
           "safeModeNonRefundableStorageFee",
           "safeModeStorageCharges",
           "safeModeStorageRebates",
-          "stakeSubsidyBalance",
-          "stakeSubsidyCurrentDistributionAmount",
-          "stakeSubsidyDecreaseRate",
-          "stakeSubsidyDistributionCounter",
-          "stakeSubsidyPeriodLength",
-          "stakeSubsidyStartEpoch",
           "stakingPoolMappingsId",
           "stakingPoolMappingsSize",
           "storageFundNonRefundableBalance",
@@ -8048,52 +8045,6 @@
               }
             ]
           },
-          "stakeSubsidyBalance": {
-            "description": "Balance of IOTA set aside for stake subsidies that will be drawn down over time.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "stakeSubsidyCurrentDistributionAmount": {
-            "description": "The amount of stake subsidy to be drawn down per epoch. This amount decays and decreases over time.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "stakeSubsidyDecreaseRate": {
-            "description": "The rate at which the distribution amount decays at the end of each period. Expressed in basis points.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "stakeSubsidyDistributionCounter": {
-            "description": "This counter may be different from the current epoch number if in some epochs we decide to skip the subsidy.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "stakeSubsidyPeriodLength": {
-            "description": "Number of distributions to occur before the distribution amount decays.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "stakeSubsidyStartEpoch": {
-            "description": "The starting epoch in which stake subsidies start being paid out",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
           "stakingPoolMappingsId": {
             "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
             "allOf": [
@@ -8111,7 +8062,7 @@
             ]
           },
           "storageFundNonRefundableBalance": {
-            "description": "The non-refundable portion of the storage fund coming from storage reinvestment, non-refundable storage rebates and any leftover staking rewards.",
+            "description": "The non-refundable portion of the storage fund coming from non-refundable storage rebates and any leftover staking rewards.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -9399,7 +9350,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   }
                 ],
                 "maxItems": 2,
@@ -9430,10 +9381,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -9552,7 +9503,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumber2"
                   }
                 ]
               }
@@ -9689,7 +9640,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber"
+                        "$ref": "#/components/schemas/SequenceNumber2"
                       }
                     ]
                   }
@@ -10113,7 +10064,7 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           },
@@ -10156,7 +10107,7 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             }
           }
@@ -10172,6 +10123,9 @@
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
+      },
+      "SequenceNumber2": {
+        "$ref": "#/components/schemas/BigInt_for_uint64"
       },
       "Signature": {
         "oneOf": [
@@ -11265,7 +11219,7 @@
             "description": "Version of the upgraded package",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumber2"
               }
             ]
           }
