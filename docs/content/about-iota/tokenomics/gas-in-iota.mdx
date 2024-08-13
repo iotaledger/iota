@@ -32,14 +32,14 @@ Gas units include both
 
 Different IOTA transactions require varying amounts of computational time for processing and execution. IOTA translates these varying operational loads into transaction fees by measuring each transaction in terms of computation units. In general, more complex transactions require more computation units.
 
-Importantly, though, IOTA computation gas schedule is built with a bucketing/step approach. Two reasonably similar transactions translate into the exact same amount of computation units if they are in the same bucket, whereas two relatively different transactions translate into different amounts of computation units if they fall in separate buckets. The smallest bucket maps into 1,000 computation units, meaning that all transactions that fall into the smallest bucket cost 1,000 computation units. The largest bucket maps into 5,000,000 computation units; if a transaction requires more computation units, it aborts. Buckets move by a 1000 computation unit steps.
+Importantly, though, IOTA computation gas schedule is built with a bucketing/step approach. Two reasonably similar transactions translate into the exact same amount of computation units if they are in the same bucket, whereas two relatively different transactions translate into different amounts of computation units if they fall in separate buckets. The smallest bucket maps into 1,000 computation units, meaning that all transactions that fall into the smallest bucket cost 1,000 computation units. The largest bucket maps into 5,000,000 computation units; if a transaction requires more computation units, it aborts. Buckets move by a 1000 computation unit step.
 
 Using bucketing accomplishes two important goals:
 
     - Frees users from optimizing their smart contracts to deliver marginal gains in gas costs via "gas golfing" — instead, they can focus on step-function improvements in their products and services.
     - Gives users the freedom to adjust per-instruction gas costs and experiment with new gas metering schemes without creating significant development disruption. This can happen frequently, so it's important that they do not rely on per-instruction gas costs remaining stable over time.
 
-Buckets start at 1000 units and increment with step of 1000 units (effectively rounding to the nearest 1000) up to 5,000,000 units which is the max amount of computation allowed at this time.
+Buckets start at 1000 units and increment in steps of 1000 units (effectively rounding to the nearest 1000) up to 5,000,000 units which is the max amount of computation allowed at this time.
 
 ### Storage units {#storage}
 
@@ -59,7 +59,7 @@ If the gas budget does not fulfill this condition, then the transaction fails an
 
 Ultimately, a successful transaction requires the end user to pay the transaction's `total_gas_fees`. However, since it is challenging to perfectly forecast computation time before the transaction is processed, the `gas_budget` condition also requires the `gas_budget` to be at least as large as the transaction's `computation_fees` in case the transaction aborts. In some cases -- especially in the presence of high storage rebates, and, thus negative net storage fees -- the gas budget might be higher than the total gas fees the user pays.
 
-Importantly, the minimum gas budget is 1000 NANOS (.000001 IOTA). This protects the IOTA network from being spammed with a large number of transactions with minimal gas budgets. The maximum gas budget is 50 billion NANOS or 50 IOTA. This protects the network against overflow of internal multiplications and gas limits for denial of service attacks.
+Importantly, the minimum gas budget is 1000 NANOS (.000001 IOTA). This protects the IOTA network from being spammed with a large number of transactions with minimal gas budgets. The maximum gas budget is 50 billion NANOS or 50 IOTA. This protects the network against overflow of internal multiplications and prevents excessively large gas budgets being used for denial of service attacks.
 
 As mentioned previously, the storage rebate is 100% of the originally paid storage fees. Because the gas budget applies to the totality of gas fees, it is often the case that a transaction only goes through if the gas budget is considerably higher than the net gas fees that a user ultimately pays.
 
