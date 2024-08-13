@@ -62,8 +62,8 @@ export function PageMainLayout({
                 }
                 rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
             />
-            <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden shadow-wallet-content">
-                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-white">
+            <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
+                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
                             'p-5': bottomNavEnabled,
