@@ -55,36 +55,35 @@ participating. For simplicity, each validator holds 1 unit of stake. The collect
 latest round in A5 are represented with solid lines in the graph.
 
 ```mermaid
-flowchart TB
-;
-    subgraph A;
-        A5 --> A4 --> A3 --> A2 --> A1;
-    end;
-    subgraph B;
-        B5 -.-> B4 --> B3 --> B2 --> B1;
-    end;
-    subgraph C;
-        C5 -.-> C4 --> C3 --> C2 --> C1;
-    end;
-    subgraph D;
-        D5 -.-> D4 -.-> D3 --> D2 --> D1;
-    end;
-    A5 --> B4 & C4;
-    A4 --> C3 & D3;
-    A3 --> B2 & C2;
-    A2 --> C1 & D1;
-    B5 -.-> A4 & C4;
-    B4 --> C3 & D3;
-    B3 --> A2 & C2;
-    B2 --> C1 & D1;
-    C5 -.-> A4 & B4;
-    C4 --> B3 & D3;
-    C3 --> A2 & B2;
-    C2 --> B1 & D1;
-    D5 -.-> A4 & B4;
-    D4 -.-> B3 & C3;
-    D3 --> A2 & B2;
-    D2 --> B1 & C1;
+flowchart TB;
+  subgraph A;
+  A5 --> A4 --> A3 --> A2 --> A1;
+  end;
+  subgraph B;
+  B5 -.-> B4 --> B3 --> B2 --> B1;
+  end;
+  subgraph C;
+  C5 -.-> C4 --> C3 --> C2 --> C1;
+  end;
+  subgraph D;
+  D5 -.-> D4 -.-> D3 --> D2 --> D1;
+  end;
+  A5 --> B4 & C4;
+  A4 --> C3 & D3;
+  A3 --> B2 & C2;
+  A2 --> C1 & D1;
+  B5 -.-> A4 & C4;
+  B4 --> C3 & D3;
+  B3 --> A2 & C2;
+  B2 --> C1 & D1;
+  C5 -.-> A4 & B4;
+  C4 --> B3 & D3;
+  C3 --> A2 & B2;
+  C2 --> B1 & D1;
+  D5 -.-> A4 & B4;
+  D4 -.-> B3 & C3;
+  D3 --> A2 & B2;
+  D2 --> B1 & C1;
 ```
 
 ## How It Works
@@ -100,7 +99,7 @@ Narwhal is implemented using:
 * [Tokio](https://github.com/tokio-rs/tokio)
 * [RocksDB](https://github.com/facebook/rocksdb/)
 
-Generic cryptography implemented in [fastcrypto](https://github.com/MystenLabs/fastcrypto).
+Generic cryptography is implemented in [fastcrypto](https://github.com/MystenLabs/fastcrypto).
 
 ## Configuration
 
