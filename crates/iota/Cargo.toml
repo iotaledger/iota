@@ -20,12 +20,10 @@ clap.workspace = true
 const-str.workspace = true
 datatest-stable.workspace = true
 git-version.workspace = true
-im.workspace = true
 inquire.workspace = true
 insta.workspace = true
 json_to_table.workspace = true
 miette.workspace = true
-num-bigint.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 regex.workspace = true
@@ -62,7 +60,6 @@ move-binary-format.workspace = true
 shared-crypto.workspace = true
 
 fastcrypto.workspace = true
-fastcrypto-zkp.workspace = true
 
 colored.workspace = true
 rustyline.workspace = true
