@@ -117,11 +117,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                     titleDivider
                     header={
                         <div className="flex items-center gap-2 px-3.75 py-2.5">
-                            <ValidatorLogo
-                                validatorAddress={validatorAddress}
-                                iconSize="sm"
-                                size="body"
-                            />
+                            <ValidatorLogo validatorAddress={validatorAddress} size="body" />
                         </div>
                     }
                     footer={

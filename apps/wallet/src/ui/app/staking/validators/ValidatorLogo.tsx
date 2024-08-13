@@ -16,7 +16,6 @@ interface ValidatorLogoProps {
     stacked?: boolean;
     isTitle?: boolean;
     size: 'body' | 'subtitle';
-    iconSize: 'sm' | 'md';
     showActiveStatus?: boolean;
     activeEpoch?: string;
 }
@@ -24,7 +23,6 @@ interface ValidatorLogoProps {
 export function ValidatorLogo({
     validatorAddress,
     showAddress,
-    iconSize,
     isTitle,
     size,
     stacked,

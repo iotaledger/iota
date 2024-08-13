@@ -60,7 +60,6 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                         <ValidatorLogo
                             validatorAddress={validatorAddress}
                             showAddress
-                            iconSize="md"
                             size="body"
                             activeEpoch={json?.epoch}
                         />

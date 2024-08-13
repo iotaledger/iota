@@ -36,7 +36,6 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                         <ValidatorLogo
                             validatorAddress={validatorAddress}
                             showAddress
-                            iconSize="md"
                             size="body"
                         />
                     </div>

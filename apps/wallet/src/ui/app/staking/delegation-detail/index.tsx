@@ -43,7 +43,6 @@ export function DelegationDetail() {
                     <ValidatorLogo
                         validatorAddress={validatorAddressParams}
                         isTitle
-                        iconSize="sm"
                         size="body"
                         activeEpoch={delegationData?.stakeRequestEpoch}
                     />
