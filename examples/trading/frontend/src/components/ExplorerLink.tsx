@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientContext } from "@iota/dapp-kit";
-import { formatAddress } from "@iota/iota.js/utils";
+import { formatAddress } from "@iota/iota-sdk/utils";
 import { CheckIcon, CopyIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 import toast from "react-hot-toast";

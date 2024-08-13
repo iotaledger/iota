@@ -4,7 +4,7 @@
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 type UseVerifiedSourceCodeArgs = {

@@ -18,7 +18,7 @@
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/icons": "workspace:*",
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "@tanstack/react-query": "^5.0.0",
         "@tanstack/react-virtual": "^3.5.0",
         "next": "14.2.3",

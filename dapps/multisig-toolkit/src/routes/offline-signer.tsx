@@ -8,7 +8,7 @@ import {
     useIotaClient,
     useIotaClientContext,
 } from '@iota/dapp-kit';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle, Terminal } from 'lucide-react';
 import { useEffect, useState } from 'react';

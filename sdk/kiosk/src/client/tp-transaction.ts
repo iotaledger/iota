@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TransactionBlock, TransactionObjectArgument } from '@iota/iota.js/transactions';
+import type { TransactionBlock, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import {
     attachFloorPriceRuleTx,
@@ -163,7 +163,7 @@ export class TransferPolicyTransaction {
      * 	(but you should define at least one of them for the rule to make sense).
      *
      * 	@param percentageBps The royalty percentage in basis points. Use `percentageToBasisPoints` helper to convert from percentage [0,100].
-     * 	@param minAmount The minimum royalty amount per request in MICROS.
+     * 	@param minAmount The minimum royalty amount per request in nano.
      */
     addRoyaltyRule(
         percentageBps: number | string, // this is in basis points.
@@ -221,7 +221,7 @@ export class TransferPolicyTransaction {
 
     /**
      * A function to add the floor price rule to a transfer policy.
-     * @param minPrice The minimum price in MICROS.
+     * @param minPrice The minimum price in nano.
      */
     addFloorPriceRule(minPrice: string | bigint) {
         this.#validateInputs();

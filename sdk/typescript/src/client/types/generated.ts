@@ -187,6 +187,8 @@ export interface ECMHLiveObjectSetDigest {
 export interface EndOfEpochData {
     /** Commitments to epoch specific state (e.g. live object set) */
     epochCommitments: CheckpointCommitment[];
+    /** The number of tokens that were minted (if positive) or burnt (if negative) in this epoch. */
+    epochSupplyChange: number;
     /**
      * next_epoch_committee is `Some` if and only if the current checkpoint is the last checkpoint of an
      * epoch. Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch, which is

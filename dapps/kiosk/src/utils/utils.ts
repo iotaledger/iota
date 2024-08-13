@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { KioskListing, KioskOwnerCap } from '@iota/kiosk';
-import { IotaObjectResponse } from '@iota/iota.js/client';
-import { MICROS_PER_IOTA, normalizeIotaAddress } from '@iota/iota.js/utils';
+import { IotaObjectResponse } from '@iota/iota-sdk/client';
+import { NANO_PER_IOTA, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 // Parse the display of a list of objects into a simple {object_id: display} map
 // to use throughout the app.
@@ -32,9 +32,9 @@ export const processKioskListings = (data: KioskListing[]): Record<string, Kiosk
     return results;
 };
 
-export const microsToIota = (micros: bigint | string | undefined) => {
-    if (!micros) return 0;
-    return Number(micros || 0) / Number(MICROS_PER_IOTA);
+export const nanoToIota = (nano: bigint | string | undefined) => {
+    if (!nano) return 0;
+    return Number(nano || 0) / Number(NANO_PER_IOTA);
 };
 
 export const formatIota = (amount: number) => {

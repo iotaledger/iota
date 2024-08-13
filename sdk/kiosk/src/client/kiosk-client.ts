@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { NetworkId } from '@iota/iota.js/client';
-import { getNetwork } from '@iota/iota.js/client';
-import type { IotaClient } from '@iota/iota.js/client';
+import type { NetworkId } from '@iota/iota-sdk/client';
+import { getNetwork } from '@iota/iota-sdk/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 
 import { getBaseRules, rules } from '../constants.js';
 import type { BaseRulePackageIds, TransferPolicyRule } from '../constants.js';

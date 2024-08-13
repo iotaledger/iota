@@ -1,11 +1,14 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
   useCurrentAccount,
   useSignAndExecuteTransactionBlock,
   useIotaClient,
   useIotaClientQuery,
 } from "@iota/dapp-kit";
-import type { IotaObjectData } from "@iota/iota.js/client";
-import { TransactionBlock } from "@iota/iota.js/transactions";
+import type { IotaObjectData } from "@iota/iota-sdk/client";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { Button, Flex, Heading, Text } from "@radix-ui/themes";
 import { useNetworkVariable } from "./networkConfig";
 

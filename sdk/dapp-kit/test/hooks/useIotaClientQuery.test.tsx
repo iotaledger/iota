@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { renderHook, waitFor } from '@testing-library/react';
 
 import { useIotaClientQuery } from '../../src/hooks/useIotaClientQuery.js';
