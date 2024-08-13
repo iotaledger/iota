@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaParsedData } from '@iota/iota.js/client';
+import type { IotaParsedData } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 const parseIpfsUrl = (ipfsUrl: string) => ipfsUrl.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/');

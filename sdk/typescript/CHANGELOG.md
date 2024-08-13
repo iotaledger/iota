@@ -1,4 +1,4 @@
-# @iota/iota.js
+# @iota/iota-sdk
 
 ## 0.51.1
 
@@ -83,7 +83,7 @@
   If you are using the `subscribeEvent` or `subscribeTransaction` in environments that do not support the `WebSocket` api natively (This will be true for most versions of Node.js) you will need to provide a WebSocket implementation when creating your IotaClient. You can either use a global polyfill for the WebSocket class, or pass a compatible WebSocket implementation into IotaHTTPTransport (eg, using the `ws` package)
 
   ```typescript
-  import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota.js/client';
+  import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
   import { WebSocket } from 'ws';
 
   new IotaClient({
@@ -198,7 +198,7 @@
 
 ### Minor Changes
 
-- fd8589806: Remove all previously deprecated exports from @iota/iota.js
+- fd8589806: Remove all previously deprecated exports from @iota/iota-sdk
 
 ## 0.41.2
 
@@ -217,7 +217,7 @@
 
 ### Minor Changes
 
-- ba8e3b857: Rename TransactionBlock generated type in @iota/iota.js/client to IotaTransactionBlock to avoid conflicting names in exports
+- ba8e3b857: Rename TransactionBlock generated type in @iota/iota-sdk/client to IotaTransactionBlock to avoid conflicting names in exports
 
 ### Patch Changes
 
@@ -227,7 +227,7 @@
 
 ### Minor Changes
 
-- a503cad34: Add exports to `@iota/iota.js/client` for rpc method params
+- a503cad34: Add exports to `@iota/iota-sdk/client` for rpc method params
 
 ### Patch Changes
 
@@ -251,15 +251,15 @@
 - cc6441f46: The Iota TS SDK has been broken up into a set of modular exports, and all exports from the root of
   the package have been deprecated. The following export paths have been added:
 
-  - `@iota/iota.js/client` - A client for interacting with Iota RPC nodes.
-  - `@iota/iota.js/bcs` - A BCS builder with pre-defined types for Iota.
-  - `@iota/iota.js/transaction` - Utilities for building and interacting with transactions.
-  - `@iota/iota.js/keypairs/*` - Modular exports for specific KeyPair implementations.
-  - `@iota/iota.js/verify` - Methods for verifying transactions and messages.
-  - `@iota/iota.js/cryptography` - Shared types and classes for cryptography.
-  - `@iota/iota.js/multisig` - Utilities for working with multisig signatures.
-  - `@iota/iota.js/utils` - Utilities for formatting and parsing various Iota types.
-  - `@iota/iota.js/faucet`- Methods for requesting iota from a faucet.
+  - `@iota/iota-sdk/client` - A client for interacting with Iota RPC nodes.
+  - `@iota/iota-sdk/bcs` - A BCS builder with pre-defined types for Iota.
+  - `@iota/iota-sdk/transaction` - Utilities for building and interacting with transactions.
+  - `@iota/iota-sdk/keypairs/*` - Modular exports for specific KeyPair implementations.
+  - `@iota/iota-sdk/verify` - Methods for verifying transactions and messages.
+  - `@iota/iota-sdk/cryptography` - Shared types and classes for cryptography.
+  - `@iota/iota-sdk/multisig` - Utilities for working with multisig signatures.
+  - `@iota/iota-sdk/utils` - Utilities for formatting and parsing various Iota types.
+  - `@iota/iota-sdk/faucet`- Methods for requesting iota from a faucet.
 
   As part of this refactor we are deprecating a number of existing APIs:
 
@@ -268,7 +268,7 @@
     in verifying has been moved to the KeyPair classes, and the `signAndExecuteTransactionBlock`
     method has been moved to the new `IotaClient`.
   - The `superstruct` type definitions for types used by JsonRPCProvider are being replaced with
-    generated types exported from `@iota/iota.js/client`. The new type definitions are pure
+    generated types exported from `@iota/iota-sdk/client`. The new type definitions are pure
     typescript types and can't be used for runtime validation. By generating these as types, it will
     be easier to keep them in sync with the RPC definitions and avoid discrepancies between the type
     definitions in the SDK and the data returned by RPC methods.
@@ -298,8 +298,8 @@
   provider.
 
   ```diff
-  - import { JsonRpcProvider, devnetConnection } from '@iota/iota.js';
-  + import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
+  - import { JsonRpcProvider, devnetConnection } from '@iota/iota-sdk';
+  + import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
 
   - const provider = new JsonRpcProvider(localnetConnection);
   + const client = new IotaClient({ url: getFullnodeUrl('localnet')});
@@ -317,10 +317,10 @@
   -    RawSigner,
   -    TransactionBlock,
   -    localnetConnection,
-  - } from '@iota/iota.js';
-  + import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-  + import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
-  + import { TransactionBlock } from '@iota/iota.js/transactions';
+  - } from '@iota/iota-sdk';
+  + import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+  + import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
+  + import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
     const keypair = new Ed25519Keypair()
   - const provider = new JsonRpcProvider(localnetConnection);
@@ -338,12 +338,12 @@
   #### Migrating faucet requests
 
   The ability to request Iota from a faucet was not added to `IotaClient`, instead you will need to use
-  a method `@iota/iota.js/faucet` to make these requests
+  a method `@iota/iota-sdk/faucet` to make these requests
 
   ```diff
-  - import { JsonRpcProvider, devnetConnection } from '@iota/iota.js';
+  - import { JsonRpcProvider, devnetConnection } from '@iota/iota-sdk';
   - const provider = new JsonRpcProvider(devnetConnection);
-  + import { requestIotaFromFaucetV0, getFaucetHost } from '@iota/iota.js/faucet';
+  + import { requestIotaFromFaucetV0, getFaucetHost } from '@iota/iota-sdk/faucet';
 
   - await provider.requestIotaFromFaucet(
   -  '<YOUR IOTA ADDRESS>'
@@ -354,7 +354,7 @@
   +});
   ```
 
-- 001148443: Introduce new `@iota/iota.js/faucet` export, which should be used for all faucet interactions. This deprecates the previous `requestIotaFromFaucet` APIs that existed on the `JsonRpcProvider` and `Signer` classes.
+- 001148443: Introduce new `@iota/iota-sdk/faucet` export, which should be used for all faucet interactions. This deprecates the previous `requestIotaFromFaucet` APIs that existed on the `JsonRpcProvider` and `Signer` classes.
 
 ### Patch Changes
 

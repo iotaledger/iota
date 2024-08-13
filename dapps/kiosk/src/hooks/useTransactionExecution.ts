@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useSignTransactionBlock, useIotaClient } from '@iota/dapp-kit';
-import { IotaTransactionBlockResponseOptions } from '@iota/iota.js/client';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // A helper to execute transactions by:
 // 1. Signing them using the wallet

@@ -5,8 +5,8 @@
 import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info16 } from '@iota/icons';
-import { type CoinBalance } from '@iota/iota.js/client';
-import { normalizeIotaAddress } from '@iota/iota.js/utils';
+import { type CoinBalance } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { useMemo, useState } from 'react';
 

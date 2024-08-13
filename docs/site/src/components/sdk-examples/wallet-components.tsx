@@ -9,7 +9,7 @@ import {
   useCurrentAccount,
   WalletProvider,
 } from '@iota/dapp-kit';
-import { getDefaultNetwork, getFullnodeUrl } from '@iota/iota.js/client';
+import { getDefaultNetwork, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaObjectData, type IotaObjectDataFilter } from '@iota/iota.js/client';
+import { IotaObjectData, type IotaObjectDataFilter } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { TIMELOCK_TYPE } from '../constants';
 
