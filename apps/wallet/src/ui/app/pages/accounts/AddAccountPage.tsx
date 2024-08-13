@@ -28,14 +28,6 @@ import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 import { PageTemplate } from '../../components/PageTemplate';
 
-enum ActionType {
-    CreateNew = 'CreateNew',
-    ImportPassphrase = 'ImportPassphrase',
-    ImportPrivateKey = 'ImportPrivateKey',
-    ImportSeed = 'ImportSeed',
-    ImportLedger = 'ImportLedger',
-}
-
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
     const [currentHash, currentHashSearch] = currentURL.hash.split('?');
@@ -65,7 +57,7 @@ export function AddAccountPage() {
                 {
                     title: 'Create New',
                     icon: Create,
-                    actionType: ActionType.CreateNew,
+                    actionType: AccountsFormType.NewMnemonic,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -76,19 +68,19 @@ export function AddAccountPage() {
                 {
                     title: 'Mnemonic',
                     icon: ImportPass,
-                    actionType: ActionType.ImportPassphrase,
+                    actionType: AccountsFormType.ImportMnemonic,
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
                     title: 'Private Key',
                     icon: Key,
-                    actionType: ActionType.ImportPrivateKey,
+                    actionType: AccountsFormType.ImportPrivateKey,
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
                     title: 'Seed',
                     icon: Seed,
-                    actionType: ActionType.ImportSeed,
+                    actionType: AccountsFormType.ImportSeed,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -99,34 +91,34 @@ export function AddAccountPage() {
                 {
                     title: 'Ledger',
                     icon: Ledger,
-                    actionType: ActionType.ImportLedger,
+                    actionType: AccountsFormType.ImportLedger,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
         },
     ];
 
-    const handleCardAction = async (actionType: ActionType) => {
+    const handleCardAction = async (actionType: AccountsFormType) => {
         switch (actionType) {
-            case ActionType.CreateNew:
+            case AccountsFormType.NewMnemonic:
                 setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
                 ampli.clickedCreateNewAccount({ sourceFlow });
                 navigate(
                     `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
                 );
                 break;
-            case ActionType.ImportPassphrase:
+            case AccountsFormType.ImportMnemonic:
                 ampli.clickedImportPassphrase({ sourceFlow });
                 navigate('/accounts/import-passphrase');
                 break;
-            case ActionType.ImportPrivateKey:
+            case AccountsFormType.ImportPrivateKey:
                 ampli.clickedImportPrivateKey({ sourceFlow });
                 navigate('/accounts/import-private-key');
                 break;
-            case ActionType.ImportSeed:
+            case AccountsFormType.ImportSeed:
                 navigate('/accounts/import-seed');
                 break;
-            case ActionType.ImportLedger:
+            case AccountsFormType.ImportLedger:
                 ampli.openedConnectLedgerFlow({ sourceFlow });
                 if (isPopup) {
                     await openTabWithSearchParam('showLedger', 'true');
