@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { IOTA_SYSTEM_STATE_OBJECT_ID } from '@iota/iota.js/utils';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { IOTA_SYSTEM_STATE_OBJECT_ID } from '@iota/iota-sdk/utils';
 
 export function createUnstakeTransaction(stakedIotaId: string) {
     const tx = new TransactionBlock();

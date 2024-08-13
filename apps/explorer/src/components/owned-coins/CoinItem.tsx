@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin } from '@iota/core';
-import { type CoinStruct } from '@iota/iota.js/client';
+import { type CoinStruct } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 
 import { ObjectLink } from '~/components/ui';

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type DisplayFieldsResponse } from '@iota/iota.js/client';
+import { type DisplayFieldsResponse } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 
 import { Image, ObjectLink, ObjectModal } from '~/components/ui';

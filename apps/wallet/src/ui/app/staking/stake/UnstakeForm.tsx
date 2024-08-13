@@ -6,7 +6,7 @@ import { Card } from '_app/shared/card';
 import { Text } from '_app/shared/text';
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
 import { createUnstakeTransaction, useFormatCoin, useGetTimeBeforeEpochNumber } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
 

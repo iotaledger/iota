@@ -187,8 +187,13 @@ const developer = [
     {
         type: 'category',
         label: 'Standards',
+        link: {
+          type: 'generated-index',
+          title:'IOTA Standards Overview',
+          description: 'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
+          slug: 'developer/standards',
+        },
         items: [
-            'developer/standards/standards',
             'developer/standards/coin',
             'developer/standards/coin-manager',
             {

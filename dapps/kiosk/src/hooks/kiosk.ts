@@ -12,7 +12,7 @@ import {
     KioskListing,
     KioskOwnerCap,
 } from '@iota/kiosk';
-import { IotaObjectResponse } from '@iota/iota.js/client';
+import { IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { OwnedObjectType } from '../components/Inventory/OwnedObjects';
