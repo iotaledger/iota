@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaHTTPTransport } from '@iota/iota.js/client';
+import { IotaHTTPTransport } from '@iota/iota-sdk/client';
 import * as Sentry from '@sentry/react';
 
 const IGNORED_METHODS = ['iotax_resolveNameServiceNames', 'iotax_resolveNameServiceAddresses'];

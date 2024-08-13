@@ -24,9 +24,9 @@ import type {
 import { getCustomNetwork, type NetworkEnvType } from '_src/shared/api-env';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
-import { getNetwork, Network, type ChainType } from '@iota/iota.js/client';
-import { isTransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64, toB64 } from '@iota/iota.js/utils';
+import { getNetwork, Network, type ChainType } from '@iota/iota-sdk/client';
+import { isTransactionBlock } from '@iota/iota-sdk/transactions';
+import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 import {
     ReadonlyWalletAccount,
     SUPPORTED_CHAINS,

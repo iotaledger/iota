@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type EpochMetricsPage } from '@iota/iota.js/client';
+import { type EpochMetricsPage } from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 
 import { IotaAmount, TxTimeType, HighlightedTableCol } from '~/components';

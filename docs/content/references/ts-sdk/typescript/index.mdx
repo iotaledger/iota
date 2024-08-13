@@ -8,7 +8,7 @@ to send queries to RPC nodes, build and sign transactions, and interact with a I
 ## Installation
 
 ```sh npm2yarn
-npm i @iota/iota.js
+npm i @iota/iota-sdk
 ```
 
 ## Network locations
@@ -64,7 +64,7 @@ The IOTA TypeScript SDK deprecates the following classes with version 0.38.0:
     have been deprecated in favor of using `iotaClient` for establishing the connection. See
     [Network Interactions with IotaClient](./iota-client.mdx) for more information.
 -   The `superstruct` type definitions for `JsonRPCProvider` types are replaced with generated types
-    exported from `@iota/iota.js/client`. The new type definitions are pure TypeScript types that
+    exported from `@iota/iota-sdk/client`. The new type definitions are pure TypeScript types that
     you can't use for runtime validation.
 -   A more stable JSON-RPC API has reduced the need for many of the SDK "getter" methods, which are
     now deprecated.
@@ -79,11 +79,11 @@ pattern. For an example of transaction signing, see the
 
 The ability to request IOTA from a faucet is not part of `IotaClient` as it was with
 `JsonRpcProvider`. Instead, you must use the `requestIotaFromFaucetV0` method from
-`@iota/iota.js/faucet`. The `@iota/iota.js/faucet` import also provides a `getFaucetHost` method
+`@iota/iota-sdk/faucet`. The `@iota/iota-sdk/faucet` import also provides a `getFaucetHost` method
 to retrieve the faucet URL for `localnet`, `testnet`, or `devnet` networks.
 
 ```ts
-import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
+import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 
 await requestIotaFromFaucetV0({
     host: getFaucetHost('devnet'),
@@ -96,18 +96,18 @@ await requestIotaFromFaucetV0({
 The SDK contains a set of modular packages that you can use independently or together. Import just
 what you need to keep your code light and compact.
 
--   [`@iota/iota.js/client`](./iota-client.mdx) - A client for interacting with IOTA RPC nodes.
--   [`@iota/iota.js/bcs`](bcs.mdx) - A BCS builder with pre-defined types for IOTA.
--   [`@iota/iota.js/transaction`](./transaction-building/basics.mdx) - Utilities for building
+-   [`@iota/iota-sdk/client`](./iota-client.mdx) - A client for interacting with IOTA RPC nodes.
+-   [`@iota/iota-sdk/bcs`](bcs.mdx) - A BCS builder with pre-defined types for IOTA.
+-   [`@iota/iota-sdk/transaction`](./transaction-building/basics.mdx) - Utilities for building
     and interacting with transactions.
--   [`@iota/iota.js/keypairs/*`](./cryptography/keypairs.mdx) - Modular exports for specific
+-   [`@iota/iota-sdk/keypairs/*`](./cryptography/keypairs.mdx) - Modular exports for specific
     KeyPair implementations.
--   [`@iota/iota.js/verify`](./cryptography/keypairs.mdx#verifying-signatures-without-a-key-pair) -
+-   [`@iota/iota-sdk/verify`](./cryptography/keypairs.mdx#verifying-signatures-without-a-key-pair) -
     Methods for verifying transactions and messages.
--   [`@iota/iota.js/cryptography`](./cryptography/keypairs.mdx) - Shared types and classes
+-   [`@iota/iota-sdk/cryptography`](./cryptography/keypairs.mdx) - Shared types and classes
     for cryptography.
--   [`@iota/iota.js/multisig`](./cryptography/multisig.mdx) - Utilities for working with
+-   [`@iota/iota-sdk/multisig`](./cryptography/multisig.mdx) - Utilities for working with
     multisig signatures.
--   [`@iota/iota.js/utils`](./utils.mdx) - Utilities for formatting and parsing various IOTA
+-   [`@iota/iota-sdk/utils`](./utils.mdx) - Utilities for formatting and parsing various IOTA
     types.
--   [`@iota/iota.js/faucet`](./faucet.mdx) - Methods for requesting IOTA from a faucet.
+-   [`@iota/iota-sdk/faucet`](./faucet.mdx) - Methods for requesting IOTA from a faucet.

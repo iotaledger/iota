@@ -7,7 +7,7 @@ import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
 import { isValidUrl } from '_src/shared/utils';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import { Form, Formik } from 'formik';
 import { useCallback } from 'react';
 import { toast } from 'react-hot-toast';

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { ObjectOwner, IotaObjectChange } from '@iota/iota.js/src/client';
+import { ObjectOwner, IotaObjectChange } from '@iota/iota-sdk/src/client';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
