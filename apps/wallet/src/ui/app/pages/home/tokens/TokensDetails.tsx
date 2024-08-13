@@ -190,9 +190,9 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const network = useAppSelector(({ app }) => app.network);
 
-    const [_, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
+    const [_pinned, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
 
-    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(coinBalances);
+    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(coinBalances, _pinned);
 
     // Avoid perpetual loading state when fetching and retry keeps failing; add isFetched check.
     const isFirstTimeLoading = isLoading && !isFetched;
