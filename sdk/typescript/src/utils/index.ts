@@ -31,7 +31,7 @@ export {
 };
 
 export const IOTA_DECIMALS = 9;
-export const MICROS_PER_IOTA = BigInt(1000000000);
+export const NANO_PER_IOTA = BigInt(1000000000);
 
 export const MOVE_STDLIB_ADDRESS = '0x1';
 export const IOTA_FRAMEWORK_ADDRESS = '0x2';
