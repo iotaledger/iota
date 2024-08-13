@@ -6062,7 +6062,6 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 0.1.4",
  "iota-transaction-builder",
  "iota-types",
  "itertools 0.13.0",

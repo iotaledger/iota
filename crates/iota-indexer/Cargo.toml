@@ -38,7 +38,6 @@ iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
-iota-sdk.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 mysten-metrics.workspace = true

@@ -136,6 +136,7 @@ harness = false
 [[bench]]
 name = "batch_verification_bench"
 harness = false
+required-features = ["test-utils"]
 
 [features]
 test-utils = []
