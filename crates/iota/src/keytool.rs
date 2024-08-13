@@ -195,16 +195,6 @@ pub enum KeyToolCommand {
         #[clap(long)]
         threshold: ThresholdUnit,
     },
-    MultiSigCombinePartialSigLegacy {
-        #[clap(long, num_args(1..))]
-        sigs: Vec<GenericSignature>,
-        #[clap(long, num_args(1..))]
-        pks: Vec<PublicKey>,
-        #[clap(long, num_args(1..))]
-        weights: Vec<WeightUnit>,
-        #[clap(long)]
-        threshold: ThresholdUnit,
-    },
 
     /// Read the content at the provided file path. The accepted format can be
     /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or
@@ -401,14 +391,6 @@ pub struct MultiSigCombinePartialSig {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MultiSigCombinePartialSigLegacyOutput {
-    multisig_address: IotaAddress,
-    multisig_legacy_parsed: GenericSignature,
-    multisig_legacy_serialized: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MultiSigOutput {
     address: IotaAddress,
     public_base64_key: String,
@@ -491,7 +473,6 @@ pub enum CommandOutput {
     LoadKeypair(KeypairData),
     MultiSigAddress(MultiSigAddress),
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
-    MultiSigCombinePartialSigLegacy(MultiSigCombinePartialSigLegacyOutput),
     PrivateKeyBase64(PrivateKeyBase64),
     Show(Key),
     Sign(SignData),
@@ -764,29 +745,6 @@ impl KeyToolCommand {
                     multisig_parsed: generic_sig,
                     multisig_serialized,
                 })
-            }
-
-            KeyToolCommand::MultiSigCombinePartialSigLegacy {
-                sigs,
-                pks,
-                weights,
-                threshold,
-            } => {
-                let multisig_pk_legacy =
-                    MultiSigPublicKeyLegacy::new(pks.clone(), weights.clone(), threshold)?;
-                let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
-                let address: IotaAddress = (&multisig_pk).into();
-                let multisig = MultiSigLegacy::combine(sigs, multisig_pk_legacy)?;
-                let generic_sig: GenericSignature = multisig.into();
-                let multisig_legacy_serialized = generic_sig.encode_base64();
-
-                CommandOutput::MultiSigCombinePartialSigLegacy(
-                    MultiSigCombinePartialSigLegacyOutput {
-                        multisig_address: address,
-                        multisig_legacy_parsed: generic_sig,
-                        multisig_legacy_serialized,
-                    },
-                )
             }
 
             KeyToolCommand::Show { file } => {
