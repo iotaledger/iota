@@ -33,13 +33,13 @@ import {
     useSortedCoinsByCategories,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info12, Pin16, Unpin16 } from '@iota/icons';
+import { Info12 } from '@iota/icons';
 import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';
-
+import { Unpined, Pined } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
@@ -52,23 +52,27 @@ interface TokenDetailsProps {
 }
 
 interface PinButtonProps {
-    unpin?: boolean;
+    isPinned?: boolean;
     onClick: () => void;
 }
 
-function PinButton({ unpin, onClick }: PinButtonProps) {
+function PinButton({ isPinned, onClick }: PinButtonProps) {
     return (
         <button
             type="button"
-            className="hover:!text-hero group-hover/coin:text-steel cursor-pointer border-none bg-transparent"
-            aria-label={unpin ? 'Unpin Coin' : 'Pin Coin'}
+            className="cursor-pointer border-none bg-transparent [&_svg]:h-4 [&_svg]:w-4"
+            aria-label={isPinned ? 'Unpin Coin' : 'Pin Coin'}
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onClick();
             }}
         >
-            {unpin ? <Unpin16 /> : <Pin16 />}
+            {!isPinned ? (
+                <Unpined className="text-neutral-60" />
+            ) : (
+                <Pined className="text-primary-40" />
+            )}
         </button>
     );
 }
@@ -223,7 +227,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                             coinBalance={coinBalance}
                             clickableAction={
                                 <PinButton
-                                    unpin
+                                    isPinned
                                     onClick={() => {
                                         ampli.unpinnedCoin({ coinType: coinBalance.coinType });
                                         unpinCoinType(coinBalance.coinType);
