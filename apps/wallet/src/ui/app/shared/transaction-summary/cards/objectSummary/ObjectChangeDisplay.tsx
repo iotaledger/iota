@@ -4,7 +4,7 @@
 
 import { ExplorerLink, ExplorerLinkType, NftImage } from '_components';
 import { type IotaObjectChangeWithDisplay } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 import { Text } from '../../../text';
 

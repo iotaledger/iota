@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type BalanceChange } from '@iota/iota.js/src/client';
+import { type BalanceChange } from '@iota/iota-sdk/src/client';
 
 import { PreviewCard } from '../PreviewCard';
 import { onChainAmountToFloat } from '../utils';

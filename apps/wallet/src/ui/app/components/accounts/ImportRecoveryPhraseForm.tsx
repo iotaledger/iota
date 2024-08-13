@@ -2,16 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
 import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils';
-import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
-import { Text } from '_src/ui/app/shared/text';
 import { useZodForm } from '@iota/core';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import { Alert } from '_components';
+import {
+    Input,
+    InputType,
+    Button,
+    ButtonType,
+    ButtonHtmlType,
+    InfoBox,
+    InfoBoxType,
+    InfoBoxStyle,
+} from '@iota/apps-ui-kit';
+import { Exclamation } from '@iota/ui-icons';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 
@@ -25,18 +32,20 @@ const formSchema = z.object({
         }),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+export type FormValues = z.infer<typeof formSchema>;
 
 interface ImportRecoveryPhraseFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
     onSubmit: SubmitHandler<FormValues>;
+    isTextVisible?: boolean;
 }
 
 export function ImportRecoveryPhraseForm({
     submitButtonText,
     cancelButtonText,
     onSubmit,
+    isTextVisible,
 }: ImportRecoveryPhraseFormProps) {
     const {
         register,
@@ -56,83 +65,89 @@ export function ImportRecoveryPhraseForm({
     const navigate = useNavigate();
     const recoveryPhrase = getValues('recoveryPhrase');
 
+    async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>, index: number) {
+        const inputText = e.clipboardData.getData('text');
+        const words = inputText
+            .trim()
+            .split(/\W/)
+            .map((aWord) => aWord.trim())
+            .filter(String);
+
+        if (words.length > 1) {
+            e.preventDefault();
+            const pasteIndex = words.length === recoveryPhrase.length ? 0 : index;
+            const wordsToPaste = words.slice(0, recoveryPhrase.length - pasteIndex);
+            const newRecoveryPhrase = [...recoveryPhrase];
+            newRecoveryPhrase.splice(
+                pasteIndex,
+                wordsToPaste.length,
+                ...words.slice(0, recoveryPhrase.length - pasteIndex),
+            );
+            setValue('recoveryPhrase', newRecoveryPhrase);
+            trigger('recoveryPhrase');
+        }
+    }
+
+    function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (e.key === ' ') {
+            e.preventDefault();
+            const nextInput = document.getElementsByName(
+                `recoveryPhrase.${recoveryPhrase.findIndex((word) => !word)}`,
+            )[0];
+            nextInput?.focus();
+        }
+    }
+
     return (
         <form
             className="relative flex h-full flex-col justify-between"
             onSubmit={handleSubmit(onSubmit)}
         >
-            <div className="mb-4 grid grid-cols-2 gap-x-2 gap-y-2.5">
+            <div className="grid grid-cols-2 gap-2 overflow-auto pb-md">
                 {recoveryPhrase.map((_, index) => {
                     const recoveryPhraseId = `recoveryPhrase.${index}` as const;
                     return (
-                        <label key={index} className="flex flex-col items-center gap-1.5">
-                            <Text variant="captionSmall" weight="medium" color="steel-darker">
-                                {index + 1}
-                            </Text>
-                            <PasswordInput
-                                disabled={isSubmitting}
-                                onKeyDown={(e) => {
-                                    if (e.key === ' ') {
-                                        e.preventDefault();
-                                        const nextInput = document.getElementsByName(
-                                            `recoveryPhrase.${index + 1}`,
-                                        )[0];
-                                        nextInput?.focus();
-                                    }
-                                }}
-                                onPaste={async (e) => {
-                                    const inputText = e.clipboardData.getData('text');
-                                    const words = inputText
-                                        .trim()
-                                        .split(/\W/)
-                                        .map((aWord) => aWord.trim())
-                                        .filter(String);
-
-                                    if (words.length > 1) {
-                                        e.preventDefault();
-                                        const pasteIndex =
-                                            words.length === recoveryPhrase.length ? 0 : index;
-                                        const wordsToPaste = words.slice(
-                                            0,
-                                            recoveryPhrase.length - pasteIndex,
-                                        );
-                                        const newRecoveryPhrase = [...recoveryPhrase];
-                                        newRecoveryPhrase.splice(
-                                            pasteIndex,
-                                            wordsToPaste.length,
-                                            ...words.slice(0, recoveryPhrase.length - pasteIndex),
-                                        );
-                                        setValue('recoveryPhrase', newRecoveryPhrase);
-                                        trigger('recoveryPhrase');
-                                    }
-                                }}
-                                id={recoveryPhraseId}
-                                {...register(recoveryPhraseId)}
-                            />
-                        </label>
+                        <Input
+                            key={recoveryPhraseId}
+                            supportingText={String(index + 1)}
+                            type={InputType.Password}
+                            isVisibilityToggleEnabled={false}
+                            disabled={isSubmitting}
+                            placeholder="Word"
+                            isContentVisible={isTextVisible}
+                            onKeyDown={handleInputKeyDown}
+                            onPaste={(e) => handlePaste(e, index)}
+                            id={recoveryPhraseId}
+                            {...register(recoveryPhraseId)}
+                        />
                     );
                 })}
             </div>
-            <div className="bg-iota-lightest sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 px-6 pb-7.5 pt-3">
+
+            <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 py-sm">
                 {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
-                    <Alert>{errors.recoveryPhrase.message}</Alert>
+                    <InfoBox
+                        type={InfoBoxType.Default}
+                        supportingText={errors.recoveryPhrase.message}
+                        icon={<Exclamation />}
+                        style={InfoBoxStyle.Elevated}
+                    />
                 )}
-                <div className="flex gap-2.5">
+                <div className="flex flex-row justify-stretch gap-2.5">
                     {cancelButtonText ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
                             text={cancelButtonText}
                             onClick={() => navigate(-1)}
+                            fullWidth
                         />
                     ) : null}
                     <Button
-                        type="submit"
+                        type={ButtonType.Primary}
                         disabled={isSubmitting || !isValid}
-                        variant="primary"
-                        size="tall"
-                        loading={isSubmitting}
                         text={submitButtonText}
+                        fullWidth
+                        htmlType={ButtonHtmlType.Submit}
                     />
                 </div>
             </div>

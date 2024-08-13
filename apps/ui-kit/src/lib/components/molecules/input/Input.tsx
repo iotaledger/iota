@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { forwardRef, Fragment, useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { InputWrapper, InputWrapperProps } from './InputWrapper';
 import {
@@ -12,33 +12,16 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import { InputType } from './input.enums';
-import { InputPropsByType } from './input.types';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 
-type InputPickedProps = Pick<
+type InputPickedProps = Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
-    | 'min'
-    | 'max'
-    | 'step'
-    | 'maxLength'
-    | 'minLength'
-    | 'autoComplete'
-    | 'autoFocus'
-    | 'pattern'
-    | 'name'
-    | 'required'
-    | 'placeholder'
-    | 'disabled'
-    | 'id'
+    'type' | 'className' | 'ref'
 >;
 
-interface InputBaseProps extends InputPickedProps, InputWrapperProps {
-    /**
-     * Callback function that is called when the input value changes
-     */
-    onChange?: (value: string, name?: string) => void;
+export interface InputProps extends InputPickedProps, InputWrapperProps {
     /**
      * A leading icon that is shown before the input
      */
@@ -71,40 +54,40 @@ interface InputBaseProps extends InputPickedProps, InputWrapperProps {
      * onClearInput function that is called when the clear button is clicked
      */
     onClearInput?: () => void;
+    /**
+     * Shows toggle button to show/hide the content of the input field
+     */
+    isVisibilityToggleEnabled?: boolean;
+    /**
+     * Type of the input field
+     */
+    type: InputType;
 }
 
-export type InputProps = InputBaseProps & InputPropsByType;
-
-export function Input({
-    name,
-    label,
-    placeholder,
-    caption,
-    disabled,
-    errorMessage,
-    onChange,
-    value,
-    leadingIcon,
-    supportingText,
-    amountCounter,
-    id,
-    pattern,
-    autoFocus,
-    trailingElement,
-    required,
-    max,
-    min,
-    step,
-    maxLength,
-    minLength,
-    autoComplete,
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+    {
+        name,
+        label,
+        placeholder,
+        caption,
+        disabled,
+        errorMessage,
+        value,
+        leadingIcon,
+        supportingText,
+        amountCounter,
+        pattern,
+        autoFocus,
+        trailingElement,
+        onClearInput,
+        isContentVisible,
+        isVisibilityToggleEnabled,
+        ...inputProps
+    },
     ref,
-    onClearInput,
-    isContentVisible,
-    ...inputProps
-}: InputProps) {
-    const fallbackRef = useRef<HTMLInputElement>(null);
-    const inputRef = ref ?? fallbackRef;
+) {
+    isVisibilityToggleEnabled ??= inputProps.type === InputType.Password;
+    const inputRef = useRef<HTMLInputElement | null>(null);
 
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
         isContentVisible ?? inputProps.type !== InputType.Password,
@@ -119,9 +102,20 @@ export function Input({
     }
 
     function focusInput() {
-        if (inputRef?.current) {
-            inputRef?.current?.focus();
+        if (inputRef.current) {
+            inputRef.current.focus();
         }
+    }
+
+    function assignRefs(element: HTMLInputElement) {
+        if (ref) {
+            if (typeof ref === 'function') {
+                ref(element);
+            } else {
+                ref.current = element;
+            }
+        }
+        inputRef.current = element;
     }
 
     return (
@@ -131,7 +125,7 @@ export function Input({
             disabled={disabled}
             errorMessage={errorMessage}
             amountCounter={amountCounter}
-            required={required}
+            required={inputProps.required}
         >
             <div
                 className={cx('relative flex flex-row items-center gap-x-3', BORDER_CLASSES)}
@@ -142,27 +136,19 @@ export function Input({
                 )}
 
                 <input
+                    {...inputProps}
+                    name={name}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    value={value}
+                    ref={assignRefs}
+                    pattern={pattern}
+                    autoFocus={autoFocus}
                     type={
                         inputProps.type === InputType.Password && isInputContentVisible
                             ? 'text'
                             : inputProps.type
                     }
-                    name={name}
-                    placeholder={placeholder}
-                    disabled={disabled}
-                    value={value}
-                    onChange={(e) => onChange?.(e.target.value, e.target.name)}
-                    ref={inputRef}
-                    required={required}
-                    id={id}
-                    pattern={pattern}
-                    autoFocus={autoFocus}
-                    maxLength={maxLength}
-                    minLength={minLength}
-                    autoComplete={autoComplete}
-                    max={max}
-                    min={min}
-                    step={step}
                     className={cx(
                         INPUT_CLASSES,
                         INPUT_TEXT_CLASSES,
@@ -183,7 +169,7 @@ export function Input({
             </div>
         </InputWrapper>
     );
-}
+});
 
 function InputTrailingElement({
     value,
@@ -197,10 +183,12 @@ function InputTrailingElement({
     const showPasswordToggle = Boolean(type === InputType.Password && onToggleButtonClick);
     const showTrailingElement = Boolean(trailingElement && !showClearInput && !showPasswordToggle);
 
+    const ICON_WIDTH_HEIGHT = 20;
+
     if (showClearInput) {
         return (
             <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
-                <Close />
+                <Close width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
             </ButtonUnstyled>
         );
     } else if (showPasswordToggle) {
@@ -209,7 +197,11 @@ function InputTrailingElement({
                 onClick={onToggleButtonClick}
                 className="text-neutral-10 dark:text-neutral-92"
             >
-                {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+                {isContentVisible ? (
+                    <VisibilityOn width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
+                ) : (
+                    <VisibilityOff width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
+                )}
             </ButtonUnstyled>
         );
     } else if (showTrailingElement) {

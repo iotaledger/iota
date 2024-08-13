@@ -5,8 +5,9 @@
 import { type ReactNode } from 'react';
 import { useFormContext } from 'react-hook-form';
 
-import { Alert } from '_components';
 import { FormLabel } from './FormLabel';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Exclamation } from '@iota/ui-icons';
 
 interface FormFieldProps {
     name: string;
@@ -21,7 +22,14 @@ export function FormField({ children, name, label }: FormFieldProps) {
     return (
         <div className="flex w-full flex-col gap-2.5">
             {label ? <FormLabel label={label}>{children}</FormLabel> : children}
-            {state.error && <Alert>{state.error.message}</Alert>}
+            {state.error && (
+                <InfoBox
+                    type={InfoBoxType.Default}
+                    supportingText={state.error.message}
+                    icon={<Exclamation />}
+                    style={InfoBoxStyle.Elevated}
+                />
+            )}
         </div>
     );
 }

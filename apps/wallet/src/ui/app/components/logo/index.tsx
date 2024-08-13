@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaCustomRpc, IotaDevnet, IotaLocal, IotaMainnet, IotaTestnet } from '@iota/icons';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 
 interface LogoProps {
     network?: Network;

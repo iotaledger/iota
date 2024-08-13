@@ -1,5 +1,5 @@
 {
-    "name": "@iota/iota.js",
+    "name": "@iota/iota-sdk",
     "author": "Mysten Labs <build@mystenlabs.com>",
     "description": "Iota TypeScript API(Work in Progress)",
     "homepage": "https://sdk.mystenlabs.com",

@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This crate provides various APIs for interacting with the IOTA blockchain.
+//! It includes methods for querying data, building and executing transactions,
+//! managing governance-related data, and more.
+
 use anyhow::anyhow;
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};

@@ -70,17 +70,19 @@ export function InputWrapper({
                 children
             )}
 
-            <div
-                className={cx(
-                    'flex flex-row items-center',
-                    caption || errorMessage ? 'justify-between' : 'justify-end',
-                )}
-            >
-                {(errorMessage || caption) && (
-                    <SecondaryText hasErrorStyles>{errorMessage || caption}</SecondaryText>
-                )}
-                {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
-            </div>
+            {(errorMessage || caption || amountCounter) && (
+                <div
+                    className={cx(
+                        'flex flex-row items-center',
+                        caption || errorMessage ? 'justify-between' : 'justify-end',
+                    )}
+                >
+                    {(errorMessage || caption) && (
+                        <SecondaryText hasErrorStyles>{errorMessage || caption}</SecondaryText>
+                    )}
+                    {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
+                </div>
+            )}
         </div>
     );
 }

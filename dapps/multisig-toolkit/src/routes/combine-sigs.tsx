@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PublicKey, SerializedSignature } from '@iota/iota.js/cryptography';
-import { MultiSigPublicKey, publicKeyFromIotaBytes } from '@iota/iota.js/multisig';
+import { PublicKey, SerializedSignature } from '@iota/iota-sdk/cryptography';
+import { MultiSigPublicKey, publicKeyFromIotaBytes } from '@iota/iota-sdk/multisig';
 import { useState } from 'react';
 import { FieldValues, useFieldArray, useForm } from 'react-hook-form';
 

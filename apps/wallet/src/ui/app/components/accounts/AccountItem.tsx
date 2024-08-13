@@ -5,7 +5,7 @@
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight12, Copy12 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 

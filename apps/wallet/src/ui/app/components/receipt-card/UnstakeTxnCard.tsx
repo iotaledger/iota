@@ -6,8 +6,8 @@ import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
 import { TxnAmount } from '_components';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
-import type { IotaEvent } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaEvent } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 

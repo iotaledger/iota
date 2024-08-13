@@ -14,7 +14,7 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { WalletActionStake24 } from '@iota/icons';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function TokenIconLink({
     accountAddress,

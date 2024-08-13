@@ -12,7 +12,7 @@ import {
     type IotaObjectChangeWithDisplay,
 } from '@iota/core';
 import { ChevronDown12, ChevronRight12 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
 
 import { ExpandableList } from '../../ExpandableList';

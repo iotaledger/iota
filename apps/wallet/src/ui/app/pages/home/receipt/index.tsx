@@ -7,7 +7,7 @@ import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useIotaClient } from '@iota/dapp-kit';
 import { Check32 } from '@iota/icons';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';

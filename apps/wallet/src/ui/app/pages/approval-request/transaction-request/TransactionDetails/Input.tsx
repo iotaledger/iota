@@ -4,8 +4,8 @@
 
 import { ExplorerLink, ExplorerLinkType } from '_components';
 import { Text } from '_src/ui/app/shared/text';
-import { type TransactionBlockInput } from '@iota/iota.js/transactions';
-import { formatAddress, toB64 } from '@iota/iota.js/utils';
+import { type TransactionBlockInput } from '@iota/iota-sdk/transactions';
+import { formatAddress, toB64 } from '@iota/iota-sdk/utils';
 
 interface InputProps {
     input: TransactionBlockInput;

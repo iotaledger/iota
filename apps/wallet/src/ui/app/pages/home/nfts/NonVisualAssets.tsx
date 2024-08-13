@@ -4,8 +4,8 @@
 
 import { ExplorerLink, ExplorerLinkType } from '_components';
 import { Text } from '_src/ui/app/shared/text';
-import { type IotaObjectData } from '@iota/iota.js/client';
-import { formatAddress, parseStructTag } from '@iota/iota.js/utils';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
+import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
 
 interface NonVisualAssetsProps {
     items: IotaObjectData[];

@@ -16,7 +16,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Collapsible } from '_src/ui/app/shared/collapse';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useGetKioskContents } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { Link, useSearchParams } from 'react-router-dom';
 
 function KioskDetailsPage() {

@@ -30,8 +30,8 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@iota/icons';
-import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota.js/client';
-import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota-sdk/client';
+import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';

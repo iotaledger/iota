@@ -19,7 +19,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { ArrowRight16, ArrowUpRight12 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useSearchParams } from 'react-router-dom';
 

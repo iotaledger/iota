@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useQueryTransactionsByAddress(address?: string | null) {
