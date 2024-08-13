@@ -120,7 +120,7 @@ async fn main() -> Result<(), anyhow::Error> {
             arguments,
         ) {
             // If the basic output can be unlocked, the command will be succesful and will
-            // return a `base_token` (i.e., IOTA) balance and a `Bag` of native tokens
+            // return a `base_token` (i.e., SMR) balance and a `Bag` of native tokens
             let extracted_base_token = Argument::NestedResult(extracted_assets, 0);
             let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
 
