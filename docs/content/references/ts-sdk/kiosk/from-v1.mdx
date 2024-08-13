@@ -21,7 +21,7 @@ The following example is from the original Kiosk SDK V1 documentation.
 
 ```typescript
 import { placeAndList } from '@iota/kiosk';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const placeAndListToKiosk = async () => {
     const kiosk = 'SomeKioskId';
@@ -79,7 +79,7 @@ The following example is from the original Kiosk SDK V1 documentation.
 
 ```typescript
 import { createKioskAndShare } from '@iota/kiosk';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const createKiosk = async () => {
     const accountAddress = '0xSomeIotaAddress';
@@ -126,7 +126,7 @@ The following example is from the original Kiosk SDK V1 documentation.
 
 ```typescript
 import { queryTransferPolicy, purchaseAndResolvePolicies, place, testnetEnvironment } from '@iota/kiosk';
-import { IotaClient } from '@iota/iota.js/client';
+import { IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient(
   url: 'https://fullnode.testnet.iota.io:443',
@@ -245,7 +245,7 @@ import {
     percentageToBasisPoints,
     testnetEnvironment,
 } from '@iota/kiosk';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 // Attaches a royalty rule of 1% or 0.1 IOTA (whichever is bigger)
 // as well as a kiosk lock, making the objects trade-able only from/to a kiosk.

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { PaginatedCoins } from '@iota/iota.js/client';
+import { PaginatedCoins } from '@iota/iota-sdk/client';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 const MAX_COINS_PER_REQUEST = 10;

@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { ButtonSegment, ButtonSegmentType } from '@/components/atoms/';
 
-const meta = {
+const meta: Meta<typeof ButtonSegment> = {
     component: ButtonSegment,
     tags: ['autodocs'],
     render: (props) => {

@@ -2,9 +2,9 @@
 name = "move-docgen"
 version = "0.1.0"
 authors = ["Diem Association <opensource@diem.com>"]
-publish = false
 edition = "2021"
 license = "Apache-2.0"
+publish = false
 
 [dependencies]
 # diem dependencies
@@ -12,21 +12,21 @@ move-compiler.workspace = true
 move-model.workspace = true
 
 # external dependencies
+anyhow.workspace = true
 codespan.workspace = true
 codespan-reporting.workspace = true
 itertools.workspace = true
 log.workspace = true
 num.workspace = true
-regex.workspace = true
-anyhow.workspace = true
-serde.workspace = true
 once_cell.workspace = true
+regex.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
-move-prover.workspace = true
 datatest-stable.workspace = true
-tempfile.workspace = true
+move-prover.workspace = true
 move-prover-test-utils.workspace = true
+tempfile.workspace = true
 
 [[test]]
 name = "testsuite"

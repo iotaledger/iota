@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { type NetworkMetrics } from '@iota/iota.js/src/client';
+import { type NetworkMetrics } from '@iota/iota-sdk/src/client';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 export function useGetNetworkMetrics(): UseQueryResult<NetworkMetrics, Error> {

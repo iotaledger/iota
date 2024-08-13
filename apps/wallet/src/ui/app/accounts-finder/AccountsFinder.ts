@@ -3,10 +3,10 @@
 
 import type { AccountFromFinder, AddressFromFinder } from '_src/shared/accounts';
 import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
-import type { IotaClient } from '@iota/iota.js/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 import { getEmptyBalance } from './helpers';
 import type { FindBalance } from './types';
-import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 
 export enum AllowedAccountSourceTypes {
     MnemonicDerived = 'mnemonic-derived',

@@ -347,10 +347,10 @@ pub fn ptb_description() -> clap::Command {
         .value_names(["INTO_COIN", "[COIN OBJECTS]"]))
         .arg(arg!(
             --"move-call" <MOVE_CALL>
-            "Make a move call to a function."
+            "Make a Move call to a function."
         )
         .long_help(
-            "Make a move call to a function.\
+            "Make a Move call to a function.\
             \n\nExamples:\
             \n --move-call std::option::is_none <u64> none\
             \n --assign a none\
@@ -396,7 +396,7 @@ pub fn ptb_description() -> clap::Command {
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
             --"upgrade" <MOVE_PACKAGE_PATH>
-            "Upgrade the move package. It takes as input the folder where the package exists."
+            "Upgrade the Move package. It takes as input the folder where the package exists."
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
             --"preview"

@@ -69,7 +69,7 @@ use iota_core::{
     signature_verifier::SignatureVerifierMetrics,
     state_accumulator::StateAccumulator,
     storage::RocksDbStore,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc::{
     coin_api::CoinReadApi, governance_api::GovernanceReadApi, indexer_api::IndexerApi,
@@ -176,7 +176,7 @@ mod simulator {
             iota_types::zk_login_util::DEFAULT_JWK_BYTES,
             &OIDCProvider::Twitch,
         )
-        .map_err(|_| IotaError::JWKRetrievalError)
+        .map_err(|_| IotaError::JWKRetrieval)
     }
 
     thread_local! {
@@ -208,7 +208,7 @@ pub struct IotaNode {
     /// experimental rest service
     _http_server: Option<tokio::task::JoinHandle<()>>,
     state: Arc<AuthorityState>,
-    transaction_orchestrator: Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
     metrics: Arc<IotaNodeMetrics>,
 
@@ -489,7 +489,7 @@ impl IotaNode {
             // an epoch and the IOTA conservation check will fail. This also initialize
             // the expected_network_iota_amount table.
             execution_cache
-                .expensive_check_iota_conservation(&epoch_store)
+                .expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
         }
 
@@ -655,14 +655,12 @@ impl IotaNode {
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
         let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
-            Some(Arc::new(
-                TransactiondOrchestrator::new_with_network_clients(
-                    state.clone(),
-                    end_of_epoch_receiver,
-                    &config.db_path(),
-                    &prometheus_registry,
-                )?,
-            ))
+            Some(Arc::new(TransactionOrchestrator::new_with_network_clients(
+                state.clone(),
+                end_of_epoch_receiver,
+                &config.db_path(),
+                &prometheus_registry,
+            )?))
         } else {
             None
         };
@@ -1450,14 +1448,14 @@ impl IotaNode {
 
     pub fn transaction_orchestrator(
         &self,
-    ) -> Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>> {
+    ) -> Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>> {
         self.transaction_orchestrator.clone()
     }
 
     pub fn get_google_jwk_bytes(&self) -> Result<Vec<u8>, IotaError> {
         Ok(get_google_jwk_bytes()
             .read()
-            .map_err(|_| IotaError::JWKRetrievalError)?
+            .map_err(|_| IotaError::JWKRetrieval)?
             .to_vec())
     }
 
@@ -1608,7 +1606,7 @@ impl IotaNode {
                         new_epoch_start_state,
                         &checkpoint_executor,
                     )
-                    .await;
+                    .await?;
 
                 consensus_epoch_data_remover
                     .remove_old_data(next_epoch - 1)
@@ -1649,7 +1647,7 @@ impl IotaNode {
                         new_epoch_start_state,
                         &checkpoint_executor,
                     )
-                    .await;
+                    .await?;
 
                 if self.state.is_validator(&new_epoch_store) {
                     info!("Promoting the node from fullnode to validator, starting grpc server");
@@ -1713,7 +1711,7 @@ impl IotaNode {
         next_epoch_committee: Committee,
         next_epoch_start_system_state: EpochStartSystemState,
         checkpoint_executor: &CheckpointExecutor,
-    ) -> Arc<AuthorityPerEpochStore> {
+    ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let next_epoch = next_epoch_committee.epoch();
 
         let last_checkpoint = self
@@ -1721,6 +1719,13 @@ impl IotaNode {
             .get_epoch_last_checkpoint(cur_epoch_store.epoch())
             .expect("Error loading last checkpoint for current epoch")
             .expect("Could not load last checkpoint for current epoch");
+        let epoch_supply_change = last_checkpoint
+            .end_of_epoch_data
+            .as_ref()
+            .ok_or_else(|| {
+                IotaError::from("last checkpoint in epoch should contain end of epoch data")
+            })?
+            .epoch_supply_change;
 
         let epoch_start_configuration = EpochStartConfiguration::new(
             next_epoch_start_system_state,
@@ -1740,6 +1745,7 @@ impl IotaNode {
                 checkpoint_executor,
                 self.accumulator.clone(),
                 &self.config.expensive_safety_check_config,
+                epoch_supply_change,
             )
             .await
             .expect("Reconfigure authority state cannot fail");
@@ -1750,7 +1756,7 @@ impl IotaNode {
             new_epoch_store.epoch_start_config().flags(),
         );
 
-        new_epoch_store
+        Ok(new_epoch_store)
     }
 
     pub fn get_config(&self) -> &NodeConfig {
@@ -1767,7 +1773,7 @@ impl IotaNode {
         let client = reqwest::Client::new();
         fetch_jwks(provider, &client)
             .await
-            .map_err(|_| IotaError::JWKRetrievalError)
+            .map_err(|_| IotaError::JWKRetrieval)
     }
 }
 
@@ -1881,7 +1887,7 @@ fn build_kv_store(
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     store: RocksDbStore,
-    transaction_orchestrator: &Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
     _custom_runtime: Option<Handle>,

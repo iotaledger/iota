@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaMoveObject, IotaObjectData, IotaObjectResponse } from '@iota/iota.js/client';
-import { normalizeIotaAddress } from '@iota/iota.js/utils';
+import type { IotaMoveObject, IotaObjectData, IotaObjectResponse } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 export const camelCase = (string: string) => string.replace(/(_\w)/g, (g) => g[1].toUpperCase());
 

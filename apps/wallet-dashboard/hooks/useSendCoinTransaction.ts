@@ -3,7 +3,7 @@
 
 import { useCoinMetadata, createTokenTransferTransaction } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { CoinStruct } from '@iota/iota.js/client';
+import { CoinStruct } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useSendCoinTransaction(

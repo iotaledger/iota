@@ -1,6 +1,6 @@
 ---
- title: Addresses and Keys
- description: Explains how "previous" addresses are treated in the new ledger
+title: Addresses and Keys
+description: Explains how "previous" addresses are treated in the new ledger
 ---
 
 ## Addresses
@@ -29,4 +29,4 @@ The `44` represents ed25519, and the `4218` represents the IOTA Coin Type (`4219
 
 You can derive a new key pair using the key derivation path with a 24-word BIP-39 mnemonic (the same as with Stardust). 
 
-Once a key pair has been derived, the public key can be BLAKE2b-256 hashed, leaving you with a 32-byte hex address. This retains full compatibility with existing keys and hex addresses from Stardust. For any other signing scheme, besides the default ed25519, a flag is appended before hashing the public key with BLAKE2b-256. You can find all the details in the [Signatures section](../cryptography/explanations/transaction-auth/signatures.mdx) of the documentation.
+Once a key pair has been derived, the public key can be BLAKE2b-256 hashed, leaving you with a 32-byte hex address. This retains full compatibility with existing keys and hex addresses from Stardust. For any other signing scheme, besides the default ed25519, a flag is appended before hashing the public key with BLAKE2b-256. You can find all the details in the [Signatures section](../cryptography/transaction-auth/signatures.mdx) of the documentation.

@@ -7,7 +7,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getAllNetworks, getDefaultNetwork } from '@iota/iota.js/client';
+import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 

@@ -16,6 +16,7 @@ futures.workspace = true
 futures-core.workspace = true
 jsonrpsee.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
@@ -45,7 +46,6 @@ dirs.workspace = true
 futures.workspace = true
 futures-core.workspace = true
 rand.workspace = true
-rustls.workspace = true
 tempfile.workspace = true
 
 [[example]]
