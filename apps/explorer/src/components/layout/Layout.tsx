@@ -4,7 +4,7 @@
 
 import { KioskClientProvider, useCookieConsentBanner } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import type { Network } from '@iota/iota.js/client';
+import type { Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
 import { resolveValue, Toaster, type ToastType } from 'react-hot-toast';

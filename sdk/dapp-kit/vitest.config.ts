@@ -26,14 +26,16 @@ export default defineConfig({
             // TODO: Figure out a better way to run tests that avoids these aliases:
             '@iota/wallet-standard': new URL('../wallet-standard/src', import.meta.url).pathname,
             '@iota/bcs': new URL('../bcs/src', import.meta.url).pathname,
-            '@iota/iota.js/keypairs/ed25519': new URL(
+            '@iota/iota-sdk/keypairs/ed25519': new URL(
                 '../typescript/src/keypairs/ed25519',
                 import.meta.url,
             ).pathname,
-            '@iota/iota.js/client': new URL('../typescript/src/client', import.meta.url).pathname,
-            '@iota/iota.js/utils': new URL('../typescript/src/utils', import.meta.url).pathname,
-            '@iota/iota.js/transactions': new URL('../typescript/src/transactions', import.meta.url)
-                .pathname,
+            '@iota/iota-sdk/client': new URL('../typescript/src/client', import.meta.url).pathname,
+            '@iota/iota-sdk/utils': new URL('../typescript/src/utils', import.meta.url).pathname,
+            '@iota/iota-sdk/transactions': new URL(
+                '../typescript/src/transactions',
+                import.meta.url,
+            ).pathname,
         },
     },
 });

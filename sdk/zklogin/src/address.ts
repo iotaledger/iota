@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { computeZkLoginAddressFromSeed } from '@iota/iota.js/zklogin';
+import { computeZkLoginAddressFromSeed } from '@iota/iota-sdk/zklogin';
 import { decodeJwt } from 'jose';
 
 import { genAddressSeed } from './utils.js';

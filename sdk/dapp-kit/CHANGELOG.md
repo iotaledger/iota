@@ -5,7 +5,7 @@
 ### Patch Changes
 
 - Updated dependencies [6984dd1e38]
-  - @iota/iota.js@0.51.1
+  - @iota/iota-sdk@0.51.1
   - @iota/wallet-standard@0.11.1
   - @iota/zksend@0.4.1
 
@@ -40,7 +40,7 @@
 
 - Updated dependencies [0cafa94027]
 - Updated dependencies [437f0ca2ef]
-  - @iota/iota.js@0.51.0
+  - @iota/iota-sdk@0.51.0
   - @iota/wallet-standard@0.11.0
   - @iota/zksend@0.2.3
 
@@ -52,7 +52,7 @@
 - Updated dependencies [4830361fa4]
 - Updated dependencies [4fd676671b]
   - @iota/wallet-standard@0.10.3
-  - @iota/iota.js@0.50.1
+  - @iota/iota-sdk@0.50.1
   - @iota/zksend@0.2.2
 
 ## 0.12.1
@@ -98,7 +98,7 @@
 - Updated dependencies [a34f1cb67d]
 - Updated dependencies [ae9ae17eea]
 - Updated dependencies [220a766d86]
-  - @iota/iota.js@0.50.0
+  - @iota/iota-sdk@0.50.0
   - @iota/zksend@0.2.0
   - @iota/wallet-standard@0.10.2
 
@@ -108,7 +108,7 @@
 
 - Updated dependencies [9ac0a4ec01]
   - @iota/wallet-standard@0.10.1
-  - @iota/iota.js@0.49.1
+  - @iota/iota-sdk@0.49.1
 
 ## 0.11.0
 
@@ -121,7 +121,7 @@
 - 9ba167b0af: Default storage to memory storage when local storage isn't available during SSR
 - Updated dependencies [e5f9e3ba21]
   - @iota/wallet-standard@0.10.0
-  - @iota/iota.js@0.49.0
+  - @iota/iota-sdk@0.49.0
 
 ## 0.10.3
 
@@ -133,7 +133,7 @@
 - Updated dependencies [dd362ec1d6]
 - Updated dependencies [165ad6b21d]
   - @iota/wallet-standard@0.9.0
-  - @iota/iota.js@0.48.1
+  - @iota/iota-sdk@0.48.1
 
 ## 0.10.2
 
@@ -142,7 +142,7 @@
 - 2ae1a6a108: Early return on `useAutoConnectWallet` to improve account switching performance
 - b30fecbbca: Fix missing export of useIotaClientQueries
 - Updated dependencies [cdcfa76c43]
-  - @iota/iota.js@0.48.0
+  - @iota/iota-sdk@0.48.0
   - @iota/wallet-standard@0.8.11
 
 ## 0.10.1
@@ -165,7 +165,7 @@
 - Updated dependencies [9ac7e2f3d]
 - Updated dependencies [0259aec82]
 - Updated dependencies [64d45ba27]
-  - @iota/iota.js@0.47.0
+  - @iota/iota-sdk@0.47.0
   - @iota/wallet-standard@0.8.10
 
 ## 0.9.0
@@ -177,7 +177,7 @@
 ### Patch Changes
 
 - Updated dependencies [652bcdd92]
-  - @iota/iota.js@0.46.1
+  - @iota/iota-sdk@0.46.1
   - @iota/wallet-standard@0.8.9
 
 ## 0.8.0
@@ -193,7 +193,7 @@
 - Updated dependencies [8d1e74e52]
 - Updated dependencies [093554a0d]
 - Updated dependencies [3718a230b]
-  - @iota/iota.js@0.46.0
+  - @iota/iota-sdk@0.46.0
   - @iota/wallet-standard@0.8.8
 
 ## 0.7.0
@@ -206,7 +206,7 @@
 ### Patch Changes
 
 - Updated dependencies [30b47b758]
-  - @iota/iota.js@0.45.1
+  - @iota/iota-sdk@0.45.1
   - @iota/wallet-standard@0.8.7
 
 ## 0.6.0
@@ -228,7 +228,7 @@
 - 09c103002: fix pagination in useIotaClientInfiniteQuery
 - e0578094b: Fix typing of data for useIotaClientInfiniteQuery
 - Updated dependencies [b9afb5567]
-  - @iota/iota.js@0.45.0
+  - @iota/iota-sdk@0.45.0
   - @iota/wallet-standard@0.8.6
 
 ## 0.5.0
@@ -257,14 +257,14 @@
 - Updated dependencies [b48289346]
 - Updated dependencies [11cf4e68b]
   - @iota/wallet-standard@0.8.5
-  - @iota/iota.js@0.44.0
+  - @iota/iota-sdk@0.44.0
 
 ## 0.2.4
 
 ### Patch Changes
 
 - Updated dependencies [004fb1991]
-  - @iota/iota.js@0.43.3
+  - @iota/iota-sdk@0.43.3
   - @iota/wallet-standard@0.8.4
 
 ## 0.2.3
@@ -272,7 +272,7 @@
 ### Patch Changes
 
 - Updated dependencies [9b052166d]
-  - @iota/iota.js@0.43.2
+  - @iota/iota-sdk@0.43.2
   - @iota/wallet-standard@0.8.3
 
 ## 0.2.2
@@ -287,7 +287,7 @@
 
 - Updated dependencies [faa13ded9]
 - Updated dependencies [c5684bb52]
-  - @iota/iota.js@0.43.1
+  - @iota/iota-sdk@0.43.1
   - @iota/wallet-standard@0.8.2
 
 ## 0.2.0
@@ -312,7 +312,7 @@
 - Updated dependencies [e4484852b]
 - Updated dependencies [71e0a3197]
 - Updated dependencies [1bc430161]
-  - @iota/iota.js@0.43.0
+  - @iota/iota-sdk@0.43.0
   - @iota/wallet-standard@0.8.1
 
 ## 0.0.5
@@ -323,13 +323,13 @@
 - Updated dependencies [fd8589806]
 - Updated dependencies [8b9e5f737]
   - @iota/wallet-standard@0.8.0
-  - @iota/iota.js@0.42.0
+  - @iota/iota-sdk@0.42.0
 
 ## 0.0.4
 
 ### Patch Changes
 
-- @iota/iota.js@0.41.2
+- @iota/iota-sdk@0.41.2
 - @iota/wallet-standard@0.7.2
 
 ## 0.0.3
@@ -337,7 +337,7 @@
 ### Patch Changes
 
 - Updated dependencies [24c21e1f0]
-  - @iota/iota.js@0.41.1
+  - @iota/iota-sdk@0.41.1
 
 ## 0.0.2
 
@@ -345,7 +345,7 @@
 
 - Updated dependencies [ba8e3b857]
 - Updated dependencies [f4b7b3474]
-  - @iota/iota.js@0.41.0
+  - @iota/iota-sdk@0.41.0
 
 ## 0.0.1
 
@@ -353,4 +353,4 @@
 
 - Updated dependencies [a503cad34]
 - Updated dependencies [8281e3d25]
-  - @iota/iota.js@0.40.0
+  - @iota/iota-sdk@0.40.0

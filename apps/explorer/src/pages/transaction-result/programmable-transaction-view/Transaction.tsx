@@ -6,7 +6,7 @@ import {
     type MoveCallIotaTransaction,
     type IotaArgument,
     type IotaMovePackage,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 import { Text } from '@iota/ui';
 import { type ReactNode } from 'react';
 

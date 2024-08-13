@@ -73,7 +73,7 @@ println!("Address: 0x{}", iota_address_string);
 This example generates a new address with the TypeScript SDK:
 
 ```ts
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
  
 const keypair = new Ed25519Keypair();
 const address = keypair.getPublicKey().toIotaAddress();
@@ -159,7 +159,7 @@ async fn main() -> Result<(), anyhow::Error> {
 This example does the same with TypeScript:
 
 ```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
 

@@ -40,7 +40,7 @@
     },
     "dependencies": {
         "@iota/dapp-kit": "workspace:*",
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "@types/node": "^20.4.2",
         "enquirer": "^2.4.1"
     },
