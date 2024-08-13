@@ -12,12 +12,11 @@ import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
-import { IotaLogoMark } from '@iota/ui-icons';
+import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { WalletSettingsButton } from '../../components/menu/button/WalletSettingsButton';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useAccountSources } from '../../hooks/useAccountSources';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
@@ -40,10 +39,7 @@ export function PageMainLayout({
     const activeAccount = useActiveAccount();
     const isFullScreen = appType === AppType.Fullscreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
-    const { data: accountSources } = useAccountSources();
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
-    console.log('accountSources', accountSources);
-    console.log('isLedeger', isLedgerAccount);
     return (
         <div
             className={cn(
@@ -53,7 +49,12 @@ export function PageMainLayout({
         >
             <Header
                 network={network}
-                leftContent={<LeftContent account={activeAccount?.address} />}
+                leftContent={
+                    <LeftContent
+                        account={activeAccount?.address}
+                        isLedgerAccount={isLedgerAccount}
+                    />
+                }
                 middleContent={
                     dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
                 }
@@ -79,11 +80,21 @@ export function PageMainLayout({
     );
 }
 
-function LeftContent({ account }: { account: string | undefined }) {
+function LeftContent({
+    account,
+    isLedgerAccount,
+}: {
+    account: string | undefined;
+    isLedgerAccount: boolean | null;
+}) {
     return (
         <div className="flex flex-row items-center gap-sm">
             <Link to="/" className="text-gray-90 no-underline">
-                <IotaLogoMark className="h-6 w-6" />
+                {!isLedgerAccount ? (
+                    <Ledger className="h-6 w-6" />
+                ) : (
+                    <IotaLogoMark className="h-6 w-6" />
+                )}
             </Link>
             <span className="text-title-sm text-neutral-10">{formatAddress(account || '')}</span>
         </div>
