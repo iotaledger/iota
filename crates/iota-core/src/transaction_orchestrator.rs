@@ -40,12 +40,8 @@ use tokio::{
 };
 use tracing::{debug, error, error_span, info, instrument, warn, Instrument};
 
-// Transaction Orchestrator is a Node component that utilizes Quorum Driver to
-// submit transactions to validators for finality, and proactively executes
-// finalized transactions locally, when possible.
-use crate::authority::AuthorityState;
 use crate::{
-    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     quorum_driver::{
@@ -61,7 +57,10 @@ const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
-pub struct TransactiondOrchestrator<A: Clone> {
+/// Transaction Orchestrator is a Node component that utilizes Quorum Driver to
+/// submit transactions to validators for finality, and proactively executes
+/// finalized transactions locally, when possible.
+pub struct TransactionOrchestrator<A: Clone> {
     quorum_driver_handler: Arc<QuorumDriverHandler<A>>,
     validator_state: Arc<AuthorityState>,
     _local_executor_handle: JoinHandle<()>,
@@ -70,7 +69,7 @@ pub struct TransactiondOrchestrator<A: Clone> {
     metrics: Arc<TransactionOrchestratorMetrics>,
 }
 
-impl TransactiondOrchestrator<NetworkAuthorityClient> {
+impl TransactionOrchestrator<NetworkAuthorityClient> {
     pub fn new_with_network_clients(
         validator_state: Arc<AuthorityState>,
         reconfig_channel: Receiver<IotaSystemState>,
@@ -93,7 +92,7 @@ impl TransactiondOrchestrator<NetworkAuthorityClient> {
             safe_client_metrics_base,
             auth_agg_metrics,
         );
-        Ok(TransactiondOrchestrator::new(
+        Ok(TransactionOrchestrator::new(
             Arc::new(validators),
             validator_state,
             parent_path,
@@ -103,7 +102,7 @@ impl TransactiondOrchestrator<NetworkAuthorityClient> {
     }
 }
 
-impl<A> TransactiondOrchestrator<A>
+impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
     OnsiteReconfigObserver: ReconfigObserver<A>,
