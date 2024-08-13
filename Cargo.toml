@@ -392,7 +392,7 @@ tempfile = "3.3.0"
 test-fuzz = "3.0.4"
 thiserror = "1.0.40"
 tiny-bip39 = "1.0.0"
-tokio = "=1.38.0"
+tokio = "=1.39.2"
 tokio-retry = "0.3"
 tokio-rustls = "0.26.0"
 tokio-stream = { version = "0.1.14", features = ["sync", "net"] }
