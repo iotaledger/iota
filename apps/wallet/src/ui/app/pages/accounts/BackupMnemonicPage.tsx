@@ -103,13 +103,15 @@ export function BackupMnemonicPage() {
                                 )}
                             </Loading>
                         </div>
-                        <div className="flex justify-end">
-                            <Button
-                                onClick={handleCopy}
-                                type={ButtonType.Secondary}
-                                text={mnemonicCopied ? 'Copied' : 'Copy'}
-                            />
-                        </div>
+                        {false && (
+                            <div className="flex justify-end">
+                                <Button
+                                    onClick={handleCopy}
+                                    type={ButtonType.Secondary}
+                                    text={mnemonicCopied ? 'Copied' : 'Copy'}
+                                />
+                            </div>
+                        )}
                     </div>
                     <div className="flex w-full flex-col">
                         <div className="flex w-full py-sm--rs">
