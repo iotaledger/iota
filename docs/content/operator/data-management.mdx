@@ -32,7 +32,7 @@ The per-epoch IOTA store is beyond the scope of this topic. IOTA uses the per-ep
 
 IOTA Full nodes store the following types of data:
 
-1. **Transactions with associated effects and events:** IOTA uses a unique transaction digest to retrieve information about a transaction, including its effects and emitted events. IOTA Full nodes don't require the historic transaction information for basic Full node operations. To conserve drive space, you can enable pruning to remove this historical data.
+1. **Transactions with associated effects and events:** IOTA uses a unique transaction digest to retrieve information about a transaction, including its effects and emitted events. IOTA Full nodes don't require the historic transaction information for basic Full node operations. To conserve disk space, you can enable pruning to remove this historical data.
 2. **Checkpoints:** IOTA groups committed transactions in checkpoints, and then uses those checkpoints to achieve state synchronization. Checkpoints keep transaction digests that contain additional integrity metadata.
 IOTA Full nodes don't require data from checkpoints to  execute and submit transactions, so you can configure pruning for this data as well.
 3. **Objects:** Transactions that mutate objects create new object versions. Each object has a unique pair of `(objectId, version)` used to identify the object. IOTA Full nodes don't require historic object versions to  execute and submit transactions, so you can configure your Full node to also prune this data. 
@@ -40,7 +40,7 @@ IOTA Full nodes don't require data from checkpoints to  execute and submit trans
 
 IOTA Full nodes support more than 40 RPC types that includes the following categories:
 
-* **General metadata**, such as `iota_getProtocolConfig` and `iota_getChainIdentier`. These requests don't depend on additional indexing and don't require historic data to process.
+* **General metadata**, such as `iota_getProtocolConfig` and `iota_getChainIdentifier`. These requests don't depend on additional indexing and don't require historic data to process.
 * **Direct lookups**, such as `iota_getObject`, `iota_getEvents`. These requests don't depend on additional indexing, but require historic data in some cases, such as `iota_tryGetPastObject` and `iota_getTransactionBlock`.
 * **Accumulation and filtering queries**,such as `iotax_getOwnedObjects` and `iotax_getCoins`. These requests depend on additional indexing, and require historic data in some cases, such as `iotax_queryTransactionBlocks`.
 
@@ -60,7 +60,7 @@ The current archival storage format doesn't include historic object versions.
 
 :::
 
-As a Full node operator, you can [enable archival fallback for your Full node](./archives.mdx#set-up-archival-fallback) by specifying the URL to upload archival data. Currently, the IOTA Foundation manages an IOTA archive and stores it in AWS S3. To ensure a healthy network, we encourage the IOTA community to set  up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
+As a Full node operator, you can [enable archival fallback for your Full node](./archives.mdx#set-up-archival-fallback) by specifying the URL to upload archival data. To ensure a healthy network, we encourage the IOTA community to set  up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
 
 A Full Node that starts from scratch can replay (and thus re-verify) transactions that occurred since IOTA genesis from the given archive via [configuring Archival Fallback](./archives.mdx#set-up-archival-fallback) in the `fullnode.yaml` configuration file to point to the S3 bucket that stores the archive.
 
