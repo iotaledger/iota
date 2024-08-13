@@ -94,6 +94,10 @@ did:
   label: DID
   description: Decentralized Identifier.
 
+identity:
+  label: IOTA Identity
+  description: The IOTA Identity Implementation.
+
 verifiable-credentials:
   label: Verifiable Credentials
   description: Verifiable Credentials.

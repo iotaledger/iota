@@ -4,6 +4,7 @@ description: WASM API reference.
 image: /img/identity/icon.png
 tags:
   - reference
+  - identity
   - wasm
   - api
 ---
