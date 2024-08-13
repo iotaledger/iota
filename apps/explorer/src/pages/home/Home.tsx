@@ -5,7 +5,7 @@
 import clsx from 'clsx';
 import { lazy, Suspense } from 'react';
 
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import {
     AccountsCardGraph,
     Activity,

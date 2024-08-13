@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getAllNetworks } from '@iota/iota.js/client';
+import { getAllNetworks } from '@iota/iota-sdk/client';
 import type { IdentifierString } from '@wallet-standard/core';
 
 export const SUPPORTED_CHAINS = Object.values(getAllNetworks()).map((network) => network.chain);

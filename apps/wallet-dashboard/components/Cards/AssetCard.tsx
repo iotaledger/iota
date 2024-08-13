@@ -3,7 +3,7 @@
 
 'use client';
 
-import { IotaObjectData } from '@iota/iota.js/client';
+import { IotaObjectData } from '@iota/iota-sdk/client';
 import React from 'react';
 import { Box, ExternalImage } from '@/components/index';
 import { useGetNFTMeta } from '@iota/core';

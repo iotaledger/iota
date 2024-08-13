@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { PublicKey } from '@iota/iota.js/cryptography';
+import type { PublicKey } from '@iota/iota-sdk/cryptography';
 
 import { poseidonHash } from './poseidon.js';
 

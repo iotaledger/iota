@@ -5,7 +5,7 @@ import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useFormatCoin, type GasSummaryType } from '@iota/core';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { Text } from '../../text';
 

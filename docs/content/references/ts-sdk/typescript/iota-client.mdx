@@ -5,12 +5,12 @@ The IOTA TypeScript SDK provides a `IotaClient` class to connect to a network's 
 
 ## Connecting to an IOTA network
 
-To establish a connection to a network, import `IotaClient` from `@iota/iota.js/client` and pass the
+To establish a connection to a network, import `IotaClient` from `@iota/iota-sdk/client` and pass the
 relevant URL to the `url` parameter. The following example establishes a connection to Testnet and
 requests IOTA from that network's faucet.
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // use getFullnodeUrl to define Devnet RPC location
 const rpcUrl = getFullnodeUrl('devnet');
@@ -46,7 +46,7 @@ methods are built into `IotaClient`, but you can use `call` to leverage any meth
 RPC.
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
@@ -62,7 +62,7 @@ For a full list of available RPC methods, see the
 In addition to calling RPC methods, you can use `IotaClient` to subscribe to network events:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -90,7 +90,7 @@ IotaClient. You can either use a global polyfill for the WebSocket class, or pas
 WebSocket implementation into IotaHTTPTransport (eg, using the `ws` package)
 
 ```typescript
-import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 import { WebSocket } from 'ws';
 
 new IotaClient({
@@ -107,7 +107,7 @@ new IotaClient({
 Similar to subscribing to events, the `IotaClient` also supports subscribing to transactions:
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
@@ -134,7 +134,7 @@ You can construct a custom transport instance if you need to pass any custom opt
 headers or timeout values.
 
 ```typescript
-import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     transport: new IotaHTTPTransport({

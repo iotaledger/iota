@@ -31,13 +31,13 @@ import {
   isValidIotaAddress,
   isValidIotaObjectId,
   MICROS_PER_IOTA,
-} from '@iota/iota.js/utils';
-import { bcs } from '@iota/iota.js/bcs';
+} from '@iota/iota-sdk/utils';
+import { bcs } from '@iota/iota-sdk/bcs';
 import { program } from 'commander';
 import { KIOSK_LISTING, KioskClient, KioskTransaction, Network } from '@iota/kiosk';
-import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 /**
  * List of known types for shorthand search in the `search` command.
