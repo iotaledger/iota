@@ -5,7 +5,7 @@
 import { Text } from '_src/ui/app/shared/text';
 import { useBalance, useFormatCoin, useResolveIotaNSName } from '@iota/core';
 import { CheckFill16 } from '@iota/icons';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 
 interface LedgerAccountRowProps {

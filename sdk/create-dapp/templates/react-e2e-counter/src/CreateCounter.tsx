@@ -1,4 +1,7 @@
-import { TransactionBlock } from "@iota/iota.js/transactions";
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { Button, Container } from "@radix-ui/themes";
 import {
   useSignAndExecuteTransactionBlock,

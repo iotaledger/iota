@@ -5,7 +5,7 @@
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
 import { useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 //TODO unify StakeAmount and CoinBalance
 interface StakeAmountProps {
