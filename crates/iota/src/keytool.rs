@@ -47,7 +47,6 @@ use iota_types::{
     },
     error::IotaResult,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
-    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     transaction::{TransactionData, TransactionDataAPI},
     zk_login_authenticator::ZkLoginAuthenticator,
