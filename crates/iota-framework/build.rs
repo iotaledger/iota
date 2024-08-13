@@ -229,7 +229,11 @@ fn create_category_file(prefix: &str) {
     let mut path = PathBuf::from(DOCS_DIR).join(prefix);
     fs::create_dir_all(path.clone()).unwrap();
     path.push("_category_.json");
-    let label = prefix.split('-').map(|w| w.capitalize()).collect::<Vec<_>>().join(" ");
+    let label = prefix
+        .split('-')
+        .map(|w| w.capitalize())
+        .collect::<Vec<_>>()
+        .join(" ");
     fs::write(
         path,
         serde_json::json!({
