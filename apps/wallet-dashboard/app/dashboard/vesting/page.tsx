@@ -3,9 +3,10 @@
 
 'use client';
 
-import { Button } from '@/components';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
+import { Button, TimelockedUnstakePopup } from '@/components';
+import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
+import { NotificationType } from '@/stores/notificationStore';
 import {
     TIMELOCK_IOTA_TYPE,
     useGetActiveValidatorsInfo,
@@ -13,10 +14,12 @@ import {
     useGetStakedTimelockedObjects,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
+import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const { addNotification } = useNotifications();
+    const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
@@ -30,17 +33,27 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
-    function getValidatorName(validatorAddress: string): string {
-        return (
-            activeValidators?.find(
-                (activeValidator) => activeValidator.iotaAddress === validatorAddress,
-            )?.name || '-'
+    function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
+        return activeValidators?.find(
+            (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
 
     function handleUnstake(delegatedTimelocked: DelegatedTimelockedStake): void {
-        // TODO: handle unstake logic
-        console.info('delegatedTimelocked', delegatedTimelocked);
+        const validatorInfo = getValidatorByAddress(delegatedTimelocked.validatorAddress);
+        if (!account || !validatorInfo) {
+            addNotification('Cannot create transaction', NotificationType.Error);
+            return;
+        }
+
+        openPopup(
+            <TimelockedUnstakePopup
+                accountAddress={account.address}
+                delegatedStake={delegatedTimelocked}
+                validatorInfo={validatorInfo}
+                closePopup={closePopup}
+            />,
+        );
     }
 
     return (
@@ -89,7 +102,8 @@ function VestingDashboardPage(): JSX.Element {
                                 className="flex w-full flex-row items-center justify-center space-x-4"
                             >
                                 <span>
-                                    {getValidatorName(stakedTimelockedObject.validatorAddress)}
+                                    {getValidatorByAddress(stakedTimelockedObject.validatorAddress)
+                                        ?.name || '-'}
                                 </span>
                                 <span>Stakes: {stakedTimelockedObject.stakes.length}</span>
 
