@@ -79,7 +79,8 @@ pub fn validate_path(
             match path {
                 Some(p) => {
                     // The derivation path must be hardened at all levels with purpose = 44,
-                    // coin_type = 4218
+                    // coin_type = 4218 (coin_type = 4219 is valid too, in order to allow Shimmer
+                    // addresses)
                     if let &[purpose, coin_type, account, change, address] = p.as_ref() {
                         if Some(purpose)
                             == ChildNumber::new(DERVIATION_PATH_PURPOSE_ED25519, true).ok()
