@@ -38,7 +38,7 @@
         "prepare:e2e": "cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator"
     },
     "dependencies": {
-        "@iota/iota.js": "workspace:*"
+        "@iota/iota-sdk": "workspace:*"
     },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",

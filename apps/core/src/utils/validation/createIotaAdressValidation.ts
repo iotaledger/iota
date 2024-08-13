@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaClient } from '@iota/iota.js/client';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { isIotaNSName } from '../../hooks';
-import { isValidIotaAddress } from '@iota/iota.js/utils';
+import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 import * as Yup from 'yup';
 import { ValidationError } from 'yup';
 

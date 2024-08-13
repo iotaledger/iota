@@ -1,6 +1,6 @@
 ---
 description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
-tags: [test tokens, faucet, CLI, cURL, TypeScript SDK]
+tags: [how-to, cli, typescript, sdk, faucet]
 ---
 
 import AlphaNet from "../../_snippets/alphanet.mdx";
@@ -52,7 +52,7 @@ You can also get tokens from your [local faucet](local-network.mdx#use-the-local
 You can also access the faucet using the IOTA TypeScript-SDK, as shown in the example below:
 
 ```typescript
-import { requestIOTAFromFaucetV0, getFaucetHost } from '@iota/iota.js/faucet';
+import { requestIOTAFromFaucetV0, getFaucetHost } from '@iota/iota-sdk/faucet';
 
 // get tokens from the Devnet faucet server
 await requestIOTAFromFaucetV0({

@@ -6,7 +6,7 @@ import { useTransactionSummary } from '@iota/core';
 import {
     type ProgrammableTransaction,
     type IotaTransactionBlockResponse,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
 import { GasBreakdown } from '~/components';

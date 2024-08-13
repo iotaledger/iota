@@ -24,7 +24,7 @@ See https://sdk.mystenlabs.com/typescript for full documentation
 To use the Iota dApp Kit in your project, run the following command in your project root:
 
 ```sh npm2yarn
-npm i --save @iota/dapp-kit @iota/iota.js @tanstack/react-query
+npm i --save @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
 ```
 
 ## Setting up providers
@@ -35,7 +35,7 @@ pages.
 
 ```tsx
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl, type IotaClientOptions } from '@iota/iota.js/client';
+import { getFullnodeUrl, type IotaClientOptions } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to

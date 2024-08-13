@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 
 export function useCreateSendAssetTransaction(
