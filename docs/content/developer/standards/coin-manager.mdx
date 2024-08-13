@@ -37,10 +37,9 @@ module example::exclusive_coin {
 
     public struct EXCLUSIVE_COIN has drop {}
 
-    #[allow(lint(share_owned))]
     fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
         // Create a `Coin` type and have it managed.
-        let (cm_treasury_cap, cm_meta_cap, mut manager) = coin_manager::create(
+        let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
             witness,
             0, 
             b"EXCL",
@@ -71,7 +70,7 @@ If you already have an existing `Coin`, you can create the `CoinManager` object 
 If you already froze the `Metadata` object you can only migrate to a `CoinManager` that has immutable metadata from the start. You will not receive a `CoinManagerMetadataCap` in return, but you will get a `CoinManagerTreasuryCap`:
 
 ```move
-let (cm_treasury_cap, mut manager) = coin_manager::new_with_immutable_metadata(cap, &meta, ctx);
+let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, &meta, ctx);
 
 // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
 transfer::public_transfer(cm_treasury_cap, ctx.sender());
@@ -84,7 +83,7 @@ transfer::public_share_object(manager);
 If the metadata object is still owned, you can take advantage of the full functionality of the `CoinManager` with mutable `Metadata`:
 
 ```move
-let (cm_treasury_cap, cm_meta_cap, mut manager) = coin_manager::new(cap, meta, ctx);
+let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::new(cap, meta, ctx);
 
 // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
 transfer::public_transfer(cm_treasury_cap, ctx.sender());

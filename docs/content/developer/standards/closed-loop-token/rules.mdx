@@ -25,7 +25,6 @@ A rule module is a regular module with a `verify`-like function that typically t
 
 ```move
 module example::pass_rule {
-    use iota::tx_context;
     use iota::token::{Self, ActionRequest, TokenPolicy};
 
     /// The Rule type
