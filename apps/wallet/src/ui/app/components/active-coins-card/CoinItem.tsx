@@ -19,26 +19,25 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 interface CoinItemProps {
     coinType: string;
     balance: bigint;
-    isActive?: boolean;
     usd?: number;
-    centerAction?: ReactNode;
-    subtitle?: string;
+    clickableAction?: ReactNode;
 }
 
-export function CoinItem({ coinType, balance, usd }: CoinItemProps) {
+export function CoinItem({ coinType, balance, usd, clickableAction }: CoinItemProps) {
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
     const isIota = coinType === IOTA_TYPE_ARG;
 
     return (
         <Card type={CardType.Default}>
             <CardImage type={ImageType.BgTransparent}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10 ">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
                     <CoinIcon coinType={coinType} />
                 </div>
             </CardImage>
             <CardBody
                 title={isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}
                 subtitle={symbol}
+                clickableAction={clickableAction}
             />
             <CardAction
                 type={CardActionType.SupportingText}

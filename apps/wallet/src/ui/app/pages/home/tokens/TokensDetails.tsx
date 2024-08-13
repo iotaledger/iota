@@ -60,7 +60,7 @@ function PinButton({ unpin, onClick }: PinButtonProps) {
     return (
         <button
             type="button"
-            className="hover:!text-hero group-hover/coin:text-steel cursor-pointer border-none bg-transparent text-transparent"
+            className="hover:!text-hero group-hover/coin:text-steel cursor-pointer border-none bg-transparent"
             aria-label={unpin ? 'Unpin Coin' : 'Pin Coin'}
             onClick={(e) => {
                 e.preventDefault();
@@ -221,7 +221,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                         <TokenLink
                             key={coinBalance.coinType}
                             coinBalance={coinBalance}
-                            centerAction={
+                            clickableAction={
                                 <PinButton
                                     unpin
                                     onClick={() => {
@@ -248,8 +248,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                         <TokenLink
                             key={coinBalance.coinType}
                             coinBalance={coinBalance}
-                            subtitle="Send"
-                            centerAction={
+                            clickableAction={
                                 <PinButton
                                     onClick={() => {
                                         ampli.pinnedCoin({ coinType: coinBalance.coinType });
