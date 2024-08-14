@@ -56,9 +56,9 @@ cargo build --release --bin iota-node
 
 Configuration and guides are available for the following deployment options:
 
-- [Systemd](./systemd/README.md)
-- [Ansible](./ansible/README.md)
-- [Docker Compose](./docker/README.md)
+- [Systemd](./systemd/)
+- [Ansible](./ansible/)
+- [Docker Compose](./docker/)
 
 ## Configuration
 

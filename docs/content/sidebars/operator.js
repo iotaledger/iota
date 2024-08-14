@@ -12,7 +12,16 @@ const operator = [
     'operator/genesis',
     'operator/indexer-functions',
     'operator/validator-committee',
-    'operator/validator-tasks',
+    {
+        type: 'category',
+        label: 'Validator Tasks',
+        items: [
+            'operator/validator-tasks/validator-tasks',
+            'operator/validator-tasks/ansible/README',
+            'operator/validator-tasks/docker/README',
+            'operator/validator-tasks/systemd/README',
+        ]
+    },
     'operator/node-tools',
     {
         type: 'category',
