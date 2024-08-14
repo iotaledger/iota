@@ -14,7 +14,7 @@ Once an Nft Output can be unlocked the claim of its assets can start
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L54-L78
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L56-L80
 ```
 
 </TabItem>
@@ -29,7 +29,7 @@ Once an Nft Output can be unlocked the claim of its assets can start
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L80-L105
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L82-L107
 ```
 
 </TabItem>
@@ -45,7 +45,7 @@ In fact, the main purpose of claiming is extracting the `Nft` object from the `N
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L107-L173
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L109-L175
 ```
 
 </TabItem>
@@ -67,33 +67,17 @@ The following is an example of a simple module for representing a custom NFT, mi
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
 
-</TabItem>
 </Tabs>
 
 
-1. Publish a custom Nft package, and retrieve its package ID.
-
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L210-L227
-```
-
-</TabItem>
-<TabItem value="ts" label="TypeScript">
-
-</TabItem>
-</Tabs>
-
-2. Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then calls the `custom_nft::nft::convert` method for converting it into a `custom_nft::nft::Nft` of the collection just published. 
+1. Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then converts it into a custom NFT of the collection just published. 
 This conversion method extracts the Stardust `Nft` metadata and uses it for minting a new NFT.
 
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L84-L141
+```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L77-L137
 ```
 
 </TabItem>
