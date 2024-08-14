@@ -93,7 +93,6 @@ jobs:
   turborepo:
     needs:
       - dprint-format
-      - license-check
       - typos
     uses: ./.github/workflows/_turborepo.yml
 
