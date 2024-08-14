@@ -31,12 +31,14 @@ env:
 
 jobs:
   rust-lints:
-    if: always() && inputs.isRust
     uses: ./.github/workflows/_rust_lints.yml
+    with:
+      isRust: inputs.isRust
 
   external-lints:
-    if: always() && inputs.isRust
     uses: ./.github/workflows/_external_rust_lints.yml
+    with:
+      isRust: inputs.isRust
 
   rust-tests:
     if: inputs.isRust
