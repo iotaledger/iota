@@ -1,4 +1,4 @@
-This crate provides the Iota Rust SDK, containing APIs to interact with the Iota network.
+This crate provides the IOTA Rust SDK, containing APIs to interact with the IOTA network.
 
 ## Getting started
 
@@ -10,9 +10,9 @@ tokio = { version = "1.2", features = ["full"] }
 anyhow = "1.0"
 ```
 
-The main building block for the Iota Rust SDK is the `IotaClientBuilder`, which provides a simple and straightforward way of connecting to a Iota network and having access to the different available APIs.
+The main building block for the IOTA Rust SDK is the `IotaClientBuilder`, which provides a simple and straightforward way of connecting to a Iota network and having access to the different available APIs.
 
-In the following example, the application connects to the Iota `testnet` and `devnet` networks and prints out their respective RPC API versions.
+In the following example, the application connects to the IOTA `testnet` and `devnet` networks and prints out their respective RPC API versions.
 
 ```rust
 use iota_sdk::IotaClientBuilder;
@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 ## Documentation for iota-sdk crate
 
-[GitHub Pages](https://iotaledger.github.io/iota/iota_sdk/index.html) hosts the generated documentation for all Rust crates in the Iota repository.
+[GitHub Pages](https://iotaledger.github.io/iota/iota_sdk/index.html) hosts the generated documentation for all Rust crates in the IOTA repository.
 
 ### Building documentation locally
 
@@ -47,20 +47,19 @@ You can also build the documentation locally. To do so,
 
 ## Rust SDK examples
 
-The [examples](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples) folder provides both basic and advanced examples.
+The [examples](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/examples) folder provides both basic and advanced examples.
 
-There are several files ending in `_api.rs` which provide code examples of the corresponding APIs and their methods. These showcase how to use the Iota Rust SDK, and can be run against the Iota testnet. Below are instructions on the prerequisites and how to run these examples.
+There are several files ending in `_api.rs` which provide code examples of the corresponding APIs and their methods. These showcase how to use the IOTA Rust SDK, and can be run against the IOTA testnet. Below are instructions on the prerequisites and how to run these examples.
 
 ### Prerequisites
 
-Unless otherwise specified, most of these examples assume `Rust` and `cargo` are installed, and that there is an available internet connection. The examples connect to the Iota testnet (`https://fullnode.testnet.iota.io:443`) and execute different APIs using the active address from the local wallet. If there is no local wallet, it will create one, generate two addresses, set one of them to be active, and it will request 1 IOTA from the testnet faucet for the active address.
+Unless otherwise specified, most of these examples assume `Rust` and `cargo` are installed, and that there is an available internet connection. The examples connect to the IOTA testnet (`https://fullnode.testnet.iota.io:443`) and execute different APIs using the active address from the local wallet. If there is no local wallet, it will create one, generate two addresses, set one of them to be active, and it will request 1 IOTA from the testnet faucet for the active address.
 
 ### Running the existing examples
 
 In the root folder of the `iota` repository (or in the `iota-sdk` crate folder), you can individually run examples using the command `cargo run --example filename` (without `.rs` extension). For example:
 
-- `cargo run --example iota_client` -- this one requires a local Iota network running (see [here](#Connecting to Iota Network
-  )). If you do not have a local Iota network running, please skip this example.
+- `cargo run --example iota_client` -- this one requires a local Iota network running (see [#Connecting to Iota Network](https://wiki.iota.cafe/developer/getting-started/local-network#start-the-local-network). If you do not have a local Iota network running, please skip this example.
 - `cargo run --example coin_read_api`
 - `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
 - `cargo run --example governance_api`
@@ -70,18 +69,18 @@ In the root folder of the `iota` repository (or in the `iota-sdk` crate folder),
 
 ### Basic Examples
 
-#### Connecting to Iota Network
+#### Connecting to IOTA Network
 
-The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the Iota network are:
+The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the IOTA network are:
 
 - Local: http://127.0.0.1:9000
 - Devnet: https://fullnode.devnet.iota.io:443
 - Testnet: https://fullnode.testnet.iota.io:443
 - Mainnet: https://fullnode.mainnet.iota.io:443
 
-For all available servers, see [here](https://iota.io/networkinfo).
+For all available servers, see [here](TODO: https://github.com/iotaledger/iota/issues/1614).
 
-For running a local Iota network, please follow [this guide](https://docs.iota.io/build/iota-local-network) for installing Iota and [this guide](https://docs.iota.io/build/iota-local-network#start-the-local-network) for starting the local Iota network.
+For running a local IOTA network, please follow [this guide](https://wiki.iota.cafe/developer/getting-started/iota-install) for installing IOTA and [this guide](https://wiki.iota.cafe/developer/getting-started/local-network#start-the-local-network) for starting the local IOTA network.
 
 ```rust
 use iota_sdk::IotaClientBuilder;
@@ -91,19 +90,19 @@ async fn main() -> Result<(), anyhow::Error> {
     let iota = IotaClientBuilder::default()
         .build("http://127.0.0.1:9000") // local network address
         .await?;
-    println!("Iota local network version: {}", iota.api_version());
+    println!("IOTA local network version: {}", iota.api_version());
 
-    // local Iota network, like the above one but using the dedicated function
+    // local IOTA network, like the above one but using the dedicated function
     let iota_local = IotaClientBuilder::default().build_localnet().await?;
-    println!("Iota local network version: {}", iota_local.api_version());
+    println!("IOTA local network version: {}", iota_local.api_version());
 
-    // Iota devnet -- https://fullnode.devnet.iota.io:443
+    // IOTA devnet -- https://fullnode.devnet.iota.io:443
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
-    println!("Iota devnet version: {}", iota_devnet.api_version());
+    println!("IOTA devnet version: {}", iota_devnet.api_version());
 
-    // Iota testnet -- https://fullnode.testnet.iota.io:443
+    // IOTA testnet -- https://fullnode.testnet.iota.io:443
     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
-    println!("Iota testnet version: {}", iota_testnet.api_version());
+    println!("IOTA testnet version: {}", iota_testnet.api_version());
 
     Ok(())
 }
@@ -119,22 +118,22 @@ use iota_sdk::{ IotaClientBuilder};
 async fn main() -> Result<(), anyhow::Error> {
 
    let iota_local = IotaClientBuilder::default().build_localnet().await?;
-   println!("Iota local network version: {}", iota_local.api_version());
+   println!("IOTA local network version: {}", iota_local.api_version());
 
-   let active_address = IotaAddress::from_str("<YOUR IOTA ADDRESS>")?; // change to your Iota address
+   let active_address = IotaAddress::from_str("<YOUR IOTA ADDRESS>")?; // change to your IOTA address
 
    let total_balance = iota_local
       .coin_read_api()
       .get_all_balances(active_address)
       .await?;
-   println!("The balances for all coins owned by address: {active_address} are {}", total_balance);
+   println!("The balances for all coins owned by address: {active_address} are {total_balance:?}");
    Ok(())
 }
 ```
 
 ## Advanced examples
 
-See the programmable transactions [example](https://github.com/iotaledger/iota/blob/main/crates/iota-sdk/examples/programmable_transactions_api.rs).
+See the programmable transactions [example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/programmable_transactions_api.rs).
 
 ## Games examples
 
@@ -142,21 +141,24 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
 
 1. Prepare the environment
 
-   1. Install `iota` binary following the [Iota installation](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-install.mdx) docs.
-   1. [Connect to Iota Devnet](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/connect.mdx).
-   1. [Make sure you have two addresses with gas](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/get-address.mdx) by using the `new-address` command to create new addresses:
+   1. Install `iota` binary following the [IOTA installation](https://wiki.iota.cafe/developer/getting-started/iota-install) docs.
+   1. [Connect to IOTA Devnet](https://wiki.iota.cafe/developer/getting-started/connect).
+   1. [Make sure you have two addresses with gas](https://wiki.iota.cafe/developer/getting-started/get-address) by using the `new-address` command to create new addresses:
       ```shell
       iota client new-address ed25519
       ```
       You must specify the key scheme, one of `ed25519` or `secp256k1` or `secp256r1`.
       You can skip this step if you are going to play with a friend. :)
-   1. [Request Iota tokens](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/get-coins.mdx) for all addresses that will be used to join the game.
+   1. [Request IOTA tokens](https://wiki.iota.cafe/developer/getting-started/get-coins) for all addresses that will be used to join the game.
 
 2. Publish the move contract
 
-   1. [Download the Iota source code](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-install.mdx).
-   1. Publish the [`games` package](https://github.com/iotaledger/iota/tree/main/iota_programmability/examples/games)
-      using the Iota client:
+   1. Download the IOTA source code:
+      ```shell
+      git clone https://github.com/iotaledger/iota
+      ```
+   1. Publish the [`games` package(iota/iota_programmability/examples/games)](https://github.com/iotaledger/iota/tree/develop/iota_programmability/examples/games)
+      using the IOTA client:
       ```shell
       iota client publish --path /path-to-iota-source-code/iota_programmability/examples/games --gas-budget 10000
       ```
@@ -164,7 +166,7 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
 
 3. Create a new tic-tac-toe game
 
-   1. Run the following command in the Iota source code directory to start a new game, replacing the game package objects ID with the one you recorded:
+   1. Run the following command in the IOTA source code directory to start a new game, replacing the game package objects ID with the one you recorded:
       ```shell
       cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> new-game
       ```
@@ -177,7 +179,7 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
 
 4. Joining the game
 
-   Run the following command in the Iota source code directory to join the game, replacing the game ID and address accordingly:
+   Run the following command in the IOTA source code directory to join the game, replacing the game ID and address accordingly:
 
    ```shell
    cargo run --example tic-tac-toe -- --game-package-id <<games package object ID>> join-game --my-identity <<address>> --game-id <<game ID>>
@@ -185,4 +187,4 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
 
 ## License
 
-[SPDX-License-Identifier: Apache-2.0](https://github.com/iotaledger/iota/blob/main/LICENSE)
+[SPDX-License-Identifier: Apache-2.0](https://github.com/iotaledger/iota/blob/develop/LICENSE)
