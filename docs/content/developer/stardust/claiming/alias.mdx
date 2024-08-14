@@ -26,8 +26,8 @@ A Governor address can claim the `AliasOutput` assets at any time:
 
 
 2. Then we check the native tokens that were possibly held by this output.
-A `Bag` is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are bag indexes.
-In the case of the native tokens, the keys are strings representing the `OTW` used for the native token declaration.
+A [`Bag`](../../../references/framework/iota-framework/bag) is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are bag indexes.
+In the case of the native tokens, the keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token declaration.
 
 <Tabs>
 <TabItem value="rs" label="Rust">

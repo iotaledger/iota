@@ -65,10 +65,10 @@ The following sections describe how the different asset types in Stardust are re
 
 You may find more information on the original Stardust ledger and asset types in [TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md).
 We consider the following Stardust asset types for the migration:
- - Base tokens (IOTA/SMR),
- - User defined native tokens,
- - Non-Fungible Tokens (NFTs), and
- - Aliases
+ - Base tokens (IOTA/SMR).
+ - User defined native tokens.
+ - Non-Fungible Tokens (NFTs).
+ - Aliases.
 
 ### Base Token (IOTA/SMR)
 
@@ -77,7 +77,7 @@ represented instead as balance structs, parameterized with the type of the token
   - [`Balance<IOTA>`](../../references/framework/iota-framework/balance#struct-balance): Represents a balance of the IOTA token.
   - [`Balance<SMR>`](../../references/framework/iota-framework/balance#struct-balance): Represents a balance the SMR token.
   - The token types `IOTA` and `SMR` are defined as part of the IOTA Move Framework. The fully qualified type for them is:
-    - [`0x2::iota::IOTA`](../../references/framework/iota-framework/iota#struct-iota) for IOTA, and
+    - [`0x2::iota::IOTA`](../../references/framework/iota-framework/iota#struct-iota) for IOTA.
     - [`0x2::smr::SMR`](../../references/framework/iota-framework/smr#struct-smr) for SMR.
 
 Balances are simply structs in move, therefore they need to be put into an object that users can own. The IOTA Move Framework
@@ -103,8 +103,8 @@ Majority of the funds on both IOTA and SMR networks are held in basic outputs, w
 as this is the most common way a wallet stores IOTA/SMR tokens. To make the migration as seamless as possible, all
 [Basic outputs](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#basic-output) from the Stardust ledger that:
     - contain IOTA or SMR tokens only (no native tokens),
-    - have only an `Address Unlock Condition` and no other [unlock conditions](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#unlock-conditions), and
-    - have no [output features](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#features),
+    - have only an `Address Unlock Condition` and no other [unlock conditions](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#unlock-conditions),
+    - have no [output features](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#features)
 
 will be migrated to a `Coin<IOTA>` or `Coin<SMR>` object, respectively. The `Coin` object will be owned by the address
 in the `Address Unlock Condition` of the Stardust output.
@@ -268,7 +268,7 @@ can be touched by anyone, however the move level code ensures that only the righ
 ### Deprecated Stardust Unlock Conditions
 
 The following unlock conditions from Stardust are not supported in the move ledger and are therefore not migrated:
- - [State Controller Address Unlock Condition](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#state-controller-address-unlock-condition) and
+ - [State Controller Address Unlock Condition](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#state-controller-address-unlock-condition).
  - [Governor Address Unlock Condition](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#governor-address-unlock-condition):
       Used in Stardust exclusively for aliases. The move ledger simplifies aliases and gives ownership to the governor address of the alias,
       as the governor has the right to replace any state controller.
@@ -374,8 +374,8 @@ There are two ways to interact with `BasicOutputs` in move:
 
 The [`AliasOutput`](../../references/framework/stardust/alias_output#resource-aliasoutput) container contains the
 following assets:
- - Base token balance (IOTA/SMR) of the migrated Stardust output,
- - A `Bag` that holds native tokens of the migrated Stardust output, and
+ - Base token balance (IOTA/SMR) of the migrated Stardust output.
+ - A `Bag` that holds native tokens of the migrated Stardust output.
  - The [`Alias`](../../references/framework/stardust/alias#resource-alias) object that represents the alias in the move ledger.
    While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../iota-101/objects/dynamic-fields/dynamic-fields.mdx)
    during the migration process. This has the added benefit that the previous `AliasID` of the Stardust output is preserved
@@ -451,8 +451,8 @@ public fun extract_assets<T>(mut output: AliasOutput<T>): (Balance<T>, Bag, Alia
 ### NftOutput Move Model
 
 The [`NftOutput`](../../references/framework/stardust/nft_output#resource-nftoutput) container contains the:
- - Base token balance (IOTA/SMR) of the migrated Stardust output,
- - A `Bag` that holds native tokens of the migrated Stardust output, and
+ - Base token balance (IOTA/SMR) of the migrated Stardust output.
+ - A `Bag` that holds native tokens of the migrated Stardust output.
  - The [`Nft`](../../references/framework/stardust/nft#resource-nft) object that represents the NFT in the move ledger.
    While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../iota-101/objects/dynamic-fields/dynamic-fields.mdx)
    during the migration process. This has the added benefit that the previous `NftID` of the Stardust output is preserved
