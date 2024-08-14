@@ -6,18 +6,21 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
-[dev-dependencies]
+[dependencies]
 anyhow.workspace = true
+
+iota-keys.workspace = true
+iota-move-build.workspace = true
+iota-sdk.workspace = true
+shared-crypto.workspace = true
+
+[dev-dependencies]
 bcs.workspace = true
 bip32.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 
-iota-keys.workspace = true
-iota-move-build.workspace = true
-iota-sdk.workspace = true
 move-core-types.workspace = true
-shared-crypto.workspace = true
 
 [[example]]
 name = "address_unlock_condition"
