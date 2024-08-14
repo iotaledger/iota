@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Alert from '_components/alert';
-import Loading from '_components/loading';
-import Overlay from '_components/overlay';
+import { Alert, Loading, Overlay } from '_components';
 import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,

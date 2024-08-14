@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Close, Settings } from '@iota/ui-icons';
+import { useMenuIsOpen, useNextMenuUrl } from '_components';
 import { ButtonOrLink } from '_src/ui/app/shared/utils/ButtonOrLink';
 import { cx } from 'class-variance-authority';
-import { useMenuIsOpen, useNextMenuUrl } from '../hooks';
-import { Close, Settings } from '@iota/ui-icons';
 
 export function WalletSettingsButton() {
     const isOpen = useMenuIsOpen();

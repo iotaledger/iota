@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search24 } from '@iota/icons';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import {
+    LoadingIndicator,
+    AccountBalanceItem,
+    VerifyPasswordModal,
+    ConnectLedgerModal,
+    useIotaLedgerClient,
+} from '_components';
 import {
     AccountSourceType,
     type AccountSourceSerializedUI,
@@ -10,10 +16,6 @@ import {
 import { AccountType } from '_src/background/accounts/Account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
-import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
-import { ConnectLedgerModal } from '_src/ui/app/components/ledger/ConnectLedgerModal';
-import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
 import { getKey } from '_src/ui/app/helpers/accounts';
 import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';

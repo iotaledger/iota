@@ -2,18 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary } from '_components/error-boundary';
-import { MenuContent } from '_components/menu';
-import { Navigation } from '_components/navigation';
+import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
 import { createContext, useState, type ReactNode } from 'react';
+
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
-import { WalletSettingsButton } from '../../components/menu/button/WalletSettingsButton';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
