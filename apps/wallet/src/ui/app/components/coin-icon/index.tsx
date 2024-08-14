@@ -14,15 +14,13 @@ interface NonIotaCoinProps {
 function NonIotaCoin({ coinType }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
-        <>
-            <div className="flex h-full w-full items-center justify-center rounded-full">
-                <ImageIcon
-                    src={coinMeta?.iconUrl}
-                    label={coinMeta?.name || coinType}
-                    fallback={coinMeta?.name || coinType}
-                />
-            </div>
-        </>
+        <div className="flex h-full w-full items-center justify-center rounded-full">
+            <ImageIcon
+                src={coinMeta?.iconUrl}
+                label={coinMeta?.name || coinType}
+                fallback={coinMeta?.name || coinType}
+            />
+        </div>
     );
 }
 

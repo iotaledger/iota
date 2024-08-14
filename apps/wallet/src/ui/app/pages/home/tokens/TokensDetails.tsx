@@ -68,10 +68,10 @@ function PinButton({ isPinned, onClick }: PinButtonProps) {
                 onClick();
             }}
         >
-            {!isPinned ? (
-                <Unpined className="text-neutral-60" />
-            ) : (
+            {isPinned ? (
                 <Pined className="text-primary-40" />
+            ) : (
+                <Unpined className="text-neutral-60" />
             )}
         </button>
     );
