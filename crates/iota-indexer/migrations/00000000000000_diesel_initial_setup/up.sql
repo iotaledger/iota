@@ -318,3 +318,118 @@ BEGIN
     EXECUTE format('CREATE TABLE IF NOT EXISTS %I_partition_%s PARTITION OF %I FOR VALUES FROM (%L) TO (MAXVALUE)', table_name, new_epoch, table_name, new_epoch_start_cp);
 END;
 $$;
+
+-- Tables used for Extended Api metrics for the explorer
+CREATE TABLE tx_count_metrics
+(
+    checkpoint_sequence_number          BIGINT  PRIMARY KEY,
+    epoch                               BIGINT  NOT NULL,
+    timestamp_ms                        BIGINT  NOT NULL,
+    total_transaction_blocks            BIGINT  NOT NULL,
+    total_successful_transaction_blocks BIGINT  NOT NULL,
+    total_successful_transactions       BIGINT  NOT NULL
+);
+-- epoch for peak 30D TPS filter
+CREATE INDEX tx_count_metrics_epoch ON tx_count_metrics (epoch);
+-- timestamp for timestamp grouping, in case multiple checkpoints have the same timestamp
+CREATE INDEX tx_count_metrics_timestamp_ms ON tx_count_metrics (timestamp_ms);
+
+CREATE TABLE move_calls (
+    transaction_sequence_number BIGINT  NOT NULL,
+    checkpoint_sequence_number  BIGINT  NOT NULL,
+    epoch                       BIGINT  NOT NULL,
+    move_package                BYTEA   NOT NULL,
+    move_module                 TEXT    NOT NULL,
+    move_function               TEXT    NOT NULL,
+    PRIMARY KEY(transaction_sequence_number, move_package, move_module, move_function)
+);
+CREATE INDEX idx_move_calls_epoch_etc ON move_calls (epoch, move_package, move_module, move_function);
+
+CREATE TABLE move_call_metrics (
+    -- Diesel only supports table with a primary key.
+    id                          BIGSERIAL   PRIMARY KEY,
+    epoch                       BIGINT      NOT NULL,
+    day                         BIGINT      NOT NULL,
+    move_package                TEXT        NOT NULL,
+    move_module                 TEXT        NOT NULL,
+    move_function               TEXT        NOT NULL,
+    count                       BIGINT      NOT NULL
+);
+CREATE INDEX move_call_metrics_epoch_day ON move_call_metrics (epoch, day);
+
+---- senders or recipients of transactions
+CREATE TABLE addresses
+(
+    address                 BYTEA   PRIMARY KEY,
+    first_appearance_tx     BIGINT  NOT NULL,
+    first_appearance_time   BIGINT  NOT NULL,
+    last_appearance_tx      BIGINT  NOT NULL,
+    last_appearance_time    BIGINT  NOT NULL
+);
+
+---- senders of transactions
+CREATE TABLE active_addresses
+(
+    address                 BYTEA   PRIMARY KEY,
+    first_appearance_tx     BIGINT  NOT NULL,
+    first_appearance_time   BIGINT  NOT NULL,
+    last_appearance_tx      BIGINT  NOT NULL,
+    last_appearance_time    BIGINT  NOT NULL
+);
+
+CREATE TABLE address_metrics
+(
+    checkpoint                  BIGINT  PRIMARY KEY,
+    epoch                       BIGINT  NOT NULL,
+    timestamp_ms                BIGINT  NOT NULL,
+    cumulative_addresses        BIGINT  NOT NULL,
+    cumulative_active_addresses BIGINT  NOT NULL,
+    daily_active_addresses      BIGINT  NOT NULL
+);
+CREATE INDEX address_metrics_epoch_idx ON address_metrics (epoch);
+
+CREATE TABLE epoch_peak_tps
+(
+    epoch           BIGINT  PRIMARY KEY,
+    peak_tps        FLOAT8  NOT NULL,
+    peak_tps_30d    FLOAT8  NOT NULL
+);
+
+CREATE OR REPLACE VIEW real_time_tps AS
+WITH recent_checkpoints AS (
+  SELECT
+    checkpoint_sequence_number as sequence_number,
+    total_successful_transactions,
+    timestamp_ms
+  FROM
+    tx_count_metrics
+  ORDER BY
+    timestamp_ms DESC
+  LIMIT 100
+),
+diff_checkpoints AS (
+  SELECT
+    MAX(sequence_number) as sequence_number,
+    SUM(total_successful_transactions) as total_successful_transactions,
+    timestamp_ms - LAG(timestamp_ms) OVER (ORDER BY timestamp_ms) AS time_diff
+  FROM
+    recent_checkpoints
+  GROUP BY
+    timestamp_ms
+)
+SELECT
+  (total_successful_transactions * 1000.0 / time_diff)::float8 as recent_tps
+FROM
+  diff_checkpoints
+WHERE
+  time_diff IS NOT NULL
+ORDER BY sequence_number DESC LIMIT 1;
+
+CREATE OR REPLACE VIEW network_metrics AS
+SELECT  (SELECT recent_tps from real_time_tps)                                                 AS current_tps,
+        (SELECT COALESCE(peak_tps_30d, 0) FROM epoch_peak_tps ORDER BY epoch DESC LIMIT 1)     AS tps_30_days,
+        (SELECT reltuples AS estimate FROM pg_class WHERE relname = 'addresses')::BIGINT       AS total_addresses,
+        (SELECT reltuples AS estimate FROM pg_class WHERE relname = 'objects')::BIGINT         AS total_objects,
+        (SELECT reltuples AS estimate FROM pg_class WHERE relname = 'packages')::BIGINT        AS total_packages,
+        (SELECT MAX(epoch) FROM epochs)                                                        AS current_epoch,
+        (SELECT MAX(sequence_number) FROM checkpoints)                                         AS current_checkpoint;
