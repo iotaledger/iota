@@ -4,6 +4,7 @@ on: workflow_call
 
 jobs:
   rustfmt:
+    if: always()
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -14,6 +15,7 @@ jobs:
           cargo +nightly ci-fmt-external
 
   cargo-deny:
+    if: always()
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: [self-hosted]
     steps:
@@ -21,6 +23,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   clippy:
+    if: always()
     needs:
       - rustfmt
       - cargo-deny
