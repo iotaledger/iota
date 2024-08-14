@@ -80,7 +80,7 @@ function AppsPage() {
                         callback={handleFiltersPortalClick}
                     />
                     <Routes>
-                        {/* Note: disable any subroute that is not the connected dapp one */}
+                        {/* Note: because we disabled the featured apps playgourd, disable any subroute that is not connected dapps */}
                         {/* <Route path="/:tagName?" element={<AppsPlayGround />} /> */}
                         <Route
                             path="/*"
