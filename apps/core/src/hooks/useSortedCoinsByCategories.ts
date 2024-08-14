@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinBalance } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { type CoinBalance } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { DEFAULT_RECOGNIZED_PACKAGES } from '../constants';
 

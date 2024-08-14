@@ -45,7 +45,7 @@ async fn receive_object_feature_deny() {
         .map(|_| ())
         .unwrap_err();
 
-    assert!(matches!(err, IotaError::UnsupportedFeatureError { .. }));
+    assert!(matches!(err, IotaError::UnsupportedFeature { .. }));
 }
 
 #[sim_test]

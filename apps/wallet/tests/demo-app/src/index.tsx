@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaWallet } from '_src/dapp-interface/WalletStandardInterface';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { getWallets, ReadonlyWalletAccount, type Wallet } from '@iota/wallet-standard';
 import { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';

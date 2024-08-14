@@ -554,7 +554,7 @@ impl IotaAuthoritySignature for AuthoritySignature {
         epoch.write(&mut message);
 
         let public_key = AuthorityPublicKey::try_from(author).map_err(|_| {
-            IotaError::KeyConversionError(
+            IotaError::KeyConversion(
                 "Failed to serialize public key bytes to valid public key".to_string(),
             )
         })?;
@@ -631,7 +631,7 @@ where
     let priv_length = <KP as KeypairTraits>::PrivKey::LENGTH;
     let pub_key_length = <KP as KeypairTraits>::PubKey::LENGTH;
     if bytes.len() != priv_length + pub_key_length {
-        return Err(IotaError::KeyConversionError(format!(
+        return Err(IotaError::KeyConversion(format!(
             "Invalid input byte length, expected {}: {}",
             priv_length,
             bytes.len()
@@ -896,7 +896,7 @@ pub trait IotaSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
     /// Returns the deserialized signature and deserialized pubkey.
     fn get_verification_inputs(&self) -> IotaResult<(Self::Sig, Self::PubKey)> {
         let pk = Self::PubKey::from_bytes(self.public_key_bytes())
-            .map_err(|_| IotaError::KeyConversionError("Invalid public key".to_string()))?;
+            .map_err(|_| IotaError::KeyConversion("Invalid public key".to_string()))?;
 
         // deserialize the signature
         let signature = Self::Sig::from_bytes(self.signature_bytes()).map_err(|_| {
@@ -1657,7 +1657,7 @@ impl SignatureScheme {
     pub fn from_flag(flag: &str) -> Result<SignatureScheme, IotaError> {
         let byte_int = flag
             .parse::<u8>()
-            .map_err(|_| IotaError::KeyConversionError("Invalid key scheme".to_string()))?;
+            .map_err(|_| IotaError::KeyConversion("Invalid key scheme".to_string()))?;
         Self::from_flag_byte(&byte_int)
     }
 
@@ -1669,9 +1669,7 @@ impl SignatureScheme {
             0x03 => Ok(SignatureScheme::MultiSig),
             0x04 => Ok(SignatureScheme::BLS12381),
             0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
-            _ => Err(IotaError::KeyConversionError(
-                "Invalid key scheme".to_string(),
-            )),
+            _ => Err(IotaError::KeyConversion("Invalid key scheme".to_string())),
         }
     }
 }

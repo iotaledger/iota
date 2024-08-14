@@ -6,7 +6,7 @@ import { Select, SelectOption } from '@/components/molecules/select/Select';
 import { useState } from 'react';
 import { IotaLogoMark, PlaceholderReplace } from '@iota/ui-icons';
 
-const meta = {
+const meta: Meta<typeof Select> = {
     component: Select,
     tags: ['autodocs'],
 } satisfies Meta<typeof Select>;

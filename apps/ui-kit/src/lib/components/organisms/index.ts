@@ -4,3 +4,4 @@
 export * from './dialog';
 export * from './table';
 export * from './navbar';
+export * from './accordion';

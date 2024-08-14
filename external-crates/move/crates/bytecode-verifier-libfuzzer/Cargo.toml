@@ -1,7 +1,7 @@
 [package]
 name = "bytecode-verifier-libfuzzer"
 version = "0.0.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2018"
 license = "Apache-2.0"
 publish = false

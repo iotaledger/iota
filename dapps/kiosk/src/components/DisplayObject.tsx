@@ -7,7 +7,7 @@ import { KioskListing } from '@iota/kiosk';
 import { ReactNode } from 'react';
 
 import { DEFAULT_IMAGE } from '../utils/constants';
-import { formatIota, microsToIota } from '../utils/utils';
+import { formatIota, nanoToIota } from '../utils/utils';
 import { OwnedObjectType } from './Inventory/OwnedObjects';
 import { ItemLockedBadge } from './Kiosk/ItemLockedBadge';
 
@@ -20,7 +20,7 @@ export interface DisplayObject {
 export function DisplayObject({ item, listing = null, children }: DisplayObject) {
     const currentAccount = useCurrentAccount();
 
-    const price = formatIota(microsToIota(listing?.price));
+    const price = formatIota(nanoToIota(listing?.price));
 
     return (
         <div className="border relative border-gray-400 overflow-hidden text-center flex justify-between flex-col rounded-lg">
