@@ -15,11 +15,11 @@ use diesel::{
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
-    Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo, EventFilter,
-    IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, TransactionFilter,
+    AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
+    EventFilter, IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, MoveCallMetrics,
+    MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
-
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
@@ -40,17 +40,21 @@ use crate::{
     db::{PgConnectionConfig, PgConnectionPoolConfig, PgPoolConnection},
     errors::IndexerError,
     models::{
+        address_metrics::StoredAddressMetrics,
         checkpoints::StoredCheckpoint,
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
+        move_call_metrics::QueriedMoveCallMetrics,
+        network_metrics::StoredNetworkMetrics,
         objects::{CoinBalance, ObjectRefColumn, StoredObject},
         packages::StoredPackage,
         transactions::StoredTransaction,
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        checkpoints, display, epochs, events, objects, objects_snapshot, packages, transactions,
+        address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
+        objects_snapshot, packages, transactions,
     },
     types::{IndexerResult, OwnerType},
 };

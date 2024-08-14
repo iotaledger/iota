@@ -4,15 +4,19 @@
 
 use async_trait::async_trait;
 
-use crate::models::checkpoints::StoredCheckpoint;
-use crate::models::move_call_metrics::StoredMoveCallMetrics;
-use crate::models::network_metrics::StoredEpochPeakTps;
-use crate::models::transactions::{
-    StoredTransaction, StoredTransactionCheckpoint, StoredTransactionSuccessCommandCount,
-    StoredTransactionTimestamp, TxSeq,
+use crate::{
+    models::{
+        checkpoints::StoredCheckpoint,
+        move_call_metrics::StoredMoveCallMetrics,
+        network_metrics::StoredEpochPeakTps,
+        transactions::{
+            StoredTransaction, StoredTransactionCheckpoint, StoredTransactionSuccessCommandCount,
+            StoredTransactionTimestamp, TxSeq,
+        },
+        tx_count_metrics::StoredTxCountMetrics,
+    },
+    types::IndexerResult,
 };
-use crate::models::tx_count_metrics::StoredTxCountMetrics;
-use crate::types::IndexerResult;
 
 #[async_trait]
 pub trait IndexerAnalyticalStore {

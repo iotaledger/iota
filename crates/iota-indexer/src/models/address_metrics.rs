@@ -4,9 +4,7 @@
 
 use std::collections::HashMap;
 
-use diesel::prelude::*;
-use diesel::sql_types::BigInt;
-
+use diesel::{prelude::*, sql_types::BigInt};
 use iota_json_rpc_types::AddressMetrics;
 
 use crate::schema::{active_addresses, address_metrics, addresses};

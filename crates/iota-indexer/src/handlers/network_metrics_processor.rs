@@ -5,10 +5,10 @@
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
-use crate::errors::IndexerError;
-use crate::metrics::IndexerMetrics;
-use crate::store::IndexerAnalyticalStore;
-use crate::types::IndexerResult;
+use crate::{
+    errors::IndexerError, metrics::IndexerMetrics, store::IndexerAnalyticalStore,
+    types::IndexerResult,
+};
 
 const NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 10;
 const PARALLELISM: usize = 1;
@@ -21,8 +21,8 @@ pub struct NetworkMetricsProcessor<S> {
 }
 
 impl<S> NetworkMetricsProcessor<S>
-    where
-        S: IndexerAnalyticalStore + Clone + Sync + Send + 'static,
+where
+    S: IndexerAnalyticalStore + Clone + Sync + Send + 'static,
 {
     pub fn new(store: S, metrics: IndexerMetrics) -> NetworkMetricsProcessor<S> {
         let network_processor_metrics_batch_size =

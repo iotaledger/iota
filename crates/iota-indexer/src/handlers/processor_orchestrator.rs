@@ -5,12 +5,12 @@
 use futures::future::try_join_all;
 use tracing::{error, info};
 
-use crate::metrics::IndexerMetrics;
-use crate::store::IndexerAnalyticalStore;
-
-use super::address_metrics_processor::AddressMetricsProcessor;
-use super::move_call_metrics_processor::MoveCallMetricsProcessor;
-use super::network_metrics_processor::NetworkMetricsProcessor;
+use super::{
+    address_metrics_processor::AddressMetricsProcessor,
+    move_call_metrics_processor::MoveCallMetricsProcessor,
+    network_metrics_processor::NetworkMetricsProcessor,
+};
+use crate::{metrics::IndexerMetrics, store::IndexerAnalyticalStore};
 
 pub struct ProcessorOrchestrator<S> {
     store: S,
@@ -18,8 +18,8 @@ pub struct ProcessorOrchestrator<S> {
 }
 
 impl<S> ProcessorOrchestrator<S>
-    where
-        S: IndexerAnalyticalStore + Clone + Send + Sync + 'static,
+where
+    S: IndexerAnalyticalStore + Clone + Send + Sync + 'static,
 {
     pub fn new(store: S, metrics: IndexerMetrics) -> Self {
         Self { store, metrics }
@@ -77,7 +77,7 @@ impl<S> ProcessorOrchestrator<S>
             addr_metrics_handle,
             move_call_metrics_handle,
         ])
-            .await
-            .expect("Processor orchestrator should not run into errors.");
+        .await
+        .expect("Processor orchestrator should not run into errors.");
     }
 }

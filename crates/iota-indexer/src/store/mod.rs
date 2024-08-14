@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub(crate) use indexer_analytical_store::*;
+pub(crate) use indexer_analytics_store::*;
 pub(crate) use indexer_store::*;
 pub use pg_indexer_analytical_store::PgIndexerAnalyticalStore;
 pub use pg_indexer_store::PgIndexerStore;

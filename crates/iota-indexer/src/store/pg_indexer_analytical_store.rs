@@ -2,38 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::result::Result::Ok;
 use std::time::Duration;
+
+use async_trait::async_trait;
+use diesel::{dsl::count, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
+use iota_types::base_types::ObjectID;
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
-use async_trait::async_trait;
-use core::result::Result::Ok;
-use diesel::dsl::count;
-use diesel::{ExpressionMethods, OptionalExtension};
-use diesel::{QueryDsl, RunQueryDsl};
-use sui_types::base_types::ObjectID;
-
-use crate::db::PgConnectionPool;
-use crate::errors::{Context, IndexerError};
-use crate::models::address_metrics::StoredAddressMetrics;
-use crate::models::checkpoints::StoredCheckpoint;
-use crate::models::move_call_metrics::{
-    build_move_call_metric_query, QueriedMoveCallMetrics, QueriedMoveMetrics, StoredMoveCallMetrics,
-};
-use crate::models::network_metrics::{StoredEpochPeakTps, Tps};
-use crate::models::transactions::{
-    StoredTransaction, StoredTransactionCheckpoint, StoredTransactionSuccessCommandCount,
-    StoredTransactionTimestamp, TxSeq,
-};
-use crate::models::tx_count_metrics::StoredTxCountMetrics;
-use crate::schema::{
-    active_addresses, address_metrics, addresses, checkpoints, epoch_peak_tps, move_call_metrics,
-    move_calls, transactions, tx_count_metrics,
-};
-use crate::store::diesel_macro::{read_only_blocking, transactional_blocking_with_retry};
-use crate::types::IndexerResult;
-
 use super::IndexerAnalyticalStore;
+use crate::{
+    db::PgConnectionPool,
+    errors::{Context, IndexerError},
+    models::{
+        address_metrics::StoredAddressMetrics,
+        checkpoints::StoredCheckpoint,
+        move_call_metrics::{
+            build_move_call_metric_query, QueriedMoveCallMetrics, QueriedMoveMetrics,
+            StoredMoveCallMetrics,
+        },
+        network_metrics::{StoredEpochPeakTps, Tps},
+        transactions::{
+            StoredTransaction, StoredTransactionCheckpoint, StoredTransactionSuccessCommandCount,
+            StoredTransactionTimestamp, TxSeq,
+        },
+        tx_count_metrics::StoredTxCountMetrics,
+    },
+    schema::{
+        active_addresses, address_metrics, addresses, checkpoints, epoch_peak_tps,
+        move_call_metrics, move_calls, transactions, tx_count_metrics,
+    },
+    store::diesel_macro::{read_only_blocking, transactional_blocking_with_retry},
+    types::IndexerResult,
+};
 
 #[derive(Clone)]
 pub struct PgIndexerAnalyticalStore {
@@ -55,7 +57,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredCheckpoint>(conn)
                 .optional()
         })
-            .context("Failed reading latest checkpoint from PostgresDB")?;
+        .context("Failed reading latest checkpoint from PostgresDB")?;
         Ok(latest_cp)
     }
 
@@ -66,7 +68,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredTransaction>(conn)
                 .optional()
         })
-            .context("Failed reading latest transaction from PostgresDB")?;
+        .context("Failed reading latest transaction from PostgresDB")?;
         Ok(latest_tx)
     }
 
@@ -82,7 +84,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .order(checkpoints::sequence_number.asc())
                 .load::<StoredCheckpoint>(conn)
         })
-            .context("Failed reading checkpoints from PostgresDB")?;
+        .context("Failed reading checkpoints from PostgresDB")?;
         Ok(cps)
     }
 
@@ -102,7 +104,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 ))
                 .load::<StoredTransactionTimestamp>(conn)
         })
-            .context("Failed reading transaction timestamps from PostgresDB")?;
+        .context("Failed reading transaction timestamps from PostgresDB")?;
         Ok(tx_timestamps)
     }
 
@@ -122,7 +124,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 ))
                 .load::<StoredTransactionCheckpoint>(conn)
         })
-            .context("Failed reading transaction checkpoints from PostgresDB")?;
+        .context("Failed reading transaction checkpoints from PostgresDB")?;
         Ok(tx_checkpoints)
     }
 
@@ -144,7 +146,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 ))
                 .load::<StoredTransactionSuccessCommandCount>(conn)
         })
-            .context("Failed reading transaction success command counts from PostgresDB")?;
+        .context("Failed reading transaction success command counts from PostgresDB")?;
         Ok(tx_success_cmd_counts)
     }
     async fn get_tx(&self, tx_sequence_number: i64) -> IndexerResult<Option<StoredTransaction>> {
@@ -154,7 +156,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredTransaction>(conn)
                 .optional()
         })
-            .context("Failed reading transaction from PostgresDB")?;
+        .context("Failed reading transaction from PostgresDB")?;
         Ok(tx)
     }
 
@@ -165,7 +167,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredCheckpoint>(conn)
                 .optional()
         })
-            .context("Failed reading checkpoint from PostgresDB")?;
+        .context("Failed reading checkpoint from PostgresDB")?;
         Ok(cp)
     }
 
@@ -176,7 +178,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredTxCountMetrics>(conn)
                 .optional()
         })
-            .context("Failed reading latest tx count metrics from PostgresDB")?;
+        .context("Failed reading latest tx count metrics from PostgresDB")?;
         Ok(latest_tx_count)
     }
 
@@ -187,7 +189,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredEpochPeakTps>(conn)
                 .optional()
         })
-            .context("Failed reading latest epoch peak TPS from PostgresDB")?;
+        .context("Failed reading latest epoch peak TPS from PostgresDB")?;
         Ok(latest_network_metrics)
     }
 
@@ -206,7 +208,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-            .context("Failed persisting tx count metrics to PostgresDB")?;
+        .context("Failed persisting tx count metrics to PostgresDB")?;
         info!("Persisted tx count metrics for cp {}", start_checkpoint);
         Ok(())
     }
@@ -219,13 +221,13 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 diesel::sql_query(epoch_peak_tps_query),
                 conn
             ))
-                .context("Failed reading epoch peak TPS from PostgresDB")?;
+            .context("Failed reading epoch peak TPS from PostgresDB")?;
         let tps_30d: Tps =
             read_only_blocking!(&self.blocking_cp, |conn| diesel::RunQueryDsl::get_result(
                 diesel::sql_query(peak_tps_30d_query),
                 conn
             ))
-                .context("Failed reading 30d peak TPS from PostgresDB")?;
+            .context("Failed reading 30d peak TPS from PostgresDB")?;
 
         let epoch_peak_tps = StoredEpochPeakTps {
             epoch,
@@ -242,7 +244,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-            .context("Failed persisting epoch peak TPS to PostgresDB.")?;
+        .context("Failed persisting epoch peak TPS to PostgresDB.")?;
         Ok(())
     }
 
@@ -254,7 +256,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<TxSeq>(conn)
                 .optional()
         })
-            .context("Failed to read address metrics last processed tx sequence.")?;
+        .context("Failed to read address metrics last processed tx sequence.")?;
         Ok(last_processed_tx_seq)
     }
 
@@ -272,7 +274,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-            .context("Failed persisting addresses to PostgresDB")?;
+        .context("Failed persisting addresses to PostgresDB")?;
         Ok(())
     }
 
@@ -291,7 +293,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-            .context("Failed persisting active addresses to PostgresDB")?;
+        .context("Failed persisting active addresses to PostgresDB")?;
         Ok(())
     }
 
@@ -347,7 +349,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(60)
         )
-            .context("Failed persisting address metrics to PostgresDB")?;
+        .context("Failed persisting address metrics to PostgresDB")?;
         Ok(())
     }
 
@@ -359,7 +361,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<TxSeq>(conn)
                 .optional()
         })
-            .unwrap_or_default();
+        .unwrap_or_default();
         Ok(last_processed_tx_seq)
     }
 
@@ -370,7 +372,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<QueriedMoveCallMetrics>(conn)
                 .optional()
         })
-            .unwrap_or_default();
+        .unwrap_or_default();
         Ok(latest_move_call_metrics.map(|m| m.into()))
     }
 
@@ -388,7 +390,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-            .context("Failed persisting move calls to PostgresDB")?;
+        .context("Failed persisting move calls to PostgresDB")?;
         Ok(())
     }
 
@@ -468,7 +470,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(60)
         )
-            .context("Failed persisting move call metrics to PostgresDB")?;
+        .context("Failed persisting move call metrics to PostgresDB")?;
         Ok(())
     }
 }

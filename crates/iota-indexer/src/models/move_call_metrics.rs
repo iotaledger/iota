@@ -4,16 +4,19 @@
 
 use std::str::FromStr;
 
-use diesel::prelude::*;
-use diesel::sql_types::{BigInt, Binary, Text};
-use diesel::QueryableByName;
-
+use diesel::{
+    prelude::*,
+    sql_types::{BigInt, Binary, Text},
+    QueryableByName,
+};
+use iota_json_rpc_types::MoveFunctionName;
+use iota_types::base_types::ObjectID;
 use move_core_types::identifier::Identifier;
-use sui_json_rpc_types::MoveFunctionName;
-use sui_types::base_types::ObjectID;
 
-use crate::errors::IndexerError;
-use crate::schema::{move_call_metrics, move_calls};
+use crate::{
+    errors::IndexerError,
+    schema::{move_call_metrics, move_calls},
+};
 
 #[derive(Clone, Debug, Queryable, Insertable)]
 #[diesel(table_name = move_calls)]

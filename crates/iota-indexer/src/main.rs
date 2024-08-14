@@ -8,9 +8,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{start_prometheus_server, IndexerMetrics},
-    store::{
-        PgIndexerAnalyticalStore, PgIndexerStore,
-    },
+    store::{PgIndexerAnalyticalStore, PgIndexerStore},
     IndexerConfig,
 };
 use tracing::{error, info};

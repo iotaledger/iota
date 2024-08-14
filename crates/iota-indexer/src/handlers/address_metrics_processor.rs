@@ -5,9 +5,7 @@
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
-use crate::metrics::IndexerMetrics;
-use crate::store::IndexerAnalyticalStore;
-use crate::types::IndexerResult;
+use crate::{metrics::IndexerMetrics, store::IndexerAnalyticalStore, types::IndexerResult};
 
 const ADDRESS_PROCESSOR_BATCH_SIZE: usize = 80000;
 const PARALLELISM: usize = 10;
@@ -20,8 +18,8 @@ pub struct AddressMetricsProcessor<S> {
 }
 
 impl<S> AddressMetricsProcessor<S>
-    where
-        S: IndexerAnalyticalStore + Clone + Sync + Send + 'static,
+where
+    S: IndexerAnalyticalStore + Clone + Sync + Send + 'static,
 {
     pub fn new(store: S, metrics: IndexerMetrics) -> AddressMetricsProcessor<S> {
         let address_processor_batch_size = std::env::var("ADDRESS_PROCESSOR_BATCH_SIZE")

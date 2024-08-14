@@ -16,14 +16,13 @@ use crate::{
     handlers::{
         checkpoint_handler::new_handlers,
         objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig},
+        processor_orchestrator::ProcessorOrchestrator,
     },
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
-    store::IndexerStore,
+    store::{IndexerStore, PgIndexerAnalyticalStore},
     IndexerConfig,
 };
-use crate::handlers::processor_orchestrator::ProcessorOrchestrator;
-use crate::store::PgIndexerAnalyticalStore;
 
 const DOWNLOAD_QUEUE_SIZE: usize = 200;
 

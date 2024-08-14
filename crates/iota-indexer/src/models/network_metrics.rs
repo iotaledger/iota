@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::prelude::*;
-use diesel::sql_types::{BigInt, Double, Float8};
-
-use sui_json_rpc_types::NetworkMetrics;
+use diesel::{
+    prelude::*,
+    sql_types::{BigInt, Double, Float8},
+};
+use iota_json_rpc_types::NetworkMetrics;
 
 use crate::schema::epoch_peak_tps;
 
