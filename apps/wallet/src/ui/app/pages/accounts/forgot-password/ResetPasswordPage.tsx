@@ -6,7 +6,10 @@ import { useAutoLockMinutesMutation } from '_src/ui/app/hooks/useAutoLockMinutes
 import { useResetPasswordMutation } from '_src/ui/app/hooks/useResetPasswordMutation';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { ProtectAccountForm } from '../../../components/accounts/ProtectAccountForm';
+import {
+    type FormValues,
+    ProtectAccountForm,
+} from '../../../components/accounts/ProtectAccountForm';
 import { autoLockDataToMinutes } from '../../../hooks/useAutoLockMinutes';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
@@ -20,14 +23,7 @@ export function ResetPasswordPage() {
         return <Navigate to="/accounts/forgot-password" replace />;
     }
 
-    async function handleOnSubmit({
-        password,
-        autoLock,
-    }: {
-        password: { input: string; confirmation: string };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        autoLock: { enabled: boolean; timer: number; interval: any };
-    }) {
+    async function handleOnSubmit({ password, autoLock }: FormValues) {
         try {
             await autoLockMutation.mutateAsync({
                 minutes: autoLockDataToMinutes(autoLock),
@@ -44,7 +40,7 @@ export function ResetPasswordPage() {
         }
     }
     return (
-        <PageTemplate title="Add a new password" isTitleCentered showBackButton>
+        <PageTemplate title="Reset password" isTitleCentered showBackButton>
             <div className="flex h-full flex-col items-center">
                 <div className="mt-6 w-full grow">
                     <ProtectAccountForm

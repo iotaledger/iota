@@ -17,10 +17,10 @@ export function RecoverPage() {
     const allAccountSources = useAccountSources();
     const navigate = useNavigate();
     const mnemonicAccountSource = allAccountSources.data?.find(
-        ({ type }: { type: AccountSourceType }) => type === AccountSourceType.Mnemonic,
+        ({ type }) => type === AccountSourceType.Mnemonic,
     );
     const seedAccountSource = allAccountSources.data?.find(
-        ({ type }: { type: AccountSourceType }) => type === AccountSourceType.Seed,
+        ({ type }) => type === AccountSourceType.Seed,
     );
     useEffect(() => {
         if (!allAccountSources.isPending && !mnemonicAccountSource && !seedAccountSource) {
@@ -31,7 +31,7 @@ export function RecoverPage() {
     if (!mnemonicAccountSource && !seedAccountSource) {
         return null;
     }
-    const DESCRIPTION_TEXT = mnemonicAccountSource
+    const descriptionText = mnemonicAccountSource
         ? 'Recover with 24-word Recovery Phrase'
         : 'Recover with Seed';
 
@@ -64,7 +64,7 @@ export function RecoverPage() {
     return (
         <PageTemplate title="Forgot Password?" isTitleCentered showBackButton>
             <div className="flex h-full flex-col gap-md">
-                <span className="text-label-lg text-neutral-40">{DESCRIPTION_TEXT}</span>
+                <span className="text-label-lg text-neutral-40">{descriptionText}</span>
                 <div className="flex h-full flex-col overflow-hidden">
                     {mnemonicAccountSource ? (
                         <ImportRecoveryPhraseForm

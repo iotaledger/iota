@@ -6,7 +6,7 @@ import { isMnemonicSerializedUiAccount } from '_src/background/accounts/Mnemonic
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { ProtectAccountForm } from '../../components/accounts/ProtectAccountForm';
+import { type FormValues, ProtectAccountForm } from '../../components/accounts/ProtectAccountForm';
 import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
 import Loading from '../../components/loading';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -111,14 +111,7 @@ export function ProtectAccountPage() {
     if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
-    async function handleOnSubmit({
-        password,
-        autoLock,
-    }: {
-        password: { input: string; confirmation: string };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        autoLock: { enabled: boolean; timer: number; interval: any };
-    }) {
+    async function handleOnSubmit({ password, autoLock }: FormValues) {
         try {
             await autoLockMutation.mutateAsync({
                 minutes: autoLockDataToMinutes(autoLock),
