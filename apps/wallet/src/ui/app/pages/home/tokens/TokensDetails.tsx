@@ -34,8 +34,8 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@iota/icons';
-import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota.js/client';
-import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota-sdk/client';
+import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -60,7 +60,7 @@ function PinButton({ unpin, onClick }: PinButtonProps) {
     return (
         <button
             type="button"
-            className="cursor-pointer border-none bg-transparent text-transparent hover:!text-hero group-hover/coin:text-steel"
+            className="hover:!text-hero group-hover/coin:text-steel cursor-pointer border-none bg-transparent text-transparent"
             aria-label={unpin ? 'Unpin Coin' : 'Pin Coin'}
             onClick={(e) => {
                 e.preventDefault();
@@ -86,7 +86,7 @@ function TokenRowButton({ coinBalance, children, to, onClick }: TokenRowButtonPr
             to={to}
             key={coinBalance.coinType}
             onClick={onClick}
-            className="text-subtitle font-medium text-steel no-underline hover:font-semibold hover:text-hero"
+            className="text-steel hover:text-hero text-subtitle font-medium no-underline hover:font-semibold"
         >
             {children}
         </ButtonOrLink>
@@ -112,7 +112,7 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
     return (
         <Tag
             className={clsx(
-                'group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2 hover:bg-iota/10',
+                'hover:bg-iota/10 group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2',
                 onClick && 'hover:cursor-pointer',
             )}
             onClick={onClick}
@@ -373,7 +373,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     return (
         <>
             {isMainnet && data?.degraded && (
-                <div className="mb-4 flex items-center rounded-2xl border border-solid border-warning-dark/20 bg-warning-light px-3 py-2 text-warning-dark">
+                <div className="border-warning-dark/20 bg-warning-light text-warning-dark mb-4 flex items-center rounded-2xl border border-solid px-3 py-2">
                     <Info12 className="shrink-0" />
                     <div className="ml-2">
                         <Text variant="pBodySmall" weight="medium">

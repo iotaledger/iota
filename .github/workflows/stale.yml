@@ -6,7 +6,7 @@ on:
 
 jobs:
   stale:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     permissions:
       issues: write
       pull-requests: write

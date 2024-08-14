@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
@@ -45,14 +45,14 @@ use crate::{
 
 pub struct TransactionExecutionApi {
     state: Arc<dyn StateRead>,
-    transaction_orchestrator: Arc<TransactiondOrchestrator<NetworkAuthorityClient>>,
+    transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
     metrics: Arc<JsonRpcMetrics>,
 }
 
 impl TransactionExecutionApi {
     pub fn new(
         state: Arc<AuthorityState>,
-        transaction_orchestrator: Arc<TransactiondOrchestrator<NetworkAuthorityClient>>,
+        transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
         metrics: Arc<JsonRpcMetrics>,
     ) -> Self {
         Self {

@@ -129,7 +129,7 @@ export function ValidatorsCard() {
                                 </div>
                             }
                         >
-                            <div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
+                            <div className="divide-gray-45 flex divide-x divide-y-0 divide-solid">
                                 <CardItem title="Your Stake">
                                     <StakeAmount balance={totalDelegatedStake} variant="heading5" />
                                 </CardItem>

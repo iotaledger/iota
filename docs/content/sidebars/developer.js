@@ -7,10 +7,10 @@ const developer = [
     {
         type: 'category',
         label: 'Getting Started',
-        collapsed: false,
+        collapsed: true,
         link: {
             type: 'doc',
-            id: 'developer/getting-started',
+            id: 'developer/getting-started/getting-started',
         },
         items: [
             'developer/getting-started/iota-environment',
@@ -36,21 +36,6 @@ const developer = [
                     'developer/getting-started/first-app/client-tssdk',
                 ],
             },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'From Solidity/EVM to Move',
-        collapsed: true,
-        link: {
-            type: 'doc',
-            id: 'developer/evm-to-move',
-        },
-        items: [
-            'developer/evm-to-move/why-move',
-            'developer/evm-to-move/tooling-apis',
-            'developer/evm-to-move/creating-token',
-            'developer/evm-to-move/creating-nft',
         ],
     },
     {
@@ -201,77 +186,14 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Cryptography',
-        link: {
-            type: 'doc',
-            id: 'developer/cryptography/explanations/cryptography',
-        },
-        items: [
-            {
-                type: 'category',
-                label: 'Explanations',
-                items: [
-                    'developer/cryptography/explanations/cryptography',
-                    {
-                        type: 'category',
-                        label: 'Transaction Authentication',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/cryptography/explanations/transaction-auth',
-                        },
-                        items: [
-                            'developer/cryptography/explanations/transaction-auth/keys-addresses',
-                            'developer/cryptography/explanations/transaction-auth/signatures',
-                            'developer/cryptography/explanations/transaction-auth/multisig',
-                            'developer/cryptography/explanations/transaction-auth/offline-signing',
-                            'developer/cryptography/explanations/transaction-auth/intent-signing',
-                        ],
-                    },
-                    'developer/cryptography/explanations/system/checkpoint-verification',
-                ],
-            },
-            {
-                type: 'category',
-                label: 'How To',
-                items: [
-                    'developer/cryptography/how-to/cryptography',
-                    'developer/cryptography/how-to/signing',
-                    'developer/cryptography/how-to/groth16',
-                    'developer/cryptography/how-to/hashing',
-                    'developer/cryptography/how-to/ecvrf',
-                ],
-            },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Advanced Topics',
-        link: {
-            type: 'doc',
-            id: 'developer/advanced',
-        },
-        items: [
-            /*{
-						type: 'category',
-						label: 'Efficient Smart Contracts',
-						link: {
-							type: 'doc',
-							id: 'developer/advanced/efficient-smart-contracts',
-						},
-						items: ['developer/advanced/min-gas-fees'],
-					},*/
-            //'developer/advanced/graphql-migration',
-            'developer/advanced/move-2024-migration',
-            'developer/advanced/asset-tokenization',
-            'developer/advanced/custom-indexer',
-            'developer/advanced/stardust-on-move',
-        ],
-    },
-    {
-        type: 'category',
         label: 'Standards',
+        link: {
+          type: 'generated-index',
+          title:'IOTA Standards Overview',
+          description: 'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
+          slug: 'developer/standards',
+        },
         items: [
-            'developer/standards/standards',
             'developer/standards/coin',
             'developer/standards/coin-manager',
             {
@@ -295,7 +217,72 @@ const developer = [
             'developer/standards/wallet-standard',
         ],
     },
-    'developer/dev-cheat-sheet',
+    {
+        type: 'category',
+        label: 'From Solidity/EVM to Move',
+        collapsed: true,
+        link: {
+            type: 'doc',
+            id: 'developer/evm-to-move/evm-to-move',
+        },
+        items: [
+            'developer/evm-to-move/why-move',
+            'developer/evm-to-move/tooling-apis',
+            'developer/evm-to-move/creating-token',
+            'developer/evm-to-move/creating-nft',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Cryptography',
+        link: {
+            type: 'doc',
+            id: 'developer/cryptography',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Transaction Authentication',
+                link: {
+                    type: 'doc',
+                    id: 'developer/cryptography/transaction-auth',
+                },
+                items: [
+                    'developer/cryptography/transaction-auth/keys-addresses',
+                    'developer/cryptography/transaction-auth/signatures',
+                    'developer/cryptography/transaction-auth/multisig',
+                    'developer/cryptography/transaction-auth/offline-signing',
+                    'developer/cryptography/transaction-auth/intent-signing',
+                ],
+            },
+            'developer/cryptography/checkpoint-verification',
+            {
+                type: 'category',
+                label: 'Smart Contract Cryptography',
+                link: {
+                    type: 'doc',
+                    id: 'developer/cryptography/on-chain',
+                },
+                items: [
+                    'developer/cryptography/on-chain/signing',
+                    'developer/cryptography/on-chain/groth16',
+                    'developer/cryptography/on-chain/hashing',
+                    'developer/cryptography/on-chain/ecvrf',
+                ],
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Advanced Topics',
+        link: {
+            type: 'doc',
+            id: 'developer/advanced',
+        },
+        items: [
+            'developer/advanced/asset-tokenization',
+        ],
+    },
 
     {
         type: 'category',
@@ -745,5 +732,6 @@ const developer = [
         label: 'Exchange integration',
         items: ['developer/exchange-integration/exchange-integration'],
     },
+    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

@@ -5,7 +5,7 @@
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight12, Copy12 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
@@ -67,11 +67,11 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
             <div
                 ref={ref}
                 className={cn(
-                    'group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3',
+                    'border-hero/10 group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid bg-white/40 px-4 py-3',
                     'hover:border-hero/20 hover:bg-white/80',
                     { 'cursor-auto bg-white/80 shadow-card-soft': selected },
                     { 'bg-white/80': isActiveAccount },
-                    { 'border-none !bg-hero/10 shadow-none hover:bg-white/40': disabled },
+                    { '!bg-hero/10 border-none shadow-none hover:bg-white/40': disabled },
                     { 'bg-gradients-graph-cards': background === 'gradient' },
                 )}
                 {...props}
@@ -86,7 +86,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                         ) : (
                             <EditableAccountName accountID={account.id} name={accountName} />
                         )}
-                        <div className="flex gap-1.5 leading-none text-steel-dark">
+                        <div className="text-steel-dark flex gap-1.5 leading-none">
                             <Text variant="subtitle" weight="semibold" truncate>
                                 {formatAddress(account.address)}
                             </Text>

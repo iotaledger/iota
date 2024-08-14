@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaCustomRpc, IotaDevnet, IotaLocal, IotaMainnet, IotaTestnet } from '@iota/icons';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 
 interface LogoProps {
     network?: Network;
@@ -24,7 +24,7 @@ function Logo({ network }: LogoProps) {
         LogoComponent = NETWORK_LOGOS[network];
     }
 
-    return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;
+    return <LogoComponent className="text-gray-90 h-7 w-walletLogo" />;
 }
 
 export default Logo;

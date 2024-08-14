@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use proptest::{collection, prelude::*};
 
 use super::*;
@@ -8,25 +9,25 @@ use crate::crypto::bcs_signable_test::Foo;
 
 #[test]
 fn serde_keypair() {
-    let skp = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
-    let encoded = skp.encode().unwrap();
+    let ikp = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
+    let encoded = ikp.encode().unwrap();
     assert_eq!(
         encoded,
         "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c247zslwv6"
     );
     let decoded = IotaKeyPair::decode(&encoded).unwrap();
-    assert_eq!(skp, decoded);
+    assert_eq!(ikp, decoded);
 }
 
 #[test]
 fn serde_pubkey() {
-    let skp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let ser = serde_json::to_string(&skp.public()).unwrap();
+    let ikp = IotaKeyPair::Ed25519(get_key_pair().1);
+    let ser = serde_json::to_string(&ikp.public()).unwrap();
     assert_eq!(
         ser,
         format!(
             "{{\"Ed25519\":\"{}\"}}",
-            Base64::encode(skp.public().as_ref())
+            Base64::encode(ikp.public().as_ref())
         )
     );
 }
@@ -137,7 +138,7 @@ proptest! {
     fn test_deserialize_keypair(
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
-        let _skp: Result<IotaKeyPair, _> = bcs::from_bytes(&bytes);
+        let _ikp: Result<IotaKeyPair, _> = bcs::from_bytes(&bytes);
         let _pk: Result<PublicKey, _> = bcs::from_bytes(&bytes);
     }
 

@@ -1,12 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export interface ID {
-    bytes: string;
-}
-
 export interface UID {
-    id: ID;
+    id: string;
 }
 
 export interface Balance {
@@ -22,7 +18,7 @@ export interface Timelocked {
 
 export interface StakedIota {
     id: UID;
-    poolId: ID;
+    poolId: string;
     stakeActivationEpoch: number;
     principal: Balance;
 }

@@ -219,7 +219,7 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
                         autoFocus
                         type={type}
                         className={clsx(
-                            'z-10 h-6 border-none bg-transparent p-0 text-heading5 font-semibold text-steel-darker caret-hero',
+                            'text-steel-darker caret-hero z-10 h-6 border-none bg-transparent p-0 text-heading5 font-semibold',
                             loading && 'text-transparent',
                         )}
                         disabled={disabled}
@@ -227,7 +227,7 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
                     />
                     {loading && (
                         <div className="absolute">
-                            <div className="flex items-center gap-1 text-steel">
+                            <div className="text-steel flex items-center gap-1">
                                 <LoadingIndicator color="inherit" />
                                 {loadingText && (
                                     <Text variant="body" color="steel">
@@ -246,7 +246,7 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
                         >
                             {prefixContent}
                             <span className="invisible max-w-full text-heading5">{value}</span>
-                            <span className="ml-2 text-body font-medium text-steel">{suffix}</span>
+                            <span className="text-steel ml-2 text-body font-medium">{suffix}</span>
                         </div>
                     )}
 

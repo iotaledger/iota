@@ -50,7 +50,6 @@ module iota_system::iota_system {
     use iota_system::validator::Validator;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParameters, IotaSystemStateInner, IotaSystemStateInnerV2};
-    use iota_system::stake_subsidy::StakeSubsidy;
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
 
@@ -87,7 +86,6 @@ module iota_system::iota_system {
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         parameters: SystemParameters,
-        stake_subsidy: StakeSubsidy,
         system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
@@ -98,7 +96,6 @@ module iota_system::iota_system {
             protocol_version,
             epoch_start_timestamp_ms,
             parameters,
-            stake_subsidy,
             ctx,
         );
         let version = iota_system_state_inner::genesis_system_state_version();
@@ -704,12 +701,6 @@ module iota_system::iota_system {
     public fun get_storage_fund_object_rebates(wrapper: &mut IotaSystemState): u64 {
         let self = load_system_state(wrapper);
         self.get_storage_fund_object_rebates()
-    }
-
-    #[test_only]
-    public fun get_stake_subsidy_distribution_counter(wrapper: &mut IotaSystemState): u64 {
-        let self = load_system_state(wrapper);
-        self.get_stake_subsidy_distribution_counter()
     }
 
     /// Returns the total iota supply.

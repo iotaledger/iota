@@ -41,7 +41,7 @@ export function AccountsList() {
     if (!accounts || !activeAccount) return null;
 
     return (
-        <div className="flex w-full select-none flex-col gap-5 rounded-xl border border-solid border-hero/10 bg-gradients-graph-cards p-4">
+        <div className="border-hero/10 flex w-full select-none flex-col gap-5 rounded-xl border border-solid bg-gradients-graph-cards p-4">
             <Heading variant="heading5" weight="semibold" color="steel-darker">
                 Accounts
             </Heading>

@@ -27,7 +27,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
                 />
                 <ButtonOrLink
                     tabIndex={-1}
-                    className="absolute right-3 flex cursor-pointer appearance-none border-none bg-transparent text-gray-60 peer-focus:text-steel"
+                    className="text-gray-60 peer-focus:text-steel absolute right-3 flex cursor-pointer appearance-none border-none bg-transparent"
                     onClick={() => setPasswordShown((prevState) => !prevState)}
                 >
                     <IconComponent className="h-4 w-4" />

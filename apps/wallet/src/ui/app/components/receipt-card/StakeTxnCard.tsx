@@ -16,8 +16,8 @@ import {
     useGetTimeBeforeEpochNumber,
     useGetValidatorsApy,
 } from '@iota/core';
-import type { IotaEvent } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaEvent } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
@@ -54,9 +54,9 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
 
     return (
         <Card>
-            <div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-40">
+            <div className="divide-gray-40 flex flex-col divide-x-0 divide-y divide-solid">
                 {validatorAddress && (
-                    <div className="mb-3.5 w-full divide-y divide-solid divide-gray-40">
+                    <div className="divide-gray-40 mb-3.5 w-full divide-y divide-solid">
                         <ValidatorLogo
                             validatorAddress={validatorAddress}
                             showAddress
@@ -71,7 +71,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                 )}
                 <div className="flex flex-col">
                     <div className="flex w-full justify-between py-3.5">
-                        <div className="flex items-baseline justify-center gap-1 text-steel">
+                        <div className="text-steel flex items-baseline justify-center gap-1">
                             <Text variant="body" weight="medium" color="steel-darker">
                                 APY
                             </Text>
@@ -84,7 +84,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                 </div>
                 <div className="flex flex-col">
                     <div className="flex w-full justify-between py-3.5">
-                        <div className="flex items-baseline gap-1 text-steel">
+                        <div className="text-steel flex items-baseline gap-1">
                             <Text variant="body" weight="medium" color="steel-darker">
                                 {timeBeforeStakeRewardsStarts > 0
                                     ? 'Staking Rewards Start'
@@ -108,7 +108,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                         )}
                     </div>
                     <div className="flex w-full justify-between">
-                        <div className="flex flex-1 items-baseline gap-1 text-steel">
+                        <div className="text-steel flex flex-1 items-baseline gap-1">
                             <Text variant="pBody" weight="medium" color="steel-darker">
                                 Staking Rewards Redeemable
                             </Text>

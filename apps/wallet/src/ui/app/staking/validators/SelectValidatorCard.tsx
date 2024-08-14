@@ -139,7 +139,7 @@ export function SelectValidatorCard() {
                                         {sortKey === key && (
                                             <ArrowRight16
                                                 className={cl(
-                                                    'text-captionSmall font-thin text-hero',
+                                                    'text-hero text-captionSmall font-thin',
                                                     sortAscending ? 'rotate-90' : '-rotate-90',
                                                 )}
                                             />

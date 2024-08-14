@@ -40,7 +40,7 @@ export function Collapsible({
             <CollapsiblePrimitive.Trigger className="group flex w-full cursor-pointer items-center gap-2 border-none bg-transparent p-0">
                 <div
                     className={cn(
-                        'text-captionSmall font-semibold uppercase group-hover:text-hero',
+                        'group-hover:text-hero text-captionSmall font-semibold uppercase',
                         {
                             'text-steel': shade === 'lighter',
                             'text-steel-darker': shade === 'darker',
@@ -50,13 +50,13 @@ export function Collapsible({
                     {title}
                 </div>
                 <div
-                    className={cn('h-px flex-1 group-hover:bg-hero', {
+                    className={cn('group-hover:bg-hero h-px flex-1', {
                         'bg-steel': shade === 'darker',
                         'bg-gray-45 group-hover:bg-steel': shade === 'lighter',
                     })}
                 />
                 <div
-                    className={cn('inline-flex group-hover:text-hero', {
+                    className={cn('group-hover:text-hero inline-flex', {
                         'text-steel': shade === 'darker',
                         'text-gray-45': shade === 'lighter',
                     })}

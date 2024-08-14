@@ -16,12 +16,12 @@ on:
       - "docs/**"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   wiki-preview:
-    runs-on: self-hosted-rust
+    runs-on: self-hosted
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4

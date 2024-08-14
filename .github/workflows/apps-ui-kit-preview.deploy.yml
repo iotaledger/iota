@@ -12,12 +12,16 @@ on:
       - "apps/ui-icons/**"
       - ".github/workflows/apps-ui-kit-preview.deploy.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy-preview:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [tooling-runners]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
@@ -29,7 +33,7 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Environment Information
-        run: vercel pull ./apps/ui-kit --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --cwd ./apps/ui-kit --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build Project Artifacts
         run: vercel build --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel

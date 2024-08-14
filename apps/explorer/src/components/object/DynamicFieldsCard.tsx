@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetDynamicFields, useOnScreen } from '@iota/core';
-import { type DynamicFieldInfo } from '@iota/iota.js/client';
+import { type DynamicFieldInfo } from '@iota/iota-sdk/client';
 import { LoadingIndicator } from '@iota/ui';
 import { useRef, useEffect, useState, useMemo } from 'react';
 

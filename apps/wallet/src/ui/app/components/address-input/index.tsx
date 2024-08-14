@@ -6,7 +6,7 @@ import { Text } from '_app/shared/text';
 import Alert from '_src/ui/app/components/alert';
 import { useIotaClient } from '@iota/dapp-kit';
 import { QrCode, X12 } from '@iota/icons';
-import { isValidIotaAddress } from '@iota/iota.js/utils';
+import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { useField, useFormikContext } from 'formik';
@@ -98,7 +98,7 @@ export function AddressInput({
         <>
             <div
                 className={cx(
-                    'box-border flex h-max w-full overflow-hidden rounded-2lg border border-solid bg-white transition-all focus-within:border-steel',
+                    'focus-within:border-steel box-border flex h-max w-full overflow-hidden rounded-2lg border border-solid bg-white transition-all',
                     hasWarningOrError ? 'border-issue' : 'border-gray-45',
                 )}
             >
@@ -113,7 +113,7 @@ export function AddressInput({
                         onChange={handleOnChange}
                         onBlur={field.onBlur}
                         className={cx(
-                            'w-full resize-none border-none bg-white font-mono text-bodySmall font-medium leading-100 placeholder:font-mono placeholder:font-normal placeholder:text-steel-dark',
+                            'placeholder:text-steel-dark w-full resize-none border-none bg-white font-mono text-bodySmall font-medium leading-100 placeholder:font-mono placeholder:font-normal',
                             hasWarningOrError ? 'text-issue' : 'text-gray-90',
                         )}
                         name={name}
@@ -122,12 +122,12 @@ export function AddressInput({
 
                 <div
                     onClick={clearAddress}
-                    className="right-0 ml-4 flex w-11 max-w-[20%] cursor-pointer items-center justify-center bg-gray-40"
+                    className="bg-gray-40 right-0 ml-4 flex w-11 max-w-[20%] cursor-pointer items-center justify-center"
                 >
                     {meta.touched && field.value ? (
-                        <X12 className="h-3 w-3 text-steel-darker" />
+                        <X12 className="text-steel-darker h-3 w-3" />
                     ) : (
-                        <QrCode className="h-5 w-5 text-steel-darker" />
+                        <QrCode className="text-steel-darker h-5 w-5" />
                     )}
                 </div>
             </div>

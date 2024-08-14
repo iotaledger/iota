@@ -1066,10 +1066,6 @@ type Epoch {
 	"""
 	totalStakeRewards: BigInt
 	"""
-	The amount added to total gas fees to make up the total stake rewards.
-	"""
-	totalStakeSubsidies: BigInt
-	"""
 	The storage fund available in this epoch.
 	This fund is used to redistribute storage fees from past transactions
 	to future validators.
@@ -1112,13 +1108,13 @@ type Epoch {
 	"""
 	systemStateVersion: Int
 	"""
+	The total IOTA supply.
+	"""
+	iotaTotalSupply: Int
+	"""
 	Details of the system that are decided during genesis.
 	"""
 	systemParameters: SystemParameters
-	"""
-	Parameters related to the subsidy that supplements staking rewards
-	"""
-	systemStakeSubsidy: StakeSubsidy
 	"""
 	A commitment by the committee at the end of epoch on the contents of the
 	live object set at that time. This can be used to verify state
@@ -3483,37 +3479,6 @@ enum StakeStatus {
 }
 
 """
-Parameters that control the distribution of the stake subsidy.
-"""
-type StakeSubsidy {
-	"""
-	IOTA set aside for stake subsidies -- reduces over time as stake
-	subsidies are paid out over time.
-	"""
-	balance: BigInt
-	"""
-	Number of times stake subsidies have been distributed subsidies are
-	distributed with other staking rewards, at the end of the epoch.
-	"""
-	distributionCounter: Int
-	"""
-	Amount of stake subsidy deducted from the balance per distribution --
-	decays over time.
-	"""
-	currentDistributionAmount: BigInt
-	"""
-	Maximum number of stake subsidy distributions that occur with the same
-	distribution amount (before the amount is reduced).
-	"""
-	periodLength: Int
-	"""
-	Percentage of the current distribution amount to deduct at the end of
-	the current subsidy period, expressed in basis points.
-	"""
-	decreaseRate: Int
-}
-
-"""
 Represents a `0x3::staking_pool::StakedIota` Move object on-chain.
 """
 type StakedIota implements IMoveObject & IObject & IOwner {
@@ -3731,10 +3696,6 @@ type SystemParameters {
 	Target duration of an epoch, in milliseconds.
 	"""
 	durationMs: BigInt
-	"""
-	The epoch at which stake subsidies start being paid out.
-	"""
-	stakeSubsidyStartEpoch: Int
 	"""
 	The minimum number of active validators that the system supports.
 	"""

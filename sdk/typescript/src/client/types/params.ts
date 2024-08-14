@@ -11,9 +11,8 @@
  * /crates/iota-open-rpc/spec/openrpc.json
  */
 
-import type { TransactionBlock } from '../../transactions/index.js';
 import type * as RpcTypes from './generated.js';
-
+import type { TransactionBlock } from '../../transactions/index.js';
 /**
  * Runs the transaction in dev-inspect mode. Which allows for nearly any transaction (or Move call)
  * with any arguments. Detailed results are provided, including both the transaction effects and any
@@ -27,6 +26,8 @@ export interface DevInspectTransactionBlockParams {
     gasPrice?: bigint | number | null | undefined;
     /** The epoch to perform the call. Will be set from the system state object if not provided */
     epoch?: string | null | undefined;
+    /** Additional arguments including gas_budget, gas_objects, gas_sponsor and skip_checks. */
+    additionalArgs?: RpcTypes.DevInspectArgs | null | undefined;
 }
 /**
  * Return transaction execution effects including the gas cost summary, while the effects are not
@@ -277,6 +278,14 @@ export interface GetStakesParams {
 export interface GetStakesByIdsParams {
     stakedIotaIds: string[];
 }
+/** Return all [DelegatedTimelockedStake]. */
+export interface GetTimelockedStakesParams {
+    owner: string;
+}
+/** Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn its status will be Unstaked. */
+export interface GetTimelockedStakesByIdsParams {
+    timelockedStakedIotaIds: string[];
+}
 /** Return total supply for a coin */
 export interface GetTotalSupplyParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
@@ -388,8 +397,8 @@ export interface UnsafeMoveCallParams {
     /** the type arguments of the Move function */
     typeArguments: string[];
     /**
-     * the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.io/build/iota-json)
-     * format
+     * the arguments to be passed into the Move function, in
+     * [IotaJson](https://docs.iota.io/build/iota-json) format
      */
     arguments: unknown[];
     /**
@@ -431,8 +440,8 @@ export interface UnsafePayParams {
 /**
  * Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas
  * coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and
- * deposit all IOTA to the first input coin 2. transfer the updated first coin to the recipient and also
- * use this first coin as gas coin object. 3. the balance of the first input coin after tx is
+ * deposit all IOTA to the first input coin 2. transfer the updated first coin to the recipient and
+ * also use this first coin as gas coin object. 3. the balance of the first input coin after tx is
  * sum(input_coins) - actual_gas_cost. 4. all other input coins other than the first are deleted.
  */
 export interface UnsafePayAllIotaParams {
@@ -500,6 +509,19 @@ export interface UnsafeRequestAddStakeParams {
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
 }
+/** Add timelocked stake to a validator's staking pool using multiple balances and amount. */
+export interface UnsafeRequestAddTimelockedStakeParams {
+    /** the transaction signer's Iota address */
+    signer: string;
+    /** TimeLock<Balance<IOTA>> object to stake */
+    lockedBalance: string;
+    /** the validator's Iota address */
+    validator: string;
+    /** gas object to be used in this transaction */
+    gas: string;
+    /** the gas budget, the transaction will fail if the gas cost exceed the budget */
+    gasBudget: string;
+}
 /** Withdraw stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawStakeParams {
     /** the transaction signer's Iota address */
@@ -511,6 +533,17 @@ export interface UnsafeRequestWithdrawStakeParams {
      * provided
      */
     gas?: string | null | undefined;
+    /** the gas budget, the transaction will fail if the gas cost exceed the budget */
+    gasBudget: string;
+}
+/** Withdraw timelocked stake from a validator's staking pool. */
+export interface UnsafeRequestWithdrawTimelockedStakeParams {
+    /** the transaction signer's Iota address */
+    signer: string;
+    /** TimelockedStakedIota object ID */
+    timelockedStakedIota: string;
+    /** gas object to be used in this transaction */
+    gas: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
 }
@@ -547,6 +580,22 @@ export interface UnsafeSplitCoinEqualParams {
     gasBudget: string;
 }
 /**
+ * Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also
+ * used as the gas object.
+ */
+export interface UnsafeTransferIotaParams {
+    /** the transaction signer's Iota address */
+    signer: string;
+    /** the Iota coin object to be used in this transaction */
+    iotaObjectId: string;
+    /** the gas budget, the transaction will fail if the gas cost exceed the budget */
+    gasBudget: string;
+    /** the recipient's Iota address */
+    recipient: string;
+    /** the amount to be split out and transferred */
+    amount?: string | null | undefined;
+}
+/**
  * Create an unsigned transaction to transfer an object from one address to another. The object's type
  * must allow public transfers
  */
@@ -564,20 +613,4 @@ export interface UnsafeTransferObjectParams {
     gasBudget: string;
     /** the recipient's Iota address */
     recipient: string;
-}
-/**
- * Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also used
- * as the gas object.
- */
-export interface UnsafeTransferIotaParams {
-    /** the transaction signer's Iota address */
-    signer: string;
-    /** the Iota coin object to be used in this transaction */
-    iotaObjectId: string;
-    /** the gas budget, the transaction will fail if the gas cost exceed the budget */
-    gasBudget: string;
-    /** the recipient's Iota address */
-    recipient: string;
-    /** the amount to be split out and transferred */
-    amount?: string | null | undefined;
 }

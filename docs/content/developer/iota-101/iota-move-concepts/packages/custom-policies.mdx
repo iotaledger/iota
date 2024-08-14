@@ -184,9 +184,7 @@ In the `sources` folder, create a source file named `day_of_week.move`. Copy and
 
 ```move
 module policy::day_of_week {
-    use iota::object::{Self, UID};
     use iota::package;
-    use iota::tx_context::TxContext;
 
     public struct UpgradeCap has key, store {
         id: UID,
@@ -271,9 +269,7 @@ The final code in your `day_of_week.move` file should resemble the following:
 
 ```move
 module policy::day_of_week {
-    use iota::object::{Self, UID};
     use iota::package;
-    use iota::tx_context::TxContext;
 
     public struct UpgradeCap has key, store {
         id: UID,
@@ -533,7 +529,7 @@ Create a new directory to store a Node.js project. You can use the `npm init` fu
 Open a terminal or console to the root of your Node.js project. Run the following command to add the IOTA TypeScript SDK as a dependency:
 
 ```bash
-npm install @iota/iota.js
+npm install @iota/iota-sdk
 ```
 
 ### Publishing a package with custom policy {#publishing-custom-policy}
@@ -556,8 +552,8 @@ import { readFileSync } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
 
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { fromB64 } from '@iota/iota.js/utils';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { fromB64 } from '@iota/iota-sdk/utils';
 
 const sender = execSync(`${IOTA} client active-address`, { encoding: 'utf8' }).trim();
 const signer = (() => {
@@ -609,7 +605,7 @@ const { modules, dependencies } = JSON.parse(
 Next, construct the transaction to publish the package. Wrap its `UpgradeCap` in a "day of the week" policy, which permits upgrades on Tuesdays, and send the new policy back:
 
 ```js
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const tx = new TransactionBlock();
 const packageUpgradeCap = tx.publish({ modules, dependencies });
@@ -627,7 +623,7 @@ tx.transferObjects([tuesdayUpgradeCap], tx.pure(sender));
 And finally, execute that transaction and display its effects to the console. The following snippet assumes that you're running your examples against a local network. Pass `devnet`, `testnet`, or `mainnet` to the `getFullnodeUrl()` function to run on Devnet, Testnet, or Mainnet respectively:
 
 ```js
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({ url: getFullnodeUrl('localnet')})
 const result = await client.signAndExecuteTransactionBlock({
@@ -657,10 +653,10 @@ import { homedir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64 } from '@iota/iota.js/utils';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { fromB64 } from '@iota/iota-sdk/utils';
 
 const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
@@ -907,10 +903,10 @@ import { homedir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock, UpgradePolicy } from '@iota/iota.js/transactions';
-import { fromB64 } from '@iota/iota.js/utils';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock, UpgradePolicy } from '@iota/iota-sdk/transactions';
+import { fromB64 } from '@iota/iota-sdk/utils';
 
 const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';

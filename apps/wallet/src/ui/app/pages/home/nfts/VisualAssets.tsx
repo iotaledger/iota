@@ -7,7 +7,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { EyeClose16 } from '@iota/icons';
-import { type IotaObjectData } from '@iota/iota.js/client';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
 import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
@@ -44,7 +44,7 @@ export default function VisualAssets({ items }: VisualAssetsProps) {
                     className="relative no-underline"
                 >
                     <div className="group">
-                        <div className="pointer-events-auto absolute z-10 h-full w-full justify-center p-0 text-gray-60 transition-colors duration-200">
+                        <div className="text-gray-60 pointer-events-auto absolute z-10 h-full w-full justify-center p-0 transition-colors duration-200">
                             {!isKioskOwnerToken(kioskClient.network, object) ? (
                                 <div className="absolute right-3 top-2 h-8 w-8 rounded-md opacity-0 group-hover:opacity-100">
                                     <Button

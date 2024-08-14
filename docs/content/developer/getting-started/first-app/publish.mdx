@@ -9,7 +9,7 @@ Before you can call functions in a Move package (beyond an emulated IOTA executi
 To publish your package to the IOTA network, use the `publish` CLI command in the root of your package. Use the `--gas-budget` flag to set a value for the maximum amount of gas the transaction can cost. If the cost of the transaction is more than the budget you set, the transaction fails and your package doesn't publish.  
 
 ```shell
-$ iota client publish --gas-budget 5000000
+$ iota client publish --gas-budget 100000000
 ```
 
 If the publish transaction is successful, your terminal or console responds with the details of the publish transaction separated into sections, including transaction data, transaction effects, transaction block events, object changes, and balance changes. 
@@ -107,7 +107,7 @@ $ iota client ptb \
 	--move-call <PACKAGE-ID>::my_module::new_sword forge 3 3 \
 	--assign sword \
 	--transfer-objects "[sword]" to_address \
-	--gas-budget 20000000
+	--gas-budget 100000000
 ```
 
 :::info 

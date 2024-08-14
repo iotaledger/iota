@@ -6,8 +6,8 @@ import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
-import type { IotaEvent } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaEvent } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
@@ -30,7 +30,7 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
 
     return (
         <Card>
-            <div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-40">
+            <div className="divide-gray-40 flex flex-col divide-x-0 divide-y divide-solid">
                 {validatorAddress && (
                     <div className="mb-3.5 w-full">
                         <ValidatorLogo
@@ -46,13 +46,13 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                 )}
 
                 <div className="flex w-full justify-between py-3.5">
-                    <div className="flex items-baseline gap-1 text-steel">
+                    <div className="text-steel flex items-baseline gap-1">
                         <Text variant="body" weight="medium" color="steel-darker">
                             Your IOTA Stake
                         </Text>
                     </div>
 
-                    <div className="flex items-baseline gap-1 text-steel">
+                    <div className="text-steel flex items-baseline gap-1">
                         <Text variant="body" weight="medium" color="steel-darker">
                             {formatPrinciple} {symbol}
                         </Text>
@@ -60,13 +60,13 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                 </div>
 
                 <div className="flex w-full justify-between py-3.5">
-                    <div className="flex items-baseline gap-1 text-steel">
+                    <div className="text-steel flex items-baseline gap-1">
                         <Text variant="body" weight="medium" color="steel-darker">
                             Staking Rewards Earned
                         </Text>
                     </div>
 
-                    <div className="flex items-baseline gap-1 text-steel">
+                    <div className="text-steel flex items-baseline gap-1">
                         <Text variant="body" weight="medium" color="steel-darker">
                             {formatRewards} {symbol}
                         </Text>

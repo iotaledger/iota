@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { normalizeIotaAddress } from '@iota/iota.js/utils';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import classnames from 'clsx';
 import { ChangeEvent, FormEvent, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';

@@ -86,14 +86,14 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                             component={NumberInput}
                             allowNegative={false}
                             name="amount"
-                            className="w-full border-none bg-white text-heading4 font-semibold text-hero-dark placeholder:font-semibold placeholder:text-gray-70"
+                            className="text-hero-dark placeholder:text-gray-70 w-full border-none bg-white text-heading4 font-semibold placeholder:font-semibold"
                             decimals
                             suffix={` ${symbol}`}
                             autoFocus
                         />
                         {!HIDE_MAX ? (
                             <button
-                                className="flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid border-gray-60 bg-white text-bodySmall font-medium text-steel-darker hover:border-steel-dark hover:text-steel-darker disabled:cursor-auto disabled:opacity-50"
+                                className="border-gray-60 text-steel-darker hover:border-steel-dark hover:text-steel-darker flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid bg-white text-bodySmall font-medium disabled:cursor-auto disabled:opacity-50"
                                 onClick={setMaxToken}
                                 disabled={queryResult.isPending}
                                 type="button"

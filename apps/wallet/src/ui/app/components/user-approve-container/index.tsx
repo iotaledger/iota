@@ -66,12 +66,12 @@ export function UserApproveContainer({
                     iconUrl={originFavIcon}
                     connectedAddress={!addressHidden && address ? address : undefined}
                 />
-                <div className="flex flex-1 flex-col bg-hero-darkest/5 px-6">{children}</div>
+                <div className="bg-hero-darkest/5 flex flex-1 flex-col px-6">{children}</div>
             </div>
             <div className="sticky bottom-0">
                 <div
                     className={cn(
-                        'flex items-center gap-2.5 bg-hero-darkest/5 px-5 py-4 backdrop-blur-lg',
+                        'bg-hero-darkest/5 flex items-center gap-2.5 px-5 py-4 backdrop-blur-lg',
                         {
                             'flex-row-reverse': isWarning,
                         },

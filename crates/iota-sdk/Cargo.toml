@@ -1,7 +1,7 @@
 [package]
 name = "iota-sdk"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -16,6 +16,7 @@ futures.workspace = true
 futures-core.workspace = true
 jsonrpsee.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true

@@ -27,7 +27,7 @@ export function CoinItem({
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
 
     return (
-        <div className="flex w-full items-center justify-center gap-2.5 rounded py-3 pl-1.5 pr-2 hover:bg-iota/10">
+        <div className="hover:bg-iota/10 flex w-full items-center justify-center gap-2.5 rounded py-3 pl-1.5 pr-2">
             <CoinIcon coinType={coinType} size={isActive ? 'sm' : 'md'} />
             <div className="flex flex-1 items-center justify-between gap-1.5">
                 <div className="max-w-token-width">

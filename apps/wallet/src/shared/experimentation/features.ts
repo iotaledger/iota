@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { GrowthBook } from '@growthbook/growthbook';
-import { Network, getAppsBackend } from '@iota/iota.js/client';
+import { Network, getAppsBackend } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
 export const growthbook = new GrowthBook({

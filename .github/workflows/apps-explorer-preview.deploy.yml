@@ -11,12 +11,16 @@ on:
       - "apps/explorer/**"
       - ".github/workflows/apps-explorer-preview.deploy.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy-preview:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [tooling-runners]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0

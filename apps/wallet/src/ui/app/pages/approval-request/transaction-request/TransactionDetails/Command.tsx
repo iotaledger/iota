@@ -4,9 +4,9 @@
 
 import { Text } from '_src/ui/app/shared/text';
 import { ChevronDown12, ChevronRight12 } from '@iota/icons';
-import { TypeTagSerializer, type TypeTag } from '@iota/iota.js/bcs';
-import { type TransactionArgument, type Transactions } from '@iota/iota.js/transactions';
-import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
+import { TypeTagSerializer, type TypeTag } from '@iota/iota-sdk/bcs';
+import { type TransactionArgument, type Transactions } from '@iota/iota-sdk/transactions';
+import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 type TransactionType = ReturnType<(typeof Transactions)[keyof typeof Transactions]>;
@@ -105,14 +105,14 @@ export function Command({ command }: CommandProps) {
                 <Text variant="body" weight="semibold" color="steel-darker">
                     {command.kind}
                 </Text>
-                <div className="h-px flex-1 bg-gray-40" />
+                <div className="bg-gray-40 h-px flex-1" />
                 <div className="text-steel">
                     {expanded ? <ChevronDown12 /> : <ChevronRight12 />}
                 </div>
             </button>
 
             {expanded && (
-                <div className="mt-2 text-pBodySmall font-medium text-steel">
+                <div className="text-steel mt-2 text-pBodySmall font-medium">
                     ({convertCommandToString(command)})
                 </div>
             )}

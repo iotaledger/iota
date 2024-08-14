@@ -71,7 +71,7 @@ export function ValidatorStatus(): JSX.Element | null {
                         {nextRefGasPrice.toString()}
                     </Heading>
                     <Text variant="pBody/medium" color="steel-darker">
-                        MICROS
+                        nano
                     </Text>
                 </div>
             </div>

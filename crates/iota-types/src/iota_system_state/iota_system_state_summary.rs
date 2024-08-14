@@ -96,11 +96,6 @@ pub struct IotaSystemStateSummary {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub epoch_duration_ms: u64,
 
-    /// The starting epoch in which stake subsidies start being paid out
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_start_epoch: u64,
-
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     #[schemars(with = "BigInt<u64>")]
@@ -131,30 +126,6 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub validator_low_stake_grace_period: u64,
-
-    // Stake subsidy information
-    /// Balance of IOTA set aside for stake subsidies that will be drawn down
-    /// over time.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_balance: u64,
-    /// This counter may be different from the current epoch number if
-    /// in some epochs we decide to skip the subsidy.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_distribution_counter: u64,
-    /// The amount of stake subsidy to be drawn down per epoch.
-    /// This amount decays and decreases over time.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_current_distribution_amount: u64,
-    /// Number of distributions to occur before the distribution amount decays.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub stake_subsidy_period_length: u64,
-    /// The rate at which the distribution amount decays at the end of each
-    /// period. Expressed in basis points.
-    pub stake_subsidy_decrease_rate: u16,
 
     // Validator set
     /// Total amount of stake from all active validators at the beginning of the
@@ -358,17 +329,11 @@ impl Default for IotaSystemStateSummary {
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 0,
-            stake_subsidy_start_epoch: 0,
             max_validator_count: 0,
             min_validator_joining_stake: 0,
             validator_low_stake_threshold: 0,
             validator_very_low_stake_threshold: 0,
             validator_low_stake_grace_period: 0,
-            stake_subsidy_balance: 0,
-            stake_subsidy_distribution_counter: 0,
-            stake_subsidy_current_distribution_amount: 0,
-            stake_subsidy_period_length: 0,
-            stake_subsidy_decrease_rate: 0,
             total_stake: 0,
             active_validators: vec![],
             pending_active_validators_id: ObjectID::ZERO,
@@ -474,7 +439,7 @@ where
         &ID::new(pool_id),
     )
     .map_err(|err| {
-        IotaError::IotaSystemStateReadError(format!(
+        IotaError::IotaSystemStateRead(format!(
             "Failed to load candidate address from pool mappings: {:?}",
             err
         ))

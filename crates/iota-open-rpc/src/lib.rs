@@ -187,23 +187,6 @@ impl MethodRouting {
     }
 }
 
-#[test]
-fn test_version_matching() {
-    let routing = MethodRouting::eq("1.5", "test");
-    assert!(routing.matches("1.5"));
-    assert!(!routing.matches("1.6"));
-    assert!(!routing.matches("1.4"));
-
-    let routing = MethodRouting::le("1.5", "test");
-    assert!(routing.matches("1.5"));
-    assert!(routing.matches("1.4.5"));
-    assert!(routing.matches("1.4"));
-    assert!(routing.matches("1.3"));
-
-    assert!(!routing.matches("1.6"));
-    assert!(!routing.matches("1.5.1"));
-}
-
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct ExamplePairing {
     name: String,
@@ -447,4 +430,26 @@ struct Components {
     content_descriptors: BTreeMap<String, ContentDescriptor>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     schemas: BTreeMap<String, SchemaObject>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_matching() {
+        let routing = MethodRouting::eq("1.5", "test");
+        assert!(routing.matches("1.5"));
+        assert!(!routing.matches("1.6"));
+        assert!(!routing.matches("1.4"));
+
+        let routing = MethodRouting::le("1.5", "test");
+        assert!(routing.matches("1.5"));
+        assert!(routing.matches("1.4.5"));
+        assert!(routing.matches("1.4"));
+        assert!(routing.matches("1.3"));
+
+        assert!(!routing.matches("1.6"));
+        assert!(!routing.matches("1.5.1"));
+    }
 }

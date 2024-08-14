@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Network } from '@iota/iota.js/client';
+import { type Network } from '@iota/iota-sdk/client';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 

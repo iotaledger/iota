@@ -3,7 +3,7 @@
 
 import { Copy12 } from '@iota/icons';
 import { Text } from '_src/ui/app/shared/text';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { IconButton } from '../IconButton';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
@@ -26,9 +26,9 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
     const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
 
     return (
-        <div className="group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3">
+        <div className="border-hero/10 group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid bg-white/40 px-4 py-3">
             <div className="flex w-full flex-row items-center justify-between">
-                <div className="flex gap-1.5 leading-none text-steel-dark">
+                <div className="text-steel-dark flex gap-1.5 leading-none">
                     <Text variant="body" weight="semibold">
                         {formatAddress(account.address)}
                     </Text>

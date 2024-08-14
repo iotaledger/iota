@@ -9,7 +9,7 @@ These examples demonstrate some possible use cases for the IOTA Owned Object Poo
 
 ## Use case 1: Parallel coin transfers service—Multiple Coins
 
-Assume that you have a service that needs to make payments of size 50000000 MICROS to multiple
+Assume that you have a service that needs to make payments of size 50000000 NANOS to multiple
 recipients in parallel.
 
 Before creating an `ExecutorServiceHandler` instance that executes each incoming transaction, you
@@ -30,9 +30,9 @@ coins to your address:
 <AlphaNet />
 
 ```ts
-import { IotaClient } from '@iota/iota.js/client/';
-import type { IotaObjectRef, IotaObjectResponse } from '@iota/iota.js/client/';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IotaClient } from '@iota/iota-sdk/client/';
+import type { IotaObjectRef, IotaObjectResponse } from '@iota/iota-sdk/client/';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const client = new IotaClient({
     url: 'https://fullnode.testnet.iota.io:443',
@@ -111,7 +111,7 @@ for (let i = 0; i < 10; i++) {
         eshandler.execute(
             txb,
             client,
-            new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 MICROS
+            new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 NANOS
         ),
     );
 }
