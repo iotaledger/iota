@@ -1,6 +1,6 @@
 {
     "name": "@iota/kiosk",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "Iota Kiosk library",
     "version": "0.0.0",
     "license": "Apache-2.0",
