@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useFeature } from '@growthbook/growthbook-react';
 import { Content } from '_app/shared/bottom-menu-layout';
-import { FiltersPortal, AppsPlayGround, ConnectedAppsCard, type DAppEntry } from '_components';
+import FiltersPortal from '_components/filters-tags';
+import { ConnectedAppsCard } from '_components/iota-apps';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
 import { Feature } from '_src/shared/experimentation/features';
+import type { DAppEntry } from '_src/ui/app/components/iota-apps/IotaApp';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect } from 'react';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
 import st from './AppsPage.module.scss';
 
@@ -78,8 +80,13 @@ function AppsPage() {
                         callback={handleFiltersPortalClick}
                     />
                     <Routes>
+                        {/* Note: because we disabled the featured apps playground, disable any subroute that is not connected dapps */}
+                        {/* <Route path="/:tagName?" element={<AppsPlayGround />} /> */}
+                        <Route
+                            path="/*"
+                            element={<Navigate to="/apps/connected" replace={true} />}
+                        />
                         <Route path="/connected" element={<ConnectedAppsCard />} />
-                        <Route path="/:tagName?" element={<AppsPlayGround />} />
                     </Routes>
                 </section>
             </Content>
