@@ -160,7 +160,6 @@ impl StateSnapshotUploader {
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                let bytes = Bytes::from_static(b"success");
                 let state_snapshot_completed_marker =
                     db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
                 put(
