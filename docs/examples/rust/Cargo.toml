@@ -50,3 +50,7 @@ path = "stardust/nft-migration.rs"
 [[example]]
 name = "foundry-output-claim"
 path = "stardust/foundry-output-claim.rs"
+
+[[example]]
+name = "shimmer-self-sponsor"
+path = "stardust/shimmer-self-sponsor.rs"
