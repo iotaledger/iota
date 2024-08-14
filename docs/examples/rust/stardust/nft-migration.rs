@@ -26,7 +26,6 @@ use shared_crypto::intent::Intent;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
-const CUSTOM_NFT_PACKAGE_PATH: &str = "../move/custom_nft";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -42,9 +41,10 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{sender:?}");
 
     // Publish the package of a custom NFT collection and then get the package id.
+    // The custom NFT module is obtained from a Move example in the docs.
+    // It is the same used in the Alias migration example.
     let custom_nft_package_id =
-        publish_custom_nft_package(sender, &mut keystore, &iota_client, CUSTOM_NFT_PACKAGE_PATH)
-            .await?;
+        publish_custom_nft_package(sender, &mut keystore, &iota_client).await?;
 
     // Get a gas coin
     let gas_coin = iota_client

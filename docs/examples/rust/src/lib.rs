@@ -3,7 +3,10 @@
 
 //! A set of utility functions for the examples.
 
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{anyhow, Result};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
@@ -23,6 +26,9 @@ use shared_crypto::intent::Intent;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
+
+/// Move Custom NFT example relative path
+const CUSTOM_NFT_PACKAGE_PATH: &str = "../move/custom_nft";
 
 /// Creates a temporary keystore.
 pub fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
@@ -112,7 +118,6 @@ pub async fn publish_custom_nft_package(
     sender: IotaAddress,
     keystore: &mut FileBasedKeystore,
     iota_client: &IotaClient,
-    package_path: &str,
 ) -> Result<ObjectID> {
     // Get a gas coin
     let gas_coin = iota_client
@@ -125,7 +130,8 @@ pub async fn publish_custom_nft_package(
         .ok_or(anyhow!("No coins found"))?;
 
     // Build custom nft package
-    let compiled_package = BuildConfig::default().build(package_path.into())?;
+    let package_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(CUSTOM_NFT_PACKAGE_PATH);
+    let compiled_package = BuildConfig::default().build(package_path)?;
     let modules = compiled_package
         .get_modules()
         .map(|module| {
