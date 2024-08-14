@@ -34,7 +34,6 @@ const MAIN_ADDRESS_MNEMONIC: &str = "crazy drum raw dirt tooth where fee base wa
 
 /// Creates a temporary keystore
 fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
     let keystore_path = PathBuf::from("iotatempdb");
     if !keystore_path.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
