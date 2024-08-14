@@ -133,7 +133,11 @@ export function ProtectAccountForm({
                                 <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                                     I read and agreed to the
                                 </span>
-                                <a href={ToS_LINK} className="text-label-lg text-primary-30">
+                                <a
+                                    href={ToS_LINK}
+                                    className="text-label-lg text-primary-30"
+                                    target="_blank"
+                                >
                                     Terms of Services
                                 </a>
                             </div>

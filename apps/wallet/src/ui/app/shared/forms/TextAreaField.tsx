@@ -4,8 +4,8 @@
 
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
 
-import { TextArea } from '@iota/apps-ui-kit';
 import FormField from './FormField';
+import { TextArea } from '@iota/apps-ui-kit';
 
 type TextAreaFieldProps = {
     name: string;

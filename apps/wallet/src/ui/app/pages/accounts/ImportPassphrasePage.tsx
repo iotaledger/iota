@@ -24,6 +24,18 @@ export function ImportPassphrasePage() {
         setIsTextVisible(!isTextVisible);
     }
 
+    function handleOnSubmit({ recoveryPhrase }: { recoveryPhrase: string[] }) {
+        setFormValues({
+            type: AccountsFormType.ImportMnemonic,
+            entropy: entropyToSerialized(mnemonicToEntropy(recoveryPhrase.join(' '))),
+        });
+        navigate(
+            `/accounts/protect-account?${new URLSearchParams({
+                accountsFormType: AccountsFormType.ImportMnemonic,
+            }).toString()}`,
+        );
+    }
+
     const BUTTON_ICON_CLASSES = 'w-5 h-5 text-neutral-10';
     return (
         <PageTemplate title="Import Mnemonic" isTitleCentered showBackButton>
@@ -47,19 +59,7 @@ export function ImportPassphrasePage() {
                         cancelButtonText="Back"
                         submitButtonText="Add Profile"
                         isTextVisible={isTextVisible}
-                        onSubmit={({ recoveryPhrase }) => {
-                            setFormValues({
-                                type: AccountsFormType.ImportMnemonic,
-                                entropy: entropyToSerialized(
-                                    mnemonicToEntropy(recoveryPhrase.join(' ')),
-                                ),
-                            });
-                            navigate(
-                                `/accounts/protect-account?${new URLSearchParams({
-                                    accountsFormType: AccountsFormType.ImportMnemonic,
-                                }).toString()}`,
-                            );
-                        }}
+                        onSubmit={handleOnSubmit}
                     />
                 </div>
             </div>

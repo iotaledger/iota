@@ -24,7 +24,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@iota/icons';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { MICROS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
@@ -250,7 +250,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                                     to={stakeByValidatorAddress + '&unstake=true'}
                                     onClick={() => {
                                         ampli.clickedUnstakeIota({
-                                            stakedAmount: Number(totalStake / MICROS_PER_IOTA),
+                                            stakedAmount: Number(totalStake / NANO_PER_IOTA),
                                             validatorAddress,
                                         });
                                     }}

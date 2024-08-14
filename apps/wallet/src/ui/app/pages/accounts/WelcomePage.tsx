@@ -18,6 +18,7 @@ export function WelcomePage() {
         !(createAccountsMutation.isPending || createAccountsMutation.isSuccess),
     );
     const navigate = useNavigate();
+    const CURRENT_YEAR = new Date().getFullYear();
 
     return (
         <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
@@ -42,7 +43,9 @@ export function WelcomePage() {
                         }
                     />
                 </div>
-                <div className="text-body-lg text-neutral-60">&copy; IOTA Foundation 2024</div>
+                <div className="text-body-lg text-neutral-60">
+                    &copy; IOTA Foundation {CURRENT_YEAR}
+                </div>
             </div>
         </Loading>
     );

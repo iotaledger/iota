@@ -1,15 +1,7 @@
 name: Mysticeti tests
 
 on:
-  push:
-    branches:
-      - "develop"
-      - "devnet"
-      - "testnet"
-      - "mainnet"
-      - "releases/iota-*-release"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
   workflow_dispatch:
     inputs:
       iota_repo_ref:
@@ -88,23 +80,7 @@ jobs:
       - name: cargo test
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
-  diff:
-    runs-on: [self-hosted]
-    outputs:
-      isRust: ${{ steps.diff.outputs.isRust }}
-      isMove: ${{ steps.diff.outputs.isMove }}
-      isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-        with:
-          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-      - name: Detect Changes
-        uses: "./.github/actions/diffs"
-        id: diff
-
   test-extra:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
     timeout-minutes: 45
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
