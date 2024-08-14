@@ -91,22 +91,19 @@ function LeftContent({
 }) {
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
-        <div className="flex flex-row items-center gap-sm p-xs">
-            <Link to="/" className="text-gray-90 no-underline">
-                <div
-                    className={cn(
-                        'rounded-full p-1 text-neutral-100 [&_svg]:h-5 [&_svg]:w-5',
-                        backgroundColor,
-                    )}
-                >
-                    {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
-                </div>
-            </Link>
-            <Link to="/accounts/manage" className="text-gray-90 no-underline">
-                <span className="text-title-sm text-neutral-10">
-                    {formatAddress(account || '')}
-                </span>
-            </Link>
-        </div>
+        <Link
+            to="/accounts/manage"
+            className="flex flex-row items-center gap-sm p-xs text-pink-200 no-underline"
+        >
+            <div
+                className={cn(
+                    'rounded-full p-1 text-neutral-100 [&_svg]:h-5 [&_svg]:w-5',
+                    backgroundColor,
+                )}
+            >
+                {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
+            </div>
+            <span className="text-title-sm text-neutral-10">{formatAddress(account || '')}</span>
+        </Link>
     );
 }
