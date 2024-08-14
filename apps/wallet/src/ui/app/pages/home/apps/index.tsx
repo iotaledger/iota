@@ -4,11 +4,9 @@
 
 import { useFeature } from '@growthbook/growthbook-react';
 import { Content } from '_app/shared/bottom-menu-layout';
-import FiltersPortal from '_components/filters-tags';
-import { ConnectedAppsCard } from '_components/iota-apps';
+import { FiltersPortal, ConnectedAppsCard, type DAppEntry } from '_components';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
 import { Feature } from '_src/shared/experimentation/features';
-import type { DAppEntry } from '_src/ui/app/components/iota-apps/IotaApp';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
