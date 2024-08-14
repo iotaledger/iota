@@ -8955,7 +8955,7 @@ dependencies = [
 [[package]]
 name = "msim"
 version = "0.1.0"
-source = "git+ssh://git@github.com/iotaledger/iota-sim.git?branch=main#afb40f7f65138c980f3ea7235827cbc04232aee6"
+source = "git+ssh://git@github.com/iotaledger/iota-sim.git?branch=main#7019e8d643c4f6aa760154fa8f2e10fcb24e27a4"
 dependencies = [
  "ahash 0.8.11",
  "async-task",
@@ -8983,7 +8983,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/iotaledger/iota-sim.git?branch=main#afb40f7f65138c980f3ea7235827cbc04232aee6"
+source = "git+ssh://git@github.com/iotaledger/iota-sim.git?branch=main#7019e8d643c4f6aa760154fa8f2e10fcb24e27a4"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2 1.0.86",
