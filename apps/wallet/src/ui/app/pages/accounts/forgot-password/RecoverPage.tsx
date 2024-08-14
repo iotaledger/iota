@@ -39,7 +39,7 @@ export function RecoverPage() {
         try {
             await recoveryDataMutation.mutateAsync({
                 type: AccountSourceType.Mnemonic,
-                accountSourceID: mnemonicAccountSource.id,
+                accountSourceID: mnemonicAccountSource?.id ?? '',
                 entropy: entropyToSerialized(mnemonicToEntropy(recoveryPhrase.join(' '))),
             });
             navigate('../warning');
