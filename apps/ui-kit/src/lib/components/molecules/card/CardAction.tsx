@@ -15,8 +15,11 @@ export type CardActionProps = {
 export function CardAction({ type, onClick, subtitle, title }: CardActionProps) {
     if (type === CardActionType.Link) {
         return (
-            <div onClick={onClick} className="shrink-0">
-                <ArrowRight className="h-6 w-6 text-neutral-10 dark:text-neutral-92" />
+            <div
+                onClick={onClick}
+                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-6 [&_svg]:w-6"
+            >
+                <ArrowRight />
             </div>
         );
     }

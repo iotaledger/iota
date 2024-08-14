@@ -47,6 +47,10 @@ export interface ButtonProps {
      * The type of the button. Available options are 'button', 'submit', 'reset'.
      */
     htmlType?: ButtonHtmlType;
+    /**
+     * The tab index of the button.
+     */
+    tabIndex?: number;
 }
 
 export function Button({
@@ -58,6 +62,7 @@ export function Button({
     htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
+    tabIndex = 0,
 }: ButtonProps): React.JSX.Element {
     const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
     const textSizes = TEXT_CLASSES[size];
@@ -68,12 +73,13 @@ export function Button({
             onClick={onClick}
             type={htmlType}
             className={cx(
-                'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:opacity-40',
+                'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:cursor-not-allowed disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
                 fullWidth && 'w-full',
             )}
             disabled={disabled}
+            tabIndex={tabIndex}
         >
             {icon && <span className={cx(textColors)}>{icon}</span>}
             {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
