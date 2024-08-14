@@ -1,6 +1,6 @@
 {
     "name": "@iota/dapp-kit",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "A collection of React hooks and components for interacting with the Iota blockchain and wallets.",
     "homepage": "https://sdk.mystenlabs.com/typescript",
     "version": "0.0.0",
