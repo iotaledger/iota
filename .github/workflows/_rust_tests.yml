@@ -1,43 +1,6 @@
 name: Rust tests
 
-on:
-  push:
-    branches:
-      - "develop"
-      - "devnet"
-      - "testnet"
-      - "mainnet"
-      - "releases/iota-*-release"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-
-env:
-  CARGO_TERM_COLOR: always
-  # Disable incremental compilation.
-  #
-  # Incremental compilation is useful as part of an edit-build-test-edit cycle,
-  # as it lets the compiler avoid recompiling code that hasn't changed. However,
-  # on CI, we're not making small edits; we're almost always building the entire
-  # project from scratch. Thus, incremental compilation on CI actually
-  # introduces *additional* overhead to support making future builds
-  # faster...but no future builds will ever occur in any given CI environment.
-  #
-  # See https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
-  # for details.
-  CARGO_INCREMENTAL: 0
-  # Allow more retries for network requests in cargo (downloading crates) and
-  # rustup (installing toolchains). This should help to reduce flaky CI failures
-  # from transient network timeouts or other issues.
-  CARGO_NET_RETRY: 10
-  RUSTUP_MAX_RETRIES: 10
-  # Don't emit giant backtraces in the CI logs.
-  RUST_BACKTRACE: short
-  # RUSTFLAGS: -D warnings
-  RUSTDOCFLAGS: -D warnings
+on: workflow_call
 
 jobs:
   changes:
@@ -54,6 +17,8 @@ jobs:
 
   test:
     name: Test ${{ matrix.components }}
+    needs: changes
+    if: needs.changes.outputs.components != '[]'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -64,7 +29,6 @@ jobs:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
     runs-on: [self-hosted]
-    needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
@@ -73,6 +37,8 @@ jobs:
 
   iota-sdk-changes:
     runs-on: [self-hosted]
+    outputs:
+      changed: ${{ steps.filter.outputs.iota-sdk }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: dorny/paths-filter@v3
@@ -84,7 +50,7 @@ jobs:
 
   test-iota-sdk:
     name: Test iota-sdk
-    if: needs.iota-sdk-changes.outputs.iota-sdk == 'true'
+    if: needs.iota-sdk-changes.outputs.changed == 'true'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -118,7 +84,7 @@ jobs:
 
   check-unused-deps-iota-sdk:
     name: Check Unused Dependencies of iota-sdk (${{ matrix.flags }})
-    if: needs.iota-sdk-changes.outputs.iota-sdk == 'true'
+    if: needs.iota-sdk-changes.outputs.changed == 'true'
     runs-on: [self-hosted]
     needs: iota-sdk-changes
     strategy:
@@ -133,56 +99,7 @@ jobs:
       - name: Run Cargo Udeps
         run: cargo +nightly ci-udeps -p iota-sdk@0.1.4 ${{ matrix.flags }}
 
-  diff:
-    runs-on: [self-hosted]
-    outputs:
-      isRust: ${{ steps.diff.outputs.isRust }}
-      isMove: ${{ steps.diff.outputs.isMove }}
-      isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Detect Changes
-        uses: "./.github/actions/diffs"
-        id: diff
-
-  license-check:
-    name: license-check
-    if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-
-      - name: Run cargo-license-template
-        run: cargo ci-license
-
-  release-notes-description-check:
-    name: release-notes-check
-    needs: diff
-    if: needs.diff.outputs.isReleaseNotesEligible == 'true'
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Check Pull Request Description
-        shell: bash
-        run: |
-          export PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
-          export DESCRIPTION=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/iotaledger/iota/pulls/${PR_NUMBER}" \
-            | jq --raw-output .body)
-
-          if [[ "${DESCRIPTION}" == *"[x]"*  ]]; then
-            if [[ "${DESCRIPTION}" =~ Release[[:space:]]notes[[:space:]]+.* ]]; then
-              exit 0
-            else
-              echo "At least one '[x]' was checked under 'Type of Change (Check all that apply)', you need to add a blob under the 'Release Notes' section."
-              exit 1
-            fi
-          fi
-
   test-extra:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -241,25 +158,8 @@ jobs:
   #           run: |
   #               scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
-  # This job ensures that Move unit tests are run if there are changes
-  # to Move code but not Rust code (If there are Rust changes, they
-  # will be run as part of a larger test suite).
-  move-test:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true'
-    timeout-minutes: 10
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
-      - name: Run move tests
-        run: |
-          cargo nextest run -p iota-framework-tests -- unit_tests::
-
   # # Disabled
   # rosetta-validation:
-  #   needs: diff
-  #   if: needs.diff.outputs.isRust == 'true'
   #   timeout-minutes: 45
   #   runs-on: [self-hosted]
   #   steps:
@@ -292,98 +192,8 @@ jobs:
   #         ./bin/rosetta-cli --configuration-file rosetta_cli.json check:data
   #       shell: bash
 
-  clippy:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted]
-    steps:
-      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # pin@v3.0.0
-        # this avoids rate-limiting
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - run: rustup component add clippy
-      # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
-      # Enable caching of the 'librocksdb-sys' crate by additionally caching the
-      # 'librocksdb-sys' src directory which is managed by cargo
-      # - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-      #   with:
-      #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
-
-      # See '.cargo/config' for list of enabled/disabled clippy lints
-      - name: Check Clippy Lints
-        run: cargo ci-clippy
-
-  rustfmt:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Install latest nightly
-        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
-      - name: Check Rust formatting
-        run: cargo +nightly ci-fmt
-
-  cargo-deny:
-    name: cargo-deny (advisories, licenses, bans, ...)
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - uses: EmbarkStudios/cargo-deny-action@v1
-
-  iota-excution-cut:
-    name: cutting a new execution layer
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Install cargo-hakari, and cache the binary
-        uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
-        with:
-          crate: cargo-hakari
-          locked: true
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - name: Make cut
-        run: ./scripts/execution_layer.py cut for_ci_test
-      - name: Check execution builds
-        run: cargo build -p iota-execution
-
-    #indexer:
-    #  name: indexer
-    #  needs: diff
-    #  if: needs.diff.outputs.isRust == 'true'
-    #  timeout-minutes: 45
-    #  runs-on: [self-hosted]
-    #  services:
-    #    postgres:
-    #      image: postgres
-    #      env:
-    #        POSTGRES_PASSWORD: postgrespw
-    #      options: >-
-    #        --health-cmd pg_isready
-    #        --health-interval 10s
-    #        --health-timeout 5s
-    #        --health-retries 5
-    #      ports:
-    #        - 5432:5432
-    #  steps:
-    #    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-    #    - name: integration-test-with-postgres
-    #      #We only have 1 instance of postgres DB, can only run test in single thread
-    #      run: |
-    #        cargo test --package iota-indexer --test integration_tests --features pg_integration -- --test-threads=1
-    #      env:
-    #        POSTGRES_HOST: localhost
-    #        POSTGRES_PORT: 5432
-
   graphql-rpc:
     name: graphql-rpc
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
     timeout-minutes: 45
     runs-on: [self-hosted]
     env:
