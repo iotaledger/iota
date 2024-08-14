@@ -1,6 +1,10 @@
 name: Rust crates
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,32 +31,50 @@ env:
 
 jobs:
   rust-lints:
+    if: inputs.isRust
     uses: ./.github/workflows/_rust_lints.yml
 
   external-lints:
+    if: inputs.isRust
     uses: ./.github/workflows/_external_rust_lints.yml
 
   rust-tests:
+    if: inputs.isRust
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_rust_tests.yml
 
   external-tests:
+    if: inputs.isRust
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_external_rust_tests.yml
 
   mysticeti-tests:
+    if: inputs.isRust
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_mysticeti_tests.yml
 
   execution-cut:
+    if: inputs.isRust
     needs:
       - rust-tests
       - external-tests
       - mysticeti-tests
     uses: ./.github/workflows/_execution_cut.yml
+
+  # The following jobs run only to satisfy required workflows in github
+
+  stub-rust-lints:
+    name: rust-lints
+    if: inputs.isRust == 'false'
+    runs-on: [self-hosted]
+
+  stub-external-lints:
+    name: external-lints
+    if: inputs.isRust == 'false'
+    runs-on: [self-hosted]

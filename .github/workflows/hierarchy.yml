@@ -111,8 +111,9 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
     uses: ./.github/workflows/_rust.yml
+    with:
+      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
     needs:
@@ -127,3 +128,35 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
+
+  # The following jobs run only to satisfy required workflows in github
+
+  stub-license-check:
+    name: license-check
+    needs: diff
+    if: ${{ needs.diff.outputs.isRust == 'false' }}
+    runs-on: [self-hosted]
+
+  stub-move-tests:
+    name: move-tests
+    needs: diff
+    if: ${{ needs.diff.outputs.isRust == 'true' || needs.diff.outputs.isMove == 'false' }}
+    runs-on: [self-hosted]
+
+  stub-docusaurus:
+    name: docusaurus
+    needs: diff
+    if: ${{ needs.diff.outputs.isDoc == 'false' }}
+    runs-on: [self-hosted]
+
+  stub-docs-lint:
+    name: docs-lint
+    needs: diff
+    if: ${{ needs.diff.outputs.isDoc == 'false' }}
+    runs-on: [self-hosted]
+
+  stub-release-notes-description-check:
+    name: release-notes-description-check
+    needs: diff
+    if: ${{ needs.diff.outputs.isReleaseNotesEligible == 'false' }}
+    runs-on: [self-hosted]
