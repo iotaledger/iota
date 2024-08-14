@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Button,
     ButtonType,
     Checkbox,
     InfoBox,
@@ -11,7 +12,6 @@ import {
     TextArea,
 } from '@iota/apps-ui-kit';
 import { Exclamation, Info } from '@iota/ui-icons';
-import { Button } from '_app/shared/ButtonUI';
 import { Loading, PageTemplate } from '_components';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { useEffect, useMemo, useState } from 'react';
