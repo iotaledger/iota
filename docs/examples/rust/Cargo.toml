@@ -23,8 +23,8 @@ tokio.workspace = true
 move-core-types.workspace = true
 
 [[example]]
-name = "address_unlock_condition"
-path = "stardust/address_unlock_condition.rs"
+name = "address-unlock-condition"
+path = "stardust/address-unlock-condition.rs"
 
 [[example]]
 name = "nft-output-claim"
