@@ -111,6 +111,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
+    if: always()
     uses: ./.github/workflows/_rust.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
