@@ -49,7 +49,7 @@ const MODE_TO_ICON = {
     warning: <Info16 className="h-3.5 w-3.5" />,
     issue: <Info16 className="h-3.5 w-3.5" />,
     success: <CheckStroke16 className="h-3 w-3" />,
-    loading: <LoadingIndicator color="inherit" />,
+    loading: <LoadingIndicator color="inherit" />, // Note: Import LoadingIndicator using the exact file path, not just '_components' to avoid module resolution issues.
 };
 
 export function Alert({
