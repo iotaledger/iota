@@ -1089,7 +1089,7 @@ mod tests {
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
             mock_state.expect_get_balance().returning(move |_, _| {
-                Err(IotaError::ExecutionError("mock db error".to_string()).into())
+                Err(IotaError::Execution("mock db error".to_string()).into())
             });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -1310,8 +1310,7 @@ mod tests {
             id::UID,
             iota_system_state::{
                 iota_system_state_inner_v1::{
-                    IotaSystemStateInnerV1, StakeSubsidyV1, StorageFundV1, SystemParametersV1,
-                    ValidatorSetV1,
+                    IotaSystemStateInnerV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
                 },
                 IotaSystemState,
             },
@@ -1473,7 +1472,6 @@ mod tests {
                 },
                 parameters: SystemParametersV1 {
                     epoch_duration_ms: Default::default(),
-                    stake_subsidy_start_epoch: Default::default(),
                     max_validator_count: Default::default(),
                     min_validator_joining_stake: Default::default(),
                     validator_low_stake_threshold: Default::default(),
@@ -1484,14 +1482,6 @@ mod tests {
                 reference_gas_price: Default::default(),
                 validator_report_records: VecMap {
                     contents: Default::default(),
-                },
-                stake_subsidy: StakeSubsidyV1 {
-                    balance: iota_types::balance::Balance::new(Default::default()),
-                    distribution_counter: Default::default(),
-                    current_distribution_amount: Default::default(),
-                    stake_subsidy_period_length: Default::default(),
-                    stake_subsidy_decrease_rate: Default::default(),
-                    extra_fields: Default::default(),
                 },
                 safe_mode: Default::default(),
                 safe_mode_storage_charges: iota_types::balance::Balance::new(Default::default()),

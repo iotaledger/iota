@@ -8,7 +8,7 @@ import { useContext } from 'react';
 import { NetworkContext } from '~/contexts';
 import { NetworkSelect, type NetworkOption } from '~/components/ui';
 import { ampli } from '~/lib/utils';
-import { getAllNetworks } from '@iota/iota.js/client';
+import { getAllNetworks } from '@iota/iota-sdk/client';
 
 export function NetworkSelector(): JSX.Element {
     const [network, setNetwork] = useContext(NetworkContext);

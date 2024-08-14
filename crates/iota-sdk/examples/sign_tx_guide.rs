@@ -34,9 +34,6 @@ use crate::utils::request_tokens_from_faucet;
 /// https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/iota-101/sign-and-send-txn.mdx
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .unwrap();
     // set up iota client for the desired network.
     let iota_client = IotaClientBuilder::default().build_testnet().await?;
 

@@ -2,9 +2,8 @@
 description: How to use the custom functionality of ERC20NativeToken
 image: /img/logo/WASP_logo_dark.png
 tags:
-  - native token
+  - evm
   - erc20
-  - EVM
   - how-to
 ---
 

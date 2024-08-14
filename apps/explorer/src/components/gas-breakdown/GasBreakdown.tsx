@@ -8,7 +8,7 @@ import {
     useFormatCoin,
     useResolveIotaNSName,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Heading, Text } from '@iota/ui';
 
 import {
@@ -45,7 +45,7 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
 
             <div className="flex flex-wrap items-center text-body font-medium text-steel">
                 ({BigInt(amount)?.toLocaleString()}
-                <div className="ml-0.5 text-subtitleSmall font-medium text-steel">MICROS</div>)
+                <div className="ml-0.5 text-subtitleSmall font-medium text-steel">nano</div>)
             </div>
         </div>
     );
@@ -74,7 +74,7 @@ function TotalGasAmount({ amount }: GasProps): JSX.Element | null {
                     {BigInt(amount)?.toLocaleString()}
                 </Heading>
                 <Text variant="body/medium" color="steel">
-                    MICROS
+                    nano
                 </Text>
             </div>
         </div>

@@ -60,10 +60,6 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
             system_object.storage_fund.non_refundable_balance.value(),
         ),
     );
-    entry.insert(
-        "Stake Subsidy".to_string(),
-        (STR_IOTA, system_object.stake_subsidy.balance.value()),
-    );
 
     // Prepare Object Info
     let mut owner_map = BTreeMap::new();

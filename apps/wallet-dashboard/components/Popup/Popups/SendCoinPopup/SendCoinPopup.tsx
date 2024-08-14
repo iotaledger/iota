@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
-import { CoinBalance } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';

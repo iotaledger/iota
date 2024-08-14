@@ -1,4 +1,7 @@
-import { getFullnodeUrl } from "@iota/iota.js/client";
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { getFullnodeUrl } from "@iota/iota-sdk/client";
 import {
   DEVNET_COUNTER_PACKAGE_ID,
   MAINNET_COUNTER_PACKAGE_ID,
