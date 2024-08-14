@@ -2,26 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Button } from '_app/shared/ButtonUI';
-import { Text } from '_app/shared/text';
 import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowRight16 } from '@iota/icons';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
-
-import { ValidatorListItem } from './ValidatorListItem';
-
-type SortKeys = 'name' | 'stakeShare' | 'apy';
-const SORT_KEYS: Record<SortKeys, string> = {
-    name: 'Name',
-    stakeShare: 'Stake Share',
-    apy: 'APY',
-};
+import { Button, Card, CardAction, CardActionType, CardBody, CardImage } from '@iota/apps-ui-kit';
+import { ImageIcon } from '../../shared/image-icon';
+import { formatAddress } from '@iota/iota-sdk/utils';
+import { useNavigate } from 'react-router-dom';
 
 type Validator = {
     name: string;
@@ -33,21 +24,14 @@ type Validator = {
 
 export function SelectValidatorCard() {
     const [selectedValidator, setSelectedValidator] = useState<Validator | null>(null);
-    const [sortKey, setSortKey] = useState<SortKeys | null>(null);
-    const [sortAscending, setSortAscending] = useState(true);
-    const { data, isPending, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
+    const navigate = useNavigate();
+
+    const { data, isPending, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const selectValidator = (validator: Validator) => {
         setSelectedValidator((state) => (state?.address !== validator.address ? validator : null));
-    };
-
-    const handleSortByKey = (key: SortKeys) => {
-        if (key === sortKey) {
-            setSortAscending(!sortAscending);
-        }
-        setSortKey(key);
     };
 
     const totalStake = useMemo(() => {
@@ -78,22 +62,8 @@ export function SelectValidatorCard() {
                 ),
             };
         });
-        if (sortKey) {
-            sortedAsc.sort((a, b) => {
-                if (sortKey === 'name') {
-                    return a[sortKey].localeCompare(b[sortKey], 'en', {
-                        sensitivity: 'base',
-                        numeric: true,
-                    });
-                }
-                // since apy can be null, fallback to 0
-                return (a[sortKey] || 0) - (b[sortKey] || 0);
-            });
-
-            return sortAscending ? sortedAsc : sortedAsc.reverse();
-        }
         return sortedAsc;
-    }, [validatorsRandomOrder, sortAscending, rollingAverageApys, totalStake, sortKey]);
+    }, [validatorsRandomOrder, rollingAverageApys, totalStake]);
 
     if (isPending) {
         return (
@@ -112,89 +82,59 @@ export function SelectValidatorCard() {
             </div>
         );
     }
-
     return (
-        <div className="-my-5 flex h-full w-full flex-col">
-            <Content className="flex w-full flex-col items-center">
-                <div className="sticky -top-5 z-50 mt-0 flex w-full flex-col items-center bg-white pb-2.5 pt-5">
-                    <div className="mb-2 flex w-full items-start">
-                        <Text variant="subtitle" weight="medium" color="steel-darker">
-                            Sort by:
-                        </Text>
-                        <div className="ml-2 flex items-center gap-1.5">
-                            {Object.entries(SORT_KEYS).map(([key, value]) => {
-                                return (
-                                    <button
-                                        key={key}
-                                        className="flex cursor-pointer gap-1 border-0 bg-transparent p-0"
-                                        onClick={() => handleSortByKey(key as SortKeys)}
-                                    >
-                                        <Text
-                                            variant="caption"
-                                            weight="medium"
-                                            color={sortKey === key ? 'hero' : 'steel-darker'}
-                                        >
-                                            {value}
-                                        </Text>
-                                        {sortKey === key && (
-                                            <ArrowRight16
-                                                className={cl(
-                                                    'text-hero text-captionSmall font-thin',
-                                                    sortAscending ? 'rotate-90' : '-rotate-90',
-                                                )}
-                                            />
-                                        )}
-                                    </button>
-                                );
+        <div className="flex h-full w-full flex-col justify-between overflow-hidden">
+            <div className="flex max-h-[530px] w-full flex-1 flex-col items-start overflow-auto">
+                {data &&
+                    validatorList.map((validator) => (
+                        <div
+                            className={cl('group relative w-full cursor-pointer', {
+                                selected: selectedValidator?.address === validator.address,
                             })}
-                        </div>
-                    </div>
-                    <div className="flex w-full items-start">
-                        <Text variant="subtitle" weight="medium" color="steel-darker">
-                            Select a validator to start staking IOTA.
-                        </Text>
-                    </div>
-                </div>
-                <div className="mt-1 flex w-full flex-1 flex-col items-start">
-                    {data &&
-                        validatorList.map((validator) => (
-                            <div
-                                data-testid="validator-list-item"
-                                className="relative w-full cursor-pointer"
-                                key={validator.address}
-                                onClick={() => selectValidator(validator)}
-                            >
-                                <ValidatorListItem
-                                    selected={selectedValidator?.address === validator.address}
-                                    validatorAddress={validator.address}
-                                    value={formatPercentageDisplay(
-                                        !sortKey || sortKey === 'name' ? null : validator[sortKey],
-                                        '-',
-                                        validator?.isApyApproxZero,
-                                    )}
-                                />
+                            key={validator.address}
+                        >
+                            <div className="group-[.selected]:rounded-xl group-[.selected]:ring-1 group-[.selected]:ring-inset group-[.selected]:ring-shader-neutral-light-12">
+                                <Card onClick={() => selectValidator(validator)}>
+                                    <CardImage>
+                                        <ImageIcon
+                                            src={null}
+                                            label={validator?.name || ''}
+                                            fallback={validator?.name || ''}
+                                        />
+                                    </CardImage>
+                                    <CardBody
+                                        title={validator.name}
+                                        subtitle={formatAddress(validator.address)}
+                                    />
+                                    <CardAction
+                                        type={CardActionType.SupportingText}
+                                        title={formatPercentageDisplay(
+                                            validator.apy,
+                                            '-',
+                                            validator?.isApyApproxZero,
+                                        )}
+                                    />
+                                </Card>
                             </div>
-                        ))}
-                </div>
-            </Content>
+                        </div>
+                    ))}
+            </div>
             {selectedValidator && (
-                <Menu stuckClass="staked-cta" className="-bottom-5 mx-0 w-full px-0 pb-5">
-                    <Button
-                        data-testid="select-validator-cta"
-                        size="tall"
-                        variant="primary"
-                        to={`/stake/new?address=${encodeURIComponent(selectedValidator.address)}`}
-                        onClick={() =>
-                            ampli.selectedValidator({
-                                validatorName: selectedValidator.name,
-                                validatorAddress: selectedValidator.address,
-                                validatorAPY: selectedValidator.apy || 0,
-                            })
-                        }
-                        text="Select Amount"
-                        after={<ArrowRight16 />}
-                    />
-                </Menu>
+                <Button
+                    fullWidth
+                    data-testid="select-validator-cta"
+                    onClick={() => {
+                        ampli.selectedValidator({
+                            validatorName: selectedValidator.name,
+                            validatorAddress: selectedValidator.address,
+                            validatorAPY: selectedValidator.apy || 0,
+                        });
+                        navigate(
+                            `/stake/new?address=${encodeURIComponent(selectedValidator.address)}`,
+                        );
+                    }}
+                    text="Next"
+                />
             )}
         </div>
     );

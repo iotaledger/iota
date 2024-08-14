@@ -2,18 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { X32 } from '@iota/icons';
-import cl from 'clsx';
 import { useCallback } from 'react';
 import type { ReactNode } from 'react';
-
-import useAppSelector from '../../hooks/useAppSelector';
-import { AppType } from '../../redux/slices/app/AppType';
 import { Portal } from '../../shared/Portal';
-import st from './Overlay.module.scss';
+import { Header } from '@iota/apps-ui-kit';
 
 interface OverlayProps {
-    title?: ReactNode;
+    title?: string;
     children: ReactNode;
     showModal: boolean;
     closeOverlay?: () => void;
@@ -22,15 +17,7 @@ interface OverlayProps {
     background?: 'bg-iota-lightest';
 }
 
-function Overlay({
-    title,
-    children,
-    showModal,
-    closeOverlay,
-    setShowModal,
-    closeIcon = <X32 fill="currentColor" className="text-iota-light h-8 w-8" />,
-    background,
-}: OverlayProps) {
+function Overlay({ title, children, showModal, closeOverlay, setShowModal }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
             closeOverlay && closeOverlay();
@@ -38,37 +25,12 @@ function Overlay({
         },
         [closeOverlay, setShowModal],
     );
-    const appType = useAppSelector((state) => state.app.appType);
-    const isFullScreen = appType === AppType.Fullscreen;
 
     return showModal ? (
         <Portal containerId="overlay-portal-container">
-            <div
-                className={cl(st.container, {
-                    [st.fullScreenContainer]: isFullScreen,
-                })}
-            >
-                {title && (
-                    <div className="bg-gray-40 h-12 w-full">
-                        <div
-                            data-testid="overlay-title"
-                            className="bg-gray-40 text-steel-darker flex h-12 items-center justify-center text-heading4 font-semibold"
-                        >
-                            {title}
-                        </div>
-                    </div>
-                )}
-                <div
-                    className={cl(st.content, background)}
-                    style={{
-                        height: title ? 'calc(100% - 128px)' : 'calc(100% - 80px)',
-                    }}
-                >
-                    {children}
-                </div>
-                <button data-testid="close-icon" className={st.closeOverlay} onClick={closeModal}>
-                    {closeIcon}
-                </button>
+            <div className="absolute inset-0 z-[9999] flex flex-col flex-nowrap items-center backdrop-blur-[20px]">
+                {title && <Header titleCentered title={title} onClose={closeModal} />}
+                <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
             </div>
         </Portal>
     ) : null;
