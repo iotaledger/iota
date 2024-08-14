@@ -1,7 +1,7 @@
 -- This file should undo anything in `up.sql`
 
 -- These views are placed on top because they depend on tables, if dropping the tables first and then the views it will result in an error.
--- We could use CASCADE or placing them on top before dropping teh tables
+-- We could use CASCADE or placing them on top before dropping the tables
 DROP VIEW network_metrics;
 DROP VIEW real_time_tps;
 
