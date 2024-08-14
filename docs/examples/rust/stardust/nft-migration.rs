@@ -6,7 +6,7 @@
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
 use anyhow::{anyhow, Result};
-use docs_examples::{clean_keystore, publish_custom_nft_package, setup_keystore};
+use docs_examples::utils::{clean_keystore, publish_custom_nft_package, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},

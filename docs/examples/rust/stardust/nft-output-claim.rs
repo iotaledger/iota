@@ -8,7 +8,7 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use docs_examples::{clean_keystore, setup_keystore};
+use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},

@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use docs_examples::{clean_keystore, fund_address, setup_keystore};
+use docs_examples::utils::{clean_keystore, fund_address, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     rpc_types::{
