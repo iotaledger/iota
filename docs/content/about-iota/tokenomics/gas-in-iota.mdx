@@ -32,14 +32,14 @@ Gas units include both
 
 Different IOTA transactions require varying amounts of computational time for processing and execution. IOTA translates these varying operational loads into transaction fees by measuring each transaction in terms of computation units. In general, more complex transactions require more computation units.
 
-Importantly, though, IOTA computation gas schedule is built with a bucketing/step approach. Two reasonably similar transactions translate into the exact same amount of computation units if they are in the same bucket, whereas two relatively different transactions translate into different amounts of computation units if they fall in separate buckets. The smallest bucket maps into 1,000 computation units, meaning that all transactions that fall into the smallest bucket cost 1,000 computation units. The largest bucket maps into 5,000,000 computation units; if a transaction requires more computation units, it aborts. Buckets move by a 1000 computation unit step.
+Importantly, though, IOTA computation gas schedule is built with a bucketing/step approach. Two reasonably similar transactions translate into the exact same amount of computation units if they are in the same bucket, whereas two relatively different transactions translate into different amounts of computation units if they fall in separate buckets. The smallest bucket maps into 1,000 computation units, meaning that all transactions that fall into the smallest bucket cost 1,000 computation units. The largest bucket maps into 5,000,000 computation units; if a transaction requires more computation units, it aborts.
+
+Buckets start at 1000 units and increment in steps up to 5,000,000, where the step value is set as a protocol parameter (currently the step is equal to 1000, effectively rounding up to the nearest 1000).
 
 Using bucketing accomplishes two important goals:
 
     - Frees users from optimizing their smart contracts to deliver marginal gains in gas costs via "gas golfing" — instead, they can focus on step-function improvements in their products and services.
     - Gives users the freedom to adjust per-instruction gas costs and experiment with new gas metering schemes without creating significant development disruption. This can happen frequently, so it's important that they do not rely on per-instruction gas costs remaining stable over time.
-
-Buckets start at 1000 units and increment in steps of 1000 units (effectively rounding to the nearest 1000) up to 5,000,000 units which is the max amount of computation allowed at this time.
 
 ### Storage units {#storage}
 
