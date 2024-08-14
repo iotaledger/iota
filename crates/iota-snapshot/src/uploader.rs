@@ -54,6 +54,8 @@ impl StateSnapshotUploaderMetrics {
     }
 }
 
+/// StateSnapshotUploader is responsible for uploading state snapshots to remote
+/// store.
 pub struct StateSnapshotUploader {
     /// Directory path on local disk where db checkpoints are stored
     db_checkpoint_path: PathBuf,
@@ -68,7 +70,8 @@ pub struct StateSnapshotUploader {
     staging_store: Arc<DynObjectStore>,
     /// Remote store i.e. S3, GCS, etc where state snapshots are uploaded to
     snapshot_store: Arc<DynObjectStore>,
-    /// Time interval to check for presence of new db checkpoint
+    /// Time interval to check for presence of new db checkpoint (default: 60
+    /// secs)
     interval: Duration,
     metrics: Arc<StateSnapshotUploaderMetrics>,
 }
@@ -104,6 +107,7 @@ impl StateSnapshotUploader {
         }))
     }
 
+    /// Starts the state snapshot uploader loop and manifest update loop.
     pub fn start(self: Arc<Self>) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
         tokio::task::spawn(Self::run_upload_loop(self.clone(), kill_sender.subscribe()));
@@ -114,13 +118,17 @@ impl StateSnapshotUploader {
         kill_sender
     }
 
+    /// Uploads state snapshots to remote store if they are missing.
     async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
+        // Find all local checkpoints db by epoch
         let local_checkpoints_by_epoch =
             find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store, None).await?;
         let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
         dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
         for (epoch, db_path) in dirs {
+            // Write state snapshot to remote store if it is missing
+            // or if the local has more advanced epochs than the remote
             if missing_epochs.contains(epoch) || *epoch >= last_missing_epoch {
                 info!("Starting state snapshot creation for epoch: {}", *epoch);
                 let state_snapshot_writer = StateSnapshotWriterV1::new_from_store(
@@ -178,6 +186,8 @@ impl StateSnapshotUploader {
         Ok(())
     }
 
+    /// Main loop that checks for missing remote state snapshots and uploads
+    /// them from the local store.
     async fn run_upload_loop(
         self: Arc<Self>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
@@ -207,6 +217,7 @@ impl StateSnapshotUploader {
         Ok(())
     }
 
+    /// Finds missing epochs in the remote store.
     async fn get_missing_epochs(&self) -> Result<Vec<u64>> {
         let missing_epochs = find_missing_epochs_dirs(&self.snapshot_store, SUCCESS_MARKER).await?;
         Ok(missing_epochs.to_vec())
