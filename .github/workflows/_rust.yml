@@ -33,12 +33,12 @@ jobs:
   rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
     with:
-      isRust: inputs.isRust
+      isRust: ${{ inputs.isRust }}
 
   external-lints:
     uses: ./.github/workflows/_external_rust_lints.yml
     with:
-      isRust: inputs.isRust
+      isRust: ${{ inputs.isRust }}
 
   rust-tests:
     if: inputs.isRust
