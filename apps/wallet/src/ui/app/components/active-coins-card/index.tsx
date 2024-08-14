@@ -50,7 +50,6 @@ export function ActiveCoinsCard({
                             <CoinItem
                                 coinType={activeCoin.coinType}
                                 balance={BigInt(activeCoin.totalBalance)}
-                                isActive
                             />
                         </Link>
                     )
