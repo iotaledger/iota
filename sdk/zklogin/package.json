@@ -1,9 +1,9 @@
 {
     "name": "@iota/zklogin",
-    "version": "0.5.1",
+    "version": "0.0.0",
     "description": "Utilities for interacting with zkLogin in Iota",
     "license": "Apache-2.0",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.js",

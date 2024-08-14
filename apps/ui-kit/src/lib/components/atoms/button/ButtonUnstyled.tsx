@@ -16,10 +16,16 @@ export function ButtonUnstyled({
     htmlType = ButtonHtmlType.Button,
     children,
     className,
+    tabIndex = 0,
     ...buttonProps
 }: ButtonUnstyledProps): React.JSX.Element {
     return (
-        <button type={htmlType} {...buttonProps} className={cx('appearance-none', className)}>
+        <button
+            type={htmlType}
+            {...buttonProps}
+            className={cx('appearance-none', className)}
+            tabIndex={tabIndex}
+        >
             {children}
         </button>
     );
