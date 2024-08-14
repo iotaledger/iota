@@ -92,7 +92,7 @@ export function PasswordModalDialog({
 
     return (
         <Dialog open={open}>
-            <DialogContent>
+            <DialogContent containerId="overlay-portal-container">
                 <Header title={title} onClose={onClose} />
                 <DialogBody>
                     <Form form={form} id={formID} onSubmit={handleOnSubmit}>
