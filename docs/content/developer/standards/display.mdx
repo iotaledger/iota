@@ -7,7 +7,7 @@ The IOTA Object Display standard is a template engine that enables on-chain mana
 
 Use a `Publisher` object that you own to set `iota::display` for a type. For more information about `Publisher` objects, see [Publisher](https://examples.iota.io/basics/publisher.html) topic in *IOTA Move by Example*.
 
-In IOTA Move, `Display<T>` represents an object that specifies a set of named templates for the type `T`. For example, for a type `0x2::capy::Capy` the display syntax is:  `Display<0x2::capy::Capy>`.
+In IOTA Move, `Display<T>` represents an object that specifies a set of named templates for the type `T`. For example, for a type `0x2::hero::Hero` the display syntax is:  `Display<0x2::hero::Hero>`.
 
 IOTA Full nodes process all objects of the type `T` by matching the `Display` definition, and return the processed result when you query an object with the `{ showDisplay: true }` setting in the query.
 
@@ -45,24 +45,21 @@ The following represents the template the `init` function defines:
 /// to use it to get the `Display<Hero>` object - a way to describe a
 /// type for the ecosystem.
 module examples::my_hero {
-    use iota::tx_context::{sender, TxContext};
     use std::string::{utf8, String};
-    use iota::transfer;
-    use iota::object::{Self, UID};
 
     // The creator bundle: these two packages often go together.
     use iota::package;
     use iota::display;
 
     /// The Hero - an outstanding collection of digital art.
-    struct Hero has key, store {
+    public struct Hero has key, store {
         id: UID,
         name: String,
         image_url: String,
     }
 
     /// One-Time-Witness for the module.
-    struct MY_HERO has drop {}
+    public struct MY_HERO has drop {}
 
     /// In the module initializer one claims the `Publisher` object
     /// to then create a `Display`. The `Display` is initialized with
@@ -82,17 +79,17 @@ module examples::my_hero {
         ];
 
         let values = vector[
-            // For `name` one can use the `Hero.name` property
+            // For `name` one can use the `Hero.name` property.
             utf8(b"{name}"),
-            // For `link` one can build a URL using an `id` property
+            // For `link` one can build a URL using an `id` property.
             utf8(b"https://iota-heroes.io/hero/{id}"),
             // For `image_url` use an IPFS template + `image_url` property.
             utf8(b"ipfs://{image_url}"),
             // Description is static for all `Hero` objects.
             utf8(b"A true Hero of the IOTA ecosystem!"),
-            // Project URL is usually static
+            // Project URL is usually static.
             utf8(b"https://iota-heroes.io"),
-            // Creator field can be any
+            // Creator field can be any.
             utf8(b"Unknown IOTA Fan")
         ];
 
@@ -100,15 +97,15 @@ module examples::my_hero {
         let publisher = package::claim(otw, ctx);
 
         // Get a new `Display` object for the `Hero` type.
-        let display = display::new_with_fields<Hero>(
+        let mut display = display::new_with_fields<Hero>(
             &publisher, keys, values, ctx
         );
 
         // Commit first version of `Display` to apply changes.
         display::update_version(&mut display);
 
-        transfer::public_transfer(publisher, sender(ctx));
-        transfer::public_transfer(display, sender(ctx));
+        transfer::public_transfer(publisher, ctx.sender());
+        transfer::public_transfer(display, ctx.sender());
     }
 
     /// Anyone can mint their `Hero`!
@@ -137,17 +134,17 @@ After you create the `Display`, you can modify it. The following code sample dem
 
 ```move
 module iota::display {
-    /// Sets multiple fields at once
+    /// Sets multiple fields at once.
     public fun add_multiple(
         self: &mut Display,
         keys: vector<String>,
         values: vector<String>
     ) { /* ... */ }
 
-    /// Edit a single field
+    /// Edit a single field.
     public fun edit(self: &mut Display, key: String, value: String) { /* ... */ }
 
-    /// Remove a key from Display
+    /// Remove a key from Display.
     public fun remove(self: &mut Display, key: String ) { /* ... */ }
 }
 ```
@@ -168,14 +165,15 @@ module iota::display {
 In IOTA, utility objects enable authorization for capabilities. Almost all modules have features that can be accessed only with the required capability. Generic modules allow one capability per application, such as a marketplace. Some capabilities mark ownership of a shared object on-chain, or access the shared data from another account.
 With capabilities, it is important to provide a meaningful description of objects to facilitate user interface implementation. This helps avoid accidentally transferring the wrong object when objects are similar. It also provides a user-friendly description of items that users see.
 
-The following example demonstrates how to create a capy capability:
+The following example demonstrates how to create a pet capability:
 
 ```move
-module capy::utility {
-   /// A capability which grants Capy Manager permission to add
-   /// new genes and manage the Capy Market
-   struct CapyManagerCap has key, store {
-    id: UID }
+module pet::utility {
+    /// A capability which grants Pet Manager permission to add
+    /// new genes and manage the Pet Market.
+    public struct PetManagerCap has key, store {
+      id: UID
+  }
 }
 ```
 
@@ -184,36 +182,36 @@ module capy::utility {
 A common case with in-game items is to have a large number of similar objects grouped by some criteria. It is important to optimize their size and the cost to mint and update them. Typically, a game uses a single source image or URL per group or item criteria. Storing the source image inside of every object is not optimal.
 In some cases, users mint in-game items when a game allows them or when they purchase an in-game item. To enable this, some IPFS/Arweave metadata must be created and stored in advance. This requires additional logic that is usually not related to the in-game properties of the item.
 
-The following example demonstrates how to create a Capy:
+The following example demonstrates how to create a Pet:
 
 ```move
-module capy::capy_items {
-   /// A wearable Capy item. For some items there can be an
-   /// unlimited supply. And items with the same name are identical.
-   struct CapyItem has key, store {
+module pet::pet_items {
+    /// A wearable Pet item. For some items there can be an
+    /// unlimited supply. And items with the same name are identical.
+    public struct PetItem has key, store {
         id: UID,
         name: String
-   }
+    }
 }
 ```
 
 ## Unique objects with dynamic representation
 
-IOTA Capys use dynamic image generation. When a Capy is born, its attributes determine the Capy’s appearance, such as color or pattern. When a user puts an item on a Capy, the Capy’s appearance changes. When users put multiple items on a Capy, there’s a chance of a bonus for a combination of items.
+IOTA Pets use dynamic image generation. When a Pet is born, its attributes determine the Pet’s appearance, such as color or pattern. When a user puts an item on a Pet, the Pet’s appearance changes. When users put multiple items on a Pet, there’s a chance of a bonus for a combination of items.
 
-To implement this, the Capys game API service refreshes the image in response to a user-initiated change. The URL for a Capy is a template with the `capy.id`. But storing the full URL - as well as other fields in the Capy object due to their diverse population - also leads to users paying for excess storage and increased gas fees.
+To implement this, the Pet's game API service refreshes the image in response to a user-initiated change. The URL for a Pet is a template with the `pet.id`. But storing the full URL - as well as other fields in the Pet object due to their diverse population - also leads to users paying for excess storage and increased gas fees.
 
 The following example demonstrates how to implement dynamic image generation:
 
 ```move
-module capy::capy {
-   /// A Capy - very diverse object with different combination
-   /// of genes. Created dynamically + for images a dynamic SVG
-   /// generation is used.
-   struct Capy has key, store {
-    id: UID,
-    genes: vector<u8>
-   }
+module pet::pet {
+    /// A Pet - very diverse object with different combination
+    /// of genes. Created dynamically. For images, a dynamic SVG
+    /// generation is used.
+    public struct Pet has key, store {
+        id: UID,
+        genes: vector<u8>
+    }
 }
 ```
 
@@ -223,13 +221,13 @@ This is the simplest scenario - an object represents everything itself. It is ve
 
 ```move
 module iota::devnet_nft {
-   /// A Collectible with a static data. URL, name, description are
-   /// set only once on a mint event
-   struct DevNetNFT has key, store {
-       id: UID,
-       name: String,
-       description: String,
-       url: Url,
-   }
+    /// A Collectible with static data.
+    /// URL, name and description are set only once during minting.
+    public struct DevNetNFT has key, store {
+        id: UID,
+        name: String,
+        description: String,
+        url: Url,
+    }
 }
 ```
