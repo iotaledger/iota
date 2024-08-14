@@ -1,0 +1,15 @@
+name: Docs spellcheck and linting
+
+on: workflow_call
+
+jobs:
+  spelling:
+    name: Lint documentation
+    runs-on: [self-hosted]
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Spell Check Docs
+        uses: crate-ci/typos@v1.16.11
+        with:
+          files: ./docs/content
