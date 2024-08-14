@@ -391,6 +391,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-8"
                     data-testid="coin-page"
                 >
+                    <div className="">asdf</div>
                     <AccountsList />
                     <div className="flex w-full flex-col">
                         <PortfolioName

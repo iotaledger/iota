@@ -10,7 +10,7 @@ export function PortfolioName({ name }: { name: string }) {
             <div className="bg-gray-45 h-px flex-1" />
             <div className="truncate">
                 <Text variant="caption" weight="semibold" color="steel-darker" truncate>
-                    {name} Portfolio
+                    {name} Portfoliof
                 </Text>
             </div>
             <div className="bg-gray-45 h-px flex-1" />
