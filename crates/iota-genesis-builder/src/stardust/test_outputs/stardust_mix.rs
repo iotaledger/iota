@@ -32,6 +32,7 @@ use crate::stardust::{
 };
 
 const OUTPUT_IOTA_AMOUNT: u64 = 1_000_000;
+const STORAGE_DEPOSIT_AMOUNT: u64 = 500_000;
 
 struct StardustWallet {
     mnemonic: &'static str,
@@ -237,20 +238,20 @@ fn new_basic_or_nft_outputs(
         ExpirationUnlockCondition::new(address, rng.gen())?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
     add_output_with_unlock_conditions(vec![
         StorageDepositReturnUnlockCondition::new(
             Ed25519Address::new([0u8; 32]),
-            500_0000,
+            STORAGE_DEPOSIT_AMOUNT,
             u64::MAX,
         )?
         .into(),
     ]);
     add_output_with_unlock_conditions(vec![
         AddressUnlockCondition::new(Ed25519Address::new([0u8; 32])).into(),
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
         TimelockUnlockCondition::new(rng.gen())?.into(),
@@ -259,7 +260,7 @@ fn new_basic_or_nft_outputs(
     add_output_with_unlock_conditions(vec![
         TimelockUnlockCondition::new(rng.gen())?.into(),
         ExpirationUnlockCondition::new(address, rng.gen())?.into(),
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
     outputs.push(finish_with_header(
