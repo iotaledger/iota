@@ -16,7 +16,7 @@ export function VerifyPasswordModal({ onClose, onVerify, open }: VerifyPasswordM
             {...{
                 onClose,
                 open,
-                title: 'Verify your wallet password',
+                title: 'Verify your profile password',
                 verify: true,
                 confirmText: 'Verify',
                 cancelText: 'Back',
