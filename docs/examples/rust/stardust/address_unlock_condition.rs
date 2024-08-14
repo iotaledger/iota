@@ -5,18 +5,19 @@
 //! In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use docs_examples::{clean_keystore, fund_address, setup_keystore};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     rpc_types::{
         IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
@@ -26,13 +27,10 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
         TypeTag, IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
     },
-    IotaClient, IotaClientBuilder,
+    IotaClientBuilder,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
-
-/// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
-const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -270,84 +268,4 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Finish and clean the temporary keystore file
     clean_keystore()
-}
-
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read iota keystore
-    FileBasedKeystore::new(&keystore_path)
-}
-
-fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove files
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-    Ok(())
-}
-
-async fn fund_address(
-    iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
-    recipient: IotaAddress,
-) -> Result<(), anyhow::Error> {
-    // Derive the address of the sponsor.
-    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None)?;
-
-    println!("Sponsor address: {sponsor:?}");
-
-    // Get a gas coin.
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sponsor, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found for sponsor"))?;
-
-    let pt = {
-        // Init a programmable transaction builder.
-        let mut builder = ProgrammableTransactionBuilder::new();
-        // Pay all iotas from the gas object
-        builder.pay_all_iota(recipient);
-        builder.finish()
-    };
-
-    // Setup a gas budget and a gas price.
-    let gas_budget = 10_000_000;
-    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
-
-    // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
-        sponsor,
-        vec![gas_coin.object_ref()],
-        pt,
-        gas_budget,
-        gas_price,
-    );
-
-    // Sign the transaction.
-    let signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
-
-    // Execute the transaction.
-    let transaction_response = iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-
-    println!(
-        "Funding transaction digest: {}",
-        transaction_response.digest
-    );
-
-    Ok(())
 }

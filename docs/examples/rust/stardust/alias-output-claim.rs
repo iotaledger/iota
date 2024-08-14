@@ -5,10 +5,11 @@
 //! In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use docs_examples::{clean_keystore, setup_keystore};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
@@ -28,25 +29,6 @@ use shared_crypto::intent::Intent;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
-
-/// Creates a temporary keystore.
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore.
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read the iota keystore.
-    FileBasedKeystore::new(&keystore_path)
-}
-
-fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove the keystore files.
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-    Ok(())
-}
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

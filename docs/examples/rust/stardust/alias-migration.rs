@@ -6,18 +6,15 @@
 //! with test objects generated from
 //! iota-genesis-builder/src/stardust/test_outputs.
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::{anyhow, Result};
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
-use iota_move_build::BuildConfig;
+use docs_examples::{clean_keystore, publish_custom_nft_package, setup_keystore};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
-    rpc_types::{
-        IotaData, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-        IotaTransactionBlockResponseOptions,
-    },
+    rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -26,7 +23,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, ObjectArg, Transaction, TransactionData},
         TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     },
-    IotaClient, IotaClientBuilder,
+    IotaClientBuilder,
 };
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
@@ -276,101 +273,4 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Finish and clean the temporary keystore file
     clean_keystore()
-}
-
-fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
-    let keystore_path = PathBuf::from("iotatempdb");
-    if !keystore_path.exists() {
-        let keystore = FileBasedKeystore::new(&keystore_path)?;
-        keystore.save()?;
-    }
-    // Read iota keystore
-    FileBasedKeystore::new(&keystore_path)
-}
-
-fn clean_keystore() -> Result<(), anyhow::Error> {
-    // Remove files
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
-    Ok(())
-}
-
-async fn publish_custom_nft_package(
-    sender: IotaAddress,
-    keystore: &mut FileBasedKeystore,
-    iota_client: &IotaClient,
-    package_path: &str,
-) -> Result<ObjectID> {
-    // Get a gas coin
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found"))?;
-
-    // Build custom nft package
-    let compiled_package = BuildConfig::default().build(package_path.into())?;
-    let modules = compiled_package
-        .get_modules()
-        .map(|module| {
-            let mut buf = Vec::new();
-            module.serialize(&mut buf)?;
-            Ok(buf)
-        })
-        .collect::<Result<Vec<Vec<u8>>>>()?;
-    let dependencies = compiled_package.get_dependency_original_package_ids();
-
-    // Publish package
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        builder.publish_immutable(modules, dependencies);
-        builder.finish()
-    };
-
-    // Setup gas budget and gas price
-    let gas_budget = 50_000_000;
-    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
-
-    // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_coin.object_ref()],
-        pt,
-        gas_budget,
-        gas_price,
-    );
-
-    // Sign the transaction
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-
-    // Execute transaction
-    let transaction_response = iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-
-    println!(
-        "Package publishing transaction digest: {}",
-        transaction_response.digest
-    );
-
-    // Extract package id from the transaction effects
-    let tx_effects = transaction_response
-        .effects
-        .expect("Transaction has no effects");
-    let package_ref = tx_effects
-        .created()
-        .first()
-        .expect("There are no created objects");
-    let package_id = package_ref.reference.object_id;
-    println!("Package ID: {}", package_id);
-    Ok(package_id)
 }
