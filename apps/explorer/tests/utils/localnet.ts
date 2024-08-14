@@ -4,10 +4,10 @@
 
 import 'tsconfig-paths/register';
 
-import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
-import { type Keypair } from '@iota/iota.js/cryptography';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
+import { type Keypair } from '@iota/iota-sdk/cryptography';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const addressToKeypair = new Map<string, Keypair>();
 

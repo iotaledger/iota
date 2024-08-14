@@ -39,7 +39,7 @@ export function AccordionHeader({
     return (
         <div
             onClick={onToggle}
-            className="state-layer relative flex cursor-pointer items-center justify-between gap-md py-sm--rs pr-md--rs"
+            className="state-layer relative flex cursor-pointer items-center justify-between gap-md py-sm--rs pr-md--rs [&_svg]:h-5 [&_svg]:w-5"
         >
             {children}
             <Button

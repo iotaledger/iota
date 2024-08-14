@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
-import { type IotaClient } from '@iota/iota.js/client';
+import { type IotaClient } from '@iota/iota-sdk/client';
 import {
     toSerializedSignature,
     type SerializedSignature,
     type SignatureScheme,
-} from '@iota/iota.js/cryptography';
-import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+} from '@iota/iota-sdk/cryptography';
+import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 
 import { WalletSigner } from './WalletSigner';
 

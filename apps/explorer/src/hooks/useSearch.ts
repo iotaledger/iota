@@ -4,13 +4,13 @@
 
 import { isIotaNSName, useIotaNSEnabled } from '@iota/core';
 import { useIotaClientQuery, useIotaClient } from '@iota/dapp-kit';
-import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota.js/client';
+import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
     isValidIotaObjectId,
     normalizeIotaObjectId,
-} from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
@@ -98,7 +98,15 @@ const getResultsForAddress = async (
         }),
     ]);
 
-    if (!from.data?.length && !to.data?.length) return null;
+    // Note: we need to query owned objects separately
+    // because genesis addresses might not be involved in any transaction yet.
+    let ownedObjects = [];
+    if (!from.data?.length && !to.data?.length) {
+        const response = await client.getOwnedObjects({ owner: normalized, limit: 1 });
+        ownedObjects = response.data;
+    }
+
+    if (!from.data?.length && !to.data?.length && !ownedObjects?.length) return null;
 
     return [
         {

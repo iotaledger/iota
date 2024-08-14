@@ -9,7 +9,7 @@ export {};
 //     getTransferObjectEvent,
 //     isEventType,
 //     type TransactionEvents,
-// } from '@iota/iota.js';
+// } from '@iota/iota-sdk';
 
 // export type CoinsMetaProps = {
 //     amount: number;

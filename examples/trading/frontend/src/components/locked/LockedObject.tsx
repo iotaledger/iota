@@ -5,7 +5,7 @@
 import { CONSTANTS } from "@/constants";
 import { useIotaClientQuery } from "@iota/dapp-kit";
 import { Locked } from "./partials/Locked";
-import { IotaObjectData } from "@iota/iota.js/client";
+import { IotaObjectData } from "@iota/iota-sdk/client";
 
 /**
  * Acts as a wrapper between the `Locked` object fetched from API
