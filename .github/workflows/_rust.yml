@@ -31,11 +31,11 @@ env:
 
 jobs:
   rust-lints:
-    if: inputs.isRust
+    if: always() && inputs.isRust
     uses: ./.github/workflows/_rust_lints.yml
 
   external-lints:
-    if: inputs.isRust
+    if: always() && inputs.isRust
     uses: ./.github/workflows/_external_rust_lints.yml
 
   rust-tests:
@@ -66,15 +66,3 @@ jobs:
       - external-tests
       - mysticeti-tests
     uses: ./.github/workflows/_execution_cut.yml
-
-  # The following jobs run only to satisfy required workflows in github
-
-  stub-rust-lints:
-    name: rust-lints
-    if: inputs.isRust == 'false'
-    runs-on: [self-hosted]
-
-  stub-external-lints:
-    name: external-lints
-    if: inputs.isRust == 'false'
-    runs-on: [self-hosted]
