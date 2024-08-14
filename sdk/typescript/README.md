@@ -196,7 +196,7 @@ console.log({ result });
 
 ### Transfer Iota
 
-To transfer `1000` MICROS to another address:
+To transfer `1000` nano to another address:
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';

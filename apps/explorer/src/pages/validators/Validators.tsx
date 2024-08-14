@@ -139,7 +139,7 @@ export function validatorsTableData(
                 header: 'Proposed Next Epoch Gas Price',
                 accessorKey: 'nextEpochGasPrice',
                 enableSorting: true,
-                cell: (props: any) => <StakeColumn stake={props.getValue()} inMICROS />,
+                cell: (props: any) => <StakeColumn stake={props.getValue()} inNano />,
             },
             {
                 header: 'APY',
