@@ -453,14 +453,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                         >
                                             Send
                                         </LargeButton>
-
-                                        {!accountHasIota && (
-                                            <LargeButton disabled to="/stake" center>
-                                                Stake
-                                            </LargeButton>
-                                        )}
                                     </div>
-
                                     <div className="w-full">
                                         {accountHasIota || delegatedStake?.length ? (
                                             <TokenIconLink

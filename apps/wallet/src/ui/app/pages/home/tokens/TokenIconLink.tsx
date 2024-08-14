@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LargeButton } from '_app/shared/LargeButton';
 import { ampli } from '_src/shared/analytics/ampli';
-import { Text } from '_src/ui/app/shared/text';
 import {
     formatDelegatedStake,
     useFormatCoin,
@@ -13,8 +11,18 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
-import { WalletActionStake24 } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageShape,
+} from '@iota/apps-ui-kit';
+import { useNavigate } from 'react-router-dom';
+import { Stake } from '@iota/ui-icons';
 
 export function TokenIconLink({
     accountAddress,
@@ -23,6 +31,7 @@ export function TokenIconLink({
     accountAddress: string;
     disabled: boolean;
 }) {
+    const navigate = useNavigate();
     const { data: delegatedStake, isPending } = useGetDelegatedStake({
         address: accountAddress,
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -37,33 +46,49 @@ export function TokenIconLink({
         IOTA_TYPE_ARG,
     );
 
-    return (
-        <LargeButton
-            to="/stake"
-            spacing="sm"
-            center={!totalDelegatedStake}
-            disabled={disabled}
-            onClick={() => {
-                ampli.clickedStakeIota({
-                    isCurrentlyStaking: totalDelegatedStake > 0,
-                    sourceFlow: 'Home page',
-                });
-            }}
-            loading={isPending || queryResultStake.isPending}
-            before={<WalletActionStake24 />}
-            data-testid={`stake-button-${formattedDelegatedStake}-${symbol}`}
-        >
-            <div className="flex flex-col">
-                <Text variant="pBody" weight="semibold">
-                    {totalDelegatedStake ? 'Currently Staked' : 'Stake and Earn IOTA'}
-                </Text>
+    function handleOnClick() {
+        navigate('/stake');
+        ampli.clickedStakeIota({
+            isCurrentlyStaking: totalDelegatedStake > 0,
+            sourceFlow: 'Home page',
+        });
+    }
 
-                {!!totalDelegatedStake && (
-                    <Text variant="pBody" weight="semibold">
-                        {formattedDelegatedStake} {symbol}
-                    </Text>
+    return (
+        <Card type={CardType.Filled} onClick={handleOnClick} isDisabled={disabled}>
+            <CardImage shape={ImageShape.SquareRounded}>
+                {isPending || queryResultStake.isPending ? (
+                    <svg
+                        className="-ml-1 mr-3 h-5 w-5 animate-spin text-primary-20"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                    >
+                        <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            stroke-width="4"
+                        ></circle>
+                        <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                    </svg>
+                ) : (
+                    <Stake className="h-5 w-5 text-primary-20" />
                 )}
-            </div>
-        </LargeButton>
+            </CardImage>
+            <CardBody
+                title={
+                    totalDelegatedStake ? `${formattedDelegatedStake} ${symbol}` : 'Start Staking'
+                }
+                subtitle={formattedDelegatedStake ? 'Current Stake' : 'Earn Rewards'}
+            />
+            <CardAction type={CardActionType.Link} onClick={handleOnClick} />
+        </Card>
     );
 }
