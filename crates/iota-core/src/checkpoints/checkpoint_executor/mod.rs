@@ -740,7 +740,8 @@ async fn handle_execution_effects(
                 if checkpoint.sequence_number > highest_seq + 1 {
                     trace!(
                         "Checkpoint {} is still executing. Highest executed = {}",
-                        checkpoint.sequence_number, highest_seq
+                        checkpoint.sequence_number,
+                        highest_seq
                     );
                     continue;
                 }
