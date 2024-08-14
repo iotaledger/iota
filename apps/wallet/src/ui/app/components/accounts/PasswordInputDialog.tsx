@@ -2,28 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '_src/ui/app/shared/Dialog';
 import { useZodForm } from '@iota/core';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
-
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { PasswordInput } from '../../shared/forms/controls/PasswordInput';
 import { Form } from '../../shared/forms/Form';
-import FormField from '../../shared/forms/FormField';
-import { Link } from '../../shared/Link';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import {
+    Button,
+    ButtonHtmlType,
+    ButtonType,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    Header,
+    Input,
+    InputType,
+} from '@iota/apps-ui-kit';
+import { Link } from 'react-router-dom';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
@@ -34,7 +33,6 @@ export interface PasswordModalDialogProps {
     open: boolean;
     showForgotPassword?: boolean;
     title: string;
-    description: string;
     confirmText: string;
     cancelText: string;
     onSubmit: (password: string) => Promise<void> | void;
@@ -48,7 +46,6 @@ export function PasswordModalDialog({
     verify,
     showForgotPassword,
     title,
-    description,
     confirmText,
     cancelText,
 }: PasswordModalDialogProps) {
@@ -72,76 +69,75 @@ export function PasswordModalDialog({
         allAccountsSources?.some(
             ({ type }) => type === AccountSourceType.Mnemonic || type === AccountSourceType.Seed,
         ) || false;
+
+    async function handleOnSubmit({ password }: { password: string }) {
+        try {
+            if (verify) {
+                await backgroundService.verifyPassword({ password });
+            }
+            try {
+                await onSubmit(password);
+                reset();
+            } catch (e) {
+                toast.error((e as Error).message || 'Something went wrong');
+            }
+        } catch (e) {
+            setError(
+                'password',
+                { message: (e as Error).message || 'Wrong password' },
+                { shouldFocus: true },
+            );
+        }
+    }
+
     return (
         <Dialog open={open}>
-            <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
-                <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
-                    <DialogDescription asChild>
-                        <span className="sr-only">{description}</span>
-                    </DialogDescription>
-                </DialogHeader>
-                <Form
-                    form={form}
-                    id={formID}
-                    onSubmit={async ({ password }) => {
-                        try {
-                            if (verify) {
-                                await backgroundService.verifyPassword({ password });
-                            }
-                            try {
-                                await onSubmit(password);
-                                reset();
-                            } catch (e) {
-                                toast.error((e as Error).message || 'Something went wrong');
-                            }
-                        } catch (e) {
-                            setError(
-                                'password',
-                                { message: (e as Error).message || 'Wrong password' },
-                                { shouldFocus: true },
-                            );
-                        }
-                    }}
-                >
-                    <label className="sr-only" htmlFor="password">
-                        Password
-                    </label>
-                    <FormField name="password">
-                        <PasswordInput {...register('password')} />
-                    </FormField>
-                </Form>
-                <DialogFooter>
-                    <div className="flex flex-col gap-3">
-                        <div className="flex gap-2.5">
-                            <Button
-                                variant="outline"
-                                size="tall"
-                                text={cancelText}
-                                onClick={onClose}
-                            />
-                            <Button
-                                type="submit"
-                                form={formID}
-                                disabled={isSubmitting || !isValid}
-                                variant="primary"
-                                size="tall"
-                                loading={isSubmitting}
-                                text={confirmText}
-                            />
+            <DialogContent>
+                <Header title={title} onClose={onClose} />
+                <DialogBody>
+                    <Form form={form} id={formID} onSubmit={handleOnSubmit}>
+                        <div className="flex flex-col gap-y-6">
+                            <div className="flex flex-col gap-y-3">
+                                <Input
+                                    autoFocus
+                                    type={InputType.Password}
+                                    isVisibilityToggleEnabled
+                                    placeholder="Password"
+                                    errorMessage={form.formState.errors.password?.message}
+                                    {...register('password')}
+                                    name="password"
+                                />
+
+                                {showForgotPassword && hasAccountsSources ? (
+                                    <Link
+                                        to="/accounts/forgot-password"
+                                        onClick={onClose}
+                                        className="text-body-sm text-neutral-40 no-underline"
+                                    >
+                                        Forgot Password?
+                                    </Link>
+                                ) : null}
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                <div className="flex gap-2.5">
+                                    <Button
+                                        type={ButtonType.Secondary}
+                                        text={cancelText}
+                                        onClick={onClose}
+                                        fullWidth
+                                    />
+                                    <Button
+                                        htmlType={ButtonHtmlType.Submit}
+                                        type={ButtonType.Primary}
+                                        disabled={isSubmitting || !isValid}
+                                        text={confirmText}
+                                        fullWidth
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        {showForgotPassword && hasAccountsSources ? (
-                            <Link
-                                color="steelDark"
-                                weight="medium"
-                                size="bodySmall"
-                                text="Forgot Password?"
-                                to="/accounts/forgot-password"
-                                onClick={onClose}
-                            />
-                        ) : null}
-                    </div>
-                </DialogFooter>
+                    </Form>
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );
