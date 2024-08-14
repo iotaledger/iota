@@ -34,7 +34,6 @@ const MAIN_ADDRESS_MNEMONIC: &str = "crazy drum raw dirt tooth where fee base wa
 
 /// Creates a temporary keystore
 fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
-    // Create a temporary keystore
     let keystore_path = PathBuf::from("iotatempdb");
     if !keystore_path.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
@@ -177,11 +176,9 @@ async fn main() -> Result<(), anyhow::Error> {
         sponsor,
     );
 
-    // Client side, i.e., the sender POV
     // Sender signs the transaction
     let sender_signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    // Server side, i.e., the sponsor POV
     // Sponsor signs the transaction
     let sponsor_signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
 
