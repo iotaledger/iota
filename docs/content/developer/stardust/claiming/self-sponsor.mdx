@@ -2,4 +2,58 @@
  title: Self-sponsoring Shimmer Assets Claiming
 ---
 
+In the case in which an address owns some assets but no IOTA coins, the self-sponsorship can be of help for claiming those coins.
+[Sponsoring a transaction](../../iota-101/transactions/sponsored-transactions) means having an IOTA address (i.e., the sponsor) to pay the transaction gas fees for another address (i.e., the user). In the case of a claim a sponsor can pay for the claiming transaction gas.
 
+This is useful for Shimmer assets, because none of the Move objects obtained from migrating the Shimmer Stardust Outputs contain any IOTA coin. It means that addresses owning these Objects have no IOTA coins to pay for gas.
+
+## Claim of a Shimmer Basic Output with self-sponsorship
+
+1. A Shimmer derivation path uses a `coin_type` (4219) which is different from the IOTA's one (4218). A user's self-sponsoring address could be then found using the IOTA `coin_type`.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L61-L67
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+
+2. A PTB for claiming a `BasicOutput` owned by the derived Shimmer address can be created similarly to what is shown in [Basic Output](basic.mdx).
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L103-L152
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
+
+3. In this case, the transaction must be signed by both the sender address (i.e., the objects' owner) and the sponsor address.
+
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L168-L194
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
+TODO
+
+</TabItem>
+</Tabs>
