@@ -1,6 +1,6 @@
 {
     "name": "@iota/iotans-toolkit",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "IotaNS TypeScript SDK",
     "version": "0.0.0",
     "license": "Apache-2.0",

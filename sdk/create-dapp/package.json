@@ -1,6 +1,6 @@
 {
     "name": "@iota/create-dapp",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "A CLI for creating new Iota dApps",
     "homepage": "https://sdk.mystenlabs.com",
     "version": "0.0.0",
