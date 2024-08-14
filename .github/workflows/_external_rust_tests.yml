@@ -50,7 +50,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
-    if: always() && inputs.isRust
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     strategy:
       matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
