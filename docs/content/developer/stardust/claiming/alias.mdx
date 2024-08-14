@@ -15,7 +15,7 @@ A Governor address can claim the `AliasOutput` assets at any time:
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L74-L99
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L56-L81
 ```
 
 </TabItem>
@@ -32,7 +32,7 @@ In the case of the native tokens, the keys are strings representing the [`OTW`](
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L101-L128
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L83-L110
 ```
 
 </TabItem>
@@ -48,7 +48,7 @@ In fact, the main purpose of claiming is extracting the `Alias` object from the 
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L130-L198
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L112-L180
 ```
 
 </TabItem>
@@ -80,9 +80,7 @@ Also, the `nft.move` module was extended with the following function:
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
 
-</TabItem>
 </Tabs>
 
 Once the package is prepared, we can extract and use a Stardust `Alias` in a single transaction to create a `CollectionControllerCap`.
@@ -91,7 +89,7 @@ This capability is then used in later transactions for managing new collections.
 <Tabs>
 <TabItem value="rs" label="Rust">
 
-```rust file=<rootDir>/docs/examples/rust/stardust/alias-migration.rs#L122-L247
+```rust file=<rootDir>/docs/examples/rust/stardust/alias-migration.rs#L119-L244
 ```
 
 </TabItem>
