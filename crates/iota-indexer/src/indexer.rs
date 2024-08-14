@@ -22,6 +22,8 @@ use crate::{
     store::IndexerStore,
     IndexerConfig,
 };
+use crate::handlers::processor_orchestrator::ProcessorOrchestrator;
+use crate::store::PgIndexerAnalyticalStore;
 
 const DOWNLOAD_QUEUE_SIZE: usize = 200;
 
@@ -113,6 +115,19 @@ impl Indexer {
             .await
             .expect("Rpc server task failed");
 
+        Ok(())
+    }
+
+    pub async fn start_analytical_worker(
+        store: PgIndexerAnalyticalStore,
+        metrics: IndexerMetrics,
+    ) -> Result<(), IndexerError> {
+        info!(
+            "Sui Indexer Analytical Worker (version {:?}) started...",
+            env!("CARGO_PKG_VERSION")
+        );
+        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
+        processor_orchestrator.run_forever().await;
         Ok(())
     }
 }

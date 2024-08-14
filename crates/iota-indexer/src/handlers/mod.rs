@@ -16,6 +16,10 @@ pub mod checkpoint_handler;
 pub mod committer;
 pub mod objects_snapshot_processor;
 pub mod tx_processor;
+pub mod address_metrics_processor;
+pub mod move_call_metrics_processor;
+pub mod network_metrics_processor;
+pub mod processor_orchestrator;
 
 #[derive(Debug)]
 pub struct CheckpointDataToCommit {
