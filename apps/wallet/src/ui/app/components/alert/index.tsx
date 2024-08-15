@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { LoadingIndicator } from '_components/loading/LoadingIndicator';
 import { CheckStroke16, Info16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
@@ -49,10 +49,10 @@ const MODE_TO_ICON = {
     warning: <Info16 className="h-3.5 w-3.5" />,
     issue: <Info16 className="h-3.5 w-3.5" />,
     success: <CheckStroke16 className="h-3 w-3" />,
-    loading: <LoadingIndicator color="inherit" />,
+    loading: <LoadingIndicator color="inherit" />, // Note: Import LoadingIndicator using the exact file path, not just '_components' to avoid module resolution issues.
 };
 
-export default function Alert({
+export function Alert({
     children,
     noBorder,
     rounded,

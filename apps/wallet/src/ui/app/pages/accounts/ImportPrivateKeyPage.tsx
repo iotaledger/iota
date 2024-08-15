@@ -6,10 +6,10 @@ import { useNavigate } from 'react-router-dom';
 
 import {
     AccountsFormType,
+    ImportPrivateKeyForm,
+    PageTemplate,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportPrivateKeyForm } from '../../components/accounts/ImportPrivateKeyForm';
-import { PageTemplate } from '../../components/PageTemplate';
+} from '_components';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();

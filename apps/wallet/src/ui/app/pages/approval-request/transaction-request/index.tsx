@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // import { Transaction } from '@iota/iota-sdk';
-import { UserApproveContainer } from '_components/user-approve-container';
+import { UserApproveContainer } from '_components';
 import { useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';
 import { type TransactionApprovalRequest } from '_payloads/transactions/ApprovalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';

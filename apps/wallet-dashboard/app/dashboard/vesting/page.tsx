@@ -5,15 +5,26 @@
 
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
-import { useGetAllTimelockedObjects } from '@iota/core';
+import {
+    TIMELOCK_IOTA_TYPE,
+    useGetAllOwnedObjects,
+    useGetStakedTimelockedObjects,
+} from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
+    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
+    const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
+
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
-    const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
+    const vestingSchedule = getVestingOverview(
+        [...timelockedMapped, ...(stakedTimelockedObjects || [])],
+        Number(currentEpochMs),
+    );
 
     return (
         <div className="flex flex-col items-center justify-center space-y-4 pt-12">
