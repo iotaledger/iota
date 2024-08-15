@@ -11,8 +11,8 @@ import {
     getObjectUrl,
     getTransactionUrl,
     getValidatorUrl,
-} from '../components/explorer-link//Explorer';
-import { ExplorerLinkType } from '../components/explorer-link/ExplorerLinkType';
+    ExplorerLinkType,
+} from '_components';
 import { useActiveAddress } from './useActiveAddress';
 import useAppSelector from './useAppSelector';
 

@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Loading from '_components/loading';
-import { NFTDisplayCard } from '_components/nft-display';
-import Overlay from '_components/overlay';
+import { Loading, NFTDisplayCard, Overlay } from '_components';
 import { useOwnedNFT } from '_hooks';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
