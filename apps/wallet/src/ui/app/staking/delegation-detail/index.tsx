@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import LoadingIndicator from '_components/loading/LoadingIndicator';
-import Overlay from '_components/overlay';
+import { LoadingIndicator, Overlay } from '_components';
 import { useGetDelegatedStake } from '@iota/core';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -43,7 +42,6 @@ export function DelegationDetail() {
                     <ValidatorLogo
                         validatorAddress={validatorAddressParams}
                         isTitle
-                        iconSize="sm"
                         size="body"
                         activeEpoch={delegationData?.stakeRequestEpoch}
                     />
