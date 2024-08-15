@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from '_app/shared/ButtonUI';
-import { useNextMenuUrl } from '_components/menu/hooks';
+import { useNextMenuUrl } from '_components';
 // import { ampli } from '_src/shared/analytics/ampli';
 import { persister } from '_src/ui/app/helpers/queryClient';
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';

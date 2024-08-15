@@ -10,7 +10,7 @@
         "build:release": "wasm-pack build --target web --release --scope mysten",
         "test": "vitest run"
     },
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "license": "Apache-2.0",
     "devDependencies": {
         "@iota/bcs": "workspace:*",

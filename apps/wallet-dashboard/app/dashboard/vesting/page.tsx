@@ -7,7 +7,12 @@ import { Button } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import { getVestingOverview, isTimelockedUnlocked, mapTimelockObjects } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
-import { useUnlockTimelockedObjects, useGetAllTimelockedObjects } from '@iota/core';
+import {
+    TIMELOCK_IOTA_TYPE,
+    useGetAllOwnedObjects,
+    useGetStakedTimelockedObjects,
+    useUnlockTimelockedObjects,
+} from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -17,11 +22,17 @@ function VestingDashboardPage(): JSX.Element {
 
     const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: timelockedObjects } = useGetAllTimelockedObjects(account?.address || '');
+    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
+    const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
-    const timelockedMapped = timelockedObjects ? mapTimelockObjects(timelockedObjects) : [];
-    const vestingSchedule = getVestingOverview(timelockedMapped, Number(currentEpochMs));
+    const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
+    const vestingSchedule = getVestingOverview(
+        [...timelockedMapped, ...(stakedTimelockedObjects || [])],
+        Number(currentEpochMs),
+    );
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
         isTimelockedUnlocked(timelockedObject, Number(currentEpochMs)),

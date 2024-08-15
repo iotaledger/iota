@@ -1,27 +1,25 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SUPPLY_INCREASE_VESTING_LABEL } from '../constants';
-import { Timelocked, TimelockedStakedIota } from '../interfaces';
+import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
+import { TimelockedObject } from '../interfaces';
 
 export function isTimelockedStakedIota(
-    obj: Timelocked | TimelockedStakedIota,
-): obj is TimelockedStakedIota {
-    const referenceProperty: keyof TimelockedStakedIota = 'stakedIota';
+    obj: TimelockedObject | DelegatedTimelockedStake,
+): obj is DelegatedTimelockedStake {
+    const referenceProperty: keyof DelegatedTimelockedStake = 'stakes';
     return referenceProperty in obj;
 }
 
-export function isTimelocked(obj: Timelocked | TimelockedStakedIota): obj is Timelocked {
-    const referenceProperty: keyof Timelocked = 'locked';
+export function isTimelockedObject(
+    obj: TimelockedObject | DelegatedTimelockedStake,
+): obj is TimelockedObject {
+    const referenceProperty: keyof TimelockedObject = 'locked';
     return referenceProperty in obj;
-}
-
-export function isVesting(obj: Timelocked | TimelockedStakedIota): boolean {
-    return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
 }
 
 export function isTimelockedUnlocked(
-    timelockedObject: Timelocked | TimelockedStakedIota,
+    timelockedObject: TimelockedObject | DelegatedTimelockedStake,
     currentEpochMs: number,
 ): boolean {
     return timelockedObject.expirationTimestampMs <= currentEpochMs;

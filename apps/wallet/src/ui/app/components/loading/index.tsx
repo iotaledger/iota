@@ -10,7 +10,7 @@ interface LoadingProps extends LoadingIndicatorProps {
     children: ReactNode | ReactNode[];
 }
 
-function Loading({ loading, children, ...indicatorProps }: LoadingProps) {
+export function Loading({ loading, children, ...indicatorProps }: LoadingProps) {
     return loading ? (
         <div className="flex h-full items-center justify-center">
             <LoadingIndicator {...indicatorProps} />

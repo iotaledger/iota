@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 
-import Alert from './alert';
+import { Alert } from '_components';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),

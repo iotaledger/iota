@@ -1,8 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import Alert from '_components/alert';
-import { CoinIcon } from '_src/ui/app/components/coin-icon';
+import { Alert, CoinIcon } from '_components';
 import { Text } from '_src/ui/app/shared/text';
 import {
     CoinFormat,
@@ -32,7 +31,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
             <div className="flex justify-between">
                 <div className="flex items-center gap-2">
                     <div className="w-5">
-                        <CoinIcon size="sm" coinType={coinType} />
+                        <CoinIcon coinType={coinType} />
                     </div>
                     <div className="flex flex-wrap gap-2 gap-y-1 truncate">
                         <Text variant="pBody" weight="semibold" color="steel-darker">

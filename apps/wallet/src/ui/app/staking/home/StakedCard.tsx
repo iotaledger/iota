@@ -176,7 +176,6 @@ export function StakeCard({
                     <ValidatorLogo
                         validatorAddress={validatorAddress}
                         size="subtitle"
-                        iconSize="md"
                         stacked
                         activeEpoch={extendedStake.stakeRequestEpoch}
                     />
