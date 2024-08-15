@@ -7,6 +7,7 @@ import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 import { ListItem } from '../../atoms';
 
 export type SelectOption =
@@ -114,13 +115,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 labelHtmlTag={LabelHtmlTag.Div}
             >
                 <div className="relative flex w-full flex-col">
-                    <button
-                        type="button"
+                    <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
                         data-selected-value={value}
                         disabled={disabled}
-                        className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30  active:enabled:border-primary-30 group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80"
+                        className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5"
                     >
                         {leadingIcon && (
                             <span className="text-neutral-10 dark:text-neutral-92">
@@ -149,10 +149,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                                     ' rotate-180': isOpen,
                                 },
                             )}
-                            width={20}
-                            height={20}
                         />
-                    </button>
+                    </ButtonUnstyled>
 
                     {isOpen && (
                         <div

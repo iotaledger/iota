@@ -5,8 +5,8 @@
 import { CONSTANTS, QueryKey } from "@/constants";
 import { useTransactionExecution } from "@/hooks/useTransactionExecution";
 import { useCurrentAccount, useIotaClient } from "@iota/dapp-kit";
-import { IotaObjectData } from "@iota/iota.js/client";
-import { TransactionBlock } from "@iota/iota.js/transactions";
+import { IotaObjectData } from "@iota/iota-sdk/client";
+import { TransactionBlock } from "@iota/iota-sdk/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 

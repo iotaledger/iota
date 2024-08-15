@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary } from '_components/error-boundary';
+import { ErrorBoundary, NFTDisplayCard } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
-import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { EyeClose16 } from '@iota/icons';
-import { type IotaObjectData } from '@iota/iota.js/client';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
 import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';

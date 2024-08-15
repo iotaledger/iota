@@ -6,14 +6,10 @@ import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { LargeButton } from '_app/shared/LargeButton';
 import { Text } from '_app/shared/text';
 import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
-import Alert from '_components/alert';
-import { CoinIcon } from '_components/coin-icon';
-import Loading from '_components/loading';
+import { Alert, CoinIcon, Loading, AccountsList, UnlockAccountButton } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
-import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
-import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
@@ -33,13 +29,13 @@ import {
     useSortedCoinsByCategories,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info12, Pin16, Unpin16 } from '@iota/icons';
-import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota.js/client';
-import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Info12 } from '@iota/icons';
+import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota-sdk/client';
+import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';
-
+import { Unpined, Pined } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
@@ -52,23 +48,27 @@ interface TokenDetailsProps {
 }
 
 interface PinButtonProps {
-    unpin?: boolean;
+    isPinned?: boolean;
     onClick: () => void;
 }
 
-function PinButton({ unpin, onClick }: PinButtonProps) {
+function PinButton({ isPinned, onClick }: PinButtonProps) {
     return (
         <button
             type="button"
-            className="hover:!text-hero group-hover/coin:text-steel cursor-pointer border-none bg-transparent text-transparent"
-            aria-label={unpin ? 'Unpin Coin' : 'Pin Coin'}
+            className="cursor-pointer border-none bg-transparent [&_svg]:h-4 [&_svg]:w-4"
+            aria-label={isPinned ? 'Unpin Coin' : 'Pin Coin'}
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onClick();
             }}
         >
-            {unpin ? <Unpin16 /> : <Pin16 />}
+            {isPinned ? (
+                <Pined className="text-primary-40" />
+            ) : (
+                <Unpined className="text-neutral-60" />
+            )}
         </button>
     );
 }
@@ -118,7 +118,7 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
             onClick={onClick}
         >
             <div className="flex gap-2.5">
-                <CoinIcon coinType={coinType} size="md" />
+                <CoinIcon coinType={coinType} />
                 <div className="flex flex-col items-start gap-1">
                     <Text variant="body" color="gray-90" weight="semibold" truncate>
                         {coinMeta?.name || symbol}
@@ -190,9 +190,9 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const network = useAppSelector(({ app }) => app.network);
 
-    const [_, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
+    const [_pinned, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
 
-    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(coinBalances);
+    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(coinBalances, _pinned);
 
     // Avoid perpetual loading state when fetching and retry keeps failing; add isFetched check.
     const isFirstTimeLoading = isLoading && !isFetched;
@@ -221,9 +221,9 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                         <TokenLink
                             key={coinBalance.coinType}
                             coinBalance={coinBalance}
-                            centerAction={
+                            clickableAction={
                                 <PinButton
-                                    unpin
+                                    isPinned
                                     onClick={() => {
                                         ampli.unpinnedCoin({ coinType: coinBalance.coinType });
                                         unpinCoinType(coinBalance.coinType);
@@ -248,8 +248,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                         <TokenLink
                             key={coinBalance.coinType}
                             coinBalance={coinBalance}
-                            subtitle="Send"
-                            centerAction={
+                            clickableAction={
                                 <PinButton
                                     onClick={() => {
                                         ampli.pinnedCoin({ coinType: coinBalance.coinType });

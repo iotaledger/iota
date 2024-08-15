@@ -186,9 +186,9 @@ function TableRowCheckbox({
             <TableHeaderCell
                 isContentCentered
                 hasCheckbox
-                onCheckboxChange={(checked) => {
-                    toggleHeaderChecked(checked);
-                    onHeaderCheckboxChange?.(checked);
+                onCheckboxChange={(event) => {
+                    toggleHeaderChecked(event.target.checked);
+                    onHeaderCheckboxChange?.(event.target.checked);
                 }}
                 isChecked={isHeaderChecked}
                 columnKey={1}
@@ -200,10 +200,10 @@ function TableRowCheckbox({
     return (
         <TableCell
             isContentCentered
-            onChange={(checked) => {
+            onChange={(event) => {
                 if (rowIndex !== undefined) {
-                    const checkboxValues = toggleRowChecked?.(checked, rowIndex);
-                    onRowCheckboxChange?.(checked, rowIndex, checkboxValues);
+                    const checkboxValues = toggleRowChecked?.(event.target.checked, rowIndex);
+                    onRowCheckboxChange?.(event.target.checked, rowIndex, checkboxValues);
                 }
             }}
             type={TableCellType.Checkbox}

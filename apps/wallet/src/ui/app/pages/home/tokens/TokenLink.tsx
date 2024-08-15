@@ -2,27 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinItem } from '_components/active-coins-card/CoinItem';
+import { CoinItem } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
-import { type CoinBalance } from '@iota/iota.js/client';
-import { MICROS_PER_IOTA } from '@iota/iota.js/utils';
+import { type CoinBalance } from '@iota/iota-sdk/client';
+import { NANO_PER_IOTA } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 type TokenLinkProps = {
     coinBalance: CoinBalance;
-    centerAction?: ReactNode;
-    subtitle?: string;
+    clickableAction?: ReactNode;
 };
 
-export function TokenLink({ coinBalance, centerAction, subtitle }: TokenLinkProps) {
+export function TokenLink({ coinBalance, clickableAction }: TokenLinkProps) {
     return (
         <Link
             to={`/send?type=${encodeURIComponent(coinBalance.coinType)}`}
             onClick={() =>
                 ampli.selectedCoin({
                     coinType: coinBalance.coinType,
-                    totalBalance: Number(BigInt(coinBalance.totalBalance) / MICROS_PER_IOTA),
+                    totalBalance: Number(BigInt(coinBalance.totalBalance) / NANO_PER_IOTA),
                 })
             }
             key={coinBalance.coinType}
@@ -31,8 +30,7 @@ export function TokenLink({ coinBalance, centerAction, subtitle }: TokenLinkProp
             <CoinItem
                 coinType={coinBalance.coinType}
                 balance={BigInt(coinBalance.totalBalance)}
-                centerAction={centerAction}
-                subtitle={subtitle}
+                clickableAction={clickableAction}
             />
         </Link>
     );

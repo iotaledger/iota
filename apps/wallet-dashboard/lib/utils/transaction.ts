@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExtendedTransaction, TransactionAction, TransactionState } from '@/lib/interfaces';
-import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { parseTimestamp } from './time';
 
 const getTransactionTransactionState = (tx: IotaTransactionBlockResponse): TransactionState => {
