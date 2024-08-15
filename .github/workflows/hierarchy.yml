@@ -49,7 +49,7 @@ jobs:
   license-check:
     name: license-check
     needs: diff
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
+    if: ${{ always() && needs.diff.outputs.isRust == 'true' }}
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -58,18 +58,18 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: ${{ needs.diff.outputs.isDoc == 'true' }}
+    if: ${{ always() && needs.diff.outputs.isDoc == 'true' }}
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: ${{ needs.diff.outputs.isDoc == 'true' }}
+    if: ${{ always() && needs.diff.outputs.isDoc == 'true' }}
     uses: ./.github/workflows/_docs_lint.yml
 
   release-notes-description-check:
     name: release-notes-check
     needs: diff
-    if: ${{ needs.diff.outputs.isReleaseNotesEligible == 'true' }}
+    if: ${{ always() && needs.diff.outputs.isReleaseNotesEligible == 'true' }}
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -102,7 +102,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: ${{ needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' }}
+    if: ${{ always() && needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' }}
     uses: ./.github/workflows/_move_tests.yml
 
   rust:
@@ -111,8 +111,10 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: ${{ needs.diff.outputs.isRust == 'true' }}
+    if: always()
     uses: ./.github/workflows/_rust.yml
+    with:
+      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
     needs:

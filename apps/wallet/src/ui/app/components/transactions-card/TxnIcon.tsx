@@ -5,7 +5,7 @@
 import { Account24, ArrowRight16, Info16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
 import cl from 'clsx';
 
-import LoadingIndicator from '../loading/LoadingIndicator';
+import { LoadingIndicator } from '_components';
 
 const icons = {
     Send: (
