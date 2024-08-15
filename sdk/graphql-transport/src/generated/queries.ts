@@ -5497,7 +5497,7 @@ export const Rpc_Checkpoint_FieldsFragmentDoc = new TypedDocumentString(`
     }
   }
 }
-    `, { "fragmentName": "RPC_Checkpoint_Fields" }) as unknown as TypedDocumentString<Rpc_Checkpoint_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_Checkpoint_Fields"}) as unknown as TypedDocumentString<Rpc_Checkpoint_FieldsFragment, unknown>;
 export const Rpc_Credential_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_CREDENTIAL_FIELDS on ValidatorCredentials {
   netAddress
@@ -5509,7 +5509,7 @@ export const Rpc_Credential_FieldsFragmentDoc = new TypedDocumentString(`
   proofOfPossession
   protocolPubKey
 }
-    `, { "fragmentName": "RPC_CREDENTIAL_FIELDS" }) as unknown as TypedDocumentString<Rpc_Credential_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_CREDENTIAL_FIELDS"}) as unknown as TypedDocumentString<Rpc_Credential_FieldsFragment, unknown>;
 export const Rpc_Validator_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_VALIDATOR_FIELDS on Validator {
   atRisk
@@ -5563,7 +5563,7 @@ export const Rpc_Validator_FieldsFragmentDoc = new TypedDocumentString(`
   workerAddress
   proofOfPossession
   protocolPubKey
-}`, { "fragmentName": "RPC_VALIDATOR_FIELDS" }) as unknown as TypedDocumentString<Rpc_Validator_FieldsFragment, unknown>;
+}`, {"fragmentName":"RPC_VALIDATOR_FIELDS"}) as unknown as TypedDocumentString<Rpc_Validator_FieldsFragment, unknown>;
 export const Rpc_Move_Struct_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
   name
@@ -5579,7 +5579,7 @@ export const Rpc_Move_Struct_FieldsFragmentDoc = new TypedDocumentString(`
     constraints
   }
 }
-    `, { "fragmentName": "RPC_MOVE_STRUCT_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Struct_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_MOVE_STRUCT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Struct_FieldsFragment, unknown>;
 export const Rpc_Move_Function_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_FUNCTION_FIELDS on MoveFunction {
   name
@@ -5596,7 +5596,7 @@ export const Rpc_Move_Function_FieldsFragmentDoc = new TypedDocumentString(`
     signature
   }
 }
-    `, { "fragmentName": "RPC_MOVE_FUNCTION_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Function_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_MOVE_FUNCTION_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Function_FieldsFragment, unknown>;
 export const Rpc_Move_Module_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
   name
@@ -5660,7 +5660,7 @@ fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
     isPhantom
     constraints
   }
-}`, { "fragmentName": "RPC_MOVE_MODULE_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Module_FieldsFragment, unknown>;
+}`, {"fragmentName":"RPC_MOVE_MODULE_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Module_FieldsFragment, unknown>;
 export const Rpc_Object_Owner_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_OBJECT_OWNER_FIELDS on ObjectOwner {
   __typename
@@ -5683,7 +5683,7 @@ export const Rpc_Object_Owner_FieldsFragmentDoc = new TypedDocumentString(`
     initialSharedVersion
   }
 }
-    `, { "fragmentName": "RPC_OBJECT_OWNER_FIELDS" }) as unknown as TypedDocumentString<Rpc_Object_Owner_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_OBJECT_OWNER_FIELDS"}) as unknown as TypedDocumentString<Rpc_Object_Owner_FieldsFragment, unknown>;
 export const Rpc_Object_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_OBJECT_FIELDS on Object {
   objectId: address
@@ -5750,7 +5750,7 @@ export const Rpc_Object_FieldsFragmentDoc = new TypedDocumentString(`
   ... on Shared {
     initialSharedVersion
   }
-}`, { "fragmentName": "RPC_OBJECT_FIELDS" }) as unknown as TypedDocumentString<Rpc_Object_FieldsFragment, unknown>;
+}`, {"fragmentName":"RPC_OBJECT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Object_FieldsFragment, unknown>;
 export const Rpc_Move_Object_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_OBJECT_FIELDS on MoveObject {
   objectId: address
@@ -5811,7 +5811,7 @@ export const Rpc_Move_Object_FieldsFragmentDoc = new TypedDocumentString(`
   ... on Shared {
     initialSharedVersion
   }
-}`, { "fragmentName": "RPC_MOVE_OBJECT_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Object_FieldsFragment, unknown>;
+}`, {"fragmentName":"RPC_MOVE_OBJECT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Object_FieldsFragment, unknown>;
 export const Rpc_Stake_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_STAKE_FIELDS on StakedIota {
   principal
@@ -5832,7 +5832,7 @@ export const Rpc_Stake_FieldsFragmentDoc = new TypedDocumentString(`
   address
   estimatedReward
 }
-    `, { "fragmentName": "RPC_STAKE_FIELDS" }) as unknown as TypedDocumentString<Rpc_Stake_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_STAKE_FIELDS"}) as unknown as TypedDocumentString<Rpc_Stake_FieldsFragment, unknown>;
 export const Rpc_Events_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_EVENTS_FIELDS on Event {
   sendingModule {
@@ -5851,7 +5851,7 @@ export const Rpc_Events_FieldsFragmentDoc = new TypedDocumentString(`
   bcs
   timestamp
 }
-    `, { "fragmentName": "RPC_EVENTS_FIELDS" }) as unknown as TypedDocumentString<Rpc_Events_FieldsFragment, unknown>;
+    `, {"fragmentName":"RPC_EVENTS_FIELDS"}) as unknown as TypedDocumentString<Rpc_Events_FieldsFragment, unknown>;
 export const Paginate_Transaction_ListsFragmentDoc = new TypedDocumentString(`
     fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
   effects {
@@ -5972,7 +5972,7 @@ fragment RPC_EVENTS_FIELDS on Event {
   json
   bcs
   timestamp
-}`, { "fragmentName": "PAGINATE_TRANSACTION_LISTS" }) as unknown as TypedDocumentString<Paginate_Transaction_ListsFragment, unknown>;
+}`, {"fragmentName":"PAGINATE_TRANSACTION_LISTS"}) as unknown as TypedDocumentString<Paginate_Transaction_ListsFragment, unknown>;
 export const Rpc_Transaction_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_TRANSACTION_FIELDS on TransactionBlock {
   digest
@@ -6147,7 +6147,7 @@ fragment RPC_EVENTS_FIELDS on Event {
   json
   bcs
   timestamp
-}`, { "fragmentName": "RPC_TRANSACTION_FIELDS" }) as unknown as TypedDocumentString<Rpc_Transaction_FieldsFragment, unknown>;
+}`, {"fragmentName":"RPC_TRANSACTION_FIELDS"}) as unknown as TypedDocumentString<Rpc_Transaction_FieldsFragment, unknown>;
 export const GetCheckpointDocument = new TypedDocumentString(`
     query getCheckpoint($id: CheckpointId) {
   checkpoint(id: $id) {
