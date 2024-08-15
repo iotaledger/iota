@@ -58,6 +58,7 @@ move-bytecode-utils.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
+axum.workspace = true
 criterion.workspace = true
 iota-macros = { workspace = true }
 iota-simulator = { workspace = true }

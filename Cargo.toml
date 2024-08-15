@@ -553,3 +553,11 @@ iota-execution = { path = "iota-execution" }
 # move-stdlib = { path = "external-crates/move/move-stdlib" }
 # move-vm-runtime = { path = "external-crates/move/move-vm/runtime" }
 # move-bytecode-verifier = { path = "external-crates/move/move-bytecode-verifier" }
+
+[patch.crates-io.tokio]
+git = "ssh://git@github.com/iotaledger/iota-sim.git"
+branch = "main"
+
+[patch.crates-io.futures-timer]
+git = "ssh://git@github.com/iotaledger/iota-sim.git"
+branch = "main"
