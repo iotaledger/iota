@@ -281,6 +281,7 @@ iota client call --package 0x3 --module iota_system --function rotate_operation_
 By default the new `Cap` object is transferred to the validator address, which then could be transferred to the new delegatee address. At this point, the old `Cap` becomes invalidated and no longer represents eligibility.
 
 To get the current valid `Cap` object's ID of a validator, use the Iota Client CLI `iota client objects` command after setting the holder as the active address.
+
 <!-- Will be fixed by issue 1867. -->
 <!-- Or go to the [explorer](https://<TODO_EXPLORER_URL>/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
 
@@ -332,6 +333,7 @@ After the validator is removed at the next epoch change, the staking pool will b
 There may be instances where urgent security fixes need to be rolled out before publicly announcing it's presence (issues affecting liveness, invariants such as IOTA supply, governance, etc.). In order to not be actively exploited the IOTA Foundation will release signed security binaries incorporating such fixes with a delay in publishing the source code until a large % of our validators have patched the vulnerability.
 
 This release process will be different and we expect to announce the directory for such binaries out of band.
+
 <!-- Will be fixed by issue 1867. -->
 <!-- Our public key to verify these binaries would be stored [here](https://<TODO_SECURITY_FIXES_URL>/iota_security_release.pem) -->
 
