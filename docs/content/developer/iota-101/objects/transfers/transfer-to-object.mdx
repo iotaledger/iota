@@ -178,7 +178,7 @@ Because the `receive_object` function is generic over the object being received,
 
 ```move
 module examples::shared_object_auth {
-    use iota::transfer::{Self, Receiving};
+    use iota::transfer::Receiving;
     const EAccessDenied: u64 = 0;
     const AuthorizedReceiverAddr: address = @0xB0B;
 
