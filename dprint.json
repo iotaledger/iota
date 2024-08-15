@@ -16,7 +16,8 @@
     "crates/iota-graphql-rpc/docs/examples.md",
     "crates/iota-light-client/example_config/20873329.yaml",
     "narwhal/node/tests/staged/narwhal.yaml",
-    "**/pnpm-lock.yaml"
+    "**/pnpm-lock.yaml",
+    "external-crates/move/crates/move-stdlib/**/docs/*"
   ],
   "toml": {
     "lineWidth": 80
