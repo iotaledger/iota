@@ -23,6 +23,8 @@ import { useMemo } from 'react';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { StakeAmount } from '../home/StakeAmount';
 import { StakeCard } from '../home/StakedCard';
+import { DisplayStats } from '_app/staking/home/DisplayStats';
+import { Title, TitleSize } from '@iota/apps-ui-kit';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -89,6 +91,11 @@ export function ValidatorsCard() {
 
     return (
         <div className="flex h-full w-full flex-col flex-nowrap">
+            <div className="flex gap-md py-md">
+                <DisplayStats title={'Your stake'} balance={totalDelegatedStake} />
+                <DisplayStats title={'Earned'} balance={totalDelegatedRewards} />
+            </div>
+            <Title title="In progress" size={TitleSize.Small} />
             <BottomMenuLayout>
                 <Content>
                     <div className="mb-4">

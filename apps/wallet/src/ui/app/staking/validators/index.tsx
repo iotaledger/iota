@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, Loading, Overlay } from '_components';
+import { Alert, Loading } from '_components';
 import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
+import { Header } from '@iota/apps-ui-kit';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { SelectValidatorCard } from './SelectValidatorCard';
@@ -32,12 +33,14 @@ export function Validators() {
     const pageTitle = stakedValidators?.length ? 'Stake & Earn IOTA' : 'Select a Validator';
 
     return (
-        <Overlay
-            showModal
-            title={isPending ? 'Loading' : pageTitle}
-            closeOverlay={() => navigate('/')}
-        >
-            <div className="flex h-full w-full flex-col flex-nowrap">
+        <>
+            <Header
+                titleCentered
+                title={isPending ? 'Loading' : pageTitle}
+                onBack={() => navigate('/')}
+                onClose={() => navigate('/')}
+            />
+            <div className="flex flex-1 px-md">
                 <Loading loading={isPending}>
                     {isError ? (
                         <div className="mb-2">
@@ -50,6 +53,6 @@ export function Validators() {
                     {stakedValidators?.length ? <ValidatorsCard /> : <SelectValidatorCard />}
                 </Loading>
             </div>
-        </Overlay>
+        </>
     );
 }
