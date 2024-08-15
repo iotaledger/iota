@@ -1,9 +1,14 @@
 name: Rust lints
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
 
 jobs:
   rustfmt:
+    if: always() && inputs.isRust
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -13,6 +18,7 @@ jobs:
         run: cargo +nightly ci-fmt
 
   cargo-deny:
+    if: always() && inputs.isRust
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: [self-hosted]
     steps:
@@ -23,6 +29,7 @@ jobs:
           use-git-cli: true
 
   clippy:
+    if: always() && inputs.isRust
     needs:
       - rustfmt
       - cargo-deny

@@ -6,7 +6,7 @@ import { useInitializedGuard } from '_src/ui/app/hooks';
 import { useAccountGroups } from '_src/ui/app/hooks/useAccountGroups';
 import { useNavigate } from 'react-router-dom';
 
-import Overlay from '../../../components/overlay';
+import { Overlay } from '_components';
 import { AccountGroup } from './AccountGroup';
 
 export function ManageAccountsPage() {
