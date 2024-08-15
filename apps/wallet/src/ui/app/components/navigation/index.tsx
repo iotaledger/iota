@@ -51,7 +51,7 @@ export function Navigation() {
     ];
     const [activeRouteId, setActiveRouteId] = useState<string>(NAVBAR_ITEMS[0].id);
     return (
-        <div className="sticky bottom-0 w-full shrink-0 rounded-tl-md rounded-tr-md border-b-0 bg-white">
+        <div className="sticky bottom-0 w-full shrink-0 border-b-0 bg-white">
             <Navbar
                 items={NAVBAR_ITEMS}
                 activeId={activeRouteId}
