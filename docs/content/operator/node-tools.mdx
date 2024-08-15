@@ -106,7 +106,7 @@ $ iota validator update-metadata --help
 
 #### Operation cap
 
-Operation Cap allows a validator to authorize another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](validator-tasks/validator-tasks.mdx#operation-cap).
+Operation Cap allows a validator to authorize another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](validator-operation/validator-tasks.mdx#operation-cap).
 
 The Operation Cap holder (either the valdiator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
@@ -151,7 +151,7 @@ $ iota validator make-validator-info <name> <description> <image-url> <project-u
 ```
 
 This will generate a `validator.info` file and key pair files. The output of this command includes:
-  1. Four key pair files (Read [more here](validator-tasks/validator-tasks.mdx#key-management)). They are needed when running the validator node as covered below. If you follow this guide thoroughly, this key pair is actually copied from your `iota.keystore` file.
+  1. Four key pair files (Read [more here](validator-operation/validator-tasks.mdx#key-management)). They are needed when running the validator node as covered below. If you follow this guide thoroughly, this key pair is actually copied from your `iota.keystore` file.
   2. `validator.info` file that contains your validator info. **Double check all information is correct**.
 
 :::warning

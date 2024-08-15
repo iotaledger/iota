@@ -14,12 +14,12 @@ const operator = [
     'operator/validator-committee',
     {
         type: 'category',
-        label: 'Validator Tasks',
+        label: 'Validator Operation',
         items: [
-            'operator/validator-tasks/validator-tasks',
-            'operator/validator-tasks/ansible/README',
-            'operator/validator-tasks/docker/README',
-            'operator/validator-tasks/systemd/README',
+            'operator/validator-operation/validator-tasks',
+            'operator/validator-operation/ansible/README',
+            'operator/validator-operation/docker/README',
+            'operator/validator-operation/systemd/README',
         ]
     },
     'operator/node-tools',
