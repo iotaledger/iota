@@ -446,14 +446,14 @@ export type ChangeEpochTransaction = {
   __typename?: 'ChangeEpochTransaction';
   /**
    * The total amount of gas charged for computation during the previous
-   * epoch (in MICROS).
+   * epoch (in NANOS).
    */
   computationCharge: Scalars['BigInt']['output'];
   /** The next (to become) epoch. */
   epoch?: Maybe<Epoch>;
   /**
    * The total gas retained from storage fees, that will not be returned by
-   * storage rebates when the relevant objects are cleaned up (in MICROS).
+   * storage rebates when the relevant objects are cleaned up (in NANOS).
    */
   nonRefundableStorageFee: Scalars['BigInt']['output'];
   /** The protocol version in effect in the new epoch. */
@@ -462,12 +462,12 @@ export type ChangeEpochTransaction = {
   startTimestamp: Scalars['DateTime']['output'];
   /**
    * The total amount of gas charged for storage during the previous epoch
-   * (in MICROS).
+   * (in NANOS).
    */
   storageCharge: Scalars['BigInt']['output'];
   /**
    * The IOTA returned to transaction senders for cleaning up objects (in
-   * MICROS).
+   * NANOS).
    */
   storageRebate: Scalars['BigInt']['output'];
   /**
@@ -1313,9 +1313,9 @@ export type Epoch = {
   systemStateVersion?: Maybe<Scalars['Int']['output']>;
   /** The total number of checkpoints in this epoch. */
   totalCheckpoints?: Maybe<Scalars['BigInt']['output']>;
-  /** The total amount of gas fees (in MICROS) that were paid in this epoch. */
+  /** The total amount of gas fees (in NANOS) that were paid in this epoch. */
   totalGasFees?: Maybe<Scalars['BigInt']['output']>;
-  /** The total MICROS rewarded as stake. */
+  /** The total NANOS rewarded as stake. */
   totalStakeRewards?: Maybe<Scalars['BigInt']['output']>;
   /** The total number of transaction blocks in this epoch. */
   totalTransactions?: Maybe<Scalars['Int']['output']>;
@@ -1504,20 +1504,20 @@ export type GasCoin = {
 /** Breakdown of gas costs in effects. */
 export type GasCostSummary = {
   __typename?: 'GasCostSummary';
-  /** Gas paid for executing this transaction (in MICROS). */
+  /** Gas paid for executing this transaction (in NANOS). */
   computationCost?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Part of storage cost that is not reclaimed when data created by this
-   * transaction is cleaned up (in MICROS).
+   * transaction is cleaned up (in NANOS).
    */
   nonRefundableStorageFee?: Maybe<Scalars['BigInt']['output']>;
-  /** Gas paid for the data stored on-chain by this transaction (in MICROS). */
+  /** Gas paid for the data stored on-chain by this transaction (in NANOS). */
   storageCost?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Part of storage cost that can be reclaimed by cleaning up data created
    * by this transaction (when objects are deleted or an object is
    * modified, which is treated as a deletion followed by a creation) (in
-   * MICROS).
+   * NANOS).
    */
   storageRebate?: Maybe<Scalars['BigInt']['output']>;
 };
@@ -1547,7 +1547,7 @@ export type GasInput = {
   gasPayment: ObjectConnection;
   /**
    * An unsigned integer specifying the number of native tokens per gas unit
-   * this transaction will pay (in MICROS).
+   * this transaction will pay (in NANOS).
    */
   gasPrice?: Maybe<Scalars['BigInt']['output']>;
   /** Address of the owner of the gas object(s) used */
@@ -5497,7 +5497,7 @@ export const Rpc_Checkpoint_FieldsFragmentDoc = new TypedDocumentString(`
     }
   }
 }
-    `, {"fragmentName":"RPC_Checkpoint_Fields"}) as unknown as TypedDocumentString<Rpc_Checkpoint_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_Checkpoint_Fields" }) as unknown as TypedDocumentString<Rpc_Checkpoint_FieldsFragment, unknown>;
 export const Rpc_Credential_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_CREDENTIAL_FIELDS on ValidatorCredentials {
   netAddress
@@ -5509,7 +5509,7 @@ export const Rpc_Credential_FieldsFragmentDoc = new TypedDocumentString(`
   proofOfPossession
   protocolPubKey
 }
-    `, {"fragmentName":"RPC_CREDENTIAL_FIELDS"}) as unknown as TypedDocumentString<Rpc_Credential_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_CREDENTIAL_FIELDS" }) as unknown as TypedDocumentString<Rpc_Credential_FieldsFragment, unknown>;
 export const Rpc_Validator_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_VALIDATOR_FIELDS on Validator {
   atRisk
@@ -5563,7 +5563,7 @@ export const Rpc_Validator_FieldsFragmentDoc = new TypedDocumentString(`
   workerAddress
   proofOfPossession
   protocolPubKey
-}`, {"fragmentName":"RPC_VALIDATOR_FIELDS"}) as unknown as TypedDocumentString<Rpc_Validator_FieldsFragment, unknown>;
+}`, { "fragmentName": "RPC_VALIDATOR_FIELDS" }) as unknown as TypedDocumentString<Rpc_Validator_FieldsFragment, unknown>;
 export const Rpc_Move_Struct_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
   name
@@ -5579,7 +5579,7 @@ export const Rpc_Move_Struct_FieldsFragmentDoc = new TypedDocumentString(`
     constraints
   }
 }
-    `, {"fragmentName":"RPC_MOVE_STRUCT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Struct_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_MOVE_STRUCT_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Struct_FieldsFragment, unknown>;
 export const Rpc_Move_Function_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_FUNCTION_FIELDS on MoveFunction {
   name
@@ -5596,7 +5596,7 @@ export const Rpc_Move_Function_FieldsFragmentDoc = new TypedDocumentString(`
     signature
   }
 }
-    `, {"fragmentName":"RPC_MOVE_FUNCTION_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Function_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_MOVE_FUNCTION_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Function_FieldsFragment, unknown>;
 export const Rpc_Move_Module_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
   name
@@ -5660,7 +5660,7 @@ fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
     isPhantom
     constraints
   }
-}`, {"fragmentName":"RPC_MOVE_MODULE_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Module_FieldsFragment, unknown>;
+}`, { "fragmentName": "RPC_MOVE_MODULE_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Module_FieldsFragment, unknown>;
 export const Rpc_Object_Owner_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_OBJECT_OWNER_FIELDS on ObjectOwner {
   __typename
@@ -5683,7 +5683,7 @@ export const Rpc_Object_Owner_FieldsFragmentDoc = new TypedDocumentString(`
     initialSharedVersion
   }
 }
-    `, {"fragmentName":"RPC_OBJECT_OWNER_FIELDS"}) as unknown as TypedDocumentString<Rpc_Object_Owner_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_OBJECT_OWNER_FIELDS" }) as unknown as TypedDocumentString<Rpc_Object_Owner_FieldsFragment, unknown>;
 export const Rpc_Object_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_OBJECT_FIELDS on Object {
   objectId: address
@@ -5750,7 +5750,7 @@ export const Rpc_Object_FieldsFragmentDoc = new TypedDocumentString(`
   ... on Shared {
     initialSharedVersion
   }
-}`, {"fragmentName":"RPC_OBJECT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Object_FieldsFragment, unknown>;
+}`, { "fragmentName": "RPC_OBJECT_FIELDS" }) as unknown as TypedDocumentString<Rpc_Object_FieldsFragment, unknown>;
 export const Rpc_Move_Object_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_OBJECT_FIELDS on MoveObject {
   objectId: address
@@ -5811,7 +5811,7 @@ export const Rpc_Move_Object_FieldsFragmentDoc = new TypedDocumentString(`
   ... on Shared {
     initialSharedVersion
   }
-}`, {"fragmentName":"RPC_MOVE_OBJECT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Object_FieldsFragment, unknown>;
+}`, { "fragmentName": "RPC_MOVE_OBJECT_FIELDS" }) as unknown as TypedDocumentString<Rpc_Move_Object_FieldsFragment, unknown>;
 export const Rpc_Stake_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_STAKE_FIELDS on StakedIota {
   principal
@@ -5832,7 +5832,7 @@ export const Rpc_Stake_FieldsFragmentDoc = new TypedDocumentString(`
   address
   estimatedReward
 }
-    `, {"fragmentName":"RPC_STAKE_FIELDS"}) as unknown as TypedDocumentString<Rpc_Stake_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_STAKE_FIELDS" }) as unknown as TypedDocumentString<Rpc_Stake_FieldsFragment, unknown>;
 export const Rpc_Events_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_EVENTS_FIELDS on Event {
   sendingModule {
@@ -5851,7 +5851,7 @@ export const Rpc_Events_FieldsFragmentDoc = new TypedDocumentString(`
   bcs
   timestamp
 }
-    `, {"fragmentName":"RPC_EVENTS_FIELDS"}) as unknown as TypedDocumentString<Rpc_Events_FieldsFragment, unknown>;
+    `, { "fragmentName": "RPC_EVENTS_FIELDS" }) as unknown as TypedDocumentString<Rpc_Events_FieldsFragment, unknown>;
 export const Paginate_Transaction_ListsFragmentDoc = new TypedDocumentString(`
     fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
   effects {
@@ -5972,7 +5972,7 @@ fragment RPC_EVENTS_FIELDS on Event {
   json
   bcs
   timestamp
-}`, {"fragmentName":"PAGINATE_TRANSACTION_LISTS"}) as unknown as TypedDocumentString<Paginate_Transaction_ListsFragment, unknown>;
+}`, { "fragmentName": "PAGINATE_TRANSACTION_LISTS" }) as unknown as TypedDocumentString<Paginate_Transaction_ListsFragment, unknown>;
 export const Rpc_Transaction_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_TRANSACTION_FIELDS on TransactionBlock {
   digest
@@ -6147,7 +6147,7 @@ fragment RPC_EVENTS_FIELDS on Event {
   json
   bcs
   timestamp
-}`, {"fragmentName":"RPC_TRANSACTION_FIELDS"}) as unknown as TypedDocumentString<Rpc_Transaction_FieldsFragment, unknown>;
+}`, { "fragmentName": "RPC_TRANSACTION_FIELDS" }) as unknown as TypedDocumentString<Rpc_Transaction_FieldsFragment, unknown>;
 export const GetCheckpointDocument = new TypedDocumentString(`
     query getCheckpoint($id: CheckpointId) {
   checkpoint(id: $id) {

@@ -1712,9 +1712,9 @@ impl AuthorityState {
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.sender();
             // use a 1B iota coin
-            const MICROS_TO_IOTA: u64 = 1_000_000_000;
+            const NANOS_TO_IOTA: u64 = 1_000_000_000;
             const DRY_RUN_IOTA: u64 = 1_000_000_000;
-            let max_coin_value = MICROS_TO_IOTA * DRY_RUN_IOTA;
+            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
             let gas_object_id = ObjectID::random();
             let gas_object = Object::new_move(
                 MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),

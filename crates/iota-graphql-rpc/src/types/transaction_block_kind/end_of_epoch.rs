@@ -148,25 +148,25 @@ impl ChangeEpochTransaction {
     }
 
     /// The total amount of gas charged for storage during the previous epoch
-    /// (in MICROS).
+    /// (in NANOS).
     async fn storage_charge(&self) -> BigInt {
         BigInt::from(self.native.storage_charge)
     }
 
     /// The total amount of gas charged for computation during the previous
-    /// epoch (in MICROS).
+    /// epoch (in NANOS).
     async fn computation_charge(&self) -> BigInt {
         BigInt::from(self.native.computation_charge)
     }
 
     /// The IOTA returned to transaction senders for cleaning up objects (in
-    /// MICROS).
+    /// NANOS).
     async fn storage_rebate(&self) -> BigInt {
         BigInt::from(self.native.storage_rebate)
     }
 
     /// The total gas retained from storage fees, that will not be returned by
-    /// storage rebates when the relevant objects are cleaned up (in MICROS).
+    /// storage rebates when the relevant objects are cleaned up (in NANOS).
     async fn non_refundable_storage_fee(&self) -> BigInt {
         BigInt::from(self.native.non_refundable_storage_fee)
     }
