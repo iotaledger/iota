@@ -9,7 +9,7 @@ import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
-import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
+import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
@@ -19,7 +19,10 @@ import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
+import { toast } from 'react-hot-toast';
 import {
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
     filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
@@ -28,17 +31,27 @@ import {
     useFormatCoin,
     useGetDelegatedStake,
     useResolveIotaNSName,
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
     useSortedCoinsByCategories,
 } from '@iota/core';
+import {
+    Button,
+    ButtonSize,
+    ButtonType,
+    Address,
+    Dialog,
+    // DialogTitle,
+    DialogContent,
+    DialogBody,
+    Header,
+} from '@iota/apps-ui-kit';
+import { ArrowBottomLeft, Send } from '@iota/ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@iota/icons';
-import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota-sdk/client';
-import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { type CoinBalance as CoinBalanceType, Network } from '@iota/iota-sdk/client';
+import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
@@ -46,6 +59,8 @@ import { PortfolioName } from './PortfolioName';
 import { TokenIconLink } from './TokenIconLink';
 import { TokenLink } from './TokenLink';
 import { TokenList } from './TokenList';
+import { useNavigate } from 'react-router-dom';
+import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -283,6 +298,8 @@ function getFallbackSymbol(coinType: string) {
 }
 
 function TokenDetails({ coinType }: TokenDetailsProps) {
+    const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
+    const navigate = useNavigate();
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
     const activeCoinType = coinType || IOTA_TYPE_ARG;
@@ -310,6 +327,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         retry: false,
         enabled: isMainnet,
     });
+    const { unlockAccount } = useUnlockAccount();
 
     const {
         data: coinBalances,
@@ -343,6 +361,23 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
     const isFirstTimeLoading = isPending && !isFetched;
+
+    const onSendClick = () => {
+        if (activeAccount?.isLocked) {
+            unlockAccount(activeAccount);
+            return;
+        }
+
+        navigate(
+            `/send${
+                coinBalance?.coinType
+                    ? `?${new URLSearchParams({
+                          type: coinBalance.coinType,
+                      }).toString()}`
+                    : ''
+            }`,
+        );
+    };
 
     useEffect(() => {
         const dismissed =
@@ -391,7 +426,32 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-8"
                     data-testid="coin-page"
                 >
-                    <div className="">asdf</div>
+                    <div className="flex w-full items-center justify-between gap-lg px-sm--rs py-md--rs">
+                        <div className="flex flex-col gap-xs">
+                            <div>
+                                <Address
+                                    text={
+                                        activeAccount.nickname ??
+                                        domainName ??
+                                        formatAddress(activeAccountAddress)
+                                    }
+                                    isCopyable
+                                    copyValue={activeAccountAddress}
+                                    onCopy={() => toast.success('Address copied')}
+                                />
+                            </div>
+                            <CoinBalance amount={tokenBalance} type={activeCoinType} />
+                        </div>
+                        <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
+                            <Button
+                                onClick={() => setDialogReceiveOpen(true)}
+                                type={ButtonType.Secondary}
+                                icon={<ArrowBottomLeft />}
+                                size={ButtonSize.Small}
+                            />
+                            <Button onClick={onSendClick} icon={<Send />} size={ButtonSize.Small} />
+                        </div>
+                    </div>
                     <AccountsList />
                     <div className="flex w-full flex-col">
                         <PortfolioName
@@ -484,9 +544,51 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                         />
                     )}
                 </div>
+                <DialogReceiveTokens
+                    address={activeAccountAddress}
+                    open={dialogReceiveOpen}
+                    setOpen={(isOpen) => setDialogReceiveOpen(isOpen)}
+                />
             </Loading>
         </>
     );
 }
 
 export default TokenDetails;
+
+function DialogReceiveTokens({
+    address,
+    open,
+    setOpen,
+}: {
+    address: string;
+    open: boolean;
+    setOpen: (isOpen: boolean) => void;
+}) {
+    const onCopy = useCopyToClipboard(address, {
+        copySuccessMessage: 'Address copied',
+    });
+
+    return (
+        <div className="relative">
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent showCloseOnOverlay>
+                    <Header title="Receive" onClose={() => setOpen(false)} />
+                    <DialogBody>
+                        <div className="[&_span]:w-full [&_span]:break-words">
+                            <Address text={address} />
+                        </div>
+                    </DialogBody>
+                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
+                        <Button
+                            onClick={onCopy}
+                            fullWidth
+                            size={ButtonSize.Medium}
+                            text="Copy Address"
+                        />
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}

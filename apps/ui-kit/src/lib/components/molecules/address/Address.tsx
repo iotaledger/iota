@@ -20,9 +20,13 @@ interface AddressProps {
      */
     isExternal?: boolean;
     /**
+     * Value that need to be copied (optional).
+     */
+    copyValue?: string;
+    /**
      * The onCopy event of the Address  (optional).
      */
-    onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onCopy?: (e: React.MouseEvent<HTMLButtonElement>, value: string) => void;
     /**
      * The onOpen event of the Address  (optional).
      */
@@ -33,15 +37,30 @@ export function Address({
     text,
     isCopyable,
     isExternal,
+    copyValue = text,
     onCopy,
     onOpen,
 }: AddressProps): React.JSX.Element {
     return (
-        <div className="group flex flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
+        <div className="group flex flex-row items-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
             {isCopyable && (
                 <ButtonUnstyled
-                    onClick={onCopy}
+                    onClick={async (event) => {
+                        if (!navigator?.clipboard) {
+                            return false;
+                        }
+
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            if (onCopy) {
+                                onCopy(event, copyValue);
+                            }
+                            return true;
+                        } catch (error) {
+                            return false;
+                        }
+                    }}
                     className="opacity-0 focus:opacity-100 group-hover:opacity-100"
                 >
                     <Copy />
