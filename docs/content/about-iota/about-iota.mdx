@@ -24,7 +24,13 @@ Move is based on the object model, not a shared global state. This allows transa
 
 #### Security
 
-Move is based on Rust, a programming language known for its [performance and safety](iota-architecture/iota-security.mdx). It's almost impossible to make a mistake that the compiler won't catch before you deploy your smart contract. Additionally, given the object-centric approach, assets that reside in your account can't be accessed without your account keys. These features allow for more complex smart contract applications, as any mistakes outside implementation logic will be caught before deploying.
+Move is based on Rust, a programming language known for its [performance and safety](iota-architecture/iota-security.mdx). It's almost impossible to make a programming mistake that the compiler won't catch before you deploy your smart contract. Additionally, given the object-centric approach, assets that reside in your account can't be accessed without your account keys. These features allow for more complex smart contract applications, as any mistakes outside implementation logic will be caught before deploying.
+
+:::warning
+
+While making development mistakes is almost impossible with Move, smart contracts still can have unintended edge cases and issues within their written logic. For this reason, it's still highly recommended to have smart contracts audited and double-checked even when written in Move. 
+
+:::
 
 ### Networks
 
