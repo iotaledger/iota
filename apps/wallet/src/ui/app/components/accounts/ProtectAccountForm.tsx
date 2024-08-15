@@ -55,7 +55,7 @@ const formSchema = z
     })
     .merge(zodSchema);
 
-export type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
 interface ProtectAccountFormProps {
     submitButtonText: string;

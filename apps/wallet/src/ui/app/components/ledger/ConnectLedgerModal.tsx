@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useIotaLedgerClient } from '_src/ui/app/components/ledger/IotaLedgerClientProvider';
+import { useIotaLedgerClient } from '_components';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import {
     Dialog,

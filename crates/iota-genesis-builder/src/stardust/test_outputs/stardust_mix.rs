@@ -27,19 +27,15 @@ use iota_sdk::{
 use rand::{rngs::StdRng, Rng};
 
 use crate::stardust::{
-    test_outputs::new_vested_output,
+    test_outputs::{new_vested_output, MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
     types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
 };
 
-const MERGE_MILESTONE_INDEX: u32 = 7669900;
-const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
-
-const IOTA_COIN_TYPE: u32 = 4218;
 const OUTPUT_IOTA_AMOUNT: u64 = 1_000_000;
+const STORAGE_DEPOSIT_AMOUNT: u64 = 500_000;
 
 struct StardustWallet {
     mnemonic: &'static str,
-    coin_type: u32,
     // bip path values for account, internal, address
     addresses: &'static [[u32; 3]],
 }
@@ -48,25 +44,21 @@ const STARDUST_MIX: &[StardustWallet] = &[
     // First public address only
     StardustWallet {
         mnemonic: "chest inquiry stick anger scheme tail void cup toe game copy jump law bone risk pull crowd dry raw baby want tip oak dice",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[[0, 0, 0]],
     },
     // Multiple public addresses
     StardustWallet {
         mnemonic: "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 5]],
     },
     // Multiple internal addresses
     StardustWallet {
         mnemonic: "face tag all fade win east asset taxi holiday need slow fold play pull away earn bus room run one kidney mail design space",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[[0, 1, 1], [0, 1, 2], [0, 1, 5]],
     },
     // Multiple public and internal addresses
     StardustWallet {
         mnemonic: "rain flip mad lamp owner siren tower buddy wolf shy tray exit glad come dry tent they pond wrist web cliff mixed seek drum",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[
             // public
             [0, 0, 0],
@@ -82,7 +74,6 @@ const STARDUST_MIX: &[StardustWallet] = &[
     // Multiple accounts multiple public and internal addresses
     StardustWallet {
         mnemonic: "oak eye use bus high enact city desk gaze sure radio text ice food give foil raw dove attitude van clap tenant human other",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[
             // account 2
             // public
@@ -119,7 +110,6 @@ const STARDUST_MIX: &[StardustWallet] = &[
     // Everything crazy
     StardustWallet {
         mnemonic: "crazy drum raw dirt tooth where fee base warm beach trim rule sign silk fee fee dad large creek venue coin steel hub scale",
-        coin_type: IOTA_COIN_TYPE,
         addresses: &[
             // account 0
             // public
@@ -168,6 +158,7 @@ const STARDUST_MIX: &[StardustWallet] = &[
 pub(crate) async fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
+    coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
 
@@ -176,7 +167,7 @@ pub(crate) async fn outputs(
         for [account_index, internal, address_index] in wallet.addresses {
             let address = secret_manager
                 .generate_ed25519_addresses(
-                    wallet.coin_type,
+                    coin_type,
                     *account_index,
                     *address_index..address_index + 1,
                     if *internal == 1 {
@@ -247,20 +238,20 @@ fn new_basic_or_nft_outputs(
         ExpirationUnlockCondition::new(address, rng.gen())?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
     add_output_with_unlock_conditions(vec![
         StorageDepositReturnUnlockCondition::new(
             Ed25519Address::new([0u8; 32]),
-            500_0000,
+            STORAGE_DEPOSIT_AMOUNT,
             u64::MAX,
         )?
         .into(),
     ]);
     add_output_with_unlock_conditions(vec![
         AddressUnlockCondition::new(Ed25519Address::new([0u8; 32])).into(),
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
         TimelockUnlockCondition::new(rng.gen())?.into(),
@@ -269,7 +260,7 @@ fn new_basic_or_nft_outputs(
     add_output_with_unlock_conditions(vec![
         TimelockUnlockCondition::new(rng.gen())?.into(),
         ExpirationUnlockCondition::new(address, rng.gen())?.into(),
-        StorageDepositReturnUnlockCondition::new(address, 500_0000, u64::MAX)?.into(),
+        StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
     outputs.push(finish_with_header(

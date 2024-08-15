@@ -4,17 +4,13 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData, type IotaObjectDataFilter } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { TIMELOCK_TYPE } from '../constants';
 
 const MAX_OBJECTS_PER_REQ = 10;
 
-export function useGetAllTimelockedObjects(address: string) {
+export function useGetAllOwnedObjects(address: string, filter?: IotaObjectDataFilter) {
     const client = useIotaClient();
-    const filter: IotaObjectDataFilter = {
-        StructType: TIMELOCK_TYPE,
-    };
     return useQuery({
-        queryKey: ['get-all-timelocked-objects', address, filter],
+        queryKey: ['get-all-owned-objects', address, filter],
         queryFn: async () => {
             let cursor: string | undefined | null = null;
             const allData: IotaObjectData[] = [];

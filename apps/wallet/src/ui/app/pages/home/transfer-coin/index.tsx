@@ -5,8 +5,7 @@
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
 import { Button } from '_app/shared/ButtonUI';
 import { Text } from '_app/shared/text';
-import { ActiveCoinsCard } from '_components/active-coins-card';
-import Overlay from '_components/overlay';
+import { ActiveCoinsCard, Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
