@@ -1711,13 +1711,11 @@ impl AuthorityState {
         let mut gas_object_refs = transaction.gas().to_vec();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.sender();
-            // use a 1B iota coin
-            const NANOS_TO_IOTA: u64 = 1_000_000_000;
-            const DRY_RUN_IOTA: u64 = 1_000_000_000;
-            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
+            // use a 1B iota coin, which should be enough to cover all cases
+            const MOCK_GAS_COIN_VALUE: u64 = 1_000_000_000_000_000_000;
             let gas_object_id = ObjectID::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, MOCK_GAS_COIN_VALUE),
                 Owner::AddressOwner(sender),
                 TransactionDigest::genesis_marker(),
             );
