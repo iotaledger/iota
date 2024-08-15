@@ -6,7 +6,7 @@ import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { LargeButton } from '_app/shared/LargeButton';
 import { Text } from '_app/shared/text';
 import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
-import { Alert, CoinIcon, Loading, AccountsList, UnlockAccountButton } from '_components';
+import { AccountsList, Alert, CoinIcon, Loading, UnlockAccountButton } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
@@ -16,6 +16,8 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
     filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
@@ -24,24 +26,29 @@ import {
     useFormatCoin,
     useGetDelegatedStake,
     useResolveIotaNSName,
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
     useSortedCoinsByCategories,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12 } from '@iota/icons';
-import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota-sdk/client';
-import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { type CoinBalance as CoinBalanceType, Network } from '@iota/iota-sdk/client';
+import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useEffect, useState, type ReactNode } from 'react';
-import { Unpined, Pined } from '@iota/ui-icons';
+import { type ReactNode, useEffect, useState } from 'react';
+import { Pined, Unpined } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
 import { TokenIconLink } from './TokenIconLink';
 import { TokenLink } from './TokenLink';
-import { TokenList } from './TokenList';
+import {
+    ButtonUnstyled,
+    Chip,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -186,9 +193,30 @@ interface MyTokensProps {
     isFetched: boolean;
 }
 
+enum TokenCategory {
+    All = 'All',
+    Recognized = 'Recognized',
+    Unrecognized = 'Unrecognized',
+}
+
+const TOKEN_CATEGORIES = [
+    {
+        label: 'All',
+        value: TokenCategory.All,
+    },
+    {
+        label: 'Recognized',
+        value: TokenCategory.Recognized,
+    },
+    {
+        label: 'Unrecognized',
+        value: TokenCategory.Unrecognized,
+    },
+];
+
 export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) {
+    const [selectedTokenCategory, setSelectedTokenCategory] = useState(TokenCategory.All);
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
-    const network = useAppSelector(({ app }) => app.network);
 
     const [_pinned, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
 
@@ -197,69 +225,79 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
     // Avoid perpetual loading state when fetching and retry keeps failing; add isFetched check.
     const isFirstTimeLoading = isLoading && !isFetched;
 
+    function handlePin(coinType: string) {
+        ampli.pinnedCoin({
+            coinType: coinType,
+        });
+        pinCoinType(coinType);
+    }
+
+    function handleUnpin(coinType: string) {
+        ampli.unpinnedCoin({
+            coinType: coinType,
+        });
+        unpinCoinType(coinType);
+    }
+
     return (
         <Loading loading={isFirstTimeLoading}>
-            {recognized.length > 0 && (
-                <TokenList title="My Coins" defaultOpen>
-                    {recognized.map((coinBalance) =>
-                        isDefiWalletEnabled ? (
-                            <TokenRow
-                                renderActions
+            <div className="w-full">
+                <div className="flex h-[56px] items-center">
+                    <Title title={'My coins'} size={TitleSize.Medium} />
+                </div>
+                <SegmentedButton type={SegmentedButtonType.Transparent}>
+                    {TOKEN_CATEGORIES.map(({ label, value }) => (
+                        <ButtonUnstyled onClick={() => setSelectedTokenCategory(value)}>
+                            <Chip label={label} selected={selectedTokenCategory === value} />
+                        </ButtonUnstyled>
+                    ))}
+                </SegmentedButton>
+                <div className="p-sm pb-md">
+                    {[TokenCategory.All, TokenCategory.Recognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        recognized.map((coinBalance) =>
+                            isDefiWalletEnabled ? (
+                                <TokenRow
+                                    renderActions
+                                    key={coinBalance.coinType}
+                                    coinBalance={coinBalance}
+                                />
+                            ) : (
+                                <TokenLink key={coinBalance.coinType} coinBalance={coinBalance} />
+                            ),
+                        )}
+
+                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        pinned.map((coinBalance) => (
+                            <TokenLink
                                 key={coinBalance.coinType}
                                 coinBalance={coinBalance}
+                                clickableAction={
+                                    <PinButton
+                                        isPinned
+                                        onClick={() => handleUnpin(coinBalance.coinType)}
+                                    />
+                                }
                             />
-                        ) : (
-                            <TokenLink key={coinBalance.coinType} coinBalance={coinBalance} />
-                        ),
-                    )}
-                </TokenList>
-            )}
+                        ))}
 
-            {pinned.length > 0 && (
-                <TokenList title="Pinned Coins" defaultOpen>
-                    {pinned.map((coinBalance) => (
-                        <TokenLink
-                            key={coinBalance.coinType}
-                            coinBalance={coinBalance}
-                            clickableAction={
-                                <PinButton
-                                    isPinned
-                                    onClick={() => {
-                                        ampli.unpinnedCoin({ coinType: coinBalance.coinType });
-                                        unpinCoinType(coinBalance.coinType);
-                                    }}
-                                />
-                            }
-                        />
-                    ))}
-                </TokenList>
-            )}
-
-            {unrecognized.length > 0 && (
-                <TokenList
-                    title={
-                        unrecognized.length === 1
-                            ? `${unrecognized.length} Unrecognized Coin`
-                            : `${unrecognized.length} Unrecognized Coins`
-                    }
-                    defaultOpen={network !== Network.Mainnet}
-                >
-                    {unrecognized.map((coinBalance) => (
-                        <TokenLink
-                            key={coinBalance.coinType}
-                            coinBalance={coinBalance}
-                            clickableAction={
-                                <PinButton
-                                    onClick={() => {
-                                        ampli.pinnedCoin({ coinType: coinBalance.coinType });
-                                        pinCoinType(coinBalance.coinType);
-                                    }}
-                                />
-                            }
-                        />
-                    ))}
-                </TokenList>
-            )}
+                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        unrecognized.map((coinBalance) => (
+                            <TokenLink
+                                key={coinBalance.coinType}
+                                coinBalance={coinBalance}
+                                clickableAction={
+                                    <PinButton onClick={() => handlePin(coinBalance.coinType)} />
+                                }
+                            />
+                        ))}
+                </div>
+            </div>
         </Loading>
     );
 }
