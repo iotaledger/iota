@@ -1,5 +1,3 @@
-# Iota for Node Operators
-
 ## Overview
 
 This document is focused on running the Iota Node software as a Validator.
@@ -10,7 +8,7 @@ This document is focused on running the Iota Node software as a Validator.
 - [Deployment](#deployment)
 - [Configuration](#configuration)
 - [Connectivity](#connectivity)
-- [Storage](storage.md)
+- [Storage](#storage)
 - [Key Management](#key-management)
 - [Monitoring](#monitoring)
   - [Logs](#logs)
@@ -170,7 +168,7 @@ To search for a particular match
 journalctl -u iota-node -g <SEARCH_TERM>
 ```
 
-- If using Docker Compose, look at the examples [here](./docker/README.md#logs)
+- If using Docker Compose, look at the examples [here](./docker/#logs)
 
 It is possible to change the logging configuration while a node is running using the admin interface.
 
@@ -196,8 +194,8 @@ Public dashboard for network wide visibility:
 
 When an update is required to the Iota Node software the following process can be used. Follow the relevant Systemd or Docker Compose runbook depending on your deployment type. It is highly unlikely that you will want to restart with a clean database.
 
-- If using Systemd, [here](./systemd/README.md#updates)
-- If using Docker Compose, [here](./docker/README.md#updates)
+- If using Systemd, [here](./systemd/#updates)
+- If using Docker Compose, [here](./docker/#updates)
 
 ## State Sync
 
@@ -238,7 +236,7 @@ It is recommended and often required that the `iota` binary release/version matc
 
 ### Updating On-chain Metadata
 
-You can leverage the [Validator Tool](validator_tool.md) to perform the majority of the following tasks.
+You can leverage the [Validator Tool](../validator-tools) to perform the majority of the following tasks.
 
 An active/pending validator can update its on-chain metadata by submitting a transaction. Some metadata changes take effect immediately, including:
 

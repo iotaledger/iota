@@ -22,7 +22,7 @@ const operator = [
             'operator/validator-operation/systemd/README',
         ]
     },
-    'operator/node-tools',
+    'operator/validator-tools',
     {
         type: 'category',
         label: 'Node Monitoring and Metrics',
