@@ -32,12 +32,12 @@ const formSchema = z.object({
         }),
 });
 
-export type ImportRecoveryPhraseFormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
 interface ImportRecoveryPhraseFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
-    onSubmit: SubmitHandler<ImportRecoveryPhraseFormValues>;
+    onSubmit: SubmitHandler<FormValues>;
     isTextVisible?: boolean;
 }
 

@@ -12,6 +12,7 @@ import {
     Loading,
     AccountsFormType,
     PageTemplate,
+    type ProtectAccountFormValues,
 } from '_components';
 import { useAccounts } from '../../hooks/useAccounts';
 import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
@@ -20,7 +21,6 @@ import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation'
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
-import type { ProtectAccountFormValues } from '../../components/accounts/ProtectAccountForm';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
