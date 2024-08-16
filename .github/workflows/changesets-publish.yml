@@ -24,4 +24,4 @@ jobs:
       - name: Publish packages
         run: pnpm changeset-publish --no-git-tag
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN_RELEASE }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
