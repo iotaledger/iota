@@ -6,6 +6,7 @@ import { Button } from '@/components';
 import { useTimelockedUnstakeTransaction } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UnstakePopupProps {
     accountAddress: string;
@@ -21,6 +22,7 @@ function TimelockedUnstakePopup({
     closePopup,
 }: UnstakePopupProps): JSX.Element {
     const objectIds = delegatedStake.stakes.map((stake) => stake.timelockedStakedIotaId);
+    const queryClient = useQueryClient();
     const { data: timelockedUnstake } = useTimelockedUnstakeTransaction(objectIds, accountAddress);
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
@@ -29,6 +31,9 @@ function TimelockedUnstakePopup({
         if (!timelockedUnstake) return;
         await signAndExecuteTransactionBlock({
             transactionBlock: timelockedUnstake.transaction,
+        });
+        queryClient.invalidateQueries({
+            queryKey: ['get-staked-timelocked-objects'],
         });
         closePopup();
     }
