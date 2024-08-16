@@ -8,12 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
+    ImportRecoveryPhraseForm,
+    PageTemplate,
+} from '_components';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
-import { PageTemplate } from '../../components/PageTemplate';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();
@@ -22,6 +22,18 @@ export function ImportPassphrasePage() {
 
     function handleShowTextClick() {
         setIsTextVisible(!isTextVisible);
+    }
+
+    function handleOnSubmit({ recoveryPhrase }: { recoveryPhrase: string[] }) {
+        setFormValues({
+            type: AccountsFormType.ImportMnemonic,
+            entropy: entropyToSerialized(mnemonicToEntropy(recoveryPhrase.join(' '))),
+        });
+        navigate(
+            `/accounts/protect-account?${new URLSearchParams({
+                accountsFormType: AccountsFormType.ImportMnemonic,
+            }).toString()}`,
+        );
     }
 
     const BUTTON_ICON_CLASSES = 'w-5 h-5 text-neutral-10';
@@ -47,19 +59,7 @@ export function ImportPassphrasePage() {
                         cancelButtonText="Back"
                         submitButtonText="Add Profile"
                         isTextVisible={isTextVisible}
-                        onSubmit={({ recoveryPhrase }) => {
-                            setFormValues({
-                                type: AccountsFormType.ImportMnemonic,
-                                entropy: entropyToSerialized(
-                                    mnemonicToEntropy(recoveryPhrase.join(' ')),
-                                ),
-                            });
-                            navigate(
-                                `/accounts/protect-account?${new URLSearchParams({
-                                    accountsFormType: AccountsFormType.ImportMnemonic,
-                                }).toString()}`,
-                            );
-                        }}
+                        onSubmit={handleOnSubmit}
                     />
                 </div>
             </div>

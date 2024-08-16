@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Alert from '_components/alert';
-import { ErrorBoundary } from '_components/error-boundary';
-import Loading from '_components/loading';
-import LoadingSpinner from '_components/loading/LoadingIndicator';
-import { NFTDisplayCard } from '_components/nft-display';
+import { Alert, ErrorBoundary, Loading, LoadingIndicator, NFTDisplayCard } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
@@ -63,7 +59,7 @@ function HiddenNftsPage() {
     if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
-                <LoadingSpinner />
+                <LoadingIndicator />
             </div>
         );
     }

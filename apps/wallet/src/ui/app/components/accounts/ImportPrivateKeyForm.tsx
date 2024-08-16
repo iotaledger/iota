@@ -48,7 +48,12 @@ export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
     const isHexadecimal = isValid && !privateKey.startsWith('iotaprivkey');
     return (
         <Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
-            <TextAreaField label="Enter Private Key" rows={4} {...register('privateKey')} />
+            <TextAreaField
+                label="Enter Private Key"
+                rows={4}
+                {...register('privateKey')}
+                errorMessage={form.formState.errors.privateKey?.message}
+            />
             {isHexadecimal ? (
                 <InfoBox
                     type={InfoBoxType.Default}

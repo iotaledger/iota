@@ -27,15 +27,17 @@ use crate::stardust::{
 };
 
 const MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
-const COIN_TYPE: u32 = 4218;
 const OWNING_ALIAS_COUNT: u32 = 10;
 
-pub(crate) async fn outputs(rng: &mut StdRng) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(
+    rng: &mut StdRng,
+    coin_type: u32,
+) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     let alias_owners = secret_manager
-        .generate_ed25519_addresses(COIN_TYPE, 0, 0..OWNING_ALIAS_COUNT, None)
+        .generate_ed25519_addresses(coin_type, 0, 0..OWNING_ALIAS_COUNT, None)
         .await?;
 
     // create 10 different alias outputs with each owning various other assets
