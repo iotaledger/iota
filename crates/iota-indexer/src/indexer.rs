@@ -122,7 +122,7 @@ impl Indexer {
         metrics: IndexerMetrics,
     ) -> Result<(), IndexerError> {
         info!(
-            "Sui Indexer Analytical Worker (version {:?}) started...",
+            "Iota Indexer Analytical Worker (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
         let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
