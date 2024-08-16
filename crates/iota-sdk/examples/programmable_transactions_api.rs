@@ -15,6 +15,7 @@
 //! Iota address that received the coin.
 //! If you run this program several times, you should see the number of coins
 //! for the recipient address increases.
+//!
 //! cargo run --example programmable_transactions_api
 
 mod utils;

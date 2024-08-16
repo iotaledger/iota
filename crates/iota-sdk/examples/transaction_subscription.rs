@@ -7,6 +7,7 @@
 //! transfer IOTA on the Iota testnet and prints every incoming
 //! transaction to the console. The program will loop until it
 //! is force stopped.
+//!
 //! cargo run --example transaction_subscription
 
 use futures::stream::StreamExt;

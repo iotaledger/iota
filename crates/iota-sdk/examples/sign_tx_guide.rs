@@ -4,6 +4,7 @@
 
 //! This example walks through the Rust SDK use case described in
 //! https://github.com/iotaledger/iota/blob/develop/docs/content/developer/iota-101/transactions/sign-and-send-txn.mdx
+//!
 //! cargo run --example sign_tx_guide
 
 mod utils;

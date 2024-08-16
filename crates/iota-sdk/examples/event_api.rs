@@ -7,6 +7,7 @@
 //! on the Iota testnet and prints every incoming event to
 //! the console. The program will loop until it is force
 //! stopped.
+//!
 //! cargo run --example event_api
 
 mod utils;

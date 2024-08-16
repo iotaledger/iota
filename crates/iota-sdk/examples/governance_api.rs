@@ -7,6 +7,7 @@
 //! the committee information,
 //! lists all the validators' name, description, and iota address,
 //! and prints the reference gas price.
+//!
 //! cargo run --example governance_api
 
 mod utils;

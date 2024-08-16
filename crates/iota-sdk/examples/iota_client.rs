@@ -11,6 +11,7 @@
 //! and the list of subscriptions.
 //! Note that running this code will fail if there is no Iota network
 //! running locally on the default address: 127.0.0.1:9000
+//!
 //! cargo run --example iota_client
 
 use iota_sdk::IotaClientBuilder;

@@ -4,6 +4,7 @@
 
 //! This example shows how one can convert RPC errors for further manual
 //! handling.
+//!
 //! cargo run --example json_rpc_errors
 
 mod utils;

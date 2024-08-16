@@ -10,6 +10,7 @@
 //! and two addresses, set one address as active, and add 1 IOTA to the active
 //! address. By default, the example will use the Iota testnet network
 //! (fullnode.testnet.iota.io:443).
+//!
 //! cargo run --example coin_read_api
 
 mod utils;

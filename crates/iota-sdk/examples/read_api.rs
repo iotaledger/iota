@@ -8,6 +8,7 @@
 //! and the protocol configuration,
 //! the transaction data after executing a transaction,
 //! and finally, the number of transaction blocks known to the server.
+//!
 //! cargo run --example read_api
 
 mod utils;
