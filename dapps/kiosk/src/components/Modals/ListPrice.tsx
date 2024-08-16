@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MICROS_PER_IOTA } from '@iota/iota.js/utils';
+import { NANO_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 import { usePlaceAndListMutation } from '../../mutations/kiosk';
@@ -52,7 +52,7 @@ export function ListPrice({ item, onSuccess, closeModal, listAndPlace, kioskId }
                         onClick={() =>
                             placeAndListToKioskMutation.mutate({
                                 item,
-                                price: (Number(price) * Number(MICROS_PER_IOTA)).toString(),
+                                price: (Number(price) * Number(NANO_PER_IOTA)).toString(),
                                 shouldPlace: listAndPlace,
                                 kioskId,
                             })

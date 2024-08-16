@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import ExplorerLink from '_src/ui/app/components/explorer-link';
-import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
-import { NftImage } from '_src/ui/app/components/nft-display/NftImage';
+import { ExplorerLink, ExplorerLinkType, NftImage } from '_components';
 import { type IotaObjectChangeWithDisplay } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 import { Text } from '../../../text';
 

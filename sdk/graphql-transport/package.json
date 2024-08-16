@@ -1,9 +1,9 @@
 {
     "name": "@iota/graphql-transport",
-    "version": "0.0.3",
+    "version": "0.0.0",
     "description": "A GraphQL transport to allow IotaClient to work with RPC 2.0",
     "license": "Apache-2.0",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.js",
@@ -61,7 +61,7 @@
     "dependencies": {
         "@graphql-typed-document-node/core": "^3.2.0",
         "@iota/bcs": "workspace:*",
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "graphql": "^16.8.1"
     }
 }

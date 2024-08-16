@@ -9,7 +9,7 @@ import { Heading } from '@iota/ui';
 import { Card, Divider } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
-import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();
@@ -57,7 +57,7 @@ export function OnTheNetwork(): JSX.Element {
                     orientation="horizontal"
                     label="Reference Gas Price"
                     tooltip="The reference gas price of the current epoch"
-                    postfix={gasPriceFormatted !== null ? 'MICROS' : null}
+                    postfix={gasPriceFormatted !== null ? 'nano' : null}
                     size="sm"
                 >
                     {gasPriceFormatted}

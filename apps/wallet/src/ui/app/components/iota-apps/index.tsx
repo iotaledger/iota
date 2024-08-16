@@ -16,7 +16,7 @@ import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 
-function AppsPlayGround() {
+export function AppsPlayGround() {
     const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value;
     const { tagName } = useParams();
 

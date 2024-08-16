@@ -6,18 +6,20 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Link } from '_app/shared/Link';
-import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
-import { LabelValueItem } from '_components/LabelValueItem';
-import { LabelValuesContainer } from '_components/LabelValuesContainer';
-import Loading from '_components/loading';
-import { NFTDisplayCard } from '_components/nft-display';
+import {
+    ExplorerLinkType,
+    LabelValueItem,
+    LabelValuesContainer,
+    Loading,
+    NFTDisplayCard,
+} from '_components';
 import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { ArrowRight16, ArrowUpRight12 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useSearchParams } from 'react-router-dom';
 

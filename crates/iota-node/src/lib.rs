@@ -69,7 +69,7 @@ use iota_core::{
     signature_verifier::SignatureVerifierMetrics,
     state_accumulator::StateAccumulator,
     storage::RocksDbStore,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc::{
     coin_api::CoinReadApi, governance_api::GovernanceReadApi, indexer_api::IndexerApi,
@@ -208,7 +208,7 @@ pub struct IotaNode {
     /// experimental rest service
     _http_server: Option<tokio::task::JoinHandle<()>>,
     state: Arc<AuthorityState>,
-    transaction_orchestrator: Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
     metrics: Arc<IotaNodeMetrics>,
 
@@ -655,14 +655,12 @@ impl IotaNode {
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
         let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
-            Some(Arc::new(
-                TransactiondOrchestrator::new_with_network_clients(
-                    state.clone(),
-                    end_of_epoch_receiver,
-                    &config.db_path(),
-                    &prometheus_registry,
-                )?,
-            ))
+            Some(Arc::new(TransactionOrchestrator::new_with_network_clients(
+                state.clone(),
+                end_of_epoch_receiver,
+                &config.db_path(),
+                &prometheus_registry,
+            )?))
         } else {
             None
         };
@@ -1450,7 +1448,7 @@ impl IotaNode {
 
     pub fn transaction_orchestrator(
         &self,
-    ) -> Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>> {
+    ) -> Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>> {
         self.transaction_orchestrator.clone()
     }
 
@@ -1889,7 +1887,7 @@ fn build_kv_store(
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     store: RocksDbStore,
-    transaction_orchestrator: &Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
     _custom_runtime: Option<Handle>,

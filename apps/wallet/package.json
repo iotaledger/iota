@@ -35,7 +35,7 @@
         "tokens",
         "balance"
     ],
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "license": "Apache-2.0",
     "devDependencies": {
         "@amplitude/ampli": "^1.31.5",
@@ -96,7 +96,7 @@
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/icons": "workspace:*",
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@iota/ledgerjs-hw-app-iota": "workspace:*",
         "@iota/ui-icons": "workspace:*",
@@ -119,7 +119,7 @@
         "@sentry/browser": "^7.61.0",
         "@tanstack/react-query": "^5.0.0",
         "@tanstack/react-query-persist-client": "^5.40.1",
-        "axios": "^1.7.2",
+        "axios": "^1.7.4",
         "bech32": "^2.0.0",
         "bignumber.js": "^9.1.1",
         "bootstrap-icons": "^1.10.5",

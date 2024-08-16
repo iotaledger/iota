@@ -4,7 +4,7 @@
 
 import { Card } from '_app/shared/card';
 import { Text } from '_app/shared/text';
-import NumberInput from '_components/number-input';
+import { NumberInput } from '_components';
 import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,

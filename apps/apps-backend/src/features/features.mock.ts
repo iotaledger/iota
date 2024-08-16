@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getDefaultNetwork, Network } from '@iota/iota.js/client';
+import { getDefaultNetwork, Network } from '@iota/iota-sdk/client';
 
 const walletDapps = [
     {

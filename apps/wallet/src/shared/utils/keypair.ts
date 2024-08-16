@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { decodeIotaPrivateKey, type Keypair } from '@iota/iota.js/cryptography';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { Secp256k1Keypair } from '@iota/iota.js/keypairs/secp256k1';
-import { Secp256r1Keypair } from '@iota/iota.js/keypairs/secp256r1';
+import { decodeIotaPrivateKey, type Keypair } from '@iota/iota-sdk/cryptography';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Secp256k1Keypair } from '@iota/iota-sdk/keypairs/secp256k1';
+import { Secp256r1Keypair } from '@iota/iota-sdk/keypairs/secp256r1';
 
 export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
     return Ed25519Keypair.deriveKeypairFromSeed(seedHex, derivationPath);

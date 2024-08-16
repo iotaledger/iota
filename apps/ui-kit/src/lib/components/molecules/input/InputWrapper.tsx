@@ -55,7 +55,7 @@ export function InputWrapper({
     return (
         <div
             className={cx('group flex flex-col gap-y-2', {
-                'opacity-40': disabled,
+                'cursor-not-allowed opacity-40': disabled,
                 errored: errorMessage,
                 enabled: !disabled,
                 required: required,

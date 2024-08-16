@@ -2,11 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Overlay from '_components/overlay';
+import {
+    Overlay,
+    DAppInfoCard,
+    DAppPermissionsList,
+    SummaryCard,
+    WalletListSelect,
+} from '_components';
 import { useAppSelector } from '_hooks';
 import { permissionsSelectors } from '_redux/slices/permissions';
 import { ampli } from '_src/shared/analytics/ampli';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -14,10 +20,6 @@ import { toast } from 'react-hot-toast';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { Button } from '../../shared/ButtonUI';
 import { Text } from '../../shared/text';
-import { DAppInfoCard } from '../DAppInfoCard';
-import { DAppPermissionsList } from '../DAppPermissionsList';
-import { SummaryCard } from '../SummaryCard';
-import { WalletListSelect } from '../WalletListSelect';
 import { type DAppEntry } from './IotaApp';
 
 export interface DisconnectAppProps extends Omit<DAppEntry, 'description' | 'tags'> {
