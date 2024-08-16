@@ -26,6 +26,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           ssh-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          ssh-known-hosts: ${{ secrets.SSH_GITHUB_KNOWN_HOSTS }}
           use-git-cli: true
 
   clippy:
