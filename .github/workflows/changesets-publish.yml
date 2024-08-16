@@ -24,4 +24,4 @@ jobs:
       - name: Publish packages
         run: pnpm changeset-publish
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN_BUT_NOT_YET_BUT_YOU }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN_RELEASE }}
