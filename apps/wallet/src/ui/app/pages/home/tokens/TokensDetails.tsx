@@ -39,7 +39,7 @@ import { Pined, Unpined } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
-import { TokenIconLink } from './TokenIconLink';
+import { TokenStakingOverview } from './TokenStakingOverview';
 import { TokenLink } from './TokenLink';
 import {
     ButtonUnstyled,
@@ -493,7 +493,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                     </div>
                                     <div className="w-full">
                                         {accountHasIota || delegatedStake?.length ? (
-                                            <TokenIconLink
+                                            <TokenStakingOverview
                                                 disabled={!tokenBalance}
                                                 accountAddress={activeAccountAddress}
                                             />

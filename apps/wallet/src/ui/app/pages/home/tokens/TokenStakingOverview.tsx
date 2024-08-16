@@ -24,7 +24,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Stake } from '@iota/ui-icons';
 
-export function TokenIconLink({
+export function TokenStakingOverview({
     accountAddress,
     disabled,
 }: {
