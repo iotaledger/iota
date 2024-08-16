@@ -2,17 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::IotaClientBuilder;
+//! This example shows the few basic ways to connect to a Iota network.
+//! There are several in-built methods for connecting to the
+//! Iota devnet, tesnet, and localnet (running locally),
+//! as well as a custom way for connecting to custom URLs.
+//! The example prints out the API versions of the different networks,
+//! and finally, it prints the list of available RPC methods
+//! and the list of subscriptions.
+//! Note that running this code will fail if there is no Iota network
+//! running locally on the default address: 127.0.0.1:9000
+//! cargo run --example iota_client
 
-// This example shows the few basic ways to connect to a Iota network.
-// There are several in-built methods for connecting to the
-// Iota devnet, tesnet, and localnet (running locally),
-// as well as a custom way for connecting to custom URLs.
-// The example prints out the API versions of the different networks,
-// and finally, it prints the list of available RPC methods
-// and the list of subscriptions.
-// Note that running this code will fail if there is no Iota network
-// running locally on the default address: 127.0.0.1:9000
+use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
