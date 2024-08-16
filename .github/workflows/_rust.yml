@@ -41,18 +41,20 @@ jobs:
       isRust: ${{ inputs.isRust }}
 
   rust-tests:
-    if: inputs.isRust
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_rust_tests.yml
+    with:
+      isRust: ${{ inputs.isRust }}
 
   external-tests:
-    if: inputs.isRust
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_external_rust_tests.yml
+    with:
+      isRust: ${{ inputs.isRust }}
 
   mysticeti-tests:
     if: inputs.isRust
