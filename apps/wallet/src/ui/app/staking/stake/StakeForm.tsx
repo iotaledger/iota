@@ -17,7 +17,6 @@ import {
 } from '@iota/core';
 import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
-
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
 import { Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
@@ -95,7 +94,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         >
             <Field
                 name="amount"
-                render={({ field }) => (
+                render={({ field }: { field: FormValues }) => (
                     <Input
                         {...field}
                         type={InputType.Number}
