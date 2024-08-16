@@ -23,3 +23,12 @@ rocksdb.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 typed-store.workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+development = [
+  "eyre",
+  "rocksdb",
+  "tempfile",
+  "tokio",
+  "typed-store",
+]

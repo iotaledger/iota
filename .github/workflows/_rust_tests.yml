@@ -1,9 +1,14 @@
 name: Rust tests
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
 
 jobs:
   changes:
+    if: inputs.isRust
     runs-on: [self-hosted]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -18,7 +23,7 @@ jobs:
   test:
     name: Test ${{ matrix.components }}
     needs: changes
-    if: needs.changes.outputs.components != '[]'
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -36,6 +41,7 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   iota-sdk-changes:
+    if: inputs.isRust
     runs-on: [self-hosted]
     outputs:
       changed: ${{ steps.filter.outputs.iota-sdk }}
@@ -50,7 +56,7 @@ jobs:
 
   test-iota-sdk:
     name: Test iota-sdk
-    if: needs.iota-sdk-changes.outputs.changed == 'true'
+    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -66,6 +72,39 @@ jobs:
         # https://github.com/rust-lang/cargo/issues/12891
         # (we have the stardust iota-sdk package as a dependency)
         run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
+
+  check-unused-deps:
+    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
+    strategy:
+      matrix:
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+        flags: ["--all-features", "--no-default-features"]
+      fail-fast: false
+    runs-on: [self-hosted]
+    needs: changes
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps -p ${{matrix.components}} ${{ matrix.flags }}
+
+  check-unused-deps-iota-sdk:
+    name: Check Unused Dependencies of iota-sdk (${{ matrix.flags }})
+    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true'
+    runs-on: [self-hosted]
+    needs: iota-sdk-changes
+    strategy:
+      matrix:
+        flags: ["--all-features", "--no-default-features"]
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      # iota-sdk version needs to be explicitly defined here due to this bug
+      # https://github.com/rust-lang/cargo/issues/12891
+      # (we have the stardust iota-sdk package as a dependency)
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps -p iota-sdk@0.1.4 ${{ matrix.flags }}
 
   test-extra:
     env:
