@@ -127,19 +127,21 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         valueText={formatPercentageDisplay(totalStakePercentage)}
                     />
                     {!unstake && (
-                        <KeyValueInfo
-                            keyText="Total Staked"
-                            tooltipPosition={TooltipPosition.Right}
-                            tooltipText="Stake percentage managed by this validator."
-                            valueText={`${totalValidatorStakeFormatted} ${totalValidatorStakeSymbol}`}
-                        />
+                        <>
+                            <KeyValueInfo
+                                keyText="Total Staked"
+                                tooltipPosition={TooltipPosition.Right}
+                                tooltipText="Stake percentage managed by this validator."
+                                valueText={`${totalValidatorStakeFormatted} ${totalValidatorStakeSymbol}`}
+                            />
+                            <KeyValueInfo
+                                keyText="Your Staked IOTA"
+                                tooltipPosition={TooltipPosition.Right}
+                                tooltipText="Your current staked balance."
+                                valueText={`${totalStakeFormatted} ${totalStakeSymbol}`}
+                            />
+                        </>
                     )}
-                    <KeyValueInfo
-                        keyText="Your Staked IOTA"
-                        tooltipPosition={TooltipPosition.Right}
-                        tooltipText="Your current staked balance."
-                        valueText={`${totalStakeFormatted} ${totalStakeSymbol}`}
-                    />
                 </div>
             </Panel>
         </div>

@@ -117,7 +117,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                 )}
             />
             <Panel hasBorder>
-                <div className="gap-y-sm p-md">
+                <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
                         keyText="Staking Rewards Start"
                         valueText={stakedRewardsStartEpoch}
