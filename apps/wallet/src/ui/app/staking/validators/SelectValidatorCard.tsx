@@ -89,33 +89,32 @@ export function SelectValidatorCard() {
                     validatorList.map((validator) => (
                         <div
                             className={cl('group relative w-full cursor-pointer', {
-                                selected: selectedValidator?.address === validator.address,
+                                'rounded-xl bg-shader-neutral-light-8':
+                                    selectedValidator?.address === validator.address,
                             })}
                             key={validator.address}
                         >
-                            <div className="group-[.selected]:rounded-xl group-[.selected]:ring-1 group-[.selected]:ring-inset group-[.selected]:ring-shader-neutral-light-12">
-                                <Card onClick={() => selectValidator(validator)}>
-                                    <CardImage>
-                                        <ImageIcon
-                                            src={null}
-                                            label={validator?.name || ''}
-                                            fallback={validator?.name || ''}
-                                        />
-                                    </CardImage>
-                                    <CardBody
-                                        title={validator.name}
-                                        subtitle={formatAddress(validator.address)}
+                            <Card onClick={() => selectValidator(validator)}>
+                                <CardImage>
+                                    <ImageIcon
+                                        src={null}
+                                        label={validator?.name || ''}
+                                        fallback={validator?.name || ''}
                                     />
-                                    <CardAction
-                                        type={CardActionType.SupportingText}
-                                        title={formatPercentageDisplay(
-                                            validator.apy,
-                                            '-',
-                                            validator?.isApyApproxZero,
-                                        )}
-                                    />
-                                </Card>
-                            </div>
+                                </CardImage>
+                                <CardBody
+                                    title={validator.name}
+                                    subtitle={formatAddress(validator.address)}
+                                />
+                                <CardAction
+                                    type={CardActionType.SupportingText}
+                                    title={formatPercentageDisplay(
+                                        validator.apy,
+                                        '-',
+                                        validator?.isApyApproxZero,
+                                    )}
+                                />
+                            </Card>
                         </div>
                     ))}
             </div>

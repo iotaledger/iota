@@ -15,6 +15,8 @@ ci-clippy-external = [
   "-Dwarnings",
 ]
 ci-license = "license-template --template .license_template"
+ci-udeps = "udeps --all-targets --backend=depinfo"
+ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]

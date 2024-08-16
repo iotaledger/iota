@@ -20,7 +20,6 @@ prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
