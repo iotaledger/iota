@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Card } from '_app/shared/card';
 import { Alert, LoadingIndicator } from '_components';
-import { Text } from '_src/ui/app/shared/text';
-import { IconTooltip } from '_src/ui/app/shared/tooltip';
 import {
     calculateStakeShare,
     formatPercentageDisplay,
@@ -13,16 +10,16 @@ import {
     useGetValidatorsApy,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    useFormatCoin,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
-import { StakeAmount } from '../home/StakeAmount';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface ValidatorFormDetailProps {
     validatorAddress: string;
@@ -31,7 +28,6 @@ interface ValidatorFormDetailProps {
 
 export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorFormDetailProps) {
     const accountAddress = useActiveAddress();
-
     const [searchParams] = useSearchParams();
     const stakeIdParams = searchParams.get('staked');
     const {
@@ -88,6 +84,11 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: null,
     };
+    const [totalValidatorStakeFormatted, totalValidatorStakeSymbol] = useFormatCoin(
+        totalValidatorStake,
+        IOTA_TYPE_ARG,
+    );
+    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
 
     if (isPending || loadingValidators) {
         return (
@@ -111,75 +112,36 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 
     return (
         <div className="w-full">
-            {validatorData && (
-                <Card
-                    titleDivider
-                    header={
-                        <div className="flex items-center gap-2 px-3.75 py-2.5">
-                            <ValidatorLogo validatorAddress={validatorAddress} size="body" />
-                        </div>
-                    }
-                    footer={
-                        !unstake && (
-                            <>
-                                <Text variant="body" weight="medium" color="steel-darker">
-                                    Your Staked IOTA
-                                </Text>
-
-                                <StakeAmount balance={totalStake} variant="body" />
-                            </>
-                        )
-                    }
-                >
-                    <div className="flex flex-col gap-3.5">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="text-steel flex items-center gap-1">
-                                <Text variant="body" weight="medium" color="steel-darker">
-                                    Staking APY
-                                </Text>
-                                <IconTooltip
-                                    noFullWidth
-                                    tip="This is the Annualized Percentage Yield of the a specific validator’s past operations. Note there is no guarantee this APY will be true in the future."
-                                />
-                            </div>
-
-                            <Text variant="body" weight="semibold" color="gray-90">
-                                {formatPercentageDisplay(apy, '--', isApyApproxZero)}
-                            </Text>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="text-steel flex items-center gap-1">
-                                <Text variant="body" weight="medium" color="steel-darker">
-                                    Stake Share
-                                </Text>
-                                <IconTooltip
-                                    noFullWidth
-                                    tip="The percentage of total stake managed by this validator"
-                                />
-                            </div>
-
-                            <Text variant="body" weight="semibold" color="gray-90">
-                                {formatPercentageDisplay(totalStakePercentage)}
-                            </Text>
-                        </div>
-
-                        {!unstake && (
-                            <div className="mb-3.5 flex items-center justify-between gap-2">
-                                <div className="text-steel flex items-center gap-1">
-                                    <Text variant="body" weight="medium" color="steel-darker">
-                                        Total Staked
-                                    </Text>
-                                    <IconTooltip
-                                        noFullWidth
-                                        tip="The total IOTA staked on the network by this validator and its delegators, to validate the network and earn rewards."
-                                    />
-                                </div>
-                                <StakeAmount balance={totalValidatorStake} variant="body" />
-                            </div>
-                        )}
-                    </div>
-                </Card>
-            )}
+            <Panel hasBorder>
+                <div className="flex flex-col gap-y-sm p-sm">
+                    <KeyValueInfo
+                        keyText="APY"
+                        tooltipPosition={TooltipPosition.Right}
+                        tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
+                        valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                    />
+                    <KeyValueInfo
+                        keyText="Stake shared"
+                        tooltipPosition={TooltipPosition.Right}
+                        tooltipText="Stake percentage managed by this validator."
+                        valueText={formatPercentageDisplay(totalStakePercentage)}
+                    />
+                    {!unstake && (
+                        <KeyValueInfo
+                            keyText="Total Staked"
+                            tooltipPosition={TooltipPosition.Right}
+                            tooltipText="Stake percentage managed by this validator."
+                            valueText={`${totalValidatorStakeFormatted} ${totalValidatorStakeSymbol}`}
+                        />
+                    )}
+                    <KeyValueInfo
+                        keyText="Your Staked IOTA"
+                        tooltipPosition={TooltipPosition.Right}
+                        tooltipText="Your current staked balance."
+                        valueText={`${totalStakeFormatted} ${totalStakeSymbol}`}
+                    />
+                </div>
+            </Panel>
         </div>
     );
 }

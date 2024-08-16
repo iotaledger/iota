@@ -49,11 +49,11 @@ export function KeyValueInfo({
 }: KeyValueProps): React.JSX.Element {
     return (
         <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
-            <div className="flex flex-row items-center gap-x-0.5">
+            <div className="flex w-full flex-row items-center gap-x-0.5">
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
                 {tooltipText && (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
-                        <Info className="text-neutral-40 dark:text-neutral-60" />
+                        <Info className="text-neutral-60 dark:text-neutral-40" />
                     </Tooltip>
                 )}
             </div>
