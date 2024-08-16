@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install latest nightly
-        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+        run: rustup self update && rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
         run: |
           cargo +nightly ci-fmt-external

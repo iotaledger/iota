@@ -113,7 +113,7 @@ jobs:
           crate: cargo-hakari
           locked: true
       - name: Install nightly rustfmt
-        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+        run: rustup self update && rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: iota-execution
         run: |
           ./scripts/execution_layer.py generate-lib

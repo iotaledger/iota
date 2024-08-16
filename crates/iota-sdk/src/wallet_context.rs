@@ -37,10 +37,7 @@ impl WalletContext {
         max_concurrent_requests: Option<u64>,
     ) -> Result<Self, anyhow::Error> {
         let config: IotaClientConfig = PersistedConfig::read(config_path).map_err(|err| {
-            anyhow!(
-                "Cannot open wallet config file at {:?}. Err: {err}",
-                config_path
-            )
+            anyhow!("Cannot open wallet config file at {config_path:?}. Err: {err}",)
         })?;
 
         let config = config.persisted(config_path);
