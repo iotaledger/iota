@@ -40,7 +40,6 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
                             <ValidatorLogo
                                 validatorAddress={validatorAddress}
                                 showAddress
-                                iconSize="md"
                                 size="body"
                                 showActiveStatus
                             />

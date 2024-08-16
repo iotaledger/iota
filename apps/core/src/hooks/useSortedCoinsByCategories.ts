@@ -17,22 +17,20 @@ function sortCoins(balances: CoinBalance[]) {
     });
 }
 
-export function useSortedCoinsByCategories(coinBalances: CoinBalance[]) {
+export function useSortedCoinsByCategories(
+    coinBalances: CoinBalance[],
+    pinnedCoinTypes?: string[],
+) {
     const recognizedPackages = DEFAULT_RECOGNIZED_PACKAGES; // previous: useRecognizedPackages();
-
-    // Commented out pinnedCoinTypes until https://github.com/iotaledger/iota/issues/832 is resolved
-    // const [pinnedCoinTypes] = usePinnedCoinTypes();
 
     return useMemo(() => {
         const reducedCoinBalances = coinBalances?.reduce(
             (acc, coinBalance) => {
                 if (recognizedPackages.includes(coinBalance.coinType.split('::')[0])) {
                     acc.recognized.push(coinBalance);
-                }
-                // else if (pinnedCoinTypes.includes(coinBalance.coinType)) {
-                //     acc.pinned.push(coinBalance);
-                // }
-                else {
+                } else if (pinnedCoinTypes?.includes(coinBalance.coinType)) {
+                    acc.pinned.push(coinBalance);
+                } else {
                     acc.unrecognized.push(coinBalance);
                 }
                 return acc;
@@ -49,5 +47,5 @@ export function useSortedCoinsByCategories(coinBalances: CoinBalance[]) {
             pinned: sortCoins(reducedCoinBalances.pinned),
             unrecognized: sortCoins(reducedCoinBalances.unrecognized),
         };
-    }, [coinBalances, recognizedPackages /*pinnedCoinTypes*/]);
+    }, [coinBalances, recognizedPackages, pinnedCoinTypes]);
 }

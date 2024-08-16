@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinIcon } from '_src/ui/app/components/coin-icon';
+import { CoinIcon } from '_components';
 
 import { Text } from '../../text';
 
@@ -22,7 +22,7 @@ export function CoinsStack({ coinTypes }: CoinsStackProps) {
             )}
             {coinTypes.slice(0, MAX_COINS_TO_DISPLAY).map((coinType, i) => (
                 <div key={coinType} className={i === 0 ? '' : '-ml-1'}>
-                    <CoinIcon size="sm" coinType={coinType} />
+                    <CoinIcon coinType={coinType} />
                 </div>
             ))}
         </div>

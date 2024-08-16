@@ -2,156 +2,133 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { CardLayout } from '_app/shared/card-layout';
-import { Text } from '_app/shared/text';
-import Alert from '_components/alert';
-import Loading from '_components/loading';
-import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
-import { ArrowLeft16, Check12 } from '@iota/icons';
+import {
+    Button,
+    ButtonType,
+    Checkbox,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    TextArea,
+} from '@iota/apps-ui-kit';
+import { Exclamation, Info } from '@iota/ui-icons';
+import { Loading, PageTemplate } from '_components';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
+import toast from 'react-hot-toast';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function BackupMnemonicPage() {
-    const [passwordCopied, setPasswordCopied] = useState(false);
-    const { state } = useLocation();
+    const [mnemonicCopied, setMnemonicCopied] = useState(false);
+    const [mnemonicBackedUp, setMnemonicBackedUp] = useState(false);
+
     const { accountSourceID } = useParams();
     const { data: accountSources, isPending } = useAccountSources();
     const selectedSource = useMemo(
         () => accountSources?.find(({ id }) => accountSourceID === id),
         [accountSources, accountSourceID],
     );
-    const isOnboardingFlow = !!state?.onboarding;
-    const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-    const [passwordConfirmed, setPasswordConfirmed] = useState(false);
-    const requirePassword = !isOnboardingFlow || !!selectedSource?.isLocked;
     const passphraseMutation = useExportPassphraseMutation();
-    useEffect(() => {
-        (async () => {
-            if (
-                (requirePassword && !passwordConfirmed) ||
-                !passphraseMutation.isIdle ||
-                !accountSourceID
-            ) {
-                return;
-            }
-            passphraseMutation.mutate({ accountSourceID: accountSourceID });
-        })();
-    }, [requirePassword, passwordConfirmed, accountSourceID, passphraseMutation]);
-    useEffect(() => {
-        if (requirePassword && !passwordConfirmed && !showPasswordDialog) {
-            setShowPasswordDialog(true);
-        }
-    }, [requirePassword, passwordConfirmed, showPasswordDialog]);
+
     const navigate = useNavigate();
     if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
         return <Navigate to="/" replace />;
     }
+
+    useEffect(() => {
+        (async () => {
+            if (!passphraseMutation.isIdle || !accountSourceID) {
+                return;
+            }
+            passphraseMutation.mutate({ accountSourceID: accountSourceID });
+        })();
+    }, [accountSourceID, passphraseMutation]);
+
+    async function handleCopy() {
+        if (!passphraseMutation?.data) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(passphraseMutation.data.join(' '));
+            setMnemonicCopied(true);
+            setTimeout(() => {
+                setMnemonicCopied(false);
+            }, 1000);
+        } catch {
+            toast.error('Failed to copy');
+        }
+    }
+
     return (
-        <Loading loading={isPending}>
-            {showPasswordDialog ? (
-                <CardLayout>
-                    <VerifyPasswordModal
-                        open
-                        onClose={() => {
-                            navigate(-1);
-                        }}
-                        onVerify={async (password) => {
-                            await passphraseMutation.mutateAsync({
-                                password,
-                                accountSourceID: selectedSource!.id,
-                            });
-                            setPasswordConfirmed(true);
-                            setShowPasswordDialog(false);
-                        }}
-                    />
-                </CardLayout>
-            ) : (
-                <CardLayout
-                    icon={isOnboardingFlow ? 'success' : undefined}
-                    title={
-                        isOnboardingFlow ? 'Wallet Created Successfully!' : 'Backup Recovery Phrase'
-                    }
-                >
-                    <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
-                        <div className="mb-5 flex flex-grow flex-col flex-nowrap">
-                            <div className="mb-1 mt-7.5 text-center">
-                                <Text variant="caption" color="steel-darker" weight="bold">
-                                    Recovery phrase
-                                </Text>
-                            </div>
-                            <div className="mb-3.5 mt-2 text-center">
-                                <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                    Your recovery phrase makes it easy to back up and restore your
-                                    account.
-                                </Text>
-                            </div>
+        <PageTemplate title="Export Mnemonic" isTitleCentered>
+            <Loading loading={isPending}>
+                <div className="flex h-full flex-col items-center justify-between">
+                    <div className="flex flex-col gap-md">
+                        <h3 className="text-center text-headline-lg text-neutral-10">
+                            Wallet Created Successfully!
+                        </h3>
+                        <InfoBox
+                            icon={<Info />}
+                            type={InfoBoxType.Default}
+                            title={
+                                'Never disclose your secret mnemonic. Anyone can take over your wallet with it.'
+                            }
+                            style={InfoBoxStyle.Default}
+                        />
+
+                        <div className="flex flex-grow flex-col flex-nowrap">
                             <Loading loading={passphraseMutation.isPending}>
                                 {passphraseMutation.data ? (
-                                    <HideShowDisplayBox value={passphraseMutation.data} hideCopy />
+                                    <>
+                                        <TextArea
+                                            value={passphraseMutation.data.join(' ')}
+                                            isVisibilityToggleEnabled
+                                            rows={5}
+                                        />
+                                    </>
                                 ) : (
-                                    <Alert>
-                                        {(passphraseMutation.error as Error)?.message ||
-                                            'Something went wrong'}
-                                    </Alert>
+                                    <InfoBox
+                                        type={InfoBoxType.Default}
+                                        supportingText={
+                                            (passphraseMutation.error as Error)?.message ||
+                                            'Something went wrong'
+                                        }
+                                        icon={<Exclamation />}
+                                        style={InfoBoxStyle.Elevated}
+                                    />
                                 )}
                             </Loading>
-                            <div className="mb-1 mt-3.75 text-center">
-                                <Text variant="caption" color="steel-dark" weight="semibold">
-                                    Warning
-                                </Text>
-                            </div>
-                            <div className="mb-1 text-center">
-                                <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                    Never disclose your secret recovery phrase. Anyone can take over
-                                    your account with it.
-                                </Text>
-                            </div>
-                            <div className="flex-1" />
-                            {isOnboardingFlow ? (
-                                <div className="mb- mt-5 flex w-full text-left">
-                                    <label className="text-iota-dark relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25">
-                                        <input
-                                            type="checkbox"
-                                            name="agree"
-                                            id="agree"
-                                            className="peer/agree invisible ml-2"
-                                            onChange={() => setPasswordCopied(!passwordCopied)}
-                                        />
-                                        <span className="peer-checked/agree:bg-success absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-gray-50 bg-white shadow-button peer-checked/agree:shadow-none">
-                                            <Check12 className="text-body font-semibold text-white" />
-                                        </span>
-
-                                        <Text
-                                            variant="bodySmall"
-                                            color="steel-dark"
-                                            weight="normal"
-                                        >
-                                            I saved my recovery phrase
-                                        </Text>
-                                    </label>
-                                </div>
-                            ) : null}
                         </div>
+                        {passphraseMutation.data && (
+                            <div className="flex justify-end">
+                                <Button
+                                    onClick={handleCopy}
+                                    type={ButtonType.Secondary}
+                                    text={mnemonicCopied ? 'Copied' : 'Copy'}
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex w-full flex-col">
+                        <div className="flex w-full py-sm--rs">
+                            <Checkbox
+                                name="recovery-phrase"
+                                label="I saved my mnemonic"
+                                onCheckedChange={() => setMnemonicBackedUp(!mnemonicBackedUp)}
+                            />
+                        </div>
+                        <div className="pt-sm--rs" />
                         <Button
-                            type="button"
-                            size="tall"
-                            variant="primary"
-                            disabled={!passwordCopied && isOnboardingFlow}
-                            to="/"
-                            text="Open Iota Wallet"
-                            after={
-                                <ArrowLeft16 className="rotate-135 text-pBodySmall font-normal" />
-                            }
+                            onClick={() => navigate('/')}
+                            type={ButtonType.Primary}
+                            disabled={!mnemonicBackedUp}
+                            text="Open Wallet"
                         />
                     </div>
-                </CardLayout>
-            )}
-        </Loading>
+                </div>
+            </Loading>
+        </PageTemplate>
     );
 }

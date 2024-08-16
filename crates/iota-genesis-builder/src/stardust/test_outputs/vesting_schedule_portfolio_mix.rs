@@ -22,7 +22,6 @@ use crate::stardust::{
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
-const IOTA_COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 208;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 const MNEMONIC: &str = "axis art silk merit assist hour bright always day legal misery arm laundry mule ship upon oil ski cup hat skin wet old sea";
@@ -41,6 +40,7 @@ const ADDRESSES: &[[u32; 3]] = &[
 pub(crate) async fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
+    coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
@@ -48,7 +48,7 @@ pub(crate) async fn outputs(
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager
             .generate_ed25519_addresses(
-                IOTA_COIN_TYPE,
+                coin_type,
                 *account_index,
                 *address_index..address_index + 1,
                 (*internal == 1).then_some(GenerateAddressOptions::internal()),
