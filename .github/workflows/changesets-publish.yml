@@ -6,7 +6,7 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  version:
+  publish:
     runs-on: self-hosted
     steps:
       - name: checkout code repository
@@ -21,7 +21,7 @@ jobs:
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: NPM login
+        run: npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
       - name: Publish packages
         run: pnpm changeset-publish --no-git-tag
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
