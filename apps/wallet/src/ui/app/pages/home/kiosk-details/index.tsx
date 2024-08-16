@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { ErrorBoundary } from '_src/ui/app/components/error-boundary';
-import ExplorerLink from '_src/ui/app/components/explorer-link';
-import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
-import { LabelValueItem } from '_src/ui/app/components/LabelValueItem';
-import { LabelValuesContainer } from '_src/ui/app/components/LabelValuesContainer';
-import Loading from '_src/ui/app/components/loading';
-import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
+import {
+    ErrorBoundary,
+    ExplorerLink,
+    ExplorerLinkType,
+    LabelValueItem,
+    LabelValuesContainer,
+    Loading,
+    NFTDisplayCard,
+} from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Collapsible } from '_src/ui/app/shared/collapse';
 import PageTitle from '_src/ui/app/shared/PageTitle';
