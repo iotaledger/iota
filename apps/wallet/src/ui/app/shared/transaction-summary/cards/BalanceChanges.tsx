@@ -1,8 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import Alert from '_components/alert';
-import { CoinIcon } from '_src/ui/app/components/coin-icon';
+import { Alert, CoinIcon } from '_components';
 import { Text } from '_src/ui/app/shared/text';
 import {
     CoinFormat,

@@ -4,8 +4,8 @@
 
 import { useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { Portal } from '../../shared/Portal';
 import { Header } from '@iota/apps-ui-kit';
+import { Portal } from '../shared/Portal';
 
 interface OverlayProps {
     title?: string;
@@ -17,7 +17,7 @@ interface OverlayProps {
     background?: 'bg-iota-lightest';
 }
 
-function Overlay({ title, children, showModal, closeOverlay, setShowModal }: OverlayProps) {
+export function Overlay({ title, children, showModal, closeOverlay, setShowModal }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
             closeOverlay && closeOverlay();
@@ -35,5 +35,3 @@ function Overlay({ title, children, showModal, closeOverlay, setShowModal }: Ove
         </Portal>
     ) : null;
 }
-
-export default Overlay;

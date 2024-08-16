@@ -12,13 +12,11 @@ import {
     TextArea,
 } from '@iota/apps-ui-kit';
 import { Exclamation, Info } from '@iota/ui-icons';
+import { Loading, PageTemplate } from '_components';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-
-import { PageTemplate } from '_components/PageTemplate';
-import Loading from '_components/loading';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
 

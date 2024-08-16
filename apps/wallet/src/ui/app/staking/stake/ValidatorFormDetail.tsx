@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Card } from '_app/shared/card';
-import Alert from '_components/alert';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { Alert, LoadingIndicator } from '_components';
 import { Text } from '_src/ui/app/shared/text';
 import { IconTooltip } from '_src/ui/app/shared/tooltip';
 import {
