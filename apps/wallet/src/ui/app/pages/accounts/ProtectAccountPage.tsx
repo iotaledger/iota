@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    type FormValues,
     ProtectAccountForm,
     VerifyPasswordModal,
     Loading,
@@ -21,6 +20,7 @@ import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation'
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
+import type { FormValues } from '../../components/accounts/ProtectAccountForm';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,

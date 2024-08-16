@@ -6,10 +6,11 @@ import { useAutoLockMinutesMutation } from '_src/ui/app/hooks/useAutoLockMinutes
 import { useResetPasswordMutation } from '_src/ui/app/hooks/useResetPasswordMutation';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { type FormValues, ProtectAccountForm } from '_components';
+import { ProtectAccountForm } from '_components';
 import { autoLockDataToMinutes } from '../../../hooks/useAutoLockMinutes';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
+import type { FormValues } from '_src/ui/app/components/accounts/ProtectAccountForm';
 
 export function ResetPasswordPage() {
     const { value, clear } = useForgotPasswordContext();
