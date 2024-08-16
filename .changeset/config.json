@@ -20,7 +20,8 @@
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli",
-		"@iota/zklogin"
+		"@iota/zklogin",
+		"@iota/iotans-toolkit"
 	],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true
