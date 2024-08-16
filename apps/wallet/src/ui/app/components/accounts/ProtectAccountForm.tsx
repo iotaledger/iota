@@ -55,12 +55,12 @@ const formSchema = z
     })
     .merge(zodSchema);
 
-export type FormValues = z.infer<typeof formSchema>;
+export type ProtectAccountFormValues = z.infer<typeof formSchema>;
 
 interface ProtectAccountFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
-    onSubmit: SubmitHandler<FormValues>;
+    onSubmit: SubmitHandler<ProtectAccountFormValues>;
     hideToS?: boolean;
 }
 

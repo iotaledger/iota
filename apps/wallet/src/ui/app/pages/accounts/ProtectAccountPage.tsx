@@ -20,7 +20,7 @@ import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation'
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
-import type { FormValues } from '../../components/accounts/ProtectAccountForm';
+import type { ProtectAccountFormValues } from '../../components/accounts/ProtectAccountForm';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -114,7 +114,7 @@ export function ProtectAccountPage() {
     if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
-    async function handleOnSubmit({ password, autoLock }: FormValues) {
+    async function handleOnSubmit({ password, autoLock }: ProtectAccountFormValues) {
         try {
             await autoLockMutation.mutateAsync({
                 minutes: autoLockDataToMinutes(autoLock),

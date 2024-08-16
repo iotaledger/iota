@@ -10,7 +10,7 @@ import { ProtectAccountForm } from '_components';
 import { autoLockDataToMinutes } from '../../../hooks/useAutoLockMinutes';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
-import type { FormValues } from '_src/ui/app/components/accounts/ProtectAccountForm';
+import type { ProtectAccountFormValues } from '_src/ui/app/components/accounts/ProtectAccountForm';
 
 export function ResetPasswordPage() {
     const { value, clear } = useForgotPasswordContext();
@@ -21,7 +21,7 @@ export function ResetPasswordPage() {
         return <Navigate to="/accounts/forgot-password" replace />;
     }
 
-    async function handleOnSubmit({ password, autoLock }: FormValues) {
+    async function handleOnSubmit({ password, autoLock }: ProtectAccountFormValues) {
         try {
             await autoLockMutation.mutateAsync({
                 minutes: autoLockDataToMinutes(autoLock),
