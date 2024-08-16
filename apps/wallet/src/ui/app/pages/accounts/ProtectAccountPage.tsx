@@ -6,18 +6,21 @@ import { isMnemonicSerializedUiAccount } from '_src/background/accounts/Mnemonic
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { type FormValues, ProtectAccountForm } from '../../components/accounts/ProtectAccountForm';
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
-import Loading from '../../components/loading';
+import {
+    type FormValues,
+    ProtectAccountForm,
+    VerifyPasswordModal,
+    Loading,
+    AccountsFormType,
+    PageTemplate,
+} from '_components';
 import { useAccounts } from '../../hooks/useAccounts';
 import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
 import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
-import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
-import { PageTemplate } from '../../components/PageTemplate';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,

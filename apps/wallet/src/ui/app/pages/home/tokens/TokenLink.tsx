@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinItem } from '_components/active-coins-card/CoinItem';
+import { CoinItem } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { NANO_PER_IOTA } from '@iota/iota-sdk/utils';
@@ -11,11 +11,10 @@ import { Link } from 'react-router-dom';
 
 type TokenLinkProps = {
     coinBalance: CoinBalance;
-    centerAction?: ReactNode;
-    subtitle?: string;
+    clickableAction?: ReactNode;
 };
 
-export function TokenLink({ coinBalance, centerAction, subtitle }: TokenLinkProps) {
+export function TokenLink({ coinBalance, clickableAction }: TokenLinkProps) {
     return (
         <Link
             to={`/send?type=${encodeURIComponent(coinBalance.coinType)}`}
@@ -31,8 +30,7 @@ export function TokenLink({ coinBalance, centerAction, subtitle }: TokenLinkProp
             <CoinItem
                 coinType={coinBalance.coinType}
                 balance={BigInt(coinBalance.totalBalance)}
-                centerAction={centerAction}
-                subtitle={subtitle}
+                clickableAction={clickableAction}
             />
         </Link>
     );

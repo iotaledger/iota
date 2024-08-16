@@ -4,3 +4,5 @@
 
 export { default as MenuButton } from './button';
 export { default as MenuContent } from './content';
+export * from './hooks';
+export * from './button/WalletSettingsButton';

@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
-import { ImportRecoveryPhraseForm } from '_src/ui/app/components/accounts/ImportRecoveryPhraseForm';
+import { ImportRecoveryPhraseForm, ImportSeedForm } from '_components';
 import { useRecoveryDataMutation } from '_src/ui/app/hooks/useRecoveryDataMutation';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAccountSources } from '../../../hooks/useAccountSources';
-import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 
