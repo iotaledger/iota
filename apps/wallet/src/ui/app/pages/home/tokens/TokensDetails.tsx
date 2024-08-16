@@ -243,7 +243,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
         <Loading loading={isFirstTimeLoading}>
             <div className="w-full">
                 <div className="flex h-[56px] items-center">
-                    <Title title={'My coins'} size={TitleSize.Medium} />
+                    <Title title="My coins" size={TitleSize.Medium} />
                 </div>
                 <SegmentedButton type={SegmentedButtonType.Transparent}>
                     {TOKEN_CATEGORIES.map(({ label, value }) => (
@@ -252,7 +252,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                         </ButtonUnstyled>
                     ))}
                 </SegmentedButton>
-                <div className="p-sm pb-md">
+                <div className="pb-md pt-sm">
                     {[TokenCategory.All, TokenCategory.Recognized].includes(
                         selectedTokenCategory,
                     ) &&
