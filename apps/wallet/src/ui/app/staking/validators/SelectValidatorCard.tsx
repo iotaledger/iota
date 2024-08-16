@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Alert from '_components/alert';
+import { Alert } from '_components';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
