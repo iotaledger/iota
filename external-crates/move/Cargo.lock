@@ -341,7 +341,6 @@ dependencies = [
 name = "bytecode-verifier-tests"
 version = "0.1.0"
 dependencies = [
- "fail",
  "hex",
  "invalid-mutations",
  "move-binary-format",
@@ -1627,7 +1626,6 @@ dependencies = [
  "proptest-derive",
  "ref-cast",
  "serde",
- "serde_json",
  "variant_count",
 ]
 
@@ -1667,7 +1665,6 @@ name = "move-bytecode-verifier"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
- "invalid-mutations",
  "move-abstract-stack",
  "move-binary-format",
  "move-borrow-graph",
@@ -1681,7 +1678,6 @@ name = "move-bytecode-verifier-v0"
 version = "0.1.0"
 dependencies = [
  "hex-literal",
- "invalid-mutations",
  "move-abstract-stack",
  "move-binary-format",
  "move-borrow-graph",
@@ -2038,7 +2034,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote 1.0.36",
  "syn 2.0.71",
 ]
@@ -2306,16 +2301,12 @@ dependencies = [
  "hex",
  "move-binary-format",
  "move-bytecode-verifier",
- "move-compiler",
  "move-core-types",
- "move-ir-compiler",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-types",
  "once_cell",
  "parking_lot",
- "proptest",
- "sha3",
  "smallvec",
  "tracing",
 ]
@@ -2330,16 +2321,12 @@ dependencies = [
  "hex",
  "move-binary-format",
  "move-bytecode-verifier-v0",
- "move-compiler",
  "move-core-types",
- "move-ir-compiler",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-types",
  "once_cell",
  "parking_lot",
- "proptest",
- "sha3",
  "smallvec",
  "tracing",
 ]
