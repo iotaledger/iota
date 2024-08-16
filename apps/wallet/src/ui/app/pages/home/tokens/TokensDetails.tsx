@@ -10,7 +10,7 @@ import { Alert, CoinIcon, Loading, AccountsList, UnlockAccountButton } from '_co
 import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
+import { useActiveAccount, getActiveAccountForce } from '_src/ui/app/hooks/useActiveAccount';
 import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
@@ -56,6 +56,7 @@ import { TokenLink } from './TokenLink';
 import { TokenList } from './TokenList';
 import { useNavigate } from 'react-router-dom';
 import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -302,6 +303,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
     const activeCoinType = coinType || IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
+    const backgroundClient = useBackgroundClient();
     const activeAccountAddress = activeAccount?.address;
     const { data: domainName } = useResolveIotaNSName(activeAccountAddress);
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
@@ -360,21 +362,23 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
     const isFirstTimeLoading = isPending && !isFetched;
 
+    const successNavigate = async () => {
+        // need to get latest version of account after unlock
+        await getActiveAccountForce(backgroundClient);
+
+        const destination = coinBalance?.coinType
+            ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
+            : '/send';
+
+        navigate(destination);
+    };
+
     const onSendClick = () => {
         if (activeAccount?.isLocked) {
-            unlockAccount(activeAccount);
-            return;
+            unlockAccount(activeAccount, successNavigate);
+        } else {
+            successNavigate();
         }
-
-        navigate(
-            `/send${
-                coinBalance?.coinType
-                    ? `?${new URLSearchParams({
-                          type: coinBalance.coinType,
-                      }).toString()}`
-                    : ''
-            }`,
-        );
     };
 
     useEffect(() => {

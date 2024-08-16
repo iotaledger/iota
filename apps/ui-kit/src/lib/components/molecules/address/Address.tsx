@@ -41,26 +41,28 @@ export function Address({
     onCopy,
     onOpen,
 }: AddressProps): React.JSX.Element {
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        if (!navigator?.clipboard) {
+            return false;
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            if (onCopy) {
+                onCopy(event, copyValue);
+            }
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
     return (
         <div className="group flex flex-row items-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
             {isCopyable && (
                 <ButtonUnstyled
-                    onClick={async (event) => {
-                        if (!navigator?.clipboard) {
-                            return false;
-                        }
-
-                        try {
-                            await navigator.clipboard.writeText(text);
-                            if (onCopy) {
-                                onCopy(event, copyValue);
-                            }
-                            return true;
-                        } catch (error) {
-                            return false;
-                        }
-                    }}
+                    onClick={handleCopyClick}
                     className="opacity-0 focus:opacity-100 group-hover:opacity-100"
                 >
                     <Copy />
