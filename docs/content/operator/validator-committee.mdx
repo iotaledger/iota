@@ -5,7 +5,7 @@ description: IOTA has a committee of validators to verify on-chain transactions.
 
 A set of independent validators participate on the IOTA network, each running its own instance of the IOTA software on a separate machine (or a sharded cluster of machines the same entity operates). Each validator handles read and write requests sent by clients, verifying transactions and updating on-chain information.
 
-To learn how to set up and run a IOTA Validator node, including how staking and rewards work, see [IOTA Validator Node Configuration](validator-config.mdx).
+To learn how to set up and run an IOTA Validator node, including how staking and rewards work, see [IOTA Validator Node Configuration](validator-config.mdx).
 
 IOTA uses Delegated Proof-of-Stake (DPoS) to determine which validators operate the network and their voting power. Validators are incentivized to participate in good faith via a share of transaction fees, staking rewards, and slashing stake and staking rewards in case of misbehavior.
 
@@ -15,7 +15,7 @@ Operation of the IOTA network is temporally partitioned into non-overlapping, ap
 
 ## Quorums 
 
-A quorum is a set of validators whose combined voting power is greater than two-thirds (>2/3) of the total during a particular epoch. For example, in a IOTA instance operated by four validators that all have the same voting power, any group containing three validators is a quorum.
+A quorum is a set of validators whose combined voting power is greater than two-thirds (>2/3) of the total during a particular epoch. For example, in an IOTA instance operated by four validators that all have the same voting power, any group containing three validators is a quorum.
 
 The quorum size of >2/3 ensures Byzantine fault tolerance (BFT). A validator commits a transaction (durably store the transaction and update its internal state with the effects of the transaction) only if it is accompanied by cryptographic signatures from a quorum. IOTA calls the combination of the transaction and the quorum signatures on its bytes a *certificate*. The policy of committing only certificates ensures Byzantine fault tolerance: if >2/3 of the validators faithfully follow the protocol, they are guaranteed to eventually agree on both the set of committed certificates and their effects.
 
