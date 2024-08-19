@@ -68,7 +68,7 @@ async fn call_handlers_on_checkpoints_batch(
     while let Some(handler_result) = handlers_results.next().await {
         handler_result.tap_err(|e| {
             error!(
-                "One of checkpoint process,ing handlers failed: {}",
+                "One of checkpoint processing handlers failed: {}",
                 e.to_string(),
             );
         })?;

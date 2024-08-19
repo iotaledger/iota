@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::Result;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use super::{fetcher::CheckpointFetcher, Handler};
 use crate::metrics::IndexerMetrics;
-
-use anyhow::Result;
 
 pub struct IndexerBuilder {
     rest_url: Option<String>,
