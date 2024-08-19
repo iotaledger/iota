@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_app/shared/heading';
-import Loading from '_components/loading';
-import { NftImage, type NftImageProps } from '_components/nft-display/NftImage';
+import { Loading, NftImage, type NftImageProps } from '_components';
 import { useFileExtensionType } from '_hooks';
 import { isKioskOwnerToken, useGetNFTMeta, useGetObject, useKioskClient } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 

@@ -44,12 +44,12 @@ There are various ways to instantiate a key pair and to derive its public key an
 
 ```tsx
 import { fromHEX } from '@iota/bcs';
-import { getFullnodeUrl, IOTAClient } from '@iota/iota.js/client';
-import { type Keypair } from '@iota/iota.js/cryptography';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { Secp256k1Keypair } from '@iota/iota.js/keypairs/secp256k1';
-import { Secp256r1Keypair } from '@iota/iota.js/keypairs/secp256r1';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { getFullnodeUrl, IOTAClient } from '@iota/iota-sdk/client';
+import { type Keypair } from '@iota/iota-sdk/cryptography';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Secp256k1Keypair } from '@iota/iota-sdk/keypairs/secp256k1';
+import { Secp256r1Keypair } from '@iota/iota-sdk/keypairs/secp256r1';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 
 const kp_rand_0 = new Ed25519Keypair();
 const kp_rand_1 = new Secp256k1Keypair();

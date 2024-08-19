@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
-import { normalizeIotaAddress } from '@iota/iota.js/utils';
+import { type IotaMoveNormalizedType } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Highlight, Prism } from 'prism-react-renderer';
 import 'prism-themes/themes/prism-one-light.css';

@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { InputWrapper, InputWrapperProps } from './InputWrapper';
-import { InputTrailingElement } from './InputTrailingElement';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
@@ -11,21 +10,15 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import cx from 'classnames';
+import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 
-type InputPickedProps = Pick<
+type TextAreaProps = Omit<
     React.TextareaHTMLAttributes<HTMLTextAreaElement>,
-    | 'maxLength'
-    | 'minLength'
-    | 'rows'
-    | 'autoFocus'
-    | 'name'
-    | 'required'
-    | 'placeholder'
-    | 'disabled'
-    | 'id'
+    'cols' | 'resize' | 'className'
 >;
 
-interface TextFieldBaseProps extends InputPickedProps, InputWrapperProps {
+interface TextFieldBaseProps extends TextAreaProps, InputWrapperProps {
     /**
      * Shows a label with the text above the input field.
      */
@@ -39,10 +32,6 @@ interface TextFieldBaseProps extends InputPickedProps, InputWrapperProps {
      */
     errorMessage?: string;
     /**
-     * Callback function that is called when the input field value changes
-     */
-    onChange?: (value: string, name?: string) => void;
-    /**
      * Amount counter that is shown at the side of the caption text.
      */
     amountCounter?: string | number;
@@ -51,47 +40,31 @@ interface TextFieldBaseProps extends InputPickedProps, InputWrapperProps {
      */
     isVisibilityToggleEnabled?: boolean;
     /**
-     * Ref for the input field
-     */
-    ref?: React.RefObject<HTMLTextAreaElement>;
-    /**
      * Is the content of the input visible
      */
     isContentVisible?: boolean;
-    /**
-     * Value of the input field
-     */
-    value?: string;
     /**
      * If true the textarea is resizable vertically
      */
     isResizeEnabled?: boolean;
 }
 
-export function TextArea({
-    name,
-    label,
-    placeholder,
-    caption,
-    disabled,
-    errorMessage,
-    onChange,
-    value,
-    amountCounter,
-    isVisibilityToggleEnabled,
-    isResizeEnabled,
-    rows = 3,
-    autoFocus,
-    required,
-    maxLength,
-    minLength,
-    isContentVisible,
+export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(function TextArea(
+    {
+        label,
+        caption,
+        disabled,
+        errorMessage,
+        value,
+        amountCounter,
+        isVisibilityToggleEnabled,
+        isResizeEnabled,
+        required,
+        isContentVisible,
+        ...textareaProps
+    },
     ref,
-    id,
-}: TextFieldBaseProps) {
-    const fallbackRef = useRef<HTMLTextAreaElement>(null);
-    const inputRef = ref ?? fallbackRef;
-
+) {
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
         isContentVisible ?? true,
     );
@@ -104,17 +77,11 @@ export function TextArea({
         setIsInputContentVisible((prev) => !prev);
     }
 
-    function handleOnChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-        if (isInputContentVisible) {
-            onChange?.(e.target.value, e.target.name);
-        }
-    }
-
     return (
         <InputWrapper
             label={label}
             caption={caption}
-            disabled={disabled}
+            disabled={disabled || !isInputContentVisible}
             errorMessage={errorMessage}
             amountCounter={amountCounter}
             required={required}
@@ -122,14 +89,8 @@ export function TextArea({
             <div className="relative">
                 <textarea
                     disabled={disabled || !isInputContentVisible}
-                    placeholder={placeholder}
                     required={required}
-                    id={id}
-                    name={name}
-                    rows={rows}
-                    autoFocus={autoFocus}
-                    ref={inputRef}
-                    onChange={handleOnChange}
+                    ref={ref}
                     className={cx(
                         'peer block min-h-[50px]',
                         BORDER_CLASSES,
@@ -141,26 +102,29 @@ export function TextArea({
                             'not-visible select-none text-transparent dark:text-transparent',
                     )}
                     value={isInputContentVisible ? value : ''}
-                    maxLength={maxLength}
-                    minLength={minLength}
+                    {...textareaProps}
                 />
                 {!isInputContentVisible && (
                     <div className="absolute left-0 top-0 flex h-full w-full flex-col items-stretch gap-y-2 px-md py-sm peer-[.not-visible]:select-none">
                         <VisibilityOffBar rows={3} halfWidthRow={3} />
                     </div>
                 )}
+
                 {isVisibilityToggleEnabled && (
                     <span className="absolute bottom-4 right-4 flex">
-                        <InputTrailingElement
-                            onToggleButtonClick={onToggleButtonClick}
-                            isContentVisible={isInputContentVisible}
-                        />
+                        <ButtonUnstyled
+                            onClick={onToggleButtonClick}
+                            className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                            tabIndex={-1}
+                        >
+                            {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
+                        </ButtonUnstyled>
                     </span>
                 )}
             </div>
         </InputWrapper>
     );
-}
+});
 
 interface VisibilityOffBarProps {
     rows: number;

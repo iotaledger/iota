@@ -6,7 +6,7 @@ import type {
     TransactionArgument,
     TransactionBlock,
     TransactionObjectArgument,
-} from '@iota/iota.js/transactions';
+} from '@iota/iota-sdk/transactions';
 
 import * as kioskTx from '../tx/kiosk.js';
 import { convertToPersonalTx, transferPersonalCapTx } from '../tx/personal-kiosk.js';
@@ -226,7 +226,7 @@ export class KioskTransaction {
      * A function to place an item in the kiosk and list it for sale in one transaction.
      * @param itemType The type `T` of the item
      * @param item The ID or Transaction Argument of the item
-     * @param price The price in MICROS
+     * @param price The price in nano
      */
     placeAndList({ itemType, item, price }: ItemReference & Price) {
         this.#validateKioskIsSet();
@@ -245,7 +245,7 @@ export class KioskTransaction {
      * A function to list an item in the kiosk.
      * @param itemType The type `T` of the item
      * @param itemId The ID of the item
-     * @param price The price in MICROS
+     * @param price The price in nano
      */
     list({ itemType, itemId, price }: ItemId & { price: string | bigint }) {
         this.#validateKioskIsSet();
@@ -321,7 +321,7 @@ export class KioskTransaction {
      * Can be called like: `const [item, transferRequest] = kioskTx.purchase({...})`
      * @param itemType The type `T` of the item
      * @param itemId The ID of the item
-     * @param price The price in MICROS
+     * @param price The price in nano
      * @param sellerKiosk The kiosk which is selling the item. Can be an id or an object argument.
      */
     purchase({

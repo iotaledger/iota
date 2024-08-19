@@ -58,6 +58,7 @@
             @apply left-0 top-0;
             @apply opacity-0;
             @apply transition-opacity duration-75;
+            @apply pointer-events-none;
         }
 
         &:hover::after {
@@ -66,6 +67,10 @@
 
         &:active::after {
             @apply opacity-12;
+        }
+
+        &:disabled::after {
+            @apply opacity-0;
         }
     }
 

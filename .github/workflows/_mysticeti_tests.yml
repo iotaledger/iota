@@ -1,0 +1,145 @@
+name: Mysticeti tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      iota_repo_ref:
+        description: "Branch / commit to test"
+        type: string
+        required: false
+        default: ""
+  # Triggers the workflow every day at 05:00 UTC.
+  schedule:
+    - cron: "0 5 * * *"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+env:
+  # Enable Mysticeti in tests.
+  CONSENSUS: "mysticeti"
+
+  # Reduce logging noise.
+  RUST_LOG: "error"
+
+  CARGO_TERM_COLOR: always
+  # Disable incremental compilation.
+  #
+  # Incremental compilation is useful as part of an edit-build-test-edit cycle,
+  # as it lets the compiler avoid recompiling code that hasn't changed. However,
+  # on CI, we're not making small edits; we're almost always building the entire
+  # project from scratch. Thus, incremental compilation on CI actually
+  # introduces *additional* overhead to support making future builds
+  # faster...but no future builds will ever occur in any given CI environment.
+  #
+  # See https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
+  # for details.
+  CARGO_INCREMENTAL: 0
+  # Allow more retries for network requests in cargo (downloading crates) and
+  # rustup (installing toolchains). This should help to reduce flaky CI failures
+  # from transient network timeouts or other issues.
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
+  # RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+
+jobs:
+  changes:
+    runs-on: [self-hosted]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: "json"
+          filters: .github/crates-filters.yml
+
+  test:
+    name: Test ${{ matrix.components }}
+    timeout-minutes: 45
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    strategy:
+      matrix:
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
+    runs-on: [self-hosted]
+    needs: changes
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: taiki-e/install-action@nextest
+      - name: cargo test
+        run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+
+  test-extra:
+    timeout-minutes: 45
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - [self-hosted]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        with:
+          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
+      - uses: taiki-e/install-action@nextest
+      - name: benchmark (smoke)
+        run: |
+          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+      - name: doctests
+        run: |
+          cargo test --doc
+      - name: rustdoc
+        run: |
+          cargo doc --all-features --workspace --no-deps
+      - name: Install cargo-hakari, and cache the binary
+        uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
+        with:
+          crate: cargo-hakari
+          locked: true
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+      - name: iota-execution
+        run: |
+          ./scripts/execution_layer.py generate-lib
+      # Ensure there are no uncommitted changes in the repo after running tests
+      - run: scripts/changed-files.sh
+        shell: bash
+
+  # TODO: Disabled until we can get an updated fork of msim with tokio 1.38 https://github.com/iotaledger/iota/issues/1212
+  # simtest:
+  #   name: Simtest ${{ matrix.components }}
+  #   needs: changes
+  #   runs-on: [self-hosted]
+  #   strategy:
+  #     matrix:
+  #       components: ${{ fromJson(needs.changes.outputs.components) }}
+  #     fail-fast: false
+  #   env:
+  #     MSIM_WATCHDOG_TIMEOUT_MS: 60000
+  #   steps:
+  #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+  #       with:
+  #         ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
+  #     - uses: taiki-e/install-action@nextest
+  #     - name: cargo simtest
+  #       run: |
+  #         scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  #     - name: check new tests for flakiness
+  #       run: |
+  #         scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}

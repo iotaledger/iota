@@ -5,7 +5,7 @@
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
 import { Button } from '_app/shared/ButtonUI';
 import { Text } from '_app/shared/text';
-import { AddressInput } from '_components/address-input';
+import { AddressInput } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useActiveAddress } from '_src/ui/app/hooks';
@@ -19,7 +19,7 @@ import {
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
-import { TransactionBlock } from '@iota/iota.js/transactions';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';

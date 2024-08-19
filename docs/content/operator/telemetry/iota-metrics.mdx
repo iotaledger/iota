@@ -3,7 +3,7 @@ title: Metrics
 description: Prometheus-based metrics for the node.
 ---
 
-The `iota-metrics` crate defines a `Metrics` struct with various [IntGaugeVec][] metrics to monitor running tasks,
+The `iota-metrics` crate defines a `Metrics` struct with various [`IntGaugeVec`][] metrics to monitor running tasks,
 pending futures, channel sizes, and scope activities. A gauge is a type of metric that represents a single numerical value
 that can go up or down.
 
@@ -168,7 +168,7 @@ It works as follows:
 
 ## Exposing the Prometheus Metrics
 
-In order to expose the Prometheus metrics, the `RegistryService` gets exposed by the `start_prometheus_server` function, which starts `axum` HTTP server and serves the metrics by the `/metrics` endpoint from the registries.
+In order to expose the Prometheus metrics, the `RegistryService` gets exposed by the `start_prometheus_server` function, which starts an `axum` HTTP server and serves the metrics by the `/metrics` endpoint from the registries.
 
 ```rust
 pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
@@ -225,8 +225,8 @@ async fn main() -> Result<()> {
 ```
 
 Additionally, instead of exposing the metrics via HTTP only, the metrics can also be pushed, for example, to a given `push_url`.
-The `iota-node` crate, for example, starts a push task `start_metrics_push_task` that pushes all metrics regularly to a given endpoint defined in the `NodeConfig.`
+The `iota-node` crate, for example, starts a push task `start_metrics_push_task` that pushes all metrics regularly to a given endpoint defined in the `NodeConfig`.
 This push task assigns the current timestamp to each metric, encodes the metrics into the Protobuf format, adds compression and
 pushes the compressed metrics data via an HTTP POST.
 
-[IntGaugeVec]: https://docs.rs/prometheus/latest/prometheus/type.IntGaugeVec.html
+[`IntGaugeVec`]: https://docs.rs/prometheus/latest/prometheus/type.IntGaugeVec.html

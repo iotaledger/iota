@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useTransactionSummary } from '@iota/core';
-import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { BalanceChanges } from './BalanceChanges';
 import { ObjectChanges } from './ObjectChanges';

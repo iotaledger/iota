@@ -5,7 +5,7 @@
 export { computeZkLoginAddress, jwtToAddress } from './address.js';
 export type { ComputeZkLoginAddressOptions } from './address.js';
 
-export { getZkLoginSignature } from '@iota/iota.js/zklogin';
+export { getZkLoginSignature } from '@iota/iota-sdk/zklogin';
 
 export { poseidonHash } from './poseidon.js';
 
