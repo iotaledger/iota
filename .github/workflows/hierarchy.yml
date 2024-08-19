@@ -50,7 +50,6 @@ jobs:
     uses: ./.github/workflows/_typos.yml
 
   license-check:
-    if: github.event.pull_request.draft == false
     name: license-check
     needs: diff
     if: ${{ always() && needs.diff.outputs.isRust == 'true' }}
