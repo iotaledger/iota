@@ -100,6 +100,8 @@ pub(crate) struct ChannelCoreThreadDispatcher {
 }
 
 impl ChannelCoreThreadDispatcher {
+    /// Starts the core thread for the consensus authority and returns a
+    /// dispatcher and handle for managing the core thread.
     pub(crate) fn start(core: Core, context: Arc<Context>) -> (Self, CoreThreadHandle) {
         let (sender, receiver) = metered_channel::channel_with_total(
             CORE_THREAD_COMMANDS_CHANNEL_SIZE,
