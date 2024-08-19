@@ -13,7 +13,7 @@ GIT_REVISION="$(git describe --always --dirty --exclude '*')"
 BUILD_DATE="$(date -u +'%Y-%m-%d')"
 
 echo
-echo "Building iota-tools docker image"
+echo "Building iota-test-validator docker image"
 echo "Dockerfile: \t$DOCKERFILE"
 echo "docker context: $REPO_ROOT"
 echo "build date: \t$BUILD_DATE"
