@@ -78,7 +78,7 @@ sudo systemctl enable iota-node.service
 
 ## Connectivity
 
-You may need to explicitly open the ports outlined in [Iota for Node Operators](../iota_for_node_operators.md#connectivity) for the required Iota Node connectivity.
+You may need to explicitly open the ports outlined in [Iota for Node Operators](../validator-tasks#connectivity) for the required Iota Node connectivity.
 
 ## Start the node
 

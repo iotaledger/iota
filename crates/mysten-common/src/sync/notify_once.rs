@@ -83,7 +83,7 @@ impl Default for NotifyOnce {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     #[tokio::test]

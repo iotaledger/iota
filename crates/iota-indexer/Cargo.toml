@@ -54,14 +54,13 @@ diesel_migrations = "2.2"
 pg_integration = []
 
 [dev-dependencies]
-criterion.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
-iota-test-transaction-builder.workspace = true
-ntest = "0.9"
 simulacrum.workspace = true
-test-cluster.workspace = true
 
 [[bin]]
 name = "iota-indexer"
 path = "src/main.rs"
+
+[package.metadata.cargo-udeps.ignore]
+development = ["simulacrum"]

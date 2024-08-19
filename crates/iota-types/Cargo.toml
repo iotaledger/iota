@@ -36,7 +36,7 @@ once_cell.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 prometheus.workspace = true
 proptest.workspace = true
-proptest-derive.workspace = true
+proptest-derive = { workspace = true, optional = true }
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
@@ -72,7 +72,6 @@ bincode.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 proptest.workspace = true
-proptest-derive.workspace = true
 serde_yaml.workspace = true
 
 [[bench]]
@@ -87,4 +86,4 @@ gas-profiler = [
   "move-vm-types/gas-profiler",
   "move-vm-test-utils/gas-profiler",
 ]
-fuzzing = ["move-core-types/fuzzing"]
+fuzzing = ["move-core-types/fuzzing", "proptest-derive"]

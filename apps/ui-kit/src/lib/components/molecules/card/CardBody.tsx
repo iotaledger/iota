@@ -4,13 +4,22 @@
 export type CardBodyProps = {
     title: string;
     subtitle?: string;
+    clickableAction?: React.ReactNode;
 };
 
-export function CardBody({ title, subtitle }: CardBodyProps) {
+export function CardBody({ title, subtitle, clickableAction }: CardBodyProps) {
+    const handleActionCardBodyClick = (event: React.MouseEvent) => {
+        event?.stopPropagation();
+    };
     return (
         <div className="flex w-full flex-col">
-            <div className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
-                {title}
+            <div className="flex flex-row gap-x-xs">
+                <div className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
+                    {title}
+                </div>
+                {clickableAction && (
+                    <div onClick={handleActionCardBodyClick}>{clickableAction}</div>
+                )}
             </div>
             {subtitle && (
                 <div className="font-inter text-body-md text-neutral-40 dark:text-neutral-60">

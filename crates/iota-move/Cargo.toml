@@ -21,7 +21,7 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
 iota-move-build.workspace = true
-iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
+iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest", optional = true }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
@@ -35,18 +35,13 @@ move-unit-test.workspace = true
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 
 [dev-dependencies]
-assert_cmd.workspace = true
 futures.workspace = true
-jsonrpsee.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
 move-package.workspace = true
 
-iota-core.workspace = true
 iota-macros.workspace = true
-iota-node.workspace = true
-iota-simulator.workspace = true
 mysten-metrics.workspace = true
 
 [features]
@@ -55,6 +50,6 @@ build = []
 coverage = []
 disassemble = []
 prove = []
-unit_test = ["build", "dep:once_cell"]
+unit_test = ["build", "dep:once_cell", "iota-move-natives"]
 calibrate = []
 all = ["build", "coverage", "disassemble", "prove", "unit_test", "calibrate"]
