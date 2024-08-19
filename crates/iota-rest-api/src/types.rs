@@ -25,7 +25,6 @@ pub struct JsonObject {
     pub version: u64,
     /// Base64 string representing the object digest
     pub digest: ObjectDigest,
-    // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
     /// The owner of this object.
     pub owner: Owner,
     /// The digest of the transaction that created or last mutated this object.
