@@ -63,8 +63,8 @@ struct LiveObjectSetWriterV1 {
     current_part_num: u32,
     wbuf: BufWriter<File>,
     ref_wbuf: BufWriter<File>,
-    /// Current position in the object file
-    n: usize,
+    /// Size of the object file
+    object_file_size: usize,
     files: Vec<FileMetadata>,
     sender: Option<Sender<FileMetadata>>,
     file_compression: FileCompression,
@@ -86,7 +86,7 @@ impl LiveObjectSetWriterV1 {
             current_part_num: part_num,
             wbuf: BufWriter::new(obj_file),
             ref_wbuf: BufWriter::new(ref_file),
-            n,
+            object_file_size: n,
             files: vec![],
             sender: Some(sender),
             file_compression,
@@ -206,7 +206,7 @@ impl LiveObjectSetWriterV1 {
             self.bucket_num,
             self.current_part_num + 1,
         )?;
-        self.n = n;
+        self.object_file_size = n;
         self.wbuf = BufWriter::new(f);
         Ok(())
     }
@@ -231,13 +231,13 @@ impl LiveObjectSetWriterV1 {
         let mut blob_size = blob.data.len().required_space();
         blob_size += BLOB_ENCODING_BYTES;
         blob_size += blob.data.len();
-        let cut_new_part_file = (self.n + blob_size) > FILE_MAX_BYTES;
+        let cut_new_part_file = (self.object_file_size + blob_size) > FILE_MAX_BYTES;
         if cut_new_part_file {
             self.cut()?;
             self.cut_reference_file()?;
             self.current_part_num += 1;
         }
-        self.n += blob.write(&mut self.wbuf)?;
+        self.object_file_size += blob.write(&mut self.wbuf)?;
         Ok(())
     }
 
