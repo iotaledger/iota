@@ -11,5 +11,5 @@ parking_lot.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util", "macros"] }
 futures.workspace = true
+tokio = { workspace = true, features = ["test-util", "macros"] }
