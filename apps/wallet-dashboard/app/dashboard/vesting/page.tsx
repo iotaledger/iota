@@ -5,7 +5,12 @@
 
 import { Button } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
-import { getVestingOverview, isTimelockedUnlocked, mapTimelockObjects } from '@/lib/utils';
+import {
+    formatDelegatedTimelockedStake,
+    getVestingOverview,
+    isTimelockedUnlocked,
+    mapTimelockObjects,
+} from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import {
     TIMELOCK_IOTA_TYPE,
@@ -29,8 +34,10 @@ function VestingDashboardPage(): JSX.Element {
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
+    const stakedTimelockedMapped = formatDelegatedTimelockedStake(stakedTimelockedObjects || []);
+
     const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...(stakedTimelockedObjects || [])],
+        [...timelockedMapped, ...stakedTimelockedMapped],
         Number(currentEpochMs),
     );
 
