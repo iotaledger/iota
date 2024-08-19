@@ -17,7 +17,7 @@
     "crates/iota-light-client/example_config/20873329.yaml",
     "narwhal/node/tests/staged/narwhal.yaml",
     "**/pnpm-lock.yaml",
-    "external-crates/move/crates/move-stdlib/**/docs/*.md"
+    "external-crates/move/crates/move-stdlib/**/docs/**/*.md"
   ],
   "toml": {
     "lineWidth": 80
