@@ -1,5 +1,3 @@
-# Iota for Node Operators
-
 ## Overview
 
 This document is focused on running the Iota Node software as a Validator.
@@ -10,7 +8,7 @@ This document is focused on running the Iota Node software as a Validator.
 - [Deployment](#deployment)
 - [Configuration](#configuration)
 - [Connectivity](#connectivity)
-- [Storage](storage.md)
+- [Storage](#storage)
 - [Key Management](#key-management)
 - [Monitoring](#monitoring)
   - [Logs](#logs)
@@ -23,7 +21,7 @@ This document is focused on running the Iota Node software as a Validator.
 
 ## Requirements
 
-To run a Iota Validator a machine with the following is required:
+To run an Iota Validator a machine with the following is required:
 
 - CPU: 24 physical cores (or 48 virtual cores)
 - Memory: 128 GB
@@ -56,9 +54,9 @@ cargo build --release --bin iota-node
 
 Configuration and guides are available for the following deployment options:
 
-- [Systemd](./systemd/README.md)
-- [Ansible](./ansible/README.md)
-- [Docker Compose](./docker/README.md)
+- [Systemd](./systemd/)
+- [Ansible](./ansible/)
+- [Docker Compose](./docker/)
 
 ## Configuration
 
@@ -170,7 +168,7 @@ To search for a particular match
 journalctl -u iota-node -g <SEARCH_TERM>
 ```
 
-- If using Docker Compose, look at the examples [here](./docker/README.md#logs)
+- If using Docker Compose, look at the examples [here](./docker/#logs)
 
 It is possible to change the logging configuration while a node is running using the admin interface.
 
@@ -196,16 +194,16 @@ Public dashboard for network wide visibility:
 
 When an update is required to the Iota Node software the following process can be used. Follow the relevant Systemd or Docker Compose runbook depending on your deployment type. It is highly unlikely that you will want to restart with a clean database.
 
-- If using Systemd, [here](./systemd/README.md#updates)
-- If using Docker Compose, [here](./docker/README.md#updates)
+- If using Systemd, [here](./systemd/#updates)
+- If using Docker Compose, [here](./docker/#updates)
 
 ## State Sync
 
-Checkpoints in Iota contain the permanent history of the network. They are comparable to blocks in other blockchains with one big difference being that they are lagging instead of leading. All transactions are final and executed prior to being included in a checkpoint.
+Checkpoints in Iota contain the permanent history of the network. They are comparable to blocks in other blockchains with the biggest difference being that they are lagging instead of leading. All transactions are final and executed prior to being included in a checkpoint.
 
 These checkpoints are synchronized between validators and fullnodes via a dedicated peer to peer state sync interface.
 
-Inter-validator state sync is always permitted however there are controls available to limit what fullnodes are allowed to sync from a specific validator.
+Inter-validator state sync is always permitted, however, there are controls available to limit what fullnodes are allowed to sync from a specific validator.
 
 The default and recommended `max-concurrent-connections: 0` configuration does not affect inter-validator state sync, but will restrict all fullnodes from syncing. The Iota Node [configuration](#configuration) can be modified to allow a known fullnode to sync from a validator:
 
@@ -238,7 +236,7 @@ It is recommended and often required that the `iota` binary release/version matc
 
 ### Updating On-chain Metadata
 
-You can leverage [Validator Tool](validator_tool.md) to perform majority of the following tasks.
+You can leverage the [Validator Tool](../validator-tools) to perform the majority of the following tasks.
 
 An active/pending validator can update its on-chain metadata by submitting a transaction. Some metadata changes take effect immediately, including:
 
@@ -251,49 +249,53 @@ Other metadata (keys, addresses etc) only come into effect at the next epoch.
 
 To update metadata, a validator makes a MoveCall transaction that interacts with the System Object. For example:
 
-1. to update name to `new_validator_name`, use the Iota Client CLI to call `iota_system::update_validator_name`:
+1. To update the name to `new_validator_name`, use the Iota Client CLI to call `iota_system::update_validator_name`:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function update_validator_name --args 0x5 \"new_validator_name\" --gas-budget 10000
 ```
 
-2. to update p2p address starting from next epoch to `/ip4/192.168.1.1`, use the Iota Client CLI to call `iota_system::update_validator_next_epoch_p2p_address`:
+2. To update the p2p address starting from next epoch to `/ip4/192.168.1.1`, use the Iota Client CLI to call `iota_system::update_validator_next_epoch_p2p_address`:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function update_validator_next_epoch_p2p_address --args 0x5 "[4, 192, 168, 1, 1]" --gas-budget 10000
 ```
 
-See the [full list of metadata update functions here](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-system/sources/iota_system.move#L267-L444).
+<!-- Will be fixed by issue 1867. -->
+<!-- See the full list of metadata `update_*` functions starting [from here](<TODO_WIKI_URL>/references/framework/iota-system/iota_system#function-update_validator_name). -->
 
 ### Operation Cap
 
-To avoid touching account keys too often and allowing them to be stored off-line, validators can delegate the operation ability to another address. This address can then update the reference gas price and tallying rule on behalf of the validator.
+To avoid touching account keys too often and allowing them to be stored offline, validators can delegate the operation ability to another address. This address can then update the reference gas price and tallying rule on behalf of the validator.
 
-Upon creating a `Validator`, an `UnverifiedValidatorOperationCap` is created as well and transferred to the validator address. The holder of this `Cap` object (short for "Capability") therefore could perform operational actions for this validator. To authorize another address to conduct these operations, a validator transfers the object to another address that they control. The transfer can be done by using Iota Client CLI: `iota client transfer`.
+Upon creating a `Validator`, an `UnverifiedValidatorOperationCap` is created as well and transferred to the validator address. The holder of this `Cap` object (short for "Capability") therefore could perform operational actions for this validator. To authorize another address to conduct these operations, a validator transfers the object to another address that they control. The transfer can be done by using the Iota Client CLI: `iota client transfer`.
 
 To rotate the delegatee address or revoke the authorization, the current holder of `Cap` transfers it to another address. In the event of compromised or lost keys, the validator could create a new `Cap` object to invalidate the incumbent one. This is done by calling `iota_system::rotate_operation_cap`:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function rotate_operation_cap --args 0x5 --gas-budget 10000
 ```
 
 By default the new `Cap` object is transferred to the validator address, which then could be transferred to the new delegatee address. At this point, the old `Cap` becomes invalidated and no longer represents eligibility.
 
-To get the current valid `Cap` object's ID of a validator, use the Iota Client CLI `iota client objects` command after setting the holder as the active address. Or go to the [explorer](https://explorer.iota.io/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module.
+To get the current valid `Cap` object's ID of a validator, use the Iota Client CLI `iota client objects` command after setting the holder as the active address.
+
+<!-- Will be fixed by issue 1867. -->
+<!-- Or go to the [explorer](https://<TODO_EXPLORER_URL>/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
 
 ### Updating the Gas Price Survey Quote
 
 To update the Gas Price Survey Quote of a validator, which is used to calculate the Reference Gas Price at the end of the epoch, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To do so, call `iota_system::request_set_gas_price`:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function request_set_gas_price --args 0x5 {cap_object_id} {new_gas_price} --gas-budget 10000
 ```
 
 ### Reporting/Un-reporting Validators
 
-To report a validator or undo an existing reporting, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To do so, call `iota_system::report_validator/undo_report_validator`:
+To report a validator or undo an existing report, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To do so, call `iota_system::report_validator/undo_report_validator`:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function report_validator/undo_report_validator --args 0x5 {cap_object_id} {reportee_address} --gas-budget 10000
 ```
 
@@ -301,24 +303,24 @@ Once a validator is reported by `2f + 1` other validators by voting power, their
 
 ### Joining the Validator Set
 
-In order for a Iota address to join the validator set, they need to first sign up as a validator candidate by calling `iota_system::request_add_validator_candidate` with their metadata and initial configs:
+In order for an Iota address to join the validator set, they need to first sign up as a validator candidate by calling `iota_system::request_add_validator_candidate` with their metadata and initial configs:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function request_add_validator_candidate --args 0x5 {protocol_pubkey_bytes} {network_pubkey_bytes} {worker_pubkey_bytes} {proof_of_possession} {name} {description} {image_url} {project_url} {net_address}
 {p2p_address} {primary_address} {worker_address} {gas_price} {commission_rate} --gas-budget 10000
 ```
 
-After an address becomes a validator candidate, any address (including the candidate address itself) can start staking with the candidate's staking pool. Refer to our dedicated staking FAQ on how staking works. Once a candidate's staking pool has accumulated at least `iota_system::MIN_VALIDATOR_JOINING_STAKE` amount of stake, the candidate can call `iota_system::request_add_validator` to officially add themselves to the next epoch's active validator set:
+After an address becomes a validator candidate, any address (including the candidate address itself) can start staking with the candidate's staking pool. Once a candidate's staking pool has accumulated at least `iota_system::MIN_VALIDATOR_JOINING_STAKE` amount of stake, the candidate can call `iota_system::request_add_validator` to officially add themselves to the next epoch's active validator set:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function request_add_validator --args 0x5 --gas-budget 10000000
 ```
 
 ### Leaving the Validator Set
 
-To leave the validator set starting the next epoch, the sender needs to be an active validator in the current epoch and should call `iota_system::request_remove_validator`:
+To leave the validator set starting from the next epoch, the sender needs to be an active validator in the current epoch and should call `iota_system::request_remove_validator`:
 
-```
+```shell
 iota client call --package 0x3 --module iota_system --function request_remove_validator --args 0x5 --gas-budget 10000
 ```
 
@@ -326,10 +328,12 @@ After the validator is removed at the next epoch change, the staking pool will b
 
 ## Private Security Fixes
 
-There may be instances where urgent security fixes need to be rolled out before publicly announcing it's presence (Issues affecting liveliness, invariants such as IOTA supply, governance etc). In order to not be actively exploited the IOTA Foundation will release signed security binaries incorporating such fixes with a delay in publishing the source code until a large % of our validators have patched the vulnerability.
+There may be instances where urgent security fixes need to be rolled out before publicly announcing it's presence (issues affecting liveness, invariants such as IOTA supply, governance, etc.). In order to not be actively exploited the IOTA Foundation will release signed security binaries incorporating such fixes with a delay in publishing the source code until a large % of our validators have patched the vulnerability.
 
-This release process will be different and we expect us to announce the directory for such binaries out of band.
-Our public key to verify these binaries would be stored [here](https://iota-private.s3.us-west-2.amazonaws.com/iota_security_release.pem)
+This release process will be different and we expect to announce the directory for such binaries out of band.
+
+<!-- Will be fixed by issue 1867. -->
+<!-- Our public key to verify these binaries would be stored [here](https://<TODO_SECURITY_FIXES_URL>/iota_security_release.pem) -->
 
 You can download all the necessary signed binaries and docker artifacts incorporating the security fixes by using the [download_private.sh](https://github.com/iotaledger/iota/blob/main/nre/download_private.sh)
 
