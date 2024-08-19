@@ -4,6 +4,37 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    active_addresses (address) {
+        address -> Bytea,
+        first_appearance_tx -> Int8,
+        first_appearance_time -> Int8,
+        last_appearance_tx -> Int8,
+        last_appearance_time -> Int8,
+    }
+}
+
+diesel::table! {
+    address_metrics (checkpoint) {
+        checkpoint -> Int8,
+        epoch -> Int8,
+        timestamp_ms -> Int8,
+        cumulative_addresses -> Int8,
+        cumulative_active_addresses -> Int8,
+        daily_active_addresses -> Int8,
+    }
+}
+
+diesel::table! {
+    addresses (address) {
+        address -> Bytea,
+        first_appearance_tx -> Int8,
+        first_appearance_time -> Int8,
+        last_appearance_tx -> Int8,
+        last_appearance_time -> Int8,
+    }
+}
+
+diesel::table! {
     checkpoints (sequence_number) {
         sequence_number -> Int8,
         checkpoint_digest -> Bytea,
@@ -34,6 +65,14 @@ diesel::table! {
 }
 
 diesel::table! {
+    epoch_peak_tps (epoch) {
+        epoch -> Int8,
+        peak_tps -> Float8,
+        peak_tps_30d -> Float8,
+    }
+}
+
+diesel::table! {
     epochs (epoch) {
         epoch -> Int8,
         first_checkpoint_id -> Int8,
@@ -48,10 +87,8 @@ diesel::table! {
         epoch_end_timestamp -> Nullable<Int8>,
         storage_charge -> Nullable<Int8>,
         storage_rebate -> Nullable<Int8>,
-        stake_subsidy_amount -> Nullable<Int8>,
         total_gas_fees -> Nullable<Int8>,
         total_stake_rewards_distributed -> Nullable<Int8>,
-        burnt_leftover_amount -> Nullable<Int8>,
         epoch_commitments -> Nullable<Bytea>,
         burnt_tokens_amount -> Nullable<Int8>,
         minted_tokens_amount -> Nullable<Int8>,
@@ -70,6 +107,29 @@ diesel::table! {
         event_type -> Text,
         timestamp_ms -> Int8,
         bcs -> Bytea,
+    }
+}
+
+diesel::table! {
+    move_call_metrics (id) {
+        id -> Int8,
+        epoch -> Int8,
+        day -> Int8,
+        move_package -> Text,
+        move_module -> Text,
+        move_function -> Text,
+        count -> Int8,
+    }
+}
+
+diesel::table! {
+    move_calls (transaction_sequence_number, move_package, move_module, move_function) {
+        transaction_sequence_number -> Int8,
+        checkpoint_sequence_number -> Int8,
+        epoch -> Int8,
+        move_package -> Bytea,
+        move_module -> Text,
+        move_function -> Text,
     }
 }
 
@@ -208,6 +268,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    tx_count_metrics (checkpoint_sequence_number) {
+        checkpoint_sequence_number -> Int8,
+        epoch -> Int8,
+        timestamp_ms -> Int8,
+        total_transaction_blocks -> Int8,
+        total_successful_transaction_blocks -> Int8,
+        total_successful_transactions -> Int8,
+    }
+}
+
+diesel::table! {
     tx_input_objects (object_id, tx_sequence_number) {
         tx_sequence_number -> Int8,
         object_id -> Bytea,
@@ -229,10 +300,16 @@ diesel::table! {
 }
 
 diesel::allow_tables_to_appear_in_same_query!(
+    active_addresses,
+    address_metrics,
+    addresses,
     checkpoints,
     display,
+    epoch_peak_tps,
     epochs,
     events,
+    move_call_metrics,
+    move_calls,
     objects,
     objects_history,
     objects_history_partition_0,
@@ -242,6 +319,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     transactions_partition_0,
     tx_calls,
     tx_changed_objects,
+    tx_count_metrics,
     tx_input_objects,
     tx_recipients,
     tx_senders,

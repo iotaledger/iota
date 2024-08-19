@@ -8,7 +8,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@iota/bcs': new URL('../bcs/src', import.meta.url).toString(),
-            '@iota/iota.js': new URL('../typescript/src', import.meta.url).toString(),
+            '@iota/iota-sdk': new URL('../typescript/src', import.meta.url).toString(),
         },
     },
 });

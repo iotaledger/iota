@@ -1,24 +1,46 @@
 ---
-title: Connect to a IOTA Network
-description: Besides Mainnet, IOTA offers Testnet, Devnet, and local networks that you can connect to for development. You can also configure a custom RPC endpoint. 
+description: Guide to connecting to an IOTA network for development and production.
+tags: [ explanation, mainnet, testnet, devnet, cli, setup, install, getting-started ]
 ---
 
 import DataWipe from "../../_snippets/data-wipe.mdx";
 import AlphaNet from "../../_snippets/alphanet.mdx";
 
-IOTA has Mainnet, Devnet, and Testnet networks available. You can use one of the test networks, Devnet or Testnet, to experiment with the version of IOTA running on that network. You can also spin up a [local IOTA network](local-network.mdx) for local development. 
+# Connect to an IOTA Network
+
+## Alphanet
+
+A temporary network while still in early development, used before public launch of IOTA Rebased. Will be replaced by the Testnet afterwards.
 
 <AlphaNet />
 
-The IOTA Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. Clients send transactions and read requests via this endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443` using [JSON-RPC](/references/iota-api/json-rpc-format.mdx).
+## Devnet
 
-You can [request test IOTA tokens](get-coins.mdx) through the IOTA [devnet-faucet](https://discordapp.com/channels/916379725201563759/971488439931392130) and [testnet-faucet](https://discord.com/channels/916379725201563759/1037811694564560966) Discord channels, depending on which version of the network you use. If connected to Localnet, use cURL to request tokens from your [local faucet](local-network.mdx#use-the-local-faucet). The coins on these networks have no financial value. There is no faucet service for Mainnet.
+The latest stable release. As such, it has the latest features that were tested in the `development` branch of the
+repository.
 
-See announcements about IOTA in the [#announcements](https://discord.com/channels/916379725201563759/925109817834631189) Discord channel.
+## Testnet
 
-See the [terms of service](https://iota.io/terms/) for using IOTA networks.
+Once a release has been battle-tested in the Devnet, it moves to the Testnet. You can use this network to
+test your software in real-world conditions.
 
 <DataWipe />
+
+:::info Testnet node validators
+
+The IOTA Alphanet, Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. 
+
+:::
+
+## Mainnet
+
+The fully operational production network, with data persistence and where tokens have real value.
+
+:::tip Local Networks
+
+You can also spin up a [local IOTA network](local-network.mdx) for local development.
+
+:::
 
 ## IOTA CLI
 
@@ -28,10 +50,16 @@ IOTA provides [IOTA command line interface (CLI)](/references/cli/client.mdx) to
 - Create example NFTs
 - Call and publish Move modules
 
+You can use the [CLI](iota-environment.mdx#iota-cli) or [SDKs](iota-environment.mdx#iota-sdks) to send transactions and
+read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the endpoint of choice for the given network.
 
-## Environment set up
+<AlphaNet />
 
-First, [Install IOTA](iota-install.mdx#install-binaries). After you install IOTA, [request IOTA test tokens](get-coins.mdx) through Discord for the network you are using: [Devnet](https://discordapp.com/channels/916379725201563759/971488439931392130) or [Testnet](https://discord.com/channels/916379725201563759/1037811694564560966). If connected to Localnet, use cURL to request tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
+## Environment Set Up
+
+First, [Install IOTA](iota-install.mdx). After you install IOTA, [request IOTA test tokens](get-coins.mdx) for the
+network you are using. If connected to Localnet, use cURL to request tokens from
+your [local faucet](local-network.mdx#use-the-local-faucet).
 
 To check whether IOTA is already installed, run the following command:
 
@@ -39,88 +67,104 @@ To check whether IOTA is already installed, run the following command:
 which iota
 ```
 
-If IOTA is installed, the command returns the path to the IOTA binary. If IOTA is not installed, it returns `iota not found`.
+If IOTA is installed, the command returns the path to the IOTA binary. If IOTA is not installed, it
+returns `iota not found`.
+
+:::tip Release Info;
 
 See the [IOTA Releases](https://github.com/iotaledger/iota/releases) page to view the changes in each IOTA release.
 
-## Configure IOTA client
+:::
 
-If you previously ran `iota genesis` to create a local network, it created a IOTA client configuration file (client.yaml) that connects to `localhost` at `http://0.0.0.0:9000`. See [Connect to a custom RPC endpoint](#connect-to-a-custom-rpc-endpoint) to update the client.yaml file.
+## Connect Your CLI to a Network
 
-To connect the IOTA client to a network, run the following command:
+You can connect to an IOTA network using the following command that will start
+the [IOTA CLI Client](../../references/cli/client.mdx):
 
-```shell
+```bash
 iota client
 ```
 
-If you receive the `iota-client` help output in the console, you already have a client.yaml file. See [Connect to a custom RPC endpoint](#connect-to-a-custom-rpc-endpoint) to add a new environment alias or to switch the currently active network.
+### First Run
 
-The first time you start IOTA client without having a client.yaml file, the console displays the following message:
+If this is the first time you run the command, you will be prompted to configure the client.
+
+#### 1. Create `client.yaml`
 
 ```
-Config file ["<PATH-TO-FILE>/client.yaml"] doesn't exist, do you want to connect to a IOTA Full node server [y/N]?
+Config file ["<FILE-PATH>/.iota/iota_config/client.yaml"] doesn't exist, do you want to connect to a IOTA Full node server [y/N]?
 ```
 
-Press **y** and then press **Enter**. The process then requests the RPC server URL: 
+Enter `y` to proceed. You receive the following response:
+
+#### 2. Select the Network
 
 ```
 IOTA Full node server URL (Defaults to IOTA Devnet if not specified) :
 ```
 
-Press **Enter** to connect to IOTA Devnet. To use a custom RPC server, IOTA Testnet, or IOTA Mainnet, enter the URL to the correct RPC endpoint and then press **Enter**.
-
-If you enter a URL, the process prompts for an alias for the environment:
-
-```
-Environment alias for [<URL-ENTERED>] :
-```
-Type an alias name and press **Enter**.
-
-```
-Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2 for secp256r1):
-```
-
-Press **0**, **1**, or **2** to select a key scheme and the press **Enter**.
-
-IOTA returns a message similar to the following (depending on the key scheme you selected) that includes the address and 12-word recovery phrase for the address:
-
-```
-Generated new keypair for address with scheme "ed25519" [0xb9c83a8b40d3263c9ba40d551514fbac1f8c12e98a4005a0dac072d3549c2442]
-Secret Recovery Phrase : [cap wheat many line human lazy few solid bored proud speed grocery]
-```
-
-### Connect to a custom RPC endpoint
+If you want to connect to the [Devnet](#devnet), you can simply press `Enter`.
 
 <AlphaNet />
 
-If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet` at `https://fullnode.devnet.iota.io:443`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
+If not, specify your desired node URL. If you choose to add a custom URL, you should also add an alias for ease of
+access:
 
-If you previously installed a IOTA client that connected to a IOTA network, or created a local network, you can modify your existing client.yaml file to change the configured RPC endpoint. The `iota client` commands that relate to environments read from and write to the client.yaml file.
+```bash
+Environment alias for [<URL-ENTERED>] :
+```
 
-To check currently available environment aliases, run the following command: 
+#### 3. Generate Keys and Address
 
-```sh
+```
+Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):
+```
+
+Finally, you will be prompted to select the key scheme you want to use. After this, you will receive a message that
+states the selected key-scheme, the generated address and your secret recovery phrase.
+
+```bash
+Generated new keypair for address with scheme "ed25519" [0xb9c83a8b40d3263c9ba40d551514fbac1f8c12e98a4005a0dac072d3549c2442]
+Secret Recovery Phrase : [hat become demise beyond history wood stage add nice list jaguar legend]
+```
+
+## Add a Network Environment
+
+If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
+
+:::tip Check the current Network  ENVs
+
+You can easily check the currently configured environments using the following command, which will output the
+environment `alias` and URL, as well as indicate the currently active environment:
+
+```bash
 iota client envs
 ```
+
+
+:::
 
 <AlphaNet />
 
 The command outputs the available environment aliases, with `(active)` denoting the currently active network.
 ```sh
 localnet => http://0.0.0.0:9000 (active)
-devnet => https://fullnode.devnet.iota.io:443
+alphanet => https://api.iota-rebased-alphanet.iota.cafe:443
 ```
 
-To add a new alias for a custom RPC endpoint, run the following command. Replace values in `<` `>` with values for your installation:
+You can add a new environment using the `iota client new` command. You should specify and `alias` and `rpc` URL, for
+example:
 
-```shell
-iota client new-env --alias <ALIAS> --rpc <RPC-SERVER-URL>
+```bash
+client new-env --alias local --rpc http://0.0.0.0:9000
 ```
 
-To switch the active network, run the following command:
+### Switch Network Environment
 
-```shell
-iota client switch --env <ALIAS>
+You can switch the current environment using the following command:
+
+```bash
+iota client switch --env <EnvAlias>
 ```
 
-If you encounter an issue, delete the IOTA configuration directory (`~/.iota/iota_config`) and reinstall the latest [IOTA binaries](iota-install.mdx#install-binaries).
+* Where `<EnvAlias>` is one of your currently set environments.   

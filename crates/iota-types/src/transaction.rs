@@ -421,7 +421,7 @@ impl VersionedProtocolMessage for TransactionKind {
                         .iter()
                         .any(|arg| !arg.receiving_objects().is_empty());
                     if has_receiving_objects {
-                        return Err(IotaError::UnsupportedFeatureError {
+                        return Err(IotaError::UnsupportedFeature {
                             error: format!(
                                 "receiving objects is not supported at {:?}",
                                 protocol_config.version
@@ -435,7 +435,7 @@ impl VersionedProtocolMessage for TransactionKind {
                 if protocol_config.enable_jwk_consensus_updates() {
                     Ok(())
                 } else {
-                    Err(IotaError::UnsupportedFeatureError {
+                    Err(IotaError::UnsupportedFeature {
                         error: "authenticator state updates not enabled".to_string(),
                     })
                 }
@@ -444,14 +444,14 @@ impl VersionedProtocolMessage for TransactionKind {
                 if protocol_config.random_beacon() {
                     Ok(())
                 } else {
-                    Err(IotaError::UnsupportedFeatureError {
+                    Err(IotaError::UnsupportedFeature {
                         error: "randomness state updates not enabled".to_string(),
                     })
                 }
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
                 if !protocol_config.end_of_epoch_transaction_supported() {
-                    Err(IotaError::UnsupportedFeatureError {
+                    Err(IotaError::UnsupportedFeature {
                         error: "EndOfEpochTransaction is not supported".to_string(),
                     })
                 } else {
@@ -461,7 +461,7 @@ impl VersionedProtocolMessage for TransactionKind {
                             EndOfEpochTransactionKind::AuthenticatorStateCreate
                             | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
                                 if !protocol_config.enable_jwk_consensus_updates() {
-                                    return Err(IotaError::UnsupportedFeatureError {
+                                    return Err(IotaError::UnsupportedFeature {
                                         error: "authenticator state updates not enabled"
                                             .to_string(),
                                     });
@@ -469,14 +469,14 @@ impl VersionedProtocolMessage for TransactionKind {
                             }
                             EndOfEpochTransactionKind::RandomnessStateCreate => {
                                 if !protocol_config.random_beacon() {
-                                    return Err(IotaError::UnsupportedFeatureError {
+                                    return Err(IotaError::UnsupportedFeature {
                                         error: "random beacon not enabled".to_string(),
                                     });
                                 }
                             }
                             EndOfEpochTransactionKind::DenyListStateCreate => {
                                 if !protocol_config.enable_coin_deny_list() {
-                                    return Err(IotaError::UnsupportedFeatureError {
+                                    return Err(IotaError::UnsupportedFeature {
                                         error: "coin deny list not enabled".to_string(),
                                     });
                                 }
@@ -491,7 +491,7 @@ impl VersionedProtocolMessage for TransactionKind {
                 if protocol_config.include_consensus_digest_in_prologue() {
                     Ok(())
                 } else {
-                    Err(IotaError::UnsupportedFeatureError {
+                    Err(IotaError::UnsupportedFeature {
                         error: "ConsensusCommitPrologueV2 is not supported".to_string(),
                     })
                 }
@@ -2226,7 +2226,7 @@ impl SenderSignedData {
     }
 
     pub fn serialized_size(&self) -> IotaResult<usize> {
-        bcs::serialized_size(self).map_err(|e| IotaError::TransactionSerializationError {
+        bcs::serialized_size(self).map_err(|e| IotaError::TransactionSerialization {
             error: e.to_string(),
         })
     }
@@ -2240,7 +2240,7 @@ impl SenderSignedData {
 
         fp_ensure!(
             tx_size as u64 <= max_tx_size_bytes,
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::SizeLimitExceeded {
                     limit: format!(
                         "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
@@ -2283,7 +2283,7 @@ impl VersionedProtocolMessage for SenderSignedData {
             match sig {
                 GenericSignature::MultiSig(_) => {
                     if !protocol_config.supports_upgraded_multisig() {
-                        return Err(IotaError::UnsupportedFeatureError {
+                        return Err(IotaError::UnsupportedFeature {
                             error: "multisig format not enabled on this network".to_string(),
                         });
                     }
@@ -2308,7 +2308,7 @@ impl Message for SenderSignedData {
     fn verify_user_input(&self) -> IotaResult {
         fp_ensure!(
             self.0.len() == 1,
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::Unsupported(
                     "SenderSignedData must contain exactly one transaction".to_string()
                 )
@@ -2317,7 +2317,7 @@ impl Message for SenderSignedData {
         let tx_data = &self.intent_message().value;
         fp_ensure!(
             !tx_data.is_system_tx(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::Unsupported(
                     "SenderSignedData must not contain system transaction".to_string()
                 )
@@ -2373,7 +2373,7 @@ impl AuthenticatedMessage for SenderSignedData {
     fn verify_message_signature(&self, verify_params: &VerifyParams) -> IotaResult {
         fp_ensure!(
             self.0.len() == 1,
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::Unsupported(
                     "SenderSignedData must contain exactly one transaction".to_string()
                 )

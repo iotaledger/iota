@@ -6,7 +6,7 @@ import { EnterAmountView, SelectValidatorView } from './views';
 import { useNotifications, useNewStakeTransaction } from '@/hooks';
 import { parseAmount, useCoinMetadata, useGetValidatorsApy } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
 
 interface NewStakePopupProps {

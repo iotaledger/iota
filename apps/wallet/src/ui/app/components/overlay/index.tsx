@@ -22,7 +22,7 @@ interface OverlayProps {
     background?: 'bg-iota-lightest';
 }
 
-function Overlay({
+export function Overlay({
     title,
     children,
     showModal,

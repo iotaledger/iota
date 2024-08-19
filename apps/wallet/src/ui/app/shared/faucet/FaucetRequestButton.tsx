@@ -5,8 +5,8 @@
 import { Button, type ButtonProps } from '_app/shared/ButtonUI';
 import { useAppSelector } from '_hooks';
 import { getCustomNetwork } from '_src/shared/api-env';
-import { getNetwork } from '@iota/iota.js/client';
-import { FaucetRateLimitError } from '@iota/iota.js/faucet';
+import { getNetwork } from '@iota/iota-sdk/client';
+import { FaucetRateLimitError } from '@iota/iota-sdk/faucet';
 import { toast } from 'react-hot-toast';
 
 import FaucetMessageInfo from './FaucetMessageInfo';

@@ -53,9 +53,6 @@ Considering the earlier `counter` example, which might have started life as foll
 
 ```move
 module example::counter {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::TxContext;
 
     public struct Counter has key {
         id: UID,
@@ -86,9 +83,6 @@ An upgrade-aware `counter` module that incorporates all these ideas looks as fol
 
 ```move
 module example::counter {
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     // 1. Track the current version of the module
     const VERSION: u64 = 1;
@@ -105,9 +99,6 @@ module example::counter {
     public struct AdminCap has key {
         id: UID,
     }
-
-    /// Not the right admin for this counter
-    const ENotAdmin: u64 = 0;
 
     /// Calling functions from the wrong package version
     const EWrongVersion: u64 = 1;
@@ -146,9 +137,6 @@ The following module is an upgraded `counter` that emits `Progress` events as or
 ```move
 module example::counter {
     use iota::event;
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     // 1. Bump the `VERSION` of the package.
     const VERSION: u64 = 2;
@@ -268,6 +256,7 @@ You develop a package named `iota_package`. Its manifest looks like the followin
 [package]
 name = "iota_package"
 version = "0.0.0"
+edition = "2024.beta"
 
 [addresses]
 iota_package = "0x0"
@@ -383,6 +372,7 @@ Update the alias address and add a new `published-at` entry in the `[package]` s
 [package]
 name = "iota_package"
 version = "0.0.0"
+edition = "2024.beta"
 published-at = "<ORIGINAL-PACKAGE-ID>"
 
 [addresses]
@@ -397,6 +387,7 @@ After a while, you decide to upgrade your `iota_package` to include some request
 [package]
 name = "iota_package"
 version = "0.0.1"
+edition = "2024.beta"
 published-at = "<ORIGINAL-PACKAGE-ID>"
 
 [addresses]
@@ -501,6 +492,7 @@ The result provides a new ID for the upgraded package. As was the case before th
 [package]
 name = "iota_package"
 version = "0.0.1"
+edition = "2024.beta"
 published-at = "<UPGRADED-PACKAGE-ID>"
 
 [addresses]

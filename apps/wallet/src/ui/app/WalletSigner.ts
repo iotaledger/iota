@@ -2,17 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@iota/iota.js/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 import {
     type DryRunTransactionBlockResponse,
     type ExecuteTransactionRequestType,
     type IotaClient,
     type IotaTransactionBlockResponse,
     type IotaTransactionBlockResponseOptions,
-} from '@iota/iota.js/client';
-import { IntentScope, messageWithIntent } from '@iota/iota.js/cryptography';
-import { isTransactionBlock, type TransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64, toB64 } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { IntentScope, messageWithIntent } from '@iota/iota-sdk/cryptography';
+import { isTransactionBlock, type TransactionBlock } from '@iota/iota-sdk/transactions';
+import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 
 export type SignedTransaction = {
     transactionBlockBytes: string;

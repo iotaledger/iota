@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use prometheus::Registry;
 use test_utils::{create_batch_store, transaction};
 use types::{MockWorkerToPrimary, PreSubscribedBroadcastSender};

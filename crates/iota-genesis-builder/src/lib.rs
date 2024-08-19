@@ -84,12 +84,6 @@ const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
 const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
 
-pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
-/// Compression levels go from 0 to 11, where 11 has the highest compression
-/// ratio but requires more time.
-pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
-/// The LZ77 window size (0, 10-24) where bigger windows size improves density.
-pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
 pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
@@ -446,10 +440,6 @@ impl Builder {
             protocol_version,
             chain_start_timestamp_ms,
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
-            stake_subsidy_initial_distribution_amount,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
@@ -548,10 +538,6 @@ impl Builder {
 
         assert_eq!(system_state.parameters.epoch_duration_ms, epoch_duration_ms);
         assert_eq!(
-            system_state.parameters.stake_subsidy_start_epoch,
-            stake_subsidy_start_epoch,
-        );
-        assert_eq!(
             system_state.parameters.max_validator_count,
             max_validator_count,
         );
@@ -570,20 +556,6 @@ impl Builder {
         assert_eq!(
             system_state.parameters.validator_low_stake_grace_period,
             validator_low_stake_grace_period,
-        );
-
-        assert_eq!(system_state.stake_subsidy.distribution_counter, 0);
-        assert_eq!(
-            system_state.stake_subsidy.current_distribution_amount,
-            stake_subsidy_initial_distribution_amount,
-        );
-        assert_eq!(
-            system_state.stake_subsidy.stake_subsidy_period_length,
-            stake_subsidy_period_length,
-        );
-        assert_eq!(
-            system_state.stake_subsidy.stake_subsidy_decrease_rate,
-            stake_subsidy_decrease_rate,
         );
 
         assert!(!system_state.safe_mode);
@@ -1469,8 +1441,6 @@ pub fn split_timelocks(
 pub enum SnapshotSource {
     /// Local uncompressed file.
     Local(PathBuf),
-    /// Local file compressed with brotli.
-    LocalBrotli(PathBuf),
     /// Remote file (S3) with gzip compressed file
     S3(SnapshotUrl),
 }
@@ -1481,10 +1451,6 @@ impl SnapshotSource {
         Ok(match self {
             SnapshotSource::Local(path) => Box::new(BufReader::new(File::open(path)?)),
             SnapshotSource::S3(snapshot_url) => Box::new(snapshot_url.to_reader()?),
-            SnapshotSource::LocalBrotli(path) => Box::new(brotli::Decompressor::new(
-                File::open(path)?,
-                BROTLI_COMPRESSOR_BUFFER_SIZE,
-            )),
         })
     }
 }

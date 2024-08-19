@@ -12,25 +12,27 @@ The `client ptb` command allows you to specify the transactions for execution in
 The following list itemizes all the available args for the `iota client ptb` command. Use the `--help` for a long help version that includes some examples on how to use this command.
 
 ```
-Build, preview, and execute PTBs. Depending on your shell, you might have to use quotes around arrays or other passed values. Use --help to see examples for how to use the core functionality of this command.
+Build, preview, and execute programmable transaction blocks. Depending on your shell, you might have to use quotes around arrays or other passed values. Use --help to see examples for how to use the core functionality of this command.
 
 Usage: iota client ptb [OPTIONS]
 
 Options:
       --assign <NAME> <VALUE>                                         Assign a value to a variable name to use later in the PTB.
       --gas-coin <ID>                                                 The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
-      --gas-budget <MICROS>                                             The gas budget for the transaction, in MICROS.
+      --gas-budget <MICROS>                                           The gas budget for the transaction, in MICROS.
       --make-move-vec <TYPE> <[VALUES]>                               Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
       --merge-coins <INTO_COIN> <[COIN OBJECTS]>                      Merge N coins into the provided coin.
-      --move-call <PACKAGE::MODULE::FUNCTION> <TYPE> <FUNCTION_ARGS>  Make a move call to a function.
+      --move-call <PACKAGE::MODULE::FUNCTION> <TYPE> <FUNCTION_ARGS>  Make a Move call to a function.
       --split-coins <COIN> <[AMOUNT]>                                 Split the coin into N coins as per the given array of amounts.
       --transfer-objects <[OBJECTS]> <TO>                             Transfer objects to the specified address.
-      --publish <MOVE_PACKAGE_PATH>                                   Publish the move package. It takes as input the folder where the package exists.
-      --upgrade <MOVE_PACKAGE_PATH>                                   Upgrade the move package. It takes as input the folder where the package exists.
+      --publish <MOVE_PACKAGE_PATH>                                   Publish the Move package. It takes as input the folder where the package exists.
+      --upgrade <MOVE_PACKAGE_PATH>                                   Upgrade the Move package. It takes as input the folder where the package exists.
       --preview                                                       Preview the list of PTB transactions instead of executing them.
+      --serialize-unsigned-transaction                                Instead of executing the transaction, serialize the bcs bytes of the unsigned transaction data using base64 encoding.
+      --serialize-signed-transaction                                  Instead of executing the transaction, serialize the bcs bytes of the signed transaction data using base64 encoding.
       --summary                                                       Show only a short summary (digest, execution status, gas cost). Do not use this flag when you need all the transaction data and the execution effects.
       --warn-shadows                                                  Enable shadow warning when the same variable name is declared multiple times. Off by default.
-      --json                                                          Return command outputs in json format
+      --json                                                          Return command outputs in json format.
   -h, --help                                                          Print help (see more with '--help')
 ```
 
@@ -78,7 +80,7 @@ CLI PTB uses name resolution for common packages like `iota`, `std`, so you can 
 
 :::
 
-In the second case, if a previous command outputs some result, you can bound it to a variable for later access. Let's see an example where you want a new coin with 1000 MICROS, which you can achieve by using the `split-coins` command. After you do that, you want to transfer the new coin to another address. Without the `--assign` argument, you couldn't instruct the CLI to transfer that new coin object as you would not have a way to refer to it.
+In the second case, if a previous command outputs some result, you can bound it to a variable for later access. Let's see an example where you want a new coin with 1000 NANOS, which you can achieve by using the `split-coins` command. After you do that, you want to transfer the new coin to another address. Without the `--assign` argument, you couldn't instruct the CLI to transfer that new coin object as you would not have a way to refer to it.
 
 ```bash
 iota client ptb \
@@ -135,7 +137,7 @@ iota client ptb \
 
 ### Split, destroy, and merge coins
 
-The following example showcases how to split a gas coin into multiple coins, make a move call to destroy one or more of the new coins, and finally merge the coins that were not destroyed back into the gas coin. It also showcases how to use framework name resolution (for example, `iota::coin` instead of `0x2::coin`) and how to refer to different values in an array using the `.` syntax.
+The following example showcases how to split a gas coin into multiple coins, make a Move call to destroy one or more of the new coins, and finally merge the coins that were not destroyed back into the gas coin. It also showcases how to use framework name resolution (for example, `iota::coin` instead of `0x2::coin`) and how to refer to different values in an array using the `.` syntax.
 
 ```bash
 # Split off from gas

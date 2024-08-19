@@ -15,6 +15,10 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+/// Provides methods for reading transaction related data such as transaction
+/// blocks, checkpoints, and protocol configuration. The trait further provides
+/// methods for reading the ledger (current objects) as well its history (past
+/// objects).
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {
@@ -118,18 +122,6 @@ pub trait ReadApi {
         cursor: Option<BigInt<u64>>,
         /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
         limit: Option<usize>,
-        /// query result ordering, default to false (ascending order), oldest record first.
-        descending_order: bool,
-    ) -> RpcResult<CheckpointPage>;
-
-    #[rustfmt::skip]
-    #[method(name = "getCheckpoints", version <= "0.31")]
-    async fn get_checkpoints_deprecated_limit(
-        &self,
-        /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        cursor: Option<BigInt<u64>>,
-        /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
-        limit: Option<BigInt<u64>>,
         /// query result ordering, default to false (ascending order), oldest record first.
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;

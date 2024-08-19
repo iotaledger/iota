@@ -13,3 +13,4 @@ export * from './queryClient';
 export * from './sentry';
 export * from './stringUtils';
 export * from './iotaMoveTypeConverters';
+export * from './getSupplyChangeAfterEpochEnd';

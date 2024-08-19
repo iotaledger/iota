@@ -126,10 +126,10 @@ This example leverages the IOTA TypeScript SDK to subscribe to events the packag
 
 ### TypeScript
 
-To create the event subscription, you can use a basic Node.js app. You need the IOTA TypeScript SDK, so install the module using `npm install @iota/iota.js` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
+To create the event subscription, you can use a basic Node.js app. You need the IOTA TypeScript SDK, so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
 ```ts
-import { JsonRpcProvider, testnetConnection } from '@iota/iota.js';
+import { JsonRpcProvider, testnetConnection } from '@iota/iota-sdk';
 
 // Package is on Testnet.
 const provider = new JsonRpcProvider(testnetConnection);

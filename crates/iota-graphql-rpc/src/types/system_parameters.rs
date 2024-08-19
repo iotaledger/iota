@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use async_graphql::*;
 
 use super::big_int::BigInt;
@@ -10,9 +11,6 @@ use super::big_int::BigInt;
 pub(crate) struct SystemParameters {
     /// Target duration of an epoch, in milliseconds.
     pub duration_ms: Option<BigInt>,
-
-    /// The epoch at which stake subsidies start being paid out.
-    pub stake_subsidy_start_epoch: Option<u64>,
 
     /// The minimum number of active validators that the system supports.
     pub min_validator_count: Option<u64>,

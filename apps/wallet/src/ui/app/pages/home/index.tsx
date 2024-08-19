@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Loading from '_components/loading';
+import { Loading } from '_components';
 import { useInitializedGuard, useSetGrowthbookAttributes } from '_hooks';
 import { PageMainLayout } from '_src/ui/app/shared/page-main-layout/PageMainLayout';
 import { Outlet } from 'react-router-dom';

@@ -56,7 +56,7 @@ on initialization. If you don't provide a `splitStrategy`, the `DefaultSplitStra
 
 ## Example code
 
-As an example, assume that you need to execute 10 transactions that transfer 100 MICROS each to a
+As an example, assume that you need to execute 10 transactions that transfer 100 NANOS each to a
 fixed recipient.
 
 Before you can run this example, you need to already have at least one coin of type
@@ -66,10 +66,10 @@ transaction. If you need IOTA for a test network, you can
 [use a faucet](../../../../developer/getting-started/get-coins.mdx) to mint some.
 
 ```ts
-import { IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota.js/transactions';
-import { fromB64 } from '@iota/iota.js/utils';
+import { IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { fromB64 } from '@iota/iota-sdk/utils';
 
 /* HERE ARE DEFINED THE PREPARATORY STEPS IF YOU WANT TO CODE ALONG*/
 // Define the transaction block

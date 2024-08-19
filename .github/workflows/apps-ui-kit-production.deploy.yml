@@ -34,9 +34,4 @@ jobs:
       - name: Build Project Artifacts
         run: vercel build --prod --cwd ./apps/ui-kit --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --cwd ./apps/ui-kit --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
-      - name: Extract Deploy URL
-        id: deploy_url
-        run: echo "DEPLOY_URL=$(cat vercel_output.txt | awk 'END{print}')" >> $GITHUB_OUTPUT
-      - name: Set Vercel Alias
-        run: vercel alias --token=${{ secrets.VERCEL_TOKEN }} set ${{ steps.deploy_url.outputs.DEPLOY_URL }} ${{ secrets.APPS_UI_KIT_VERCEL_PRODUCTION_ALIAS }}
+        run: vercel deploy --cwd ./apps/ui-kit --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }}

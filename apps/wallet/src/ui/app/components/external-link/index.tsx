@@ -13,7 +13,7 @@ export interface ExternalLinkProps {
     onClick?(): void;
 }
 
-function ExternalLink({ href, className, children, title, onClick }: ExternalLinkProps) {
+export function ExternalLink({ href, className, children, title, onClick }: ExternalLinkProps) {
     return (
         <a
             href={href}
