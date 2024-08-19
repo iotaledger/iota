@@ -36,12 +36,12 @@ struct FaucetResponse {
     error: Option<String>,
 }
 
-// const IOTA_FAUCET: &str = "https://faucet.devnet.iota.io/gas"; // devnet faucet
+// const IOTA_FAUCET_BASE_URL: &str = "https://faucet.devnet.iota.io"; // devnet faucet
 
-pub const IOTA_FAUCET: &str = "https://faucet.testnet.iota.io/v1/gas"; // testnet faucet
+pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.io"; // testnet faucet
 
 // if you use the iota-test-validator and use the local network; if it does not
-// work, try with port 5003. const IOTA_FAUCET: &str = "http://127.0.0.1:9123/gas";
+// work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
 
 /// Return a iota client to interact with the APIs,
 /// the active address of the local wallet, and another address that can be used
@@ -105,7 +105,7 @@ pub async fn request_tokens_from_faucet(
     // make the request to the faucet JSON RPC API for coin
     let client = Client::new();
     let resp = client
-        .post(IOTA_FAUCET)
+        .post(format!("{IOTA_FAUCET_BASE_URL}/v1/gas"))
         .header("Content-Type", "application/json")
         .json(&json_body)
         .send()
@@ -125,20 +125,12 @@ pub async fn request_tokens_from_faucet(
 
     println!("Faucet request task id: {task_id}");
 
-    let json_body = json![{
-        "GetBatchSendStatusRequest": {
-            "task_id": &task_id
-        }
-    }];
-
     let mut coin_id = "".to_string();
 
     // wait for the faucet to finish the batch of token requests
     loop {
         let resp = client
-            .get("https://faucet.testnet.iota.io/v1/status")
-            .header("Content-Type", "application/json")
-            .json(&json_body)
+            .get(format!("{IOTA_FAUCET_BASE_URL}/v1/status/{task_id}"))
             .send()
             .await?;
         let text = resp.text().await?;
