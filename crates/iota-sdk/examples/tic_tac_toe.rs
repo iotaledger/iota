@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This example contains code to play the [Tic Tac Toe game](https://github.com/iotaledger/iota/blob/develop/iota_programmability/examples/games/sources/tic_tac_toe.move).
+//! Before running this example, the move package needs to be published.
+//! Follow the instructions in https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/README.md#tic-tac-toe-quick-start
+
 use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
@@ -90,7 +94,7 @@ impl TicTacToe {
                     IotaJsonValue::from_str(&player_o.to_string())?,
                 ],
                 None, // The node will pick a gas object belong to the signer if not provided.
-                1000,
+                1000000000,
                 None,
             )
             .await?;
@@ -190,7 +194,7 @@ impl TicTacToe {
                         IotaJsonValue::from_str(&col.to_string())?,
                     ],
                     None,
-                    1000,
+                    100000000,
                     None,
                 )
                 .await?;
