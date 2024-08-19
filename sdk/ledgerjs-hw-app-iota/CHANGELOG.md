@@ -4,4 +4,4 @@
 
 ### Minor Changes
 
--   249a7d0: First release
+- 249a7d0: First release
