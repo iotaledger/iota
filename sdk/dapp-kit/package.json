@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <contact@iota.org>",
     "description": "A collection of React hooks and components for interacting with the Iota blockchain and wallets.",
     "homepage": "https://sdk.mystenlabs.com/typescript",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",
