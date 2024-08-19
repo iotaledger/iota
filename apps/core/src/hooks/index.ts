@@ -34,6 +34,7 @@ export * from './useExtendedTransactionSummary';
 export * from './useSortedCoinsByCategories';
 export * from './useGetNFTMeta';
 export * from './useIotaAddressValidation';
-export * from './useGetAllTimelockedObjects';
+export * from './useGetAllOwnedObjects';
+export * from './useGetStakedTimelockedObjects';
 
 export * from './stake';

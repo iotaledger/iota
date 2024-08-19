@@ -17,6 +17,7 @@
 		"bcs": "turbo --filter ./sdk/bcs",
 		"apps-backend": "turbo --filter apps-backend",
 		"iota-docs": "turbo --filter iota-docs",
+		"changeset-publish": "pnpm changeset publish",
 		"changeset-version": "pnpm changeset version && pnpm --filter @iota/iota-sdk codegen:version",
 		"prettier:check": "prettier -c --ignore-unknown .",
 		"prettier:fix": "prettier -w --ignore-unknown .",
