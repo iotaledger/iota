@@ -60,16 +60,17 @@ To create a new Move project that automatically adds the necessary dependencies 
 $ iota move new smart_contract_test
 $ ls -l smart_contract_test
 Move.toml
-Sources
+sources
+tests
 
 # display the contents of Move.toml file
 $ cat smart_contract_test/Move.toml
 [package]
 name = "smart_contract_test"
-version = "0.0.1"
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 
 [dependencies]
-IOTA = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 
 [addresses]
 smart_contract_test = "0x0"
@@ -138,7 +139,7 @@ Module 0000000000000000000000000000000000000000000000000000000000000000::example
 
 ## Help
 
-Each command has its own help section. For example `iota move build –help` displays the following prompt:
+Each command has its own help section. For example `iota move build --help` displays the following prompt:
 
 ```shell
 $ iota move build --help

@@ -12,8 +12,17 @@ const operator = [
     'operator/genesis',
     'operator/indexer-functions',
     'operator/validator-committee',
-    'operator/validator-tasks',
-    'operator/node-tools',
+    {
+        type: 'category',
+        label: 'Validator Operation',
+        items: [
+            'operator/validator-operation/validator-tasks',
+            'operator/validator-operation/ansible/README',
+            'operator/validator-operation/docker/README',
+            'operator/validator-operation/systemd/README',
+        ]
+    },
+    'operator/validator-tools',
     {
         type: 'category',
         label: 'Node Monitoring and Metrics',
