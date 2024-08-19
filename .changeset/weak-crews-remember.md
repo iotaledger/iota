@@ -1,6 +1,5 @@
 ---
 '@iota/bcs': minor
-'@iota/create-dapp': minor
 '@iota/dapp-kit': minor
 '@iota/graphql-transport': minor
 '@iota/kiosk': minor
