@@ -1,8 +1,7 @@
 {
     "name": "@iota/iota-sdk",
     "author": "IOTA Foundation <contact@iota.org>",
-    "description": "Iota TypeScript API(Work in Progress)",
-    "homepage": "https://sdk.mystenlabs.com",
+    "description": "Iota TypeScript API",
     "version": "0.1.0",
     "license": "Apache-2.0",
     "sideEffects": false,
