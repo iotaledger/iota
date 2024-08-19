@@ -105,7 +105,7 @@ impl LiveObjectSetWriterV1 {
     /// Finalize the object and reference files and return the FileMetadata of
     /// the files.
     pub fn done(mut self) -> Result<Vec<FileMetadata>> {
-        self.finalize()?;
+        self.finalize_obj()?;
         self.finalize_ref()?;
         self.sender = None;
         Ok(self.files.clone())
@@ -148,8 +148,7 @@ impl LiveObjectSetWriterV1 {
 
     /// Finalize the object file by flushing the buffer to disk and send its
     /// FileMetadata to the channel.
-    // TODO: Rename it to finalize_obj
-    fn finalize(&mut self) -> Result<()> {
+    fn finalize_obj(&mut self) -> Result<()> {
         // Flush the buffer and sync the data to disk
         self.wbuf.flush()?;
         self.wbuf.get_ref().sync_data()?;
@@ -200,7 +199,7 @@ impl LiveObjectSetWriterV1 {
     /// Finalize the object file of current partition and create a new one for
     /// the next partition.
     fn cut(&mut self) -> Result<()> {
-        self.finalize()?;
+        self.finalize_obj()?;
         let (n, f) = Self::object_file(
             self.dir_path.clone(),
             self.bucket_num,
