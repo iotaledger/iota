@@ -4,7 +4,7 @@
 
 import { useGetNFTMeta } from '@iota/core';
 import { Text } from '_app/shared/text';
-import { NftImage } from '_components/nft-display/NftImage';
+import { NftImage } from '_components';
 import { cx } from 'class-variance-authority';
 
 interface TxnImageProps {

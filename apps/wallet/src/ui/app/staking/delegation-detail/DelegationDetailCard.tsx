@@ -8,8 +8,7 @@ import { Card } from '_app/shared/card';
 import { CardItem } from '_app/shared/card/CardItem';
 import { Text } from '_app/shared/text';
 import { IconTooltip } from '_app/shared/tooltip';
-import Alert from '_components/alert';
-import LoadingIndicator from '_components/loading/LoadingIndicator';
+import { Alert, LoadingIndicator } from '_components';
 import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
@@ -25,7 +24,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@iota/icons';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { MICROS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
@@ -251,7 +250,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                                     to={stakeByValidatorAddress + '&unstake=true'}
                                     onClick={() => {
                                         ampli.clickedUnstakeIota({
-                                            stakedAmount: Number(totalStake / MICROS_PER_IOTA),
+                                            stakedAmount: Number(totalStake / NANO_PER_IOTA),
                                             validatorAddress,
                                         });
                                     }}

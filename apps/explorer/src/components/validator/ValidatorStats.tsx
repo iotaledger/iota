@@ -145,7 +145,7 @@ export function ValidatorStats({
                                     <DelegationAmount
                                         amount={validatorData.nextEpochGasPrice}
                                         isStats
-                                        inMICROS
+                                        inNano
                                     />
                                 </Stats>
                             </div>

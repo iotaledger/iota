@@ -1,5 +1,3 @@
-# Validator Tool
-
 ## Overview
 
 This document is focused on using Validator Tool.
@@ -105,7 +103,7 @@ $IOTA_BINARY validator update-metadata --help
 
 #### Operation Cap
 
-Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](iota_for_node_operators.md#operation-cap).
+Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-operation/validator-tasks#operation-cap).
 
 The Operation Cap holder (either the valdiator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
@@ -155,7 +153,7 @@ $IOTA_BINARY validator make-validator-info <name> <description> <image-url> <pro
 
 This will generate a `validator.info` file and key pair files. The output of this command includes:
 
-1. Four key pair files (Read [more here](iota_for_node_operators.md#key-management)). ==Set their permissions with the minimal visibility (chmod 600, for example) and store them securely==. They are needed when running the validator node as covered below.
+1. Four key pair files (Read [more here](./validator-operation/validator-tasks/#key-management)). ==Set their permissions with the minimal visibility (chmod 600, for example) and store them securely==. They are needed when running the validator node as covered below.
    a. If you follow this guide thoroughly, this key pair is actually copied from your `iota.keystore` file.
 2. `validator.info` file that contains your validator info. **Double check all information is correct**.
 

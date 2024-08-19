@@ -6,23 +6,27 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
-import { Activity, Assets, Home } from '@iota/ui-icons';
+import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
 
 export function Navigation() {
     const activeAccount = useActiveAccount();
-
     const navigate = useNavigate();
-    const onHomeClick = () => {
+
+    function onHomeClick() {
         navigate('/tokens');
-    };
+    }
 
-    const onAssetsClick = () => {
+    function onAssetsClick() {
         navigate('/nfts');
-    };
+    }
 
-    const onActivityClick = () => {
+    function onActivityClick() {
         navigate('/transactions');
-    };
+    }
+
+    function onAppsClick() {
+        navigate('/apps');
+    }
 
     const NAVBAR_ITEMS: NavbarItemWithId[] = [
         { id: 'home', icon: <Home />, onClick: onHomeClick },
@@ -30,6 +34,12 @@ export function Navigation() {
             id: 'assets',
             icon: <Assets />,
             onClick: onAssetsClick,
+            isDisabled: activeAccount?.isLocked,
+        },
+        {
+            id: 'apps',
+            icon: <Apps />,
+            onClick: onAppsClick,
             isDisabled: activeAccount?.isLocked,
         },
         {
@@ -41,7 +51,7 @@ export function Navigation() {
     ];
     const [activeRouteId, setActiveRouteId] = useState<string>(NAVBAR_ITEMS[0].id);
     return (
-        <div className="sticky bottom-0 w-full shrink-0 rounded-tl-md rounded-tr-md border-b-0 bg-white">
+        <div className="sticky bottom-0 w-full shrink-0 border-b-0 bg-white">
             <Navbar
                 items={NAVBAR_ITEMS}
                 activeId={activeRouteId}
