@@ -12,8 +12,7 @@ import { forwardRef, type ReactNode } from 'react';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useExplorerLink } from '../../hooks/useExplorerLink';
-import { ExplorerLinkType } from '../explorer-link/ExplorerLinkType';
-import { IconButton } from '../IconButton';
+import { ExplorerLinkType, IconButton } from '_components';
 import { EditableAccountName } from './EditableAccountName';
 
 interface AccountItemProps {

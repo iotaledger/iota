@@ -4,7 +4,7 @@
 import { type TransactionSummary as TransactionSummaryType } from '@iota/core';
 import clsx from 'clsx';
 
-import LoadingIndicator from '../../components/loading/LoadingIndicator';
+import { LoadingIndicator } from '_components';
 import { Heading } from '../heading';
 import { BalanceChanges } from './cards/BalanceChanges';
 import { ExplorerLinkCard } from './cards/ExplorerLink';

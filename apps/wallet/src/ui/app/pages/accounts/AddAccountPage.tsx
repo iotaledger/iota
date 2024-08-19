@@ -19,14 +19,14 @@ import {
 import {
     AccountsFormType,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ConnectLedgerModal } from '../../components/ledger/ConnectLedgerModal';
+    ConnectLedgerModal,
+    PageTemplate,
+} from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector } from '../../hooks';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
-import { PageTemplate } from '../../components/PageTemplate';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);

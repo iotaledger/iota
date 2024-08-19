@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Overlay from '_components/overlay';
+import { Overlay } from '_components';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { SelectValidatorCard } from '../validators/SelectValidatorCard';

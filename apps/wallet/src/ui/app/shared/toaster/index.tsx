@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMenuIsOpen } from '_components/menu/hooks';
+import { useMenuIsOpen } from '_components';
 import { useAppSelector } from '_hooks';
 import { getNavIsVisible } from '_redux/slices/app';
 import cl from 'clsx';

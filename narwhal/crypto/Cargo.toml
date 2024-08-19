@@ -14,11 +14,8 @@ shared-crypto.workspace = true
 
 [features]
 default = []
+
 [dev-dependencies]
 bincode.workspace = true
-criterion.workspace = true
 hex-literal.workspace = true
-proptest.workspace = true
-proptest-derive.workspace = true
-serde-reflection.workspace = true
 serde_json.workspace = true
