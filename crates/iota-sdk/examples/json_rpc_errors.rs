@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This example shows how one can convert RPC errors for further manual
+//! handling.
+//!
+//! cargo run --example json_rpc_errors
+
 mod utils;
 use anyhow::bail;
 use iota_sdk::error::{Error, JsonRpcError};
