@@ -40,6 +40,10 @@ typescript:
   label: TypeScript
   description: TypeScript programming language.
 
+wasm:
+  label: WASM
+  description: WebAssembly programming language.
+
 # VMs
 evm:
   label: EVM
@@ -70,6 +74,10 @@ access-node:
 pruning:
   label: Pruning
 
+rest-api:
+  label: REST API
+  description: Representational State Transfer API.
+
 rpc:
   label: RPC
   description: Remote Procedure Call.
@@ -80,6 +88,27 @@ snapshot:
 validator:
   label: Validator
   description: Node that validates transactions.
+
+# Identity
+did:
+  label: DID
+  description: Decentralized Identifier.
+
+identity:
+  label: IOTA Identity
+  description: The IOTA Identity Implementation.
+
+verifiable-credentials:
+  label: Verifiable Credentials
+  description: Verifiable Credentials.
+
+verification-method:
+  label: Verification Method
+  description: Verification Method.
+
+zk:
+  label: Zero-Knowledge
+  description: Zero-Knowledge.
 
 # ISC
 allowance:
@@ -145,6 +174,10 @@ solo:
 address:
   label: Address
   description: Identifier for a wallet.
+
+api:
+  label: API
+  description: Application Programming Interface.
 
 balance:
   label: Balance

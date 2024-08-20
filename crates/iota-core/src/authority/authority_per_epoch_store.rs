@@ -243,7 +243,15 @@ pub struct ExecutionComponents {
     pub(crate) module_cache: Arc<SyncModuleCache<ResolverWrapper<ExecutionCache>>>,
     metrics: Arc<ResolverMetrics>,
 }
-
+/// The `AuthorityPerEpochStore` struct manages state and resources specific to
+/// each epoch within a validator's lifecycle. It includes the validator's name,
+/// the committee for the current epoch, and various in-memory caches and
+/// notification mechanisms to track the state of transactions and certificates.
+/// The struct also incorporates mechanisms for managing signature verification,
+/// epoch transitions, and randomness generation. Additionally, it maintains
+/// locks and barriers to ensure that tasks related to reconfiguration and epoch
+/// transitions are handled correctly and without interference. This struct is
+/// designed to manage tasks and data that are valid only within a single epoch.
 pub struct AuthorityPerEpochStore {
     /// The name of this authority.
     pub(crate) name: AuthorityName,
@@ -1786,6 +1794,8 @@ impl AuthorityPerEpochStore {
             .multi_contains_keys(keys)?)
     }
 
+    /// Notifies the epoch store that the specified consensus messages have been
+    /// processed.
     pub async fn consensus_messages_processed_notify(
         &self,
         keys: Vec<SequencedConsensusTransactionKey>,
