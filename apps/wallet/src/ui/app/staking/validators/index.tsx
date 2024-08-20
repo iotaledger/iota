@@ -38,7 +38,7 @@ export function Validators() {
             title={isPending ? 'Loading' : pageTitle}
             closeOverlay={() => navigate('/')}
         >
-            <div className="flex flex-1 px-md">
+            <div className="flex min-h-full flex-1">
                 <Loading loading={isPending}>
                     {isError ? (
                         <div className="mb-2">

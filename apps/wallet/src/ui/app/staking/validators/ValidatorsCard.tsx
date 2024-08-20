@@ -116,7 +116,7 @@ export function ValidatorsCard() {
                                     ))}
                         </div>
 
-                        <div className="gap-2.5">
+                        <div className="gap-2">
                             {system &&
                                 delegations
                                     ?.filter(({ inactiveValidator }) => !inactiveValidator)
