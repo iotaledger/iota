@@ -2,12 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-mod acceptor;
-mod certgen;
-mod verifier;
-
-pub const IOTA_VALIDATOR_SERVER_NAME: &str = "iota";
-
 pub use acceptor::{TlsAcceptor, TlsConnectionInfo};
 pub use certgen::SelfSignedCertificate;
 pub use rustls;
@@ -16,13 +10,20 @@ pub use verifier::{
     ServerCertVerifier, ValidatorAllowlist,
 };
 
+mod acceptor;
+mod certgen;
+mod verifier;
+
+pub const IOTA_VALIDATOR_SERVER_NAME: &str = "iota";
+
 #[cfg(test)]
 mod tests {
     use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use rustls::{
-        client::danger::ServerCertVerifier as _, server::danger::ClientCertVerifier as _,
+        client::danger::ServerCertVerifier as _,
+        pki_types::{ServerName, UnixTime},
+        server::danger::ClientCertVerifier as _,
     };
-    use webpki::types::UnixTime;
 
     use super::*;
 
@@ -36,7 +37,7 @@ mod tests {
         let random_cert_alice =
             SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
 
-        let verifier = ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME);
+        let verifier = ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
         // The bob passes validation
         verifier
@@ -64,14 +65,15 @@ mod tests {
         let random_cert_alice =
             SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
 
-        let verifier = ServerCertVerifier::new(allowed_public_key, IOTA_VALIDATOR_SERVER_NAME);
+        let verifier =
+            ServerCertVerifier::new(allowed_public_key, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
         // The bob passes validation
         verifier
             .verify_server_cert(
                 &random_cert_bob.rustls_certificate(),
                 &[],
-                &rustls::pki_types::ServerName::try_from("example.com").unwrap(),
+                &ServerName::try_from("example.com").unwrap(),
                 &[],
                 UnixTime::now(),
             )
@@ -82,7 +84,7 @@ mod tests {
             .verify_server_cert(
                 &random_cert_alice.rustls_certificate(),
                 &[],
-                &rustls::pki_types::ServerName::try_from("example.com").unwrap(),
+                &ServerName::try_from("example.com").unwrap(),
                 &[],
                 UnixTime::now(),
             )
@@ -107,7 +109,8 @@ mod tests {
             SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
 
         let mut allowlist = HashSetAllow::new();
-        let verifier = ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME);
+        let verifier =
+            ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string());
 
         // Add our public key to the allower
         allowlist
@@ -122,9 +125,13 @@ mod tests {
             .unwrap();
 
         // The disallowed cert fails validation
-        verifier
+        let err = verifier
             .verify_client_cert(&disallowed_cert.rustls_certificate(), &[], UnixTime::now())
             .unwrap_err();
+        assert!(
+            matches!(err, rustls::Error::General(_)),
+            "Actual error: {err:?}"
+        );
 
         // After removing the allowed public key from the set it now fails validation
         allowlist.inner_mut().write().unwrap().clear();
@@ -146,7 +153,7 @@ mod tests {
 
         let mut allowlist = HashSetAllow::new();
         let client_verifier =
-            ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME);
+            ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string());
 
         // Add our public key to the allower
         allowlist
@@ -165,14 +172,15 @@ mod tests {
             "Actual error: {err:?}"
         );
 
-        let server_verifier = ServerCertVerifier::new(public_key, IOTA_VALIDATOR_SERVER_NAME);
+        let server_verifier =
+            ServerCertVerifier::new(public_key, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
         // Allowed public key but the server-name in the cert is not the required "sui"
         let err = server_verifier
             .verify_server_cert(
                 &cert.rustls_certificate(),
                 &[],
-                &rustls::pki_types::ServerName::try_from("example.com").unwrap(),
+                &ServerName::try_from("example.com").unwrap(),
                 &[],
                 UnixTime::now(),
             )
@@ -187,9 +195,6 @@ mod tests {
     #[tokio::test]
     async fn axum_acceptor() {
         use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
-        rustls::crypto::ring::default_provider()
-            .install_default()
-            .unwrap();
 
         let mut rng = rand::thread_rng();
         let client_keypair = Ed25519KeyPair::generate(&mut rng);
@@ -207,12 +212,13 @@ mod tests {
             .unwrap();
 
         let mut allowlist = HashSetAllow::new();
-        let tls_config = ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME)
-            .rustls_server_config(
-                vec![server_certificate.rustls_certificate()],
-                server_certificate.rustls_private_key(),
-            )
-            .unwrap();
+        let tls_config =
+            ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string())
+                .rustls_server_config(
+                    vec![server_certificate.rustls_certificate()],
+                    server_certificate.rustls_private_key(),
+                )
+                .unwrap();
 
         async fn handler(tls_info: axum::Extension<TlsConnectionInfo>) -> String {
             tls_info.public_key().unwrap().to_string()
