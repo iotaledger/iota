@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Button } from '_app/shared/ButtonUI';
 import { Alert, LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
@@ -15,13 +14,13 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Plus12 } from '@iota/icons';
 import { useMemo } from 'react';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { StakeCard } from '../home/StakedCard';
 import { DisplayStats } from '_app/staking/home/DisplayStats';
-import { Title, TitleSize } from '@iota/apps-ui-kit';
+import { Title, TitleSize, Button, ButtonType } from '@iota/apps-ui-kit';
+import { useNavigate } from 'react-router-dom';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -35,6 +34,7 @@ export function ValidatorsCard() {
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
+    const navigate = useNavigate();
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const activeValidators = system?.activeValidators;
@@ -66,6 +66,14 @@ export function ValidatorsCard() {
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
 
+    const handleNewStake = () => {
+        ampli.clickedStakeIota({
+            isCurrentlyStaking: true,
+            sourceFlow: 'Validator card',
+        });
+        navigate('new');
+    };
+
     if (isPending) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -93,7 +101,7 @@ export function ValidatorsCard() {
             <Title title="In progress" size={TitleSize.Small} />
             <BottomMenuLayout>
                 <Content>
-                    <div className="mb-4">
+                    <div>
                         {hasInactiveValidatorDelegation ? (
                             <div className="mb-3">
                                 <Alert>
@@ -102,7 +110,7 @@ export function ValidatorsCard() {
                                 </Alert>
                             </div>
                         ) : null}
-                        <div className="mb-4 grid grid-cols-2 gap-2.5">
+                        <div className="gap-2">
                             {system &&
                                 delegations
                                     ?.filter(({ inactiveValidator }) => inactiveValidator)
@@ -132,17 +140,10 @@ export function ValidatorsCard() {
                 </Content>
                 <Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
                     <Button
-                        size="tall"
-                        variant="secondary"
-                        to="new"
-                        onClick={() =>
-                            ampli.clickedStakeIota({
-                                isCurrentlyStaking: true,
-                                sourceFlow: 'Validator card',
-                            })
-                        }
-                        before={<Plus12 />}
+                        fullWidth
+                        type={ButtonType.Primary}
                         text="Stake IOTA"
+                        onClick={handleNewStake}
                     />
                 </Menu>
             </BottomMenuLayout>
