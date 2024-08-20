@@ -57,7 +57,6 @@ impl Default for SnapshotLagConfig {
     }
 }
 
-// TODO: "handler"
 impl<S> ObjectsSnapshotProcessor<S>
 where
     S: IndexerStore + Clone + Sync + Send + 'static,
