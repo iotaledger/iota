@@ -84,10 +84,10 @@ services:
       - postgres
       - indexer-sync
 
-  analytical-worker:
+  indexer-analytics:
     image: iota-indexer
-    container_name: analytical-worker
-    hostname: analytical-worker
+    container_name: indexer-analytics
+    hostname: indexer-analytics
     restart: on-failure
     networks:
       iota-network:
@@ -100,10 +100,8 @@ services:
       - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
       - --rpc-client-url=http://local-network:9000
       - --client-metric-port=9181
-      - --rpc-server-port=9000
       - --analytical-worker
     ports:
-      - "127.0.0.1:9006:9000/tcp"
       - "127.0.0.1:9184:9181/tcp"
     depends_on:
       - local-network
