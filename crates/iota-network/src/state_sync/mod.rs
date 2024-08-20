@@ -195,6 +195,8 @@ impl PeerHeights {
         checkpoint: Checkpoint,
         low_watermark: Option<CheckpointSequenceNumber>,
     ) -> bool {
+        debug!("Update peer info");
+
         let info = match self.peers.get_mut(&peer_id) {
             Some(info) if info.on_same_chain_as_us => info,
             _ => return false,
