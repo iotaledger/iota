@@ -67,11 +67,11 @@ function App() {
         }
     }, [iotaWallet]);
     if (!iotaWallet) {
-        return <h1>Iota Wallet not found</h1>;
+        return <h1>IOTA Wallet not found</h1>;
     }
     return (
         <>
-            <h1>Iota Wallet is installed. ({iotaWallet.name})</h1>
+            <h1>IOTA Wallet is installed. ({iotaWallet.name})</h1>
             {accounts.length ? (
                 <ul data-testid="accounts-list">
                     {accounts.map((anAccount) => (

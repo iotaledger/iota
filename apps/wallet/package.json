@@ -1,7 +1,7 @@
 {
     "name": "iota-wallet",
     "private": true,
-    "description": "A wallet for Iota",
+    "description": "A wallet for IOTA",
     "main": "./dist/ui.js",
     "scripts": {
         "build": "pnpm build:prod",
