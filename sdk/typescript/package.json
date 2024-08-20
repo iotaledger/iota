@@ -111,9 +111,6 @@
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
     },
-    "publishConfig": {
-        "access": "public"
-    },
     "devDependencies": {
         "@0no-co/graphqlsp": "^1.7.1",
         "@graphql-codegen/add": "^5.0.2",

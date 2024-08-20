@@ -43,9 +43,6 @@
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
     },
-    "publishConfig": {
-        "access": "public"
-    },
     "size-limit": [
         {
             "path": "dist/esm/index.js",

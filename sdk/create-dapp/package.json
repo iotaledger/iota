@@ -30,9 +30,6 @@
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
     },
-    "publishConfig": {
-        "access": "public"
-    },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
         "typescript": "^5.3.3"
