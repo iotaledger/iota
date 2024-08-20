@@ -13,7 +13,7 @@ use tracing::info;
 use crate::{
     db::{new_pg_connection_pool_with_config, reset_database, PgConnectionPoolConfig},
     errors::IndexerError,
-    handlers::objects_snapshot_processor::SnapshotLagConfig,
+    processors::objects_snapshot_processor::SnapshotLagConfig,
     indexer::Indexer,
     store::PgIndexerStore,
     IndexerConfig, IndexerMetrics,

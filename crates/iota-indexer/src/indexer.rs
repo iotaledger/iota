@@ -15,6 +15,8 @@ use crate::{
     framework::fetcher::CheckpointFetcher,
     handlers::{
         checkpoint_handler::new_handlers,
+    },
+    processors::{
         objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig},
         processor_orchestrator::ProcessorOrchestrator,
     },
