@@ -23,15 +23,19 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        imageSrc: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+        assetSrc: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
         altText: 'IOTA Logo',
         icon: <MoreHoriz />,
         onIconClick: () => {
             console.log('Icon clicked');
         },
+        onClick: () => {
+            console.log('Card clicked');
+        },
+        assetTitle: 'IOTA Logo',
     },
     argTypes: {
-        imageSrc: {
+        assetSrc: {
             control: 'text',
         },
         altText: {
@@ -42,6 +46,15 @@ export const Default: Story = {
         },
         onIconClick: {
             control: 'none',
+        },
+        assetType: {
+            control: 'none',
+        },
+        onClick: {
+            control: 'none',
+        },
+        assetTitle: {
+            control: 'text',
         },
     },
 };
