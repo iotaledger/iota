@@ -11,14 +11,14 @@ This is useful for Shimmer assets, because none of the Move objects obtained fro
 
 1. A Shimmer derivation path uses a `coin_type` (4219) which is different from the IOTA's one (4218). A user's self-sponsoring address could be then found using the IOTA `coin_type`.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L44-L50
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 TODO
 
@@ -28,14 +28,14 @@ TODO
 
 2. A PTB for claiming a `BasicOutput` owned by the derived Shimmer address can be created similarly to what is shown in [Basic Output](basic.mdx).
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L85-L135
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 TODO
 
@@ -44,14 +44,14 @@ TODO
 
 3. In this case, the transaction must be signed by both the sender address (i.e., the objects' owner) and the sponsor address.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L151-L177
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 TODO
 

@@ -11,14 +11,14 @@ Once an Nft Output can be unlocked the claim of its assets can start
 
 1. The first step is to fetch the `NftOutput` object that needs to be claimed.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L56-L80
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
@@ -26,14 +26,14 @@ Once an Nft Output can be unlocked the claim of its assets can start
 
 2. Then we check the native tokens that were possibly held by this output. A [`Bag`](../../../references/framework/iota-framework/bag) is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L82-L107
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
@@ -42,14 +42,14 @@ Once an Nft Output can be unlocked the claim of its assets can start
 An Nft Output is different from a Basic Output as it contains the `Nft` object. 
 In fact, the main purpose of claiming is extracting the `Nft` object from the `NftOutput`.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L109-L175
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
@@ -60,7 +60,7 @@ This topic outlines the process of converting an stardust Nft into a custom Nft.
 You need to have a prepared custom Nft package that you want to convert the Stardust Nft You need to have a prepared custom Nft package that you want to convert the Stardust Nft into. 
 The following is an example of a simple module for representing a custom NFT, minting it, burning it and converting it from a Stardust `Nft`:
 
-<Tabs>
+<Tabs groupId="code-language">
 <TabItem value="move" label="Move">
 
 ```move file=<rootDir>/docs/examples/move/custom_nft/sources/nft.move
@@ -74,14 +74,14 @@ The following is an example of a simple module for representing a custom NFT, mi
 Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then converts it into a custom NFT of the collection just published. 
 This conversion method extracts the Stardust `Nft` metadata and uses it for minting a new NFT.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L77-L137
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>

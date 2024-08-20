@@ -8,14 +8,14 @@ As seen in the [Move Models](../move-models) page, the Foundry Output does not h
 
 1. The first step is to fetch an `AliasOutput` object that needs to be claimed.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L60-L74
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
@@ -23,42 +23,42 @@ As seen in the [Move Models](../move-models) page, the Foundry Output does not h
 
 2. By using the dynamic field function with the "alias" dynamic field key filter, we gather the `Alias` object itself.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L76-L89
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
 
 3. Some objects are owned by the `Alias` object (check the [Output unlockable by an Alias/Nft Address](address-unlock-condition.mdx) page for more info). In this case we filter them by type using the `CoinManagerTreasuryCap` type tag.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L91-L131
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
 
 4. Since each native token has its own package, a Foundry's native token as a dedicated [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx). Here we need to extract this `OTW` from the `CoinManagerTreasuryCap` object.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L133-L142
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
@@ -66,14 +66,14 @@ As seen in the [Move Models](../move-models) page, the Foundry Output does not h
 5. Create a PTB that claims the `CoinManagerTreasuryCap` related to the Foundry Output from the `AliasOutput` using the `unlock_alias_address_owned_coinmanager_treasury` function.
 
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L144-L215
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript"  label="TypeScript">
 
 </TabItem>
 </Tabs>
