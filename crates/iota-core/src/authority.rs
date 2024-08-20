@@ -2053,6 +2053,7 @@ impl AuthorityState {
         self.execution_cache.is_tx_already_executed(digest)
     }
 
+    /// Indexes a transaction by updating various indexes in the `IndexStore`.
     #[instrument(level = "debug", skip_all, err)]
     async fn index_tx(
         &self,

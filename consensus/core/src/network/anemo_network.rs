@@ -296,6 +296,7 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
         self.client.clone()
     }
 
+    /// Installs and starts the consensus service on the specified network.
     async fn install_service(&mut self, network_keypair: NetworkKeyPair, service: Arc<S>) {
         self.context
             .metrics

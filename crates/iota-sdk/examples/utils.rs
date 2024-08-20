@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This file contains utility functions for the other examples.
+
 use std::{str::FromStr, time::Duration};
 
 use anyhow::bail;
@@ -287,7 +289,7 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
         }
 
         client_config.save(&wallet_conf)?;
-        info!("Client config file is stored in {:?}.", &wallet_conf);
+        info!("Client config file is stored in {wallet_conf:?}.");
     }
 
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;

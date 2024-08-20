@@ -8,11 +8,9 @@ import { useRecoveryDataMutation } from '_src/ui/app/hooks/useRecoveryDataMutati
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
 import { useAccountSources } from '../../../hooks/useAccountSources';
-import { Heading } from '../../../shared/heading';
-import { Text } from '../../../shared/text';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 
 export function RecoverPage() {
     const allAccountSources = useAccountSources();
@@ -32,56 +30,52 @@ export function RecoverPage() {
     if (!mnemonicAccountSource && !seedAccountSource) {
         return null;
     }
-    const title = mnemonicAccountSource
+    const descriptionText = mnemonicAccountSource
         ? 'Recover with 24-word Recovery Phrase'
         : 'Recover with Seed';
+
+    async function handleOnSubmitRecoveryPhrase({ recoveryPhrase }: { recoveryPhrase: string[] }) {
+        try {
+            await recoveryDataMutation.mutateAsync({
+                type: AccountSourceType.Mnemonic,
+                accountSourceID: mnemonicAccountSource?.id ?? '',
+                entropy: entropyToSerialized(mnemonicToEntropy(recoveryPhrase.join(' '))),
+            });
+            navigate('../warning');
+        } catch (e) {
+            toast.error((e as Error)?.message || 'Something went wrong');
+        }
+    }
+
+    async function handleOnSubmitSeed({ seed }: { seed: string }) {
+        try {
+            await recoveryDataMutation.mutateAsync({
+                type: AccountSourceType.Seed,
+                accountSourceID: seedAccountSource?.id ?? '',
+                seed,
+            });
+            navigate('../warning');
+        } catch (e) {
+            toast.error((e as Error)?.message || 'Something went wrong');
+        }
+    }
+
     return (
-        <div className="flex w-full flex-1 flex-col items-center gap-6">
-            <div className="flex flex-col items-center gap-2">
-                <Heading variant="heading1" color="gray-90" as="h1" weight="bold">
-                    Forgot Password?
-                </Heading>
-                <Text variant="pBody" color="gray-90">
-                    {title}
-                </Text>
+        <PageTemplate title="Forgot Password?" isTitleCentered showBackButton>
+            <div className="flex h-full flex-col gap-md">
+                <span className="text-label-lg text-neutral-40">{descriptionText}</span>
+                <div className="flex h-full flex-col overflow-hidden">
+                    {mnemonicAccountSource ? (
+                        <ImportRecoveryPhraseForm
+                            cancelButtonText="Cancel"
+                            submitButtonText="Next"
+                            onSubmit={handleOnSubmitRecoveryPhrase}
+                        />
+                    ) : (
+                        <ImportSeedForm onSubmit={handleOnSubmitSeed} />
+                    )}
+                </div>
             </div>
-            <div className="w-full grow">
-                {mnemonicAccountSource ? (
-                    <ImportRecoveryPhraseForm
-                        cancelButtonText="Cancel"
-                        submitButtonText="Next"
-                        onSubmit={async ({ recoveryPhrase }) => {
-                            try {
-                                await recoveryDataMutation.mutateAsync({
-                                    type: AccountSourceType.Mnemonic,
-                                    accountSourceID: mnemonicAccountSource.id,
-                                    entropy: entropyToSerialized(
-                                        mnemonicToEntropy(recoveryPhrase.join(' ')),
-                                    ),
-                                });
-                                navigate('../warning');
-                            } catch (e) {
-                                toast.error((e as Error)?.message || 'Something went wrong');
-                            }
-                        }}
-                    />
-                ) : (
-                    <ImportSeedForm
-                        onSubmit={async ({ seed }) => {
-                            try {
-                                await recoveryDataMutation.mutateAsync({
-                                    type: AccountSourceType.Seed,
-                                    accountSourceID: seedAccountSource?.id ?? '',
-                                    seed,
-                                });
-                                navigate('../warning');
-                            } catch (e) {
-                                toast.error((e as Error)?.message || 'Something went wrong');
-                            }
-                        }}
-                    />
-                )}
-            </div>
-        </div>
+        </PageTemplate>
     );
 }
