@@ -1,6 +1,6 @@
 {
     "name": "@iota/ledgerjs-hw-app-iota",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Ledger Hardware Wallet Iota Application API",
     "keywords": [
         "Ledger",
@@ -18,9 +18,6 @@
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues"
-    },
-    "publishConfig": {
-        "access": "public"
     },
     "homepage": "https://github.com/iotaledger/iota/sdk/ledgerjs-hw-app-iota/#readme",
     "files": [
