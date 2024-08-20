@@ -58,21 +58,16 @@ async fn call_handlers_on_checkpoints_batch(
     handlers: &mut Vec<Box<dyn Handler>>,
     cp_batch: &Vec<CheckpointData>,
 ) -> Result<()> {
-    use futures::StreamExt;
-
-    let mut handlers_results: futures::stream::FuturesUnordered<_> = handlers
+    futures::future::try_join_all(
+        handlers
         .iter_mut()
         .map(|handler| async { handler.process_checkpoints(&cp_batch).await })
-        .collect();
-
-    while let Some(handler_result) = handlers_results.next().await {
-        handler_result.tap_err(|e| {
-            error!(
-                "One of checkpoint processing handlers failed: {}",
-                e.to_string(),
-            );
-        })?;
-    }
+    ).await.tap_err(|e| {
+        error!(
+            "One of checkpoint processing handlers failed: {}",
+            e.to_string(),
+        )
+    })?;
 
     Ok(())
 }
