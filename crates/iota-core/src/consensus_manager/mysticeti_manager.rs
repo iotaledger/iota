@@ -81,7 +81,9 @@ impl MysticetiManager {
 }
 
 #[async_trait]
+
 impl ConsensusManagerTrait for MysticetiManager {
+    /// Starts the Mysticeti consensus manager for the current epoch.
     async fn start(
         &self,
         _config: &NodeConfig,
