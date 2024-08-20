@@ -1,5 +1,6 @@
 {
     "name": "@iota/zklogin",
+    "private": true,
     "version": "0.0.0",
     "description": "Utilities for interacting with zkLogin in Iota",
     "license": "Apache-2.0",

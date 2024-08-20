@@ -19,9 +19,6 @@
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues"
     },
-    "publishConfig": {
-        "access": "public"
-    },
     "homepage": "https://github.com/iotaledger/iota/sdk/ledgerjs-hw-app-iota/#readme",
     "files": [
         "CHANGELOG.md",
