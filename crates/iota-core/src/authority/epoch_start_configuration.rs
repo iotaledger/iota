@@ -49,6 +49,7 @@ pub enum EpochStartConfiguration {
 }
 
 impl EpochStartConfiguration {
+    /// Constructs a new `EpochStartConfigurationV5` for the given epoch.
     pub fn new(
         system_state: EpochStartSystemState,
         epoch_digest: CheckpointDigest,

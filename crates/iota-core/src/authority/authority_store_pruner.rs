@@ -584,6 +584,8 @@ impl AuthorityStorePruner {
         pruned_checkpoint + delta
     }
 
+    /// Sets up the pruning service for the authority store, configuring
+    /// intervals and conditions for object and checkpoint pruning.
     fn setup_pruning(
         config: AuthorityStorePruningConfig,
         epoch_duration_ms: u64,
