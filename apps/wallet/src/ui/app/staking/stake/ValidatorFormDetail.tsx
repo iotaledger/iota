@@ -113,7 +113,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     return (
         <div className="w-full">
             <Panel hasBorder>
-                <div className="flex flex-col gap-y-sm p-sm">
+                <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
                         keyText="APY"
                         tooltipPosition={TooltipPosition.Right}
@@ -131,14 +131,16 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                             keyText="Total Staked"
                             tooltipPosition={TooltipPosition.Right}
                             tooltipText="Stake percentage managed by this validator."
-                            valueText={`${totalValidatorStakeFormatted} ${totalValidatorStakeSymbol}`}
+                            valueText={totalValidatorStakeFormatted}
+                            supportingLabel={totalValidatorStakeSymbol}
                         />
                     )}
                     <KeyValueInfo
                         keyText="Your Staked IOTA"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Your current staked balance."
-                        valueText={`${totalStakeFormatted} ${totalStakeSymbol}`}
+                        valueText={totalStakeFormatted}
+                        supportingLabel={totalStakeSymbol}
                     />
                 </div>
             </Panel>
