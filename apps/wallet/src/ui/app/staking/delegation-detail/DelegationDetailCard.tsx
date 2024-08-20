@@ -271,7 +271,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                                 staking.
                             </Text>
                         </div>
-                        <FaucetRequestButton size="tall" />
+                        <FaucetRequestButton />
                     </div>
                 ) : (
                     <Button
