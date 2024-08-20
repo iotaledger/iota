@@ -1,8 +1,8 @@
 {
     "name": "@iota/kiosk",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "Iota Kiosk library",
-    "version": "0.8.5",
+    "version": "0.1.1",
     "license": "Apache-2.0",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
@@ -38,7 +38,7 @@
         "prepare:e2e": "cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator"
     },
     "dependencies": {
-        "@iota/iota.js": "workspace:*"
+        "@iota/iota-sdk": "workspace:*"
     },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",

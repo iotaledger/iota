@@ -19,11 +19,11 @@ export default defineConfig({
     resolve: {
         alias: {
             '@iota/bcs': new URL('../bcs/src', import.meta.url).toString(),
-            '@iota/iota.js/transactions': new URL(
+            '@iota/iota-sdk/transactions': new URL(
                 '../typescript/src/transactions',
                 import.meta.url,
             ).toString(),
-            '@iota/iota.js': new URL('../typescript/src', import.meta.url).toString(),
+            '@iota/iota-sdk': new URL('../typescript/src', import.meta.url).toString(),
         },
     },
 });

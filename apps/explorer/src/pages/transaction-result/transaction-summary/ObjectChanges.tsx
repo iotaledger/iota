@@ -15,8 +15,8 @@ import {
     type DisplayFieldsResponse,
     type IotaObjectChange,
     type IotaObjectChangePublished,
-} from '@iota/iota.js/client';
-import { parseStructTag } from '@iota/iota.js/utils';
+} from '@iota/iota-sdk/client';
+import { parseStructTag } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';

@@ -821,6 +821,8 @@ impl CheckpointBuilder {
         }
     }
 
+    /// Runs the `CheckpointBuilder` in an asynchronous loop, managing the
+    /// creation of checkpoints.
     async fn run(mut self) {
         info!("Starting CheckpointBuilder");
         'main: loop {
@@ -865,6 +867,8 @@ impl CheckpointBuilder {
         info!("Shutting down CheckpointBuilder");
     }
 
+    /// Creates a checkpoint at the specified height using the provided pending
+    /// checkpoint data.
     #[instrument(level = "debug", skip_all, fields(?height))]
     async fn make_checkpoint(
         &self,
@@ -898,6 +902,7 @@ impl CheckpointBuilder {
         Ok(())
     }
 
+    /// Writes the new checkpoints to the DB storage and processes them.
     #[instrument(level = "debug", skip_all)]
     async fn write_checkpoints(
         &self,
@@ -1010,6 +1015,8 @@ impl CheckpointBuilder {
         Ok(chunks)
     }
 
+    /// Creates checkpoints using the provided transaction effects and pending
+    /// checkpoint information.
     #[instrument(level = "debug", skip_all)]
     async fn create_checkpoints(
         &self,
@@ -1261,6 +1268,8 @@ impl CheckpointBuilder {
         }
     }
 
+    /// Augments the last checkpoint of the epoch by creating and executing an
+    /// advance epoch transaction.
     #[instrument(level = "error", skip_all)]
     async fn augment_epoch_last_checkpoint(
         &self,
@@ -1380,6 +1389,11 @@ impl CheckpointAggregator {
         }
     }
 
+    /// Runs the `CheckpointAggregator` in an asynchronous loop, managing the
+    /// aggregation of checkpoints.
+    /// The function ensures continuous aggregation of checkpoints, handling
+    /// errors and retries gracefully, and allowing for proper shutdown on
+    /// receiving an exit signal.
     async fn run(mut self) {
         info!("Starting CheckpointAggregator");
         loop {
@@ -1818,6 +1832,8 @@ pub struct CheckpointService {
 }
 
 impl CheckpointService {
+    /// Spawns the checkpoint service, initializing and starting the checkpoint
+    /// builder and aggregator tasks.
     pub fn spawn(
         state: Arc<AuthorityState>,
         checkpoint_store: Arc<CheckpointStore>,

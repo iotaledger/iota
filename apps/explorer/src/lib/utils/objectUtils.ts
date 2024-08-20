@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota.js/client';
+import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota-sdk/client';
 
 import { findIPFSvalue } from './stringUtils';
 

@@ -102,7 +102,7 @@ importers:
 
   apps/apps-backend:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@nestjs/cache-manager':
@@ -214,7 +214,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -314,7 +314,7 @@ importers:
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/ui':
@@ -764,7 +764,7 @@ importers:
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -834,8 +834,8 @@ importers:
         specifier: ^5.40.1
         version: 5.45.0(@tanstack/react-query@5.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       axios:
-        specifier: ^1.7.2
-        version: 1.7.2
+        specifier: ^1.7.4
+        version: 1.7.4
       bech32:
         specifier: ^2.0.0
         version: 2.0.0
@@ -1040,7 +1040,7 @@ importers:
         version: 3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))
       tailwindcss-animate:
         specifier: ^1.0.6
-        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3)))
+        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3)))
       ts-loader:
         specifier: ^9.4.4
         version: 9.4.4(typescript@5.3.3)(webpack@5.79.0(@swc/core@1.3.92)(webpack-cli@5.0.1))
@@ -1086,7 +1086,7 @@ importers:
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@tanstack/react-query':
@@ -1144,7 +1144,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -1199,7 +1199,7 @@ importers:
 
   dapps/kiosk-cli:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@iota/kiosk':
@@ -1278,7 +1278,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@tailwindcss/forms':
@@ -1304,7 +1304,7 @@ importers:
         version: 3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))
       tailwindcss-animate:
         specifier: ^1.0.6
-        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3)))
+        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3)))
       typescript:
         specifier: ^5.3.3
         version: 5.3.3
@@ -1330,7 +1330,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@types/react':
@@ -1392,14 +1392,14 @@ importers:
         version: 11.11.5(@emotion/react@11.11.4(@types/react@18.3.3)(react@18.3.1))(@types/react@18.3.3)(react@18.3.1)
       '@graphql-markdown/docusaurus':
         specifier: ^1.24.1
-        version: 1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)
+        version: 1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)
       '@graphql-tools/graphql-file-loader':
         specifier: ^8.0.1
         version: 8.0.1(graphql@16.8.1)
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@mdx-js/react':
@@ -1415,8 +1415,8 @@ importers:
         specifier: ^10.4.14
         version: 10.4.19(postcss@8.4.38)
       axios:
-        specifier: ^1.7.2
-        version: 1.7.2
+        specifier: ^1.7.4
+        version: 1.7.4
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
@@ -1476,7 +1476,7 @@ importers:
         version: 6.0.0
       tailwindcss:
         specifier: ^3.3.3
-        version: 3.4.4(ts-node@10.9.1(typescript@5.4.5))
+        version: 3.4.4(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.4.5))
       web3:
         specifier: ^4.2.2
         version: 4.11.0(typescript@5.4.5)(zod@3.21.4)
@@ -1564,7 +1564,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@types/node':
@@ -1586,7 +1586,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../typescript
       '@radix-ui/colors':
@@ -1647,7 +1647,7 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../dapp-kit
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../typescript
       '@radix-ui/colors':
@@ -1705,7 +1705,7 @@ importers:
 
   sdk/dapp-kit:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@iota/wallet-standard':
@@ -1802,7 +1802,7 @@ importers:
       '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       graphql:
@@ -1854,7 +1854,7 @@ importers:
 
   sdk/iotans-toolkit:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
@@ -1879,7 +1879,7 @@ importers:
 
   sdk/kiosk:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
@@ -2065,7 +2065,7 @@ importers:
 
   sdk/wallet-standard:
     dependencies:
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@wallet-standard/core':
@@ -2084,7 +2084,7 @@ importers:
       '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@iota/iota.js':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@noble/hashes':
@@ -8657,8 +8657,8 @@ packages:
   axios@0.27.2:
     resolution: {integrity: sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==}
 
-  axios@1.7.2:
-    resolution: {integrity: sha512-2A8QhOMrbomlDuiLeK9XibIBzuHeRcqqNOHp0Cyp5EoJ1IFDh+XZH3A6BkXtv0K4gFGCI0Y4BM7B1wOEi0Rmgw==}
+  axios@1.7.4:
+    resolution: {integrity: sha512-DukmaFRnY6AzAALSH4J2M3k6PkaC+MfaAGdEERRWcC9q3/TWQwLpHR8ZRLKTdQ3aBDL64EdluRDjJqKw+BPZEw==}
 
   axobject-query@3.2.1:
     resolution: {integrity: sha512-jsyHu61e6N4Vbz/v18DHwWYKK0bSWLqn47eeDSKPB7m8tqMHF9YJ+mhIk2lVteyZrY8tnSj/jHOv4YiTCuCJgg==}
@@ -11005,15 +11005,6 @@ packages:
   flow-parser@0.212.0:
     resolution: {integrity: sha512-45eNySEs7n692jLN+eHQ6zvC9e1cqu9Dq1PpDHTcWRri2HFEs8is8Anmp1RcIhYxA5TZYD6RuESG2jdj6nkDJQ==}
     engines: {node: '>=0.4.0'}
-
-  follow-redirects@1.15.1:
-    resolution: {integrity: sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==}
-    engines: {node: '>=4.0'}
-    peerDependencies:
-      debug: '*'
-    peerDependenciesMeta:
-      debug:
-        optional: true
 
   follow-redirects@1.15.6:
     resolution: {integrity: sha512-wWN62YITEaOpSK584EZXJafH1AGpO8RVgElfkuXbTOrPX4fIfOyEpW/CsiNd8JdYrAoOvafRTOEnvsO++qCqFA==}
@@ -21735,7 +21726,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@graphql-markdown/core@1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)':
+  '@graphql-markdown/core@1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)':
     dependencies:
       '@graphql-markdown/graphql': 1.1.3(graphql@16.8.1)(prettier@3.3.2)
       '@graphql-markdown/logger': 1.0.3
@@ -21747,10 +21738,10 @@ snapshots:
       - graphql
       - prettier
 
-  '@graphql-markdown/docusaurus@1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)':
+  '@graphql-markdown/docusaurus@1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)':
     dependencies:
       '@docusaurus/logger': 3.4.0
-      '@graphql-markdown/core': 1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)
+      '@graphql-markdown/core': 1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)
       '@graphql-markdown/logger': 1.0.3
       '@graphql-markdown/printer-legacy': 1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)
     transitivePeerDependencies:
@@ -27720,20 +27711,20 @@ snapshots:
 
   axios@0.26.1:
     dependencies:
-      follow-redirects: 1.15.1(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
     transitivePeerDependencies:
       - debug
 
   axios@0.27.2(debug@4.3.4):
     dependencies:
-      follow-redirects: 1.15.1(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
       form-data: 4.0.0
     transitivePeerDependencies:
       - debug
 
-  axios@1.7.2:
+  axios@1.7.4:
     dependencies:
-      follow-redirects: 1.15.6
+      follow-redirects: 1.15.6(debug@4.3.4)
       form-data: 4.0.0
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
@@ -31000,11 +30991,9 @@ snapshots:
 
   flow-parser@0.212.0: {}
 
-  follow-redirects@1.15.1(debug@4.3.4):
+  follow-redirects@1.15.6(debug@4.3.4):
     optionalDependencies:
       debug: 4.3.4(supports-color@8.1.1)
-
-  follow-redirects@1.15.6: {}
 
   for-each@0.3.3:
     dependencies:
@@ -31935,7 +31924,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.15.1(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -37477,7 +37466,7 @@ snapshots:
 
   tailwind-merge@1.14.0: {}
 
-  tailwindcss-animate@1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))):
+  tailwindcss-animate@1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3))):
     dependencies:
       tailwindcss: 3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))
 
@@ -37535,7 +37524,7 @@ snapshots:
     transitivePeerDependencies:
       - ts-node
 
-  tailwindcss@3.4.4(ts-node@10.9.1(typescript@5.4.5)):
+  tailwindcss@3.4.4(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.4.5)):
     dependencies:
       '@alloc/quick-lru': 5.2.0
       arg: 5.0.2

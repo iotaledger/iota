@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Alert from '_components/alert';
-import FiltersPortal from '_components/filters-tags';
-import Loading from '_components/loading';
-import LoadingSpinner from '_components/loading/LoadingIndicator';
+import { Alert, FiltersPortal, Loading, LoadingIndicator } from '_components';
 import { setToSessionStorage } from '_src/background/storage-utils';
 import { AssetFilterTypes, useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import PageTitle from '_src/ui/app/shared/PageTitle';
@@ -54,7 +51,7 @@ function NftsPage() {
     if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
-                <LoadingSpinner />
+                <LoadingIndicator />
             </div>
         );
     }
@@ -97,7 +94,7 @@ function NftsPage() {
             <div ref={observerElem}>
                 {isSpinnerVisible ? (
                     <div className="mt-1 flex w-full justify-center">
-                        <LoadingSpinner />
+                        <LoadingIndicator />
                     </div>
                 ) : null}
             </div>

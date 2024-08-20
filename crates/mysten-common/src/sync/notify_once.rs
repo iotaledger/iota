@@ -82,27 +82,32 @@ impl Default for NotifyOnce {
     }
 }
 
-#[tokio::test]
-async fn notify_once_test() {
-    let notify_once = NotifyOnce::new();
-    // Before notify() is called .wait() is not ready
-    assert!(
-        futures::future::poll_immediate(notify_once.wait())
-            .await
-            .is_none()
-    );
-    let wait = notify_once.wait();
-    notify_once.notify().unwrap();
-    // Pending wait() call is ready now
-    assert!(futures::future::poll_immediate(wait).await.is_some());
-    // Take wait future and don't resolve it.
-    // This makes sure lock is dropped properly and wait futures resolve
-    // independently of each other
-    let _dangle_wait = notify_once.wait();
-    // Any new wait() is immediately ready
-    assert!(
-        futures::future::poll_immediate(notify_once.wait())
-            .await
-            .is_some()
-    );
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn notify_once_test() {
+        let notify_once = NotifyOnce::new();
+        // Before notify() is called .wait() is not ready
+        assert!(
+            futures::future::poll_immediate(notify_once.wait())
+                .await
+                .is_none()
+        );
+        let wait = notify_once.wait();
+        notify_once.notify().unwrap();
+        // Pending wait() call is ready now
+        assert!(futures::future::poll_immediate(wait).await.is_some());
+        // Take wait future and don't resolve it.
+        // This makes sure lock is dropped properly and wait futures resolve
+        // independently of each other
+        let _dangle_wait = notify_once.wait();
+        // Any new wait() is immediately ready
+        assert!(
+            futures::future::poll_immediate(notify_once.wait())
+                .await
+                .is_some()
+        );
+    }
 }

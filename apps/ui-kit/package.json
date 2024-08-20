@@ -1,5 +1,6 @@
 {
     "name": "@iota/apps-ui-kit",
+    "private": true,
     "version": "0.0.1-rc.1",
     "repository": {
         "type": "git",

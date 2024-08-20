@@ -116,10 +116,14 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 const { onCopy } = props;
                 return (
                     <div
-                        className={cx('flex items-center space-x-2', textColorClass, textSizeClass)}
+                        className={cx(
+                            'flex items-center space-x-2 [&_svg]:h-4 [&_svg]:w-4',
+                            textColorClass,
+                            textSizeClass,
+                        )}
                     >
                         <span>{label}</span>
-                        <Copy className="h-4 w-4 cursor-pointer" onClick={onCopy} />
+                        <Copy className="cursor-pointer" onClick={onCopy} />
                     </div>
                 );
             case TableCellType.Badge:

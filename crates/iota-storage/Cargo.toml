@@ -1,7 +1,7 @@
 [package]
 name = "iota-storage"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -58,12 +58,9 @@ move-bytecode-utils.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
-criterion.workspace = true
 iota-macros = { workspace = true }
-iota-simulator = { workspace = true }
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 num_cpus.workspace = true
 once_cell.workspace = true
-pretty_assertions.workspace = true
 tempfile.workspace = true

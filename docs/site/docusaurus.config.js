@@ -28,7 +28,7 @@ const config = {
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
-  onBrokenAnchors: "throw",
+  onBrokenAnchors: "warn",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -76,7 +76,6 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
-    path.resolve(__dirname, `./src/plugins/framework`),
   ],
   presets: [
     [
@@ -89,6 +88,8 @@ const config = {
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
           editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
+          onInlineTags: "throw",
+          
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {

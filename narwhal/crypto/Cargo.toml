@@ -1,7 +1,7 @@
 [package]
 name = "narwhal-crypto"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -14,11 +14,8 @@ shared-crypto.workspace = true
 
 [features]
 default = []
+
 [dev-dependencies]
 bincode.workspace = true
-criterion.workspace = true
 hex-literal.workspace = true
-proptest.workspace = true
-proptest-derive.workspace = true
-serde-reflection.workspace = true
 serde_json.workspace = true
