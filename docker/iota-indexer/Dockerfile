@@ -21,11 +21,12 @@ COPY narwhal narwhal
 COPY external-crates external-crates
 
 RUN cargo build --profile ${PROFILE} --bin iota-indexer
+RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-indexer ./
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
 WORKDIR "$WORKDIR/iota"
-COPY --from=builder /iota/target/release/iota-indexer /usr/local/bin
+COPY --from=builder /iota/iota-indexer /usr/local/bin
 RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql
 
 ARG BUILD_DATE
