@@ -12,7 +12,6 @@ const MIN_LINE_HEIGHT = '1.13';
 export default {
     content: ['./src/**/*.{js,jsx,ts,tsx}'],
     theme: {
-        // Overwrite colors to avoid accidental usage of Tailwind colors:
         extend: {
             scale: {
                 '101': '1.01',
@@ -25,6 +24,7 @@ export default {
                 lg: '24px',
                 xl: '32px',
             },
+            // Overwrite colors to avoid accidental usage of Tailwind colors:
             colors: {
                 white: colors.white,
                 black: colors.black,
