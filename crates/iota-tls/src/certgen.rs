@@ -17,14 +17,16 @@ impl SelfSignedCertificate {
         }
     }
 
-    pub fn rustls_certificate(&self) -> rustls::pki_types::CertificateDer {
+    pub fn rustls_certificate(&self) -> rustls::pki_types::CertificateDer<'static> {
         let cert_bytes = self.inner.serialize_der().unwrap();
         rustls::pki_types::CertificateDer::from(cert_bytes)
     }
 
-    pub fn rustls_private_key(&self) -> rustls::pki_types::PrivateKeyDer {
+    pub fn rustls_private_key(&self) -> rustls::pki_types::PrivateKeyDer<'static> {
         let private_key_bytes = self.inner.serialize_private_key_der();
-        rustls::pki_types::PrivateKeyDer::from(private_key_bytes)
+        rustls::pki_types::PrivateKeyDer::Pkcs8(rustls::pki_types::PrivatePkcs8KeyDer::from(
+            private_key_bytes,
+        ))
     }
 
     pub fn reqwest_identity(&self) -> reqwest::tls::Identity {
@@ -54,7 +56,9 @@ fn generate_self_signed_tls_certificate(
 
 fn generate_cert(keypair: &ed25519::KeypairBytes, server_name: &str) -> rcgen::Certificate {
     let pkcs8 = keypair.to_pkcs8_der().unwrap();
-    let key_der = rustls::pki_types::PrivateKeyDer::from(pkcs8.as_bytes());
+    let key_der = rustls::pki_types::PrivateKeyDer::Pkcs8(
+        rustls::pki_types::PrivatePkcs8KeyDer::from(pkcs8.as_bytes()),
+    );
     private_key_to_certificate(vec![server_name.to_owned()], &key_der).unwrap()
 }
 
@@ -64,7 +68,7 @@ fn private_key_to_certificate(
 ) -> Result<rcgen::Certificate, anyhow::Error> {
     let alg = &rcgen::PKCS_ED25519;
 
-    let certificate = gen_certificate(subject_names, (private_key.as_ref(), alg))?;
+    let certificate = gen_certificate(subject_names, (private_key.secret_der(), alg))?;
     Ok(certificate)
 }
 

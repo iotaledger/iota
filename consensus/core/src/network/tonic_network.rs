@@ -62,15 +62,16 @@ use crate::{
 // TODO: put max RPC response size in protocol config.
 const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
-// Maximum total bytes fetched in a single fetch_blocks() call, after combining the responses.
+// Maximum total bytes fetched in a single fetch_blocks() call, after combining
+// the responses.
 const MAX_TOTAL_FETCHED_BYTES: usize = 128 * 1024 * 1024;
 
 // Maximum number of connections in backlog.
 #[cfg(not(msim))]
 const MAX_CONNECTIONS_BACKLOG: u32 = 1024;
 
-// The time we are willing to wait for a connection to get gracefully shutdown before we attempt to
-// forcefully shutdown its task.
+// The time we are willing to wait for a connection to get gracefully shutdown
+// before we attempt to forcefully shutdown its task.
 const CONNECTION_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // Implements Tonic RPC client for Consensus.
@@ -105,7 +106,8 @@ impl TonicClient {
     }
 }
 
-// TODO: make sure callsites do not send request to own index, and return error otherwise.
+// TODO: make sure callsites do not send request to own index, and return error
+// otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
     const SUPPORT_STREAMING: bool = true;
@@ -456,7 +458,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 
     type SubscribeBlocksStream =
-    Pin<Box<dyn Stream<Item=Result<SubscribeBlocksResponse, tonic::Status>> + Send>>;
+        Pin<Box<dyn Stream<Item = Result<SubscribeBlocksResponse, tonic::Status>> + Send>>;
 
     async fn subscribe_blocks(
         &self,
@@ -568,7 +570,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 
     type FetchLatestBlocksStream =
-    Iter<std::vec::IntoIter<Result<FetchLatestBlocksResponse, tonic::Status>>>;
+        Iter<std::vec::IntoIter<Result<FetchLatestBlocksResponse, tonic::Status>>>;
 
     async fn fetch_latest_blocks(
         &self,
@@ -614,12 +616,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 }
 
-/// Manages the lifecycle of Tonic network client and service. Typical usage during initialization:
+/// Manages the lifecycle of Tonic network client and service. Typical usage
+/// during initialization:
 /// 1. Create a new `TonicManager`.
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with
+///    `TonicManager::install_service()`.
 pub(crate) struct TonicManager {
     context: Arc<Context>,
     network_keypair: NetworkKeyPair,
@@ -924,8 +928,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}` into
-/// a host:port string.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+/// into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
@@ -947,8 +951,8 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}` into
-/// a SocketAddr value.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}`
+/// into a SocketAddr value.
 fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     let mut iter = addr.iter();
 
@@ -979,7 +983,7 @@ fn create_socket(address: &SocketAddr) -> tokio::net::TcpSocket {
     } else {
         panic!("Invalid own address: {address:?}");
     }
-        .unwrap_or_else(|e| panic!("Cannot create TCP socket: {e:?}"));
+    .unwrap_or_else(|e| panic!("Cannot create TCP socket: {e:?}"));
     if let Err(e) = socket.set_nodelay(true) {
         info!("Failed to set TCP_NODELAY: {e:?}");
     }
@@ -995,7 +999,7 @@ fn create_socket(address: &SocketAddr) -> tokio::net::TcpSocket {
 /// TODO: Maybe merge with connection_monitor.rs
 struct ConnectionsInfo {
     authority_key_to_index: BTreeMap<NetworkPublicKey, AuthorityIndex>,
-    }
+}
 
 impl ConnectionsInfo {
     fn new(context: Arc<Context>) -> Self {
@@ -1004,9 +1008,9 @@ impl ConnectionsInfo {
             .authorities()
             .map(|(index, authority)| (authority.network_key.clone(), index))
             .collect();
-            Self {
-                authority_key_to_index,
-            }
+        Self {
+            authority_key_to_index,
+        }
     }
 
     fn authority_index(&self, key: &NetworkPublicKey) -> Option<AuthorityIndex> {
@@ -1057,8 +1061,8 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 
     fn make_handler(&self, request: &http::request::Parts) -> Self::Handler {
         self.handle_request(request)
-            }
-        }
+    }
+}
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(self, response: &http::response::Parts) {
@@ -1091,7 +1095,7 @@ pub(crate) struct SubscribeBlocksRequest {
 pub(crate) struct SubscribeBlocksResponse {
     #[prost(bytes = "bytes", tag = "1")]
     block: Bytes,
-        }
+}
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksRequest {
@@ -1101,14 +1105,14 @@ pub(crate) struct FetchBlocksRequest {
     // and its length should be the same as the committee size.
     #[prost(uint32, repeated, tag = "2")]
     highest_accepted_rounds: Vec<Round>,
-        }
+}
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksResponse {
     // The response of the requested blocks as Serialized SignedBlock.
     #[prost(bytes = "bytes", repeated, tag = "1")]
     blocks: Vec<Bytes>,
-    }
+}
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchCommitsRequest {
