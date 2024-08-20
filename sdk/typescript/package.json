@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <contact@iota.org>",
     "description": "Iota TypeScript API(Work in Progress)",
     "homepage": "https://sdk.mystenlabs.com",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "license": "Apache-2.0",
     "sideEffects": false,
     "files": [
@@ -111,9 +111,6 @@
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
-    },
-    "publishConfig": {
-        "access": "public"
     },
     "devDependencies": {
         "@0no-co/graphqlsp": "^1.7.1",
