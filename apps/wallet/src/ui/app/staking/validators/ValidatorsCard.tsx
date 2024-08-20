@@ -4,8 +4,6 @@
 
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
 import { Button } from '_app/shared/ButtonUI';
-import { Card, CardItem } from '_app/shared/card';
-import { Text } from '_app/shared/text';
 import { Alert, LoadingIndicator } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
@@ -21,7 +19,6 @@ import { Plus12 } from '@iota/icons';
 import { useMemo } from 'react';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { StakeAmount } from '../home/StakeAmount';
 import { StakeCard } from '../home/StakedCard';
 import { DisplayStats } from '_app/staking/home/DisplayStats';
 import { Title, TitleSize } from '@iota/apps-ui-kit';
@@ -68,8 +65,6 @@ export function ValidatorsCard() {
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
-
-    const numberOfValidators = delegatedStakeData?.length || 0;
 
     if (isPending) {
         return (
@@ -120,36 +115,8 @@ export function ValidatorsCard() {
                                         />
                                     ))}
                         </div>
-                        <Card
-                            padding="none"
-                            header={
-                                <div className="flex w-full justify-center px-3.75 py-2.5">
-                                    <Text
-                                        variant="captionSmall"
-                                        weight="semibold"
-                                        color="steel-darker"
-                                    >
-                                        Staking on {numberOfValidators}
-                                        {numberOfValidators > 1 ? ' Validators' : ' Validator'}
-                                    </Text>
-                                </div>
-                            }
-                        >
-                            <div className="divide-gray-45 flex divide-x divide-y-0 divide-solid">
-                                <CardItem title="Your Stake">
-                                    <StakeAmount balance={totalDelegatedStake} variant="heading5" />
-                                </CardItem>
-                                <CardItem title="Earned">
-                                    <StakeAmount
-                                        balance={totalDelegatedRewards}
-                                        variant="heading5"
-                                        isEarnedRewards
-                                    />
-                                </CardItem>
-                            </div>
-                        </Card>
 
-                        <div className="mt-4 grid grid-cols-2 gap-2.5">
+                        <div className="gap-2.5">
                             {system &&
                                 delegations
                                     ?.filter(({ inactiveValidator }) => !inactiveValidator)

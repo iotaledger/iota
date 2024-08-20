@@ -176,12 +176,10 @@ const App = () => {
                 <Route path="receipt" element={<ReceiptPage />} />
                 <Route path="send" element={<TransferCoinPage />} />
                 <Route path="send/select" element={<CoinsSelectorPage />} />
+                <Route path="stake/*" element={<StakingPage />} />
                 <Route path="tokens/*" element={<TokenDetailsPage />} />
                 <Route path="transactions/:status?" element={<TransactionBlocksPage />} />
                 <Route path="*" element={<Navigate to="/tokens" replace={true} />} />
-            </Route>
-            <Route path="/*" element={<HomePage disableAll />}>
-                <Route path="stake/*" element={<StakingPage />} />
             </Route>
             <Route path="accounts/*" element={<AccountsPage />}>
                 <Route path="welcome" element={<WelcomePage />} />
@@ -211,10 +209,7 @@ const App = () => {
                     <Route path="reset" element={<ResetPasswordPage />} />
                 </Route>
             </Route>
-            <Route
-                path="/dapp/*"
-                element={<HomePage disableBottomNav disableDappStatus disableTopNavSettings />}
-            >
+            <Route path="/dapp/*" element={<HomePage disableNavigation />}>
                 <Route path="connect/:requestID" element={<SiteConnectPage />} />
                 <Route path="approve/:requestID" element={<ApprovalRequestPage />} />
             </Route>

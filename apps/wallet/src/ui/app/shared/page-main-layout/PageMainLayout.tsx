@@ -23,7 +23,6 @@ export interface PageMainLayoutProps {
     children: ReactNode | ReactNode[];
     bottomNavEnabled?: boolean;
     topNavMenuEnabled?: boolean;
-    topNavSettingsEnabled?: boolean;
     dappStatusEnabled?: boolean;
 }
 
@@ -31,7 +30,6 @@ export function PageMainLayout({
     children,
     bottomNavEnabled = false,
     topNavMenuEnabled = false,
-    topNavSettingsEnabled = false,
     dappStatusEnabled = false,
 }: PageMainLayoutProps) {
     const network = useAppSelector(({ app: { network } }) => network);
@@ -48,22 +46,20 @@ export function PageMainLayout({
                 isFullScreen ? 'rounded-xl' : '',
             )}
         >
-            {topNavMenuEnabled && (
-                <Header
-                    network={network}
-                    leftContent={
-                        <LeftContent
-                            account={activeAccount?.address}
-                            isLedgerAccount={isLedgerAccount}
-                            isLocked={activeAccount?.isLocked}
-                        />
-                    }
-                    middleContent={
-                        dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
-                    }
-                    rightContent={topNavSettingsEnabled ? <WalletSettingsButton /> : undefined}
-                />
-            )}
+            <Header
+                network={network}
+                leftContent={
+                    <LeftContent
+                        account={activeAccount?.address}
+                        isLedgerAccount={isLedgerAccount}
+                        isLocked={activeAccount?.isLocked}
+                    />
+                }
+                middleContent={
+                    dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
+                }
+                rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
+            />
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                 <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
                     <main

@@ -8,20 +8,10 @@ import { PageMainLayout } from '_src/ui/app/shared/page-main-layout/PageMainLayo
 import { Outlet } from 'react-router-dom';
 
 interface HomePageProps {
-    disableTopNav?: boolean;
-    disableTopNavSettings?: boolean;
-    disableBottomNav?: boolean;
-    disableDappStatus?: boolean;
-    disableAll?: boolean;
+    disableNavigation?: boolean;
 }
 
-const HomePage = ({
-    disableAll,
-    disableBottomNav,
-    disableTopNav,
-    disableTopNavSettings,
-    disableDappStatus,
-}: HomePageProps) => {
+const HomePage = ({ disableNavigation }: HomePageProps) => {
     const initChecking = useInitializedGuard(true);
     const guardChecking = initChecking;
 
@@ -29,10 +19,9 @@ const HomePage = ({
     return (
         <Loading loading={guardChecking}>
             <PageMainLayout
-                bottomNavEnabled={!disableAll && !disableBottomNav}
-                dappStatusEnabled={!disableAll && !disableDappStatus}
-                topNavMenuEnabled={!disableAll && !disableTopNav}
-                topNavSettingsEnabled={!disableAll && !disableTopNavSettings}
+                bottomNavEnabled={!disableNavigation}
+                dappStatusEnabled={!disableNavigation}
+                topNavMenuEnabled={!disableNavigation}
             >
                 <Outlet />
             </PageMainLayout>
