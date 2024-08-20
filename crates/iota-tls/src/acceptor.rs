@@ -17,7 +17,7 @@ use tower_layer::Layer;
 #[derive(Debug, Clone)]
 pub struct TlsConnectionInfo {
     sni_hostname: Option<Arc<str>>,
-    peer_certificates: Option<Arc<[rustls::Certificate]>>,
+    peer_certificates: Option<Arc<[rustls::pki_types::CertificateDer<'_>]>>,
     public_key: Option<Ed25519PublicKey>,
 }
 
@@ -26,7 +26,7 @@ impl TlsConnectionInfo {
         self.sni_hostname.as_deref()
     }
 
-    pub fn peer_certificates(&self) -> Option<&[rustls::Certificate]> {
+    pub fn peer_certificates(&self) -> Option<&[rustls::pki_types::CertificateDer]> {
         self.peer_certificates.as_deref()
     }
 
