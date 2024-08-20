@@ -9,6 +9,7 @@ use iota_json_rpc_types::AddressMetrics;
 
 use crate::schema::{active_addresses, address_metrics, addresses};
 
+/// Represents a sender or receiver address.
 #[derive(Clone, Debug, Queryable, Insertable)]
 #[diesel(table_name = addresses)]
 pub struct StoredAddress {
@@ -19,6 +20,7 @@ pub struct StoredAddress {
     pub last_appearance_time: i64,
 }
 
+/// Represents a sender address.
 #[derive(Clone, Debug, Queryable, Insertable)]
 #[diesel(table_name = active_addresses)]
 pub struct StoredActiveAddress {

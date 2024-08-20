@@ -91,11 +91,11 @@ pub struct IndexerMetrics {
     pub latest_tx_checkpoint_sequence_number: IntGauge,
     pub latest_indexer_object_checkpoint_sequence_number: IntGauge,
     pub latest_object_snapshot_sequence_number: IntGauge,
-    // analytical
+    // Analytical
     pub latest_move_call_metrics_tx_seq: IntGauge,
     pub latest_address_metrics_tx_seq: IntGauge,
     pub latest_network_metrics_cp_seq: IntGauge,
-    // checkpoint E2E latency is:
+    // Checkpoint E2E latency is:
     // fullnode_download_latency + checkpoint_index_latency + db_commit_latency
     pub checkpoint_download_bytes_size: IntGauge,
     pub fullnode_checkpoint_data_download_latency: Histogram,
