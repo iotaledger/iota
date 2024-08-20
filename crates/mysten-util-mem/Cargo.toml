@@ -17,11 +17,11 @@ fastcrypto-tbls.workspace = true
 hashbrown = { version = "0.14", optional = true }
 impl-trait-for-tuples = "0.2"
 indexmap.workspace = true
+lru = { workspace = true, optional = true }
 mysten-util-mem-derive.workspace = true
-roaring.workspace = true
-
 once_cell.workspace = true
 parking_lot = { workspace = true, optional = true }
+roaring.workspace = true
 smallvec = { workspace = true, optional = true }
 
 [features]

@@ -24,7 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
- "getrandom",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -668,19 +667,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dashmap"
-version = "5.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
-dependencies = [
- "cfg-if",
- "hashbrown",
- "lock_api",
- "once_cell",
- "parking_lot_core",
-]
-
-[[package]]
 name = "datatest-stable"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1112,18 +1098,6 @@ checksum = "b23a0c8dfe501baac4adf6ebbfa6eddf8f0c07f56b058cc1288017e32397846c"
 dependencies = [
  "quote",
  "syn 2.0.75",
-]
-
-[[package]]
-name = "internment"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78d408a22389be01e56d8083e6a53bfd6226e392d2bd9661196a426be36e165e"
-dependencies = [
- "ahash",
- "dashmap",
- "hashbrown",
- "once_cell",
 ]
 
 [[package]]
@@ -1798,7 +1772,6 @@ dependencies = [
  "codespan",
  "codespan-reporting",
  "datatest-stable",
- "internment",
  "itertools 0.13.0",
  "log",
  "move-binary-format",
@@ -1921,10 +1894,8 @@ dependencies = [
  "move-core-types",
  "move-model",
  "move-prover-test-utils",
- "move-read-write-set-types",
  "move-stdlib",
  "num",
- "paste",
  "petgraph",
  "serde",
 ]
