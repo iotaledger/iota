@@ -29,6 +29,7 @@ use crate::authority_state::StateReadError;
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error(transparent)]
     IotaError(IotaError),

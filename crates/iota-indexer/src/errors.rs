@@ -28,6 +28,7 @@ impl std::fmt::Display for DataDownloadError {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum IndexerError {
     #[error("Indexer failed to convert timestamp to NaiveDateTime with error: `{0}`")]
     DateTimeParsingError(String),
