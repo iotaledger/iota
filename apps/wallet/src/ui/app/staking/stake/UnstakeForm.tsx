@@ -53,7 +53,7 @@ export function UnStakeForm({
         currentEpochEndTime > 0 ? currentEpochEndTimeAgo : `Epoch #${epoch}`;
 
     return (
-        <Form className="flex flex-1 flex-col flex-nowrap" autoComplete="off" noValidate>
+        <Form className="flex flex-1 flex-col flex-nowrap gap-y-md" autoComplete="off" noValidate>
             <Panel hasBorder>
                 <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
@@ -63,19 +63,28 @@ export function UnStakeForm({
                     <Divider />
                     <KeyValueInfo
                         keyText="Your Stake"
-                        valueText={`${tokenBalance} ${GAS_SYMBOL}`}
+                        valueText={tokenBalance}
+                        supportingLabel={GAS_SYMBOL}
                     />
                     <KeyValueInfo
                         keyText="Rewards Earned"
-                        valueText={`${rewards} ${rewardSymbol}`}
+                        valueText={rewards}
+                        supportingLabel={rewardSymbol}
                     />
+                    <Divider />
                     <KeyValueInfo
                         keyText="Total unstaked IOTA"
-                        valueText={`${totalIota} ${GAS_SYMBOL}`}
+                        valueText={totalIota}
+                        supportingLabel={GAS_SYMBOL}
                     />
+                </div>
+            </Panel>
+            <Panel hasBorder>
+                <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
                         keyText="Gas Fees"
-                        valueText={`${gasBudget || '-'} ${GAS_SYMBOL}`}
+                        valueText={gasBudget || '-'}
+                        supportingLabel={GAS_SYMBOL}
                     />
                 </div>
             </Panel>

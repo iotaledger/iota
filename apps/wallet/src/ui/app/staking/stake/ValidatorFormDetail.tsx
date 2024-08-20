@@ -113,15 +113,15 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
     return (
         <div className="w-full">
             <Panel hasBorder>
-                <div className="flex flex-col gap-y-sm p-sm">
+                <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
-                        keyText="APY"
+                        keyText="Staking APY"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
                         valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                     />
                     <KeyValueInfo
-                        keyText="Stake shared"
+                        keyText="Stake Share"
                         tooltipPosition={TooltipPosition.Right}
                         tooltipText="Stake percentage managed by this validator."
                         valueText={formatPercentageDisplay(totalStakePercentage)}

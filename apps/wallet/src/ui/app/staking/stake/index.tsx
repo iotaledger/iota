@@ -14,7 +14,7 @@ function StakePage() {
     const unstake = searchParams.get('unstake') === 'true';
 
     const navigate = useNavigate();
-    const stakingTitle = unstake ? 'Unstake IOTA' : 'Stake IOTA';
+    const stakingTitle = unstake ? 'Unstake' : 'Stake IOTA';
 
     return (
         <Overlay
