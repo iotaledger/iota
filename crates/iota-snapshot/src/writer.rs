@@ -61,9 +61,8 @@ struct LiveObjectSetWriterV1 {
     dir_path: PathBuf,
     bucket_num: u32,
     current_part_num: u32,
-    wbuf: BufWriter<File>,
+    obj_wbuf: BufWriter<File>,
     ref_wbuf: BufWriter<File>,
-    /// Size of the object file
     object_file_size: usize,
     files: Vec<FileMetadata>,
     sender: Option<Sender<FileMetadata>>,
@@ -84,7 +83,7 @@ impl LiveObjectSetWriterV1 {
             dir_path,
             bucket_num,
             current_part_num: part_num,
-            wbuf: BufWriter::new(obj_file),
+            obj_wbuf: BufWriter::new(obj_file),
             ref_wbuf: BufWriter::new(ref_file),
             object_file_size: n,
             files: vec![],
@@ -150,10 +149,10 @@ impl LiveObjectSetWriterV1 {
     /// FileMetadata to the channel.
     fn finalize_obj(&mut self) -> Result<()> {
         // Flush the buffer and sync the data to disk
-        self.wbuf.flush()?;
-        self.wbuf.get_ref().sync_data()?;
-        let off = self.wbuf.get_ref().stream_position()?;
-        self.wbuf.get_ref().set_len(off)?;
+        self.obj_wbuf.flush()?;
+        self.obj_wbuf.get_ref().sync_data()?;
+        let off = self.obj_wbuf.get_ref().stream_position()?;
+        self.obj_wbuf.get_ref().set_len(off)?;
         let file_path = self
             .dir_path
             .join(format!("{}_{}.obj", self.bucket_num, self.current_part_num));
@@ -206,7 +205,7 @@ impl LiveObjectSetWriterV1 {
             self.current_part_num + 1,
         )?;
         self.object_file_size = n;
-        self.wbuf = BufWriter::new(f);
+        self.obj_wbuf = BufWriter::new(f);
         Ok(())
     }
 
@@ -236,7 +235,7 @@ impl LiveObjectSetWriterV1 {
             self.cut_reference_file()?;
             self.current_part_num += 1;
         }
-        self.object_file_size += blob.write(&mut self.wbuf)?;
+        self.object_file_size += blob.write(&mut self.obj_wbuf)?;
         Ok(())
     }
 
