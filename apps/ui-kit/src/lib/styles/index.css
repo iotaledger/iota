@@ -68,6 +68,10 @@
         &:active::after {
             @apply opacity-12;
         }
+
+        &:disabled::after {
+            @apply opacity-0;
+        }
     }
 
     .state-layer {

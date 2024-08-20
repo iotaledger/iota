@@ -94,6 +94,8 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C, V, D> {
+    /// Starts the synchronizer, which is responsible for fetching blocks from
+    /// other authorities and managing block synchronization tasks.
     pub fn start(
         network_client: Arc<C>,
         context: Arc<Context>,

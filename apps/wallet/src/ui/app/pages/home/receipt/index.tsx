@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Alert from '_components/alert';
-import Loading from '_components/loading';
-import Overlay from '_components/overlay';
-import { ReceiptCard } from '_src/ui/app/components/receipt-card';
+import { Alert, Loading, Overlay, ReceiptCard } from '_components';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useIotaClient } from '@iota/dapp-kit';

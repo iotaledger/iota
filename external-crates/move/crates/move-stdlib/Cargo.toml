@@ -1,7 +1,7 @@
 [package]
 name = "move-stdlib"
 version = "0.1.1"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 homepage = "https://diem.com"
 license = "Apache-2.0"
@@ -27,7 +27,6 @@ smallvec.workspace = true
 walkdir.workspace = true
 
 [dev-dependencies]
-dir-diff.workspace = true
 file_diff.workspace = true
 move-cli.workspace = true
 move-package.workspace = true

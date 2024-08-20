@@ -1,0 +1,131 @@
+name: Hierarchy
+
+on:
+  push:
+    branches:
+      - "develop"
+      - "devnet"
+      - "testnet"
+      - "mainnet"
+      - "releases/iota-*-release"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+jobs:
+  diff:
+    runs-on: [self-hosted]
+    outputs:
+      isRust: ${{ steps.diff.outputs.isRust }}
+      isMove: ${{ steps.diff.outputs.isMove }}
+      isDoc: ${{ steps.diff.outputs.isDoc }}
+      isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
+      isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
+      isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
+      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota.js')) }}
+      isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Detect Changes (turbo)
+        uses: "./.github/actions/turbo-diffs"
+        id: turbo
+      - name: Detect Changes (diff)
+        uses: "./.github/actions/diffs"
+        id: diff
+
+  dprint-format:
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Check dprint formatting
+        run: dprint check
+
+  typos:
+    uses: ./.github/workflows/_typos.yml
+
+  license-check:
+    name: license-check
+    needs: diff
+    if: always() && ${{ needs.diff.outputs.isRust == 'true' }}
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run license check
+        run: cargo ci-license
+
+  docusaurus:
+    needs: diff
+    if: always() && ${{ needs.diff.outputs.isDoc == 'true' }}
+    uses: ./.github/workflows/_docusaurus.yml
+
+  docs-lint:
+    needs: diff
+    if: always() && ${{ needs.diff.outputs.isDoc == 'true' }}
+    uses: ./.github/workflows/_docs_lint.yml
+
+  release-notes-description-check:
+    name: release-notes-check
+    needs: diff
+    if: always() && ${{ needs.diff.outputs.isReleaseNotesEligible == 'true' }}
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Check Pull Request Description
+        shell: bash
+        run: |
+          export PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+          export DESCRIPTION=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/iotaledger/iota/pulls/${PR_NUMBER}" \
+            | jq --raw-output .body)
+
+          if [[ "${DESCRIPTION}" == *"[x]"*  ]]; then
+            if [[ "${DESCRIPTION}" =~ Release[[:space:]]notes[[:space:]]+.* ]]; then
+              exit 0
+            else
+              echo "At least one '[x]' was checked under 'Type of Change (Check all that apply)', you need to add a blob under the 'Release Notes' section."
+              exit 1
+            fi
+          fi
+
+  turborepo:
+    needs:
+      - dprint-format
+      - typos
+    uses: ./.github/workflows/_turborepo.yml
+
+  move-tests:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: always() && ${{ needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' }}
+    uses: ./.github/workflows/_move_tests.yml
+
+  rust:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: always()
+    uses: ./.github/workflows/_rust.yml
+    with:
+      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+
+  e2e:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    uses: ./.github/workflows/_e2e.yml
+    with:
+      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+      isWallet: ${{ needs.diff.outputs.isWallet == 'true' }}
+      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
+      isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
+      isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}

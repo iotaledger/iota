@@ -81,7 +81,7 @@ export function Search({
         <div className="relative w-full">
             <div
                 className={cx(
-                    'flex items-center overflow-hidden px-md py-sm',
+                    'flex items-center overflow-hidden px-md py-sm text-neutral-10 dark:text-neutral-92 [&_svg]:h-6 [&_svg]:w-6',
                     roundedStyleWithSuggestions,
                     searchTypeClass,
                 )}
@@ -93,11 +93,11 @@ export function Search({
                     onKeyDown={onKeyDown}
                     placeholder={placeholder}
                     className={cx(
-                        'flex-1 text-neutral-10 outline-none placeholder:text-neutral-40 dark:text-neutral-92 placeholder:dark:text-neutral-60',
+                        'flex-1 outline-none placeholder:text-neutral-40 placeholder:dark:text-neutral-60',
                         backgroundColorClass,
                     )}
                 />
-                <SearchIcon className="h-6 w-6 text-neutral-10 dark:text-neutral-92" />
+                <SearchIcon />
             </div>
             {showSuggestions && (
                 <div

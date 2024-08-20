@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary } from '_components/error-boundary';
 import {
+    ErrorBoundary,
     MainLocationContext,
     useMenuIsOpen,
     useMenuUrl,
     useNextMenuUrl,
-} from '_components/menu/hooks';
+} from '_components';
 import { useOnKeyboardEvent } from '_hooks';
 import { useCallback } from 'react';
 import type { MouseEvent } from 'react';
