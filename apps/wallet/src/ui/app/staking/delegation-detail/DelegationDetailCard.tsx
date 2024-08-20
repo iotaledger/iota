@@ -198,7 +198,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
             <div className="my-3.75 flex w-full gap-2.5">
                 {Boolean(totalStake) && delegationId && (
                     <Button
-                        type={ButtonType.Outlined}
+                        type={ButtonType.Secondary}
                         onClick={handleUnstake}
                         text="Unstake"
                         fullWidth
@@ -207,7 +207,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                 {!hasInactiveValidatorDelegation ? (
                     <Button
                         type={ButtonType.Primary}
-                        text="Stake IOTA"
+                        text="Stake"
                         onClick={handleAddNewStake}
                         disabled={showRequestMoreIotaToken}
                         fullWidth
