@@ -28,22 +28,29 @@ mockall.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 prost.workspace = true
-quinn-proto.workspace = true
 rand.workspace = true
+rustls.workspace = true
 serde.workspace = true
 shared-crypto.workspace = true
+strum_macros.workspace = true
+iota-macros.workspace = true
+iota-tls.workspace = true
 tap.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
 tonic.workspace = true
 tower.workspace = true
+tower-http.workspace = true
 tracing.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
+telemetry-subscribers.workspace = true
 
 [build-dependencies]
 anemo-build.workspace = true

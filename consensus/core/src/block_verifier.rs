@@ -147,7 +147,7 @@ impl BlockVerifier for SignedBlockVerifier {
         // TODO: check transaction size, total size and count.
         let batch: Vec<_> = block.transactions().iter().map(|t| t.data()).collect();
         self.transaction_verifier
-            .verify_batch(&batch)
+            .verify_batch(&self.context.protocol_config, &batch)
             .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
     }
 
@@ -204,11 +204,15 @@ mod test {
 
     impl TransactionVerifier for TxnSizeVerifier {
         // Fails verification if any transaction is < 4 bytes.
-        fn verify_batch(&self, transactions: &[&[u8]]) -> Result<(), ValidationError> {
+        fn verify_batch(
+            &self,
+            _protocol_config: &iota_protocol_config::ProtocolConfig,
+            transactions: &[&[u8]],
+        ) -> Result<(), ValidationError> {
             for txn in transactions {
                 if txn.len() < 4 {
                     return Err(ValidationError::InvalidTransaction(format!(
-                        "Length {} too short!",
+                        "Length {} is too short!",
                         txn.len()
                     )));
                 }
@@ -217,8 +221,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn test_verify_block() {
+    #[tokio::test]
+    async fn test_verify_block() {
         let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
@@ -445,8 +449,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn test_check_ancestors() {
+    #[tokio::test]
+    async fn test_check_ancestors() {
         let num_authorities = 4;
         let (context, _keypairs) = Context::new_for_test(num_authorities);
         let context = Arc::new(context);
@@ -471,11 +475,9 @@ mod test {
                 .set_timestamp_ms(1500)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
-            assert!(
-                verifier
+            assert!(verifier
                     .check_ancestors(&verified_block, &ancestor_blocks)
-                    .is_ok()
-            );
+                .is_ok());
         }
 
         // Block not respecting timestamp invariant.
