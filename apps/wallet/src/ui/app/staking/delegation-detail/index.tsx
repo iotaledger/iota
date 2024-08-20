@@ -2,15 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import LoadingIndicator from '_components/loading/LoadingIndicator';
-import Overlay from '_components/overlay';
+import { LoadingIndicator, Overlay } from '_components';
 import { useGetDelegatedStake } from '@iota/core';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
 import { DelegationDetailCard } from './DelegationDetailCard';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 export function DelegationDetail() {
     const [searchParams] = useSearchParams();
@@ -18,7 +15,7 @@ export function DelegationDetail() {
     const stakeIdParams = searchParams.get('staked');
     const navigate = useNavigate();
     const accountAddress = useActiveAddress();
-    const { data, isPending } = useGetDelegatedStake({
+    const { isPending } = useGetDelegatedStake({
         address: accountAddress || '',
     });
 
@@ -34,21 +31,11 @@ export function DelegationDetail() {
         );
     }
 
-    const delegationData = data ? getDelegationDataByStakeId(data, stakeIdParams) : null;
     return (
         <Overlay
             showModal
-            title={
-                <div className="flex max-w-full items-center px-4">
-                    <ValidatorLogo
-                        validatorAddress={validatorAddressParams}
-                        isTitle
-                        iconSize="sm"
-                        size="body"
-                        activeEpoch={delegationData?.stakeRequestEpoch}
-                    />
-                </div>
-            }
+            // this is a provisional title until we rebranding this page
+            title={`Validator: ${formatAddress(validatorAddressParams)}`}
             closeOverlay={() => navigate('/')}
         >
             <DelegationDetailCard

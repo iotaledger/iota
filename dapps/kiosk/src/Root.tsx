@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { Outlet } from 'react-router-dom';

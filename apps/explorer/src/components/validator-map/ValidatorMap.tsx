@@ -4,7 +4,7 @@
 
 import { useAppsBackend } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Network } from '@iota/iota.js/client';
+import { Network } from '@iota/iota-sdk/client';
 import { Heading, Placeholder, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { ParentSize } from '@visx/responsive';

@@ -12,7 +12,7 @@ import {
     type ApyByValidator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota.js/client';
+import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Heading, Text } from '@iota/ui';
 import { lazy, Suspense, useMemo } from 'react';
 
@@ -139,7 +139,7 @@ export function validatorsTableData(
                 header: 'Proposed Next Epoch Gas Price',
                 accessorKey: 'nextEpochGasPrice',
                 enableSorting: true,
-                cell: (props: any) => <StakeColumn stake={props.getValue()} inMICROS />,
+                cell: (props: any) => <StakeColumn stake={props.getValue()} inNano />,
             },
             {
                 header: 'APY',

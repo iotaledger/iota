@@ -2,21 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_app/shared/text';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-
-import { ProtectAccountForm } from '../../components/accounts/ProtectAccountForm';
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
-import Loading from '../../components/loading';
+import {
+    ProtectAccountForm,
+    VerifyPasswordModal,
+    Loading,
+    AccountsFormType,
+    PageTemplate,
+    type ProtectAccountFormValues,
+} from '_components';
 import { useAccounts } from '../../hooks/useAccounts';
 import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
 import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
-import { Heading } from '../../shared/heading';
-import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
@@ -113,9 +114,24 @@ export function ProtectAccountPage() {
     if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
+    async function handleOnSubmit({ password, autoLock }: ProtectAccountFormValues) {
+        try {
+            await autoLockMutation.mutateAsync({
+                minutes: autoLockDataToMinutes(autoLock),
+            });
+            await createAccountCallback(password.input, accountsFormType as AccountsFormType);
+        } catch (e) {
+            toast.error((e as Error)?.message || 'Something went wrong');
+        }
+    }
 
     return (
-        <div className="bg-iota-lightest flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 px-6 py-10 shadow-wallet-content">
+        <PageTemplate
+            title="Create Password"
+            isTitleCentered
+            showBackButton
+            onClose={() => navigate(-1)}
+        >
             <Loading loading={showVerifyPasswordView === null}>
                 {showVerifyPasswordView ? (
                     <VerifyPasswordModal
@@ -124,30 +140,13 @@ export function ProtectAccountPage() {
                         onVerify={(password) => createAccountCallback(password, accountsFormType)}
                     />
                 ) : (
-                    <>
-                        <Text variant="caption" color="steel-dark" weight="semibold">
-                            Wallet Setup
-                        </Text>
-                        <div className="mt-2.5 text-center">
-                            <Heading variant="heading1" color="gray-90" as="h1" weight="bold">
-                                Protect Account with a Password Lock
-                            </Heading>
-                        </div>
-                        <div className="mt-6 w-full grow">
-                            <ProtectAccountForm
-                                cancelButtonText="Back"
-                                submitButtonText="Create Wallet"
-                                onSubmit={async ({ password, autoLock }) => {
-                                    await autoLockMutation.mutateAsync({
-                                        minutes: autoLockDataToMinutes(autoLock),
-                                    });
-                                    await createAccountCallback(password.input, accountsFormType);
-                                }}
-                            />
-                        </div>
-                    </>
+                    <ProtectAccountForm
+                        cancelButtonText="Back"
+                        submitButtonText="Create Wallet"
+                        onSubmit={handleOnSubmit}
+                    />
                 )}
             </Loading>
-        </div>
+        </PageTemplate>
     );
 }

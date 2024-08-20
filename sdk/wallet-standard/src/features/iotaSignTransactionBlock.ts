@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TransactionBlock } from '@iota/iota.js/transactions';
+import type { TransactionBlock } from '@iota/iota-sdk/transactions';
 import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
 
 /** The latest API version of the signTransactionBlock API. */

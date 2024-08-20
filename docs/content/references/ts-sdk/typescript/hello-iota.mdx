@@ -33,15 +33,15 @@ When you use a package manager to install the necessary packages, it downloads t
 doesn't already exist. For this example, you need only the IOTA TypeScript SDK:
 
 ```sh npm2yarn
-npm i -D @iota/iota.js
+npm i -D @iota/iota-sdk
 ```
 
-Your `package.json` file now has a _dependencies_ section with `@iota/iota.js` listed with the
+Your `package.json` file now has a _dependencies_ section with `@iota/iota-sdk` listed with the
 package version number.
 
 ```json
 "dependencies": {
-    "@iota/iota.js": "^<VERSION_NUMBER>"
+    "@iota/iota-sdk": "^<VERSION_NUMBER>"
 }
 ```
 
@@ -55,9 +55,9 @@ Create a new `index.js` file in the root of your project with the following code
 <AlphaNet/>
 
 ```js
-import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
-import { getFaucetHost, requestIotaFromFaucetv1 } from '@iota/iota.js/faucet';
-import { NANOS_PER_IOTA } from '@iota/iota.js/utils';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { getFaucetHost, requestIotaFromFaucetv1 } from '@iota/iota-sdk/faucet';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 // replace <YOUR_IOTA_ADDRESS> with your actual address, which is in the form 0x123...
 const MY_ADDRESS = '<YOUR_IOTA_ADDRESS>';

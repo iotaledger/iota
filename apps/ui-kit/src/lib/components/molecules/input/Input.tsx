@@ -185,7 +185,11 @@ function InputTrailingElement({
 
     if (showClearInput) {
         return (
-            <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
+            <ButtonUnstyled
+                className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                onClick={onClearInput}
+                tabIndex={-1}
+            >
                 <Close />
             </ButtonUnstyled>
         );
@@ -193,7 +197,8 @@ function InputTrailingElement({
         return (
             <ButtonUnstyled
                 onClick={onToggleButtonClick}
-                className="text-neutral-10 dark:text-neutral-92"
+                className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                tabIndex={-1}
             >
                 {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
             </ButtonUnstyled>

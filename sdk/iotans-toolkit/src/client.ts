@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IotaClient } from '@iota/iota.js/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 
 import type { DataFields, NameObject, NetworkType, IotaNSContract } from './types/objects.js';
 import { DEVNET_JSON_FILE, GCS_URL, TESTNET_JSON_FILE } from './utils/constants.js';

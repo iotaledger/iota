@@ -1,9 +1,12 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@iota/dapp-kit/dist/index.css";
 import "@radix-ui/themes/styles.css";
 
-import { getFullnodeUrl } from "@iota/iota.js/client";
+import { getFullnodeUrl } from "@iota/iota-sdk/client";
 import {
   IotaClientProvider,
   WalletProvider,

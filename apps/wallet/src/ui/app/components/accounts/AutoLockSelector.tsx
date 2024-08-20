@@ -7,9 +7,9 @@ import { useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 
 import { CheckboxField } from '../../shared/forms/CheckboxField';
-import { Input } from '../../shared/forms/controls/Input';
 import FormField from '../../shared/forms/FormField';
 import { SelectField } from '../../shared/forms/SelectField';
+import { Input, InputType } from '@iota/apps-ui-kit';
 
 const LOCK_INTERVALS = [
     { id: 'day', label: 'Day' },
@@ -52,17 +52,17 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
         return unsubscribe;
     }, [watch, trigger]);
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-xs">
             <CheckboxField
                 name="autoLock.enabled"
-                label="Auto-lock after I am inactive for"
+                label="Auto-lock after I'm inactive for"
                 disabled={disabled}
             />
             <FormField name="autoLock.timer">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-xs">
                     <Input
                         disabled={disabled || !timerEnabled}
-                        type="number"
+                        type={InputType.Number}
                         {...register('autoLock.timer')}
                         data-testid="auto-lock-timer"
                     />

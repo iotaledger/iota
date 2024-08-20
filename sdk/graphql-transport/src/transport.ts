@@ -7,8 +7,8 @@ import type {
     IotaTransport,
     IotaTransportRequestOptions,
     IotaTransportSubscribeOptions,
-} from '@iota/iota.js/client';
-import { IotaHTTPTransport } from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
+import { IotaHTTPTransport } from '@iota/iota-sdk/client';
 import type { DocumentNode } from 'graphql';
 import { print } from 'graphql';
 

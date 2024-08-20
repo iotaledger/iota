@@ -7,7 +7,7 @@ import {
     toSerializedSignature,
     type Keypair,
     type SerializedSignature,
-} from '@iota/iota.js/cryptography';
+} from '@iota/iota-sdk/cryptography';
 import { blake2b } from '@noble/hashes/blake2b';
 
 import { setupAutoLockAlarm } from '../auto-lock-accounts';

@@ -3,15 +3,8 @@ description: 'The root contract is the first smart contract deployed on the chai
 factory for the chain.'
 image: /img/logo/WASP_logo_dark.png
 tags:
-
-- smart contracts
-- core
-- root
-- initialization
-- entry points
-- fees
-- ownership
-- views
+- core-contract
+- core-contract-root
 - reference
 ---
 
