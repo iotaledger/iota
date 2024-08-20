@@ -13,15 +13,13 @@ use crate::{
     build_json_rpc_server,
     errors::IndexerError,
     framework::fetcher::CheckpointFetcher,
-    handlers::{
-        checkpoint_handler::new_handlers,
-    },
+    handlers::checkpoint_handler::new_handlers,
+    indexer_reader::IndexerReader,
+    metrics::IndexerMetrics,
     processors::{
         objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig},
         processor_orchestrator::ProcessorOrchestrator,
     },
-    indexer_reader::IndexerReader,
-    metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerAnalyticalStore},
     IndexerConfig,
 };
