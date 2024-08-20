@@ -217,6 +217,7 @@ async-trait = "0.1"
 aws-config = { version = "1.5", features = ["behavior-version-latest"] }
 axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
 axum-extra = "0.9"
+axum-server = { version = "0.6.0", default-features = false, features = ["tls-rustls"] }
 backoff = { version = "0.4", features = ["tokio"] }
 base64 = "0.22"
 base64-url = "3.0"
