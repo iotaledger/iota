@@ -18,7 +18,7 @@ use crate::{
     types::IndexerResult,
 };
 
-#[async_trait]
+/// Provides methods to get and persist metrics. Utility methods for calculating metrics are also provided.
 pub trait IndexerAnalyticalStore {
     async fn get_latest_stored_transaction(&self) -> IndexerResult<Option<StoredTransaction>>;
     async fn get_latest_stored_checkpoint(&self) -> IndexerResult<Option<StoredCheckpoint>>;

@@ -37,6 +37,7 @@ use crate::{
     types::IndexerResult,
 };
 
+/// The store for the indexer analytical data. Represents a Postgres implementation of the `IndexerAnalyticalStore` trait.
 #[derive(Clone)]
 pub struct PgIndexerAnalyticalStore {
     blocking_cp: PgConnectionPool,

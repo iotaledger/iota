@@ -20,11 +20,11 @@ pub trait ExtendedApi {
     #[method(name = "getEpochs")]
     async fn get_epochs(
         &self,
-        /// optional paging cursor
+        /// Optional paging cursor
         cursor: Option<BigInt<u64>>,
-        /// maximum number of items per page
+        /// Maximum number of items per page
         limit: Option<usize>,
-        /// flag to return results in descending order
+        /// Flag to return results in descending order
         descending_order: Option<bool>,
     ) -> RpcResult<EpochPage>;
 
@@ -32,11 +32,11 @@ pub trait ExtendedApi {
     #[method(name = "getEpochMetrics")]
     async fn get_epoch_metrics(
         &self,
-        /// optional paging cursor
+        /// Optional paging cursor
         cursor: Option<BigInt<u64>>,
-        /// maximum number of items per page
+        /// Maximum number of items per page
         limit: Option<usize>,
-        /// flag to return results in descending order
+        /// Flag to return results in descending order
         descending_order: Option<bool>,
     ) -> RpcResult<EpochMetricsPage>;
 
@@ -49,7 +49,7 @@ pub trait ExtendedApi {
     #[method(name = "queryObjects")]
     async fn query_objects(
         &self,
-        /// the objects query criteria.
+        /// The objects query criteria.
         query: IotaObjectResponseQuery,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<CheckpointedObjectID>,
@@ -61,7 +61,7 @@ pub trait ExtendedApi {
     #[method(name = "getNetworkMetrics")]
     async fn get_network_metrics(&self) -> RpcResult<NetworkMetrics>;
 
-    /// Return Network metrics
+    /// Return move call metrics
     #[method(name = "getMoveCallMetrics")]
     async fn get_move_call_metrics(&self) -> RpcResult<MoveCallMetrics>;
 
