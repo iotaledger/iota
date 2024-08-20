@@ -124,8 +124,19 @@ impl Default for Chain {
     }
 }
 
+impl Chain {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Chain::Mainnet => "mainnet",
+            Chain::Testnet => "testnet",
+            Chain::Unknown => "unknown",
+        }
+    }
+}
+
 pub struct Error(pub String);
 
+// TODO: There are quite a few non boolean values in the feature flags. We should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
 #[derive(Default, Clone, Serialize, Debug, ProtocolConfigFeatureFlagsGetters)]
 struct FeatureFlags {
@@ -301,6 +312,48 @@ struct FeatureFlags {
     // Reject functions with mutable Random.
     #[serde(skip_serializing_if = "is_false")]
     reject_mutable_random_on_entry_functions: bool,
+
+    // The consensus protocol to be used for the epoch.
+    #[serde(skip_serializing_if = "ConsensusChoice::is_narwhal")]
+    consensus_choice: ConsensusChoice,
+
+    // Consensus network to use.
+    #[serde(skip_serializing_if = "ConsensusNetwork::is_anemo")]
+    consensus_network: ConsensusNetwork,
+
+    // Controls leader scoring & schedule change in Mysticeti consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    mysticeti_leader_scoring_and_schedule: bool,
+
+    // Enables the use of the Mysticeti committed sub dag digest to the `ConsensusCommitInfo` in checkpoints.
+    // When disabled the default digest is used instead. It's important to have this guarded behind
+    // a flag as it will lead to checkpoint forks.
+    #[serde(skip_serializing_if = "is_false")]
+    mysticeti_use_committed_subdag_digest: bool,
+
+    // Controls whether consensus handler should record consensus determined shared object version
+    // assignments in consensus commit prologue transaction.
+    // The purpose of doing this is to enable replaying transaction without transaction effects.
+    #[serde(skip_serializing_if = "is_false")]
+    record_consensus_determined_version_assignments_in_prologue: bool,
+
+    // When set to true, the consensus commit prologue transaction will be placed first
+    // in a consensus commit in checkpoints.
+    // If a checkpoint contains multiple consensus commit, say [cm1][cm2]. The each commit's
+    // consensus commit prologue will be the first transaction in each segment:
+    //     [ccp1, rest cm1][ccp2, rest cm2]
+    // The reason to prepose the prologue transaction is to provide information for transaction
+    // cancellation.
+    #[serde(skip_serializing_if = "is_false")]
+    prepend_prologue_tx_in_consensus_commit_in_checkpoints: bool,
+
+    // Set number of leaders per round for Mysticeti commits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mysticeti_num_leaders_per_round: Option<usize>,
+
+    // Use AuthorityCapabilitiesV2
+    #[serde(skip_serializing_if = "is_false")]
+    authority_capabilities_v2: bool,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -325,6 +378,35 @@ pub enum ConsensusTransactionOrdering {
 impl ConsensusTransactionOrdering {
     pub fn is_none(&self) -> bool {
         matches!(self, ConsensusTransactionOrdering::None)
+    }
+}
+
+// Configuration options for consensus algorithm.
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+pub enum ConsensusChoice {
+    #[default]
+    Narwhal,
+    SwapEachEpoch,
+    Mysticeti,
+}
+
+impl ConsensusChoice {
+    pub fn is_narwhal(&self) -> bool {
+        matches!(self, ConsensusChoice::Narwhal)
+    }
+}
+
+// Configuration options for consensus network.
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+pub enum ConsensusNetwork {
+    #[default]
+    Anemo,
+    Tonic,
+}
+
+impl ConsensusNetwork {
+    pub fn is_anemo(&self) -> bool {
+        matches!(self, ConsensusNetwork::Anemo)
     }
 }
 
@@ -1123,6 +1205,16 @@ impl ProtocolConfig {
         self.feature_flags.include_consensus_digest_in_prologue
     }
 
+    pub fn record_consensus_determined_version_assignments_in_prologue(&self) -> bool {
+        self.feature_flags
+            .record_consensus_determined_version_assignments_in_prologue
+    }
+
+    pub fn prepend_prologue_tx_in_consensus_commit_in_checkpoints(&self) -> bool {
+        self.feature_flags
+            .prepend_prologue_tx_in_consensus_commit_in_checkpoints
+    }
+
     pub fn hardened_otw_check(&self) -> bool {
         self.feature_flags.hardened_otw_check
     }
@@ -1145,6 +1237,31 @@ impl ProtocolConfig {
 
     pub fn reject_mutable_random_on_entry_functions(&self) -> bool {
         self.feature_flags.reject_mutable_random_on_entry_functions
+    }
+
+    pub fn consensus_choice(&self) -> ConsensusChoice {
+        self.feature_flags.consensus_choice
+    }
+
+    pub fn consensus_network(&self) -> ConsensusNetwork {
+        self.feature_flags.consensus_network
+    }
+
+    pub fn mysticeti_leader_scoring_and_schedule(&self) -> bool {
+        self.feature_flags.mysticeti_leader_scoring_and_schedule
+    }
+
+
+    pub fn mysticeti_use_committed_subdag_digest(&self) -> bool {
+        self.feature_flags.mysticeti_use_committed_subdag_digest
+    }
+
+    pub fn mysticeti_num_leaders_per_round(&self) -> Option<usize> {
+        self.feature_flags.mysticeti_num_leaders_per_round
+    }
+
+    pub fn authority_capabilities_v2(&self) -> bool {
+        self.feature_flags.authority_capabilities_v2
     }
 }
 
@@ -1732,7 +1849,9 @@ impl ProtocolConfig {
     }
 }
 
-// Setters for tests
+// Setters for tests.
+// This is only needed for feature_flags. Please suffix each setter with `_for_testing`.
+// Non-feature_flags should already have test setters defined through macros.
 impl ProtocolConfig {
     pub fn set_package_upgrades_for_testing(&mut self, val: bool) {
         self.feature_flags.package_upgrades = val
@@ -1788,14 +1907,17 @@ impl ProtocolConfig {
     pub fn set_verify_legacy_zklogin_address(&mut self, val: bool) {
         self.feature_flags.verify_legacy_zklogin_address = val
     }
-    pub fn set_enable_effects_v2(&mut self, val: bool) {
-        self.feature_flags.enable_effects_v2 = val;
+    pub fn set_consensus_choice_for_testing(&mut self, val: ConsensusChoice) {
+        self.feature_flags.consensus_choice = val;
     }
-    pub fn set_consensus_max_transaction_size_bytes(&mut self, val: u64) {
-        self.consensus_max_transaction_size_bytes = Some(val);
+    pub fn set_consensus_network_for_testing(&mut self, val: ConsensusNetwork) {
+        self.feature_flags.consensus_network = val;
     }
-    pub fn set_consensus_max_transactions_in_block_bytes(&mut self, val: u64) {
-        self.consensus_max_transactions_in_block_bytes = Some(val);
+    pub fn set_mysticeti_leader_scoring_and_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags.mysticeti_leader_scoring_and_schedule = val;
+    }
+    pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
+        self.feature_flags.mysticeti_num_leaders_per_round = val;
     }
 }
 
