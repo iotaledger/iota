@@ -2224,6 +2224,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "capitalize"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b5271031022835ee8c7582fe67403bd6cb3d962095787af7921027234bab5bf"
+
+[[package]]
 name = "cargo-platform"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3315,18 +3321,6 @@ dependencies = [
  "pq-sys",
  "r2d2",
  "serde_json",
-]
-
-[[package]]
-name = "diesel-derive-enum"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81c5131a2895ef64741dad1d483f358c2a229a3a2d1b256778cdc5e146db64d4"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2 1.0.86",
- "quote 1.0.36",
- "syn 2.0.72",
 ]
 
 [[package]]
@@ -5196,7 +5190,6 @@ dependencies = [
  "move-bytecode-utils",
  "move-bytecode-verifier",
  "move-core-types",
- "move-package",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-runtime",
@@ -5230,7 +5223,6 @@ dependencies = [
  "move-bytecode-utils",
  "move-bytecode-verifier-v0",
  "move-core-types",
- "move-package",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-runtime-v0",
@@ -5328,7 +5320,6 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "telemetry-subscribers",
  "tempfile",
  "tokio",
  "tracing",
@@ -5436,7 +5427,6 @@ dependencies = [
  "derivative",
  "fastcrypto",
  "futures",
- "iota",
  "iota-config",
  "iota-core",
  "iota-faucet",
@@ -5477,7 +5467,6 @@ dependencies = [
  "csv",
  "dirs 5.0.1",
  "fastcrypto",
- "insta",
  "iota-keys",
  "iota-protocol-config",
  "iota-types",
@@ -5490,7 +5479,6 @@ dependencies = [
  "serde",
  "serde_with",
  "serde_yaml",
- "tempfile",
  "tracing",
 ]
 
@@ -5587,7 +5575,6 @@ dependencies = [
  "test-fuzz",
  "thiserror",
  "tokio",
- "tokio-retry",
  "tokio-stream",
  "tracing",
  "twox-hash",
@@ -5609,7 +5596,6 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
- "move-cli",
  "move-disassembler",
  "serde",
  "strum 0.26.3",
@@ -5704,7 +5690,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tap",
- "telemetry-subscribers",
  "tempfile",
  "tokio",
  "tracing",
@@ -5716,11 +5701,9 @@ name = "iota-e2e-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "assert_cmd",
  "async-trait",
  "bcs",
  "clap",
- "expect-test",
  "eyre",
  "fastcrypto",
  "fastcrypto-zkp",
@@ -5853,6 +5836,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
+ "capitalize",
  "iota-move-build",
  "iota-types",
  "move-binary-format",
@@ -5862,6 +5846,7 @@ dependencies = [
  "once_cell",
  "regex",
  "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -5910,7 +5895,6 @@ dependencies = [
  "fastcrypto",
  "flate2",
  "fs_extra",
- "insta",
  "iota-adapter-v0",
  "iota-config",
  "iota-execution",
@@ -5934,7 +5918,6 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "rand_pcg",
- "rand_regex",
  "rand_seeder",
  "regex",
  "reqwest 0.12.5",
@@ -6070,9 +6053,7 @@ dependencies = [
  "cached",
  "chrono",
  "clap",
- "criterion",
  "diesel",
- "diesel-derive-enum",
  "diesel_migrations",
  "fastcrypto",
  "futures",
@@ -6086,8 +6067,6 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 0.1.4",
- "iota-test-transaction-builder",
  "iota-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
@@ -6096,9 +6075,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "mysten-metrics",
- "ntest",
  "prometheus",
- "rayon",
  "regex",
  "serde",
  "serde_json",
@@ -6106,7 +6083,6 @@ dependencies = [
  "simulacrum",
  "tap",
  "telemetry-subscribers",
- "test-cluster",
  "thiserror",
  "tokio",
  "tracing",
@@ -6345,22 +6321,16 @@ name = "iota-move"
 version = "0.1.4"
 dependencies = [
  "anyhow",
- "assert_cmd",
  "clap",
  "colored",
  "const-str",
  "futures",
  "git-version",
- "iota-core",
  "iota-macros",
  "iota-move-build",
  "iota-move-natives-latest",
- "iota-node",
  "iota-protocol-config",
- "iota-simulator",
  "iota-types",
- "jemalloc-ctl",
- "jsonrpsee",
  "move-binary-format",
  "move-cli",
  "move-compiler",
@@ -6387,7 +6357,6 @@ name = "iota-move-build"
 version = "0.1.4"
 dependencies = [
  "anyhow",
- "datatest-stable",
  "fastcrypto",
  "iota-protocol-config",
  "iota-types",
@@ -6575,7 +6544,6 @@ dependencies = [
  "hyper 1.4.1",
  "insta",
  "iota-move-build",
- "iota-rest-api",
  "iota-types",
  "lru 0.10.1",
  "move-binary-format",
@@ -6592,7 +6560,6 @@ dependencies = [
 name = "iota-proc-macros"
 version = "0.7.0"
 dependencies = [
- "iota-enum-compat-util",
  "msim-macros",
  "proc-macro2 1.0.86",
  "quote 1.0.36",
@@ -6636,7 +6603,6 @@ dependencies = [
  "iota-core",
  "iota-execution",
  "iota-framework",
- "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-protocol-config",
@@ -6737,7 +6703,6 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "futures",
- "iota-json-rpc",
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk 0.1.4",
@@ -6995,7 +6960,6 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
- "criterion",
  "eyre",
  "fastcrypto",
  "futures",
@@ -7009,7 +6973,6 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-macros",
  "iota-protocol-config",
- "iota-simulator",
  "iota-test-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
@@ -7024,7 +6987,6 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.3",
  "percent-encoding",
- "pretty_assertions",
  "prometheus",
  "reqwest 0.12.5",
  "rocksdb",
@@ -8407,7 +8369,6 @@ dependencies = [
  "move-ir-types",
  "move-package",
  "move-prover",
- "move-read-write-set-types",
  "move-stdlib",
  "move-unit-test",
  "move-vm-profiler",
@@ -8675,7 +8636,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote 1.0.36",
  "syn 2.0.72",
 ]
@@ -8891,7 +8851,6 @@ dependencies = [
  "move-vm-types",
  "once_cell",
  "parking_lot 0.12.3",
- "sha3 0.9.1",
  "smallvec",
  "tracing",
 ]
@@ -8910,7 +8869,6 @@ dependencies = [
  "move-vm-types",
  "once_cell",
  "parking_lot 0.12.3",
- "sha3 0.9.1",
  "smallvec",
  "tracing",
 ]
@@ -9182,13 +9140,9 @@ version = "0.1.0"
 dependencies = [
  "bcs",
  "bincode",
- "criterion",
  "fastcrypto",
  "hex-literal",
- "proptest",
- "proptest-derive",
  "serde",
- "serde-reflection",
  "serde_json",
  "shared-crypto",
 ]
@@ -9245,7 +9199,6 @@ dependencies = [
  "mysten-common",
  "mysten-metrics",
  "narwhal-crypto",
- "narwhal-test-utils",
  "narwhal-types",
  "parking_lot 0.12.3",
  "prometheus",
@@ -9622,39 +9575,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8a3895c6391c39d7fe7ebc444a87eb2991b2a0bc718fdabd071eec617fc68e4"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "ntest"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb183f0a1da7a937f672e5ee7b7edb727bf52b8a52d531374ba8ebb9345c0330"
-dependencies = [
- "ntest_test_cases",
- "ntest_timeout",
-]
-
-[[package]]
-name = "ntest_test_cases"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d0d3f2a488592e5368ebbe996e7f1d44aa13156efad201f5b4d84e150eaa93"
-dependencies = [
- "proc-macro2 1.0.86",
- "quote 1.0.36",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "ntest_timeout"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc7c92f190c97f79b4a332f5e81dcf68c8420af2045c936c9be0bc9de6f63b5"
-dependencies = [
- "proc-macro-crate 3.1.0",
- "proc-macro2 1.0.86",
- "quote 1.0.36",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -11228,16 +11148,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand_regex"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b2a9fe2d7d9eeaf3279d1780452a5bbd26b31b27938787ef1c3e930d1e9cfbd"
-dependencies = [
- "rand 0.8.5",
- "regex-syntax 0.6.29",
-]
-
-[[package]]
 name = "rand_seeder"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12726,7 +12636,6 @@ dependencies = [
  "iota-genesis-builder",
  "iota-keys",
  "iota-protocol-config",
- "iota-storage",
  "iota-swarm-config",
  "iota-transaction-checks",
  "iota-types",
@@ -13660,17 +13569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-retry"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f57eb36ecbe0fc510036adff84824dd3c24bb781e21bfa67b69d556aa85214f"
-dependencies = [
- "pin-project",
- "rand 0.8.5",
- "tokio",
-]
-
-[[package]]
 name = "tokio-rustls"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14216,14 +14114,11 @@ dependencies = [
  "msim",
  "once_cell",
  "ouroboros",
- "proc-macro2 1.0.86",
  "prometheus",
- "quote 1.0.36",
  "rand 0.8.5",
  "rocksdb",
  "rstest",
  "serde",
- "syn 1.0.109",
  "tap",
  "tempfile",
  "thiserror",

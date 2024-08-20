@@ -23,10 +23,9 @@ export function UnlockAccountModal({ onClose, onSuccess, account, open }: Unlock
             {...{
                 open,
                 onClose,
-                title: 'Enter Account Password',
-                description: 'Enter your account password to unlock your account',
+                title: 'Unlock wallet',
                 confirmText: 'Unlock',
-                cancelText: 'Cancel',
+                cancelText: 'Back',
                 showForgotPassword: true,
                 onSubmit: async (password: string) => {
                     await backgroundService.unlockAccountSourceOrAccount({

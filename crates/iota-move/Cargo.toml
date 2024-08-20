@@ -29,33 +29,22 @@ move-unit-test.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
-iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 
 iota-move-build.workspace = true
+iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest", optional = true }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemalloc-ctl.workspace = true
-
 [dev-dependencies]
-assert_cmd.workspace = true
 futures.workspace = true
-jsonrpsee.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
 move-package.workspace = true
 
-iota-core.workspace = true
 iota-macros.workspace = true
-iota-node.workspace = true
-iota-simulator.workspace = true
 mysten-metrics.workspace = true
-
-[package.metadata.cargo-udeps.ignore]
-normal = ["jemalloc-ctl"]
 
 [features]
 default = []
@@ -63,6 +52,6 @@ build = []
 coverage = []
 disassemble = []
 prove = []
-unit_test = ["build", "dep:once_cell"]
+unit_test = ["build", "dep:once_cell", "iota-move-natives"]
 calibrate = []
 all = ["build", "coverage", "disassemble", "prove", "unit_test", "calibrate"]

@@ -31,9 +31,6 @@ iota-protocol-config.workspace = true
 iota-types.workspace = true
 parking_lot.workspace = true
 
-[dev-dependencies]
-move-package.workspace = true
-
 [features]
 gas-profiler = [
   "iota-types/gas-profiler",
