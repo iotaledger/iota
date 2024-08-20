@@ -35,7 +35,6 @@ move-errmapgen.workspace = true
 move-ir-types.workspace = true
 move-package.workspace = true
 move-prover.workspace = true
-move-read-write-set-types.workspace = true
 move-stdlib.workspace = true
 move-unit-test.workspace = true
 move-vm-profiler.workspace = true

@@ -1546,7 +1546,6 @@ dependencies = [
  "move-ir-types",
  "move-package",
  "move-prover",
- "move-read-write-set-types",
  "move-stdlib",
  "move-unit-test",
  "move-vm-profiler",
@@ -1953,7 +1952,6 @@ name = "move-stdlib"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "dir-diff",
  "file_diff",
  "hex",
  "log",
