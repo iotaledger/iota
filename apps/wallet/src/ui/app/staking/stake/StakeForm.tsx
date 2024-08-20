@@ -37,6 +37,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const transaction = useMemo(() => {
         if (!values.amount || !decimals) return null;
+        if (Number(values.amount) < 0) return null;
         const amountWithoutDecimals = parseAmount(values.amount, decimals);
         return createStakeTransaction(amountWithoutDecimals, validatorAddress);
     }, [values.amount, validatorAddress, decimals]);
@@ -106,7 +107,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                                 onClick={setMaxToken}
                                 type="button"
                                 disabled={queryResult.isPending}
-                                className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs font-inter text-label-md"
+                                className="flex items-center justify-center rounded-xl border border-neutral-70 px-sm text-body-md text-neutral-40"
                             >
                                 Max
                             </button>
@@ -126,7 +127,11 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                         keyText="Redeem Rewards"
                         valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
                     />
-                    <KeyValueInfo keyText="Gas fee" valueText={`${gasBudget} ${symbol}`} />
+                    <KeyValueInfo
+                        keyText="Gas fee"
+                        valueText={gasBudget}
+                        supportingLabel={symbol}
+                    />
                 </div>
             </Panel>
         </Form>
