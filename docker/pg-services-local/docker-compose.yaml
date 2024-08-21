@@ -132,9 +132,10 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     environment:
-      POSTGRES_USER: iota_indexer
-      POSTGRES_PASSWORD: iota_indexer
-      POSTGRES_DB: iota_indexer
+      POSTGRES_USER: ${POSTGRES_USER:-iota_indexer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iota_indexer}
+      POSTGRES_DB: ${POSTGRES_PASSWORD:-iota_indexer}
+      POSTGRES_INITDB_ARGS:
     command: |
       postgres
       -c 'max_connections=1000'
