@@ -10,7 +10,7 @@ const aboutIota = [
         collapsed: false,
         link: {
             type: 'doc',
-            id: 'about-iota/iota-architecture',
+            id: 'about-iota/iota-architecture/iota-architecture',
         },
         items: [
             'about-iota/iota-architecture/iota-security',
@@ -27,7 +27,7 @@ const aboutIota = [
         collapsed: false,
         link: {
             type: 'doc',
-            id: 'about-iota/tokenomics',
+            id: 'about-iota/tokenomics/tokenomics',
         },
         items: [
             'about-iota/tokenomics/iota-token',
