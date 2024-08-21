@@ -473,6 +473,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                 type={ButtonType.Secondary}
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
+                                disabled={activeAccount?.isLocked}
                             />
                             <Button
                                 onClick={onSendClick}
