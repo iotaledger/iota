@@ -11,7 +11,7 @@ It is recommended that the database server is started in a docker container.
 ## Using `docker compose`
 
 ```sh
-$ POSTGRES_USER=postgres POSTGRES_DB=postgres POSTGRES_PASSWORD=postgrespw POSTGRES_INITDB_ARGS="-U postgres" docker compose -f docker/pg-services/docker-compose.yaml up -d postgres
+$ POSTGRES_USER=postgres POSTGRES_DB=postgres POSTGRES_PASSWORD=postgrespw POSTGRES_INITDB_ARGS="-U postgres" docker compose -f docker/pg-services-local/docker-compose.yaml up -d postgres
 ```
 
 ## Using `docker`
