@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use iota_network::tonic::Code;
-use mysten_network::metrics::MetricsCallbackProvider;
+use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
@@ -127,7 +127,7 @@ impl MetricsCallbackProvider for GrpcMetrics {
 mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    use mysten_metrics::start_prometheus_server;
+    use iota_metrics::start_prometheus_server;
     use prometheus::{IntCounter, Registry};
 
     #[tokio::test]

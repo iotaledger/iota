@@ -23,12 +23,12 @@ itertools.workspace = true
 log.workspace = true
 once_cell.workspace = true
 serde.workspace = true
-simplelog.workspace = true
+simplelog = "0.12"
 toml.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true
 move-prover-test-utils.workspace = true
-shell-words.workspace = true
+shell-words = "1.1"
 tempfile.workspace = true
 walkdir.workspace = true

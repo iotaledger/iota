@@ -66,10 +66,10 @@ impl<P: Display, S: Send, H: AsyncHandler<S>> Shell<P, S, H> {
         let config = Config::builder()
             .auto_add_history(true)
             .history_ignore_space(true)
-            .history_ignore_dups(true)
+            .history_ignore_dups(true)?
             .build();
 
-        let mut rl = Editor::with_config(config);
+        let mut rl = Editor::with_config(config)?;
 
         let completion_cache = Arc::new(RwLock::new(BTreeMap::new()));
 

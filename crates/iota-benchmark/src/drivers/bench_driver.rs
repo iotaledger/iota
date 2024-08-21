@@ -33,7 +33,7 @@ use prometheus::{
     Registry,
 };
 use rand::seq::SliceRandom;
-use sysinfo::{CpuExt, System, SystemExt};
+use sysinfo::System;
 use tokio::{
     sync::{
         mpsc::{channel, Sender},
@@ -1059,13 +1059,13 @@ fn stress_stats_collector(
     tokio::spawn(async move {
         let mut system = System::new_all();
 
-        system.refresh_cpu();
+        system.refresh_cpu_all();
         tokio::time::sleep(Duration::from_secs(1)).await;
 
         while !progress.is_finished() {
             let mut cpu_usage_histogram =
                 hdrhistogram::Histogram::<u64>::new_with_max(100, 3).unwrap();
-            system.refresh_cpu();
+            system.refresh_cpu_all();
             for (i, cpu) in system.cpus().iter().enumerate() {
                 cpu_usage_histogram.saturating_record(cpu.cpu_usage() as u64);
                 metrics

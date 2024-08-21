@@ -1,4 +1,4 @@
-# mysten-util-mem
+# iota-util-mem
 
 This crate provides tools for measuring the heap memory usage of specific structures.
 
@@ -20,10 +20,10 @@ Oftentimes, the public interface of the type you are measuring does not provide 
 
 ## Measuring memory usage
 
-To compute the heap usage of an annotated type at runtime, simply call `mysten_util_mem::malloc_size(&my_struct)`. For complete memory usage, add in the inline size of the type as well, as in:
+To compute the heap usage of an annotated type at runtime, simply call `iota_util_mem::malloc_size(&my_struct)`. For complete memory usage, add in the inline size of the type as well, as in:
 
 ```rust
-mysten_util_mem::malloc_size(&my_struct) + std::mem::size_of::<MyStruct>()
+iota_util_mem::malloc_size(&my_struct) + std::mem::size_of::<MyStruct>()
 ```
 
 ## Putting it all together
