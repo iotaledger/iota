@@ -8,6 +8,7 @@ use std::{collections::BTreeMap, time::Duration};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use iota_network::{api::ValidatorClient, tonic, tonic::transport::Channel};
+use iota_network_stack::config::Config;
 use iota_types::{
     base_types::AuthorityName,
     committee::CommitteeWithNetworkMetadata,
@@ -23,7 +24,6 @@ use iota_types::{
     multiaddr::Multiaddr,
     transaction::*,
 };
-use mysten_network::config::Config;
 
 #[async_trait]
 pub trait AuthorityAPI {
@@ -76,14 +76,14 @@ pub struct NetworkAuthorityClient {
 
 impl NetworkAuthorityClient {
     pub async fn connect(address: &Multiaddr) -> anyhow::Result<Self> {
-        let channel = mysten_network::client::connect(address)
+        let channel = iota_network_stack::client::connect(address)
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         Ok(Self::new(channel))
     }
 
     pub fn connect_lazy(address: &Multiaddr) -> anyhow::Result<Self> {
-        let channel = mysten_network::client::connect_lazy(address)
+        let channel = iota_network_stack::client::connect_lazy(address)
             .map_err(|err| anyhow!(err.to_string()))?;
         Ok(Self::new(channel))
     }
@@ -213,7 +213,7 @@ pub fn make_authority_clients_with_timeout_config(
     connect_timeout: Duration,
     request_timeout: Duration,
 ) -> anyhow::Result<BTreeMap<AuthorityName, NetworkAuthorityClient>> {
-    let mut network_config = mysten_network::config::Config::new();
+    let mut network_config = iota_network_stack::config::Config::new();
     network_config.connect_timeout = Some(connect_timeout);
     network_config.request_timeout = Some(request_timeout);
     make_network_authority_clients_with_network_config(committee, &network_config)

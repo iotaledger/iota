@@ -45,7 +45,7 @@ use crate::{
 pub type CheckpointSequenceNumber = u64;
 pub type CheckpointTimestamp = u64;
 
-use mysten_metrics::histogram::Histogram;
+use iota_metrics::histogram::Histogram;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointRequest {

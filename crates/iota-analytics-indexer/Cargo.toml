@@ -8,8 +8,8 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
-arrow.workspace = true
-arrow-array.workspace = true
+arrow = "52.1"
+arrow-array = "52.1"
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true
@@ -20,11 +20,12 @@ clap.workspace = true
 csv.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-gcp-bigquery-client = "0.20.0"
+gcp-bigquery-client = "0.20"
 iota-analytics-indexer-derive.workspace = true
 iota-config.workspace = true
 iota-indexer.workspace = true
 iota-json-rpc-types.workspace = true
+iota-metrics.workspace = true
 iota-package-resolver.workspace = true
 iota-rest-api.workspace = true
 iota-storage.workspace = true
@@ -32,18 +33,16 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-mysten-metrics.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
-parquet.workspace = true
+parquet = "52.1"
 prometheus.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-simulacrum.workspace = true
-snowflake-api = { version = "0.9.0" }
+snowflake-api = { version = "0.9" }
 strum.workspace = true
-tap = "1.0.1"
+tap = "1.0"
 telemetry-subscribers.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
@@ -55,6 +54,7 @@ typed-store-derive.workspace = true
 url.workspace = true
 
 [dev-dependencies]
+simulacrum.workspace = true
 
 [[bin]]
 name = "iota-analytics-indexer"

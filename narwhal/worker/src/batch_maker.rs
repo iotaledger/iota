@@ -12,7 +12,7 @@ use byteorder::{BigEndian, ReadBytesExt};
 use config::WorkerId;
 use fastcrypto::hash::Hash;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{
+use iota_metrics::{
     metered_channel::{Receiver, Sender},
     monitored_scope, spawn_logged_monitored_task,
 };

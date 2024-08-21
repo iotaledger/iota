@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use iota_metrics::histogram::{Histogram, HistogramVec};
 use iota_types::{
     base_types::*,
     committee::*,
@@ -23,7 +24,6 @@ use iota_types::{
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
 };
-use mysten_metrics::histogram::{Histogram, HistogramVec};
 use prometheus::{
     core::GenericCounter, register_int_counter_vec_with_registry, IntCounterVec, Registry,
 };

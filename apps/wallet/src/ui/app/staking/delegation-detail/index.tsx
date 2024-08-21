@@ -7,7 +7,6 @@ import { useGetDelegatedStake } from '@iota/core';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { DelegationDetailCard } from './DelegationDetailCard';
-import { formatAddress } from '@iota/iota-sdk/utils';
 
 export function DelegationDetail() {
     const [searchParams] = useSearchParams();
@@ -20,7 +19,7 @@ export function DelegationDetail() {
     });
 
     if (!validatorAddressParams || !stakeIdParams) {
-        return <Navigate to={'/stake'} replace={true} />;
+        return <Navigate to="/stake" replace={true} />;
     }
 
     if (isPending) {
@@ -32,12 +31,7 @@ export function DelegationDetail() {
     }
 
     return (
-        <Overlay
-            showModal
-            // this is a provisional title until we rebranding this page
-            title={`Validator: ${formatAddress(validatorAddressParams)}`}
-            closeOverlay={() => navigate('/')}
-        >
+        <Overlay showBackButton showModal title="Stake Details" closeOverlay={() => navigate('/')}>
             <DelegationDetailCard
                 validatorAddress={validatorAddressParams}
                 stakedId={stakeIdParams}
