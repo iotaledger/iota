@@ -24,7 +24,7 @@ export function ListboxSelect<T extends string>({
                 <Listbox.Button className="group flex w-full flex-nowrap items-center gap-1 overflow-hidden text-hero-dark transition-all hover:text-hero-darkest">
                     <Text variant="body/semibold">{value}</Text>
                     <ChevronDown16
-                        className="text-gray-400 pointer-events-none h-4 w-4 text-steel transition-all group-hover:text-steel-dark"
+                        className="pointer-events-none h-4 w-4 text-gray-400 text-steel transition-all group-hover:text-steel-dark"
                         aria-hidden="true"
                     />
                 </Listbox.Button>
