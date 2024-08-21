@@ -92,7 +92,6 @@ pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error
 }
 
 /// Request tokens from the Faucet for the given address
-#[allow(unused_assignments)]
 pub async fn request_tokens_from_faucet(
     address: IotaAddress,
     iota_client: &IotaClient,
@@ -127,10 +126,8 @@ pub async fn request_tokens_from_faucet(
 
     println!("Faucet request task id: {task_id}");
 
-    let mut coin_id = "".to_string();
-
     // wait for the faucet to finish the batch of token requests
-    loop {
+    let coin_id = loop {
         let resp = client
             .get(format!("{IOTA_FAUCET_BASE_URL}/v1/status/{task_id}"))
             .send()
@@ -139,7 +136,7 @@ pub async fn request_tokens_from_faucet(
         if text.contains("SUCCEEDED") {
             let resp_json: serde_json::Value = serde_json::from_str(&text).unwrap();
 
-            coin_id = <&str>::clone(
+            break <&str>::clone(
                 &resp_json
                     .pointer("/status/transferred_gas_objects/sent/0/id")
                     .unwrap()
@@ -147,12 +144,10 @@ pub async fn request_tokens_from_faucet(
                     .unwrap(),
             )
             .to_string();
-
-            break;
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-    }
+    };
 
     // wait until the fullnode has the coin object, and check if it has the same
     // owner
