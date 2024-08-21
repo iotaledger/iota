@@ -175,7 +175,7 @@ impl ConsensusMockServer {
     pub fn spawn(address: Multiaddr) -> Receiver<TransactionProto> {
         let (sender, receiver) = channel(1);
         tokio::spawn(async move {
-            let config = mysten_network::config::Config::new();
+            let config = iota_network_stack::config::Config::new();
             let mock = Self { sender };
             config
                 .server_builder()

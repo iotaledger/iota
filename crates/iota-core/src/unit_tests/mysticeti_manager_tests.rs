@@ -5,8 +5,8 @@
 use std::{sync::Arc, time::Duration};
 
 use fastcrypto::traits::KeyPair;
+use iota_metrics::RegistryService;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
-use mysten_metrics::RegistryService;
 use prometheus::Registry;
 use tokio::time::sleep;
 

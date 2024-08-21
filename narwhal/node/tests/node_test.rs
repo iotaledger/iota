@@ -6,7 +6,7 @@ use std::{num::NonZeroUsize, time::Duration};
 
 use config::Parameters;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use narwhal_node::{
     execution_state::SimpleExecutionState, primary_node::PrimaryNode, worker_node::WorkerNodes,
 };

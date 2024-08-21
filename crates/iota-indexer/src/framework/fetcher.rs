@@ -18,7 +18,7 @@ pub struct CheckpointFetcher {
     client: Client,
     last_downloaded_checkpoint: Option<CheckpointSequenceNumber>,
     highest_known_checkpoint: CheckpointSequenceNumber,
-    sender: mysten_metrics::metered_channel::Sender<CheckpointDownloadData>,
+    sender: iota_metrics::metered_channel::Sender<CheckpointDownloadData>,
     metrics: IndexerMetrics,
 }
 
@@ -29,7 +29,7 @@ impl CheckpointFetcher {
     pub fn new(
         client: Client,
         last_downloaded_checkpoint: Option<CheckpointSequenceNumber>,
-        sender: mysten_metrics::metered_channel::Sender<CheckpointDownloadData>,
+        sender: iota_metrics::metered_channel::Sender<CheckpointDownloadData>,
         metrics: IndexerMetrics,
     ) -> Self {
         Self {
