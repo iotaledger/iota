@@ -53,11 +53,11 @@ Users must submit all transactions they need together with a gas budget. This pr
 
 The gas budget for an IOTA transaction is defined in IOTA units and transactions are successfully executed if:
 
-`gas_budget >= max{computation_fees,total_gas_fees}`
+`gas_budget >= max{computation_fees,net_gas_fees}`
 
-If the gas budget does not fulfill this condition, then the transaction fails and a portion of the gas budget is charged. In cases where the `gas_budget` is insufficient for covering `computation_fees`, then the entirety of the `gas_budget` is charged. In cases where `gas_budget` is sufficient for covering `computation_fees` but not the `total_gas_fees`, then a portion of the `gas_budget` corresponding to `computation_fees` and the fees associated with mutating the transaction's input objects are charged.
+If the gas budget does not fulfill this condition, then the transaction fails and a portion of the gas budget is charged. In cases where the `gas_budget` is insufficient for covering `computation_fees`, then the entirety of the `gas_budget` is charged. In cases where `gas_budget` is sufficient for covering `computation_fees` but not the `net_gas_fees`, then a portion of the `gas_budget` corresponding to `computation_fees` and the fees associated with mutating the transaction's input objects are charged.
 
-Ultimately, a successful transaction requires the end user to pay the transaction's `total_gas_fees`. However, since it is challenging to perfectly forecast computation time before the transaction is processed, the `gas_budget` condition also requires the `gas_budget` to be at least as large as the transaction's `computation_fees` in case the transaction aborts. In some cases -- especially in the presence of high storage rebates, and, thus negative net storage fees -- the gas budget might be higher than the total gas fees the user pays.
+Ultimately, a successful transaction requires the end user to pay the transaction's `net_gas_fees`. However, since it is challenging to perfectly forecast computation time before the transaction is processed, the `gas_budget` condition also requires the `gas_budget` to be at least as large as the transaction's `computation_fees` in case the transaction aborts. In some cases -- especially in the presence of high storage rebates, and, thus negative net storage fees -- the gas budget might be higher than the total gas fees the user pays.
 
 Importantly, the minimum gas budget is 1000 NANOS (.000001 IOTA). This protects the IOTA network from being spammed with a large number of transactions with minimal gas budgets. The maximum gas budget is 50 billion NANOS or 50 IOTA. This protects the network against overflow of internal multiplications and prevents excessively large gas budgets being used for denial of service attacks.
 
