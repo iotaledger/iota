@@ -134,7 +134,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-iota_indexer}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iota_indexer}
-      POSTGRES_DB: ${POSTGRES_PASSWORD:-iota_indexer}
+      POSTGRES_DB: ${POSTGRES_DB:-iota_indexer}
       POSTGRES_INITDB_ARGS:
     command: |
       postgres
