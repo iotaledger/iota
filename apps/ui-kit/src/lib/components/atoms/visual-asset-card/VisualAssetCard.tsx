@@ -46,7 +46,7 @@ export function VisualAssetCard({
     icon = <MoreHoriz />,
     assetTitle,
 }: VisualAssetCardProps): React.JSX.Element {
-    const handleActionCardBodyClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const handleIconClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         onIconClick?.(event);
         event?.stopPropagation();
     };
@@ -63,7 +63,7 @@ export function VisualAssetCard({
             <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48" />
             <ButtonUnstyled
                 className="absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100"
-                onClick={handleActionCardBodyClick}
+                onClick={handleIconClick}
             >
                 {icon}
             </ButtonUnstyled>
