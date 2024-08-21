@@ -1,15 +1,23 @@
 ---
- title: Self-sponsoring Shimmer Assets Claiming
+description: A guide to claiming Shimmer assets using self-sponsorship when the address lacks IOTA coins for transaction fees.
 ---
 
-In the case in which an address owns some assets but no IOTA coins, the self-sponsorship can be of help for claiming those coins.
-[Sponsoring a transaction](../../iota-101/transactions/sponsored-transactions) means having an IOTA address (i.e., the sponsor) to pay the transaction gas fees for another address (i.e., the user). In the case of a claim a sponsor can pay for the claiming transaction gas.
+# Self-Sponsoring Shimmer Assets Claiming
 
-This is useful for Shimmer assets, because none of the Move objects obtained from migrating the Shimmer Stardust Outputs contain any IOTA coin. It means that addresses owning these Objects have no IOTA coins to pay for gas.
+If you own Shimmer assets but don't have any IOTA coins to cover transaction fees, 
+self-sponsorship can help you claim those assets.
+In this process, a sponsor (an IOTA address) pays the transaction gas fees for another address (the user).
+When claiming assets, a sponsor can cover the gas fees required for the transaction.
 
-## Claim of a Shimmer Basic Output with self-sponsorship
+This is particularly useful for Shimmer assets because the Move objects derived from Shimmer Stardust Outputs don't contain IOTA coins.
+As a result, addresses holding these objects lack the IOTA coins necessary to pay for gas.
 
-1. A Shimmer derivation path uses a `coin_type` (4219) which is different from the IOTA's one (4218). A user's self-sponsoring address could be then found using the IOTA `coin_type`.
+## Claim a Shimmer Basic Output with Self-Sponsorship
+
+### 1. Identify the Self-Sponsoring Address
+
+Shimmer uses a different `coin_type` (4219) than IOTA (4218).
+To find the self-sponsoring address, use the IOTA `coin_type`.
 
 <Tabs groupId="code-language">
 <TabItem value="rust" label="Rust">
@@ -18,15 +26,18 @@ This is useful for Shimmer assets, because none of the Move objects obtained fro
 ```
 
 </TabItem>
-<TabItem value="typescript"  label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
-TODO
+Coming soon
 
 </TabItem>
 </Tabs>
 
+### 2. Create the PTB for Claiming
 
-2. A PTB for claiming a `BasicOutput` owned by the derived Shimmer address can be created similarly to what is shown in [Basic Output](basic.mdx).
+Next, create a P [Programmable Transaction Block (PTB)](../../iota-101/transactions/ptb/building-ptb.mdx)
+to claim a `BasicOutput` owned by the derived Shimmer address.
+This process is similar to the one outlined in the [Basic Output](basic.mdx) guide.
 
 <Tabs groupId="code-language">
 <TabItem value="rust" label="Rust">
@@ -35,14 +46,16 @@ TODO
 ```
 
 </TabItem>
-<TabItem value="typescript"  label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
-TODO
+Coming soon
 
 </TabItem>
 </Tabs>
 
-3. In this case, the transaction must be signed by both the sender address (i.e., the objects' owner) and the sponsor address.
+### 3. Sign the Transaction
+
+For this transaction, both the sender address (the object's owner) and the sponsor address must sign the transaction.
 
 <Tabs groupId="code-language">
 <TabItem value="rust" label="Rust">
@@ -51,7 +64,7 @@ TODO
 ```
 
 </TabItem>
-<TabItem value="typescript"  label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
 TODO
 
