@@ -76,7 +76,7 @@ function MenuList() {
             onClick: onNetworkClick,
         },
         {
-            title: 'Auto-lock Accounts',
+            title: 'Auto Lock Profile',
             subtitle: autoLockSubtitle,
             icon: activeAccount?.isLocked ? <LockLocked /> : <LockUnlocked />,
             onClick: onAutoLockClick,
@@ -93,10 +93,11 @@ function MenuList() {
             isDisabled: true,
         },
         {
-            title: 'Logout',
+            title: 'Reset',
             icon: <Logout />,
             onClick: () => setIsLogoutDialogOpen(true),
             isDisabled: true,
+            isHidden: true,
         },
     ];
 
@@ -105,14 +106,7 @@ function MenuList() {
             <div className="flex h-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.map((item, index) => (
-                        <MenuListItem
-                            key={index}
-                            title={item.title}
-                            subtitle={item.subtitle}
-                            icon={item.icon}
-                            onClick={item.onClick}
-                            isDisabled={item.isDisabled}
-                        />
+                        <MenuListItem key={index} {...item} />
                     ))}
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
