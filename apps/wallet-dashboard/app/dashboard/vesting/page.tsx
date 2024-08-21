@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Button, TimelockedUnstakePopup } from '@/components';
+import { Button, NewStakePopup, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
@@ -56,6 +56,10 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    function handleStake(): void {
+        openPopup(<NewStakePopup onClose={closePopup} />);
+    }
+
     return (
         <div className="flex flex-row">
             <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
@@ -79,6 +83,7 @@ function VestingDashboardPage(): JSX.Element {
                     <div className="flex flex-col items-center rounded-lg border p-4">
                         <span>Available Staking</span>
                         <span>{vestingSchedule.availableStaking}</span>
+                        <Button onClick={() => handleStake()}>Stake</Button>
                     </div>
                 </div>
             </div>

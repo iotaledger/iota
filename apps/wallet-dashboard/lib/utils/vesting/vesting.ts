@@ -3,6 +3,7 @@
 
 import { DelegatedTimelockedStake, IotaObjectData } from '@iota/iota-sdk/client';
 import {
+    MIN_STAKING_THRESHOLD,
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_STARTING_VESTING_YEAR,
@@ -19,6 +20,7 @@ import {
     VestingOverview,
 } from '../../interfaces';
 import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
+import { VestingObject } from '@iota/core';
 
 export function getLastSupplyIncreaseVestingPayout(
     objects: (TimelockedObject | DelegatedTimelockedStake)[],
@@ -228,5 +230,91 @@ export function isSupplyIncreaseVestingObject(
         return obj.stakes.some((stake) => stake.label === SUPPLY_INCREASE_VESTING_LABEL);
     } else {
         return false;
+    }
+}
+
+/**
+ * Create VestingObject array from IotaObjectResponse array
+ * Vesting object is grouped object by expiration time, where objectId holds the id of the first object in the group to which the rest of the objects in the group will be merged.
+ * It also holds the total locked amount of the group.
+ */
+export function getFormattedTimelockedVestingObjects(
+    timelockedObjects: TimelockedObject[],
+): VestingObject[] {
+    const expirationMap = new Map<number, TimelockedObject[]>();
+
+    timelockedObjects.forEach((timelockedObject) => {
+        const expirationTimestamp = timelockedObject.expirationTimestampMs;
+
+        if (!expirationMap.has(expirationTimestamp)) {
+            expirationMap.set(expirationTimestamp, []);
+        }
+        expirationMap.get(expirationTimestamp)!.push(timelockedObject);
+    });
+
+    const result: VestingObject[] = [];
+
+    expirationMap.forEach((objects, expirationTime) => {
+        const totalLockedAmount = objects.reduce((sum, obj) => {
+            return BigInt(sum) + BigInt(obj.locked.value);
+        }, 0n);
+
+        const label = objects[0].label; // Assuming all objects in the group have the same label
+        const objectIds = objects.map((obj) => obj.id.id);
+        result.push({
+            objectId: objectIds[0] || '',
+            expirationTimestamp: expirationTime.toString(),
+            totalLockedAmount,
+            objectIds,
+            label,
+        });
+    });
+
+    return result;
+}
+
+/**
+ * Adjust split amounts in vesting objects to ensure that the stake amout is met and that the split amount is greater than the minimum staking threshold
+ */
+export function adjustSplitAmountsInVestingObjects(
+    vestingObjects: VestingObject[],
+    totalRemainingAmount: bigint,
+) {
+    let objectsToSplit = 1;
+    let splitAchieved = false;
+
+    while (!splitAchieved && objectsToSplit <= vestingObjects.length) {
+        const splitRemainingAmount = BigInt(
+            Math.floor(Number(totalRemainingAmount) / objectsToSplit),
+        );
+        // if the amount is odd value we need to add the remainder to the first object because we floored the division
+        const splitRemainder = BigInt(totalRemainingAmount) % BigInt(objectsToSplit);
+        // counter for objects that have splitAmount > 0
+        let foundObjectsToSplit = 0;
+
+        // Reset splitAmounts to 0
+        vestingObjects.forEach((obj) => (obj.splitAmount = BigInt(0)));
+
+        for (let i = 0; i < vestingObjects.length; i++) {
+            const obj = vestingObjects[i];
+            let remainingAmount = splitRemainingAmount;
+            if (i === 0 && splitRemainder > 0) {
+                remainingAmount += splitRemainder;
+            }
+            const amountToSplit = BigInt(obj.totalLockedAmount) - remainingAmount;
+
+            if (amountToSplit > MIN_STAKING_THRESHOLD) {
+                obj.splitAmount = amountToSplit;
+                foundObjectsToSplit++;
+                if (foundObjectsToSplit === objectsToSplit) {
+                    splitAchieved = true;
+                    break;
+                }
+            }
+        }
+
+        if (!splitAchieved) {
+            objectsToSplit++;
+        }
     }
 }
