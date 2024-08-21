@@ -24,11 +24,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '_src/ui/app/shared/Dialog';
+import { Button as Button2, ButtonType, ButtonSize } from '@iota/apps-ui-kit';
+import { Add, MoreHoriz } from '@iota/ui-icons';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
 import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
+import { Collapse, CollapseBody, CollapseHeader } from './Collapse';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -168,6 +171,32 @@ export function AccountGroup({
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
     return (
         <>
+            <Collapse>
+                <CollapseHeader title="Header">
+                    <div className="flex items-center gap-1">
+                        <Button2
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            // className="relative state-layer rounded-full"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('click on button.');
+                            }}
+                            icon={<Add className="h-5 w-5 text-neutral-10" />}
+                        />
+                        <Button2
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('on 3 dots click.');
+                            }}
+                            icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
+                        />
+                    </div>
+                </CollapseHeader>
+                <CollapseBody>Body</CollapseBody>
+            </Collapse>
             <CollapsiblePrimitive.Root defaultOpen asChild>
                 <div className="flex w-full flex-col gap-4">
                     <CollapsiblePrimitive.Trigger asChild>
