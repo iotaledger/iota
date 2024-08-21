@@ -96,8 +96,6 @@ function MenuList() {
             title: 'Reset',
             icon: <Logout />,
             onClick: () => setIsLogoutDialogOpen(true),
-            isDisabled: true,
-            isHidden: true,
         },
     ];
 
