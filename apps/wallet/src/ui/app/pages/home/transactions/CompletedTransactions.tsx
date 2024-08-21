@@ -21,7 +21,7 @@ export function CompletedTransactions() {
                     </ErrorBoundary>
                 ))
             ) : (
-                <NoActivityCard message="When available, your Iota network transactions will show up here." />
+                <NoActivityCard message="When available, your IOTA network transactions will show up here." />
             )}
         </Loading>
     );
