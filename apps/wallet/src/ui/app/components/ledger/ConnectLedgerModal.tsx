@@ -62,7 +62,7 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                                 View tutorial.
                             </Link>
                         </div>
-                        <div className="flex w-full flex-row gap-x-md">
+                        <div className="flex w-full flex-row gap-x-xs">
                             <Button
                                 type={ButtonType.Secondary}
                                 text="Cancel"
