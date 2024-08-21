@@ -305,6 +305,9 @@ importers:
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@iota/apps-ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@iota/core':
         specifier: workspace:*
         version: link:../core
@@ -320,6 +323,9 @@ importers:
       '@iota/ui':
         specifier: workspace:*
         version: link:../ui
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       '@radix-ui/react-collapsible':
         specifier: ^1.0.3
         version: 1.0.3(@types/react-dom@18.2.7)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
