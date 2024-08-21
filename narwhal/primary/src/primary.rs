@@ -202,6 +202,7 @@ impl Primary {
         let mut primary_service = PrimaryToPrimaryServer::new(PrimaryReceiverHandler {
             authority_id: authority.id(),
             committee: committee.clone(),
+            protocol_config: protocol_config.clone(),
             worker_cache: worker_cache.clone(),
             synchronizer: synchronizer.clone(),
             signature_service: signature_service.clone(),
@@ -451,6 +452,7 @@ impl Primary {
         let certificate_fetcher_handle = CertificateFetcher::spawn(
             authority.id(),
             committee.clone(),
+            protocol_config.clone(),
             network.clone(),
             certificate_store,
             rx_consensus_round_updates,
@@ -466,6 +468,7 @@ impl Primary {
         let proposer_handle = Proposer::spawn(
             authority.id(),
             committee.clone(),
+            &protocol_config,
             proposer_store,
             parameters.header_num_of_batches_threshold,
             parameters.max_header_num_of_batches,
@@ -535,6 +538,7 @@ struct PrimaryReceiverHandler {
     /// The id of this primary.
     authority_id: AuthorityIdentifier,
     committee: Committee,
+    protocol_config: ProtocolConfig,
     worker_cache: WorkerCache,
     synchronizer: Arc<Synchronizer>,
     /// Service to sign headers.
@@ -653,10 +657,12 @@ impl PrimaryReceiverHandler {
             let mut validated_received_parents = vec![];
             for parent in parents {
                 validated_received_parents.push(
-                    validate_received_certificate_version(parent).map_err(|err| {
+                    validate_received_certificate_version(parent, &self.protocol_config).map_err(
+                        |err| {
                         error!("request vote parents processing error: {err}");
                         DagError::InvalidCertificateVersion
-                    })?,
+                        },
+                    )?,
                 );
             }
             // If requester has provided parent certificates, try to accept them.
@@ -895,7 +901,10 @@ impl PrimaryToPrimary for PrimaryReceiverHandler {
         request: anemo::Request<SendCertificateRequest>,
     ) -> Result<anemo::Response<SendCertificateResponse>, anemo::rpc::Status> {
         let _scope = monitored_scope("PrimaryReceiverHandler::send_certificate");
-        let certificate = validate_received_certificate_version(request.into_body().certificate)
+        let certificate = validate_received_certificate_version(
+            request.into_body().certificate,
+            &self.protocol_config,
+        )
             .map_err(|err| {
                 anemo::rpc::Status::new_with_message(
                     StatusCode::BadRequest,

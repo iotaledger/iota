@@ -370,7 +370,7 @@ impl Synchronizer {
         primary_channel_metrics: &PrimaryChannelMetrics,
     ) -> Self {
         let committee: &Committee = &committee;
-        let genesis = Self::make_genesis(committee);
+        let genesis = Self::make_genesis(&protocol_config, committee);
         let highest_processed_round = certificate_store.highest_round_number();
         let highest_created_certificate = certificate_store.last_round(authority_id).unwrap();
         let gc_round = rx_consensus_round_updates.borrow().gc_round;
@@ -649,7 +649,6 @@ impl Synchronizer {
     /// potentially return early. This helps to verify consistency, and has
     /// little extra cost because fetched certificates usually are not
     /// suspended.
-    #[cfg(test)]
     pub async fn try_accept_fetched_certificate(&self, certificate: Certificate) -> DagResult<()> {
         let _scope = monitored_scope("Synchronizer::try_accept_fetched_certificate");
         self.process_certificate_internal(certificate, false, false)
@@ -804,8 +803,11 @@ impl Synchronizer {
         Ok(())
     }
 
-    fn make_genesis(committee: &Committee) -> HashMap<CertificateDigest, Certificate> {
-        Certificate::genesis(committee)
+    fn make_genesis(
+        protocol_config: &ProtocolConfig,
+        committee: &Committee,
+    ) -> HashMap<CertificateDigest, Certificate> {
+        Certificate::genesis(protocol_config, committee)
             .into_iter()
             .map(|x| (x.digest(), x))
             .collect()
@@ -1571,8 +1573,9 @@ impl State {
         // Accept suspended certificates at and below gc round because their parents
         // will not be accepted into the DAG store anymore, in
         // sanitize_certificate().
-        let ((round, digest), _children) = self.missing.first_key_value()?;
-
+        let Some(((round, digest), _children)) = self.missing.first_key_value() else {
+            return None;
+        };
         // Note that gc_round is the highest round where certificates are gc'ed, and
         // which will never be in a consensus commit. It's safe to gc up to
         // gc_round, so anything suspended on gc_round + 1 can safely be
@@ -1632,7 +1635,7 @@ mod tests {
             .build();
 
         let committee: Committee = fixture.committee();
-        let genesis = Certificate::genesis(&committee)
+        let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
             .iter()
             .map(|x| x.digest())
             .collect::<BTreeSet<_>>();
@@ -1640,8 +1643,13 @@ mod tests {
             .authorities()
             .map(|a| (a.id(), a.keypair().copy()))
             .collect();
-        let (certificates, _next_parents) =
-            make_optimal_signed_certificates(1..=3, &genesis, &committee, keys.as_slice());
+        let (certificates, _next_parents) = make_optimal_signed_certificates(
+            1..=3,
+            &genesis,
+            &committee,
+            &latest_protocol_version(),
+            keys.as_slice(),
+        );
         let certificates = certificates.into_iter().collect_vec();
 
         let mut state = State::default();

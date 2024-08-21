@@ -49,16 +49,16 @@ async fn test_consensus_recovery_with_bullshark() {
     let committee = fixture.committee();
 
     let mut config: ProtocolConfig = latest_protocol_version();
-    config.set_consensus_bad_nodes_stake_threshold(33);
+    config.set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
     // AND make certificates for rounds 1 to 7 (inclusive)
     let ids: Vec<_> = fixture.authorities().map(|a| a.id()).collect();
-    let genesis = Certificate::genesis(&committee)
+    let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
         .iter()
         .map(|x| x.digest())
         .collect::<BTreeSet<_>>();
     let (certificates, _next_parents) =
-        test_utils::make_optimal_certificates(&committee, 1..=7, &genesis, &ids);
+        test_utils::make_optimal_certificates(&committee, &config, 1..=7, &genesis, &ids);
 
     // AND Spawn the consensus engine.
     let (tx_waiter, rx_waiter) = test_utils::test_channel!(100);

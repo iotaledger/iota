@@ -329,7 +329,6 @@ pub struct PrimaryMetrics {
     pub certificate_fetcher_total_verification_us: IntCounter,
     /// Total time spent to accept certificates via Synchronizer, in
     /// microseconds.
-    #[allow(dead_code)]
     pub certificate_fetcher_total_accept_us: IntCounter,
     /// Number of votes that were requested but not sent due to previously
     /// having voted differently

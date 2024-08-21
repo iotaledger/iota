@@ -166,7 +166,7 @@ mod test {
         for sequence_number in 0..10 {
             let sub_dag = CommittedSubDag::new(
                 vec![],
-                Certificate::default(),
+                Certificate::default(&latest_protocol_version()),
                 sequence_number,
                 ReputationScores::new(&committee),
                 None,
@@ -195,7 +195,7 @@ mod test {
 
             let sub_dag = CommittedSubDag::new(
                 vec![],
-                Certificate::default(),
+                Certificate::default(&latest_protocol_version()),
                 sequence_number,
                 scores,
                 None,

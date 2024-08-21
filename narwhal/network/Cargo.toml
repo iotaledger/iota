@@ -32,3 +32,4 @@ types = { path = "../types", package = "narwhal-types" }
 
 [dev-dependencies]
 bincode.workspace = true
+test-utils = { path = "../test-utils", package = "narwhal-test-utils" }

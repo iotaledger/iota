@@ -89,10 +89,10 @@ async fn accept_certificates() {
 
     // Send 3 certificates to the Synchronizer.
     let certificates: Vec<_> = fixture
-        .headers()
+        .headers(&latest_protocol_version())
         .iter()
         .take(3)
-        .map(|h| fixture.certificate(h))
+        .map(|h| fixture.certificate(&latest_protocol_version(), h))
         .collect();
     for cert in certificates.clone() {
         synchronizer.try_accept_certificate(cert).await.unwrap();
@@ -178,7 +178,7 @@ async fn accept_suspended_certificates() {
 
     // Make fake certificates.
     let committee = fixture.committee();
-    let genesis = Certificate::genesis(&committee)
+    let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
         .iter()
         .map(|x| x.digest())
         .collect::<BTreeSet<_>>();
@@ -186,8 +186,13 @@ async fn accept_suspended_certificates() {
         .authorities()
         .map(|a| (a.id(), a.keypair().copy()))
         .collect();
-    let (certificates, next_parents) =
-        make_optimal_signed_certificates(1..=5, &genesis, &committee, keys.as_slice());
+    let (certificates, next_parents) = make_optimal_signed_certificates(
+        1..=5,
+        &genesis,
+        &committee,
+        &latest_protocol_version(),
+        keys.as_slice(),
+    );
     let certificates = certificates.into_iter().collect_vec();
 
     // Try to accept certificates from round 2 to 5. All of them should be
@@ -231,6 +236,7 @@ async fn accept_suspended_certificates() {
         2000,
         next_parents,
         &committee,
+        &latest_protocol_version(),
     );
     // The certificate should not be accepted or suspended.
     match synchronizer.try_accept_certificate(cert.clone()).await {
@@ -294,10 +300,10 @@ async fn synchronizer_recover_basic() {
 
     // Send 3 certificates to Synchronizer.
     let certificates: Vec<_> = fixture
-        .headers()
+        .headers(&latest_protocol_version())
         .iter()
         .take(3)
-        .map(|h| fixture.certificate(h))
+        .map(|h| fixture.certificate(&latest_protocol_version(), h))
         .collect();
     for cert in certificates.clone() {
         synchronizer.try_accept_certificate(cert).await.unwrap();
@@ -413,10 +419,10 @@ async fn synchronizer_recover_partial_certs() {
 
     // Send 1 certificate.
     let certificates: Vec<Certificate> = fixture
-        .headers()
+        .headers(&latest_protocol_version())
         .iter()
         .take(3)
-        .map(|h| fixture.certificate(h))
+        .map(|h| fixture.certificate(&latest_protocol_version(), h))
         .collect();
     let last_cert = certificates.clone().into_iter().last().unwrap();
     synchronizer
@@ -524,9 +530,8 @@ async fn synchronizer_recover_previous_round() {
         .unwrap();
     client.set_primary_network(network.clone());
 
-    // Send 3 certificates from round 1, and 2 certificates from round 2 to
-    // Synchronizer.
-    let genesis_certs = Certificate::genesis(&committee);
+    // Send 3 certificates from round 1, and 2 certificates from round 2 to Synchronizer.
+    let genesis_certs = Certificate::genesis(&latest_protocol_version(), &committee);
     let genesis = genesis_certs
         .iter()
         .map(|x| x.digest())
@@ -536,8 +541,13 @@ async fn synchronizer_recover_previous_round() {
         .map(|a| (a.id(), a.keypair().copy()))
         .take(3)
         .collect::<Vec<_>>();
-    let (all_certificates, _next_parents) =
-        make_optimal_signed_certificates(1..=2, &genesis, &committee, &keys);
+    let (all_certificates, _next_parents) = make_optimal_signed_certificates(
+        1..=2,
+        &genesis,
+        &committee,
+        &latest_protocol_version(),
+        &keys,
+    );
     let all_certificates: Vec<_> = all_certificates.into_iter().collect();
     let round_1_certificates = all_certificates[0..3].to_vec();
     let round_2_certificates = all_certificates[3..5].to_vec();
@@ -627,7 +637,7 @@ async fn deliver_certificate_using_store() {
     );
 
     // create some certificates in a complete DAG form
-    let genesis_certs = Certificate::genesis(&committee);
+    let genesis_certs = Certificate::genesis(&latest_protocol_version(), &committee);
     let genesis = genesis_certs
         .iter()
         .map(|x| x.digest())
@@ -638,8 +648,13 @@ async fn deliver_certificate_using_store() {
         .map(|a| (a.id(), a.keypair().copy()))
         .take(3)
         .collect::<Vec<_>>();
-    let (mut certificates, _next_parents) =
-        make_optimal_signed_certificates(1..=4, &genesis, &committee, &keys);
+    let (mut certificates, _next_parents) = make_optimal_signed_certificates(
+        1..=4,
+        &genesis,
+        &committee,
+        &latest_protocol_version(),
+        &keys,
+    );
 
     // insert the certificates in the DAG
     for certificate in certificates.clone() {
@@ -695,7 +710,7 @@ async fn deliver_certificate_not_found_parents() {
     );
 
     // create some certificates in a complete DAG form
-    let genesis_certs = Certificate::genesis(&committee);
+    let genesis_certs = Certificate::genesis(&latest_protocol_version(), &committee);
     let genesis = genesis_certs
         .iter()
         .map(|x| x.digest())
@@ -705,8 +720,13 @@ async fn deliver_certificate_not_found_parents() {
         .authorities()
         .map(|a| (a.id(), a.keypair().copy()))
         .collect::<Vec<_>>();
-    let (mut certificates, _next_parents) =
-        make_optimal_signed_certificates(1..=4, &genesis, &committee, &keys);
+    let (mut certificates, _next_parents) = make_optimal_signed_certificates(
+        1..=4,
+        &genesis,
+        &committee,
+        &latest_protocol_version(),
+        &keys,
+    );
 
     // take the last one (top) and test for parents
     let test_certificate = certificates.pop_back().unwrap();
@@ -783,8 +803,13 @@ async fn sanitize_fetched_certificates() {
         .authorities()
         .map(|a| (a.id(), a.keypair().copy()))
         .collect::<Vec<_>>();
-    let (verified_certificates, _next_parents) =
-        make_optimal_signed_certificates(1..=60, &genesis, &committee, &keys);
+    let (verified_certificates, _next_parents) = make_optimal_signed_certificates(
+        1..=60,
+        &genesis,
+        &committee,
+        &latest_protocol_version(),
+        &keys,
+    );
 
     const VERIFICATION_ROUND: u64 = 50;
     const LEAF_ROUND: u64 = 60;
@@ -907,13 +932,17 @@ async fn sync_batches_drops_old() {
     let mut certificates = HashMap::new();
     for _ in 0..3 {
         let header: Header = author
-            .header_builder(&fixture.committee())
-            .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 0, 0)
+            .header_builder(&latest_protocol_version(), &fixture.committee())
+            .with_payload_batch(
+                test_utils::fixture_batch_with_transactions(10, &latest_protocol_version()),
+                0,
+                0,
+            )
             .build()
             .unwrap()
             .into();
 
-        let certificate = fixture.certificate(&header);
+        let certificate = fixture.certificate(&latest_protocol_version(), &header);
         let digest = certificate.clone().digest();
 
         certificates.insert(digest, certificate.clone());
@@ -923,10 +952,14 @@ async fn sync_batches_drops_old() {
         }
     }
     let test_header: Header = author
-        .header_builder(&fixture.committee())
+        .header_builder(&latest_protocol_version(), &fixture.committee())
         .round(2)
         .parents(certificates.keys().cloned().collect())
-        .with_payload_batch(test_utils::fixture_batch_with_transactions(10), 1, 0)
+        .with_payload_batch(
+            test_utils::fixture_batch_with_transactions(10, &latest_protocol_version()),
+            1,
+            0,
+        )
         .build()
         .unwrap()
         .into();
@@ -939,6 +972,126 @@ async fn sync_batches_drops_old() {
         Err(DagError::TooOld(_, _, _)) => (),
         result => panic!("unexpected result {result:?}"),
     }
+}
+
+#[tokio::test]
+async fn gc_suspended_certificates_v1() {
+    let cert_v1_config = get_protocol_config(28);
+    const NUM_AUTHORITIES: usize = 4;
+    const GC_DEPTH: Round = 5;
+
+    telemetry_subscribers::init_for_testing();
+    let fixture = CommitteeFixture::builder()
+        .randomize_ports(true)
+        .committee_size(NonZeroUsize::new(NUM_AUTHORITIES).unwrap())
+        .build();
+    let worker_cache = fixture.worker_cache();
+    let metrics = Arc::new(PrimaryMetrics::new(&Registry::new()));
+    let primary = fixture.authorities().next().unwrap();
+    let client = NetworkClient::new_from_keypair(&primary.network_keypair());
+
+    let (certificate_store, payload_store) = create_db_stores();
+    let (tx_certificate_fetcher, _rx_certificate_fetcher) = test_utils::test_channel!(100);
+    let (tx_new_certificates, mut rx_new_certificates) = test_utils::test_channel!(100);
+    let (tx_parents, _rx_parents) = test_utils::test_channel!(100);
+    let (tx_consensus_round_updates, rx_consensus_round_updates) =
+        watch::channel(ConsensusRound::new(1, 0));
+    let primary_channel_metrics = PrimaryChannelMetrics::new(&Registry::new());
+
+    let synchronizer = Arc::new(Synchronizer::new(
+        primary.id(),
+        fixture.committee(),
+        cert_v1_config.clone(),
+        worker_cache.clone(),
+        /* gc_depth */ GC_DEPTH,
+        client,
+        certificate_store.clone(),
+        payload_store.clone(),
+        tx_certificate_fetcher,
+        tx_new_certificates,
+        tx_parents,
+        rx_consensus_round_updates.clone(),
+        metrics.clone(),
+        &primary_channel_metrics,
+    ));
+
+    // Make 5 rounds of fake certificates.
+    let committee: Committee = fixture.committee();
+    let genesis = Certificate::genesis(&cert_v1_config, &committee)
+        .iter()
+        .map(|x| x.digest())
+        .collect::<BTreeSet<_>>();
+    let keys: Vec<_> = fixture
+        .authorities()
+        .map(|a| (a.id(), a.keypair().copy()))
+        .collect();
+    let (certificates, _next_parents) = make_optimal_signed_certificates(
+        1..=5,
+        &genesis,
+        &committee,
+        &cert_v1_config,
+        keys.as_slice(),
+    );
+    let certificates = certificates.into_iter().collect_vec();
+
+    // Try to aceept certificates from round 2 and above. All of them should be suspended.
+    let accept = FuturesUnordered::new();
+    for cert in &certificates[NUM_AUTHORITIES..] {
+        match synchronizer.try_accept_certificate(cert.clone()).await {
+            Ok(()) => panic!("Unexpected acceptance of {cert:?}"),
+            Err(DagError::Suspended(notify)) => {
+                accept.push(async move { notify.wait().await });
+                continue;
+            }
+            Err(e) => panic!("Unexpected error {e}"),
+        }
+    }
+    // Round 2~5 certificates are suspended.
+    // Round 1~4 certificates are missing and referenced as parents.
+    assert_eq!(
+        synchronizer.get_suspended_stats().await,
+        (NUM_AUTHORITIES * 4, NUM_AUTHORITIES * 4)
+    );
+
+    // Re-insertion of missing certificate as fetched certificates should be suspended too.
+    for cert in &certificates[NUM_AUTHORITIES * 2..NUM_AUTHORITIES * 4] {
+        match synchronizer
+            .try_accept_fetched_certificate(cert.clone())
+            .await
+        {
+            Ok(()) => panic!("Unexpected acceptance of {cert:?}"),
+            Err(DagError::Suspended(_)) => {
+                continue;
+            }
+            Err(e) => panic!("Unexpected error {e}"),
+        }
+    }
+    assert_eq!(
+        synchronizer.get_suspended_stats().await,
+        (NUM_AUTHORITIES * 4, NUM_AUTHORITIES * 4)
+    );
+
+    // At commit round 8, round 3 becomes the GC round.
+    let _ = tx_consensus_round_updates.send(ConsensusRound::new(8, gc_round(8, GC_DEPTH)));
+
+    // Wait for all notifications to arrive.
+    accept.collect::<Vec<()>>().await;
+
+    // Expected to receive:
+    // Round 2~4 certificates will be accepted because of GC.
+    // Round 5 certificates will be accepted because of no missing dependencies.
+    let expected_certificates: HashMap<_, _> = certificates[NUM_AUTHORITIES..]
+        .iter()
+        .map(|cert| (cert.digest(), cert.clone()))
+        .collect();
+    let mut received_certificates = HashMap::new();
+    for _ in 0..expected_certificates.len() {
+        let cert = rx_new_certificates.try_recv().unwrap();
+        received_certificates.insert(cert.digest(), cert);
+    }
+    assert_eq!(expected_certificates, received_certificates);
+    // Suspended and missing certificates are cleared.
+    assert_eq!(synchronizer.get_suspended_stats().await, (0, 0));
 }
 
 #[tokio::test]
@@ -985,7 +1138,7 @@ async fn gc_suspended_certificates_v2() {
 
     // Make 5 rounds of fake certificates.
     let committee: Committee = fixture.committee();
-    let genesis = Certificate::genesis(&committee)
+    let genesis = Certificate::genesis(&cert_v2_config, &committee)
         .iter()
         .map(|x| x.digest())
         .collect::<BTreeSet<_>>();
@@ -993,8 +1146,13 @@ async fn gc_suspended_certificates_v2() {
         .authorities()
         .map(|a| (a.id(), a.keypair().copy()))
         .collect();
-    let (certificates, _next_parents) =
-        make_optimal_signed_certificates(1..=5, &genesis, &committee, keys.as_slice());
+    let (certificates, _next_parents) = make_optimal_signed_certificates(
+        1..=5,
+        &genesis,
+        &committee,
+        &cert_v2_config,
+        keys.as_slice(),
+    );
     let certificates = certificates.into_iter().collect_vec();
 
     // Try to accept certificates from round 2 and above. All of them should be

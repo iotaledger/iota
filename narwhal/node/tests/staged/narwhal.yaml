@@ -1,3 +1,4 @@
+---
 Authority:
   STRUCT:
   - protocol_key:
@@ -20,6 +21,10 @@ AuthorityIdentifier:
 Batch:
   ENUM:
     0:
+      V1:
+        NEWTYPE:
+          TYPENAME: BatchV1
+    1:
       V2:
         NEWTYPE:
           TYPENAME: BatchV2
@@ -28,6 +33,13 @@ BatchDigest:
     TUPLEARRAY:
       CONTENT: U8
       SIZE: 32
+BatchV1:
+  STRUCT:
+    - transactions:
+        SEQ:
+          SEQ: U8
+    - metadata:
+        TYPENAME: Metadata
 BatchV2:
   STRUCT:
   - transactions:
@@ -37,7 +49,7 @@ BatchV2:
       TYPENAME: VersionedMetadata
 Certificate:
   ENUM:
-    0:
+    1:
       V2:
         NEWTYPE:
           TYPENAME: CertificateV2

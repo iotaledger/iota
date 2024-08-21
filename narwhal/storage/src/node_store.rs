@@ -6,7 +6,8 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use config::{AuthorityIdentifier, WorkerId};
 use fastcrypto::groups;
-use fastcrypto_tbls::{dkg, nodes::PartyId};
+use fastcrypto_tbls::nodes::PartyId;
+use fastcrypto_tbls::{dkg};
 use store::{
     metrics::SamplingInterval,
     reopen,
@@ -69,7 +70,7 @@ impl NodeStorage {
     /// Open or reopen all the storage of the node.
     pub fn reopen<Path: AsRef<std::path::Path> + Send>(
         store_path: Path,
-        certificate_store_cache_metrics: Option<CertificateStoreCacheMetrics>,
+        certificate_store_cache_metrics: Option<Arc<CertificateStoreCacheMetrics>>,
     ) -> Self {
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
         let mut metrics_conf = MetricConf::new("consensus");

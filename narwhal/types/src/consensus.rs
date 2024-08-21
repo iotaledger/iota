@@ -500,8 +500,13 @@ mod tests {
             .build()
             .unwrap();
 
-        let certificate =
-            Certificate::new_unsigned(&committee, Header::V1(header), Vec::new()).unwrap();
+        let certificate = Certificate::new_unsigned(
+            &latest_protocol_version(),
+            &committee,
+            Header::V1(header),
+            Vec::new(),
+        )
+        .unwrap();
 
         // AND we initialise the sub dag via the "restore" way
         let sub_dag_round = CommittedSubDag {
@@ -536,8 +541,13 @@ mod tests {
             .build()
             .unwrap();
 
-        let certificate =
-            Certificate::new_unsigned(&committee, Header::V1(header), Vec::new()).unwrap();
+        let certificate = Certificate::new_unsigned(
+            &latest_protocol_version(),
+            &committee,
+            Header::V1(header),
+            Vec::new(),
+        )
+        .unwrap();
 
         // AND
         let sub_dag_round_2 = CommittedSubDag::new(
@@ -563,8 +573,13 @@ mod tests {
             .build()
             .unwrap();
 
-        let certificate =
-            Certificate::new_unsigned(&committee, Header::V1(header), Vec::new()).unwrap();
+        let certificate = Certificate::new_unsigned(
+            &latest_protocol_version(),
+            &committee,
+            Header::V1(header),
+            Vec::new(),
+        )
+        .unwrap();
 
         // WHEN create the sub dag based on the "previously committed" sub dag.
         let sub_dag_round_4 = CommittedSubDag::new(

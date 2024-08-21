@@ -65,6 +65,7 @@ async fn simple_primary_worker_node_start_stop() {
             key_pair.public().clone(),
             vec![(0, authority.worker(0).keypair().copy())],
             committee,
+            latest_protocol_version(),
             worker_cache,
             client,
             &store,

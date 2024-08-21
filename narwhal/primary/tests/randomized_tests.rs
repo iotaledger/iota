@@ -115,7 +115,7 @@ async fn bullshark_randomised_tests() {
     ];
 
     let mut config: ProtocolConfig = latest_protocol_version();
-    config.set_consensus_bad_nodes_stake_threshold(33);
+    config.set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
     let mut test_execution_list = FuturesUnordered::new();
     let (tx, mut rx) = channel(1000);
@@ -186,7 +186,7 @@ async fn bullshark_randomised_tests() {
                 let handle = tokio::spawn(async move {
                     // Create a randomized DAG
                     let (certificates, committee) =
-                        generate_randomised_dag(committee_size, dag_rounds, run_id, mode);
+                        generate_randomised_dag(committee_size, dag_rounds, run_id, mode, &config);
 
                     // Now provide the DAG to create execution plans, run them via consensus
                     // and compare output against each other to ensure they are the same.
@@ -234,10 +234,20 @@ fn test_determinism() {
 
     for seed in 0..=10 {
         // Compare the creation of DAG & committee
-        let (dag_1, committee_1) =
-            generate_randomised_dag(committee_size, number_of_rounds, seed, failure_modes);
-        let (dag_2, committee_2) =
-            generate_randomised_dag(committee_size, number_of_rounds, seed, failure_modes);
+        let (dag_1, committee_1) = generate_randomised_dag(
+            committee_size,
+            number_of_rounds,
+            seed,
+            failure_modes,
+            &protocol_config,
+        );
+        let (dag_2, committee_2) = generate_randomised_dag(
+            committee_size,
+            number_of_rounds,
+            seed,
+            failure_modes,
+            &protocol_config,
+        );
 
         assert_eq!(committee_1, committee_2);
         assert_eq!(dag_1, dag_2);
@@ -264,6 +274,7 @@ fn generate_randomised_dag(
     number_of_rounds: Round,
     seed: u64,
     modes: FailureModes,
+    protocol_config: &ProtocolConfig,
 ) -> (VecDeque<Certificate>, Committee) {
     // Create an RNG to share for the committee creation
     let rand = StdRng::seed_from_u64(seed);
@@ -273,11 +284,17 @@ fn generate_randomised_dag(
         .rng(rand)
         .build();
     let committee: Committee = fixture.committee();
-    let genesis = Certificate::genesis(&committee);
+    let genesis = Certificate::genesis(&latest_protocol_version(), &committee);
 
     // Create a known DAG
-    let (original_certificates, _last_round) =
-        make_certificates_with_parameters(seed, &committee, 1..=number_of_rounds, genesis, modes);
+    let (original_certificates, _last_round) = make_certificates_with_parameters(
+        seed,
+        &committee,
+        1..=number_of_rounds,
+        genesis,
+        modes,
+        protocol_config,
+    );
 
     (original_certificates, committee)
 }
@@ -295,6 +312,7 @@ pub fn make_certificates_with_parameters(
     range: RangeInclusive<Round>,
     initial_parents: Vec<Certificate>,
     modes: FailureModes,
+    protocol_config: &ProtocolConfig,
 ) -> (VecDeque<Certificate>, Vec<Certificate>) {
     let mut rand = StdRng::seed_from_u64(seed);
 
@@ -434,6 +452,7 @@ pub fn make_certificates_with_parameters(
             // Now create the certificate with the provided parents
             let (_, certificate) = mock_certificate_with_rand(
                 committee,
+                protocol_config,
                 authority.id(),
                 round,
                 parents_digests.clone(),
@@ -449,7 +468,7 @@ pub fn make_certificates_with_parameters(
             // update the total round stake
             total_round_stake += authority.stake();
         }
-        parents.clone_from(&next_parents);
+        parents = next_parents.clone();
 
         // Sanity checks
         // Ensure total stake of the round provides strong quorum
@@ -549,7 +568,7 @@ fn generate_and_run_execution_plans(
 
         // Compare the results with the previously executed plan results
         if committed_certificates.is_empty() {
-            committed_certificates.clone_from(&plan_committed_certificates);
+            committed_certificates = plan_committed_certificates.clone();
         } else {
             assert_eq!(
                 committed_certificates,

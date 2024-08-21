@@ -308,7 +308,7 @@ async fn main() -> Result<(), eyre::Report> {
 
 /// Generate all the genesis files required for benchmarks.
 fn benchmark_genesis(
-    ips: &[String],
+    ips: &Vec<String>,
     working_directory: &PathBuf,
     num_workers: usize,
     base_port: usize,
@@ -565,7 +565,7 @@ async fn run(
 
     // Make the data store.
     let certificate_store_cache_metrics =
-        CertificateStoreCacheMetrics::new(&registry_service.default_registry());
+        Arc::new(CertificateStoreCacheMetrics::new(registry_service.clone()));
     let store = NodeStorage::reopen(store_path, Some(certificate_store_cache_metrics.clone()));
 
     let client = NetworkClient::new_from_keypair(&primary_network_keypair);
@@ -594,7 +594,12 @@ async fn run(
             (Some(primary), None, None)
         }
         NodeType::Worker { id } => {
-            let worker = WorkerNode::new(*id, parameters.clone(), registry_service.clone());
+            let worker = WorkerNode::new(
+                *id,
+                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
+                parameters.clone(),
+                registry_service.clone(),
+            );
 
             worker
                 .start(
@@ -634,7 +639,12 @@ async fn run(
                 )
                 .await?;
 
-            let worker = WorkerNode::new(*worker_id, parameters.clone(), registry_service.clone());
+            let worker = WorkerNode::new(
+                *worker_id,
+                ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
+                parameters.clone(),
+                registry_service.clone(),
+            );
 
             let mut worker_store_path = PathBuf::new();
             if let Some(parent) = store_path.parent() {

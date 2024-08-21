@@ -34,18 +34,34 @@ async fn test_recovery() {
 
     // Make certificates for rounds 1 and 2.
     let ids: Vec<_> = fixture.authorities().map(|a| a.id()).collect();
-    let genesis = Certificate::genesis(&committee)
+    let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
         .iter()
         .map(|x| x.digest())
         .collect::<BTreeSet<_>>();
-    let (mut certificates, next_parents) =
-        test_utils::make_optimal_certificates(&committee, 1..=2, &genesis, &ids);
+    let (mut certificates, next_parents) = test_utils::make_optimal_certificates(
+        &committee,
+        &latest_protocol_version(),
+        1..=2,
+        &genesis,
+        &ids,
+    );
 
     // Make two certificate (f+1) with round 3 to trigger the commits.
-    let (_, certificate) =
-        test_utils::mock_certificate(&committee, ids[0], 3, next_parents.clone());
+    let (_, certificate) = test_utils::mock_certificate(
+        &committee,
+        &latest_protocol_version(),
+        ids[0],
+        3,
+        next_parents.clone(),
+    );
     certificates.push_back(certificate);
-    let (_, certificate) = test_utils::mock_certificate(&committee, ids[1], 3, next_parents);
+    let (_, certificate) = test_utils::mock_certificate(
+        &committee,
+        &latest_protocol_version(),
+        ids[1],
+        3,
+        next_parents,
+    );
     certificates.push_back(certificate);
 
     // Spawn the consensus engine and sink the primary channel.
@@ -174,7 +190,7 @@ async fn test_internal_consensus_output() {
         // serialise and send
         let tr = bcs::to_bytes(&tx).unwrap();
         let txn = TransactionProto {
-            transaction: Bytes::from(tr),
+            transactions: vec![Bytes::from(tr)],
         };
         client.submit_transaction(txn).await.unwrap();
 

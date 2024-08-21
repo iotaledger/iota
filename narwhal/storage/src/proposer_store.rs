@@ -76,7 +76,11 @@ mod test {
             .round(round)
             .epoch(fixture.committee().epoch())
             .parents([CertificateDigest::default()].iter().cloned().collect())
-            .with_payload_batch(fixture_batch_with_transactions(10), 0, 0)
+            .with_payload_batch(
+                fixture_batch_with_transactions(10, &latest_protocol_version()),
+                0,
+                0,
+            )
             .build()
             .unwrap();
         Header::V1(header)

@@ -48,7 +48,13 @@ async fn test_certificate_signers_are_ordered() {
     votes.shuffle(&mut OsRng);
 
     // Create a certificate
-    let certificate = Certificate::new_unverified(&committee, Header::V1(header), votes).unwrap();
+    let certificate = Certificate::new_unverified(
+        &latest_protocol_version(),
+        &committee,
+        Header::V1(header),
+        votes,
+    )
+    .unwrap();
 
     let (stake, signers) = certificate.signed_by(&committee);
 

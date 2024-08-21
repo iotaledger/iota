@@ -147,7 +147,8 @@ mod tests {
         let store = PayloadStore::new_for_tests();
 
         // run the tests a few times
-        let batch: Batch = test_utils::fixture_batch_with_transactions(10);
+        let batch: Batch =
+            test_utils::fixture_batch_with_transactions(10, &latest_protocol_version());
         let id = batch.digest();
         let worker_id = 0;
 
