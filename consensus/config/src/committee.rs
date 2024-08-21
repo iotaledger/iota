@@ -7,7 +7,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use serde::{Deserialize, Serialize};
 
 use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};

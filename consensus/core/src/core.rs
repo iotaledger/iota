@@ -9,7 +9,7 @@ use std::{
 };
 
 use consensus_config::ProtocolKeyPair;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use parking_lot::RwLock;
 use tokio::sync::{broadcast, watch};
 use tracing::{debug, info, warn};

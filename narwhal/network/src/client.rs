@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use anemo::{Network, PeerId, Request};
 use async_trait::async_trait;
 use crypto::{traits::KeyPair, NetworkKeyPair, NetworkPublicKey};
-use mysten_common::sync::notify_once::NotifyOnce;
+use iota_common::sync::notify_once::NotifyOnce;
 use parking_lot::RwLock;
 use tokio::{select, time::sleep};
 use tracing::error;

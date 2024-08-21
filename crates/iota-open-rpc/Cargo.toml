@@ -7,14 +7,14 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-bcs.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-versions.workspace = true
+versions = "6.3"
 
 [dev-dependencies]
 anyhow.workspace = true
+bcs.workspace = true
 clap.workspace = true
 fastcrypto = { workspace = true }
 iota-json.workspace = true

@@ -12,32 +12,39 @@ anyhow.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
 aws-config.workspace = true
-aws-sdk-kms.workspace = true
+aws-sdk-kms = "1.37"
 bcs.workspace = true
 bip32.workspace = true
 camino.workspace = true
 clap.workspace = true
+colored.workspace = true
 const-str.workspace = true
-datatest-stable.workspace = true
+csv.workspace = true
+fastcrypto.workspace = true
 git-version.workspace = true
-inquire.workspace = true
-insta.workspace = true
+inquire = "0.7"
 json_to_table.workspace = true
-miette.workspace = true
+miette = { version = "7.2", features = ["fancy"] }
 prometheus.workspace = true
 rand.workspace = true
 regex.workspace = true
 reqwest.workspace = true
+rustyline = "14.0"
+rustyline-derive = "0.10"
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-shlex.workspace = true
+shared-crypto.workspace = true
+shell-words = "1.1"
 signature.workspace = true
 tabled.workspace = true
 tap.workspace = true
+telemetry-subscribers.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
+unescape.workspace = true
 url.workspace = true
 
 iota-config.workspace = true
@@ -57,45 +64,28 @@ iota-swarm-config.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
-shared-crypto.workspace = true
-
-fastcrypto.workspace = true
-
-colored.workspace = true
-rustyline.workspace = true
-rustyline-derive.workspace = true
-shell-words.workspace = true
-unescape.workspace = true
-
-telemetry-subscribers.workspace = true
-tempfile.workspace = true
-
-csv.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-vm-profiler.workspace = true
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemalloc-ctl.workspace = true
+[target.'cfg(not(msim))'.dev-dependencies]
+datatest-stable.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
-prometheus.workspace = true
+insta.workspace = true
+shlex = "1.3"
 
 iota-macros.workspace = true
 iota-simulator.workspace = true
 iota-test-transaction-builder.workspace = true
-serde_json.workspace = true
 test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true
-
-[package.metadata.cargo-udeps.ignore]
-normal = ["jemalloc-ctl"]
 
 [[example]]
 name = "generate-genesis-checkpoint"

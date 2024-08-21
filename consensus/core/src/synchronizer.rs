@@ -11,7 +11,7 @@ use std::{
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{monitored_future, monitored_scope};
+use iota_metrics::{monitored_future, monitored_scope};
 use parking_lot::Mutex;
 #[cfg(not(test))]
 use rand::{rngs::ThreadRng, seq::SliceRandom};

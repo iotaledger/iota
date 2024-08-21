@@ -12,7 +12,7 @@
 
 #![cfg(feature = "std")]
 
-use mysten_util_mem::{MallocSizeOf, MallocSizeOfExt};
+use iota_util_mem::{MallocSizeOf, MallocSizeOfExt};
 
 #[test]
 fn derive_vec() {
