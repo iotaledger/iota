@@ -2,28 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Card } from '_app/shared/card';
-import { Text } from '_app/shared/text';
-import { NumberInput } from '_components';
 import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
 } from '_src/shared/constants';
-import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
 import {
     createStakeTransaction,
     parseAmount,
+    TimeUnit,
     useCoinMetadata,
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
+    useTimeAgo,
 } from '@iota/core';
 import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
-
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
-
-const HIDE_MAX = true;
+import { Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -33,7 +29,7 @@ export interface StakeFromProps {
 }
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
-    const { values, setFieldValue } = useFormikContext<FormValues>();
+    const { values, setFieldValue, errors } = useFormikContext<FormValues>();
 
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
@@ -41,6 +37,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const transaction = useMemo(() => {
         if (!values.amount || !decimals) return null;
+        if (Number(values.amount) < 0) return null;
         const amountWithoutDecimals = parseAmount(values.amount, decimals);
         return createStakeTransaction(amountWithoutDecimals, validatorAddress);
     }, [values.amount, validatorAddress, decimals]);
@@ -63,100 +60,80 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     const { data: timeBeforeStakeRewardsStarts } =
         useGetTimeBeforeEpochNumber(startEarningRewardsEpoch);
 
+    const timeBeforeStakeRewardsStartsAgo = useTimeAgo({
+        timeFrom: timeBeforeStakeRewardsStarts,
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_HOUR,
+    });
+    const stakedRewardsStartEpoch =
+        timeBeforeStakeRewardsStarts > 0
+            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
+            : epoch
+              ? `Epoch #${Number(startEarningRewardsEpoch)}`
+              : '--';
+
     const { data: timeBeforeStakeRewardsRedeemable } =
         useGetTimeBeforeEpochNumber(redeemableRewardsEpoch);
+    const timeBeforeStakeRewardsRedeemableAgo = useTimeAgo({
+        timeFrom: timeBeforeStakeRewardsRedeemable,
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_HOUR,
+    });
+    const timeBeforeStakeRewardsRedeemableAgoDisplay =
+        timeBeforeStakeRewardsRedeemable > 0
+            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
+            : epoch
+              ? `Epoch #${Number(redeemableRewardsEpoch)}`
+              : '--';
 
     return (
-        <Form className="flex flex-1 flex-col flex-nowrap items-center" autoComplete="off">
-            <div className="mb-3 mt-3.5 flex w-full flex-col items-center justify-between gap-1.5">
-                <Text variant="caption" color="gray-85" weight="semibold">
-                    Enter the amount of IOTA to stake
-                </Text>
-                <Text variant="bodySmall" color="steel" weight="medium">
-                    Available - {maxToken} {symbol}
-                </Text>
-            </div>
-            <Card
-                variant="gray"
-                titleDivider
-                header={
-                    <div className="flex w-full bg-white p-2.5">
-                        <Field
-                            data-testid="stake-amount-input"
-                            component={NumberInput}
-                            allowNegative={false}
-                            name="amount"
-                            className="text-hero-dark placeholder:text-gray-70 w-full border-none bg-white text-heading4 font-semibold placeholder:font-semibold"
-                            decimals
-                            suffix={` ${symbol}`}
-                            autoFocus
-                        />
-                        {!HIDE_MAX ? (
+        <Form
+            className="flex w-full flex-1 flex-col flex-nowrap items-center gap-md"
+            autoComplete="off"
+        >
+            <Field
+                name="amount"
+                render={({ field }: { field: FormValues }) => (
+                    <Input
+                        {...field}
+                        type={InputType.Number}
+                        name="amount"
+                        placeholder="0 IOTA"
+                        caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
+                        trailingElement={
                             <button
-                                className="border-gray-60 text-steel-darker hover:border-steel-dark hover:text-steel-darker flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid bg-white text-bodySmall font-medium disabled:cursor-auto disabled:opacity-50"
                                 onClick={setMaxToken}
-                                disabled={queryResult.isPending}
                                 type="button"
+                                disabled={queryResult.isPending}
+                                className="flex items-center justify-center rounded-xl border border-neutral-70 px-sm text-body-md text-neutral-40"
                             >
                                 Max
                             </button>
-                        ) : null}
-                    </div>
-                }
-                footer={
-                    <div className="flex w-full justify-between py-px">
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            Gas Fees
-                        </Text>
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            {gasBudget} {symbol}
-                        </Text>
-                    </div>
-                }
-            >
-                <div className="flex w-full justify-between pb-3.75">
-                    <Text variant="body" weight="medium" color="steel-darker">
-                        Staking Rewards Start
-                    </Text>
-                    {timeBeforeStakeRewardsStarts > 0 ? (
-                        <CountDownTimer
-                            timestamp={timeBeforeStakeRewardsStarts}
-                            variant="body"
-                            color="steel-darker"
-                            weight="semibold"
-                            label="in"
-                            endLabel="--"
-                        />
-                    ) : (
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            {epoch ? `Epoch #${Number(startEarningRewardsEpoch)}` : '--'}
-                        </Text>
-                    )}
+                        }
+                        errorMessage={errors.amount}
+                        label="Amount"
+                    />
+                )}
+            />
+            <Panel hasBorder>
+                <div className="gap-y-sm p-md">
+                    <KeyValueInfo
+                        keyText="Staking Rewards Start"
+                        valueText={stakedRewardsStartEpoch}
+                    />
+                    <KeyValueInfo
+                        keyText="Redeem Rewards"
+                        valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
+                    />
+                    <KeyValueInfo
+                        keyText="Gas fee"
+                        valueText={gasBudget}
+                        supportingLabel={symbol}
+                    />
                 </div>
-                <div className="item-center flex w-full justify-between pb-3.75">
-                    <div className="flex-1">
-                        <Text variant="pBody" weight="medium" color="steel-darker">
-                            Staking Rewards Redeemable
-                        </Text>
-                    </div>
-                    <div className="flex flex-1 items-center justify-end gap-1">
-                        {timeBeforeStakeRewardsRedeemable > 0 ? (
-                            <CountDownTimer
-                                timestamp={timeBeforeStakeRewardsRedeemable}
-                                variant="body"
-                                color="steel-darker"
-                                weight="semibold"
-                                label="in"
-                                endLabel="--"
-                            />
-                        ) : (
-                            <Text variant="body" weight="medium" color="steel-darker">
-                                {epoch ? `Epoch #${Number(redeemableRewardsEpoch)}` : '--'}
-                            </Text>
-                        )}
-                    </div>
-                </div>
-            </Card>
+            </Panel>
         </Form>
     );
 }
