@@ -329,10 +329,13 @@ pub enum IotaClientCommands {
     /// Add new IOTA environment.
     #[clap(name = "new-env")]
     NewEnv {
+        /// The alias for the environment.
         #[clap(long)]
         alias: String,
+        /// The RPC Url, for example http://127.0.0.1:9000.
         #[clap(long, value_hint = ValueHint::Url)]
         rpc: String,
+        /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[clap(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
     },
@@ -586,7 +589,8 @@ pub enum IotaClientCommands {
         env: Option<String>,
     },
 
-    /// Get the effects of executing the given transaction block
+    /// Get a transaction block with the effects, events and object changes of
+    /// its execution
     #[clap(name = "tx-block")]
     TransactionBlock {
         /// Digest of the transaction block
