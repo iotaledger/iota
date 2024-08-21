@@ -4,18 +4,9 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { useIotaLedgerClient } from '_components';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '_src/ui/app/shared/Dialog';
-import { Text } from '_src/ui/app/shared/text';
 import { useState } from 'react';
-
-import { Link } from '../../shared/Link';
+import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
+import { Link } from 'react-router-dom';
 
 interface ConnectLedgerModalProps {
     onClose: () => void;
@@ -24,7 +15,7 @@ interface ConnectLedgerModalProps {
 }
 
 export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedgerModalProps) {
-    const [isConnectingToLedger, setConnectingToLedger] = useState(false);
+    const [, setConnectingToLedger] = useState(false);
     const { connectToLedger } = useIotaLedgerClient();
 
     const onContinueClick = async () => {
@@ -48,68 +39,60 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                 }
             }}
         >
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Connect Ledger Wallet</DialogTitle>
-                </DialogHeader>
-                <div className="flex flex-col items-center">
-                    <div className="mt-4.5">
-                        <LedgerLogo />
-                    </div>
-                    <div className="mt-4.5 break-words text-center">
-                        <Text variant="pBodySmall" color="steel-darker" weight="normal">
-                            Connect your ledger to your computer, unlock it, and launch the Iota
+            <DialogContent containerId="overlay-portal-container">
+                <Header title="Connect Ledger Wallet" onClose={onClose} titleCentered />
+                <DialogBody>
+                    <div className="flex flex-col items-center gap-y-lg">
+                        <div className="p-md">
+                            <LedgerLogo />
+                        </div>
+                        <span className="text-center text-body-lg text-neutral-40">
+                            Connect your ledger to your computer, unlock it, and launch the IOTA
                             app. Click Continue when done.
-                        </Text>
-                        <div className="mt-2 flex items-center justify-center">
-                            <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                Need more help?&nbsp;
-                            </Text>
-                            <span>
-                                <Link
-                                    underline="hover"
-                                    href="https://support.ledger.com/hc/articles/10136570195101"
-                                    onClick={() => ampli.viewedLedgerTutorial()}
-                                    text="View tutorial."
-                                    color="heroDark"
-                                />
-                            </span>
+                        </span>
+                        <div className="flex items-center justify-center gap-x-1">
+                            <span className="text-body-lg text-neutral-40">Need more help?</span>
+                            <Link
+                                to="https://support.ledger.com/article/360011633353-zd"
+                                onClick={() => ampli.viewedLedgerTutorial()}
+                                className="text-body-lg text-primary-30 no-underline"
+                            >
+                                View tutorial.
+                            </Link>
+                        </div>
+                        <div className="flex w-full flex-row gap-x-md">
+                            <Button
+                                type={ButtonType.Secondary}
+                                text="Cancel"
+                                onClick={onClose}
+                                fullWidth
+                            />
+                            <Button
+                                type={ButtonType.Primary}
+                                text="Continue"
+                                onClick={onContinueClick}
+                                fullWidth
+                            />
                         </div>
                     </div>
-                </div>
-                <DialogFooter>
-                    <div className="flex w-full flex-row gap-3 self-center">
-                        <Button variant="outline" size="tall" text="Cancel" onClick={onClose} />
-                        <Button
-                            variant="outline"
-                            size="tall"
-                            text="Continue"
-                            onClick={onContinueClick}
-                            loading={isConnectingToLedger}
-                        />
-                    </div>
-                </DialogFooter>
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );
 }
 
-// TODO: We should probably use a loader like @svgr/webpack so that we can provide SVG files
-// and have them be automatically importable in React components. From playing around with
-// this, there seems to be an issue where TypeScript bindings aren't correctly generated
-// (see https://github.com/gregberge/svgr/pull/573)
 function LedgerLogo() {
     return (
         <svg
-            width="144"
-            height="48"
-            viewBox="0 0 144 48"
-            fill="none"
             xmlns="http://www.w3.org/2000/svg"
+            width="244"
+            height="82"
+            viewBox="0 0 244 82"
+            fill="none"
         >
             <path
-                d="M123.049 44.9775V47.9993H143.812V34.3706H140.787V44.9775H123.049ZM123.049 0V3.02191H140.787V13.6294H143.812V0H123.049ZM112.341 23.3779V16.3559H117.087C119.401 16.3559 120.231 17.1261 120.231 19.2301V20.4743C120.231 22.6371 119.43 23.3779 117.087 23.3779H112.341ZM119.875 24.6221C122.04 24.0592 123.552 22.0441 123.552 19.6446C123.552 18.1336 122.96 16.7704 121.832 15.674C120.409 14.3107 118.51 13.6294 116.048 13.6294H109.374V34.3698H112.341V26.1036H116.79C119.074 26.1036 119.994 27.0517 119.994 29.4225V34.3706H123.019V29.8965C123.019 26.6372 122.248 25.393 119.875 25.0373V24.6221ZM94.8999 25.3034H104.036V22.5776H94.8999V16.3552H104.925V13.6294H91.874V34.3698H105.371V31.6441H94.8999V25.3034ZM84.9624 26.3998V27.8218C84.9624 30.8144 83.8647 31.7925 81.1066 31.7925H80.4541C77.6949 31.7925 76.3602 30.9033 76.3602 26.7849V21.2144C76.3602 17.0666 77.7545 16.2068 80.513 16.2068H81.1059C83.8051 16.2068 84.6654 17.2143 84.6946 19.9996H87.9575C87.6612 15.9106 84.9324 13.3333 80.8389 13.3333C78.8517 13.3333 77.1905 13.9557 75.9447 15.1404C74.0761 16.8888 73.0377 19.8519 73.0377 23.9997C73.0377 27.9997 73.928 30.9628 75.7666 32.7993C77.0124 34.0141 78.7332 34.666 80.4237 34.666C82.2035 34.666 83.8355 33.9546 84.6654 32.4143H85.0801V34.3698H87.809V23.6741H79.7705V26.3998H84.9624ZM58.8009 16.3552H62.0345C65.09 16.3552 66.7512 17.1254 66.7512 21.2739V26.7254C66.7512 30.8732 65.09 31.6441 62.0345 31.6441H58.8009V16.3552ZM62.3007 34.3706C67.9666 34.3706 70.0722 30.0743 70.0722 24.0004C70.0722 17.8375 67.8177 13.6302 62.2411 13.6302H55.8339V34.3706H62.3007ZM41.5077 25.3034H50.6439V22.5776H41.5077V16.3552H51.5334V13.6294H38.4815V34.3698H51.9785V31.6441H41.5077V25.3034ZM24.007 13.6294H20.9817V34.3698H34.6264V31.6441H24.007V13.6294ZM0.187988 34.3706V48H20.9516V44.9775H3.21329V34.3706H0.187988ZM0.187988 0V13.6294H3.21329V3.02191H20.9516V0H0.187988Z"
-                fill="black"
+                d="M208.725 76.3995V81.4987H244V58.5003H238.86V76.3995H208.725ZM208.725 0.5V5.59948H238.86V23.4997H244V0.5H208.725ZM190.534 39.9502V28.1006H198.597C202.528 28.1006 203.939 29.4003 203.939 32.9508V35.0504C203.939 38.7002 202.578 39.9502 198.597 39.9502H190.534ZM203.333 42.0498C207.012 41.0999 209.581 37.6994 209.581 33.6503C209.581 31.1005 208.574 28.8001 206.659 26.9498C204.24 24.6493 201.014 23.4997 196.833 23.4997H185.494V58.4991H190.534V44.5499H198.093C201.973 44.5499 203.536 46.1497 203.536 50.1504V58.5003H208.675V50.9503C208.675 45.4503 207.365 43.3507 203.333 42.7505V42.0498ZM160.904 43.1994H176.425V38.5997H160.904V28.0994H177.936V23.4997H155.763V58.4991H178.692V53.8994H160.904V43.1994ZM144.021 45.0497V47.4494C144.021 52.4993 142.157 54.1498 137.471 54.1498H136.363C131.675 54.1498 129.408 52.6493 129.408 45.6995V36.2993C129.408 29.2999 131.776 27.849 136.463 27.849H137.47C142.055 27.849 143.517 29.5491 143.567 34.2493H149.11C148.607 27.3492 143.971 23 137.016 23C133.64 23 130.818 24.0503 128.702 26.0495C125.527 28.9998 123.763 34 123.763 40.9994C123.763 47.7495 125.276 52.7497 128.399 55.8489C130.515 57.8989 133.439 58.9988 136.311 58.9988C139.335 58.9988 142.107 57.7984 143.517 55.1991H144.222V58.4991H148.858V40.45H135.201V45.0497H144.021ZM99.5765 28.0994H105.07C110.261 28.0994 113.083 29.3991 113.083 36.3997V45.5991C113.083 52.5985 110.261 53.8994 105.07 53.8994H99.5765V28.0994ZM105.522 58.5003C115.148 58.5003 118.725 51.2504 118.725 41.0006C118.725 30.6007 114.895 23.5009 105.421 23.5009H94.536V58.5003H105.522ZM70.1978 43.1994H85.7189V38.5997H70.1978V28.0994H87.23V23.4997H65.0566V58.4991H87.9862V53.8994H70.1978V43.1994ZM40.4664 23.4997H35.3268V58.4991H58.5074V53.8994H40.4664V23.4997ZM0.000976562 58.5003V81.5H35.2756V76.3995H5.14057V58.5003H0.000976562ZM0.000976562 0.5V23.4997H5.14057V5.59948H35.2756V0.5H0.000976562Z"
+                fill="#171D26"
             />
         </svg>
     );
