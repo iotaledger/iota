@@ -92,7 +92,6 @@ impl Indexer {
             metrics,
         )
         .await
-        .map_err(|e| IndexerError::UncategorizedError(e))
     }
 
     pub async fn start_reader(

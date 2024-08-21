@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{fetcher::CheckpointDownloadData, interface::Handler};
-use crate::metrics::IndexerMetrics;
 use anyhow::Result;
 use iota_rest_api::CheckpointData;
 use tap::TapFallible;
 use tracing::error;
+
+use super::{fetcher::CheckpointDownloadData, interface::Handler};
+use crate::{errors::IndexerError, metrics::IndexerMetrics};
 
 // Limit indexing parallelism on big checkpoints to avoid OOM,
 // by limiting the total size of batch checkpoints to ~50MB.
@@ -19,7 +20,7 @@ pub async fn run<S>(
     stream: S,
     mut handlers: Vec<Box<dyn Handler>>,
     metrics: IndexerMetrics,
-) -> Result<()>
+) -> Result<(), IndexerError>
 where
     S: futures::Stream<Item = CheckpointDownloadData> + std::marker::Unpin,
 {
@@ -57,17 +58,20 @@ where
 async fn call_handlers_on_checkpoints_batch(
     handlers: &mut Vec<Box<dyn Handler>>,
     cp_batch: &Vec<CheckpointData>,
-) -> Result<()> {
+) -> Result<(), IndexerError> {
     futures::future::try_join_all(
         handlers
-        .iter_mut()
-        .map(|handler| async { handler.process_checkpoints(&cp_batch).await })
-    ).await.tap_err(|e| {
+            .iter_mut()
+            .map(|handler| async { handler.process_checkpoints(&cp_batch).await }),
+    )
+    .await
+    .tap_err(|e| {
         error!(
             "One of checkpoint processing handlers failed: {}",
             e.to_string(),
         )
-    })?;
+    })
+    .map_err(|e| IndexerError::CheckpointProcessingError(e.to_string()))?;
 
     Ok(())
 }

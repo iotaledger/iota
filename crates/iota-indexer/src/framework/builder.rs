@@ -6,7 +6,7 @@ use anyhow::Result;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use super::{fetcher::CheckpointFetcher, Handler};
-use crate::metrics::IndexerMetrics;
+use crate::{errors::IndexerError, metrics::IndexerMetrics};
 
 pub struct IndexerBuilder {
     rest_url: Option<String>,
@@ -53,7 +53,7 @@ impl IndexerBuilder {
         self
     }
 
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(self) -> Result<(), IndexerError> {
         let (downloaded_checkpoint_data_sender, downloaded_checkpoint_data_receiver) =
             mysten_metrics::metered_channel::channel(
                 self.checkpoint_buffer_size,
