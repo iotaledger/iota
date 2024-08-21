@@ -2,18 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import { Link } from '_src/ui/app/shared/Link';
-import { Text } from '_src/ui/app/shared/text';
-import {
-    Spinner16 as SpinnerIcon,
-    ThumbUpStroke32 as ThumbUpIcon,
-    LockUnlocked16 as UnlockedLockIcon,
-} from '@iota/icons';
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-
 import {
     AccountsFormType,
     useAccountsFormContext,
@@ -25,6 +16,8 @@ import {
 } from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '../../hooks/useAccounts';
+import { Button } from '@iota/apps-ui-kit';
+import { CheckmarkFilled } from '@iota/ui-icons';
 
 const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
 
@@ -74,107 +67,105 @@ export function ImportLedgerAccountsPage() {
     const numImportableAccounts = ledgerAccounts?.length;
     const numSelectedAccounts = selectedLedgerAccounts.length;
     const areAllAccountsImported = numImportableAccounts === 0;
-    const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
-    const isSelectAllButtonDisabled = areAllAccountsImported || areAllAccountsSelected;
     const [, setAccountsFormValues] = useAccountsFormContext();
 
-    let summaryCardBody: JSX.Element | null = null;
+    let importLedgerAccountsBody: JSX.Element | null = null;
     if (areLedgerAccountsLoading) {
-        summaryCardBody = (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <SpinnerIcon className="text-steel h-4 w-4 animate-spin" />
-                <Text variant="pBodySmall" color="steel-darker">
-                    Looking for accounts
-                </Text>
-            </div>
-        );
+        importLedgerAccountsBody = <LedgerViewWhenLoading />;
     } else if (areAllAccountsImported) {
-        summaryCardBody = (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <ThumbUpIcon className="text-steel h-8 w-8" />
-                <Text variant="pBodySmall" color="steel-darker">
-                    All Ledger accounts have been imported.
-                </Text>
-            </div>
-        );
+        importLedgerAccountsBody = <LedgerViewWhenAllAccountsImported />;
     } else if (!encounteredDerviceAccountsError) {
         const selectedLedgerAddresses = selectedLedgerAccounts.map(({ address }) => address);
-        summaryCardBody = (
-            <div className="custom-scrollbar -mr-2 mt-1 max-h-[272px] overflow-auto pr-2">
+        importLedgerAccountsBody = (
+            <div className="max-h-[530px] w-full overflow-auto">
                 <LedgerAccountList
                     accounts={ledgerAccounts.map((ledgerAccount) => ({
                         ...ledgerAccount,
                         isSelected: selectedLedgerAddresses.includes(ledgerAccount.address),
                     }))}
                     onAccountClick={onAccountClick}
+                    selectAll={selectAllAccounts}
                 />
             </div>
+        );
+    }
+
+    function selectAllAccounts() {
+        if (ledgerAccounts) {
+            setSelectedLedgerAccounts(ledgerAccounts);
+        }
+    }
+
+    function handleNextClick() {
+        setAccountsFormValues({
+            type: AccountsFormType.ImportLedger,
+            accounts: selectedLedgerAccounts.map(({ address, derivationPath, publicKey }) => ({
+                address,
+                derivationPath,
+                publicKey: publicKey!,
+            })),
+        });
+        navigate(
+            `/accounts/protect-account?${new URLSearchParams({
+                accountsFormType: AccountsFormType.ImportLedger,
+                successRedirect,
+            }).toString()}`,
         );
     }
 
     return (
         <Overlay
             showModal
-            title="Import Accounts"
+            title="Import Wallets"
             closeOverlay={() => {
                 navigate(-1);
             }}
+            titleCentered={false}
         >
-            <div className="flex h-full w-full flex-col gap-5">
-                <div className="border-gray-45 flex h-full max-h-[368px] flex-col rounded-2xl border border-solid bg-white">
-                    <div className="bg-gray-40 rounded-t-2xl py-2.5 text-center">
-                        <Text variant="captionSmall" weight="bold" color="steel-darker" truncate>
-                            {areAllAccountsImported
-                                ? 'Ledger Accounts '
-                                : 'Connect Ledger Accounts'}
-                        </Text>
-                    </div>
-                    <div className="grow px-4 py-2">{summaryCardBody}</div>
-                    <div className="border-gray-40 w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid pb-4 pt-3 text-center">
-                        <div className="ml-auto mr-auto w-fit">
-                            <Link
-                                text="Select All Accounts"
-                                color="heroDark"
-                                weight="medium"
-                                onClick={() => {
-                                    if (ledgerAccounts) {
-                                        setSelectedLedgerAccounts(ledgerAccounts);
-                                    }
-                                }}
-                                disabled={isSelectAllButtonDisabled}
-                            />
-                        </div>
-                    </div>
-                </div>
+            <div className="flex h-full w-full flex-col">
+                {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
                     <Button
-                        variant="primary"
-                        size="tall"
-                        before={<UnlockedLockIcon />}
                         text="Next"
                         disabled={isUnlockButtonDisabled}
-                        onClick={() => {
-                            setAccountsFormValues({
-                                type: AccountsFormType.ImportLedger,
-                                accounts: selectedLedgerAccounts.map(
-                                    ({ address, derivationPath, publicKey }) => ({
-                                        address,
-                                        derivationPath,
-                                        publicKey: publicKey!,
-                                    }),
-                                ),
-                            });
-                            navigate(
-                                `/accounts/protect-account?${new URLSearchParams({
-                                    accountsFormType: AccountsFormType.ImportLedger,
-                                    successRedirect,
-                                }).toString()}`,
-                            );
-                        }}
+                        onClick={handleNextClick}
+                        fullWidth
                     />
                 </div>
             </div>
         </Overlay>
+    );
+}
+
+function LedgerViewWhenLoading() {
+    return (
+        <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5 animate-spin"
+            >
+                <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M5.53285 9.32121C5.00303 10.6003 4.86441 12.0078 5.13451 13.3656C5.4046 14.7235 6.07129 15.9708 7.05026 16.9497C8.02922 17.9287 9.2765 18.5954 10.6344 18.8655C11.9922 19.1356 13.3997 18.997 14.6788 18.4672C15.9579 17.9373 17.0511 17.0401 17.8203 15.889C18.5895 14.7378 19 13.3845 19 12C19 11.4477 19.4477 11 20 11C20.5523 11 21 11.4477 21 12C21 13.78 20.4722 15.5201 19.4832 17.0001C18.4943 18.4802 17.0887 19.6337 15.4442 20.3149C13.7996 20.9961 11.99 21.1743 10.2442 20.8271C8.49836 20.4798 6.89471 19.6226 5.63604 18.364C4.37737 17.1053 3.5202 15.5016 3.17294 13.7558C2.82567 12.01 3.0039 10.2004 3.68509 8.55585C4.36628 6.91131 5.51983 5.50571 6.99987 4.51677C8.47991 3.52784 10.22 3 12 3C12.5523 3 13 3.44772 13 4C13 4.55228 12.5523 5 12 5C10.6155 5 9.26215 5.41054 8.11101 6.17971C6.95987 6.94888 6.06266 8.04213 5.53285 9.32121Z"
+                    fill="#3131FF"
+                />
+            </svg>
+            <span className="text-title-lg text-neutral-10">Looking for Accounts...</span>
+        </div>
+    );
+}
+
+function LedgerViewWhenAllAccountsImported() {
+    return (
+        <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm [&_svg]:h-6 [&_svg]:w-6">
+            <CheckmarkFilled className="text-primary-30" />
+            <span className="text-title-lg text-neutral-10">Imported all Ledge Accounts</span>
+        </div>
     );
 }
