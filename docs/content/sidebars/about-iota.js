@@ -48,6 +48,7 @@ const aboutIota = [
                 label: 'Execution Architecture',
                 items: [
                     'about-iota/execution-architecture/iota-execution',
+                    'about-iota/execution-architecture/execution-layer',
                     'about-iota/execution-architecture/adapter',
                     'about-iota/execution-architecture/natives',
                 ],
