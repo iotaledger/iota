@@ -9,10 +9,8 @@ import {
     useGetAllCoins,
     CoinFormat,
     createTokenTransferTransaction,
-    isIotaNSName,
     useCoinMetadata,
     useFormatCoin,
-    useIotaNSEnabled,
     parseAmount,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
@@ -77,7 +75,6 @@ function useGasBudgetEstimation({
 }) {
     const activeAddress = useActiveAddress();
     const { values, setFieldValue } = useFormikContext<FormValues>();
-    const iotaNSEnabled = useIotaNSEnabled();
 
     const client = useIotaClient();
     const { data: gasBudget } = useQuery({
@@ -97,16 +94,7 @@ function useGasBudgetEstimation({
                 return null;
             }
 
-            let to = values.to;
-            if (iotaNSEnabled && isIotaNSName(values.to)) {
-                const address = await client.resolveNameServiceAddress({
-                    name: values.to,
-                });
-                if (!address) {
-                    throw new Error('IotaNS name not found.');
-                }
-                to = address;
-            }
+            const to = values.to;
 
             const tx = createTokenTransferTransaction({
                 to,
@@ -165,12 +153,10 @@ export function SendTokenForm({
         coinType,
         CoinFormat.FULL,
     );
-    const iotaNSEnabled = useIotaNSEnabled();
 
     const validationSchemaStepOne = useMemo(
-        () =>
-            createValidationSchemaStepOne(client, iotaNSEnabled, coinBalance, symbol, coinDecimals),
-        [client, coinBalance, symbol, coinDecimals, iotaNSEnabled],
+        () => createValidationSchemaStepOne(client, coinBalance, symbol, coinDecimals),
+        [client, coinBalance, symbol, coinDecimals],
     );
 
     // remove the comma from the token balance
@@ -182,16 +168,6 @@ export function SendTokenForm({
         const coinsIDs = [...coins]
             .sort((a, b) => Number(b.balance) - Number(a.balance))
             .map(({ coinObjectId }) => coinObjectId);
-
-        if (iotaNSEnabled && isIotaNSName(to)) {
-            const address = await client.resolveNameServiceAddress({
-                name: to,
-            });
-            if (!address) {
-                throw new Error('IotaNS name not found.');
-            }
-            to = address;
-        }
 
         const data = {
             to,

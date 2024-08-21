@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaClient } from '@iota/iota-sdk/client';
-import { isIotaNSName } from '../../hooks';
 import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 import * as Yup from 'yup';
 import { ValidationError } from 'yup';
 
 export { ValidationError };
 
-export function createIotaAddressValidation(client?: IotaClient, iotaNSEnabled?: boolean) {
+export function createIotaAddressValidation(client?: IotaClient) {
     const resolveCache = new Map<string, boolean>();
 
     return Yup.string()
@@ -18,7 +17,7 @@ export function createIotaAddressValidation(client?: IotaClient, iotaNSEnabled?:
         .trim()
         .required()
         .test('is-iota-address', 'Invalid address. Please check again.', async (value) => {
-            if (client && iotaNSEnabled && isIotaNSName(value)) {
+            if (client) {
                 if (resolveCache.has(value)) {
                     return resolveCache.get(value)!;
                 }

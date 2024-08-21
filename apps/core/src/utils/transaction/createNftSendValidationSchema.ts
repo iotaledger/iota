@@ -11,10 +11,9 @@ export function createNftSendValidationSchema(
     senderAddress: string,
     objectId: string,
     client?: IotaClient,
-    iotaNSEnabled?: boolean,
 ) {
     return Yup.object({
-        to: createIotaAddressValidation(client, iotaNSEnabled)
+        to: createIotaAddressValidation(client)
             .test(
                 'sender-address',
                 'NFT is owned by this address',

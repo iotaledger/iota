@@ -7,7 +7,6 @@ export * from './components/ConnectButton.js';
 export * from './components/IotaClientProvider.js';
 export * from './components/WalletProvider.js';
 export * from './hooks/networkConfig.js';
-export * from './hooks/useResolveIotaNSNames.js';
 export * from './hooks/useIotaClient.js';
 export * from './hooks/useIotaClientInfiniteQuery.js';
 export * from './hooks/useIotaClientMutation.js';

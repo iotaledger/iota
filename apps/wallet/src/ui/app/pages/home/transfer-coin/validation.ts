@@ -9,11 +9,10 @@ import * as Yup from 'yup';
 
 export function createValidationSchemaStepOne(
     client: IotaClient,
-    iotaNSEnabled: boolean,
     ...args: Parameters<typeof createTokenValidation>
 ) {
     return Yup.object({
-        to: createIotaAddressValidation(client, iotaNSEnabled),
+        to: createIotaAddressValidation(client),
         amount: createTokenValidation(...args),
     });
 }
