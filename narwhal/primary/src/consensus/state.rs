@@ -14,7 +14,7 @@ use std::{
 
 use config::{AuthorityIdentifier, Committee};
 use fastcrypto::hash::Hash;
-use mysten_metrics::{metered_channel, spawn_logged_monitored_task};
+use iota_metrics::{metered_channel, spawn_logged_monitored_task};
 use storage::{CertificateStore, ConsensusStore};
 use tokio::{sync::watch, task::JoinHandle};
 use tracing::{debug, info, instrument};

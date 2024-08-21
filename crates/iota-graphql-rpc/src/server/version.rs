@@ -146,7 +146,7 @@ mod tests {
     use axum::{body::Body, middleware, routing::get, Router};
     use expect_test::expect;
     use http_body_util::BodyExt;
-    use mysten_metrics;
+    use iota_metrics;
     use tokio_util::sync::CancellationToken;
     use tower::ServiceExt;
 
@@ -159,7 +159,7 @@ mod tests {
 
     fn metrics() -> Metrics {
         let binding_address: SocketAddr = "0.0.0.0:9185".parse().unwrap();
-        let registry = mysten_metrics::start_prometheus_server(binding_address).default_registry();
+        let registry = iota_metrics::start_prometheus_server(binding_address).default_registry();
         Metrics::new(&registry)
     }
     fn service() -> Router {

@@ -5,8 +5,8 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{routing::post, Extension, Router};
+use iota_metrics::spawn_monitored_task;
 use iota_sdk::IotaClient;
-use mysten_metrics::spawn_monitored_task;
 use once_cell::sync::Lazy;
 use tokio::task::JoinHandle;
 use tracing::info;

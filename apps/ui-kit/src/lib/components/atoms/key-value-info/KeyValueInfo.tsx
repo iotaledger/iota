@@ -43,7 +43,7 @@ export function KeyValueInfo({
 }: KeyValueProps): React.JSX.Element {
     return (
         <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
-            <div className="flex flex-row items-center gap-x-0.5">
+            <div className="flex w-full flex-row items-center gap-x-0.5">
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
                 {showInfoIcon && <Info className="pl-xxxs text-neutral-60" />}
             </div>

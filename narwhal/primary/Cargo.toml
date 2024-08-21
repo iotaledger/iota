@@ -31,15 +31,15 @@ tracing.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 fastcrypto.workspace = true
 iota-macros.workspace = true
+iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-mysten-network.workspace = true
 network = { path = "../network", package = "narwhal-network" }
 storage = { path = "../storage", package = "narwhal-storage" }
 store = { path = "../../crates/typed-store", package = "typed-store" }
 types = { path = "../types", package = "narwhal-types" }
 
-mysten-common.workspace = true
-mysten-metrics.workspace = true
+iota-common.workspace = true
+iota-metrics.workspace = true
 
 anemo.workspace = true
 anemo-tower.workspace = true

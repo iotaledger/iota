@@ -5,7 +5,7 @@
 use std::{collections::BTreeSet, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use mysten_metrics::{metered_channel, monitored_scope, spawn_logged_monitored_task};
+use iota_metrics::{metered_channel, monitored_scope, spawn_logged_monitored_task};
 use thiserror::Error;
 use tokio::sync::{oneshot, oneshot::error::RecvError};
 use tracing::warn;
