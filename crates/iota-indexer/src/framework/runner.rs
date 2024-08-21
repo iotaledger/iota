@@ -56,13 +56,13 @@ where
 }
 
 async fn call_handlers_on_checkpoints_batch(
-    handlers: &mut Vec<Box<dyn Handler>>,
-    cp_batch: &Vec<CheckpointData>,
+    handlers: &mut [Box<dyn Handler>],
+    cp_batch: &[CheckpointData],
 ) -> Result<(), IndexerError> {
     futures::future::try_join_all(
         handlers
             .iter_mut()
-            .map(|handler| async { handler.process_checkpoints(&cp_batch).await }),
+            .map(|handler| async { handler.process_checkpoints(cp_batch).await }),
     )
     .await
     .tap_err(|e| {
