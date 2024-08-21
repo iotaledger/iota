@@ -4,6 +4,7 @@
 import React from 'react';
 import { VisualAssetType } from './visual-asset-card.enums';
 import { ButtonUnstyled } from '../button';
+import { MoreHoriz } from '@iota/ui-icons';
 
 export interface VisualAssetCardProps {
     /**
@@ -42,7 +43,7 @@ export function VisualAssetCard({
     altText,
     onIconClick,
     onClick,
-    icon,
+    icon = <MoreHoriz />,
     assetTitle,
 }: VisualAssetCardProps): React.JSX.Element {
     const handleActionCardBodyClick = (event: React.MouseEvent<HTMLButtonElement>) => {
