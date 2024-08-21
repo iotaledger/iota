@@ -11,9 +11,9 @@ config = { path = "../config", package = "narwhal-config" }
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
+iota-common.workspace = true
 iota-macros.workspace = true
 lru.workspace = true
-mysten-common.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }

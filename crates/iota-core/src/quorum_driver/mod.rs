@@ -15,6 +15,10 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
+use iota_common::sync::notify_read::{NotifyRead, Registration};
+use iota_metrics::{
+    spawn_monitored_task, GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
+};
 use iota_types::{
     base_types::{AuthorityName, ObjectRef, TransactionDigest},
     committee::{Committee, EpochId, StakeUnit},
@@ -24,10 +28,6 @@ use iota_types::{
         QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::{CertifiedTransaction, Transaction},
-};
-use mysten_common::sync::notify_read::{NotifyRead, Registration};
-use mysten_metrics::{
-    spawn_monitored_task, GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
 };
 use tap::TapFallible;
 use tokio::{

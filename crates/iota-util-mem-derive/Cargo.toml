@@ -1,5 +1,5 @@
 [package]
-name = "mysten-util-mem-derive"
+name = "iota-util-mem-derive"
 version = "0.1.0"
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
@@ -16,4 +16,4 @@ proc-macro = true
 [dependencies]
 proc-macro2.workspace = true
 syn.workspace = true
-synstructure.workspace = true
+synstructure = "0.12"
