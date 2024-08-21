@@ -25,7 +25,7 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use mysten_common::sync::notify_read::NotifyRead;
+use iota_common::sync::notify_read::NotifyRead;
 use prometheus::Registry;
 use tap::TapFallible;
 use tracing::instrument;

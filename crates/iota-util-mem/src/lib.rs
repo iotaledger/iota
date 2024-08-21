@@ -48,7 +48,7 @@ pub use malloc_size::{
     MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps, MallocUnconditionalShallowSizeOf,
     MallocUnconditionalSizeOf,
 };
-pub use mysten_util_mem_derive::*;
+pub use iota_util_mem_derive::*;
 
 /// Heap size of structure.
 ///

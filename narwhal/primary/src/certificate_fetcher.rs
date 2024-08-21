@@ -13,7 +13,7 @@ use anemo::Request;
 use config::{AuthorityIdentifier, Committee};
 use crypto::NetworkPublicKey;
 use futures::{stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{
+use iota_metrics::{
     metered_channel::Receiver, monitored_future, monitored_scope, spawn_logged_monitored_task,
 };
 use network::PrimaryToPrimaryRpc;

@@ -20,12 +20,12 @@ use fastcrypto::hash::Hash as _;
 use futures::{stream::FuturesOrdered, StreamExt};
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
-use mysten_common::sync::notify_once::NotifyOnce;
-use mysten_metrics::{
+use iota_common::sync::notify_once::NotifyOnce;
+use iota_metrics::{
     metered_channel::{channel_with_total, Sender},
     monitored_scope, spawn_logged_monitored_task,
 };
-use mysten_network::anemo_ext::{NetworkExt, WaitingPeer};
+use iota_network_stack::anemo_ext::{NetworkExt, WaitingPeer};
 use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
 use parking_lot::Mutex;
 use storage::{CertificateStore, PayloadStore};

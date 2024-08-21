@@ -40,7 +40,7 @@ iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 telemetry-subscribers.workspace = true
 
 move-binary-format.workspace = true

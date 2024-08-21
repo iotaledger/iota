@@ -13,7 +13,7 @@ use iota_types::{
     base_types::ConciseableName,
     committee::{CommitteeTrait, StakeUnit},
 };
-use mysten_metrics::monitored_future;
+use iota_metrics::monitored_future;
 use tokio::time::timeout;
 use tracing::instrument::Instrument;
 

@@ -23,7 +23,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use tokio::{
     sync::watch,
     time::{Duration, Instant},

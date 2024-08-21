@@ -103,8 +103,8 @@ use iota_types::{
     messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
 };
-use mysten_metrics::{spawn_monitored_task, RegistryService};
-use mysten_network::server::ServerBuilder;
+use iota_metrics::{spawn_monitored_task, RegistryService};
+use iota_network_stack::server::ServerBuilder;
 use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };
@@ -422,7 +422,7 @@ impl IotaNode {
 
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
-        mysten_metrics::init_metrics(&prometheus_registry);
+        iota_metrics::init_metrics(&prometheus_registry);
 
         let genesis = config.genesis()?;
 
@@ -1411,7 +1411,7 @@ impl IotaNode {
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
         );
 
-        let mut server_conf = mysten_network::config::Config::new();
+        let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
         server_conf.load_shed = config.grpc_load_shed;
         let mut server_builder =

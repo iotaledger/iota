@@ -11,7 +11,7 @@ use std::{
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 

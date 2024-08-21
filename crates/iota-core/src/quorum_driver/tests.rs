@@ -12,7 +12,7 @@ use iota_types::{
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse, QuorumDriverResult},
     transaction::Transaction,
 };
-use mysten_common::sync::notify_read::{NotifyRead, Registration};
+use iota_common::sync::notify_read::{NotifyRead, Registration};
 use tokio::time::timeout;
 
 use crate::{

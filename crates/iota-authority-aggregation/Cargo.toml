@@ -9,6 +9,6 @@ publish = false
 [dependencies]
 futures.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 tokio.workspace = true
 tracing.workspace = true

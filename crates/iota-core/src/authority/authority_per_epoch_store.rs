@@ -61,8 +61,8 @@ use iota_types::{
 };
 use itertools::{izip, Itertools};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use mysten_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
-use mysten_metrics::monitored_scope;
+use iota_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
+use iota_metrics::monitored_scope;
 use narwhal_executor::ExecutionIndices;
 use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};

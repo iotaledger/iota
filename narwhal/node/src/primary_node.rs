@@ -10,7 +10,7 @@ use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::{get_restored_consensus_output, ExecutionState, Executor, SubscriberResult};
 use fastcrypto::traits::{KeyPair as _, VerifyingKey};
 use iota_protocol_config::ProtocolConfig;
-use mysten_metrics::{metered_channel, RegistryID, RegistryService};
+use iota_metrics::{metered_channel, RegistryID, RegistryService};
 use network::client::NetworkClient;
 use primary::{
     consensus::{

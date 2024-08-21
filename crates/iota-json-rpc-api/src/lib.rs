@@ -19,7 +19,7 @@ use jsonrpsee::{
     },
 };
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
-use mysten_metrics::histogram::Histogram;
+use iota_metrics::histogram::Histogram;
 use once_cell::sync::Lazy;
 use prometheus::{register_int_counter_with_registry, IntCounter};
 pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};

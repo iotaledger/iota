@@ -12,7 +12,7 @@ use iota_types::{
     crypto::{AuthorityKeyPair, NetworkKeyPair},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use narwhal_config::{Parameters, WorkerId};
 use narwhal_network::client::NetworkClient;
 use narwhal_node::{

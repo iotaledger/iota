@@ -132,11 +132,11 @@ members = [
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
-  "crates/mysten-common",
-  "crates/mysten-metrics",
-  "crates/mysten-network",
-  "crates/mysten-util-mem",
-  "crates/mysten-util-mem-derive",
+  "crates/iota-common",
+  "crates/iota-metrics",
+  "crates/iota-network-stack",
+  "crates/iota-util-mem",
+  "crates/iota-util-mem-derive",
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
   "crates/simulacrum",
@@ -418,11 +418,11 @@ iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner
 iota-types = { path = "crates/iota-types" }
 iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
-mysten-common = { path = "crates/mysten-common" }
-mysten-metrics = { path = "crates/mysten-metrics" }
-mysten-network = { path = "crates/mysten-network" }
-mysten-util-mem = { path = "crates/mysten-util-mem" }
-mysten-util-mem-derive = { path = "crates/mysten-util-mem-derive" }
+iota-common = { path = "crates/iota-common" }
+iota-metrics = { path = "crates/iota-metrics" }
+iota-network-stack = { path = "crates/iota-network-stack" }
+iota-util-mem = { path = "crates/iota-util-mem" }
+iota-util-mem-derive = { path = "crates/iota-util-mem-derive" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }

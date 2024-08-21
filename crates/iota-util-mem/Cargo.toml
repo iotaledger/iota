@@ -1,5 +1,5 @@
 [package]
-name = "mysten-util-mem"
+name = "iota-util-mem"
 version = "0.11.0"
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
@@ -18,7 +18,7 @@ hashbrown = { version = "0.14", optional = true }
 impl-trait-for-tuples = "0.2"
 indexmap.workspace = true
 lru = { workspace = true, optional = true }
-mysten-util-mem-derive.workspace = true
+iota-util-mem-derive.workspace = true
 once_cell.workspace = true
 parking_lot = { workspace = true, optional = true }
 roaring.workspace = true

@@ -31,7 +31,7 @@ tokio = { workspace = true, features = ["full"] }
 iota-config = { path = "../iota-config" }
 iota-swarm-config = { path = "../iota-swarm-config" }
 iota-types = { path = "../iota-types" }
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 narwhal-config.workspace = true
 
 [dev-dependencies]

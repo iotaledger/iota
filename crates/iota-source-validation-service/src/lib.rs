@@ -42,7 +42,7 @@ use jsonrpsee::{
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::oneshot::Sender};
@@ -700,7 +700,7 @@ pub fn start_prometheus_server(listener: TcpListener) -> RegistryService {
     let registry_service = RegistryService::new(registry);
 
     let app = Router::new()
-        .route(METRICS_ROUTE, get(mysten_metrics::metrics))
+        .route(METRICS_ROUTE, get(iota_metrics::metrics))
         .layer(Extension(registry_service.clone()));
 
     tokio::spawn(async move {

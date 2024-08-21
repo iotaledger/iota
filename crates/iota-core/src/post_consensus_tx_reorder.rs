@@ -4,7 +4,7 @@
 
 use iota_protocol_config::ConsensusTransactionOrdering;
 use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 
 use crate::consensus_handler::{
     SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,

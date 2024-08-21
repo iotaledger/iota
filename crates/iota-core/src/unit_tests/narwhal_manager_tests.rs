@@ -13,7 +13,7 @@ use iota_types::{
     },
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
 };
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use narwhal_config::{Epoch, WorkerCache};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use prometheus::Registry;
@@ -44,7 +44,7 @@ async fn send_transactions(
         .worker(name, /* id */ &0)
         .expect("Our key or worker id is not in the worker cache")
         .transactions;
-    let config = mysten_network::config::Config::new();
+    let config = iota_network_stack::config::Config::new();
     let channel = config.connect_lazy(&target).unwrap();
     let mut client = TransactionsClient::new(channel);
     // Make a transaction to submit forever.

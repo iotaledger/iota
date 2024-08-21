@@ -1,5 +1,5 @@
 [package]
-name = "mysten-network"
+name = "iota-network-stack"
 version = "0.2.0"
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"

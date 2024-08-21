@@ -53,7 +53,7 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

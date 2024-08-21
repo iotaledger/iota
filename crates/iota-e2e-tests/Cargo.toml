@@ -55,5 +55,5 @@ iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-tool.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 shared-crypto.workspace = true

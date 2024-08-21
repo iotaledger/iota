@@ -22,8 +22,8 @@ use iota_types::{
     },
     transaction::VerifiedTransaction,
 };
-use mysten_common::sync::notify_read::NotifyRead;
-use mysten_metrics::{
+use iota_common::sync::notify_read::NotifyRead;
+use iota_metrics::{
     histogram::{Histogram, HistogramVec},
     spawn_logged_monitored_task, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX,
     TX_TYPE_SINGLE_WRITER_TX,

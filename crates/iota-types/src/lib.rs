@@ -19,7 +19,7 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag},
 };
 pub use move_core_types::{identifier::Identifier, language_storage::TypeTag};
-pub use mysten_network::multiaddr;
+pub use iota_network_stack::multiaddr;
 use object::OBJECT_START_VERSION;
 
 use crate::{

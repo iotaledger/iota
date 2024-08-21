@@ -22,7 +22,7 @@ use iota_types::{
     zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::DEFAULT_JWK_BYTES,
 };
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use rand::{rngs::StdRng, SeedableRng};
 use shared_crypto::intent::{Intent, IntentMessage};
 

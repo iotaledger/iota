@@ -32,7 +32,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::{core::RpcResult, RpcModule};
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use tracing::{info, instrument};
 
 use crate::{

@@ -24,7 +24,7 @@ use iota_types::{
     },
     transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
 };
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 
 use crate::{
     authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},

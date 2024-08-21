@@ -42,7 +42,7 @@ use iota_types::{
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
 use itertools::izip;
-use mysten_metrics::{spawn_monitored_task, MonitoredFutureExt};
+use iota_metrics::{spawn_monitored_task, MonitoredFutureExt};
 use prometheus::Registry;
 use tap::{TapFallible, TapOptional};
 use tokio::{

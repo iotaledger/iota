@@ -14,7 +14,7 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::{RegistryID, RegistryService};
 use narwhal_executor::ExecutionState;
 use prometheus::Registry;
 use tokio::sync::{mpsc::unbounded_channel, Mutex};

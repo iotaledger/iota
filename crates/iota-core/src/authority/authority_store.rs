@@ -25,7 +25,7 @@ use iota_types::{
 };
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
-use mysten_common::sync::notify_read::NotifyRead;
+use iota_common::sync::notify_read::NotifyRead;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{RwLockReadGuard, RwLockWriteGuard},

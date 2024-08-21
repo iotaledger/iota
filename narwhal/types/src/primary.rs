@@ -23,7 +23,7 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
-use mysten_util_mem::MallocSizeOf;
+use iota_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
 use roaring::RoaringBitmap;

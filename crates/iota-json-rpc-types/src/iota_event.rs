@@ -17,7 +17,7 @@ use json_to_table::json_to_table;
 use move_core_types::{
     annotated_value::MoveStructLayout, identifier::Identifier, language_storage::StructTag,
 };
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

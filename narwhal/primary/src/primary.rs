@@ -33,11 +33,11 @@ use fastcrypto::{
     traits::{KeyPair as _, ToFromBytes},
 };
 use iota_protocol_config::ProtocolConfig;
-use mysten_metrics::{
+use iota_metrics::{
     metered_channel::{channel_with_total, Receiver, Sender},
     monitored_scope,
 };
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use network::{
     client::NetworkClient,
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},

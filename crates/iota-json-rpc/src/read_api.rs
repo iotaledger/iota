@@ -47,7 +47,7 @@ use move_core_types::{
     annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
     language_storage::StructTag,
 };
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 

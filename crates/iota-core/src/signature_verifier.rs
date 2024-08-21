@@ -23,7 +23,7 @@ use iota_types::{
 };
 use itertools::izip;
 use lru::LruCache;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use parking_lot::{Mutex, MutexGuard, RwLock};
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use shared_crypto::intent::Intent;

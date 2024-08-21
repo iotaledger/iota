@@ -72,7 +72,7 @@ use iota_types::{
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use moka::sync::Cache as MokaCache;
-use mysten_common::sync::notify_read::NotifyRead;
+use iota_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use prometheus::Registry;
 use tracing::{info, instrument};

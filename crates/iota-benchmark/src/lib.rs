@@ -49,7 +49,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, CertifiedTransaction, ObjectArg, Transaction},
 };
-use mysten_metrics::GaugeGuard;
+use iota_metrics::GaugeGuard;
 use prometheus::Registry;
 use rand::Rng;
 use roaring::RoaringBitmap;

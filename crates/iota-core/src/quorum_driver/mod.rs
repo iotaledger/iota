@@ -25,8 +25,8 @@ use iota_types::{
     },
     transaction::{CertifiedTransaction, Transaction},
 };
-use mysten_common::sync::notify_read::{NotifyRead, Registration};
-use mysten_metrics::{
+use iota_common::sync::notify_read::{NotifyRead, Registration};
+use iota_metrics::{
     spawn_monitored_task, GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
 };
 use tap::TapFallible;

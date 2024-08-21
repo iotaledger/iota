@@ -27,7 +27,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use shared_crypto::intent::Intent;
 use tap::tap::TapFallible;

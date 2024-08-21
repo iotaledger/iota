@@ -19,8 +19,8 @@ use iota_types::{
     committee::EpochId,
     crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
 };
-use mysten_metrics::spawn_monitored_task;
-use mysten_network::anemo_ext::NetworkExt;
+use iota_metrics::spawn_monitored_task;
+use iota_network_stack::anemo_ext::NetworkExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, warn};

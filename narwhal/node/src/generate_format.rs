@@ -12,7 +12,7 @@ use fastcrypto::{
     traits::{KeyPair as _, Signer},
 };
 use move_bytecode_utils::layout::YamlRegistry;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use rand::{prelude::StdRng, SeedableRng};
 use serde_reflection::{Result, Samples, Tracer, TracerConfig};
 use types::{

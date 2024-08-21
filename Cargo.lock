@@ -2564,7 +2564,7 @@ version = "0.1.0"
 dependencies = [
  "fastcrypto",
  "insta",
- "mysten-network",
+ "iota-network-stack",
  "rand",
  "serde",
  "shared-crypto",
@@ -2591,8 +2591,8 @@ dependencies = [
  "futures",
  "iota-protocol-config",
  "mockall",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "parking_lot 0.12.3",
  "prometheus",
  "prost 0.13.1",
@@ -5253,7 +5253,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
+ "iota-metrics",
  "num_enum",
  "object_store",
  "parquet",
@@ -5323,7 +5323,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "iota-types",
- "mysten-metrics",
+ "iota-metrics",
  "tokio",
  "tracing",
 ]
@@ -5346,7 +5346,7 @@ dependencies = [
  "iota-config",
  "iota-swarm-config",
  "iota-types",
- "mysten-metrics",
+ "iota-metrics",
  "narwhal-config",
  "prettytable-rs",
  "prometheus-parse",
@@ -5391,7 +5391,7 @@ dependencies = [
  "iota-types",
  "itertools 0.13.0",
  "move-core-types",
- "mysten-metrics",
+ "iota-metrics",
  "narwhal-node",
  "prometheus",
  "rand",
@@ -5529,9 +5529,9 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-symbol-pool",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
+ "iota-common",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -5649,7 +5649,7 @@ dependencies = [
  "iota-data-ingestion-core",
  "iota-storage",
  "iota-types",
- "mysten-metrics",
+ "iota-metrics",
  "notify",
  "object_store",
  "prometheus",
@@ -5674,7 +5674,7 @@ dependencies = [
  "futures",
  "iota-storage",
  "iota-types",
- "mysten-metrics",
+ "iota-metrics",
  "notify",
  "object_store",
  "prometheus",
@@ -5727,7 +5727,7 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-package",
- "mysten-metrics",
+ "iota-metrics",
  "prometheus",
  "rand",
  "serde",
@@ -5800,7 +5800,7 @@ dependencies = [
  "iota-keys",
  "iota-sdk 0.1.4",
  "iota-types",
- "mysten-metrics",
+ "iota-metrics",
  "parking_lot 0.12.3",
  "prometheus",
  "rocksdb",
@@ -5985,8 +5985,8 @@ dependencies = [
  "move-core-types",
  "move-disassembler",
  "move-ir-types",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "once_cell",
  "prometheus",
  "rand",
@@ -6066,7 +6066,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
+ "iota-metrics",
  "prometheus",
  "regex",
  "serde",
@@ -6134,7 +6134,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-package",
- "mysten-metrics",
+ "iota-metrics",
  "once_cell",
  "prometheus",
  "serde",
@@ -6163,7 +6163,7 @@ dependencies = [
  "iota-open-rpc-macros",
  "iota-types",
  "jsonrpsee",
- "mysten-metrics",
+ "iota-metrics",
  "once_cell",
  "prometheus",
  "tap",
@@ -6225,7 +6225,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
+ "iota-metrics",
  "schemars",
  "serde",
  "serde_json",
@@ -6332,7 +6332,7 @@ dependencies = [
  "move-prover",
  "move-unit-test",
  "move-vm-runtime",
- "mysten-metrics",
+ "iota-metrics",
  "once_cell",
  "prometheus",
  "rand",
@@ -6427,8 +6427,8 @@ dependencies = [
  "iota-storage",
  "iota-swarm-config",
  "iota-types",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "prometheus",
  "rand",
  "serde",
@@ -6472,9 +6472,9 @@ dependencies = [
  "iota-storage",
  "iota-types",
  "move-vm-profiler",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
+ "iota-common",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-network",
  "narwhal-worker",
  "prometheus",
@@ -6667,7 +6667,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
- "mysten-metrics",
+ "iota-metrics",
  "once_cell",
  "rand",
  "reqwest 0.12.5",
@@ -6924,7 +6924,7 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-symbol-pool",
- "mysten-metrics",
+ "iota-metrics",
  "prometheus",
  "reqwest 0.12.5",
  "serde",
@@ -6972,7 +6972,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
+ "iota-metrics",
  "num_enum",
  "object_store",
  "once_cell",
@@ -7035,8 +7035,8 @@ dependencies = [
  "iota-simulator",
  "iota-swarm-config",
  "iota-types",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "prometheus",
  "rand",
  "tap",
@@ -7268,8 +7268,8 @@ dependencies = [
  "move-vm-profiler",
  "move-vm-test-utils",
  "move-vm-types",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-config",
  "narwhal-crypto",
  "num-bigint 0.4.6",
@@ -8978,7 +8978,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
-name = "mysten-common"
+name = "iota-common"
 version = "0.1.0"
 dependencies = [
  "futures",
@@ -8987,7 +8987,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mysten-metrics"
+name = "iota-metrics"
 version = "0.7.0"
 dependencies = [
  "async-trait",
@@ -9006,7 +9006,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mysten-network"
+name = "iota-network-stack"
 version = "0.2.0"
 dependencies = [
  "anemo",
@@ -9030,7 +9030,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mysten-util-mem"
+name = "iota-util-mem"
 version = "0.11.0"
 dependencies = [
  "cfg-if",
@@ -9041,7 +9041,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "indexmap 2.3.0",
  "lru",
- "mysten-util-mem-derive",
+ "iota-util-mem-derive",
  "once_cell",
  "parking_lot 0.12.3",
  "roaring",
@@ -9049,7 +9049,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mysten-util-mem-derive"
+name = "iota-util-mem-derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
@@ -9083,8 +9083,8 @@ dependencies = [
  "fastcrypto",
  "insta",
  "match_opt",
- "mysten-network",
- "mysten-util-mem",
+ "iota-network-stack",
+ "iota-util-mem",
  "narwhal-crypto",
  "narwhal-test-utils",
  "rand",
@@ -9121,7 +9121,7 @@ dependencies = [
  "indexmap 2.3.0",
  "iota-protocol-config",
  "mockall",
- "mysten-metrics",
+ "iota-metrics",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-network",
@@ -9157,8 +9157,8 @@ dependencies = [
  "dashmap 6.0.1",
  "futures",
  "iota-macros",
- "mysten-common",
- "mysten-metrics",
+ "iota-common",
+ "iota-metrics",
  "narwhal-crypto",
  "narwhal-types",
  "parking_lot 0.12.3",
@@ -9188,8 +9188,8 @@ dependencies = [
  "iota-protocol-config",
  "iota-types",
  "move-bytecode-utils",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -9239,9 +9239,9 @@ dependencies = [
  "iota-protocol-config",
  "itertools 0.13.0",
  "mockall",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
+ "iota-common",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -9277,7 +9277,7 @@ dependencies = [
  "futures",
  "iota-macros",
  "lru",
- "mysten-common",
+ "iota-common",
  "narwhal-config",
  "narwhal-test-utils",
  "narwhal-types",
@@ -9300,8 +9300,8 @@ dependencies = [
  "indexmap 2.3.0",
  "iota-protocol-config",
  "itertools 0.13.0",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -9339,10 +9339,10 @@ dependencies = [
  "futures",
  "indexmap 2.3.0",
  "mockall",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
- "mysten-util-mem",
+ "iota-common",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-util-mem",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-test-utils",
@@ -9383,8 +9383,8 @@ dependencies = [
  "futures",
  "governor",
  "itertools 0.13.0",
- "mysten-metrics",
- "mysten-network",
+ "iota-metrics",
+ "iota-network-stack",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-network",

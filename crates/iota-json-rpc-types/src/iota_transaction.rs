@@ -41,7 +41,7 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

@@ -20,7 +20,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use once_cell::sync::Lazy;
 use prometheus::{
     register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,

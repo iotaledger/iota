@@ -30,7 +30,7 @@ move-core-types.workspace = true
 
 iota-json.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }

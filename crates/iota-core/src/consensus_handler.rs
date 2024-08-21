@@ -22,7 +22,7 @@ use iota_types::{
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use narwhal_config::Committee;
 use narwhal_executor::{ExecutionIndices, ExecutionState};
 use narwhal_types::ConsensusOutput;

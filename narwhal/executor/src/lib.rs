@@ -14,7 +14,7 @@ use config::{AuthorityIdentifier, Committee, WorkerCache};
 pub use errors::{SubscriberError, SubscriberResult};
 use iota_protocol_config::ProtocolConfig;
 use mockall::automock;
-use mysten_metrics::metered_channel;
+use iota_metrics::metered_channel;
 use network::client::NetworkClient;
 use prometheus::Registry;
 pub use state::ExecutionIndices;

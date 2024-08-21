@@ -23,8 +23,8 @@ crypto = { path = "../crypto", package = "narwhal-crypto" }
 executor = { path = "../executor", package = "narwhal-executor" }
 fastcrypto.workspace = true
 iota-protocol-config.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 network = { path = "../network", package = "narwhal-network" }
 node = { path = "../node", package = "narwhal-node" }
 primary = { path = "../primary", package = "narwhal-primary" }

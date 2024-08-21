@@ -105,7 +105,7 @@ use iota_types::{
 use itertools::Itertools;
 use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
-use mysten_metrics::{
+use iota_metrics::{
     monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
 };
 use once_cell::sync::OnceCell;
@@ -1440,7 +1440,7 @@ impl AuthorityState {
         _execution_guard: ExecutionLockReadGuard<'_>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
-        let _scope: Option<mysten_metrics::MonitoredScopeGuard> =
+        let _scope: Option<iota_metrics::MonitoredScopeGuard> =
             monitored_scope("Execution::commit_certificate");
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 

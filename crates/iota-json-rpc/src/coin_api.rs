@@ -25,7 +25,7 @@ use jsonrpsee::{core::RpcResult, RpcModule};
 #[cfg(test)]
 use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use tap::TapFallible;
 use tracing::{debug, instrument};
 

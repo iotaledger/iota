@@ -7,7 +7,7 @@ use std::sync::Arc;
 use consensus_core::{TransactionVerifier, ValidationError};
 use eyre::WrapErr;
 use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use narwhal_types::BatchAPI;
 use narwhal_worker::TransactionValidator;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};

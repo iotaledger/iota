@@ -23,8 +23,8 @@ iota-node.workspace = true
 iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(msim)'.dependencies]

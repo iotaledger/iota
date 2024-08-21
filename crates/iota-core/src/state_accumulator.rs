@@ -21,7 +21,7 @@ use iota_types::{
     storage::{ObjectKey, ObjectStore},
 };
 use itertools::Itertools;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use serde::Serialize;
 use tracing::debug;
 

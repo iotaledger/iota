@@ -31,7 +31,7 @@ use iota_types::{
     },
 };
 use jsonrpsee::{core::RpcResult, RpcModule};
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tracing::instrument;
 
