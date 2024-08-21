@@ -26,11 +26,10 @@ tokio = { workspace = true, features = ["full"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
-ttl_cache.workspace = true
+ttl_cache = "0.5"
 uuid.workspace = true
 
 async-recursion.workspace = true
-iota.workspace = true
 iota-config.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
@@ -44,6 +43,8 @@ typed-store-derive.workspace = true
 
 [dev-dependencies]
 test-cluster.workspace = true
+
+iota.workspace = true
 
 [[bin]]
 name = "iota-faucet"

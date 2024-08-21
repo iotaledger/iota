@@ -44,7 +44,10 @@ mod malloc_size;
 pub mod external_impls;
 
 pub use allocators::MallocSizeOfExt;
-pub use malloc_size::{MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps};
+pub use malloc_size::{
+    MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps, MallocUnconditionalShallowSizeOf,
+    MallocUnconditionalSizeOf,
+};
 pub use mysten_util_mem_derive::*;
 
 /// Heap size of structure.

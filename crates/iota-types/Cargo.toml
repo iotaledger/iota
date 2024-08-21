@@ -14,35 +14,37 @@ bincode.workspace = true
 byteorder.workspace = true
 consensus-config.workspace = true
 derivative.workspace = true
+derive_more = "0.99"
 enum_dispatch.workspace = true
 eyre.workspace = true
+fastcrypto = { workspace = true, features = ["copy_key"] }
+fastcrypto-tbls.workspace = true
+fastcrypto-zkp.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
-iota-stardust-sdk = { version = "1.1.4", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
+iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 itertools.workspace = true
-move-binary-format.workspace = true
-move-bytecode-utils.workspace = true
-move-command-line-common.workspace = true
-move-core-types.workspace = true
-move-disassembler.workspace = true
-move-ir-types.workspace = true
-move-vm-profiler.workspace = true
-move-vm-test-utils.workspace = true
-move-vm-types.workspace = true
-num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
+mysten-metrics.workspace = true
+mysten-network.workspace = true
+narwhal-config.workspace = true
+narwhal-crypto.workspace = true
+num-bigint = { workspace = true, features = ["rand"] }
 num-rational = "0.4"
-num-traits = "0.2.18"
+num-traits = "0.2"
 once_cell.workspace = true
-packable = { version = "0.8.3", default-features = false, features = ["io"] }
+packable = { version = "0.8", default-features = false, features = ["io"] }
 prometheus.workspace = true
+proptest.workspace = true
+proptest-derive = { workspace = true, optional = true }
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
 serde.workspace = true
-serde-name.workspace = true
+serde-name = "0.2"
 serde_json.workspace = true
 serde_with.workspace = true
+shared-crypto.workspace = true
 signature.workspace = true
 static_assertions.workspace = true
 strum.workspace = true
@@ -50,24 +52,20 @@ tap.workspace = true
 thiserror.workspace = true
 tonic.workspace = true
 tracing.workspace = true
+typed-store-error.workspace = true
 
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-protocol-config.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
-narwhal-config.workspace = true
-narwhal-crypto.workspace = true
-shared-crypto.workspace = true
-
-fastcrypto = { workspace = true, features = ["copy_key"] }
-fastcrypto-tbls.workspace = true
-fastcrypto-zkp.workspace = true
-
-derive_more.workspace = true
-proptest.workspace = true
-proptest-derive = { workspace = true, optional = true }
-typed-store-error.workspace = true
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-command-line-common.workspace = true
+move-core-types.workspace = true
+move-disassembler.workspace = true
+move-ir-types.workspace = true
+move-vm-profiler.workspace = true
+move-vm-test-utils = { path = "../../external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
+move-vm-types.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true

@@ -46,7 +46,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
 tokio-stream.workspace = true
 tracing.workspace = true
-twox-hash.workspace = true
+twox-hash = "1.6"
 
 anemo.workspace = true
 fastcrypto.workspace = true
@@ -85,11 +85,10 @@ narwhal-crypto.workspace = true
 narwhal-executor.workspace = true
 narwhal-network.workspace = true
 narwhal-node.workspace = true
-narwhal-test-utils.workspace = true
 narwhal-types.workspace = true
 narwhal-worker.workspace = true
 shared-crypto.workspace = true
-zeroize.workspace = true
+zeroize = "1.6"
 
 [dev-dependencies]
 clap.workspace = true
@@ -97,7 +96,8 @@ criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 more-asserts.workspace = true
-num-bigint = "0.4.4"
+narwhal-test-utils.workspace = true
+num-bigint.workspace = true
 pretty_assertions.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
@@ -108,7 +108,7 @@ iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]
-pprof.workspace = true
+pprof = { version = "0.13", features = ["cpp", "frame-pointer"] }
 test-fuzz.workspace = true
 
 iota-macros.workspace = true
@@ -116,13 +116,13 @@ iota-protocol-config.workspace = true
 
 # moka uses `quanta` by default for timing, which is not compatible with the simulator
 [target.'cfg(msim)'.dependencies]
-moka = { workspace = true, default-features = false, features = ["sync", "atomic64"] }
+moka = { version = "0.12", default-features = false, features = ["sync", "atomic64"] }
 
 [target.'cfg(msim)'.dev-dependencies]
 test-cluster.workspace = true
 
 [target.'cfg(not(msim))'.dependencies]
-moka = { workspace = true, features = ["sync"] }
+moka = { version = "0.12", features = ["sync"] }
 
 [[example]]
 name = "generate-format"
