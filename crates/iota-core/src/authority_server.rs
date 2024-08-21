@@ -7,6 +7,7 @@ use std::{io, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
@@ -29,7 +30,6 @@ use iota_types::{
     multiaddr::Multiaddr,
     transaction::*,
 };
-use mysten_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
 use narwhal_worker::LazyNarwhalClient;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,
@@ -124,7 +124,7 @@ impl AuthorityServer {
         self,
         address: Multiaddr,
     ) -> Result<AuthorityServerHandle, io::Error> {
-        let mut server = mysten_network::config::Config::new()
+        let mut server = iota_network_stack::config::Config::new()
             .server_builder()
             .add_service(ValidatorServer::new(ValidatorService {
                 state: self.state,

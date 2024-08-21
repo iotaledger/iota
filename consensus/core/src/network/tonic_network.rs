@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cfg_if::cfg_if;
 use consensus_config::{AuthorityIndex, NetworkKeyPair};
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use parking_lot::RwLock;
 use tokio::{
     sync::oneshot::{self, Sender},
