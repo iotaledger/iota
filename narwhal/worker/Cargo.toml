@@ -25,9 +25,8 @@ tracing.workspace = true
 config = { path = "../config", package = "narwhal-config" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 fastcrypto.workspace = true
-iota-protocol-config = { path = "../../crates/iota-protocol-config" }
-mysten-metrics = { path = "../../crates/mysten-metrics" }
-mysten-network = { path = "../../crates/mysten-network" }
+iota-metrics = { path = "../../crates/iota-metrics" }
+iota-network-stack = { path = "../../crates/iota-network-stack" }
 network = { path = "../network", package = "narwhal-network" }
 prometheus.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }

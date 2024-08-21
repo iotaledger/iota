@@ -13,10 +13,9 @@ bcs.workspace = true
 clap.workspace = true
 colored.workspace = true
 futures.workspace = true
-futures-core.workspace = true
+futures-core = "0.3"
 jsonrpsee.workspace = true
 reqwest.workspace = true
-rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
@@ -32,6 +31,7 @@ iota-keys.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+rustls = "0.23"
 shared-crypto.workspace = true
 tracing.workspace = true
 
@@ -41,10 +41,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 async-recursion.workspace = true
-clap.workspace = true
 dirs.workspace = true
-futures.workspace = true
-futures-core.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 

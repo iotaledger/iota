@@ -9,19 +9,18 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
+fastcrypto.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-iota-framework.workspace = true
 iota-types.workspace = true
-
-fastcrypto = { workspace = true }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 
 [dev-dependencies]
+iota-framework.workspace = true
 iota-move-build.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 test-fuzz.workspace = true

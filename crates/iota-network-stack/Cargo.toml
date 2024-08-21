@@ -1,5 +1,5 @@
 [package]
-name = "mysten-network"
+name = "iota-network-stack"
 version = "0.2.0"
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
@@ -15,8 +15,8 @@ eyre.workspace = true
 futures.workspace = true
 http.workspace = true
 hyper-util = { workspace = true, features = ["tokio"] }
-multiaddr.workspace = true
-pin-project-lite = "0.2.14"
+multiaddr = "0.18"
+pin-project-lite = "0.2"
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
