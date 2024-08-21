@@ -56,6 +56,8 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                                 to="https://support.ledger.com/article/360011633353-zd"
                                 onClick={() => ampli.viewedLedgerTutorial()}
                                 className="text-body-lg text-primary-30 no-underline"
+                                target="_blank"
+                                rel="noreferrer"
                             >
                                 View tutorial.
                             </Link>
