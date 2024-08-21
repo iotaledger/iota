@@ -45,7 +45,7 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
 };
-use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
+use iota_protocol_config::ProtocolConfig;
 use iota_storage::{
     indexes::{CoinInfo, ObjectIndexChanges},
     key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
@@ -124,6 +124,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tracing::{debug, error, info, instrument, warn, Instrument};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use typed_store::TypedStoreError;
 
 use self::{

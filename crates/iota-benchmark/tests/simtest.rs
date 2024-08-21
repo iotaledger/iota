@@ -37,14 +37,16 @@ mod test {
         clear_fail_point, nondeterministic, register_fail_point_async, register_fail_point_if,
         register_fail_points, sim_test,
     };
-    use iota_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
+    use iota_protocol_config::{ProtocolVersion};
     use iota_simulator::{configs::*, tempfile::TempDir, SimConfig};
     use iota_storage::blob::Blob;
     use iota_types::{
         base_types::{IotaAddress, ObjectRef},
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
+        supported_protocol_versions::SupportedProtocolVersions,
     };
+
     use rand::{distributions::uniform::SampleRange, thread_rng, Rng};
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tracing::{error, info};
@@ -401,8 +403,8 @@ mod test {
             Duration::from_secs(1000),
             test_protocol_upgrade_compatibility_impl(),
         )
-        .await
-        .expect("testnet upgrade compatibility test timed out");
+            .await
+            .expect("testnet upgrade compatibility test timed out");
     }
 
     async fn test_protocol_upgrade_compatibility_impl() {
@@ -614,7 +616,7 @@ mod test {
             duration,
             system_state_observer.clone(),
         )
-        .await;
+            .await;
 
         let workloads = WorkloadConfiguration::build(
             workloads_builders,
@@ -622,8 +624,8 @@ mod test {
             system_state_observer.clone(),
             gas_request_chunk_size,
         )
-        .await
-        .unwrap();
+            .await
+            .unwrap();
 
         let driver = BenchDriver::new(5, false);
 

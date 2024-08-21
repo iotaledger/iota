@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]

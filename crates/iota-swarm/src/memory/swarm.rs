@@ -19,7 +19,7 @@ use iota_config::{
 };
 use iota_macros::nondeterministic;
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
     network_config::NetworkConfig,
@@ -32,7 +32,7 @@ use iota_types::{base_types::AuthorityName, object::Object};
 use rand::rngs::OsRng;
 use tempfile::TempDir;
 use tracing::info;
-
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use super::Node;
 
 pub struct SwarmBuilder<R = OsRng> {

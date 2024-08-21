@@ -80,6 +80,7 @@ pub mod signature;
 pub mod smr_coin;
 pub mod stardust;
 pub mod storage;
+pub mod supported_protocol_versions;
 pub mod timelock;
 pub mod transaction;
 pub mod transfer;

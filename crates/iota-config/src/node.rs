@@ -13,7 +13,7 @@ use std::{
 
 use anyhow::Result;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
-use iota_protocol_config::{Chain, SupportedProtocolVersions};
+use iota_protocol_config::Chain;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     committee::EpochId,
@@ -24,13 +24,14 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
 };
-use narwhal_config::Parameters as ConsensusParameters;
+use consensus_config::Parameters as ConsensusParameters;
+use narwhal_config::Parameters as NarwhalParameters;
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tracing::info;
-
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use crate::{
     certificate_deny_config::CertificateDenyConfig, genesis,
     object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
@@ -75,10 +76,6 @@ pub struct NodeConfig {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
-
-    // TODO: Remove this as it's no longer used.
-    #[serde(default)]
-    pub enable_event_processing: bool,
 
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
@@ -355,13 +352,8 @@ pub enum ConsensusProtocol {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    pub address: Multiaddr,
+    // Base consensus DB path for all epochs.
     pub db_path: PathBuf,
-
-    /// Optional alternative address preferentially used by a primary to talk to
-    /// its own worker. For example, this could be used to connect to
-    /// co-located workers over a private LAN address.
-    pub internal_worker_address: Option<Multiaddr>,
 
     /// Maximum number of pending transactions to submit to consensus, including
     /// those in submission wait.
@@ -380,12 +372,11 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    pub narwhal_config: ConsensusParameters,
+    // Deprecated: Narwhal specific configs.
+    pub address: Multiaddr,
+    pub narwhal_config: NarwhalParameters,
 
-    /// The choice of consensus protocol to run. We default to Narwhal.
-    #[serde(skip)]
-    #[serde(default = "default_consensus_protocol")]
-    pub protocol: ConsensusProtocol,
+    pub parameters: Option<ConsensusParameters>,
 }
 
 impl ConsensusConfig {
@@ -406,13 +397,9 @@ impl ConsensusConfig {
             .map(Duration::from_millis)
     }
 
-    pub fn narwhal_config(&self) -> &ConsensusParameters {
+    pub fn narwhal_config(&self) -> &NarwhalParameters {
         &self.narwhal_config
     }
-}
-
-pub fn default_consensus_protocol() -> ConsensusProtocol {
-    ConsensusProtocol::Narwhal
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

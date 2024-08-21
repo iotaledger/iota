@@ -16,7 +16,7 @@ use iota_config::{
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_macros::nondeterministic;
-use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
+use iota_protocol_config::{ProtocolConfig};
 use iota_storage::IndexStore;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
@@ -30,7 +30,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 use tempfile::tempdir;
-
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use crate::{
     authority::{
         authority_per_epoch_store::AuthorityPerEpochStore,

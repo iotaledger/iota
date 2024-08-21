@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::ProtocolVersion;
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -66,6 +66,7 @@ use tokio::{
     time::{sleep, timeout, Instant},
 };
 use tracing::{error, info};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 
 const NUM_VALIDATOR: usize = 4;
 

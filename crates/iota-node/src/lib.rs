@@ -83,7 +83,7 @@ use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::ServerBuilder;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     http_key_value_store::HttpKVStore,
@@ -196,6 +196,7 @@ use iota_core::{
     consensus_handler::ConsensusHandlerInitializer, mysticeti_adapter::LazyMysticetiClient,
 };
 use iota_types::execution_config_utils::to_binary_config;
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]

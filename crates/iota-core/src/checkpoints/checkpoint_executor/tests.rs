@@ -6,7 +6,6 @@ use std::{sync::Arc, time::Duration};
 
 use broadcast::{Receiver, Sender};
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_protocol_config::SupportedProtocolVersions;
 use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
 use iota_types::{
     committee::ProtocolVersion,
@@ -16,6 +15,7 @@ use iota_types::{
 };
 use tempfile::tempdir;
 use tokio::{sync::broadcast, time::timeout};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use typed_store::Map;
 
 use super::*;

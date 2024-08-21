@@ -20,11 +20,11 @@ use iota_config::{
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
     ConsensusConfig, NodeConfig, AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, FULL_NODE_DB_PATH,
 };
-use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
 };
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 
 use crate::{
@@ -97,16 +97,13 @@ impl ValidatorConfigBuilder {
         let network_address = validator.network_address;
         let consensus_address = validator.consensus_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
-        let internal_worker_address = validator.consensus_internal_worker_address;
         let localhost = local_ip_utils::localhost_for_testing();
         let consensus_config = ConsensusConfig {
             address: consensus_address,
             db_path: consensus_db_path,
-            internal_worker_address,
             max_pending_transactions: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            protocol: ConsensusProtocol::Narwhal,
             narwhal_config: narwhal_config::Parameters {
                 network_admin_server: NetworkAdminServerParameters {
                     primary_network_admin_server_port: local_ip_utils::get_available_port(
@@ -121,6 +118,7 @@ impl ValidatorConfigBuilder {
                 },
                 ..Default::default()
             },
+            parameters: Default::default(),
         };
 
         let p2p_config = P2pConfig {
@@ -165,7 +163,6 @@ impl ValidatorConfigBuilder {
                 .to_socket_addr()
                 .unwrap(),
             consensus_config: Some(consensus_config),
-            enable_event_processing: false,
             enable_index_processing: default_enable_index_processing(),
             genesis: iota_config::node::Genesis::new_empty(),
             grpc_load_shed: None,
@@ -173,7 +170,7 @@ impl ValidatorConfigBuilder {
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
-                default_end_of_epoch_broadcast_channel_capacity(),
+            default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: Default::default(),
@@ -427,7 +424,6 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(local_ip_utils::get_available_port(&localhost)),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            enable_event_processing: true, // This is unused.
             enable_index_processing: default_enable_index_processing(),
             genesis,
             grpc_load_shed: None,
@@ -435,7 +431,7 @@ impl FullnodeConfigBuilder {
             p2p_config,
             authority_store_pruning_config: AuthorityStorePruningConfig::default(),
             end_of_epoch_broadcast_channel_capacity:
-                default_end_of_epoch_broadcast_channel_capacity(),
+            default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config: Default::default(),
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),

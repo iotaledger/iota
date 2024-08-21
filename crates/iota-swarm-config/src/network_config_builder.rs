@@ -14,7 +14,6 @@ use iota_config::{
     node::AuthorityOverloadConfig,
 };
 use iota_macros::nondeterministic;
-use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
@@ -22,7 +21,7 @@ use iota_types::{
     object::Object,
 };
 use rand::rngs::OsRng;
-
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use crate::{
     genesis_config::{
         AccountConfig, GenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
@@ -44,12 +43,12 @@ pub enum CommitteeConfig {
 
 pub type SupportedProtocolVersionsCallback = Arc<
     dyn Fn(
-            usize,                 // validator idx
-            Option<AuthorityName>, // None for fullnode
-        ) -> SupportedProtocolVersions
-        + Send
-        + Sync
-        + 'static,
+        usize,                 // validator idx
+        Option<AuthorityName>, // None for fullnode
+    ) -> SupportedProtocolVersions
+    + Send
+    + Sync
+    + 'static,
 >;
 
 #[derive(Clone)]
@@ -173,7 +172,7 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_objects<I: IntoIterator<Item = Object>>(mut self, objects: I) -> Self {
+    pub fn with_objects<I: IntoIterator<Item=Object>>(mut self, objects: I) -> Self {
         self.additional_objects.extend(objects);
         self
     }

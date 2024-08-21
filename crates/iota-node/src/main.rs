@@ -9,12 +9,12 @@ use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{node::RunWithRange, Config, NodeConfig};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::IotaNode;
-use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
 };
 use tokio::sync::broadcast;
 use tracing::{error, info};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 
 const GIT_REVISION: &str = {
     if let Some(revision) = option_env!("GIT_REVISION") {
