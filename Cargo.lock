@@ -2564,7 +2564,7 @@ version = "0.1.0"
 dependencies = [
  "fastcrypto",
  "insta",
- "mysten-network",
+ "iota-network-stack",
  "rand",
  "serde",
  "shared-crypto",
@@ -2589,10 +2589,10 @@ dependencies = [
  "enum_dispatch",
  "fastcrypto",
  "futures",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-protocol-config",
  "mockall",
- "mysten-metrics",
- "mysten-network",
  "parking_lot 0.12.3",
  "prometheus",
  "prost 0.13.1",
@@ -5246,6 +5246,7 @@ dependencies = [
  "iota-config",
  "iota-indexer",
  "iota-json-rpc-types",
+ "iota-metrics",
  "iota-package-resolver",
  "iota-rest-api",
  "iota-storage",
@@ -5253,7 +5254,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
  "num_enum",
  "object_store",
  "parquet",
@@ -5322,8 +5322,8 @@ name = "iota-authority-aggregation"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "iota-metrics",
  "iota-types",
- "mysten-metrics",
  "tokio",
  "tracing",
 ]
@@ -5344,9 +5344,9 @@ dependencies = [
  "eyre",
  "futures",
  "iota-config",
+ "iota-metrics",
  "iota-swarm-config",
  "iota-types",
- "mysten-metrics",
  "narwhal-config",
  "prettytable-rs",
  "prometheus-parse",
@@ -5381,6 +5381,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
+ "iota-metrics",
  "iota-network",
  "iota-protocol-config",
  "iota-sdk 0.1.4",
@@ -5391,7 +5392,6 @@ dependencies = [
  "iota-types",
  "itertools 0.13.0",
  "move-core-types",
- "mysten-metrics",
  "narwhal-node",
  "prometheus",
  "rand",
@@ -5446,6 +5446,15 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "iota-common"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "parking_lot 0.12.3",
+ "tokio",
 ]
 
 [[package]]
@@ -5504,14 +5513,17 @@ dependencies = [
  "indexmap 2.3.0",
  "iota-archival",
  "iota-authority-aggregation",
+ "iota-common",
  "iota-config",
  "iota-execution",
  "iota-framework",
  "iota-genesis-builder",
  "iota-json-rpc-types",
  "iota-macros",
+ "iota-metrics",
  "iota-move-build",
  "iota-network",
+ "iota-network-stack",
  "iota-protocol-config",
  "iota-simulator",
  "iota-storage",
@@ -5529,9 +5541,6 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-symbol-pool",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -5647,9 +5656,9 @@ dependencies = [
  "futures",
  "iota-archival",
  "iota-data-ingestion-core",
+ "iota-metrics",
  "iota-storage",
  "iota-types",
- "mysten-metrics",
  "notify",
  "object_store",
  "prometheus",
@@ -5672,9 +5681,9 @@ dependencies = [
  "async-trait",
  "backoff",
  "futures",
+ "iota-metrics",
  "iota-storage",
  "iota-types",
- "mysten-metrics",
  "notify",
  "object_store",
  "prometheus",
@@ -5712,6 +5721,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
+ "iota-metrics",
  "iota-move-build",
  "iota-node",
  "iota-protocol-config",
@@ -5727,7 +5737,6 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-package",
- "mysten-metrics",
  "prometheus",
  "rand",
  "serde",
@@ -5798,9 +5807,9 @@ dependencies = [
  "iota-config",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-metrics",
  "iota-sdk 0.1.4",
  "iota-types",
- "mysten-metrics",
  "parking_lot 0.12.3",
  "prometheus",
  "rocksdb",
@@ -5972,6 +5981,8 @@ dependencies = [
  "iota-indexer",
  "iota-json-rpc",
  "iota-json-rpc-types",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
@@ -5985,8 +5996,6 @@ dependencies = [
  "move-core-types",
  "move-disassembler",
  "move-ir-types",
- "mysten-metrics",
- "mysten-network",
  "once_cell",
  "prometheus",
  "rand",
@@ -6054,6 +6063,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-metrics",
  "iota-move-build",
  "iota-open-rpc",
  "iota-package-resolver",
@@ -6066,7 +6076,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
  "prometheus",
  "regex",
  "serde",
@@ -6121,6 +6130,7 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
+ "iota-metrics",
  "iota-open-rpc",
  "iota-open-rpc-macros",
  "iota-protocol-config",
@@ -6134,7 +6144,6 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-package",
- "mysten-metrics",
  "once_cell",
  "prometheus",
  "serde",
@@ -6159,11 +6168,11 @@ dependencies = [
  "fastcrypto",
  "iota-json",
  "iota-json-rpc-types",
+ "iota-metrics",
  "iota-open-rpc",
  "iota-open-rpc-macros",
  "iota-types",
  "jsonrpsee",
- "mysten-metrics",
  "once_cell",
  "prometheus",
  "tap",
@@ -6218,6 +6227,7 @@ dependencies = [
  "iota-enum-compat-util",
  "iota-json",
  "iota-macros",
+ "iota-metrics",
  "iota-protocol-config",
  "iota-types",
  "itertools 0.13.0",
@@ -6225,7 +6235,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
  "schemars",
  "serde",
  "serde_json",
@@ -6309,6 +6318,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-metrics"
+version = "0.7.0"
+dependencies = [
+ "async-trait",
+ "axum 0.7.5",
+ "dashmap 6.0.1",
+ "futures",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "prometheus-closure-metric",
+ "scopeguard",
+ "tap",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "iota-move"
 version = "0.1.4"
 dependencies = [
@@ -6319,6 +6347,7 @@ dependencies = [
  "futures",
  "git-version",
  "iota-macros",
+ "iota-metrics",
  "iota-move-build",
  "iota-move-natives-latest",
  "iota-protocol-config",
@@ -6332,7 +6361,6 @@ dependencies = [
  "move-prover",
  "move-unit-test",
  "move-vm-runtime",
- "mysten-metrics",
  "once_cell",
  "prometheus",
  "rand",
@@ -6424,11 +6452,11 @@ dependencies = [
  "governor",
  "iota-archival",
  "iota-config",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-storage",
  "iota-swarm-config",
  "iota-types",
- "mysten-metrics",
- "mysten-network",
  "prometheus",
  "rand",
  "serde",
@@ -6439,6 +6467,30 @@ dependencies = [
  "tonic 0.12.1",
  "tonic-build",
  "tower",
+ "tracing",
+]
+
+[[package]]
+name = "iota-network-stack"
+version = "0.2.0"
+dependencies = [
+ "anemo",
+ "bcs",
+ "bytes",
+ "eyre",
+ "futures",
+ "http 1.1.0",
+ "hyper-util",
+ "multiaddr",
+ "pin-project-lite",
+ "serde",
+ "snap",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.12.1",
+ "tonic-health",
+ "tower",
+ "tower-http",
  "tracing",
 ]
 
@@ -6459,12 +6511,15 @@ dependencies = [
  "git-version",
  "humantime",
  "iota-archival",
+ "iota-common",
  "iota-config",
  "iota-core",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-macros",
+ "iota-metrics",
  "iota-network",
+ "iota-network-stack",
  "iota-protocol-config",
  "iota-rest-api",
  "iota-simulator",
@@ -6472,9 +6527,6 @@ dependencies = [
  "iota-storage",
  "iota-types",
  "move-vm-profiler",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
  "narwhal-network",
  "narwhal-worker",
  "prometheus",
@@ -6661,13 +6713,13 @@ dependencies = [
  "iota-config",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-metrics",
  "iota-move-build",
  "iota-node",
  "iota-sdk 0.1.4",
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
- "mysten-metrics",
  "once_cell",
  "rand",
  "reqwest 0.12.5",
@@ -6915,6 +6967,7 @@ dependencies = [
  "hyper 1.4.1",
  "iota",
  "iota-json-rpc-types",
+ "iota-metrics",
  "iota-move",
  "iota-move-build",
  "iota-sdk 0.1.4",
@@ -6924,7 +6977,6 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-symbol-pool",
- "mysten-metrics",
  "prometheus",
  "reqwest 0.12.5",
  "serde",
@@ -6964,6 +7016,7 @@ dependencies = [
  "iota-config",
  "iota-json-rpc-types",
  "iota-macros",
+ "iota-metrics",
  "iota-protocol-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6972,7 +7025,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
- "mysten-metrics",
  "num_enum",
  "object_store",
  "once_cell",
@@ -7030,13 +7082,13 @@ dependencies = [
  "futures",
  "iota-config",
  "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-node",
  "iota-protocol-config",
  "iota-simulator",
  "iota-swarm-config",
  "iota-types",
- "mysten-metrics",
- "mysten-network",
  "prometheus",
  "rand",
  "tap",
@@ -7256,6 +7308,8 @@ dependencies = [
  "indexmap 2.3.0",
  "iota-enum-compat-util",
  "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-protocol-config",
  "iota-sdk 1.1.5",
  "itertools 0.13.0",
@@ -7268,8 +7322,6 @@ dependencies = [
  "move-vm-profiler",
  "move-vm-test-utils",
  "move-vm-types",
- "mysten-metrics",
- "mysten-network",
  "narwhal-config",
  "narwhal-crypto",
  "num-bigint 0.4.6",
@@ -7311,6 +7363,34 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-package",
+]
+
+[[package]]
+name = "iota-util-mem"
+version = "0.11.0"
+dependencies = [
+ "cfg-if",
+ "ed25519-consensus",
+ "fastcrypto",
+ "fastcrypto-tbls",
+ "hashbrown 0.14.5",
+ "impl-trait-for-tuples",
+ "indexmap 2.3.0",
+ "iota-util-mem-derive",
+ "lru",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "roaring",
+ "smallvec",
+]
+
+[[package]]
+name = "iota-util-mem-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "syn 1.0.109",
+ "synstructure",
 ]
 
 [[package]]
@@ -8978,86 +9058,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
-name = "mysten-common"
-version = "0.1.0"
-dependencies = [
- "futures",
- "parking_lot 0.12.3",
- "tokio",
-]
-
-[[package]]
-name = "mysten-metrics"
-version = "0.7.0"
-dependencies = [
- "async-trait",
- "axum 0.7.5",
- "dashmap 6.0.1",
- "futures",
- "once_cell",
- "parking_lot 0.12.3",
- "prometheus",
- "prometheus-closure-metric",
- "scopeguard",
- "tap",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "mysten-network"
-version = "0.2.0"
-dependencies = [
- "anemo",
- "bcs",
- "bytes",
- "eyre",
- "futures",
- "http 1.1.0",
- "hyper-util",
- "multiaddr",
- "pin-project-lite",
- "serde",
- "snap",
- "tokio",
- "tokio-stream",
- "tonic 0.12.1",
- "tonic-health",
- "tower",
- "tower-http",
- "tracing",
-]
-
-[[package]]
-name = "mysten-util-mem"
-version = "0.11.0"
-dependencies = [
- "cfg-if",
- "ed25519-consensus",
- "fastcrypto",
- "fastcrypto-tbls",
- "hashbrown 0.14.5",
- "impl-trait-for-tuples",
- "indexmap 2.3.0",
- "lru",
- "mysten-util-mem-derive",
- "once_cell",
- "parking_lot 0.12.3",
- "roaring",
- "smallvec",
-]
-
-[[package]]
-name = "mysten-util-mem-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "syn 1.0.109",
- "synstructure",
-]
-
-[[package]]
 name = "naive-timer"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9082,9 +9082,9 @@ version = "0.1.0"
 dependencies = [
  "fastcrypto",
  "insta",
+ "iota-network-stack",
+ "iota-util-mem",
  "match_opt",
- "mysten-network",
- "mysten-util-mem",
  "narwhal-crypto",
  "narwhal-test-utils",
  "rand",
@@ -9119,9 +9119,9 @@ dependencies = [
  "fastcrypto",
  "futures",
  "indexmap 2.3.0",
+ "iota-metrics",
  "iota-protocol-config",
  "mockall",
- "mysten-metrics",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-network",
@@ -9156,9 +9156,9 @@ dependencies = [
  "bytes",
  "dashmap 6.0.1",
  "futures",
+ "iota-common",
  "iota-macros",
- "mysten-common",
- "mysten-metrics",
+ "iota-metrics",
  "narwhal-crypto",
  "narwhal-types",
  "parking_lot 0.12.3",
@@ -9185,11 +9185,11 @@ dependencies = [
  "fastcrypto",
  "futures",
  "iota-keys",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-protocol-config",
  "iota-types",
  "move-bytecode-utils",
- "mysten-metrics",
- "mysten-network",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -9235,13 +9235,13 @@ dependencies = [
  "futures",
  "governor",
  "indexmap 2.3.0",
+ "iota-common",
  "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-protocol-config",
  "itertools 0.13.0",
  "mockall",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -9275,9 +9275,9 @@ dependencies = [
  "fastcrypto",
  "fastcrypto-tbls",
  "futures",
+ "iota-common",
  "iota-macros",
  "lru",
- "mysten-common",
  "narwhal-config",
  "narwhal-test-utils",
  "narwhal-types",
@@ -9298,10 +9298,10 @@ dependencies = [
  "fastcrypto",
  "fdlimit",
  "indexmap 2.3.0",
+ "iota-metrics",
+ "iota-network-stack",
  "iota-protocol-config",
  "itertools 0.13.0",
- "mysten-metrics",
- "mysten-network",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-executor",
@@ -9338,11 +9338,11 @@ dependencies = [
  "fastcrypto",
  "futures",
  "indexmap 2.3.0",
+ "iota-common",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-util-mem",
  "mockall",
- "mysten-common",
- "mysten-metrics",
- "mysten-network",
- "mysten-util-mem",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-test-utils",
@@ -9382,9 +9382,9 @@ dependencies = [
  "fastcrypto",
  "futures",
  "governor",
+ "iota-metrics",
+ "iota-network-stack",
  "itertools 0.13.0",
- "mysten-metrics",
- "mysten-network",
  "narwhal-config",
  "narwhal-crypto",
  "narwhal-network",

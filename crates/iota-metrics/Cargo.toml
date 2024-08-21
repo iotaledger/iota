@@ -1,5 +1,5 @@
 [package]
-name = "mysten-metrics"
+name = "iota-metrics"
 version = "0.7.0"
 authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"

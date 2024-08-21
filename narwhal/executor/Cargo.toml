@@ -29,7 +29,7 @@ mockall.workspace = true
 network = { path = "../network", package = "narwhal-network" }
 types = { path = "../types", package = "narwhal-types" }
 
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }
 
 [dev-dependencies]
