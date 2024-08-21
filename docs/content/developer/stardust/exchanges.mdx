@@ -1,20 +1,21 @@
 ---
-title: Exchange and Custody Providers Migration
 sidebar_label: Exchanges & Custody Providers
-description: Relevant information for exchanges and custody providers that want to migrate to the new Move based IOTA network.
+description: Relevant information for exchanges and custody providers that want to migrate to the new Move-based IOTA network.
 ---
+
+# Exchange and Custody Providers Migration
 
 In 2024, the IOTA Foundation made the strategic decision to replace the existing Stardust protocol with a completely new technology stack based on the Move programming model. This fast-tracks IOTA to have programmability on the base layer (not just Layer-2 chains) without needing several additional breaking releases in between working towards that milestone. This is the biggest change ever happening to the IOTA technology stack, which has implications for integrators like exchanges and custody providers:
 
 - Most concepts from IOTA Stardust will be replaced by new concepts.
 - All APIs and SDKs will be replaced as well; existing IOTA integrations will have to be replaced completely.
-- The relevant current network state, including token and NFT balances, will be available on the new network with your existing private keys from the start - no manual migration steps besides integration are needed for this.
-- Existing addresses will remain the same in their hex format. However, the Bech32 human-readable format (identified by the `iota1` prefix) will no longer be available 
-- With programmability, IOTA will no longer be fee-less; a small execution fee will be charged for interactions given there is no difference between a transfer and another smart contract execution.
+- The relevant current network state, including token and NFT balances, will be available on the new network with your existing private keys from the start — no manual migration steps besides integration are needed for this.
+- Existing addresses will remain the same in their hex format. However, the Bech32 human-readable format (identified by the `iota1` prefix) will no longer be available.
+- With programmability, IOTA will no longer be fee-less; a small execution fee will be charged for interactions, given there is no difference between a transfer and another smart contract execution.
 - IOTA will include staking; the rewards will in most cases offset transaction fees for any staking token holders.
-- The Firefly wallet currently used by end-users will not support the new protocol, instead a browser extension wallet will be offered.
-- The amount of decimals for the IOTA token will change to 9, for the SMR token it will remain at 6 decimals.
-- Integration is similar to other Move based protocols; integration concepts could potentially partially be re-used from those integrations.
+- The Firefly wallet currently used by end-users will not support the new protocol; instead, a browser extension wallet will be offered.
+- The number of decimals for the IOTA token will change to 9, while for the SMR token it will remain at 6 decimals.
+- Integration is similar to other Move-based protocols; integration concepts could potentially partially be re-used from those integrations.
 
 This guide will take you through the process of migrating from your current IOTA integration to a new one that is compatible with the latest version of the network and technology stack.
 
@@ -22,9 +23,11 @@ This guide will take you through the process of migrating from your current IOTA
 
 :::warning  
 
-Once the new network goes live, the old network will be shut down immediately. It will no longer be possible to interact with it. To minimize any impact on your customer base regarding withdrawals and deposits for the IOTA and SMR tokens, it's crucial that the new integration is available at that time.
+Once the new network goes live, the old network will be shut down immediately. 
+It will no longer be possible to interact with it. 
+To minimize any impact on your customer base regarding withdrawals and deposits for the IOTA and SMR tokens, it's crucial that the new integration is available at that time.
 
-::: 
+:::
 
 With the new network, we are moving away from the UTXO model (which offers limited functionality) towards a fully programmable [object-based](../iota-101/objects/object-model.mdx) representation of assets. No assets will be lost, and functionality will be inherited, but interaction with those assets will be different from how it used to work.
 
@@ -38,60 +41,73 @@ The most common use case for exchanges and custody providers regarding integrati
 
 - All `Coin` objects can be freely transferred by the owner of this object.
 - Only the owner of the `Coin` object can interact with it.
-- The only restriction that can be added to a `Coin` object is the optional blocking of transfers for addresses on a [`DenyList`](../iota-101/create-coin/regulated.mdx#deny-list). This only applies to `Coin` objects that have been instantiated as [Regulated Coins](../standards/coin.mdx#regulated-coins). 
-* It is not possible to add other limiting functionality to `Coin` objects directly, like vesting or time-locks; this can only be done by wrapping the unrestricted `Coin` object within another restricting object. It's safe to assume that if you receive a `Coin` object, you can use it without limitations.
-- A `Coin` is tied to a `CoinMetadata` object containing `name`, `symbol`, `decimals`, `description`, and an `icon_url`
-- The holder of the TreasuryCap handles administrative tasks of a Coin like minting new tokens or changing metadata; Without a `TreasuryCap` these actions can no longer be performed.
-- All `Coin` based tokens work in the same way, integrate once, and use for any other `Coin` used on the network without the need for modifications or exceptions. Unlike with ERC-20, tokens functionality on `Coin` objects can not be modified.
+- The only restriction that can be added to a `Coin` object is the optional blocking of transfers for addresses on a [`DenyList`](../iota-101/create-coin/regulated.mdx#deny-list). This only applies to `Coin` objects that have been instantiated as [Regulated Coins](../standards/coin.mdx#regulated-coins).
+- It is not possible to add other limiting functionality to `Coin` objects directly, like vesting or time-locks; this can only be done by wrapping the unrestricted `Coin` object within another restricting object. It's safe to assume that if you receive a `Coin` object, you can use it without limitations.
+- A `Coin` is tied to a `CoinMetadata` object containing `name`, `symbol`, `decimals`, `description`, and an `icon_url`.
+- The holder of the TreasuryCap handles administrative tasks of a Coin like minting new tokens or changing metadata; without a `TreasuryCap` these actions can no longer be performed.
+- All `Coin`-based tokens work in the same way—integrate once, and use for any other `Coin` used on the network without the need for modifications or exceptions. Unlike with ERC-20, tokens functionality on `Coin` objects cannot be modified.
 
 #### Supporting IOTA tokens
 
 All IOTA tokens will automatically be available on the new network, represented as `Coin<IOTA>` objects, or, if limitations are imposed on that coin like a time-lock, as a `Coin<IOTA>` wrapped inside a limiting other object. We highly encourage only accepting `Coin<IOTA>` objects for the IOTA token to simplify integration, given there are assurances that `Coin` objects can be freely transferred and only accessed by the holder of that `Coin` object. `Coin<IOTA>` is a normal `Coin` implementation and not a Regulated Coin, so it should always be transferable by the holder of the Coin object.
 
-Given that the key derivation and addresses remain the same as those of the IOTA Stardust network, existing key pairs can still be used on the new network. All balances will remain on the same addresses but represented as a `Coin<IOTA>` object instead of a `BasicOutput` UTXO. What does change is the address representation. In IOTA Stardust, we had a hex-format address representation and a Bech32 human-readably representation of the address. In the new version, we only use the hex-format address and no longer support the addresses starting with `iota1` in Bech32 format. For address input and deposit address generation, the new integration must ensure that the addresses are presented in hex format.
+Given that the key derivation and addresses remain the same as those of the IOTA Stardust network, existing key pairs can still be used on the new network.
+All balances will remain on the same addresses but represented as a `Coin<IOTA>` object instead of a `BasicOutput` UTXO. 
+What does change is the address representation. 
+In IOTA Stardust, we had a hex-format address representation and a Bech32 human-readable representation of the address.
+In the new version, we only use the hex-format address and no longer support the addresses starting with `iota1` in Bech32 format.
+For address input and deposit address generation, the new integration must ensure that the addresses are presented in hex format.
 
 For IOTA, token integration can be as simple as generating deposit addresses, monitoring those addresses for incoming `Coin<IOTA>` objects, crediting balances once a `Coin<IOTA>` object has been received and finalized, and allowing withdrawals. Further integration depends on the needs and could include features like automatically collecting incoming balances and having incoming deposits handled by a smart contract instead.
 
 :::warning  IOTA Decimals
-  
-This release changes the number of decimals IOTA uses. Please take this into account with your implementation. IOTA had 6 decimals before; now it's 9. 
-  
+
+This release changes the number of decimals IOTA uses. Please take this into account with your implementation. IOTA had 6 decimals before; now it's 9.
+
 :::
 
 :::info IOTA Gas
-  
-IOTA is the token used for GAS on the IOTA network, small amounts of IOTA will be needed to pay for execution of functionality on the network.
+
+IOTA is the token used for GAS on the IOTA network; small amounts of IOTA will be needed to pay for the execution of functionality on the network.
 
 :::
 
 #### Supporting SMR tokens
 
-Shimmer used to be a separate network, but this no longer holds since this upgrade. The Shimmer EVM Layer-2 chain will be anchored into IOTA directly, and the SMR token will also be on IOTA. Like IOTA, SMR will also be available without requiring a manual migration from the start. However, the token will now reside on the IOTA Network directly and can be accessed with your existing Shimmer key pairs on the hex addresses you had before. 
+Shimmer used to be a separate network, but this no longer holds since this upgrade. 
+The Shimmer EVM Layer-2 chain will be anchored into IOTA directly, and the SMR token will also be on IOTA. 
+Like IOTA, SMR will also be available without requiring a manual migration from the start. 
+However, the token will now reside on the IOTA Network directly and can be accessed with your existing Shimmer key pairs on the hex addresses you had before.
 
-Integration is the same as with IOTA; all accessible and transferable SMR tokens are available as `Coin<SMR>` objects. 
+Integration is the same as with IOTA; all accessible and transferable SMR tokens are available as `Coin<SMR>` objects.
 
 :::info SMR Decimals
-  
+
 Unlike IOTA the amount of decimals for SMR remains the same, 6.
 
 :::
 
 :::info  SMR GAS
-  
-Gas fees to interact with SMR tokens are paid in IOTA, like any other interaction on the network. To deal with SMR tokens you will need some IOTA to pay for these execution fees as well.
+
+Gas fees to interact with SMR tokens are paid in IOTA, like any other interaction on the network.
+To deal with SMR tokens, you will need some IOTA to pay for these execution fees as well.
 
 :::
 
 #### Supporting other tokens
 
-Native assets, both new and existing assets from the IOTA and Shimmer networks, are represented as `Coin<COIN_TYPE_NAME_HERE>` objects and work similarly and can re-use the same integration. 
+Native assets, both new and existing assets from the IOTA and Shimmer networks, are represented as `Coin<COIN_TYPE_NAME_HERE>` objects and work similarly and can re-use the same integration.
 
 :::info  Custom Token Gas
-  
-Gas fees to interact with custom tokens are paid in IOTA, like any other interaction on the network. To deal with these tokens you will need some IOTA to pay for these execution fees as well.
+
+Gas fees to interact with custom tokens are paid in IOTA, like any other interaction on the network.
+To deal with these tokens, you will need some IOTA to pay for these execution fees as well.
 
 :::
 
 #### Integration
 
-Depending on your preferences, you can integrate your exchange in multiple ways. You can go from a low-level implementation to directly talking to a node's RPC server or use one of our [SDKs](../../references/iota-sdks) (the official TypeScript or Rust SDK is recommended). For details on how to integrate, please check out the [Exchange Integration Guide](../exchange-integration/exchange-integration.mdx).
+Depending on your preferences, you can integrate your exchange in multiple ways. 
+You can go from a low-level implementation directly talking to a node's RPC server 
+or use one of our [SDKs](../../references/iota-sdks) (the official TypeScript or Rust SDK is recommended). 
+For details on how to integrate, please check out the [Exchange Integration Guide](../exchange-integration/exchange-integration.mdx).
