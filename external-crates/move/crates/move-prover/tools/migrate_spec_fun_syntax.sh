@@ -4,9 +4,6 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# Modifications Copyright (c) 2024 IOTA Stiftung
-# SPDX-License-Identifier: Apache-2.0
-
 # A script to upgrade from `spec fun name` style syntax and related changes to `spec name`. This can create
 # errors, specifically the last replacement for `define ` might be critical, so to be used with care.
 

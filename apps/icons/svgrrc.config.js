@@ -48,6 +48,7 @@ module.exports = {
         // Insert the copyright header, attached to the first node:
         template[0].leadingComments = [
             { type: 'CommentLine', value: ' Copyright (c) Mysten Labs, Inc.' },
+            { type: 'CommentLine', value: ' Modifications Copyright (c) 2024 IOTA Stiftung' },
             { type: 'CommentLine', value: ' SPDX-License-Identifier: Apache-2.0' },
         ];
 

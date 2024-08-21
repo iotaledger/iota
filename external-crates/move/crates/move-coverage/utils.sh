@@ -3,9 +3,6 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# Modifications Copyright (c) 2024 IOTA Stiftung
-# SPDX-License-Identifier: Apache-2.0
-
 alias coverage_update="pkill cargo; cargo run --release --bin move-trace-conversion -- -f $HOME/trace -u trace.mvcov -o trace.mvcov; rm -rf $HOME/trace"
 alias coverage_summary="pkill cargo; cargo run --release --bin coverage-summaries -- -t trace.mvcov -s ../../../diem-move/diem-framework/DPN/releases/artifacts/current/modules"
 function module_coverage() {

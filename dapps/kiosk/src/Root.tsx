@@ -27,7 +27,7 @@ export default function Root() {
                             <Outlet />
                         </div>
                         <div className="mt-6 border-t border-primary text-center py-6">
-                            Copyright © Mysten Labs, Inc.
+                            Copyright © Mysten Labs, Inc., Modifications Copyright © 2024 IOTA Stiftung
                         </div>
                         <Toaster position="bottom-center" />
                     </KisokClientProvider>

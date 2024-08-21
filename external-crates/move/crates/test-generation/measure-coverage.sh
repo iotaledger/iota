@@ -4,9 +4,6 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# Modifications Copyright (c) 2024 IOTA Stiftung
-# SPDX-License-Identifier: Apache-2.0
-
 # Check that the test directory and report path arguments are provided
 if [ $# -lt 1 ]
 then

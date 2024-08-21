@@ -4,9 +4,6 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# Modifications Copyright (c) 2024 IOTA Stiftung
-# SPDX-License-Identifier: Apache-2.0
-
 # A script to check stability of a verification outcome. This runs the same prover
 # task N times with different random seeds and checks whether the produced output
 # (diagnosis or success) stays stable. Use as in
