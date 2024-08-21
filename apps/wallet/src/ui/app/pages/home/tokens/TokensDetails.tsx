@@ -10,7 +10,7 @@ import { AccountsList, Alert, CoinIcon, Loading, UnlockAccountButton } from '_co
 import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
-import { useActiveAccount, getActiveAccountForce } from '_src/ui/app/hooks/useActiveAccount';
+import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
@@ -60,8 +60,6 @@ import { PortfolioName } from './PortfolioName';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { TokenLink } from './TokenLink';
 import { useNavigate } from 'react-router-dom';
-import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
-import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -339,7 +337,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
     const activeCoinType = coinType || IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
-    const backgroundClient = useBackgroundClient();
     const activeAccountAddress = activeAccount?.address;
     const { data: domainName } = useResolveIotaNSName(activeAccountAddress);
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
@@ -363,7 +360,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         retry: false,
         enabled: isMainnet,
     });
-    const { unlockAccount } = useUnlockAccount();
 
     const {
         data: coinBalances,
@@ -398,22 +394,13 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
     const isFirstTimeLoading = isPending && !isFetched;
 
-    const successNavigate = async () => {
-        // need to get latest version of account after unlock
-        await getActiveAccountForce(backgroundClient);
-
-        const destination = coinBalance?.coinType
-            ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
-            : '/send';
-
-        navigate(destination);
-    };
-
     const onSendClick = () => {
-        if (activeAccount?.isLocked) {
-            unlockAccount(activeAccount, successNavigate);
-        } else {
-            successNavigate();
+        if (!activeAccount?.isLocked) {
+            const destination = coinBalance?.coinType
+                ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
+                : '/send';
+
+            navigate(destination);
         }
     };
 
@@ -474,7 +461,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                         formatAddress(activeAccountAddress)
                                     }
                                     isCopyable
-                                    copyValue={activeAccountAddress}
+                                    copyText={activeAccountAddress}
                                     onCopy={() => toast.success('Address copied')}
                                 />
                             </div>
@@ -487,7 +474,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
                             />
-                            <Button onClick={onSendClick} icon={<Send />} size={ButtonSize.Small} />
+                            <Button
+                                onClick={onSendClick}
+                                icon={<Send />}
+                                size={ButtonSize.Small}
+                                disabled={activeAccount?.isLocked}
+                            />
                         </div>
                     </div>
                     <AccountsList />
@@ -603,7 +595,7 @@ function DialogReceiveTokens({
     return (
         <div className="relative">
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent showCloseOnOverlay>
+                <DialogContent containerId="overlay-portal-container">
                     <Header title="Receive" onClose={() => setOpen(false)} />
                     <DialogBody>
                         <div className="[&_span]:w-full [&_span]:break-words">
@@ -611,12 +603,7 @@ function DialogReceiveTokens({
                         </div>
                     </DialogBody>
                     <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                        <Button
-                            onClick={onCopy}
-                            fullWidth
-                            size={ButtonSize.Medium}
-                            text="Copy Address"
-                        />
+                        <Button onClick={onCopy} fullWidth text="Copy Address" />
                     </div>
                 </DialogContent>
             </Dialog>

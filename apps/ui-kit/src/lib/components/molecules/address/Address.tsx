@@ -20,9 +20,9 @@ interface AddressProps {
      */
     isExternal?: boolean;
     /**
-     * Value that need to be copied (optional).
+     * Text that need to be copied (optional).
      */
-    copyValue?: string;
+    copyText?: string;
     /**
      * The onCopy event of the Address  (optional).
      */
@@ -37,23 +37,21 @@ export function Address({
     text,
     isCopyable,
     isExternal,
-    copyValue = text,
+    copyText = text,
     onCopy,
     onOpen,
 }: AddressProps): React.JSX.Element {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
-        if (!navigator?.clipboard) {
-            return false;
+        if (!navigator.clipboard) {
+            return;
         }
 
         try {
             await navigator.clipboard.writeText(text);
-            if (onCopy) {
-                onCopy(event, copyValue);
-            }
+            onCopy?.(event, copyText);
             return true;
         } catch (error) {
-            return false;
+            console.error('Failed to copy:', error);
         }
     }
 
