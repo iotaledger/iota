@@ -41,8 +41,8 @@ tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
-move-core-types.workspace = true
 iota-metrics.workspace = true
+move-core-types.workspace = true
 narwhal-node.workspace = true
 sysinfo = "0.31"
 test-cluster.workspace = true

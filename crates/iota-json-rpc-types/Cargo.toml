@@ -29,8 +29,8 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 
 iota-json.workspace = true
-iota-types.workspace = true
 iota-metrics.workspace = true
+iota-types.workspace = true
 
 [dev-dependencies]
 iota-types = { workspace = true, features = ["test-utils"] }
