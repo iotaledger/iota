@@ -25,8 +25,8 @@ use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetError,
     FaucetRequest, FaucetResponse, RequestMetricsLayer, SimpleFaucet,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use mysten_metrics::spawn_monitored_task;
 use tower::{limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
@@ -70,7 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let prom_binding = PROM_PORT_ADDR.parse().unwrap();
     info!("Starting Prometheus HTTP endpoint at {}", prom_binding);
-    let registry_service = mysten_metrics::start_prometheus_server(prom_binding);
+    let registry_service = iota_metrics::start_prometheus_server(prom_binding);
     let prometheus_registry = registry_service.default_registry();
     let app_state = Arc::new(AppState {
         faucet: SimpleFaucet::new(

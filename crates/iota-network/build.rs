@@ -18,7 +18,7 @@ fn main() -> Result<()> {
         PathBuf::from(env::var("OUT_DIR")?)
     };
 
-    let codec_path = "mysten_network::codec::BcsCodec";
+    let codec_path = "iota_network_stack::codec::BcsCodec";
 
     let validator_service = Service::builder()
         .name("Validator")
@@ -111,7 +111,7 @@ fn main() -> Result<()> {
 }
 
 fn build_anemo_services(out_dir: &Path) {
-    let codec_path = "mysten_network::codec::anemo::BcsSnappyCodec";
+    let codec_path = "iota_network_stack::codec::anemo::BcsSnappyCodec";
 
     let discovery = anemo_build::manual::Service::builder()
         .name("Discovery")

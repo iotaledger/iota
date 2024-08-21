@@ -17,8 +17,8 @@ serde.workspace = true
 serde_json.workspace = true
 shared-crypto.workspace = true
 signature.workspace = true
-slip10_ed25519.workspace = true
-tiny-bip39.workspace = true
+slip10_ed25519 = "0.1"
+tiny-bip39 = "1.0"
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anemo::{types::PeerEvent, PeerId};
 use dashmap::DashMap;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use quinn_proto::ConnectionStats;
 use tokio::{
     sync::oneshot::{Receiver, Sender},
