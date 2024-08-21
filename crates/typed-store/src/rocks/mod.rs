@@ -294,7 +294,7 @@ impl RocksDB {
         delegate_call!(self.multi_get_cf_opt(keys, readopts))
     }
 
-    pub fn batched_multi_get_cf_opt<I, K>(
+    pub fn batched_multi_get_cf_opt<'a, I, K>(
         &self,
         cf: &impl AsColumnFamilyRef,
         keys: I,
@@ -302,8 +302,8 @@ impl RocksDB {
         readopts: &ReadOptions,
     ) -> Vec<Result<Option<DBPinnableSlice<'_>>, Error>>
     where
-        I: IntoIterator<Item = K>,
-        K: AsRef<[u8]>,
+        I: IntoIterator<Item = &'a K>,
+        K: AsRef<[u8]> + 'a + ?Sized,
     {
         delegate_call!(self.batched_multi_get_cf_opt(cf, keys, sorted_input, readopts))
     }
@@ -948,7 +948,7 @@ impl<K, V> DBMap<K, V> {
             .rocksdb
             .batched_multi_get_cf_opt(
                 &self.cf(),
-                keys_bytes?,
+                &keys_bytes?,
                 // sorted_keys=
                 false,
                 &self.opts.readopts(),
@@ -2414,7 +2414,7 @@ pub fn default_db_options() -> DBOptions {
     // One common issue when running tests on Mac is that the default ulimit is too
     // low, leading to I/O errors such as "Too many open files". Raising fdlimit
     // to bypass it.
-    if let Some(limit) = fdlimit::raise_fd_limit() {
+    if let Ok(fdlimit::Outcome::LimitRaised { to: limit, .. }) = fdlimit::raise_fd_limit() {
         // on windows raise_fd_limit return None
         opt.set_max_open_files((limit / 8) as i32);
     }
@@ -2598,7 +2598,7 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
         // Customize database options
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
 
-        fdlimit::raise_fd_limit();
+        fdlimit::raise_fd_limit().expect("could not raise fd limit");
         // This is a requirement by RocksDB when opening as secondary
         options.set_max_open_files(-1);
 

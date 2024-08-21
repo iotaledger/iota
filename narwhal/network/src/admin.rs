@@ -8,7 +8,7 @@ use std::{
 };
 
 use axum::{extract::Extension, http::StatusCode, routing::get, Json, Router};
-use mysten_metrics::{spawn_logged_monitored_task, spawn_monitored_task};
+use iota_metrics::{spawn_logged_monitored_task, spawn_monitored_task};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info};
 use types::ConditionalBroadcastReceiver;

@@ -42,6 +42,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEvents, TransactionFilter,
 };
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
+use iota_metrics::{
+    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
+};
 use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
 use iota_storage::{
     indexes::{CoinInfo, ObjectIndexChanges},
@@ -105,9 +108,6 @@ use iota_types::{
 use itertools::Itertools;
 use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
-use mysten_metrics::{
-    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
-};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
@@ -1440,7 +1440,7 @@ impl AuthorityState {
         _execution_guard: ExecutionLockReadGuard<'_>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
-        let _scope: Option<mysten_metrics::MonitoredScopeGuard> =
+        let _scope: Option<iota_metrics::MonitoredScopeGuard> =
             monitored_scope("Execution::commit_certificate");
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
@@ -2053,6 +2053,7 @@ impl AuthorityState {
         self.execution_cache.is_tx_already_executed(digest)
     }
 
+    /// Indexes a transaction by updating various indexes in the `IndexStore`.
     #[instrument(level = "debug", skip_all, err)]
     async fn index_tx(
         &self,

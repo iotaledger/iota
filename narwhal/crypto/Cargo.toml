@@ -17,5 +17,5 @@ default = []
 
 [dev-dependencies]
 bincode.workspace = true
-hex-literal.workspace = true
+hex-literal = "0.4"
 serde_json.workspace = true

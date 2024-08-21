@@ -160,7 +160,7 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
    1. Publish the [`games` package(iota/iota_programmability/examples/games)](https://github.com/iotaledger/iota/tree/develop/iota_programmability/examples/games)
       using the IOTA client:
       ```shell
-      iota client publish --path /path-to-iota-source-code/iota_programmability/examples/games --gas-budget 10000
+      iota client publish --gas-budget 1000000000 iota/iota_programmability/examples/games
       ```
    1. Record the package object ID.
 

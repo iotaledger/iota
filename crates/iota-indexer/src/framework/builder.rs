@@ -54,9 +54,9 @@ impl IndexerBuilder {
 
     pub async fn run(self) {
         let (downloaded_checkpoint_data_sender, downloaded_checkpoint_data_receiver) =
-            mysten_metrics::metered_channel::channel(
+            iota_metrics::metered_channel::channel(
                 self.checkpoint_buffer_size,
-                &mysten_metrics::get_metrics()
+                &iota_metrics::get_metrics()
                     .unwrap()
                     .channels
                     .with_label_values(&["checkpoint_tx_downloading"]),
@@ -71,14 +71,12 @@ impl IndexerBuilder {
             downloaded_checkpoint_data_sender,
             self.metrics.clone(),
         );
-        mysten_metrics::spawn_monitored_task!(fetcher.run());
+        iota_metrics::spawn_monitored_task!(fetcher.run());
 
         assert!(!self.handlers.is_empty());
 
         super::runner::run(
-            mysten_metrics::metered_channel::ReceiverStream::new(
-                downloaded_checkpoint_data_receiver,
-            ),
+            iota_metrics::metered_channel::ReceiverStream::new(downloaded_checkpoint_data_receiver),
             self.handlers,
             self.metrics.clone(),
         )
