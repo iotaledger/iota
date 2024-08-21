@@ -23,8 +23,8 @@ use fastcrypto::{
     traits::{AllowedRng, KeyPair as _},
 };
 use indexmap::IndexMap;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_network_stack::Multiaddr;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use once_cell::sync::OnceCell;
 use rand::{
     distributions::{Bernoulli, Distribution},

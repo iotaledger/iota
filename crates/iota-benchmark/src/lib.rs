@@ -28,6 +28,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponseOptions,
 };
+use iota_metrics::GaugeGuard;
 use iota_network::{DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
@@ -49,7 +50,6 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, CertifiedTransaction, ObjectArg, Transaction},
 };
-use iota_metrics::GaugeGuard;
 use prometheus::Registry;
 use rand::Rng;
 use roaring::RoaringBitmap;

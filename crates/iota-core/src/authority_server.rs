@@ -7,6 +7,7 @@ use std::{io, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
@@ -29,7 +30,6 @@ use iota_types::{
     multiaddr::Multiaddr,
     transaction::*,
 };
-use iota_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
 use narwhal_worker::LazyNarwhalClient;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,

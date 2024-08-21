@@ -44,11 +44,11 @@ mod malloc_size;
 pub mod external_impls;
 
 pub use allocators::MallocSizeOfExt;
+pub use iota_util_mem_derive::*;
 pub use malloc_size::{
     MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps, MallocUnconditionalShallowSizeOf,
     MallocUnconditionalSizeOf,
 };
-pub use iota_util_mem_derive::*;
 
 /// Heap size of structure.
 ///

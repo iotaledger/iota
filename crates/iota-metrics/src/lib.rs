@@ -159,9 +159,7 @@ macro_rules! spawn_monitored_task {
 #[macro_export]
 macro_rules! spawn_logged_monitored_task {
     ($fut: expr) => {
-        tokio::task::spawn(iota_metrics::monitored_future!(
-            tasks, $fut, "", INFO, true
-        ))
+        tokio::task::spawn(iota_metrics::monitored_future!(tasks, $fut, "", INFO, true))
     };
 
     ($fut: expr, $name: expr) => {

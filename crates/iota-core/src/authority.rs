@@ -42,6 +42,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEvents, TransactionFilter,
 };
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
+use iota_metrics::{
+    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
+};
 use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
 use iota_storage::{
     indexes::{CoinInfo, ObjectIndexChanges},
@@ -105,9 +108,6 @@ use iota_types::{
 use itertools::Itertools;
 use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
-use iota_metrics::{
-    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
-};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{

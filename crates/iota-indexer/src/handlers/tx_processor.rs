@@ -12,6 +12,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc::{get_balance_changes_from_effect, get_object_changes, ObjectProvider};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_rest_api::CheckpointData;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -23,7 +24,6 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
-use iota_metrics::{monitored_scope, spawn_monitored_task};
 use tokio::{
     sync::watch,
     time::{Duration, Instant},

@@ -85,9 +85,7 @@ impl Indexer {
 
         let checkpoint_handler = new_handlers(store, metrics.clone()).await?;
         crate::framework::runner::run(
-            iota_metrics::metered_channel::ReceiverStream::new(
-                downloaded_checkpoint_data_receiver,
-            ),
+            iota_metrics::metered_channel::ReceiverStream::new(downloaded_checkpoint_data_receiver),
             vec![Box::new(checkpoint_handler)],
             metrics,
         )

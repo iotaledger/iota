@@ -55,6 +55,7 @@ use futures::{
     future::{join_all, BoxFuture},
     FutureExt,
 };
+use iota_common::sync::notify_read::NotifyRead;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_macros::fail_point_async;
 use iota_protocol_config::ProtocolVersion;
@@ -72,7 +73,6 @@ use iota_types::{
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use moka::sync::Cache as MokaCache;
-use iota_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use prometheus::Registry;
 use tracing::{info, instrument};

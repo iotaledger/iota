@@ -15,9 +15,11 @@ use fastcrypto::traits::ToFromBytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult, ReduceOutput};
 use iota_config::genesis::Genesis;
+use iota_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
 use iota_network::{
     default_iota_network_stack_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
 };
+use iota_network_stack::config::Config;
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
@@ -42,8 +44,6 @@ use iota_types::{
     quorum_driver_types::GroupedErrors,
     transaction::*,
 };
-use iota_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
-use iota_network_stack::config::Config;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,

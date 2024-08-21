@@ -76,9 +76,7 @@ impl IndexerBuilder {
         assert!(!self.handlers.is_empty());
 
         super::runner::run(
-            iota_metrics::metered_channel::ReceiverStream::new(
-                downloaded_checkpoint_data_receiver,
-            ),
+            iota_metrics::metered_channel::ReceiverStream::new(downloaded_checkpoint_data_receiver),
             self.handlers,
             self.metrics.clone(),
         )

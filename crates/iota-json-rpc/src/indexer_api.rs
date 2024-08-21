@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
     IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
     ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
@@ -32,7 +33,6 @@ use jsonrpsee::{
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
 use move_core_types::language_storage::TypeTag;
-use iota_metrics::spawn_monitored_task;
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};

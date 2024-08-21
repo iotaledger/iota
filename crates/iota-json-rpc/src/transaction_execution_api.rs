@@ -15,6 +15,7 @@ use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlock,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_types::{
     base_types::IotaAddress,
@@ -31,7 +32,6 @@ use iota_types::{
     },
 };
 use jsonrpsee::{core::RpcResult, RpcModule};
-use iota_metrics::spawn_monitored_task;
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tracing::instrument;
 

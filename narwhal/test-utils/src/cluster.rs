@@ -8,9 +8,9 @@ use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::SerializedTransaction;
 use fastcrypto::traits::KeyPair as _;
-use itertools::Itertools;
 use iota_metrics::RegistryService;
 use iota_network_stack::multiaddr::Multiaddr;
+use itertools::Itertools;
 use network::client::NetworkClient;
 use node::{
     execution_state::SimpleExecutionState, metrics::worker_metrics_registry,

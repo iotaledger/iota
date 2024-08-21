@@ -20,6 +20,7 @@ use futures::{
     future::{select, Either},
     pin_mut, FutureExt,
 };
+use iota_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
 use iota_protocol_config::ProtocolConfig;
 use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
 use iota_types::{
@@ -30,7 +31,6 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
 use itertools::Itertools;
-use iota_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use narwhal_worker::LazyNarwhalClient;
 use parking_lot::RwLockReadGuard;

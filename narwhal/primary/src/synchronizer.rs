@@ -18,14 +18,14 @@ use config::{AuthorityIdentifier, Committee, WorkerCache};
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash as _;
 use futures::{stream::FuturesOrdered, StreamExt};
-use iota_protocol_config::ProtocolConfig;
-use itertools::Itertools;
 use iota_common::sync::notify_once::NotifyOnce;
 use iota_metrics::{
     metered_channel::{channel_with_total, Sender},
     monitored_scope, spawn_logged_monitored_task,
 };
 use iota_network_stack::anemo_ext::{NetworkExt, WaitingPeer};
+use iota_protocol_config::ProtocolConfig;
+use itertools::Itertools;
 use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
 use parking_lot::Mutex;
 use storage::{CertificateStore, PayloadStore};

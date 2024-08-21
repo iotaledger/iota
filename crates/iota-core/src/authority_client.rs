@@ -8,6 +8,7 @@ use std::{collections::BTreeMap, time::Duration};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use iota_network::{api::ValidatorClient, tonic, tonic::transport::Channel};
+use iota_network_stack::config::Config;
 use iota_types::{
     base_types::AuthorityName,
     committee::CommitteeWithNetworkMetadata,
@@ -23,7 +24,6 @@ use iota_types::{
     multiaddr::Multiaddr,
     transaction::*,
 };
-use iota_network_stack::config::Config;
 
 #[async_trait]
 pub trait AuthorityAPI {

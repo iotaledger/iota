@@ -8,10 +8,10 @@ use std::{
     time::Instant,
 };
 
+use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
-use iota_metrics::spawn_monitored_task;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 

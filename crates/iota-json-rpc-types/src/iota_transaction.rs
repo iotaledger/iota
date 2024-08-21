@@ -7,6 +7,7 @@ use std::fmt::{self, Display, Formatter, Write};
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
 use iota_json::{primitive_type, IotaJsonValue};
+use iota_metrics::monitored_scope;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
@@ -41,7 +42,6 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use iota_metrics::monitored_scope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

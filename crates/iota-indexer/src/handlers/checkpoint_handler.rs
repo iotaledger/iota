@@ -9,6 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaMoveValue;
+use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
@@ -29,7 +30,6 @@ use move_core_types::{
     annotated_value::{MoveStructLayout, MoveTypeLayout},
     language_storage::{StructTag, TypeTag},
 };
-use iota_metrics::{get_metrics, spawn_monitored_task};
 use tap::tap::TapFallible;
 use tokio::sync::watch;
 use tracing::{error, info, warn};

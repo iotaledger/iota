@@ -9,6 +9,7 @@ use futures::{
     future::{join_all, BoxFuture},
     FutureExt,
 };
+use iota_common::sync::notify_read::NotifyRead;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
@@ -25,7 +26,6 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use iota_common::sync::notify_read::NotifyRead;
 use prometheus::Registry;
 use tap::TapFallible;
 use tracing::instrument;

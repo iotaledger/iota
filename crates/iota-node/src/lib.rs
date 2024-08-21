@@ -78,9 +78,11 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
+use iota_metrics::{spawn_monitored_task, RegistryService};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
+use iota_network_stack::server::ServerBuilder;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -103,8 +105,6 @@ use iota_types::{
     messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
 };
-use iota_metrics::{spawn_monitored_task, RegistryService};
-use iota_network_stack::server::ServerBuilder;
 use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };

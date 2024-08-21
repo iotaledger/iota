@@ -10,6 +10,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_config::genesis::Genesis;
+use iota_metrics::spawn_monitored_task;
 use iota_types::{
     crypto::AuthorityKeyPair,
     effects::{TransactionEffectsAPI, TransactionEvents},
@@ -24,7 +25,6 @@ use iota_types::{
     },
     transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
 };
-use iota_metrics::spawn_monitored_task;
 
 use crate::{
     authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},

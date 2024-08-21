@@ -6,6 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use fastcrypto::{bls12381, traits::KeyPair};
+use iota_metrics::RegistryService;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     iota_system_state::{
@@ -13,7 +14,6 @@ use iota_types::{
     },
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
 };
-use iota_metrics::RegistryService;
 use narwhal_config::{Epoch, WorkerCache};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use prometheus::Registry;

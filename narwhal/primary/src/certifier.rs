@@ -10,9 +10,9 @@ use crypto::{NetworkPublicKey, Signature};
 use fastcrypto::signature_service::SignatureService;
 use futures::{stream::FuturesUnordered, StreamExt};
 use iota_macros::fail_point_async;
-use iota_protocol_config::ProtocolConfig;
 use iota_metrics::{metered_channel::Receiver, monitored_future, spawn_logged_monitored_task};
 use iota_network_stack::anemo_ext::NetworkExt;
+use iota_protocol_config::ProtocolConfig;
 use storage::CertificateStore;
 use tokio::{
     sync::oneshot,

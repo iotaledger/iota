@@ -24,6 +24,7 @@ use hyper::{
     http::{HeaderName, HeaderValue, Method},
     HeaderMap, StatusCode,
 };
+use iota_metrics::RegistryService;
 use iota_move::build::resolve_lock_file_path;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
@@ -42,7 +43,6 @@ use jsonrpsee::{
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use iota_metrics::RegistryService;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::oneshot::Sender};

@@ -31,10 +31,10 @@ use axum::{
 use axum_extra::headers::Header as _;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::{LIMITS_HEADER, VERSION_HEADER};
-use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use iota_sdk::IotaClientBuilder;
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
+use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
+use iota_sdk::IotaClientBuilder;
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};

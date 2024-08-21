@@ -23,6 +23,7 @@ use futures::{
     FutureExt,
 };
 use iota_macros::fail_point;
+use iota_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
 use iota_network::default_iota_network_stack_config;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
@@ -50,7 +51,6 @@ use iota_types::{
     transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
 };
 use itertools::Itertools;
-use iota_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
 use parking_lot::Mutex;
 use rand::{rngs::OsRng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
