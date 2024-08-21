@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use consensus_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use consensus_core::{CommitConsumer, CommitIndex, ConsensusAuthority, NetworkType, Round};
+use consensus_core::{CommitConsumer, CommitIndex, ConsensusAuthority, Round};
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService};
@@ -18,7 +18,8 @@ use iota_types::{
 use narwhal_executor::ExecutionState;
 use prometheus::Registry;
 use tokio::sync::{mpsc::unbounded_channel, Mutex};
-
+use tracing::info;
+use iota_protocol_config::ConsensusNetwork;
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_handler::{ConsensusHandlerInitializer, MysticetiConsensusHandler},
@@ -37,14 +38,16 @@ pub struct MysticetiManager {
     protocol_keypair: ProtocolKeyPair,
     network_keypair: NetworkKeyPair,
     storage_base_path: PathBuf,
+    // TODO: switch to parking_lot::Mutex.
     running: Mutex<Running>,
-    metrics: ConsensusManagerMetrics,
+    metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
     authority: ArcSwapOption<(ConsensusAuthority, RegistryID)>,
     // Use a shared lazy mysticeti client so we can update the internal mysticeti
     // client that gets created for every new epoch.
     client: Arc<LazyMysticetiClient>,
-    consensus_handler: ArcSwapOption<MysticetiConsensusHandler>,
+    // TODO: switch to parking_lot::Mutex.
+    consensus_handler: Mutex<Option<MysticetiConsensusHandler>>,
 }
 
 impl MysticetiManager {
@@ -55,8 +58,8 @@ impl MysticetiManager {
         protocol_keypair: ed25519::Ed25519KeyPair,
         network_keypair: ed25519::Ed25519KeyPair,
         storage_base_path: PathBuf,
-        metrics: ConsensusManagerMetrics,
         registry_service: RegistryService,
+        metrics: Arc<ConsensusManagerMetrics>,
         client: Arc<LazyMysticetiClient>,
     ) -> Self {
         Self {
@@ -68,25 +71,39 @@ impl MysticetiManager {
             registry_service,
             authority: ArcSwapOption::empty(),
             client,
-            consensus_handler: ArcSwapOption::empty(),
+            consensus_handler: Mutex::new(None),
         }
     }
 
-    #[allow(unused)]
     fn get_store_path(&self, epoch: EpochId) -> PathBuf {
         let mut store_path = self.storage_base_path.clone();
         store_path.push(format!("{}", epoch));
         store_path
     }
+
+    fn pick_network(&self, epoch_store: &AuthorityPerEpochStore) -> ConsensusNetwork {
+        if let Ok(type_str) = std::env::var("CONSENSUS_NETWORK") {
+            match type_str.to_lowercase().as_str() {
+                "anemo" => return ConsensusNetwork::Anemo,
+                "tonic" => return ConsensusNetwork::Tonic,
+                _ => {
+                    info!(
+                        "Invalid consensus network type {} in env var. Continue to use the value from protocol config.",
+                        type_str
+                    );
+                }
+            }
+        }
+        epoch_store.protocol_config().consensus_network()
+    }
 }
 
 #[async_trait]
-
 impl ConsensusManagerTrait for MysticetiManager {
     /// Starts the Mysticeti consensus manager for the current epoch.
     async fn start(
         &self,
-        _config: &NodeConfig,
+        config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
         tx_validator: IotaTxValidator,
@@ -95,16 +112,7 @@ impl ConsensusManagerTrait for MysticetiManager {
         let committee: Committee = system_state.get_mysticeti_committee();
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
-        let network_type = match std::env::var("CONSENSUS_NETWORK") {
-            Ok(type_str) => {
-                if type_str.to_lowercase() == "tonic" {
-                    NetworkType::Tonic
-                } else {
-                    NetworkType::Anemo
-                }
-            }
-            Err(_) => NetworkType::Anemo,
-        };
+        let network_type = self.pick_network(&epoch_store);
 
         let Some(_guard) = RunningLockGuard::acquire_start(
             &self.metrics,
@@ -117,10 +125,12 @@ impl ConsensusManagerTrait for MysticetiManager {
             return;
         };
 
-        // TODO(mysticeti): Fill in the other fields
+        let consensus_config = config
+            .consensus_config()
+            .expect("consensus_config should exist");
         let parameters = Parameters {
-            db_path: Some(self.get_store_path(epoch)),
-            ..Default::default()
+            db_path: self.get_store_path(epoch),
+            ..consensus_config.parameters.clone().unwrap_or_default()
         };
 
         let own_protocol_key = self.protocol_keypair.public();
@@ -177,7 +187,8 @@ impl ConsensusManagerTrait for MysticetiManager {
 
         // spin up the new mysticeti consensus handler to listen for committed sub dags
         let handler = MysticetiConsensusHandler::new(consensus_handler, commit_receiver);
-        self.consensus_handler.store(Some(Arc::new(handler)));
+        let mut consensus_handler = self.consensus_handler.lock().await;
+        *consensus_handler = Some(handler);
     }
 
     async fn shutdown(&self) {
@@ -197,7 +208,10 @@ impl ConsensusManagerTrait for MysticetiManager {
         authority.stop().await;
 
         // drop the old consensus handler to force stop any underlying task running.
-        self.consensus_handler.store(None);
+        let mut consensus_handler = self.consensus_handler.lock().await;
+        if let Some(mut handler) = consensus_handler.take() {
+            handler.abort().await;
+        }
 
         // unregister the registry id
         self.registry_service.remove(registry_id);
@@ -205,9 +219,5 @@ impl ConsensusManagerTrait for MysticetiManager {
 
     async fn is_running(&self) -> bool {
         Running::False != *self.running.lock().await
-    }
-
-    fn get_storage_base_path(&self) -> PathBuf {
-        self.storage_base_path.clone()
     }
 }
