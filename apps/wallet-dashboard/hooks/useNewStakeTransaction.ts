@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { prepareVestingObjectsForTimelockedStaking } from '@/lib/utils';
+import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import {
     createStakeTransaction,
     createTimelockedStakeTransaction,
@@ -25,7 +25,7 @@ export function useNewStakeTransaction(
         StructType: TIMELOCK_IOTA_TYPE,
     });
     if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
-        vestingObjects = prepareVestingObjectsForTimelockedStaking(
+        vestingObjects = prepareObjectsForTimelockedStakingTransaction(
             timelockedObjects,
             amount,
             currentEpochMs,

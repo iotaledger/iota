@@ -234,9 +234,11 @@ export function isSupplyIncreaseVestingObject(
 }
 
 /**
- * Create VestingObject array from IotaObjectResponse array
+ * Formats an array of timelocked objects into an array of vesting objects.
  * Vesting object is grouped object by expiration time, where objectId holds the id of the first object in the group to which the rest of the objects in the group will be merged.
- * It also holds the total locked amount of the group.
+ *
+ * @param timelockedObjects - The array of timelocked objects to be formatted.
+ * @returns An array of vesting objects.
  */
 export function getFormattedTimelockedVestingObjects(
     timelockedObjects: TimelockedObject[],
@@ -274,34 +276,34 @@ export function getFormattedTimelockedVestingObjects(
 }
 
 /**
- * Adjust split amounts in vesting objects to ensure that the stake amout is met and that the split amount is greater than the minimum staking threshold
+ * Adjusts the split amounts in an array of vesting objects based on the total remaining amount.
+ * The function iteratively splits the remaining amount among the vesting objects until the split conditions are met.
+ *
+ * @param vestingObjects - An array of vesting objects.
+ * @param totalRemainingAmount - The total remaining amount to be split among the vesting objects.
  */
 export function adjustSplitAmountsInVestingObjects(
     vestingObjects: VestingObject[],
-    totalRemainingAmount: bigint,
+    totalRemainderAmount: bigint,
 ) {
     let objectsToSplit = 1;
     let splitAchieved = false;
 
     while (!splitAchieved && objectsToSplit <= vestingObjects.length) {
-        const splitRemainingAmount = BigInt(
-            Math.floor(Number(totalRemainingAmount) / objectsToSplit),
-        );
+        const baseRemainderAmount = totalRemainderAmount / BigInt(objectsToSplit);
         // if the amount is odd value we need to add the remainder to the first object because we floored the division
-        const splitRemainder = BigInt(totalRemainingAmount) % BigInt(objectsToSplit);
+        const remainder = totalRemainderAmount % BigInt(objectsToSplit);
+
         // counter for objects that have splitAmount > 0
         let foundObjectsToSplit = 0;
 
-        // Reset splitAmounts to 0
-        vestingObjects.forEach((obj) => (obj.splitAmount = BigInt(0)));
-
         for (let i = 0; i < vestingObjects.length; i++) {
             const obj = vestingObjects[i];
-            let remainingAmount = splitRemainingAmount;
-            if (i === 0 && splitRemainder > 0) {
-                remainingAmount += splitRemainder;
+            let adjustedRemainderAmount = baseRemainderAmount;
+            if (i === 0 && remainder > 0) {
+                adjustedRemainderAmount += remainder;
             }
-            const amountToSplit = BigInt(obj.totalLockedAmount) - remainingAmount;
+            const amountToSplit = obj.totalLockedAmount - adjustedRemainderAmount;
 
             if (amountToSplit > MIN_STAKING_THRESHOLD) {
                 obj.splitAmount = amountToSplit;
@@ -314,12 +316,21 @@ export function adjustSplitAmountsInVestingObjects(
         }
 
         if (!splitAchieved) {
+            vestingObjects.forEach((obj) => (obj.splitAmount = BigInt(0)));
             objectsToSplit++;
         }
     }
 }
 
-export function prepareVestingObjectsForTimelockedStaking(
+/**
+ * Prepares vesting objects for timelocked staking.
+ *
+ * @param timelockedObjects - An array of timelocked objects.
+ * @param amount - The amount to stake.
+ * @param currentEpochMs - The current epoch in milliseconds.
+ * @returns An array of vesting objects that meet the stake amount.
+ */
+export function prepareObjectsForTimelockedStakingTransaction(
     timelockedObjects: IotaObjectData[],
     amount: bigint,
     currentEpochMs: string,
@@ -356,6 +367,7 @@ export function prepareVestingObjectsForTimelockedStaking(
      * Calculate the remaining amount after staking
      */
     const remainingAmount = totalLocked - amount;
+
     /**
      * Add splitAmount property to the vesting objects that need to be split
      */

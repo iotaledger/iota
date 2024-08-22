@@ -28,6 +28,7 @@ function VestingDashboardPage(): JSX.Element {
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
+
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const vestingSchedule = getVestingOverview(
         [...timelockedMapped, ...(stakedTimelockedObjects || [])],

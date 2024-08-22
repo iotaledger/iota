@@ -38,7 +38,7 @@ export function createTimelockedStakeTransaction(
         });
     }
     /**
-     * Create tranasctions to split Vesting Objects that need splitting.
+     * Create transactions to split Vesting Objects that need splitting.
      */
     const splitVestingObject: VestingObject[] = vestingObjects.filter(
         (obj) => obj.splitAmount !== undefined && obj.splitAmount > 0,
