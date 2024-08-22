@@ -19,14 +19,24 @@ interface AddressProps {
      * Has open icon  (optional).
      */
     isExternal?: boolean;
+
+    /**
+     * The link for external resource (optional).
+     */
+    externalLink?: string;
+
     /**
      * Text that need to be copied (optional).
      */
     copyText?: string;
     /**
-     * The onCopy event of the Address  (optional).
+     * The onCopySuccess event of the Address  (optional).
      */
-    onCopy?: (e: React.MouseEvent<HTMLButtonElement>, value: string) => void;
+    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
+    /**
+     * The onCopyError event of the Address  (optional).
+     */
+    onCopyError?: (e: unknown, text: string) => void;
     /**
      * The onOpen event of the Address  (optional).
      */
@@ -37,8 +47,10 @@ export function Address({
     text,
     isCopyable,
     isExternal,
+    externalLink,
     copyText = text,
-    onCopy,
+    onCopySuccess,
+    onCopyError,
     onOpen,
 }: AddressProps): React.JSX.Element {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
@@ -47,11 +59,20 @@ export function Address({
         }
 
         try {
-            await navigator.clipboard.writeText(text);
-            onCopy?.(event, copyText);
-            return true;
+            await navigator.clipboard.writeText(copyText);
+            onCopySuccess?.(event, copyText);
         } catch (error) {
             console.error('Failed to copy:', error);
+            onCopyError?.(error, copyText);
+        }
+    }
+
+    function handleOpenClick(event: React.MouseEvent<HTMLButtonElement>) {
+        if (externalLink) {
+            const newWindow = window.open(externalLink, '_blank', 'noopener,noreferrer');
+            if (newWindow) newWindow.opener = null;
+        } else {
+            onOpen?.(event);
         }
     }
 
@@ -61,15 +82,15 @@ export function Address({
             {isCopyable && (
                 <ButtonUnstyled
                     onClick={handleCopyClick}
-                    className="opacity-0 focus:opacity-100 group-hover:opacity-100"
+                    className="opacity-0 group-hover:opacity-100"
                 >
                     <Copy />
                 </ButtonUnstyled>
             )}
             {isExternal && (
                 <ButtonUnstyled
-                    onClick={onOpen}
-                    className="opacity-0 focus:opacity-100 group-hover:opacity-100"
+                    onClick={handleOpenClick}
+                    className="opacity-0 group-hover:opacity-100"
                 >
                     <ArrowTopRight />
                 </ButtonUnstyled>

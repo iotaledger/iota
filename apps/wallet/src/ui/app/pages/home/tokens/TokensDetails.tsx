@@ -6,7 +6,14 @@ import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { LargeButton } from '_app/shared/LargeButton';
 import { Text } from '_app/shared/text';
 import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
-import { AccountsList, Alert, CoinIcon, Loading, UnlockAccountButton } from '_components';
+import {
+    AccountsList,
+    Alert,
+    CoinIcon,
+    ExplorerLinkType,
+    Loading,
+    UnlockAccountButton,
+} from '_components';
 import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
@@ -35,7 +42,6 @@ import {
     ButtonType,
     Address,
     Dialog,
-    // DialogTitle,
     DialogContent,
     DialogBody,
     Header,
@@ -60,6 +66,7 @@ import { PortfolioName } from './PortfolioName';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { TokenLink } from './TokenLink';
 import { useNavigate } from 'react-router-dom';
+import { useExplorerLink } from '_app/hooks/useExplorerLink';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -360,6 +367,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         retry: false,
         enabled: isMainnet,
     });
+    const explorerHref = useExplorerLink({
+        type: ExplorerLinkType.Address,
+        address: activeAccountAddress,
+    });
+
+    console.log('--- explorerHref', explorerHref);
 
     const {
         data: coinBalances,
@@ -451,10 +464,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-8"
                     data-testid="coin-page"
                 >
-                    <div className="flex w-full items-center justify-between gap-lg px-sm--rs py-md--rs">
+                    <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
                         <div className="flex flex-col gap-xs">
                             <div>
                                 <Address
+                                    isExternal={!!explorerHref}
+                                    externalLink={explorerHref!}
                                     text={
                                         activeAccount.nickname ??
                                         domainName ??
@@ -462,7 +477,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                     }
                                     isCopyable
                                     copyText={activeAccountAddress}
-                                    onCopy={() => toast.success('Address copied')}
+                                    onCopySuccess={() => toast.success('Address copied')}
                                 />
                             </div>
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
