@@ -59,7 +59,7 @@ async fn test_get_network_peers_from_admin_server() {
     let store = NodeStorage::reopen(temp_dir(), None);
     let client_1 = NetworkClient::new_from_keypair(&authority_1.network_keypair());
 
-    let (tx_new_certificates, _rx_new_certificates) = mysten_metrics::metered_channel::channel(
+    let (tx_new_certificates, _rx_new_certificates) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_NEW_CERTS,
@@ -67,7 +67,7 @@ async fn test_get_network_peers_from_admin_server() {
         )
         .unwrap(),
     );
-    let (tx_feedback, rx_feedback) = mysten_metrics::metered_channel::channel(
+    let (tx_feedback, rx_feedback) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_COMMITTED_CERTS,
@@ -174,7 +174,7 @@ async fn test_get_network_peers_from_admin_server() {
     };
 
     // TODO: Rework test-utils so that macro can be used for the channels below.
-    let (tx_new_certificates_2, _rx_new_certificates_2) = mysten_metrics::metered_channel::channel(
+    let (tx_new_certificates_2, _rx_new_certificates_2) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_NEW_CERTS,
@@ -182,7 +182,7 @@ async fn test_get_network_peers_from_admin_server() {
         )
         .unwrap(),
     );
-    let (tx_feedback_2, rx_feedback_2) = mysten_metrics::metered_channel::channel(
+    let (tx_feedback_2, rx_feedback_2) = iota_metrics::metered_channel::channel(
         CHANNEL_CAPACITY,
         &prometheus::IntGauge::new(
             PrimaryChannelMetrics::NAME_COMMITTED_CERTS,

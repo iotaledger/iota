@@ -9,5 +9,5 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 move-command-line-common.workspace = true
-prettydiff.workspace = true
+prettydiff = "0.7"
 regex.workspace = true

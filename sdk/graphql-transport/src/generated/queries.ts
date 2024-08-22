@@ -446,14 +446,14 @@ export type ChangeEpochTransaction = {
   __typename?: 'ChangeEpochTransaction';
   /**
    * The total amount of gas charged for computation during the previous
-   * epoch (in MICROS).
+   * epoch (in NANOS).
    */
   computationCharge: Scalars['BigInt']['output'];
   /** The next (to become) epoch. */
   epoch?: Maybe<Epoch>;
   /**
    * The total gas retained from storage fees, that will not be returned by
-   * storage rebates when the relevant objects are cleaned up (in MICROS).
+   * storage rebates when the relevant objects are cleaned up (in NANOS).
    */
   nonRefundableStorageFee: Scalars['BigInt']['output'];
   /** The protocol version in effect in the new epoch. */
@@ -462,12 +462,12 @@ export type ChangeEpochTransaction = {
   startTimestamp: Scalars['DateTime']['output'];
   /**
    * The total amount of gas charged for storage during the previous epoch
-   * (in MICROS).
+   * (in NANOS).
    */
   storageCharge: Scalars['BigInt']['output'];
   /**
    * The IOTA returned to transaction senders for cleaning up objects (in
-   * MICROS).
+   * NANOS).
    */
   storageRebate: Scalars['BigInt']['output'];
   /**
@@ -1313,9 +1313,9 @@ export type Epoch = {
   systemStateVersion?: Maybe<Scalars['Int']['output']>;
   /** The total number of checkpoints in this epoch. */
   totalCheckpoints?: Maybe<Scalars['BigInt']['output']>;
-  /** The total amount of gas fees (in MICROS) that were paid in this epoch. */
+  /** The total amount of gas fees (in NANOS) that were paid in this epoch. */
   totalGasFees?: Maybe<Scalars['BigInt']['output']>;
-  /** The total MICROS rewarded as stake. */
+  /** The total NANOS rewarded as stake. */
   totalStakeRewards?: Maybe<Scalars['BigInt']['output']>;
   /** The total number of transaction blocks in this epoch. */
   totalTransactions?: Maybe<Scalars['Int']['output']>;
@@ -1504,20 +1504,20 @@ export type GasCoin = {
 /** Breakdown of gas costs in effects. */
 export type GasCostSummary = {
   __typename?: 'GasCostSummary';
-  /** Gas paid for executing this transaction (in MICROS). */
+  /** Gas paid for executing this transaction (in NANOS). */
   computationCost?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Part of storage cost that is not reclaimed when data created by this
-   * transaction is cleaned up (in MICROS).
+   * transaction is cleaned up (in NANOS).
    */
   nonRefundableStorageFee?: Maybe<Scalars['BigInt']['output']>;
-  /** Gas paid for the data stored on-chain by this transaction (in MICROS). */
+  /** Gas paid for the data stored on-chain by this transaction (in NANOS). */
   storageCost?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Part of storage cost that can be reclaimed by cleaning up data created
    * by this transaction (when objects are deleted or an object is
    * modified, which is treated as a deletion followed by a creation) (in
-   * MICROS).
+   * NANOS).
    */
   storageRebate?: Maybe<Scalars['BigInt']['output']>;
 };
@@ -1547,7 +1547,7 @@ export type GasInput = {
   gasPayment: ObjectConnection;
   /**
    * An unsigned integer specifying the number of native tokens per gas unit
-   * this transaction will pay (in MICROS).
+   * this transaction will pay (in NANOS).
    */
   gasPrice?: Maybe<Scalars['BigInt']['output']>;
   /** Address of the owner of the gas object(s) used */

@@ -22,9 +22,11 @@ use futures::{
     future::{join_all, select, Either},
     FutureExt,
 };
+use iota_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::fail_point;
+use iota_metrics::monitored_scope;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
@@ -61,8 +63,6 @@ use iota_types::{
 };
 use itertools::{izip, Itertools};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use mysten_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
-use mysten_metrics::monitored_scope;
 use narwhal_executor::ExecutionIndices;
 use narwhal_types::{Round, TimestampMs};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};

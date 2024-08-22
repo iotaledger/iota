@@ -245,7 +245,7 @@ impl ProtocolMetrics for NarwhalProtocol {
                     "{}:{}{}",
                     instance.main_ip,
                     PrometheusMetricsParameters::DEFAULT_PORT,
-                    mysten_metrics::METRICS_ROUTE
+                    iota_metrics::METRICS_ROUTE
                 );
                 (instance, path)
             })
