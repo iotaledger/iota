@@ -435,6 +435,7 @@ mod simtests {
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use rustls::crypto::{ring, CryptoProvider};
     use tokio::net::TcpListener;
     use tracing::info;
 
@@ -493,6 +494,10 @@ mod simtests {
 
     #[sim_test(config = "constant_latency_ms(250)")]
     async fn test_multi_fetch() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
         let mut data = HashMap::new();
 
         let tx = random_tx();
