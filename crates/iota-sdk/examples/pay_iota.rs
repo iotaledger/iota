@@ -10,10 +10,7 @@ use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
-    types::{
-        quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction, TransactionData},
-    },
+    types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
 };
 use shared_crypto::intent::Intent;
 use utils::setup_for_write;
@@ -32,19 +29,19 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_coin = coins.data.into_iter().next().unwrap();
 
     let gas_budget = 5_000_000;
-    let gas_price = iota.read_api().get_reference_gas_price().await?;
 
     // 3) Build the transaction data, to transfer 1_000 NANOS from the gas coin to
     //    the recipient address
-    let tx_data = TransactionData::new_pay_iota(
-        sender,
-        vec![],
-        vec![recipient],
-        vec![1_000],
-        gas_coin.object_ref(),
-        gas_budget,
-        gas_price,
-    )?;
+    let tx_data = iota
+        .transaction_builder()
+        .pay_iota(
+            sender,
+            vec![gas_coin.coin_object_id],
+            vec![recipient],
+            vec![1_000],
+            gas_budget,
+        )
+        .await?;
 
     // 4) Sign transaction
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
