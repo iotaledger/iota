@@ -24,7 +24,6 @@ futures.workspace = true
 http.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
-hyper-rustls.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true

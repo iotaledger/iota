@@ -243,6 +243,7 @@ datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", r
 derivative = "2.2"
 diesel = { version = "2.2", features = ["chrono", "postgres", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes", "postgres_backend"] }
 dirs = "5.0"
+ed25519 = { version = "1.5.0", features = ["pkcs8", "alloc", "zeroize"] }
 ed25519-consensus = { version = "2.0", features = ["serde"] }
 either = "1.8"
 enum_dispatch = "^0.3"
@@ -298,6 +299,7 @@ roaring = "0.10"
 rocksdb = { version = "0.22", features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"], default-features = false }
 rstest = "0.22"
 rustls = { version = "0.23.10", features = ["ring"] }
+rustls-pemfile = "2.1.2"
 schemars = { version = "0.8", features = ["either"] }
 scopeguard = "1.1"
 serde = { version = "1.0", features = ["derive", "rc"] }
@@ -320,6 +322,7 @@ tempfile = "3.12"
 test-fuzz = "5.2"
 thiserror = "1.0"
 tokio = "1.36"
+tokio-rustls = "0.26.0"
 tokio-stream = { version = "0.1", features = ["sync", "net"] }
 tokio-util = "0.7"
 toml = { version = "0.8", features = ["preserve_order"] }
@@ -328,11 +331,14 @@ tonic-build = { version = "0.12", features = ["prost", "transport"] }
 tonic-health = "0.12"
 tower = { version = "0.4", features = ["full", "util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
+tower-layer = "0.3.2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
 unescape = "0.1"
 url = "2.3"
 uuid = { version = "1.1", features = ["v4", "fast-rng"] }
+webpki = { version = "0.102.4", package = "rustls-webpki", features = ["alloc", "std"] }
+x509-parser = "0.14.0"
 
 # Move dependencies
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
