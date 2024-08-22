@@ -343,22 +343,22 @@ type ChangeEpochTransaction {
 	protocolVersion: Int!
 	"""
 	The total amount of gas charged for storage during the previous epoch
-	(in MICROS).
+	(in NANOS).
 	"""
 	storageCharge: BigInt!
 	"""
 	The total amount of gas charged for computation during the previous
-	epoch (in MICROS).
+	epoch (in NANOS).
 	"""
 	computationCharge: BigInt!
 	"""
 	The IOTA returned to transaction senders for cleaning up objects (in
-	MICROS).
+	NANOS).
 	"""
 	storageRebate: BigInt!
 	"""
 	The total gas retained from storage fees, that will not be returned by
-	storage rebates when the relevant objects are cleaned up (in MICROS).
+	storage rebates when the relevant objects are cleaned up (in NANOS).
 	"""
 	nonRefundableStorageFee: BigInt!
 	"""
@@ -1062,11 +1062,11 @@ type Epoch {
 	"""
 	totalTransactions: Int
 	"""
-	The total amount of gas fees (in MICROS) that were paid in this epoch.
+	The total amount of gas fees (in NANOS) that were paid in this epoch.
 	"""
 	totalGasFees: BigInt
 	"""
-	The total MICROS rewarded as stake.
+	The total NANOS rewarded as stake.
 	"""
 	totalStakeRewards: BigInt
 	"""
@@ -1317,23 +1317,23 @@ Breakdown of gas costs in effects.
 """
 type GasCostSummary {
 	"""
-	Gas paid for executing this transaction (in MICROS).
+	Gas paid for executing this transaction (in NANOS).
 	"""
 	computationCost: BigInt
 	"""
-	Gas paid for the data stored on-chain by this transaction (in MICROS).
+	Gas paid for the data stored on-chain by this transaction (in NANOS).
 	"""
 	storageCost: BigInt
 	"""
 	Part of storage cost that can be reclaimed by cleaning up data created
 	by this transaction (when objects are deleted or an object is
 	modified, which is treated as a deletion followed by a creation) (in
-	MICROS).
+	NANOS).
 	"""
 	storageRebate: BigInt
 	"""
 	Part of storage cost that is not reclaimed when data created by this
-	transaction is cleaned up (in MICROS).
+	transaction is cleaned up (in NANOS).
 	"""
 	nonRefundableStorageFee: BigInt
 }
@@ -1362,7 +1362,7 @@ type GasInput {
 	gasPayment(first: Int, after: String, last: Int, before: String): ObjectConnection!
 	"""
 	An unsigned integer specifying the number of native tokens per gas unit
-	this transaction will pay (in MICROS).
+	this transaction will pay (in NANOS).
 	"""
 	gasPrice: BigInt
 	"""

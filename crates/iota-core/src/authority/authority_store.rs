@@ -7,6 +7,7 @@ use std::{cmp::Ordering, iter, mem, ops::Not, sync::Arc, thread};
 use either::Either;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::stream::FuturesUnordered;
+use iota_common::sync::notify_read::NotifyRead;
 use iota_macros::fail_point_arg;
 use iota_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
 use iota_types::{
@@ -25,7 +26,6 @@ use iota_types::{
 };
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
-use mysten_common::sync::notify_read::NotifyRead;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{RwLockReadGuard, RwLockWriteGuard},

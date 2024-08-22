@@ -9,6 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaMoveValue;
+use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
@@ -29,7 +30,6 @@ use move_core_types::{
     annotated_value::{MoveStructLayout, MoveTypeLayout},
     language_storage::{StructTag, TypeTag},
 };
-use mysten_metrics::{get_metrics, spawn_monitored_task};
 use tap::tap::TapFallible;
 use tokio::sync::watch;
 use tracing::{error, info, warn};
@@ -70,7 +70,7 @@ where
         .unwrap();
     let global_metrics = get_metrics().unwrap();
     let (indexed_checkpoint_sender, indexed_checkpoint_receiver) =
-        mysten_metrics::metered_channel::channel(
+        iota_metrics::metered_channel::channel(
             checkpoint_queue_size,
             &global_metrics
                 .channels
@@ -100,7 +100,7 @@ where
 pub struct CheckpointHandler<S> {
     state: S,
     metrics: IndexerMetrics,
-    indexed_checkpoint_sender: mysten_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     // buffers for packages that are being indexed but not committed to DB,
     // they will be periodically GCed to avoid OOM.
     package_buffer: Arc<Mutex<IndexingPackageBuffer>>,

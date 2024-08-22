@@ -11,15 +11,15 @@ description = "Tool for generating tests for the bytecode verifier and Move VM r
 
 [dependencies]
 clap.workspace = true
-crossbeam-channel.workspace = true
+crossbeam-channel = "0.5"
 getrandom.workspace = true
 hex.workspace = true
 itertools.workspace = true
-num_cpus.workspace = true
+num_cpus = "1.16"
 once_cell.workspace = true
 rand.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 module-generation.workspace = true
 move-binary-format.workspace = true

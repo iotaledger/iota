@@ -11,7 +11,7 @@ use iota_sdk::types::block::{
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{rngs::StdRng, Rng};
 
-use super::to_micros;
+use super::to_nanos;
 use crate::stardust::{
     test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
     types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
@@ -21,9 +21,9 @@ const A_WEEK_IN_SECONDS: u32 = 604_800;
 const TIMELOCK_MAX_ENDING_TIME: u32 = A_WEEK_IN_SECONDS * 208;
 
 const DELEGATOR_GAS_COIN_NUM: u8 = 100;
-const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = to_micros(1_000_000);
+const DELEGATOR_GAS_COIN_AMOUNT_PER_OUTPUT: u64 = to_nanos(1_000_000);
 const DELEGATOR_TIMELOCKS_NUM: u8 = 100;
-const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = to_micros(1_000_000);
+const DELEGATOR_TIMELOCKS_AMOUNT_PER_OUTPUT: u64 = to_nanos(1_000_000);
 
 pub(crate) fn new_simple_basic_output(
     amount: u64,

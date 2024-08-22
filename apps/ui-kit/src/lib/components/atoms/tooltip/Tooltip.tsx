@@ -22,7 +22,7 @@ export function Tooltip({
             {children}
             <div
                 className={cx(
-                    'absolute z-50 w-max max-w-[200px] rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
+                    'absolute z-[999] hidden w-max max-w-[200px] rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:flex group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
                     tooltipPositionClass,
                 )}
                 role="tooltip"
