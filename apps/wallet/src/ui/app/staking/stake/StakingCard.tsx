@@ -317,13 +317,13 @@ function StakingCard() {
                             </div>
                             <div className="pt-sm">
                                 <Button
-                                    type={ButtonType.Primary}
+                                    type={unstake ? ButtonType.Secondary : ButtonType.Primary}
                                     fullWidth
                                     onClick={submitForm}
                                     disabled={
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
-                                    text={unstake ? 'Unstake Now' : 'Stake Now'}
+                                    text={unstake ? 'Unstake' : 'Stake'}
                                 />
                             </div>
                         </>

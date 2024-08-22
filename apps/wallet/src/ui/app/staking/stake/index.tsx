@@ -14,13 +14,14 @@ function StakePage() {
     const unstake = searchParams.get('unstake') === 'true';
 
     const navigate = useNavigate();
-    const stakingTitle = unstake ? 'Unstake IOTA' : 'Stake IOTA';
+    const stakingTitle = unstake ? 'Unstake' : 'Stake IOTA';
 
     return (
         <Overlay
             showModal={true}
             title={validatorAddress ? stakingTitle : 'Select a Validator'}
             closeOverlay={() => navigate('/')}
+            showBackButton
         >
             {validatorAddress ? <StakingCard /> : <SelectValidatorCard />}
         </Overlay>
