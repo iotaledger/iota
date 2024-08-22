@@ -14,8 +14,6 @@ use fastcrypto::traits::KeyPair as _;
 use iota_config::{ConsensusConfig, NodeConfig};
 use narwhal_worker::LazyNarwhalClient;
 use iota_metrics::RegistryService;
-use iota_protocol_config::ProtocolVersion;
-use iota_types::committee::EpochId;
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -200,7 +198,7 @@ impl ConsensusManagerTrait for ConsensusManager {
         node_config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
-        tx_validator: SuiTxValidator,
+        tx_validator: IotaTxValidator,
     ) {
         let protocol_manager = {
             let mut active = self.active.lock();
@@ -307,7 +305,7 @@ impl SubmitToConsensus for ConsensusClient {
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let client = self.get().await;
         client.submit_to_consensus(transactions, epoch_store).await
     }

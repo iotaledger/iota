@@ -150,9 +150,9 @@ impl ConsensusManagerTrait for MysticetiManager {
         let consumer = CommitConsumer::new(
             commit_sender,
             // TODO(mysticeti): remove dependency on narwhal executor
-            consensus_handler.last_executed_sub_dag_round() as Round,
             consensus_handler.last_executed_sub_dag_index() as CommitIndex,
         );
+        let monitor = consumer.monitor();
 
         // TODO(mysticeti): Investigate if we need to return potential errors from
         // AuthorityNode and add retries here?
@@ -169,24 +169,18 @@ impl ConsensusManagerTrait for MysticetiManager {
             registry.clone(),
         )
         .await;
+        let client = authority.transaction_client();
 
         let registry_id = self.registry_service.add(registry.clone());
 
         self.authority
             .swap(Some(Arc::new((authority, registry_id))));
 
-        // create the client to send transactions to Mysticeti and update it.
-        self.client.set(
-            self.authority
-                .load()
-                .as_ref()
-                .expect("ConsensusAuthority should have been created by now.")
-                .0
-                .transaction_client(),
-        );
+        // Initialize the client to send transactions to this Mysticeti instance.
+        self.client.set(client);
 
         // spin up the new mysticeti consensus handler to listen for committed sub dags
-        let handler = MysticetiConsensusHandler::new(consensus_handler, commit_receiver);
+        let handler = MysticetiConsensusHandler::new(consensus_handler, commit_receiver, monitor);
         let mut consensus_handler = self.consensus_handler.lock().await;
         *consensus_handler = Some(handler);
     }
@@ -197,8 +191,10 @@ impl ConsensusManagerTrait for MysticetiManager {
             return;
         };
 
-        // swap with empty to ensure there is no other reference to authority and we can
-        // safely do Arc unwrap
+        // Stop consensus submissions.
+        self.client.clear();
+
+        // swap with empty to ensure there is no other reference to authority and we can safely do Arc unwrap
         let r = self.authority.swap(None).unwrap();
         let Ok((authority, registry_id)) = Arc::try_unwrap(r) else {
             panic!("Failed to retrieve the mysticeti authority");

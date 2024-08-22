@@ -6,7 +6,6 @@ use std::fmt::Display;
 
 use consensus_core::{BlockAPI, CommitDigest};
 use fastcrypto::hash::Hash;
-use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 use narwhal_types::{BatchAPI, CertificateAPI, ConsensusOutputDigest, HeaderAPI};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};

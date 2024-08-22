@@ -13,6 +13,7 @@ use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use iota_macros::{fail_point_async, fail_point_if};
 use iota_metrics::{monitored_scope, spawn_monitored_task};
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, TransactionDigest},
@@ -28,7 +29,7 @@ use narwhal_executor::{ExecutionIndices, ExecutionState};
 use narwhal_types::ConsensusOutput;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, instrument, trace_span};
-
+use iota_types::base_types::ObjectID;
 use crate::{
     authority::{
         authority_per_epoch_store::{
@@ -277,32 +278,21 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             timestamp
         };
 
-        let prologue_transaction = match self
-            .epoch_store
-            .protocol_config()
-            .include_consensus_digest_in_prologue()
-        {
-            true => self.consensus_commit_prologue_v2_transaction(
-                round,
-                timestamp,
-                consensus_output.consensus_digest(),
-            ),
-            false => self.consensus_commit_prologue_transaction(round, timestamp),
-        };
-
         info!(
             %consensus_output,
             epoch = ?self.epoch_store.epoch(),
-            prologue_transaction_digest = ?prologue_transaction.digest(),
             "Received consensus output"
         );
 
         let empty_bytes = vec![];
-        transactions.push((
-            empty_bytes.as_slice(),
-            SequencedConsensusTransactionKind::System(prologue_transaction),
-            consensus_output.leader_author_index(),
-        ));
+        self.update_index_and_hash(
+            ExecutionIndices {
+                last_committed_round: round,
+                sub_dag_index: commit_sub_dag_index,
+                transaction_index: 0_u64,
+            },
+            &empty_bytes,
+        );
 
         // Load all jwks that became active in the previous round, and commit them in
         // this round. We want to delay one round because none of the
@@ -330,7 +320,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             transactions.push((
                 empty_bytes.as_slice(),
                 SequencedConsensusTransactionKind::System(authenticator_state_update_transaction),
-                consensus_output.leader_author_index(),
+                leader_author,
             ));
         }
 
@@ -359,11 +349,15 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     .stats
                     .inc_num_messages(authority_index as usize);
                 for (serialized_transaction, transaction) in authority_transactions {
-                    bytes += serialized_transaction.len();
+                    let kind = classify(&transaction);
                     self.metrics
                         .consensus_handler_processed
-                        .with_label_values(&[classify(&transaction)])
+                        .with_label_values(&[kind])
                         .inc();
+                    self.metrics
+                        .consensus_handler_transaction_sizes
+                        .with_label_values(&[kind])
+                        .observe(serialized_transaction.len() as f64);
                     if matches!(
                         &transaction.kind,
                         ConsensusTransactionKind::UserTransaction(_)
@@ -402,9 +396,6 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 .with_label_values(&[hostname])
                 .set(self.last_consensus_stats.stats.get_num_user_transactions(i) as i64);
         }
-        self.metrics
-            .consensus_handler_processed_bytes
-            .inc_by(bytes as u64);
 
         let mut all_transactions = Vec::new();
         {
@@ -416,21 +407,16 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             for (seq, (serialized, transaction, cert_origin)) in
                 transactions.into_iter().enumerate()
             {
-                let index = ExecutionIndices {
+                // In process_consensus_transactions_and_commit_boundary(), we will add a system consensus commit
+                // prologue transaction, which will be the first transaction in this consensus commit batch.
+                // Therefore, the transaction sequence number starts from 1 here.
+                let current_tx_index = ExecutionIndices {
                     last_committed_round: round,
                     sub_dag_index: commit_sub_dag_index,
-                    transaction_index: seq as u64,
+                    transaction_index: (seq + 1) as u64,
                 };
 
-                let index_with_stats = if self.update_index_and_hash(index, serialized) {
-                    self.last_consensus_stats.clone()
-                } else {
-                    debug!(
-                        "Ignore consensus transaction at index {:?} as it appear to be already processed",
-                        index
-                    );
-                    continue;
-                };
+                self.update_index_and_hash(current_tx_index, serialized);
 
                 let certificate_author = self
                     .committee
@@ -440,7 +426,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 let sequenced_transaction = SequencedConsensusTransaction {
                     certificate_author_index: cert_origin,
                     certificate_author,
-                    consensus_index: index_with_stats.index,
+                    consensus_index: current_tx_index,
                     transaction,
                 };
 
@@ -467,9 +453,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
-                round,
-                timestamp,
-                &self.metrics.skipped_consensus_txns,
+                &ConsensusCommitInfo::new(self.epoch_store.protocol_config(), &consensus_output),
+                &self.metrics,
             )
             .await
             .expect("Unrecoverable error in consensus handler");
@@ -620,6 +605,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotification(_) => "capability_notification",
+        ConsensusTransactionKind::CapabilityNotificationV2(_) => "capability_notification_v2",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessStateUpdate(_, _) => "randomness_state_update",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -822,19 +808,111 @@ impl SequencedConsensusTransaction {
     }
 }
 
+/// Represents the information from the current consensus commit.
+pub struct ConsensusCommitInfo {
+    pub round: u64,
+    pub timestamp: u64,
+    pub consensus_commit_digest: ConsensusCommitDigest,
+
+    #[cfg(any(test, feature = "test-utils"))]
+    skip_consensus_commit_prologue_in_test: bool,
+}
+
+impl ConsensusCommitInfo {
+    fn new(protocol_config: &ProtocolConfig, consensus_output: &impl ConsensusOutputAPI) -> Self {
+        Self {
+            round: consensus_output.leader_round(),
+            timestamp: consensus_output.commit_timestamp_ms(),
+            consensus_commit_digest: consensus_output.consensus_digest(protocol_config),
+
+            #[cfg(any(test, feature = "test-utils"))]
+            skip_consensus_commit_prologue_in_test: false,
+        }
+    }
+
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_test(
+        commit_round: u64,
+        commit_timestamp: u64,
+        skip_consensus_commit_prologue_in_test: bool,
+    ) -> Self {
+        Self {
+            round: commit_round,
+            timestamp: commit_timestamp,
+            consensus_commit_digest: ConsensusCommitDigest::default(),
+            skip_consensus_commit_prologue_in_test,
+        }
+    }
+
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn skip_consensus_commit_prologue_in_test(&self) -> bool {
+        self.skip_consensus_commit_prologue_in_test
+    }
+
+    fn consensus_commit_prologue_transaction(&self, epoch: u64) -> VerifiedExecutableTransaction {
+        let transaction =
+            VerifiedTransaction::new_consensus_commit_prologue(epoch, self.round, self.timestamp);
+        VerifiedExecutableTransaction::new_system(transaction, epoch)
+    }
+
+    fn consensus_commit_prologue_v2_transaction(
+        &self,
+        epoch: u64,
+    ) -> VerifiedExecutableTransaction {
+        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
+            epoch,
+            self.round,
+            self.timestamp,
+            self.consensus_commit_digest,
+        );
+        VerifiedExecutableTransaction::new_system(transaction, epoch)
+    }
+
+    fn consensus_commit_prologue_v3_transaction(
+        &self,
+        epoch: u64,
+        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+    ) -> VerifiedExecutableTransaction {
+        let transaction = VerifiedTransaction::new_consensus_commit_prologue_v3(
+            epoch,
+            self.round,
+            self.timestamp,
+            self.consensus_commit_digest,
+            cancelled_txn_version_assignment,
+        );
+        VerifiedExecutableTransaction::new_system(transaction, epoch)
+    }
+
+    pub fn create_consensus_commit_prologue_transaction(
+        &self,
+        epoch: u64,
+        protocol_config: &ProtocolConfig,
+        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+    ) -> VerifiedExecutableTransaction {
+        if protocol_config.record_consensus_determined_version_assignments_in_prologue() {
+            self.consensus_commit_prologue_v3_transaction(epoch, cancelled_txn_version_assignment)
+        } else if protocol_config.include_consensus_digest_in_prologue() {
+            self.consensus_commit_prologue_v2_transaction(epoch)
+        } else {
+            self.consensus_commit_prologue_transaction(epoch)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
 
-    use iota_protocol_config::{ConsensusTransactionOrdering, SupportedProtocolVersions};
+    use iota_protocol_config::ConsensusTransactionOrdering;
     use iota_types::{
         base_types::{random_object_ref, AuthorityName, IotaAddress},
         committee::Committee,
         iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
         messages_consensus::{
-            AuthorityCapabilities, ConsensusTransaction, ConsensusTransactionKind,
+            AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
         object::Object,
+        supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
@@ -859,7 +937,10 @@ mod tests {
     pub async fn test_consensus_handler() {
         // GIVEN
         let mut objects = test_gas_objects();
-        objects.push(Object::shared_for_testing());
+        let shared_object = Object::shared_for_testing();
+        objects.push(shared_object.clone());
+
+        let latest_protocol_config = &latest_protocol_version();
 
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
@@ -867,7 +948,7 @@ mod tests {
                 .build();
 
         let state = TestAuthorityBuilder::new()
-            .with_network_config(&network_config)
+            .with_network_config(&network_config, 0)
             .build()
             .await;
 
@@ -892,7 +973,7 @@ mod tests {
 
         // AND
         // Create test transactions
-        let transactions = test_certificates(&state).await;
+        let transactions = test_certificates(&state, shared_object).await;
         let mut certificates = Vec::new();
         let mut batches = Vec::new();
 
@@ -902,7 +983,7 @@ mod tests {
             )
             .unwrap();
 
-            let batch = Batch::new(vec![transaction_bytes]);
+            let batch = Batch::new(vec![transaction_bytes], latest_protocol_config);
 
             batches.push(vec![batch.clone()]);
 
@@ -916,7 +997,13 @@ mod tests {
                 .build()
                 .unwrap();
 
-            let certificate = Certificate::new_unsigned(&committee, header.into(), vec![]).unwrap();
+            let certificate = Certificate::new_unsigned(
+                latest_protocol_config,
+                &committee,
+                header.into(),
+                vec![],
+            )
+            .unwrap();
 
             certificates.push(certificate);
         }
@@ -1089,7 +1176,7 @@ mod tests {
 
     fn cap_txn(generation: u64) -> VerifiedSequencedConsensusTransaction {
         txn(ConsensusTransactionKind::CapabilityNotification(
-            AuthorityCapabilities {
+            AuthorityCapabilitiesV1 {
                 authority: Default::default(),
                 generation,
                 supported_protocol_versions: SupportedProtocolVersions::SYSTEM_DEFAULT,
