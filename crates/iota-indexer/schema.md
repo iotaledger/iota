@@ -86,10 +86,35 @@ The Indexer pulls checkpoint data from the full node and populates the tables sh
 | -------------------------------------- | ------------------ | --------- |
 | tx_recipients_tx_sequence_number_index | tx_sequence_number | ASC       |
 
+### Table `tx_count_metrics`
+
+| Index name                    | Keys         |
+| ----------------------------- | ------------ |
+| tx_count_metrics_epoch        | epoch        |
+| tx_count_metrics_timestamp_ms | timestamp_ms |
+
+### Table `move_calls`
+
+| Index name               | Keys                                            |
+| ------------------------ | ----------------------------------------------- |
+| idx_move_calls_epoch_etc | epoch, move_package, move_module, move_function |
+
+### Table `move_call_metrics`
+
+| Index name                  | Keys       |
+| --------------------------- | ---------- |
+| move_call_metrics_epoch_day | epoch, day |
+
+### Table `address_metrics`
+
+| Index name                | Keys  |
+| ------------------------- | ----- |
+| address_metrics_epoch_idx | epoch |
+
 ## Partitions
 
 ### Tables `transactions`, `objects_history`
 
-|            Keys            |             Condition             |
-| :------------------------: | :-------------------------------: |
+| Keys                       | Condition                         |
+| -------------------------- | --------------------------------- |
 | checkpoint_sequence_number | FOR VALUES FROM (0) TO (MAXVALUE) |
