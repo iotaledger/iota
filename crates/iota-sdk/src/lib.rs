@@ -117,7 +117,7 @@ pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
 pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:5003/gas";
 pub const IOTA_DEVNET_URL: &str = "https://fullnode.devnet.iota.io:443";
-pub const IOTA_TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
+pub const IOTA_TESTNET_URL: &str = "https://api.iota-rebased-alphanet.iota.cafe:443";
 
 /// A Iota client builder for connecting to the Iota network
 ///
