@@ -10,7 +10,6 @@ import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLoc
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
-import MenuListItem from './MenuListItem';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
@@ -19,6 +18,15 @@ import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/ui-icons';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageType,
+} from '@iota/apps-ui-kit';
 
 function MenuList() {
     const navigate = useNavigate();
@@ -104,7 +112,20 @@ function MenuList() {
             <div className="flex h-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.map((item, index) => (
-                        <MenuListItem key={index} {...item} />
+                        <Card
+                            key={index}
+                            type={CardType.Default}
+                            onClick={item.onClick}
+                            isDisabled={item.isDisabled}
+                        >
+                            <CardImage type={ImageType.BgSolid}>
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 [&_svg]:h-5 [&_svg]:w-5">
+                                    <span className="text-2xl">{item.icon}</span>
+                                </div>
+                            </CardImage>
+                            <CardBody title={item.title} subtitle={item.subtitle} />
+                            <CardAction type={CardActionType.Link} />
+                        </Card>
                     ))}
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
