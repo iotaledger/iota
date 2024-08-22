@@ -20,7 +20,7 @@ function TransactionBlocksPage() {
     }
     return (
         <PageTemplate title="Your Activity" isTitleCentered>
-            <div className="flex h-full w-full flex-col items-center">
+            <div className="flex h-full w-full flex-col items-center gap-xxxs">
                 <CompletedTransactions />
             </div>
         </PageTemplate>

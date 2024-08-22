@@ -68,7 +68,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
             to={`/receipt?${new URLSearchParams({
                 txdigest: txn.digest,
             }).toString()}`}
-            className="flex w-full flex-col items-center gap-2 py-4 no-underline"
+            className="flex w-full flex-col items-center no-underline"
         >
             <Card type={CardType.Default}>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
