@@ -1,9 +1,14 @@
 name: Rust tests
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
 
 jobs:
   changes:
+    if: inputs.isRust
     runs-on: [self-hosted]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -18,7 +23,7 @@ jobs:
   test:
     name: Test ${{ matrix.components }}
     needs: changes
-    if: needs.changes.outputs.components != '[]'
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -33,7 +38,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: Install python dependencies
-        run: pip install pyopenssl --upgrade
+        run: pip install pyopenssl --upgrade --break-system-packages
       - name: cargo test
         run: >
           cargo nextest run
@@ -42,3 +47,19 @@ jobs:
           -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml) and rdeps(${{matrix.components}})'
           -p ${{matrix.components}}
           --profile ci
+
+  check-unused-deps:
+    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
+    strategy:
+      matrix:
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+        flags: ["--all-features", "--no-default-features"]
+      fail-fast: false
+    runs-on: [self-hosted]
+    needs: changes
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps-external -p ${{matrix.components}} ${{ matrix.flags }}

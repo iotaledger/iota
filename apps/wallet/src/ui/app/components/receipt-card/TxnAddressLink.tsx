@@ -15,7 +15,7 @@ export function TxnAddressLink({ address }: TxnAddressLinkProps) {
         <ExplorerLink
             type={ExplorerLinkType.Address}
             address={address}
-            title="View on Iota Explorer"
+            title="View on IOTA Explorer"
             showIcon={false}
         >
             {isIotaNSName(address) ? address : formatAddress(address)}

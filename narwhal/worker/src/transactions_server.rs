@@ -6,8 +6,8 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::{stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{metered_channel::Sender, monitored_scope, spawn_logged_monitored_task};
-use mysten_network::{server::Server, Multiaddr};
+use iota_metrics::{metered_channel::Sender, monitored_scope, spawn_logged_monitored_task};
+use iota_network_stack::{server::Server, Multiaddr};
 use tokio::{
     task::JoinHandle,
     time::{sleep, timeout},
@@ -71,7 +71,7 @@ impl<V: TransactionValidator> TxServer<V> {
         let mut server: Server;
 
         loop {
-            match mysten_network::config::Config::new()
+            match iota_network_stack::config::Config::new()
                 .server_builder_with_metrics(self.endpoint_metrics.clone())
                 .add_service(TransactionsServer::new(tx_handler.clone()))
                 .bind(&self.address)

@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This example walks through the Rust SDK use case described in
+//! https://github.com/iotaledger/iota/blob/develop/docs/content/developer/iota-101/transactions/sign-and-send-txn.mdx
+//!
+//! cargo run --example sign_tx_guide
+
 mod utils;
 use anyhow::anyhow;
 use fastcrypto::{
@@ -27,11 +32,8 @@ use iota_types::{
 };
 use rand::{rngs::StdRng, SeedableRng};
 use shared_crypto::intent::{Intent, IntentMessage};
+use utils::request_tokens_from_faucet;
 
-use crate::utils::request_tokens_from_faucet;
-
-/// This example walks through the Rust SDK use case described in
-/// https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/iota-101/sign-and-send-txn.mdx
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // set up iota client for the desired network.
@@ -97,7 +99,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // replace `ikp_determ_0` with the variable names above
     let pk = ikp_determ_0.public();
     let sender = IotaAddress::from(&pk);
-    println!("Sender: {:?}", sender);
+    println!("Sender: {sender:?}");
 
     // make sure the sender has a gas coin as an example.
     request_tokens_from_faucet(sender, &iota_client).await?;

@@ -15,12 +15,10 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel.workspace = true
-diesel-derive-enum.workspace = true
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
-rayon.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -36,14 +34,13 @@ iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
+iota-metrics.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
-iota-sdk.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
 telemetry-subscribers.workspace = true
 
 move-binary-format.workspace = true
@@ -51,20 +48,19 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 
 cached.workspace = true
-diesel_migrations.workspace = true
+diesel_migrations = "2.2"
 
 [features]
 pg_integration = []
 
 [dev-dependencies]
-criterion.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
-iota-test-transaction-builder.workspace = true
-ntest.workspace = true
 simulacrum.workspace = true
-test-cluster.workspace = true
 
 [[bin]]
 name = "iota-indexer"
 path = "src/main.rs"
+
+[package.metadata.cargo-udeps.ignore]
+development = ["simulacrum"]
