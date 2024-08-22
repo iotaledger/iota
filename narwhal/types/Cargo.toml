@@ -37,6 +37,7 @@ once_cell.workspace = true
 
 iota-common.workspace = true
 iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
 iota-util-mem.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }
 

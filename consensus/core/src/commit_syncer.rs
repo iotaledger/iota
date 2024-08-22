@@ -34,7 +34,7 @@ use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{stream::FuturesOrdered, StreamExt as _};
 use itertools::Itertools as _;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::{Mutex, RwLock};
 use rand::prelude::SliceRandom as _;
 use tokio::{

@@ -17,8 +17,8 @@ use consensus_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
 use futures::{stream, Stream, StreamExt as _};
 use hyper_util::rt::tokio::TokioIo;
 use hyper_util::service::TowerToHyperService;
-use mysten_common::sync::notify_once::NotifyOnce;
-use mysten_metrics::monitored_future;
+use iota_common::sync::notify_once::NotifyOnce;
+use iota_metrics::monitored_future;
 use iota_network_stack::{
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
@@ -326,7 +326,7 @@ impl NetworkClient for TonicClient {
 }
 
 // Tonic channel wrapped with layers.
-type Channel = mysten_network::callback::Callback<
+type Channel = iota_network_stack::callback::Callback<
     tower_http::trace::Trace<
         tonic::transport::Channel,
         tower_http::classify::SharedClassifier<tower_http::classify::GrpcErrorsAsFailures>,

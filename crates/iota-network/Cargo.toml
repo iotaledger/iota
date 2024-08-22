@@ -27,12 +27,14 @@ bytes.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
+http.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
+pin-project-lite = "0.2.13"
 tracing.workspace = true
 
 [build-dependencies]

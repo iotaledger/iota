@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::{RegistryID, RegistryService};
 use config::AuthorityIdentifier;
 use fastcrypto::hash::Hash;
 use iota_common::sync::notify_read::NotifyRead;

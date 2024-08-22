@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 
 use consensus_config::AuthorityIndex;
 use futures::StreamExt;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info};

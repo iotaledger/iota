@@ -13,7 +13,7 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
+use iota_protocol_config::ProtocolConfig;
 use itertools::Either;
 use move_core_types::{
     ident_str,
@@ -50,6 +50,7 @@ use crate::{
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
 };
+use crate::supported_protocol_versions::SupportedProtocolVersions;
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
 pub const TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS: u64 = 50_000;

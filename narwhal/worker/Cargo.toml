@@ -13,6 +13,7 @@ byteorder.workspace = true
 bytes.workspace = true
 futures.workspace = true
 governor.workspace = true
+iota-protocol-config.workspace = true
 itertools.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
 tap.workspace = true
