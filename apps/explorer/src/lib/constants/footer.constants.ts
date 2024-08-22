@@ -16,7 +16,7 @@ export const FOOTER_LINKS = [
     },
     {
         title: 'GitHub',
-        href: 'https://github.com/MystenLabs',
+        href: 'https://github.com/iotaledger',
     },
     { title: 'Press', href: 'https://iota.org/connect/contact' },
 ];
@@ -24,7 +24,7 @@ export const FOOTER_LINKS = [
 export const SOCIAL_LINKS = [
     {
         icon: SocialDiscord24,
-        href: 'https://discord.gg/BK6WFhud',
+        href: 'https://discord.iota.org',
     },
     {
         icon: SocialTwitter24,
