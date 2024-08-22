@@ -372,8 +372,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         address: activeAccountAddress,
     });
 
-    console.log('--- explorerHref', explorerHref);
-
     const {
         data: coinBalances,
         isPending: coinBalancesLoading,
