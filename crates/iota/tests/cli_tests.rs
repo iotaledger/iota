@@ -125,6 +125,53 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[sim_test]
+async fn test_start() -> Result<(), anyhow::Error> {
+    let temp_dir = tempfile::tempdir()?;
+    let working_dir = temp_dir.path();
+
+    if let Ok(res) = tokio::time::timeout(
+        Duration::from_secs(10),
+        IotaCommand::Start {
+            config_dir: Some(working_dir.to_path_buf()),
+            no_full_node: false,
+        }
+        .execute(),
+    )
+    .await
+    {
+        res.unwrap();
+    };
+
+    // Get all the new file names
+    let files = read_dir(working_dir)?
+        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
+        .collect::<Vec<_>>();
+    assert_eq!(12, files.len());
+    assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
+    assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
+    assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
+    assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
+    assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
+    assert!(files.contains(&IOTA_KEYSTORE_ALIASES_FILENAME.to_string()));
+
+    // Check network config
+    let network_conf =
+        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
+    assert_eq!(4, network_conf.validator_configs().len());
+
+    // Check wallet config
+    let wallet_conf =
+        PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
+
+    assert!(!wallet_conf.envs.is_empty());
+
+    assert_eq!(5, wallet_conf.keystore.addresses().len());
+
+    temp_dir.close()?;
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_addresses_command() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new().build().await;

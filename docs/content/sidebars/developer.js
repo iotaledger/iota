@@ -718,7 +718,46 @@ const developer = [
             'developer/stardust/addresses',
             'developer/stardust/units',
             'developer/stardust/migration-process',
-            'developer/stardust/claiming',
+            {
+                type: 'category',
+                label: 'Claiming Stardust Assets',
+                link: {
+                    type: 'doc',
+                    id: 'developer/stardust/claiming',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Basic Outputs',
+                        id: 'developer/stardust/claiming/basic',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Nft Outputs',
+                        id: 'developer/stardust/claiming/nft',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Alias Outputs',
+                        id: 'developer/stardust/claiming/alias',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Foundry Outputs',
+                        id: 'developer/stardust/claiming/foundry',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Output unlockable by an Alias/Nft Address',
+                        id: 'developer/stardust/claiming/address-unlock-condition',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Self-sponsor Shimmer Claiming',
+                        id: 'developer/stardust/claiming/self-sponsor',
+                    },
+                ],
+            },
             'developer/stardust/vested',
             'developer/stardust/testing',
             'developer/stardust/if-tools',

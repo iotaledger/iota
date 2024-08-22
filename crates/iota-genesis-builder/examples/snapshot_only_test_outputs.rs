@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
         parse::HornetSnapshotParser,
-        test_outputs::{add_snapshot_test_outputs, to_micros, STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO},
+        test_outputs::{add_snapshot_test_outputs, to_nanos, STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO},
     },
     IF_STARDUST_ADDRESS,
 };
@@ -57,7 +57,7 @@ fn parse_snapshot<const VERIFY: bool>(
     })?;
 
     let expected_total_supply = match coin_type {
-        CoinType::Iota => to_micros(STARDUST_TOTAL_SUPPLY_IOTA),
+        CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
         CoinType::Shimmer => STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO,
     };
 
