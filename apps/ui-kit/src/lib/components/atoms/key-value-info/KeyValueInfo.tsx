@@ -5,6 +5,7 @@ import React from 'react';
 import cx from 'classnames';
 import { Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
+import { Tooltip, TooltipPosition } from '../tooltip';
 
 interface KeyValueProps {
     /**
@@ -20,9 +21,13 @@ interface KeyValueProps {
      */
     valueLink?: string;
     /**
-     * Show info icon (optional).
+     * The tooltip position.
      */
-    showInfoIcon?: boolean;
+    tooltipPosition?: TooltipPosition;
+    /**
+     * The tooltip text.
+     */
+    tooltipText?: string;
     /**
      * The supporting label of the KeyValue (optional).
      */
@@ -36,7 +41,8 @@ interface KeyValueProps {
 export function KeyValueInfo({
     keyText,
     valueText,
-    showInfoIcon,
+    tooltipPosition,
+    tooltipText,
     supportingLabel,
     valueLink,
     size = ValueSize.Small,
@@ -45,7 +51,11 @@ export function KeyValueInfo({
         <div className="flex w-full flex-row items-center justify-between gap-2 py-xxs font-inter">
             <div className="flex w-full flex-row items-center gap-x-0.5">
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
-                {showInfoIcon && <Info className="pl-xxxs text-neutral-60" />}
+                {tooltipText && (
+                    <Tooltip text={tooltipText} position={tooltipPosition}>
+                        <Info className="text-neutral-60 dark:text-neutral-40" />
+                    </Tooltip>
+                )}
             </div>
             <div className="flex w-full flex-row items-baseline justify-end gap-1">
                 {valueLink ? (

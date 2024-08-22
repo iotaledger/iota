@@ -89,6 +89,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     isVisibilityToggleEnabled ??= inputProps.type === InputType.Password;
     const inputRef = useRef<HTMLInputElement | null>(null);
 
+    const [hasBlurred, setHasBlurred] = useState<boolean>(false);
+
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
         isContentVisible ?? inputProps.type !== InputType.Password,
     );
@@ -107,6 +109,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         }
     }
 
+    function handleBlur() {
+        setHasBlurred(true);
+    }
+
     function assignRefs(element: HTMLInputElement) {
         if (ref) {
             if (typeof ref === 'function') {
@@ -123,7 +129,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             label={label}
             caption={caption}
             disabled={disabled}
-            errorMessage={errorMessage}
+            errorMessage={hasBlurred && errorMessage ? errorMessage : ''}
             amountCounter={amountCounter}
             required={inputProps.required}
         >
@@ -155,6 +161,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
                         INPUT_PLACEHOLDER_CLASSES,
                         INPUT_NUMBER_CLASSES,
                     )}
+                    onBlur={handleBlur}
                 />
 
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}

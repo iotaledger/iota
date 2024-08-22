@@ -462,7 +462,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                                 >
                                                     {isMainnet
                                                         ? 'Buy IOTA to get started'
-                                                        : 'To send transactions on the Iota network, you need IOTA in your wallet.'}
+                                                        : 'To send transactions on the IOTA network, you need IOTA in your wallet.'}
                                                 </Text>
                                             </div>
                                             <FaucetRequestButton />
