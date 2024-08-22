@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Button } from '_app/shared/ButtonUI';
-import { Collapsible } from '_app/shared/collapse';
-import { Text } from '_app/shared/text';
-import { Loading, Alert } from '_components';
+import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
@@ -23,9 +19,8 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowLeft16 } from '@iota/icons';
 import type { StakeObject } from '@iota/iota-sdk/client';
-import { NANO_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANO_PER_IOTA, IOTA_TYPE_ARG, formatAddress } from '@iota/iota-sdk/utils';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
@@ -33,7 +28,6 @@ import type { FormikHelpers } from 'formik';
 import { useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-
 import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { useSigner } from '../../hooks/useSigner';
@@ -43,6 +37,8 @@ import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
+import { Button, ButtonType, Card, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
+import { ImageIcon } from '../../shared/image-icon';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -73,6 +69,15 @@ function StakingCard() {
     const { data: system, isPending: validatorsisPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
+    const validatorMeta = useMemo(() => {
+        if (!system) return null;
+
+        return (
+            system.activeValidators.find(
+                (validator) => validator.iotaAddress === validatorAddress,
+            ) || null
+        );
+    }, [validatorAddress, system]);
 
     const totalTokenBalance = useMemo(() => {
         if (!allDelegation) return 0n;
@@ -265,7 +270,7 @@ function StakingCard() {
         return <Navigate to="/" replace={true} />;
     }
     return (
-        <div className="flex w-full flex-grow flex-col flex-nowrap">
+        <div className="flex h-full w-full flex-grow flex-col flex-nowrap">
             <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
                 <Formik
                     initialValues={INITIAL_VALUES}
@@ -273,16 +278,26 @@ function StakingCard() {
                     onSubmit={onSubmit}
                     validateOnMount
                 >
-                    {({ isSubmitting, isValid, submitForm, errors, touched }) => (
-                        <BottomMenuLayout>
-                            <Content>
-                                <div className="mb-4">
-                                    <ValidatorFormDetail
-                                        validatorAddress={validatorAddress}
-                                        unstake={unstake}
+                    {({ isSubmitting, isValid, submitForm }) => (
+                        <>
+                            <div className="flex h-full flex-col gap-md overflow-auto">
+                                <Card type={CardType.Filled}>
+                                    <CardImage>
+                                        <ImageIcon
+                                            src={null}
+                                            label={validatorMeta?.name || ''}
+                                            fallback={validatorMeta?.name || ''}
+                                        />
+                                    </CardImage>
+                                    <CardBody
+                                        title={validatorMeta?.name || ''}
+                                        subtitle={formatAddress(validatorAddress)}
                                     />
-                                </div>
-
+                                </Card>
+                                <ValidatorFormDetail
+                                    validatorAddress={validatorAddress}
+                                    unstake={unstake}
+                                />
                                 {unstake ? (
                                     <UnStakeForm
                                         stakedIotaId={stakeIotaIdParams!}
@@ -299,52 +314,19 @@ function StakingCard() {
                                         epoch={system?.epoch}
                                     />
                                 )}
-
-                                {(unstake || touched.amount) && errors.amount ? (
-                                    <div className="mt-2 flex flex-col flex-nowrap">
-                                        <Alert>{errors.amount}</Alert>
-                                    </div>
-                                ) : null}
-
-                                {!unstake && (
-                                    <div className="mt-7.5 flex-1">
-                                        <Collapsible title="Staking Rewards" defaultOpen>
-                                            <Text
-                                                variant="pSubtitle"
-                                                color="steel-dark"
-                                                weight="normal"
-                                            >
-                                                Staked IOTA starts counting as validator’s stake at
-                                                the end of the Epoch in which it was staked. Rewards
-                                                are earned separately for each Epoch and become
-                                                available at the end of each Epoch.
-                                            </Text>
-                                        </Collapsible>
-                                    </div>
-                                )}
-                            </Content>
-
-                            <Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
+                            </div>
+                            <div className="pt-sm">
                                 <Button
-                                    size="tall"
-                                    variant="secondary"
-                                    to="/stake"
-                                    disabled={isSubmitting}
-                                    before={<ArrowLeft16 />}
-                                    text="Back"
-                                />
-                                <Button
-                                    size="tall"
-                                    variant="primary"
+                                    type={unstake ? ButtonType.Secondary : ButtonType.Primary}
+                                    fullWidth
                                     onClick={submitForm}
                                     disabled={
                                         !isValid || isSubmitting || (unstake && !delegationId)
                                     }
-                                    loading={isSubmitting}
-                                    text={unstake ? 'Unstake Now' : 'Stake Now'}
+                                    text={unstake ? 'Unstake' : 'Stake'}
                                 />
-                            </Menu>
-                        </BottomMenuLayout>
+                            </div>
+                        </>
                     )}
                 </Formik>
             </Loading>
