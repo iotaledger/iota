@@ -32,6 +32,7 @@ runs:
             - "external-crates/**"
             - "narwhal/**"
             - "iota-execution/**"
+            - "docs/examples/rust/**"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/codecov.yml"
             - ".github/workflows/_rust.yml"

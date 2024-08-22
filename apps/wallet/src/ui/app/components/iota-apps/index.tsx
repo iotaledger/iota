@@ -45,7 +45,7 @@ export function AppsPlayGround() {
         <>
             <div className="mb-4 flex justify-center">
                 <Heading variant="heading6" color="gray-90" weight="semibold">
-                    Iota Apps
+                    IOTA Apps
                 </Heading>
             </div>
 
@@ -55,7 +55,7 @@ export function AppsPlayGround() {
                 <div className="bg-gray-40 rounded-xl p-4">
                     <Text variant="pBodySmall" color="gray-75" weight="normal">
                         Apps below are actively curated but do not indicate any endorsement or
-                        relationship with Iota Wallet. Please DYOR.
+                        relationship with IOTA Wallet. Please DYOR.
                     </Text>
                 </div>
             ) : null}
