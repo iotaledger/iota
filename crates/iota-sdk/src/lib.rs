@@ -41,7 +41,7 @@
 //! the Iota devnet, and the Iota testnet is shown below.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
-//! (see [here](https://github.com/stefan-mysten/iota/tree/rust_sdk_api_examples/crates/iota-sdk/examples#preqrequisites) for more information).
+//! (see [here](https://github.com/iotaledger/iota/tree/rust_sdk_api_examples/crates/iota-sdk/examples#preqrequisites) for more information).
 //!
 //! ```rust,no_run
 //! use iota_sdk::IotaClientBuilder;

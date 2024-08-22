@@ -194,13 +194,13 @@ function NFTDetailsPage() {
                                     <Button
                                         after={<ArrowUpRight12 />}
                                         variant="outline"
-                                        href="https://docs.sui.io/build/sui-kiosk"
+                                        href="https://wiki.iota.org/build/iota-kiosk"
                                         text="Learn more about Kiosks"
                                     />
                                     <Button
                                         after={<ArrowUpRight12 />}
                                         variant="outline"
-                                        href={`https://sui.hyperspace.xyz/wallet/sui/${accountAddress}?tokenAddress=${nftId}`}
+                                        href={`https://iota.hyperspace.xyz/wallet/iota/${accountAddress}?tokenAddress=${nftId}`}
                                         text="Marketplace"
                                     />
                                 </div>

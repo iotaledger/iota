@@ -13,7 +13,7 @@ export function LegalText(): JSX.Element {
         <div className="flex justify-center md:justify-start">
             <Text color="steel-darker" variant="pSubtitleSmall/medium">
                 &copy;
-                {`${new Date().getFullYear()} Mysten Labs. All
+                {`${new Date().getFullYear()} IOTA Foundation. All
   rights reserved.`}
             </Text>
         </div>

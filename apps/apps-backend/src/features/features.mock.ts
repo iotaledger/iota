@@ -29,7 +29,7 @@ const walletDapps = [
     {
         name: 'Bullshark Quests',
         description: 'Earn rewards through engaging with apps on Iota!',
-        link: 'https://quests.mystenlabs.com/',
+        link: 'https://quests.iota.org/',
         icon: 'https://user-images.githubusercontent.com/122397493/251579441-3c84de97-fc6e-46d2-b561-cd7bbef7dac7.png',
         tags: ['Social'],
     },
@@ -306,7 +306,7 @@ export const developmentFeatures = {
         defaultValue: {
             enabled: true,
             bannerUrl: 'https://iotawallet.com',
-            imageUrl: 'https://fe-assets.mystenlabs.com/wallet-next/iotawallet-mobile.svg',
+            imageUrl: 'https://fe-assets.iota.org/wallet-next/iotawallet-mobile.svg',
         },
         rules: [
             {
@@ -319,7 +319,7 @@ export const developmentFeatures = {
                     enabled: false,
                     bannerUrl: 'https://iota.io/basecamp',
                     imageUrl:
-                        'https://fe-assets.mystenlabs.com/basecamp/wallet_basecamp_banner.png',
+                        'https://fe-assets.iota.org/basecamp/wallet_basecamp_banner.png',
                 },
             },
         ],
@@ -328,8 +328,8 @@ export const developmentFeatures = {
         defaultValue: {
             enabled: false,
             dismissKey: 'winter-quest',
-            imageUrl: 'https://fe-assets.mystenlabs.com/quests/winter-apps-interstitial.svg',
-            bannerUrl: 'https://www.mystenlabs.com/blog/winter-quest',
+            imageUrl: 'https://fe-assets.iota.org/quests/winter-apps-interstitial.svg',
+            bannerUrl: 'https://www.blog.iota.org/winter-quest',
         },
     },
     'wallet-defi': {
@@ -431,8 +431,8 @@ export const developmentFeatures = {
         defaultValue: {
             enabled: false,
             dismissKey: 'quests-3-interstitial-live',
-            imageUrl: 'https://fe-assets.mystenlabs.com/quests_3_updated_large_corrected.svg',
-            bannerUrl: 'https://tech.mystenlabs.com/quest-3/',
+            imageUrl: 'https://fe-assets.iota.org/quests_3_updated_large_corrected.svg',
+            bannerUrl: 'https://tech.iota.org/quest-3/',
         },
     },
     'iotans-enable-coupons': {
