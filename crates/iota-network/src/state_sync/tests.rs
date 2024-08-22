@@ -30,6 +30,8 @@ use crate::{
 };
 
 #[tokio::test]
+// Test that the server stores the pushed checkpoint summary and triggers the
+// sync job.
 async fn server_push_checkpoint() {
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     let (ordered_checkpoints, _, _sequence_number_to_digest, _checkpoints) =
@@ -186,7 +188,7 @@ async fn server_get_checkpoint() {
 #[tokio::test]
 async fn isolated_sync_job() {
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
-    // build mock data
+    // Build mock data
     let (ordered_checkpoints, _, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);
 
@@ -271,7 +273,7 @@ async fn isolated_sync_job() {
 #[tokio::test]
 async fn test_state_sync_using_archive() -> anyhow::Result<()> {
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
-    // build mock data
+    // Build mock data
     let (ordered_checkpoints, _, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);
     // Initialize archive store with all checkpoints
@@ -455,7 +457,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
 async fn sync_with_checkpoints_being_inserted() {
     telemetry_subscribers::init_for_testing();
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
-    // build mock data
+    // Build mock data
     let (ordered_checkpoints, _contents, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(4, None);
 
@@ -480,10 +482,10 @@ async fn sync_with_checkpoints_being_inserted() {
         committee.committee().to_owned(),
     );
 
-    // get handles to each node's stores
+    // Get handles to each node's stores
     let store_1 = event_loop_1.store.clone();
     let store_2 = event_loop_2.store.clone();
-    // make sure that node_1 knows about node_2
+    // Make sure that node_1 knows about node_2
     event_loop_1.peer_heights.write().unwrap().peers.insert(
         network_2.peer_id(),
         PeerStateSyncInfo {
@@ -585,7 +587,7 @@ async fn sync_with_checkpoints_being_inserted() {
 async fn sync_with_checkpoints_watermark() {
     telemetry_subscribers::init_for_testing();
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
-    // build mock data
+    // Build mock data
     let (ordered_checkpoints, contents, _sequence_number_to_digest, _checkpoints) =
         committee.make_random_checkpoints(4, None);
     let last_checkpoint_seq = *ordered_checkpoints
@@ -614,7 +616,7 @@ async fn sync_with_checkpoints_watermark() {
         committee.committee().to_owned(),
     );
 
-    // get handles to each node's stores
+    // Get handles to each node's stores
     let store_1 = event_loop_1.store.clone();
     let store_2 = event_loop_2.store.clone();
     let peer_id_1 = network_1.peer_id();

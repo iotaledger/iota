@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
-import { TxnAmount } from '_components/receipt-card/TxnAmount';
+import { TxnAmount } from '_components';
 import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
@@ -16,8 +16,8 @@ import {
     useGetTimeBeforeEpochNumber,
     useGetValidatorsApy,
 } from '@iota/core';
-import type { IotaEvent } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import type { IotaEvent } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
@@ -60,7 +60,6 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                         <ValidatorLogo
                             validatorAddress={validatorAddress}
                             showAddress
-                            iconSize="md"
                             size="body"
                             activeEpoch={json?.epoch}
                         />

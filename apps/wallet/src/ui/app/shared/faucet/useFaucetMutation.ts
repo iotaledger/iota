@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFaucetRequestStatus, requestIotaFromFaucetV1 } from '@iota/iota.js/faucet';
+import { getFaucetRequestStatus, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
 import { useIsMutating, useMutation, type UseMutationOptions } from '@tanstack/react-query';
 
 import { useActiveAccount } from '../../hooks/useActiveAccount';

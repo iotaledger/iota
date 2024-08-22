@@ -4,7 +4,7 @@
 
 import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaSystemStateSummary } from '@iota/iota.js/client';
+import { type IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { LoadingIndicator, Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';

@@ -1,7 +1,7 @@
 [package]
 name = "iota-data-ingestion-core"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -11,16 +11,15 @@ anyhow.workspace = true
 async-trait.workspace = true
 backoff.workspace = true
 futures.workspace = true
+iota-metrics.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
-mysten-metrics.workspace = true
 notify.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
-telemetry-subscribers.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true

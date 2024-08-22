@@ -8,7 +8,7 @@ pub mod epoch_data_tests;
 
 use std::{fs, path::PathBuf};
 
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use narwhal_config::Epoch;
 use tokio::sync::mpsc;
 

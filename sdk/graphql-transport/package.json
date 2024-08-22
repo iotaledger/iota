@@ -1,9 +1,9 @@
 {
     "name": "@iota/graphql-transport",
-    "version": "0.0.3",
+    "version": "0.1.1",
     "description": "A GraphQL transport to allow IotaClient to work with RPC 2.0",
     "license": "Apache-2.0",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.js",
@@ -31,7 +31,7 @@
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "test:e2e:nowait": "vitest run e2e",
-        "test:e2e:prepare": "docker-compose down && docker-compose up -d && cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator -- --with-indexer --use-indexer-v2 --pg-port 5435 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
+        "test:e2e:prepare": "docker-compose down && docker-compose up -d && cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator -- --with-indexer --pg-port 5435 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
         "test:e2e": "wait-on http://127.0.0.1:9123 -l --timeout 180000 && vitest"
     },
     "repository": {
@@ -52,6 +52,7 @@
         "@iota/build-scripts": "workspace:*",
         "@parcel/watcher": "^2.3.0",
         "@types/node": "^20.4.2",
+        "dotenv": "^16.4.5",
         "graphql-config": "^5.0.3",
         "typescript": "^5.3.3",
         "vitest": "^0.33.0",
@@ -60,7 +61,7 @@
     "dependencies": {
         "@graphql-typed-document-node/core": "^3.2.0",
         "@iota/bcs": "workspace:*",
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "graphql": "^16.8.1"
     }
 }

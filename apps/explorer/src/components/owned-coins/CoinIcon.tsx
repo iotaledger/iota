@@ -4,7 +4,7 @@
 
 import { useCoinMetadata } from '@iota/core';
 import { Iota, Unstaked } from '@iota/icons';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { ImageIcon } from '~/components/ui';

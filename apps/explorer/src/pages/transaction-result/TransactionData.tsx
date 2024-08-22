@@ -6,7 +6,7 @@ import { useTransactionSummary } from '@iota/core';
 import {
     type ProgrammableTransaction,
     type IotaTransactionBlockResponse,
-} from '@iota/iota.js/client';
+} from '@iota/iota-sdk/client';
 
 import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
 import { GasBreakdown } from '~/components';
@@ -33,7 +33,7 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
 
     return (
         <div className="flex flex-wrap gap-3 pl-1 pr-2 md:gap-6">
-            <section className="flex w-96 flex-1 flex-col gap-3 max-md:min-w-[50%] md:gap-6">
+            <section className="max-md:min-w-[50%] flex w-96 flex-1 flex-col gap-3 md:gap-6">
                 <TransactionDetailCard
                     timestamp={summary?.timestamp}
                     sender={summary?.sender}

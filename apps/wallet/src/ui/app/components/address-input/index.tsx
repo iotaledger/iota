@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import Alert from '_src/ui/app/components/alert';
+import { Alert } from '_components';
 import { useIotaClient } from '@iota/dapp-kit';
 import { QrCode, X12 } from '@iota/icons';
-import { isValidIotaAddress } from '@iota/iota.js/utils';
+import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { useField, useFormikContext } from 'formik';

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatAmount, formatDate } from '@iota/core';
-import { type AllEpochsAddressMetrics } from '@iota/iota.js/client';
+import { type AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
 import { Heading, LoadingIndicator, Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import clsx from 'clsx';

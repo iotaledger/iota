@@ -7,7 +7,7 @@ import { Text } from '_app/shared/text';
 import { useGetTxnRecipientAddress } from '_hooks';
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { getLabel, useTransactionSummary } from '@iota/core';
-import type { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
 import { TxnTypeLabel } from './TxnActionLabel';
@@ -28,7 +28,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         recognizedPackagesList,
     });
 
-    // we only show Iota Transfer amount or the first non-Iota transfer amount
+    // we only show IOTA Transfer amount or the first non-IOTA transfer amount
 
     const recipientAddress = useGetTxnRecipientAddress({ txn, address });
 

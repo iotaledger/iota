@@ -2,11 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This crate provides various APIs for interacting with the IOTA blockchain.
+//! It includes methods for querying data, building and executing transactions,
+//! managing governance-related data, and more.
+
 use anyhow::anyhow;
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
 pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
 pub use indexer::{IndexerApiClient, IndexerApiOpenRpc, IndexerApiServer};
+use iota_metrics::histogram::Histogram;
 use jsonrpsee::{
     core::ClientError,
     types::{
@@ -15,7 +20,6 @@ use jsonrpsee::{
     },
 };
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
-use mysten_metrics::histogram::Histogram;
 use once_cell::sync::Lazy;
 use prometheus::{register_int_counter_with_registry, IntCounter};
 pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};

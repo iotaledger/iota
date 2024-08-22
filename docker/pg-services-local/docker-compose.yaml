@@ -1,0 +1,161 @@
+services:
+  local-network:
+    image: iota-test-validator
+    build:
+      context: ../../
+      dockerfile: docker/iota-test-validator/Dockerfile
+      args:
+        - GIT_REVISION
+        - BUILD_DATE
+    container_name: local-network
+    hostname: local-network
+    restart: on-failure
+    networks:
+      iota-network:
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+    command:
+      - /usr/local/bin/iota-test-validator
+      - --fullnode-rpc-host=0.0.0.0
+      - --fullnode-rpc-port=9000
+      - --faucet-port=9123
+      - --epoch-duration-ms=120000
+      - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
+    expose:
+      - 9000
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9123:9123"
+
+  indexer-sync:
+    image: iota-indexer
+    build:
+      context: ../../
+      dockerfile: docker/iota-indexer/Dockerfile
+      args:
+        - GIT_REVISION
+        - BUILD_DATE
+        - PROFILE=dev
+    container_name: indexer-sync
+    hostname: indexer-sync
+    restart: on-failure
+    networks:
+      iota-network:
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --rpc-client-url=http://local-network:9000
+      - --fullnode-sync-worker
+      - --client-metric-port=9181
+      - --reset-db
+    ports:
+      - "127.0.0.1:9181:9181/tcp"
+    depends_on:
+      - local-network
+      - postgres
+
+  indexer-rpc:
+    image: iota-indexer
+    container_name: indexer-rpc
+    hostname: indexer-rpc
+    restart: on-failure
+    networks:
+      iota-network:
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+      - RPC_WORKER_THREAD=12
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --rpc-client-url=http://local-network:9000
+      - --rpc-server-worker
+      - --client-metric-port=9181
+      - --rpc-server-port=9000
+    ports:
+      - "127.0.0.1:9005:9000/tcp"
+      - "127.0.0.1:9182:9181/tcp"
+    depends_on:
+      - local-network
+      - postgres
+      - indexer-sync
+
+  graphql-server:
+    image: iota-graphql-rpc
+    build:
+      context: ../../
+      dockerfile: docker/iota-graphql-rpc/Dockerfile
+      args:
+        - GIT_REVISION
+        - BUILD_DATE
+        - PROFILE=dev
+    container_name: graphql-server
+    hostname: graphql-server
+    restart: on-failure
+    networks:
+      iota-network:
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+    command:
+      - /opt/iota/bin/iota-graphql-rpc
+      - start-server
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --host=0.0.0.0
+      - --port=8000
+      - --prom-host=0.0.0.0
+      - --prom-port=9181
+      - --node-rpc-url=http://local-network:9000
+      - --ide-title="Iota GraphQL Service"
+    ports:
+      - "127.0.0.1:8000:8000/tcp"
+      - "127.0.0.1:9183:9181/tcp"
+    depends_on:
+      - local-network
+      - postgres
+      - indexer-sync
+
+  postgres:
+    image: postgres:15
+    user: postgres
+    restart: always
+    container_name: postgres
+    hostname: postgres
+    networks:
+      iota-network:
+    expose:
+      - 5432
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: iota_indexer
+      POSTGRES_PASSWORD: iota_indexer
+      POSTGRES_DB: iota_indexer
+    command: |
+      postgres
+      -c 'max_connections=1000'
+    healthcheck:
+      test: "pg_isready -p 5432"
+      interval: 30s
+      timeout: 15s
+      retries: 20
+      start_period: 10s
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    hostname: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: infra@iota.org
+      PGADMIN_DEFAULT_PASSWORD: infra
+    ports:
+      - 5050:80
+    networks:
+      iota-network:
+
+networks:
+  iota-network:

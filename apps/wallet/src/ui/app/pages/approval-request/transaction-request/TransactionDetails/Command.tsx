@@ -4,9 +4,9 @@
 
 import { Text } from '_src/ui/app/shared/text';
 import { ChevronDown12, ChevronRight12 } from '@iota/icons';
-import { TypeTagSerializer, type TypeTag } from '@iota/iota.js/bcs';
-import { type TransactionArgument, type Transactions } from '@iota/iota.js/transactions';
-import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
+import { TypeTagSerializer, type TypeTag } from '@iota/iota-sdk/bcs';
+import { type TransactionArgument, type Transactions } from '@iota/iota-sdk/transactions';
+import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 type TransactionType = ReturnType<(typeof Transactions)[keyof typeof Transactions]>;

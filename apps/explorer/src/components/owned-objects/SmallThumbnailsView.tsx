@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaObjectResponse } from '@iota/iota.js/client';
-import { formatAddress } from '@iota/iota.js/utils';
+import { type IotaObjectResponse } from '@iota/iota-sdk/client';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { Placeholder } from '@iota/ui';
 import { type ReactNode } from 'react';
 

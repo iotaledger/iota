@@ -116,7 +116,7 @@ impl IotaEnv {
 impl Display for IotaEnv {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
-        writeln!(writer, "Active environment : {}", self.alias)?;
+        writeln!(writer, "Active environment: {}", self.alias)?;
         write!(writer, "RPC URL: {}", self.rpc)?;
         if let Some(ws) = &self.ws {
             writeln!(writer)?;
@@ -134,7 +134,7 @@ impl Display for IotaClientConfig {
 
         writeln!(
             writer,
-            "Managed addresses : {}",
+            "Managed addresses: {}",
             self.keystore.addresses().len()
         )?;
         write!(writer, "Active address: ")?;

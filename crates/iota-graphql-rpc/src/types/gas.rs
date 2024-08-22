@@ -92,7 +92,7 @@ impl GasInput {
     }
 
     /// An unsigned integer specifying the number of native tokens per gas unit
-    /// this transaction will pay (in MICROS).
+    /// this transaction will pay (in NANOS).
     async fn gas_price(&self) -> Option<BigInt> {
         Some(BigInt::from(self.price))
     }
@@ -107,12 +107,12 @@ impl GasInput {
 /// Breakdown of gas costs in effects.
 #[Object]
 impl GasCostSummary {
-    /// Gas paid for executing this transaction (in MICROS).
+    /// Gas paid for executing this transaction (in NANOS).
     async fn computation_cost(&self) -> Option<BigInt> {
         Some(BigInt::from(self.computation_cost))
     }
 
-    /// Gas paid for the data stored on-chain by this transaction (in MICROS).
+    /// Gas paid for the data stored on-chain by this transaction (in NANOS).
     async fn storage_cost(&self) -> Option<BigInt> {
         Some(BigInt::from(self.storage_cost))
     }
@@ -120,13 +120,13 @@ impl GasCostSummary {
     /// Part of storage cost that can be reclaimed by cleaning up data created
     /// by this transaction (when objects are deleted or an object is
     /// modified, which is treated as a deletion followed by a creation) (in
-    /// MICROS).
+    /// NANOS).
     async fn storage_rebate(&self) -> Option<BigInt> {
         Some(BigInt::from(self.storage_rebate))
     }
 
     /// Part of storage cost that is not reclaimed when data created by this
-    /// transaction is cleaned up (in MICROS).
+    /// transaction is cleaned up (in NANOS).
     async fn non_refundable_storage_fee(&self) -> Option<BigInt> {
         Some(BigInt::from(self.non_refundable_storage_fee))
     }

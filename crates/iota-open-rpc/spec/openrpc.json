@@ -3323,7 +3323,7 @@
           "name": "Coin Query API"
         }
       ],
-      "description": "Return metadata(e.g., symbol, decimals) for a coin",
+      "description": "Return metadata (e.g., symbol, decimals) for a coin.",
       "params": [
         {
           "name": "coin_type",
@@ -4118,7 +4118,7 @@
           "name": "Coin Query API"
         }
       ],
-      "description": "Return total supply for a coin",
+      "description": "Return total supply for a coin.",
       "params": [
         {
           "name": "coin_type",

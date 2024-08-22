@@ -66,7 +66,7 @@ async fn main() -> Result<(), IndexerError> {
         indexer_config.rpc_client_url.as_str(),
     )?;
     let indexer_metrics = IndexerMetrics::new(&registry);
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
 
     let report_cp = blocking_cp.clone();
     let report_metrics = indexer_metrics.clone();

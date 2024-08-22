@@ -1,7 +1,7 @@
 [package]
 name = "move-package"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -12,7 +12,7 @@ anyhow.workspace = true
 clap.workspace = true
 colored.workspace = true
 itertools.workspace = true
-named-lock.workspace = true
+named-lock = "0.4"
 once_cell.workspace = true
 petgraph.workspace = true
 regex.workspace = true
@@ -22,8 +22,9 @@ sha2.workspace = true
 tempfile.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
-treeline.workspace = true
+treeline = "0.1"
 walkdir.workspace = true
+whoami = "1.5"
 
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
@@ -35,11 +36,9 @@ move-docgen.workspace = true
 move-model.workspace = true
 move-symbol-pool.workspace = true
 
-whoami.workspace = true
-
 [dev-dependencies]
 datatest-stable.workspace = true
-expect-test = "1.4.0"
+expect-test = "1.5"
 
 [[test]]
 name = "test_runner"

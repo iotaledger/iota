@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountIcon } from '_components/accounts/AccountIcon';
-import { LockUnlockButton } from '_components/accounts/LockUnlockButton';
-import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
+import { AccountIcon, LockUnlockButton, useUnlockAccount } from '_components';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useResolveIotaNSName } from '@iota/core';
 import { CheckFill16 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 
 interface AccountItemApproveConnectionProps {

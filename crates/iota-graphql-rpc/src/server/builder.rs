@@ -31,10 +31,10 @@ use axum::{
 use axum_extra::headers::Header as _;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::{LIMITS_HEADER, VERSION_HEADER};
+use iota_metrics::spawn_monitored_task;
+use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
 use iota_sdk::IotaClientBuilder;
-use mysten_metrics::spawn_monitored_task;
-use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
@@ -358,11 +358,11 @@ impl ServerBuilder {
             ))
         })?;
 
-        let registry_service = mysten_metrics::start_prometheus_server(prom_addr);
+        let registry_service = iota_metrics::start_prometheus_server(prom_addr);
         info!("Starting Prometheus HTTP endpoint at {}", prom_addr);
         let registry = registry_service.default_registry();
         registry
-            .register(mysten_metrics::uptime_metric(
+            .register(iota_metrics::uptime_metric(
                 "graphql",
                 version.full,
                 "unknown",
@@ -671,7 +671,7 @@ pub mod tests {
 
     fn metrics() -> Metrics {
         let binding_address: SocketAddr = "0.0.0.0:9185".parse().unwrap();
-        let registry = mysten_metrics::start_prometheus_server(binding_address).default_registry();
+        let registry = iota_metrics::start_prometheus_server(binding_address).default_registry();
         Metrics::new(&registry)
     }
 

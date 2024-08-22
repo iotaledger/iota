@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 
-import Alert from './alert';
+import { Alert } from '_components';
 
 const validation = object({
     password: YupString().ensure().required().label('Password'),
@@ -85,7 +85,7 @@ export function PasswordInputDialog({
                         </FieldLabel>
                         <div className="mt-4 text-center">
                             <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                This is the password you currently use to lock and unlock your Iota
+                                This is the password you currently use to lock and unlock your IOTA
                                 wallet.
                             </Text>
                         </div>

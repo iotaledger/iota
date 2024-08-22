@@ -64,7 +64,7 @@ impl Container {
                 let mut cancel_receiver = cancel_receiver.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let registry_service = mysten_metrics::RegistryService::new(Registry::new());
+                    let registry_service = iota_metrics::RegistryService::new(Registry::new());
                     let server = IotaNode::start(config, registry_service, None)
                         .await
                         .unwrap();

@@ -8,7 +8,7 @@ dependencies:
   "@iota/dapp-kit":
     specifier: ^0.12.2
     version: 0.12.2(@tanstack/react-query@5.0.0)(@types/react-dom@18.2.7)(@types/react@18.2.15)(react-dom@18.2.0)(react@18.2.0)
-  "@iota/iota.js":
+  "@iota/iota-sdk":
     specifier: ^0.50.1
     version: 0.50.1
   "@radix-ui/colors":
@@ -601,7 +601,7 @@ packages:
       "@tanstack/react-query": ^5.0.0
       react: "*"
     dependencies:
-      "@iota/iota.js": 0.50.1
+      "@iota/iota-sdk": 0.50.1
       "@iota/wallet-standard": 0.10.3
       "@iota/zksend": 0.2.2
       "@radix-ui/react-dialog": 1.0.5(@types/react-dom@18.2.7)(@types/react@18.2.15)(react-dom@18.2.0)(react@18.2.0)
@@ -621,7 +621,7 @@ packages:
       - react-dom
     dev: false
 
-  /@iota/iota.js@0.50.1:
+  /@iota/iota-sdk@0.50.1:
     resolution:
       {
         integrity: sha512-AY0wb4n6PMTRsDGygzrrTHUK/m5KwKZ4aQcN9cayiwsq2iIhfjGo7uuqMA7Y5UiqvLCoF+z7Ig14Q5qejQ/S/w==,
@@ -648,7 +648,7 @@ packages:
         integrity: sha512-StEMbJ7YkdjxoScmOJJjt9JaNgoRLD3FgU4LGFrKFtMXOhPu1Z4WF3qgfYBr+C3UgDh+JNiDIfN9TiGeM/Ahpw==,
       }
     dependencies:
-      "@iota/iota.js": 0.50.1
+      "@iota/iota-sdk": 0.50.1
       "@wallet-standard/core": 1.0.3
     dev: false
 
@@ -658,7 +658,7 @@ packages:
         integrity: sha512-T5CXU8Bmtbq1mMDgi3gCpDEVn+2XbjgmjzIW5XifMnjMdlBvM4EvQJr6Mr0dneKv3qgBMKoEkmRIKW3f+etnGg==,
       }
     dependencies:
-      "@iota/iota.js": 0.50.1
+      "@iota/iota-sdk": 0.50.1
       "@iota/wallet-standard": 0.10.3
       mitt: 3.0.1
       nanostores: 0.9.5

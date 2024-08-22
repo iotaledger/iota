@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@iota/iota.js/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 import type {
     TransactionArgument,
     TransactionBlock,
     TransactionObjectArgument,
-} from '@iota/iota.js/transactions';
+} from '@iota/iota-sdk/transactions';
 
 import type { ObjectArgument } from '../types/index.js';
 import { TRANSFER_POLICY_MODULE, TRANSFER_POLICY_TYPE } from '../types/index.js';

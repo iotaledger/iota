@@ -76,7 +76,7 @@ type TableCellCheckbox = {
     /**
      * The function to call when the checkbox is clicked.
      */
-    onChange?: (checked: boolean) => void;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     /**
      * If true the checkbox will override the styles to show an indeterminate state.
      */
@@ -116,10 +116,14 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 const { onCopy } = props;
                 return (
                     <div
-                        className={cx('flex items-center space-x-2', textColorClass, textSizeClass)}
+                        className={cx(
+                            'flex items-center space-x-2 [&_svg]:h-4 [&_svg]:w-4',
+                            textColorClass,
+                            textSizeClass,
+                        )}
                     >
                         <span>{label}</span>
-                        <Copy className="h-4 w-4 cursor-pointer" onClick={onCopy} />
+                        <Copy className="cursor-pointer" onClick={onCopy} />
                     </div>
                 );
             case TableCellType.Badge:
@@ -138,7 +142,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 return (
                     <Checkbox
                         isChecked={isChecked}
-                        onChange={onChange}
+                        onCheckedChange={onChange}
                         isIndeterminate={isIndeterminate}
                     />
                 );
