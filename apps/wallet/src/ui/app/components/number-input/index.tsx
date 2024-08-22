@@ -17,7 +17,7 @@ export interface NumberInputProps<Values> extends FieldProps<string, Values> {
     'data-testid'?: string;
 }
 
-function NumberInput<FormValues>({
+export function NumberInput<FormValues>({
     allowNegative,
     className,
     placeholder,

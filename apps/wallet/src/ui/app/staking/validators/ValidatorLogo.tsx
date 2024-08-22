@@ -16,7 +16,6 @@ interface ValidatorLogoProps {
     stacked?: boolean;
     isTitle?: boolean;
     size: 'body' | 'subtitle';
-    iconSize: 'sm' | 'md';
     showActiveStatus?: boolean;
     activeEpoch?: string;
 }
@@ -24,7 +23,6 @@ interface ValidatorLogoProps {
 export function ValidatorLogo({
     validatorAddress,
     showAddress,
-    iconSize,
     isTitle,
     size,
     stacked,
@@ -73,8 +71,6 @@ export function ValidatorLogo({
                 src={validatorMeta?.imageUrl || null}
                 label={validatorMeta?.name || ''}
                 fallback={validatorMeta?.name || ''}
-                size={iconSize}
-                rounded="full"
             />
             <div className="flex flex-col gap-1.5 overflow-hidden">
                 <div className="flex">
