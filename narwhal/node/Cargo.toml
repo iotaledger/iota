@@ -38,16 +38,16 @@ storage = { path = "../storage", package = "narwhal-storage" }
 types = { path = "../types", package = "narwhal-types" }
 worker = { path = "../worker", package = "narwhal-worker" }
 
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 telemetry-subscribers.workspace = true
 
 anemo.workspace = true
-reqwest.workspace = true
 
 [dev-dependencies]
 move-bytecode-utils.workspace = true
 pretty_assertions.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true

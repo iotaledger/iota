@@ -19,7 +19,7 @@ once_cell.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
-serde = { workspace = true, features = ["derive", "rc"] }
+serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
@@ -30,6 +30,4 @@ iota-types.workspace = true
 narwhal-config.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
-tempfile.workspace = true

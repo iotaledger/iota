@@ -18,7 +18,6 @@ tower.workspace = true
 iota-archival.workspace = true
 iota-config.workspace = true
 iota-storage.workspace = true
-iota-swarm-config.workspace = true
 iota-types.workspace = true
 
 anyhow.workspace = true
@@ -28,8 +27,8 @@ bytes.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 tap.workspace = true
@@ -43,5 +42,7 @@ tonic-build.workspace = true
 [dev-dependencies]
 ed25519-consensus.workspace = true
 telemetry-subscribers.workspace = true
-tempfile = "3.3.0"
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
+
+iota-swarm-config.workspace = true

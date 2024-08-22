@@ -25,6 +25,8 @@ ratatui = "ratatui"
 groth = "groth"
 strat = "strat"
 mistic = "mistic"
+# Identity
+AAS = "AAS"
 # actual typos purposedly used in tests
 assing = "assing"
 tring = "tring"

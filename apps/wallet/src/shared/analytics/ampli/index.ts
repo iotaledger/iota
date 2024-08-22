@@ -74,7 +74,7 @@ export interface IdentifyProperties {
      */
     activeAccountType?: string;
     /**
-     * The Iota Network that the user is currently interacting with.
+     * The IOTA Network that the user is currently interacting with.
      */
     activeNetwork: string;
     /**
@@ -135,7 +135,7 @@ export interface ClickedCollectibleCardProperties {
      */
     collectibleType: string;
     /**
-     * The ID of an object on Iota.
+     * The ID of an object on IOTA.
      */
     objectId: string;
     sourceScreen?: string;
@@ -154,7 +154,7 @@ export interface ClickedHideAssetProperties {
      */
     collectibleType: string;
     /**
-     * The ID of an object on Iota.
+     * The ID of an object on IOTA.
      */
     objectId: string;
 }
@@ -331,7 +331,7 @@ export interface SentCoinsProperties {
 
 export interface SentCollectibleProperties {
     /**
-     * The ID of an object on Iota.
+     * The ID of an object on IOTA.
      */
     objectId: string;
 }

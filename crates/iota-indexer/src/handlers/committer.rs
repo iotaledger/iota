@@ -17,7 +17,7 @@ const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 pub async fn start_tx_checkpoint_commit_task<S>(
     state: S,
     metrics: IndexerMetrics,
-    tx_indexing_receiver: mysten_metrics::metered_channel::Receiver<CheckpointDataToCommit>,
+    tx_indexing_receiver: iota_metrics::metered_channel::Receiver<CheckpointDataToCommit>,
     commit_notifier: watch::Sender<Option<CheckpointSequenceNumber>>,
 ) where
     S: IndexerStore + Clone + Sync + Send + 'static,
@@ -31,7 +31,7 @@ pub async fn start_tx_checkpoint_commit_task<S>(
         .unwrap();
     info!("Using checkpoint commit batch size {checkpoint_commit_batch_size}");
 
-    let mut stream = mysten_metrics::metered_channel::ReceiverStream::new(tx_indexing_receiver)
+    let mut stream = iota_metrics::metered_channel::ReceiverStream::new(tx_indexing_receiver)
         .ready_chunks(checkpoint_commit_batch_size);
 
     while let Some(indexed_checkpoint_batch) = stream.next().await {

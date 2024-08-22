@@ -12,6 +12,7 @@ use std::{
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use iota_macros::{fail_point_async, fail_point_if};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, TransactionDigest},
@@ -22,7 +23,6 @@ use iota_types::{
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
 use narwhal_config::Committee;
 use narwhal_executor::{ExecutionIndices, ExecutionState};
 use narwhal_types::ConsensusOutput;

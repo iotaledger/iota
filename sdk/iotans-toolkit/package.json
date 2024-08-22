@@ -1,5 +1,6 @@
 {
     "name": "@iota/iotans-toolkit",
+    "private": true,
     "author": "IOTA Foundation <contact@iota.org>",
     "description": "IotaNS TypeScript SDK",
     "version": "0.0.0",

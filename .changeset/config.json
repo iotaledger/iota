@@ -4,7 +4,7 @@
 	"commit": false,
 	"fixed": [],
 	"linked": [],
-	"access": "public",
+	"access": "restricted",
 	"baseBranch": "develop",
 	"updateInternalDependencies": "minor",
 	"privatePackages": false,
@@ -17,10 +17,12 @@
 		"@iota/core",
 		"@iota/ui",
 		"@iota/apps-ui-kit",
+		"@iota/create-dapp",
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli",
-		"@iota/zklogin"
+		"@iota/zklogin",
+		"@iota/iotans-toolkit"
 	],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true

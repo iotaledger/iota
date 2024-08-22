@@ -29,7 +29,7 @@ use crate::{
 };
 
 /// TODO: This should be the amount that is being transferred instead of
-/// MAX_GAS. Number of micros sent to each address on each batch transfer
+/// MAX_GAS. Number of nanos sent to each address on each batch transfer
 const _TRANSFER_AMOUNT: u64 = 1;
 
 #[derive(Debug)]
