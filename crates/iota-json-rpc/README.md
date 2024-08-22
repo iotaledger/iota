@@ -1,16 +1,17 @@
 # iota-json-rpc
 
-The `iota-json-rpc` crate provides a flexible framework for building JSON-RPC servers.
-It supports serving RPC modules over HTTP and WebSocket, primarily for integrating with crates such as `iota-indexer` or `iota-node`.
+The `iota-json-rpc` library crate provides a flexible framework for building JSON-RPC servers to expose IOTA APIs.
+It supports requests over HTTP and WebSocket, and is primarily to spawn a nested service in the `iota-indexer` or `iota-node` applications.
 
-The `iota-json-rpc` crate provides implementation for various RPC module traits that are defined in the `iota-json-rpc-api` crate (e.g., `IndexerApi`, `ReadApi`, `MoveUtilsApi`).
-These modules are not automatically registered and can be explicitly included based on the server's requirements.
+It provides default implementation for various JSON-RPC server traits (e.g. `IndexerApiServer`, `GovernanceReadApiServer`, `MoveUtilsApiServer`) which are derived in the `iota-json-rpc-api` crate from JSON-RPC API definitions (e.g. `IndexerApi`, `GovernanceReadApi`, `MoveUtilsApi`).
 
-Furthermore, the `iota-json-rpc` crate generates OpenRPC documentation automatically for all registered modules and provides prometheus metrics for tracking request times and counts.
+The default implementations are not automatically registered with the server and can be explicitly included based on the server's requirements. They are implemented for `iota-node` in particular, using `AuthorityState` for the internal state.
+
+It furthermore automatically serves OpenRPC documentation for all registered modules and provides prometheus metrics for tracking request times and counts.
 
 ## Usage
 
-The example below demonstrates how to use the `iota-json-rpc` crate to build a JSON-RPC server:
+The following example shows how to build, register RPC modules and start the server:
 
 ```rust
 // Create a new `JsonRpcServerBuilder` with version information and a Prometheus registry
