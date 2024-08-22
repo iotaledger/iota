@@ -18,7 +18,7 @@ import { useMemo } from 'react';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { StakeCard } from '../home/StakedCard';
-import { DisplayStats } from '_app/staking/home/DisplayStats';
+import { StatsDetail } from '_app/staking/validators/StatsDetail';
 import { Title, TitleSize, Button, ButtonType } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 
@@ -95,8 +95,8 @@ export function ValidatorsCard() {
     return (
         <div className="flex h-full w-full flex-col flex-nowrap">
             <div className="flex gap-md py-md">
-                <DisplayStats title={'Your stake'} balance={totalDelegatedStake} />
-                <DisplayStats title={'Earned'} balance={totalDelegatedRewards} />
+                <StatsDetail title="Your stake" balance={totalDelegatedStake} />
+                <StatsDetail title="Earned" balance={totalDelegatedRewards} />
             </div>
             <Title title="In progress" size={TitleSize.Small} />
             <BottomMenuLayout>
@@ -142,7 +142,7 @@ export function ValidatorsCard() {
                     <Button
                         fullWidth
                         type={ButtonType.Primary}
-                        text="Stake IOTA"
+                        text="Stake"
                         onClick={handleNewStake}
                     />
                 </Menu>

@@ -12,17 +12,10 @@ import {
     useTimeAgo,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import {
-    Card,
-    CardImage,
-    CardType,
-    ImageType,
-    CardBody,
-    CardAction,
-    CardActionType,
-} from '@iota/apps-ui-kit';
+import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { ImageIcon } from '../../shared/image-icon';
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
@@ -34,76 +27,13 @@ export enum StakeState {
     InActive = 'IN_ACTIVE',
 }
 
-const STATUS_COPY = {
+const STATUS_COPY: { [key in StakeState]: string } = {
     [StakeState.WarmUp]: 'Starts Earning',
     [StakeState.Earning]: 'Staking Rewards',
     [StakeState.CoolDown]: 'Available to withdraw',
     [StakeState.Withdraw]: 'Withdraw',
     [StakeState.InActive]: 'Inactive',
 };
-
-export interface StakeCardContentProps {
-    statusLabel: string;
-    statusText: string;
-    earnColor?: boolean;
-    earningRewardEpoch?: number | null;
-    bodySubtitle?: string;
-    validatorAddress: string;
-}
-
-function StakeCardContent({
-    statusLabel,
-    statusText,
-    earningRewardEpoch,
-    bodySubtitle = '',
-    validatorAddress,
-}: StakeCardContentProps) {
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
-    const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(earningRewardEpoch || 0);
-    const timeAgo = useTimeAgo({
-        timeFrom: rewardEpochTime || null,
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
-    });
-
-    const validatorMeta = useMemo(() => {
-        if (!data) return null;
-
-        return (
-            data.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
-            null
-        );
-    }, [validatorAddress, data]);
-
-    const rewardTime = (() => {
-        if (earningRewardEpoch && rewardEpochTime > 0) {
-            return determineCountDownText({
-                timeAgo,
-                label: 'in',
-            });
-        }
-
-        return statusText;
-    })();
-
-    return (
-        <>
-            <Card type={CardType.Default}>
-                <CardImage
-                    url={validatorMeta?.imageUrl}
-                    type={!validatorMeta?.imageUrl ? ImageType.Placeholder : ImageType.BgSolid}
-                />
-                <CardBody title={validatorMeta?.name || ''} subtitle={bodySubtitle} />
-                <CardAction
-                    title={rewardTime}
-                    subtitle={statusLabel}
-                    type={CardActionType.SupportingText}
-                />
-            </Card>
-        </>
-    );
-}
 
 interface StakeCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -155,6 +85,35 @@ export function StakeCard({
         [StakeState.InActive]: 'Not earning rewards',
     };
 
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(Number(epochBeforeRewards) || 0);
+    const timeAgo = useTimeAgo({
+        timeFrom: rewardEpochTime || null,
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_HOUR,
+    });
+
+    const validatorMeta = useMemo(() => {
+        if (!data) return null;
+
+        return (
+            data.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
+            null
+        );
+    }, [validatorAddress, data]);
+
+    const rewardTime = () => {
+        if (Number(epochBeforeRewards) && rewardEpochTime > 0) {
+            return determineCountDownText({
+                timeAgo,
+                label: 'in',
+            });
+        }
+
+        return statusText[delegationState];
+    };
+
     return (
         <Link
             data-testid="stake-card"
@@ -164,13 +123,24 @@ export function StakeCard({
             }).toString()}`}
             className="no-underline"
         >
-            <StakeCardContent
-                statusLabel={STATUS_COPY[delegationState]}
-                statusText={statusText[delegationState]}
-                earningRewardEpoch={Number(epochBeforeRewards)}
-                validatorAddress={validatorAddress}
-                bodySubtitle={`${principalStaked} ${symbol}`}
-            />
+            <Card type={CardType.Default}>
+                <CardImage>
+                    <ImageIcon
+                        src={validatorMeta?.imageUrl || null}
+                        label={validatorMeta?.name || ''}
+                        fallback={validatorMeta?.name || ''}
+                    />
+                </CardImage>
+                <CardBody
+                    title={validatorMeta?.name || ''}
+                    subtitle={`${principalStaked} ${symbol}`}
+                />
+                <CardAction
+                    title={rewardTime()}
+                    subtitle={STATUS_COPY[delegationState]}
+                    type={CardActionType.SupportingText}
+                />
+            </Card>
         </Link>
     );
 }

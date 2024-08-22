@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@iota/core';
+import { useFormatCoin } from '../../../../../../core/src';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface DisplayStatsProps {
@@ -10,7 +10,7 @@ interface DisplayStatsProps {
     balance: bigint | number | string;
 }
 
-export function DisplayStats({ balance, title }: DisplayStatsProps) {
+export function StatsDetail({ balance, title }: DisplayStatsProps) {
     const [formatted, symbol] = useFormatCoin(balance, IOTA_TYPE_ARG);
 
     return (
