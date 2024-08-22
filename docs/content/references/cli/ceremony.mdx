@@ -3,14 +3,16 @@ title: IOTA Genesis Ceremony CLI
 description: The IOTA Genesis Ceremony CLI provides commands for building a Genesis blob file.
 ---
 
-The IOTA CLI `client` command provides commands for building a Genesis blob file.
+The IOTA CLI `genesis-ceremony` command allows the orchestration of an Iota Genesis Ceremony, 
+where multiple remote validators can sign a genesis blob. Each step persists a file structure
+which can be shared (for instance, via github) with the validators.
 
 ## Commands
 
 Typing `iota genesis-ceremony --help` into your terminal or console displays the following information on available commands.
 
 ```shell
-Build a genesis blob file
+Create an Iota Genesis Ceremony with multiple remote validators
 
 Usage: iota genesis-ceremony [OPTIONS] <COMMAND>
 
@@ -39,13 +41,30 @@ The following example demonstrates how to build a genesis blob.
 
 ### Initialize the Genesis Builder
 
-This command creates a structure in the file system to persist the genesis builder. Afterwards, the below commands can be used to set additional configuration.
+This command creates a structure in the file system to persist the genesis builder. 
+Afterwards, the below commands can be used to set additional configuration.
 
 ```shell
 iota genesis-ceremony init
 ```
 
+<details>
+  <summary>
+  Created `parameters` file
+  </summary>
+
+```yaml
+chain_start_timestamp_ms: 1724332830839
+protocol_version: 1
+allow_insertion_of_extra_objects: true
+epoch_duration_ms: 86400000
+```
+
+</details>
+
 ### Add Validators
+
+Each validator is added one at a time, and is persisted in the `committee` folder.
 
 ```shell
 iota genesis-ceremony add-validator \
@@ -63,6 +82,32 @@ iota genesis-ceremony add-validator \
     --project-url https://www.iota.org
 ```
 
+<details>
+  <summary>
+  Created `committee/validator0` file
+  </summary>
+
+```yaml
+info:
+  name: validator0
+  account-address: 0xae12525173c83e472daf8c30e80ec6e220675c329029fe81dcae9bb3e53d4aef
+  protocol-key: l5SIw1DYpic0kkkKDQm5NuLxWhzICh2WymxnVCutKkIzsaJx8u71qWdvRzN7QoRqEsGONoGpkCu8VbRFp0+prU/lTzeozmJTeou5JmW8JWSIZ1aLrZ41+vKluYoV2tVB
+  worker-key: bjoiPMq9KY38ug6fwYKLIz/uPegBrghszVphlEHbX4c=
+  network-key: lMg+5fuSD/E65lxbk6bqB1QWPuVsxGAUIQWHEmSKJWg=
+  gas-price: 1000
+  commission-rate: 200
+  network-address: /ip4/127.0.0.1/tcp/38189/http
+  p2p-address: /ip4/127.0.0.1/udp/34523
+  narwhal-primary-address: /ip4/127.0.0.1/udp/38603
+  narwhal-worker-address: /ip4/127.0.0.1/udp/36603
+  description: validator0
+  image-url: https://www.iota.org/favicon.png
+  project-url: https://www.iota.org
+proof_of_possession: iOnFPnGqbXbQGhI3H4bokzt2FRuWb/VzEWq4/k7xiKIz8JGDJdZvwC+56fqz534f
+```
+
+</details>
+
 ### List Validators
 
 ```shell
@@ -77,19 +122,20 @@ iota genesis-ceremony list-validators
 ```shell
 Validator Name Account Address
 -------------- ------------------------------------------------------------------
-validator0     0xd2b6560f77eae88ae0c5f2898219768de2167a0b5e9aa38dc535c55e9cf0302a
+validator0     0xae12525173c83e472daf8c30e80ec6e220675c329029fe81dcae9bb3e53d4aef
+validator1     0xba55e3ce221bb7edfbbef4d59b68893f5550b6302a9456b738ad8cf06919be0c
 ```
 
 </details>
 
 ### Add Token Allocation
 
-This command allocates tokens to a given address for the genesis transaction., and can be used to provide tokens to the faucet address.
+This command allocates tokens to a given address for the genesis transaction, and can be used to provide tokens to the faucet address.
 
 ```shell
 iota genesis-ceremony add-token-allocation \
     --recipient-address 0x923f43e0d325cd298c28a148858bb755921cfb032deeb0d2fb7772d6b4b168e0 \
-    --amount-nanos 100000000000
+    --amount-nanos 1500000000000000
 ```
 
 ### Validate the Genesis State
@@ -115,6 +161,8 @@ iota genesis-ceremony examine-genesis-checkpoint
 ```
 
 ### Verify and Sign the Checkpoint
+
+Each validator must sign the created checkpoint before finalizing the genesis blob.
 
 ```shell
 iota genesis-ceremony verify-and-sign --key-file ./validators/validator.key
