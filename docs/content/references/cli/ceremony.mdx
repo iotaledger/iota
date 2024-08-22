@@ -50,7 +50,7 @@ iota genesis-ceremony init
 
 <details>
   <summary>
-  Created `parameters` file
+  Toggle created `parameters` file
   </summary>
 
 ```yaml
@@ -69,10 +69,10 @@ Each validator is added one at a time, and is persisted in the `committee` folde
 ```shell
 iota genesis-ceremony add-validator \
     --name validator0 \
-    --validator-key-file ./validators/validator.key \
-    --worker-key-file ./validators/validator-worker.key \
-    --account-key-file ./validators/validator-account.key \
-    --network-key-file ./validators/validator-network.key \
+    --validator-key-file validator.key \
+    --worker-key-file validator-worker.key \
+    --account-key-file validator-account.key \
+    --network-key-file validator-network.key \
     --network-address /ip4/127.0.0.1/tcp/38189/http \
     --p2p-address /ip4/127.0.0.1/udp/34523 \
     --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
@@ -84,7 +84,7 @@ iota genesis-ceremony add-validator \
 
 <details>
   <summary>
-  Created `committee/validator0` file
+  Toggle created `committee/validator0` file
   </summary>
 
 ```yaml
@@ -165,7 +165,7 @@ iota genesis-ceremony examine-genesis-checkpoint
 Each validator must sign the created checkpoint before finalizing the genesis blob.
 
 ```shell
-iota genesis-ceremony verify-and-sign --key-file ./validators/validator.key
+iota genesis-ceremony verify-and-sign --key-file validator.key
 ```
 
 ### Finalize the Genesis blob
