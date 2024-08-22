@@ -318,8 +318,8 @@ pub fn ptb_description() -> clap::Command {
             gas coin that it finds that has at least the requested gas-budget balance."
         ))
         .arg(arg!(
-            --"gas-budget" <MICROS>
-            "The gas budget for the transaction, in MICROS."
+            --"gas-budget" <NANOS>
+            "The gas budget for the transaction, in NANOS."
         ))
         .arg(arg!(
             --"make-move-vec" <MAKE_MOVE_VEC>
