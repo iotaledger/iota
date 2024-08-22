@@ -65,7 +65,7 @@ pub struct StateSnapshotReaderV1 {
     ref_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     object_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     indirect_objects_threshold: usize,
-    m: MultiProgress,
+    multi_progress_bar: MultiProgress,
     concurrency: usize,
 }
 
@@ -78,7 +78,7 @@ impl StateSnapshotReaderV1 {
         local_store_config: &ObjectStoreConfig,
         indirect_objects_threshold: usize,
         download_concurrency: NonZeroUsize,
-        m: MultiProgress,
+        multi_progress_bar: MultiProgress,
     ) -> Result<Self> {
         let epoch_dir = format!("epoch_{}", epoch);
         let remote_object_store = if remote_store_config.no_sign_request {
@@ -164,7 +164,7 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
 
-        let progress_bar = m.add(
+        let progress_bar = multi_progress_bar.add(
             ProgressBar::new(files.len() as u64).with_style(
                 ProgressStyle::with_template(
                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} .ref files done ({msg})",
@@ -192,7 +192,7 @@ impl StateSnapshotReaderV1 {
             ref_files,
             object_files,
             indirect_objects_threshold,
-            m,
+            multi_progress_bar,
             concurrency: download_concurrency.get(),
         })
     }
@@ -222,7 +222,7 @@ impl StateSnapshotReaderV1 {
 
         info!("Computing checksums");
         // Create a progress bar for checksumming
-        let checksum_progress_bar = self.m.add(
+        let checksum_progress_bar = self.multi_progress_bar.add(
             ProgressBar::new(num_part_files as u64).with_style(
                 ProgressStyle::with_template(
                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files checksummed ({msg})",
@@ -291,7 +291,7 @@ impl StateSnapshotReaderV1 {
         let concurrency = self.concurrency;
         let accum_counter = Arc::new(AtomicU64::new(0));
         let cloned_accum_counter = accum_counter.clone();
-        let accum_progress_bar = self.m.add(
+        let accum_progress_bar = self.multi_progress_bar.add(
              ProgressBar::new(num_part_files as u64).with_style(
                  ProgressStyle::with_template(
                      "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot ({msg})",
@@ -407,7 +407,7 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
         // Create a progress bar for object files
-        let obj_progress_bar = self.m.add(
+        let obj_progress_bar = self.multi_progress_bar.add(
             ProgressBar::new(input_files.len() as u64).with_style(
                 ProgressStyle::with_template(
                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done ({msg})",
