@@ -3,21 +3,43 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { Alert, FiltersPortal, Loading, LoadingIndicator } from '_components';
-import { setToSessionStorage } from '_src/background/storage-utils';
-import { AssetFilterTypes, useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
-import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useOnScreen } from '@iota/core';
-import { useEffect, useMemo, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-
-import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
-import AssetsOptionsMenu from './AssetsOptionsMenu';
+import { Alert, Loading, LoadingIndicator, PageTemplate } from '_components';
+import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
+import { useMultiGetObjects } from '@iota/core';
+import { useMemo, useRef, useState } from 'react';
+import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
+import { ButtonSegment, SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
+import HiddenAssets from './HiddenAssets';
+
+enum AssetCategory {
+    Visual = 'Visual',
+    Other = 'Other',
+    Hidden = 'Hidden',
+}
+
+const ASSET_CATEGORIES = [
+    {
+        label: 'Visual',
+        value: AssetCategory.Visual,
+    },
+    {
+        label: 'Other',
+        value: AssetCategory.Other,
+    },
+    {
+        label: 'Hidden',
+        value: AssetCategory.Hidden,
+    },
+];
 
 function NftsPage() {
+    const [selectedAssetCategory, setSelectedAssetCategory] = useState(AssetCategory.Visual);
+    const observerElem = useRef<HTMLDivElement | null>(null);
+
     const accountAddress = useActiveAddress();
+    const { hiddenAssetIds } = useHiddenAssets();
     const {
         data: ownedAssets,
         hasNextPage,
@@ -25,28 +47,52 @@ function NftsPage() {
         isFetchingNextPage,
         error,
         isPending,
-        fetchNextPage,
         isError,
     } = useGetNFTs(accountAddress);
-    const observerElem = useRef<HTMLDivElement | null>(null);
-    const { isIntersecting } = useOnScreen(observerElem);
+
+    const { data } = useMultiGetObjects(hiddenAssetIds, {
+        showDisplay: true,
+        showType: true,
+    });
+
     const isSpinnerVisible = isFetchingNextPage && hasNextPage;
 
-    useEffect(() => {
-        if (isIntersecting && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-        }
-    }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
+    const filteredAssets = useMemo(() => {
+        if (!ownedAssets) return [];
 
-    const handleFilterChange = async (tag: { name: string; link: string }) => {
-        await setToSessionStorage<string>('NFTS_PAGE_NAVIGATION', tag.link);
-    };
-    const { filterType } = useParams();
-    const filteredNFTs = useMemo(() => {
-        if (!filterType) return ownedAssets?.visual;
-        return ownedAssets?.[filterType as AssetFilterTypes] ?? [];
-    }, [ownedAssets, filterType]);
-    const { hiddenAssetIds } = useHiddenAssets();
+        switch (selectedAssetCategory) {
+            case AssetCategory.Visual:
+                return ownedAssets.visual;
+            case AssetCategory.Other:
+                return ownedAssets.other;
+            default:
+                return [];
+        }
+    }, [selectedAssetCategory, ownedAssets, hiddenAssetIds]);
+
+    const filteredHiddenAssets = useMemo(() => {
+        const hiddenNfts =
+            data?.flatMap((data) => {
+                return {
+                    data: data.data,
+                    display: data.data?.display?.data,
+                };
+            }) || [];
+
+        return hiddenNfts
+            ?.filter((nft) => nft.data && hiddenAssetIds.includes(nft?.data?.objectId))
+            .sort((nftA, nftB) => {
+                const nameA = nftA.display?.name || '';
+                const nameB = nftB.display?.name || '';
+
+                if (nameA < nameB) {
+                    return -1;
+                } else if (nameA > nameB) {
+                    return 1;
+                }
+                return 0;
+            });
+    }, [hiddenAssetIds, data]);
 
     if (isLoading) {
         return (
@@ -55,50 +101,56 @@ function NftsPage() {
             </div>
         );
     }
-
-    const tags = [
-        { name: 'Visual Assets', link: 'nfts' },
-        { name: 'Everything Else', link: 'nfts/other' },
-    ];
-
     return (
-        <div className="flex min-h-full flex-col flex-nowrap items-center gap-4">
-            <PageTitle
-                title="Assets"
-                after={hiddenAssetIds.length ? <AssetsOptionsMenu /> : null}
-            />
-            {!!ownedAssets?.other.length && (
-                <FiltersPortal firstLastMargin tags={tags} callback={handleFilterChange} />
-            )}
-            <Loading loading={isPending}>
-                {isError ? (
-                    <Alert>
-                        <div>
-                            <strong>Sync error (data might be outdated)</strong>
-                        </div>
-                        <small>{(error as Error).message}</small>
-                    </Alert>
-                ) : null}
-                {filteredNFTs?.length ? (
-                    filterType === AssetFilterTypes.Other ? (
-                        <NonVisualAssets items={filteredNFTs} />
+        <PageTemplate title="Assets" isTitleCentered>
+            <div className="flex h-full w-full flex-col items-start gap-xxxs">
+                <SegmentedButton type={SegmentedButtonType.Filled}>
+                    {ASSET_CATEGORIES.map(({ label, value }) => (
+                        <ButtonSegment
+                            key={value}
+                            onClick={() => setSelectedAssetCategory(value)}
+                            label={label}
+                            selected={selectedAssetCategory === value}
+                            disabled={
+                                AssetCategory.Hidden === value
+                                    ? !hiddenAssetIds.length
+                                    : AssetCategory.Visual === value
+                                      ? !ownedAssets?.visual.length
+                                      : !ownedAssets?.other.length
+                            }
+                        />
+                    ))}
+                </SegmentedButton>
+                <Loading loading={isPending}>
+                    {isError ? (
+                        <Alert>
+                            <div>
+                                <strong>Sync error (data might be outdated)</strong>
+                            </div>
+                            <small>{(error as Error).message}</small>
+                        </Alert>
+                    ) : null}
+                    {selectedAssetCategory === AssetCategory.Visual ? (
+                        <VisualAssets items={filteredAssets} />
+                    ) : selectedAssetCategory === AssetCategory.Other ? (
+                        <NonVisualAssets items={filteredAssets} />
+                    ) : selectedAssetCategory === AssetCategory.Hidden ? (
+                        <HiddenAssets items={filteredHiddenAssets} />
                     ) : (
-                        <VisualAssets items={filteredNFTs} />
-                    )
-                ) : (
-                    <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
-                        No Assets found
-                    </div>
-                )}
-            </Loading>
-            <div ref={observerElem}>
-                {isSpinnerVisible ? (
-                    <div className="mt-1 flex w-full justify-center">
-                        <LoadingIndicator />
-                    </div>
-                ) : null}
+                        <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
+                            No Assets found
+                        </div>
+                    )}
+                </Loading>
+                <div ref={observerElem}>
+                    {isSpinnerVisible ? (
+                        <div className="mt-1 flex w-full justify-center">
+                            <LoadingIndicator />
+                        </div>
+                    ) : null}
+                </div>
             </div>
-        </div>
+        </PageTemplate>
     );
 }
 
