@@ -6575,7 +6575,7 @@ dependencies = [
 name = "iota-proc-macros"
 version = "0.7.0"
 dependencies = [
- "msim-macros 0.1.0 (git+https://github.com/MystenLabs/mysten-sim.git?rev=6f88ec84644cb1a6809c010f1f534d0d09e0cd89)",
+ "msim-macros",
  "proc-macro2",
  "quote",
  "syn 2.0.74",
@@ -8941,7 +8941,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "libc",
- "msim-macros 0.1.0 (git+ssh://git@github.com/iotaledger/iota-sim.git?branch=main)",
+ "msim-macros",
  "naive-timer",
  "pin-project-lite",
  "rand",
@@ -8959,17 +8959,6 @@ dependencies = [
 name = "msim-macros"
 version = "0.1.0"
 source = "git+ssh://git@github.com/iotaledger/iota-sim.git?branch=main#d95963e584a1e92bb58bac62f8ffec9ea5bb0dab"
-dependencies = [
- "darling 0.14.4",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "msim-macros"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/mysten-sim.git?rev=6f88ec84644cb1a6809c010f1f534d0d09e0cd89#6f88ec84644cb1a6809c010f1f534d0d09e0cd89"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
