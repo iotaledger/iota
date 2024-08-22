@@ -14,13 +14,12 @@ Running the previous command creates a directory with the name you provide (`my_
 ```move title="my_first_package/Move.toml"
 [package]
 name = "my_first_package"
-
-# edition = "2024.beta " # To use the Move 2024 edition, currently in beta
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
 [dependencies]
-IOTA = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.
@@ -54,7 +53,7 @@ my_first_package = "0x0"
 The manifest file contents include available sections of the manifest and comments that provide additional information. In Move, you prepend the hash mark (`#`) to a line to denote a comment.
 
 - **[package]:** Contains metadata for the package. By default, the `iota move new` command populates only the `name` value of the metadata. In this case, the example passes `my_first_package` to the command, which becomes the name of the package. You can delete the first `#` of subsequent lines of the `[package]` section to provide values for the other available metadata fields. 
-- **[dependencies]:** Lists the other packages that your package depends on to run. By default, the `iota move new` command lists the `IOTA` package on GitHub (Testnet version) as the lone dependency.  
+- **[dependencies]:** Lists the other packages that your package depends on to run. By default, the `iota move new` command lists the `Iota` package on GitHub (Testnet version) as the lone dependency.  
 - **[addresses]:** Declares named addresses that your package uses. By default, the section includes the package you create with the `iota move new` command and an address of `0x0`. The publish process replaces the `0x0` address with an actual on-chain address.
 - **[dev-dependencies]:** Includes only comments that describe the section.
 - **[dev-addresses]:** Includes only comments that describe the section.
@@ -88,7 +87,7 @@ Populate the `my_module.move` file with the following code:
 ```move
 module my_first_package::my_module {
 
-    // Part 1: Struct definitions
+    // Part 1: Struct definitions.
     public struct Sword has key, store {
         id: UID,
         magic: u64,
@@ -100,17 +99,17 @@ module my_first_package::my_module {
         swords_created: u64,
     }
 
-    // Part 2: Module initializer to be executed when this module is published
+    // Part 2: Module initializer to be executed when this module is published.
     fun init(ctx: &mut TxContext) {
         let admin = Forge {
             id: object::new(ctx),
             swords_created: 0,
         };
-        // Transfer the forge object to the module/package publisher
+        // Transfer the forge object to the module/package publisher.
         transfer::public_transfer(admin, tx_context::sender(ctx));
     }
 
-    // Part 3: Accessors required to read the struct attributes
+    // Part 3: Accessors required to read the struct attributes.
     public fun magic(self: &Sword): u64 {
         self.magic
     }
@@ -123,9 +122,9 @@ module my_first_package::my_module {
         self.swords_created
     }
 
-    // Part 4: Public/entry functions (introduced later in the tutorial)
+    // Part 4: Public/entry functions (introduced later in the tutorial).
 
-    // Part 5: Private functions (if any)
+    // Part 5: Private functions (if any).
 }
 ```
 

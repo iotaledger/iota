@@ -153,7 +153,7 @@ impl GasStatus {
     }
 
     #[allow(dead_code)]
-    fn to_micros(&self, val: InternalGas) -> u64 {
+    fn to_nanos(&self, val: InternalGas) -> u64 {
         let gas: Gas = InternalGas::to_unit_round_down(val);
         u64::from(gas) * self.gas_price
     }
