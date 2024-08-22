@@ -5,6 +5,7 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::{ArgGroup, Parser};
+use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{node::RunWithRange, Config, NodeConfig};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::IotaNode;
@@ -12,7 +13,6 @@ use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
 };
-use mysten_common::sync::async_once_cell::AsyncOnceCell;
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
@@ -84,7 +84,7 @@ fn main() {
 
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
-    let registry_service = mysten_metrics::start_prometheus_server(config.metrics_address);
+    let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
@@ -160,7 +160,7 @@ fn main() {
 
         info!("Iota chain identifier: {chain_identifier}");
         prometheus_registry
-            .register(mysten_metrics::uptime_metric(
+            .register(iota_metrics::uptime_metric(
                 if is_validator {
                     "validator"
                 } else {

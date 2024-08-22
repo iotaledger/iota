@@ -42,7 +42,7 @@ tempfile.workspace = true
 move-package.workspace = true
 
 iota-macros.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 
 [features]
 default = []

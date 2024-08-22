@@ -1975,13 +1975,13 @@ impl Display for IotaClientCommandResult {
                 let mut builder = TableBuilder::default();
                 builder.set_header(vec![
                     "gasCoinId",
-                    "microsBalance (MICROS)",
+                    "nanosBalance (NANOS)",
                     "iotaBalance (IOTA)",
                 ]);
                 for coin in &gas_coins {
                     builder.push_record(vec![
                         coin.gas_coin_id.to_string(),
-                        coin.micros_balance.to_string(),
+                        coin.nanos_balance.to_string(),
                         coin.iota_balance.to_string(),
                     ]);
                 }
@@ -2388,7 +2388,7 @@ impl From<&IotaObjectData> for ObjectOutput {
 #[serde(rename_all = "camelCase")]
 pub struct GasCoinOutput {
     pub gas_coin_id: ObjectID,
-    pub micros_balance: u64,
+    pub nanos_balance: u64,
     pub iota_balance: String,
 }
 
@@ -2396,7 +2396,7 @@ impl From<&GasCoin> for GasCoinOutput {
     fn from(gas_coin: &GasCoin) -> Self {
         Self {
             gas_coin_id: *gas_coin.id(),
-            micros_balance: gas_coin.value(),
+            nanos_balance: gas_coin.value(),
             iota_balance: format_balance(gas_coin.value() as u128, 9, 2, None),
         }
     }

@@ -29,6 +29,8 @@ http-body-util.workspace = true
 hyper.workspace = true
 hyper-util = { workspace = true, features = ["http2", "server", "tokio"] }
 im.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
 lru.workspace = true
@@ -37,8 +39,6 @@ move-binary-format.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 rand.workspace = true # todo: cleanup test only deps
