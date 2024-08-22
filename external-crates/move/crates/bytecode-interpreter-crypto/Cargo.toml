@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-curve25519-dalek.workspace = true
-ed25519-dalek.workspace = true
+curve25519-dalek = { version = "0.1", package = "curve25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
+ed25519-dalek = { version = "0.1", package = "ed25519-dalek-fiat", default-features = false, features = ["std", "serde", "u64_backend"] }
 sha2.workspace = true
 sha3.workspace = true

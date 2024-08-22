@@ -85,7 +85,7 @@ module iota_system::validator {
     const MAX_VALIDATOR_METADATA_LENGTH: u64 = 256;
 
     // TODO: Move this to onchain config when we have a good way to do it.
-    /// Max gas price a validator can set is 100K MICROS.
+    /// Max gas price a validator can set is 100K NANOS.
     const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
     public struct ValidatorMetadata has store {

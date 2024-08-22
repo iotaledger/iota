@@ -68,7 +68,7 @@ function MenuList() {
                     weight="semibold"
                 />
                 <Text variant="bodySmall" weight="medium" color="steel">
-                    On Iota Wallet version v{version}
+                    On IOTA Wallet version v{version}
                 </Text>
             </div>
         </MenuLayout>

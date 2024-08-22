@@ -14,6 +14,7 @@ use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
     ValidatorApy, ValidatorApys,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -32,7 +33,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::{core::RpcResult, RpcModule};
-use mysten_metrics::spawn_monitored_task;
 use tracing::{info, instrument};
 
 use crate::{

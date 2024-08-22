@@ -34,16 +34,17 @@ Alternatively, any call to abort or assertion failure also prints the stacktrace
 To see the module in action, update your `my_module` code to include debug calls. Specifically, update the `new_sword` function so that you print the value of `forge` before and after updating `swords_created`. Also, include a `print_stack_trace` so that the function looks like the following:
 
 ```move
-public fun new_sword(
-    forge: &mut Forge,
-    magic: u64,
-    strength: u64,
-    ctx: &mut TxContext,
-): Sword {
+/// Constructor for creating swords.
+public fun new_sword(forge: &mut Forge, magic: u64, strength: u64, ctx: &mut TxContext): Sword {
     debug::print(forge);
+
+    // Increment the `swords_created` counter.
     forge.swords_created = forge.swords_created + 1;
+
     debug::print(forge);
     debug::print_stack_trace();
+
+    // Create a sword.
     Sword {
         id: object::new(ctx),
         magic: magic,
@@ -55,7 +56,7 @@ public fun new_sword(
 To see the results, run the module's tests.
 
 ```shell
-$ iota move test
+$ iota move test test_sword_transactions
 ```
 
 The response prints out the expected results as the test calls the `new_sword` function.
@@ -65,7 +66,6 @@ INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
-[ PASS    ] 0x0::my_module::test_module_init
 [debug] 0x0::my_module::Forge {
   id: 0x2::object::UID {
     id: 0x2::object::ID {
@@ -86,25 +86,29 @@ Call Stack:
     [0] 0000000000000000000000000000000000000000000000000000000000000000::my_module::test_sword_transactions
 
         Code:
-            [19] LdU64(7)
-            [20] MutBorrowLoc(3)
-            [21] Call(14)
-          > [22] Call(4)
-            [23] LdConst(1)
-            [24] CallGeneric(2)
-            [25] ImmBorrowLoc(3)
+            [24] LdU64(7)
+            [25] CopyLoc(5)
+            [26] Call(13)
+          > [27] Call(6)
+            [28] CopyLoc(4)
+            [29] CallGeneric(2)
+            [30] CopyLoc(5)
 
         Locals:
             [0] -
-            [1] { { { <OBJECT-ID-WITHOUT-0x> } }, 1 }
-            [2] -
-            [3] { 2, { 00000000000000000000000000000000000000000000000000000000000000ad, [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0 } }
+            [1] -
+            [2] 000000000000000000000000000000000000000000000000000000000000face
+            [3] { { { <OBJECT-ID-WITHOUT-0x> } }, 1 }
+            [4] 000000000000000000000000000000000000000000000000000000000000cafe
+            [5] (&) { 1, { 000000000000000000000000000000000000000000000000000000000000babe, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0 } }
+            [6] { 1, { 000000000000000000000000000000000000000000000000000000000000babe, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0 } }
+            [7] -
 
 
 Operand Stack:
 
 [ PASS    ] 0x0::my_module::test_sword_transactions
-Test result: OK. Total tests: 2; passed: 2; failed: 0
+Test result: OK. Total tests: 1; passed: 1; failed: 0
 ```
 
 ## Related links

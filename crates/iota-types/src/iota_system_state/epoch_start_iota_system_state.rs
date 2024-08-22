@@ -330,8 +330,8 @@ impl EpochStartValidatorInfoV1 {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
+    use iota_network_stack::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
-    use mysten_network::Multiaddr;
     use narwhal_crypto::NetworkKeyPair;
     use rand::thread_rng;
 
