@@ -85,7 +85,7 @@ export function PasswordInputDialog({
                         </FieldLabel>
                         <div className="mt-4 text-center">
                             <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                This is the password you currently use to lock and unlock your Iota
+                                This is the password you currently use to lock and unlock your IOTA
                                 wallet.
                             </Text>
                         </div>
