@@ -2,40 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Account24, ArrowRight16, Info16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
-import cl from 'clsx';
-
 import { LoadingIndicator } from '_components';
+import { ArrowBottomLeft, ArrowTopRight, Info, IotaLogoMark, Person, Stake } from '@iota/ui-icons';
 
 const icons = {
-    Send: (
-        <ArrowRight16
-            fill="currentColor"
-            className="-rotate-45 text-body text-gradient-blue-start"
-        />
-    ),
-    Receive: (
-        <ArrowRight16
-            fill="currentColor"
-            className="rotate-135 text-body text-gradient-blue-start"
-        />
-    ),
-    Transaction: (
-        <ArrowRight16
-            fill="currentColor"
-            className="-rotate-45 text-body text-gradient-blue-start"
-        />
-    ),
-    Staked: (
-        <WalletActionStake24 className="bg-transparent text-heading2 text-gradient-blue-start" />
-    ),
-    Unstaked: <Unstaked className="text-heading3 text-gradient-blue-start" />,
-    Rewards: <Iota className="text-body text-gradient-blue-start" />,
-    Failed: <Info16 className="text-issue-dark text-heading6" />,
+    Send: <ArrowTopRight className="text-primary-30" />,
+    Receive: <ArrowBottomLeft className="text-primary-30" />,
+    Transaction: <ArrowTopRight className="text-primary-30" />,
+    Staked: <Stake className=" text-primary-30" />,
+    Unstaked: <Stake className="text-primary-30" />,
+    Rewards: <IotaLogoMark className="text-primary-30" />,
+    Failed: <Info className="text-error-30" />,
     Loading: <LoadingIndicator />,
-    PersonalMessage: (
-        <Account24 fill="currentColor" className="text-body text-gradient-blue-start" />
-    ),
+    PersonalMessage: <Person className="text-primary-30" />,
 };
 
 interface TxnItemIconProps {
@@ -44,14 +23,5 @@ interface TxnItemIconProps {
 }
 
 export function TxnIcon({ txnFailed, variant }: TxnItemIconProps) {
-    return (
-        <div
-            className={cl([
-                txnFailed ? 'bg-issue-light' : 'bg-gray-40',
-                'flex h-7.5 w-7.5 items-center justify-center rounded-2lg',
-            ])}
-        >
-            {icons[txnFailed ? 'Failed' : variant]}
-        </div>
-    );
+    return <div className="[&_svg]:h-5 [&_svg]:w-5">{icons[txnFailed ? 'Failed' : variant]}</div>;
 }
