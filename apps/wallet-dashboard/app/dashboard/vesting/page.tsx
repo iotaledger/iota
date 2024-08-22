@@ -15,9 +15,11 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const queryClient = useQueryClient();
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -26,7 +28,6 @@ function VestingDashboardPage(): JSX.Element {
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
-
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const vestingSchedule = getVestingOverview(
         [...timelockedMapped, ...(stakedTimelockedObjects || [])],
@@ -37,6 +38,24 @@ function VestingDashboardPage(): JSX.Element {
         return activeValidators?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
+    }
+
+    function handleOnClose(): void {
+        setTimeout(() => {
+            queryClient.invalidateQueries({
+                queryKey: ['get-staked-timelocked-objects', account?.address],
+            });
+            queryClient.invalidateQueries({
+                queryKey: [
+                    'get-all-owned-objects',
+                    account?.address,
+                    {
+                        StructType: TIMELOCK_IOTA_TYPE,
+                    },
+                ],
+            });
+        }, 1500);
+        closePopup();
     }
 
     function handleUnstake(delegatedTimelocked: DelegatedTimelockedStake): void {
@@ -51,13 +70,13 @@ function VestingDashboardPage(): JSX.Element {
                 accountAddress={account.address}
                 delegatedStake={delegatedTimelocked}
                 validatorInfo={validatorInfo}
-                closePopup={closePopup}
+                closePopup={handleOnClose}
             />,
         );
     }
 
     function handleStake(): void {
-        openPopup(<NewStakePopup onClose={closePopup} />);
+        openPopup(<NewStakePopup onClose={handleOnClose} isTimelockedStaking />);
     }
 
     return (

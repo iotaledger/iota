@@ -3,11 +3,7 @@
 
 import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
-import {
-    useNotifications,
-    useNewStakeTransaction,
-    useCreateTimelockedStakingTransaction,
-} from '@/hooks';
+import { useNotifications, useNewStakeTransaction } from '@/hooks';
 import { parseAmount, useCoinMetadata, useGetValidatorsApy } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -15,6 +11,7 @@ import { NotificationType } from '@/stores/notificationStore';
 
 interface NewStakePopupProps {
     onClose: () => void;
+    isTimelockedStaking?: boolean;
 }
 
 enum Step {
@@ -22,7 +19,7 @@ enum Step {
     EnterAmount,
 }
 
-function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
+function NewStakePopup({ onClose, isTimelockedStaking }: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
@@ -32,18 +29,12 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const coinDecimals = metadata?.decimals ?? 0;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
 
-    let { data: newStakeData } = useNewStakeTransaction(
+    const { data: newStakeData } = useNewStakeTransaction(
         selectedValidator,
         amountWithoutDecimals,
         account?.address ?? '',
+        isTimelockedStaking,
     );
-    // todo: implement useCreateTimelockedStakingTransaction
-    const timestakedata = useCreateTimelockedStakingTransaction(
-        selectedValidator,
-        amountWithoutDecimals,
-        account?.address ?? '',
-    );
-    newStakeData = timestakedata?.data;
 
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
     const { addNotification } = useNotifications();

@@ -318,3 +318,50 @@ export function adjustSplitAmountsInVestingObjects(
         }
     }
 }
+
+export function prepareVestingObjectsForTimelockedStaking(
+    timelockedObjects: IotaObjectData[],
+    amount: bigint,
+    currentEpochMs: string,
+) {
+    const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
+    const filteredTimelockedObjects = timelockedMapped
+        ?.filter(isSupplyIncreaseVestingObject)
+        .filter((obj: TimelockedObject) => {
+            return Number(obj.expirationTimestampMs) > Number(currentEpochMs);
+        })
+        .sort((a: TimelockedObject, b: TimelockedObject) => {
+            return Number(b.expirationTimestampMs) - Number(a.expirationTimestampMs);
+        });
+
+    const vestingObjects: VestingObject[] = getFormattedTimelockedVestingObjects(
+        filteredTimelockedObjects,
+    ).filter((obj) => obj.totalLockedAmount >= MIN_STAKING_THRESHOLD);
+
+    /**
+     * Create a subset of objects that meet the stake amount (where total combined locked amount >= STAKE_AMOUNT)
+     */
+    let totalLocked: bigint = BigInt(0);
+    const subsetVestingObjects: VestingObject[] = [];
+
+    for (const obj of vestingObjects) {
+        totalLocked += obj.totalLockedAmount;
+        subsetVestingObjects.push(obj);
+        if (totalLocked >= amount) {
+            break;
+        }
+    }
+
+    /**
+     * Calculate the remaining amount after staking
+     */
+    const remainingAmount = totalLocked - amount;
+    /**
+     * Add splitAmount property to the vesting objects that need to be split
+     */
+    if (remainingAmount > 0) {
+        adjustSplitAmountsInVestingObjects(subsetVestingObjects, remainingAmount);
+    }
+
+    return subsetVestingObjects;
+}
