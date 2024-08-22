@@ -573,7 +573,7 @@ async fn prepare_new_signer_and_coins(
     let required_balance = pay_amount + gas_fee_for_split + gas_fee_for_pay_iota;
     if required_balance > balance {
         panic!(
-            "Current balance {balance} is smaller than require amount of MICROS to fund the operation {required_balance}"
+            "Current balance {balance} is smaller than require amount of NANOS to fund the operation {required_balance}"
         );
     }
 
