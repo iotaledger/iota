@@ -7,8 +7,8 @@ use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
 use std::{
-    collections::BTreeSet, fmt::Write, fs::read_dir, io::Read, path::PathBuf, str, thread,
-    time::Duration,
+    collections::BTreeSet, fmt::Write, fs::read_dir, io::Read, path::PathBuf, str, str::FromStr,
+    thread, time::Duration,
 };
 
 use expect_test::expect;
