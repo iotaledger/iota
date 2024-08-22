@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import clsx from 'clsx';
 import { motion, type Variants } from 'framer-motion';
 
 const ANIMATION_START = 0.25;
-const ANIMATION_START_THRESHOLD = 20;
 
 const getProgressBarVariant = (progress: number): Variants => ({
     initial: {
@@ -24,44 +22,19 @@ const getProgressBarVariant = (progress: number): Variants => ({
 
 export interface ProgressBarProps {
     progress: number;
-    animate?: boolean;
 }
 
-export function ProgressBar({ progress, animate }: ProgressBarProps): JSX.Element {
-    const isAnimated = animate && progress > ANIMATION_START_THRESHOLD;
-
+export function ProgressBar({ progress }: ProgressBarProps): JSX.Element {
     return (
-        <div className="relative w-full rounded-full bg-success-light">
-            <motion.div
-                variants={getProgressBarVariant(progress)}
-                className={clsx(
-                    'rounded-full py-1',
-                    isAnimated
-                        ? 'bg-success'
-                        : 'bg-gradient-to-r from-success via-success/50 to-success',
-                )}
-                initial="initial"
-                animate="animate"
-            />
-            {isAnimated && (
+        <div className="px-md--rs py-sm--rs">
+            <div className="relative w-full rounded-full bg-primary-90">
                 <motion.div
-                    initial={{
-                        left: 0,
-                    }}
-                    animate={{
-                        left: `${Math.floor(progress)}%`,
-                        opacity: [0, 1, 0],
-                        transition: {
-                            delay: 1.5,
-                            repeatDelay: 1,
-                            duration: 6,
-                            repeat: Infinity,
-                            ease: [0.16, 1, 0.3, 1],
-                        },
-                    }}
-                    className="absolute top-1/2 z-10 h-0 w-0 -translate-y-1/2 bg-white opacity-0 shadow-glow"
+                    variants={getProgressBarVariant(progress)}
+                    className="rounded-full bg-primary-30 py-1"
+                    initial="initial"
+                    animate="animate"
                 />
-            )}
+            </div>
         </div>
     );
 }
