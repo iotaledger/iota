@@ -46,7 +46,7 @@ const SHIMMER_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
 pub const MERGE_MILESTONE_INDEX: u32 = 7669900;
 pub const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
-pub const fn to_micros(n: u64) -> u64 {
+pub const fn to_nanos(n: u64) -> u64 {
     match n.checked_mul(1_000_000) {
         Some(res) => res,
         None => panic!("should not overflow"),
@@ -199,7 +199,7 @@ fn add_only_test_outputs<R: Read>(
     // Add all the remainder tokens to the zero address
     let zero_address = Ed25519Address::new([0; 32]);
     let network_total_supply = match coin_type {
-        CoinType::Iota => to_micros(STARDUST_TOTAL_SUPPLY_IOTA),
+        CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
         CoinType::Shimmer => STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO,
     };
     let remainder = network_total_supply

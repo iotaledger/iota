@@ -8371,7 +8371,7 @@ dependencies = [
  "anyhow",
  "move-binary-format",
  "move-core-types",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "serde",
  "serde-reflection",
  "serde_yaml",
@@ -8386,7 +8386,7 @@ dependencies = [
  "move-borrow-graph",
  "move-core-types",
  "move-vm-config",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
 ]
 
 [[package]]
@@ -8398,7 +8398,7 @@ dependencies = [
  "move-borrow-graph",
  "move-core-types",
  "move-vm-config",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
 ]
 
 [[package]]
@@ -8491,7 +8491,7 @@ dependencies = [
  "move-symbol-pool",
  "once_cell",
  "pathdiff",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "regex",
  "serde",
  "similar",
@@ -8538,7 +8538,7 @@ dependencies = [
  "move-command-line-common",
  "move-core-types",
  "move-ir-types",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "serde",
 ]
 
@@ -8686,7 +8686,7 @@ dependencies = [
  "move-symbol-pool",
  "named-lock",
  "once_cell",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "regex",
  "serde",
  "serde_yaml",
@@ -8744,7 +8744,7 @@ dependencies = [
  "move-core-types",
  "move-model",
  "num",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "serde",
 ]
 
