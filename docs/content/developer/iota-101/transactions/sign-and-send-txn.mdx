@@ -20,7 +20,7 @@ With a signature and the transaction bytes, a transaction can be submitted to be
 The following high-level process describes the overall workflow for constructing, signing and executing an on-chain transaction:
 
 - Construct the transaction data by creating a `TransactionBlock` where multiple transactions are chained. See [Building Programmable Transaction Blocks](ptb/building-ptb.mdx) for more information.
-- The SDK's built-in gas estimation and coin selection picks the gas coin.
+- The [SDK's](../../../references/iota-sdks.mdx) built-in gas estimation and coin selection picks the gas coin.
 - Sign the transaction to generate a [signature](../../cryptography/transaction-auth/signatures.mdx).
 - Submit the `TransactionBlock` and its signature for on-chain execution.
 
@@ -40,7 +40,7 @@ The following examples demonstrate how to sign and execute transactions using Ru
 
 <TabItem value="ts-sdk" label="TypeScript">
 
-There are various ways to instantiate a key pair and to derive its public key and IOTA address using the IOTA TypeScript SDK.
+There are various ways to instantiate a key pair and to derive its public key and IOTA address using the [IOTA TypeScript SDK](../../../references/ts-sdk/typescript/index.mdx#iota-typescript-sdk).
 
 ```tsx
 import { fromHEX } from '@iota/bcs';
@@ -108,7 +108,7 @@ console.log(res);
 
 The full code example below can be found under [crates/iota-sdk](https://github.com/iotaledger/iota/blob/main/crates/iota-sdk/examples/sign_tx_guide.rs).
 
-There are various ways to instantiate a `IotaKeyPair` and to derive its public key and IOTA address using the IOTA Rust SDK.
+There are various ways to instantiate a `IotaKeyPair` and to derive its public key and IOTA address using the [IOTA Rust SDK](../../../references/rust-sdk.mdx#iota-rust-sdk).
 
 ```rust
     // deterministically generate a keypair, testing only, do not use for mainnet, use the next section to randomly generate a keypair instead.
