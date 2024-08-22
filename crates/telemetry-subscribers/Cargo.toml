@@ -13,25 +13,22 @@ atomic_float = "1.0"
 bytes.workspace = true
 bytes-varint = "1.0"
 clap.workspace = true
-console-subscriber = { version = "0.3", optional = true }
+console-subscriber = { version = "0.4", optional = true }
 crossterm.workspace = true
 futures.workspace = true
 once_cell.workspace = true
-opentelemetry = "0.23"
-opentelemetry-otlp = { version = "0.16", features = ["grpc-tonic"] }
-opentelemetry-proto = "0.6"
-opentelemetry_sdk = { version = "0.23", features = ["rt-tokio"] }
+opentelemetry = "0.24"
+opentelemetry-otlp = { version = "0.17", features = ["grpc-tonic"] }
+opentelemetry-proto = "0.7"
+opentelemetry_sdk = { version = "0.24", features = ["rt-tokio"] }
 prometheus.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-appender = "0.2"
-tracing-opentelemetry = "0.24"
+tracing-opentelemetry = "0.25"
 tracing-subscriber.workspace = true
-
-# must use same version as opentelemetry for tonic and prost, so we can't use from
-# workspace
-prost = "0.12"
-tonic = "0.11"
+prost.workspace = true
+tonic.workspace = true
 
 [features]
 default = []
