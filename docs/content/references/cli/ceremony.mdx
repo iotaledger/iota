@@ -1,0 +1,127 @@
+---
+title: IOTA Genesis Ceremony CLI
+description: The IOTA Genesis Ceremony CLI provides commands for building a Genesis blob file.
+---
+
+The IOTA CLI `client` command provides commands for building a Genesis blob file.
+
+## Commands
+
+Typing `iota genesis-ceremony --help` into your terminal or console displays the following information on available commands.
+
+```shell
+Build a genesis blob file
+
+Usage: iota genesis-ceremony [OPTIONS] <COMMAND>
+
+Commands:
+  init                        Initialize a Genesis builder which can be configured with validators
+  validate-state              Validate the current state of the Genesis builder
+  add-validator               Add a validator to the Genesis builder
+  add-token-allocation        Add token allocation for the given address
+  list-validators             List the current validators in the Genesis builder
+  build-unsigned-checkpoint   Build the Genesis checkpoint
+  examine-genesis-checkpoint  Examine the details of the built Genesis checkpoint
+  verify-and-sign             Verify and sign the built Genesis checkpoint
+  finalize                    Create the Genesis blob file from the current configuration
+  help                        Print this message or the help of the given subcommand(s)
+
+Options:
+      --path <PATH>                          The directory where the Genesis builder will be stored. Defaults to the current directory
+      --protocol-version <PROTOCOL_VERSION>  The protocol version to use for this snapshot [default: 1]
+  -h, --help                                 Print help
+  -V, --version                              Print version
+```
+
+## Examples
+
+The following example demonstrates how to build a genesis blob.
+
+### Initialize the Genesis Builder
+
+This command creates a structure in the file system to persist the genesis builder. Afterwards, the below commands can be used to set additional configuration.
+
+```shell
+iota genesis-ceremony init
+```
+
+### Add Validators
+
+```shell
+iota genesis-ceremony add-validator \
+    --name validator0 \
+    --validator-key-file ./validators/validator.key \
+    --worker-key-file ./validators/validator-worker.key \
+    --account-key-file ./validators/validator-account.key \
+    --network-key-file ./validators/validator-network.key \
+    --network-address /ip4/127.0.0.1/tcp/38189/http \
+    --p2p-address /ip4/127.0.0.1/udp/34523 \
+    --narwhal-primary-address /ip4/127.0.0.1/udp/38603 \
+    --narwhal-worker-address /ip4/127.0.0.1/udp/36603 \
+    --description validator0 \
+    --image-url https://www.iota.org/favicon.png \
+    --project-url https://www.iota.org
+```
+
+### List Validators
+
+```shell
+iota genesis-ceremony list-validators
+```
+
+<details>
+  <summary>
+  Toggle output
+  </summary>
+
+```shell
+Validator Name Account Address
+-------------- ------------------------------------------------------------------
+validator0     0xd2b6560f77eae88ae0c5f2898219768de2167a0b5e9aa38dc535c55e9cf0302a
+```
+
+</details>
+
+### Add Token Allocation
+
+This command allocates tokens to a given address for the genesis transaction., and can be used to provide tokens to the faucet address.
+
+```shell
+iota genesis-ceremony add-token-allocation \
+    --recipient-address 0x923f43e0d325cd298c28a148858bb755921cfb032deeb0d2fb7772d6b4b168e0 \
+    --amount-nanos 100000000000
+```
+
+### Validate the Genesis State
+
+This command checks the current state of the builder and reports any issues.
+
+```shell
+iota genesis-ceremony validate-state
+```
+
+### Build the Unsigned Checkpoint
+
+```shell
+iota genesis-ceremony build-unsigned-checkpoint
+```
+
+### Examine the Genesis Checkpoint
+
+This command opens the Genesis Inspector, a responsive command-line tool which allows viewing various attributes of the current built checkpoint.
+
+```shell
+iota genesis-ceremony examine-genesis-checkpoint
+```
+
+### Verify and Sign the Checkpoint
+
+```shell
+iota genesis-ceremony verify-and-sign --key-file ./validators/validator.key
+```
+
+### Finalize the Genesis blob
+
+```shell
+iota genesis-ceremony finalize
+```
