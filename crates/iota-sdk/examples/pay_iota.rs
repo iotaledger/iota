@@ -6,6 +6,7 @@
 //! cargo run --example pay_iota
 
 mod utils;
+
 use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
