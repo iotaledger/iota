@@ -13,6 +13,7 @@ use serde_json::json;
 const LAYOUTS_DIR: &str = "layouts";
 const STRUCT_LAYOUTS_FILENAME: &str = "struct_layouts.yaml";
 
+/// Build a move package.
 #[derive(Parser)]
 #[group(id = "iota-move-build")]
 pub struct Build {

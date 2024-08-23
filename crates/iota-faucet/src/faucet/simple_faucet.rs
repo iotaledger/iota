@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, OwnedObjectRef,
 };
 use iota_keys::keystore::AccountKeystore;
+use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
@@ -27,7 +28,6 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
-use mysten_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use shared_crypto::intent::Intent;
 use tap::tap::TapFallible;

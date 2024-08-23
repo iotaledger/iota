@@ -27,7 +27,7 @@ export function useDeriveLedgerAccounts(options: UseDeriveLedgerAccountOptions) 
         queryKey: ['derive-ledger-accounts'],
         queryFn: () => {
             if (!iotaLedgerClient) {
-                throw new Error("The Iota application isn't open on a connected Ledger device");
+                throw new Error("The IOTA application isn't open on a connected Ledger device");
             }
             return deriveAccountsFromLedger(iotaLedgerClient, numAccountsToDerive);
         },

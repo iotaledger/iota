@@ -23,6 +23,13 @@ module examples::item {
         }, tx_context::sender(ctx))
     }
 
-    /// The entry function can not be called if `AdminCap` is not passed as
+    /// The function can not be called if `AdminCap` is not passed as
+    public fun create_item(_: &AdminCap, name: String, ctx: &mut TxContext): Item {
+        let item = Item {
+            id: object::new(ctx),
+            name,
+        };
+        item
+    }
 }
 ```

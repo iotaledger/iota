@@ -12,7 +12,7 @@ description = "Move VM Integration Tests"
 [dependencies]
 anyhow.workspace = true
 fail = { workspace = true, features = ["failpoints"] }
-memory-stats = "1.0.0"
+memory-stats = "1.2"
 tempfile.workspace = true
 
 move-binary-format.workspace = true

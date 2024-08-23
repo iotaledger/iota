@@ -18,7 +18,7 @@ use lsp_types::{
     notification::Notification as _, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams,
 };
-use vfs::VfsPath;
+use vfs::{SeekAndWrite, VfsPath};
 
 use crate::symbols;
 
@@ -64,7 +64,7 @@ pub fn on_text_document_sync_notification(
         ide_files: &VfsPath,
         file_path: PathBuf,
         first_access: bool,
-    ) -> Option<Box<dyn Write + Send>> {
+    ) -> Option<Box<dyn SeekAndWrite + Send>> {
         let Some(vfs_path) = ide_files.join(file_path.to_string_lossy()).ok() else {
             eprintln!(
                 "Could not construct file path for file creation at {:?}",

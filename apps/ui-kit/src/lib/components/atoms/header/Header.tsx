@@ -21,7 +21,7 @@ interface HeaderProps {
     /**
      * On close click handler (optional). If provided, a close button will be displayed.
      */
-    onClose?: () => void;
+    onClose?: (() => void) | ((e: React.MouseEvent<HTMLElement>) => void);
 }
 
 export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): JSX.Element {

@@ -43,7 +43,7 @@ use iota_core::{
     execution_cache::ExecutionCache,
     storage::RocksDbStore,
 };
-use iota_network::default_mysten_network_config;
+use iota_network::default_iota_network_stack_config;
 use iota_protocol_config::Chain;
 use iota_sdk::IotaClientBuilder;
 use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
@@ -82,7 +82,7 @@ async fn make_clients(
     genesis: Option<PathBuf>,
     fullnode_rpc: Option<String>,
 ) -> Result<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>> {
-    let mut net_config = default_mysten_network_config();
+    let mut net_config = default_iota_network_stack_config();
     net_config.connect_timeout = Some(Duration::from_secs(5));
     let mut authority_clients = BTreeMap::new();
 
