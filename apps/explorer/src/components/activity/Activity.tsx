@@ -11,6 +11,7 @@ import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
 import { PlayPause, Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
+import { Panel } from '@iota/apps-ui-kit';
 
 const VALID_TABS = ['transactions', 'epochs', 'checkpoints'];
 
@@ -62,7 +63,7 @@ export function Activity({
 	}, [isTransactionKindFilterEnabled]);*/
 
     return (
-        <div>
+        <Panel>
             <Tabs size="lg" value={activeTab} onValueChange={setActiveTab}>
                 <div className="relative">
                     <TabsList>
@@ -126,6 +127,6 @@ export function Activity({
                     />
                 </TabsContent>
             </Tabs>
-        </div>
+        </Panel>
     );
 }

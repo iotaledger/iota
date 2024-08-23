@@ -152,22 +152,18 @@ export default function AddressResultPage(): JSX.Element {
     const isIotaNSAddress = isIotaNSName(id!);
 
     return (
-        <PageLayout
-            gradient={{
-                size: 'md',
-                content: isIotaNSAddress ? (
+        <PageLayout>
+            {isIotaNSAddress ? (
+                <>
                     <IotaNSAddressResultPageHeader name={id!} />
-                ) : (
-                    <AddressResultPageHeader address={id!} />
-                ),
-            }}
-            content={
-                isIotaNSAddress ? (
                     <IotaNSAddressResult name={id!} />
-                ) : (
+                </>
+            ) : (
+                <>
+                    <AddressResultPageHeader address={id!} />
                     <AddressResult address={id!} />
-                )
-            }
-        />
+                </>
+            )}
+        </PageLayout>
     );
 }

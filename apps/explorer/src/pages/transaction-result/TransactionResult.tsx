@@ -52,21 +52,14 @@ export default function TransactionResult(): JSX.Element {
     const txnErrorText = txnExecutionError || (getTxnError as Error)?.message;
 
     return (
-        <PageLayout
-            loading={isPending}
-            gradient={{
-                content: (
-                    <TransactionResultPageHeader
-                        transaction={data}
-                        error={txnErrorText}
-                        loading={isPending}
-                    />
-                ),
-                size: 'md',
-            }}
-            isError={!!txnErrorText}
-            content={
-                getTxnErrorBool || !data ? (
+        <PageLayout loading={isPending}>
+            <>
+                <TransactionResultPageHeader
+                    transaction={data}
+                    error={txnErrorText}
+                    loading={isPending}
+                />
+                {getTxnErrorBool || !data ? (
                     <Banner variant="error" spacing="lg" fullWidth>
                         {!id
                             ? "Can't search for a transaction without a digest"
@@ -74,8 +67,8 @@ export default function TransactionResult(): JSX.Element {
                     </Banner>
                 ) : (
                     <TransactionView transaction={data} />
-                )
-            }
-        />
+                )}
+            </>
+        </PageLayout>
     );
 }

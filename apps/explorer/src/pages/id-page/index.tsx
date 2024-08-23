@@ -69,15 +69,12 @@ function PageLayoutContainer({ address }: PageLayoutContainerProps): JSX.Element
     } = useResolveIotaNSAddress(address, isIotaNSAddress);
 
     return (
-        <PageLayout
-            loading={isLoading}
-            isError={!!iotansAddressError}
-            gradient={{
-                size: 'md',
-                content: <Header address={address} />,
-            }}
-            content={<PageContent address={data || address} error={iotansAddressError} />}
-        />
+        <PageLayout loading={isLoading}>
+            <>
+                <Header address={address} />
+                <PageContent address={data || address} error={iotansAddressError} />
+            </>
+        </PageLayout>
     );
 }
 
