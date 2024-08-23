@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AxisBottom, AxisLeft, type TickRendererProps } from '@visx/axis';
+import { AxisBottom, type TickRendererProps } from '@visx/axis';
 import { curveCatmullRom as curve } from '@visx/curve';
 import { localPoint } from '@visx/event';
 import { scaleLinear } from '@visx/scale';
@@ -22,20 +22,6 @@ function getID(prefix: string) {
 }
 
 const bisectX = bisector((x: number) => x).center;
-
-function AxisLeftTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
-    return (
-        <text
-            x={x}
-            y={y}
-            textAnchor="start"
-            alignmentBaseline="middle"
-            className="fill-steel font-sans text-subtitleSmall font-medium"
-        >
-            {formattedValue}
-        </text>
-    );
-}
 
 function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
@@ -73,8 +59,8 @@ export function AreaGraph<D>({
 }: AreaGraphProps<D>): JSX.Element | null {
     const graphTop = 15;
     const graphBottom = Math.max(0, height - 30);
-    const graphLeft = 45;
-    const graphRight = Math.max(0, width - 15);
+    const graphLeft = 25;
+    const graphRight = Math.max(0, width - 25);
     const [fillGradientID] = useState(() => getID('areaGraph_fillGradient'));
     const [lineGradientID] = useState(() => getID('areaGraph_lineGradient'));
     const [patternID] = useState(() => getID('areaGraph_pattern'));
@@ -196,16 +182,6 @@ export function AreaGraph<D>({
                         .ticks(Math.min(data.length, Math.floor((width - 50) / 40)))
                         .filter(Number.isInteger)}
                     tickComponent={AxisBottomTick}
-                />
-                <AxisLeft
-                    left={10}
-                    orientation="left"
-                    scale={yScale}
-                    tickFormat={formatY ? (y) => formatY(y.valueOf()) : String}
-                    hideTicks
-                    hideAxisLine
-                    tickValues={yScale.ticks(4).filter(Number.isInteger)}
-                    tickComponent={AxisLeftTick}
                 />
                 {tooltipContent ? (
                     <>
