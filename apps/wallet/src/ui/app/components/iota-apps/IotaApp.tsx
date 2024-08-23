@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ImageIcon } from '_app/shared/image-icon';
-import ExternalLink from '_components/external-link';
+import { ExternalLink } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getDAppUrl } from '_src/shared/utils';
 import { Text } from '_src/ui/app/shared/text';
@@ -32,7 +32,7 @@ function CardView({ name, link, icon }: CardViewProps) {
     return (
         <div className="border-gray-45 hover:border-iota/30 hover:bg-iota/10 box-border flex h-32 w-full flex-col rounded-2xl border border-solid bg-white p-3.75">
             <div className="mb-1 flex">
-                <ImageIcon src={icon || null} label={name} fallback={name} size="lg" rounded="lg" />
+                <ImageIcon src={icon || null} label={name} fallback={name} />
             </div>
 
             <div className="item-start flex flex-col justify-start gap-1">
@@ -59,7 +59,7 @@ interface ListViewProps {
 function ListView({ name, icon, description, tags }: ListViewProps) {
     return (
         <div className="item-center hover:bg-iota/10 box-border flex gap-3 rounded bg-white px-1.25 py-3.5">
-            <ImageIcon src={icon || null} label={name} fallback={name} size="xxl" rounded="lg" />
+            <ImageIcon src={icon || null} label={name} fallback={name} />
             <div className="flex flex-col justify-center gap-1">
                 <Text variant="body" weight="semibold" color="iota-dark">
                     {name}

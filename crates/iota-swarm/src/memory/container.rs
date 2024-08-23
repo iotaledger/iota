@@ -98,7 +98,7 @@ impl Container {
             let runtime = builder.enable_all().build().unwrap();
 
             runtime.block_on(async move {
-                let registry_service = mysten_metrics::start_prometheus_server(config.metrics_address);
+                let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
                 info!(
                     "Started Prometheus HTTP endpoint. To query metrics use\n\tcurl -s http://{}/metrics",
                     config.metrics_address

@@ -11,7 +11,7 @@ use iota_core::{
     authority_client::NetworkAuthorityClient,
     quorum_driver::{reconfig_observer::ReconfigObserver, QuorumDriver},
 };
-use iota_network::default_mysten_network_config;
+use iota_network::default_iota_network_stack_config;
 use iota_types::iota_system_state::IotaSystemStateTrait;
 use tracing::{error, info, trace};
 
@@ -50,7 +50,7 @@ impl EmbeddedReconfigObserver {
         {
             Err(err) => Err(err),
             Ok(committee_info) => {
-                let network_config = default_mysten_network_config();
+                let network_config = default_iota_network_stack_config();
                 let new_epoch = committee_info.committee.epoch;
                 if new_epoch <= cur_epoch {
                     trace!(

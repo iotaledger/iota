@@ -8,9 +8,9 @@ use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::SerializedTransaction;
 use fastcrypto::traits::KeyPair as _;
+use iota_metrics::RegistryService;
+use iota_network_stack::multiaddr::Multiaddr;
 use itertools::Itertools;
-use mysten_metrics::RegistryService;
-use mysten_network::multiaddr::Multiaddr;
 use network::client::NetworkClient;
 use node::{
     execution_state::SimpleExecutionState, metrics::worker_metrics_registry,
@@ -753,7 +753,7 @@ impl AuthorityDetails {
     ) -> TransactionsClient<Channel> {
         let internal = self.internal.read().await;
 
-        let config = mysten_network::config::Config::new();
+        let config = iota_network_stack::config::Config::new();
         let channel = config
             .connect_lazy(
                 &internal

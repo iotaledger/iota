@@ -24,13 +24,14 @@ use crate::stardust::{
 const MNEMONIC: &str = "mesh dose off wage gas tent key light help girl faint catch sock trouble guard moon talk pill enemy hawk gain mix sad mimic";
 const ACCOUNTS: u32 = 10;
 const ADDRESSES_PER_ACCOUNT: u32 = 20;
-const COIN_TYPE: u32 = 4218;
+
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 
 pub(crate) async fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
+    coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
@@ -42,7 +43,7 @@ pub(crate) async fn outputs(
         for address_index in 0..ADDRESSES_PER_ACCOUNT {
             let address = secret_manager
                 .generate_ed25519_addresses(
-                    COIN_TYPE,
+                    coin_type,
                     account_index,
                     address_index..address_index + 1,
                     None,

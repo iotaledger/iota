@@ -7,6 +7,7 @@ use std::ops::Deref;
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{parse_jwks, OIDCProvider, ZkLoginInputs};
 use iota_macros::sim_test;
+use iota_network_stack::Multiaddr;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::dbg_addr,
@@ -22,7 +23,6 @@ use iota_types::{
     zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::DEFAULT_JWK_BYTES,
 };
-use mysten_network::Multiaddr;
 use rand::{rngs::StdRng, SeedableRng};
 use shared_crypto::intent::{Intent, IntentMessage};
 

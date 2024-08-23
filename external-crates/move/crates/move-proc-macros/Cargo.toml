@@ -10,6 +10,5 @@ publish = false
 proc-macro = true
 
 [dependencies]
-enum-compat-util.workspace = true
-quote.workspace = true
+quote = "1.0"
 syn = { version = "2", features = ["full", "fold", "extra-traits"] }

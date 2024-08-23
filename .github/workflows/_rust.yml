@@ -1,6 +1,10 @@
 name: Rust crates
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
 
 concurrency:
   group: rust-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -32,29 +36,39 @@ env:
 jobs:
   rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
+    with:
+      isRust: ${{ inputs.isRust }}
 
   external-lints:
     uses: ./.github/workflows/_external_rust_lints.yml
+    with:
+      isRust: ${{ inputs.isRust }}
 
   rust-tests:
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_rust_tests.yml
+    with:
+      isRust: ${{ inputs.isRust }}
 
   external-tests:
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_external_rust_tests.yml
+    with:
+      isRust: ${{ inputs.isRust }}
 
   mysticeti-tests:
+    if: inputs.isRust
     needs:
       - rust-lints
       - external-lints
     uses: ./.github/workflows/_mysticeti_tests.yml
 
   execution-cut:
+    if: inputs.isRust
     needs:
       - rust-tests
       - external-tests
