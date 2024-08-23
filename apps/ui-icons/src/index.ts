@@ -21,6 +21,7 @@ export { default as Close } from './Close';
 export { default as Copy } from './Copy';
 export { default as Create } from './Create';
 export { default as Dash } from './Dash';
+export { default as DarkMode } from './DarkMode';
 export { default as DataStack } from './DataStack';
 export { default as Delete } from './Delete';
 export { default as DoubleArrowLeft } from './DoubleArrowLeft';

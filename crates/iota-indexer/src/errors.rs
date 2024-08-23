@@ -133,6 +133,9 @@ pub enum IndexerError {
 
     #[error(transparent)]
     NameServiceError(#[from] NameServiceError),
+
+    #[error("Failed to process checkpoint(s): `{0}`")]
+    CheckpointProcessingError(String),
 }
 
 pub trait Context<T> {
