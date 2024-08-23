@@ -65,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
     ));
 
     // Finish building the transaction block by calling finish on the ptb
-    let builder = ptb.finish();
+    let transaction = ptb.finish();
 
     let gas_budget = 5_000_000;
     let gas_price = iota.read_api().get_reference_gas_price().await?;
@@ -73,7 +73,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_programmable(
         sender,
         vec![coin.object_ref()],
-        builder,
+        transaction,
         gas_budget,
         gas_price,
     );
