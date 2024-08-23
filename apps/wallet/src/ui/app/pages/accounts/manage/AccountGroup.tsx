@@ -28,16 +28,23 @@ import {
     DialogHeader,
     DialogTitle,
 } from '_src/ui/app/shared/Dialog';
-import { Button as Button2, ButtonType, ButtonSize, Account } from '@iota/apps-ui-kit';
+import {
+    Button as Button2,
+    ButtonType,
+    ButtonSize,
+    Account,
+    Dropdown,
+    ListItem,
+} from '@iota/apps-ui-kit';
 import { Add, MoreHoriz } from '@iota/ui-icons';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12, Search16, LedgerLogo17, Iota } from '@iota/icons';
+import { ArrowBgFill16, Plus12, LedgerLogo17, Iota } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { Collapse, CollapseBody, CollapseHeader } from './Collapse';
 import { useMutation } from '@tanstack/react-query';
-import { forwardRef, useState } from 'react';
+import { forwardRef, useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -222,6 +229,33 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
     );
 }
 
+interface OutsideClickHandlerProps {
+    onOutsideClick: () => void;
+    children: React.ReactNode;
+}
+
+const OutsideClickHandler: React.FC<OutsideClickHandlerProps> = ({ onOutsideClick, children }) => {
+    const ref = useRef<HTMLDivElement>(null);
+
+    const handleClick = useCallback(
+        (event: MouseEvent) => {
+            if (ref.current && !ref.current.contains(event.target as Node)) {
+                onOutsideClick();
+            }
+        },
+        [onOutsideClick],
+    );
+
+    useEffect(() => {
+        document.addEventListener('mousedown', handleClick);
+        return () => {
+            document.removeEventListener('mousedown', handleClick);
+        };
+    }, [handleClick]);
+
+    return <div ref={ref}>{children}</div>;
+};
+
 export function AccountGroup({
     accounts,
     type,
@@ -231,6 +265,7 @@ export function AccountGroup({
     type: AccountType;
     accountSourceID?: string;
 }) {
+    const [isDropdownOpen, setDropdownOpen] = useState(false);
     const navigate = useNavigate();
     const createAccountMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
@@ -261,8 +296,12 @@ export function AccountGroup({
         }
     }
 
+    function handleBalanceFinder() {
+        navigate(`/accounts/manage/accounts-finder/${accountSourceID}`);
+    }
+
     return (
-        <>
+        <div className="relative">
             <Collapse>
                 <CollapseHeader title={getGroupTitle(accounts[0])}>
                     <div className="flex items-center gap-1">
@@ -274,15 +313,17 @@ export function AccountGroup({
                                 icon={<Add className="h-5 w-5 text-neutral-10" />}
                             />
                         ) : null}
-                        <Button2
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('on 3 dots click.');
-                            }}
-                            icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
-                        />
+                        <div className="relative">
+                            <Button2
+                                size={ButtonSize.Small}
+                                type={ButtonType.Ghost}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDropdownOpen(true);
+                                }}
+                                icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
+                            />
+                        </div>
                     </div>
                 </CollapseHeader>
                 <CollapseBody>
@@ -290,6 +331,19 @@ export function AccountGroup({
                         <AccountItem2 account={account} />
                     ))}
                 </CollapseBody>
+                <div
+                    className={`z-99 absolute right-0 top-0 bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                >
+                    <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                        <Dropdown>
+                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && (
+                                <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                    Balance finder
+                                </ListItem>
+                            )}
+                        </Dropdown>
+                    </OutsideClickHandler>
+                </div>
             </Collapse>
             <div className="">
                 <CollapsiblePrimitive.Root defaultOpen asChild>
@@ -301,18 +355,7 @@ export function AccountGroup({
                                     {getGroupTitle(accounts[0])}
                                 </Heading>
                                 <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
-                                {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
-                                    <ButtonOrLink
-                                        className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
-                                        onClick={() => {
-                                            navigate(
-                                                `/accounts/manage/accounts-finder/${accountSourceID}`,
-                                            );
-                                        }}
-                                    >
-                                        <Search16 />
-                                    </ButtonOrLink>
-                                ) : null}
+
                                 {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
                                     <>
                                         <ButtonOrLink
@@ -400,6 +443,6 @@ export function AccountGroup({
                     onClose={() => setPasswordModalVisible(false)}
                 />
             ) : null}
-        </>
+        </div>
     );
 }
