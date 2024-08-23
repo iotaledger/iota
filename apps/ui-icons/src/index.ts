@@ -44,6 +44,7 @@ export { default as Ledger } from './Ledger';
 export { default as ListViewLarge } from './ListViewLarge';
 export { default as ListViewMedium } from './ListViewMedium';
 export { default as ListViewSmall } from './ListViewSmall';
+export { default as Loader } from './Loader';
 export { default as LockLocked } from './LockLocked';
 export { default as LockUnlocked } from './LockUnlocked';
 export { default as Logout } from './Logout';

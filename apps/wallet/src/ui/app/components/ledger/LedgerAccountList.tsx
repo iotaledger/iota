@@ -27,7 +27,10 @@ interface LedgerAccountListProps {
 }
 
 export function LedgerAccountList({ accounts, onAccountClick, selectAll }: LedgerAccountListProps) {
-    const headersData = [{ label: 'Address', columnKey: 1 }];
+    const headersData = [
+        { label: 'Address', columnKey: 1 },
+        { label: '', columnKey: 2 },
+    ];
 
     const rowsData = accounts.map((account) => {
         const { data: coinBalance } = useBalance(account.address);
