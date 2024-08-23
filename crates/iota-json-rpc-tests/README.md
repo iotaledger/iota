@@ -10,6 +10,17 @@ The `iota-json-rpc` library exposes an rpc-server builder, and implements the
 As such the tests are limited to routing tests of a server instance, and on the
 methods exposed by the `iota-node` inner rpc services.
 
+## How to run the tests
+
+### Using `tokio`
+
+- `cargo nextest run -p iota-json-rpc-tests
+
+### Using the simulation testing framework
+
+- Setup: `./scripts/simtest/install.sh`
+- Run: `cargo simtest -p iota-json-rpc-tests`
+
 ## Coverage of `iota-json-rpc-api` methods (22/64)
 
 The coverage is low, but it should be noted that serving RPC requests is not the
