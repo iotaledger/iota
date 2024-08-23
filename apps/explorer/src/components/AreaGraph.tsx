@@ -5,7 +5,6 @@
 import { AxisBottom, AxisLeft, type TickRendererProps } from '@visx/axis';
 import { curveCatmullRom as curve } from '@visx/curve';
 import { localPoint } from '@visx/event';
-import { PatternCircles } from '@visx/pattern';
 import { scaleLinear } from '@visx/scale';
 import { AreaClosed, LinePath } from '@visx/shape';
 import { useTooltipInPortal, useTooltip } from '@visx/tooltip';
@@ -59,7 +58,6 @@ type AreaGraphProps<D> = {
     getY: (element: D) => number;
     formatX?: (x: number) => string;
     formatY?: (y: number) => string;
-    color: 'blue' | 'yellow';
     tooltipContent?: (props: { data: D }) => ReactNode;
 };
 
@@ -71,7 +69,6 @@ export function AreaGraph<D>({
     getY,
     formatX,
     formatY,
-    color,
     tooltipContent,
 }: AreaGraphProps<D>): JSX.Element | null {
     const graphTop = 15;
@@ -156,42 +153,12 @@ export function AreaGraph<D>({
             <svg width={width} height={height}>
                 <defs>
                     <linearGradient id={fillGradientID} gradientTransform="rotate(90)">
-                        {color === 'yellow' ? (
-                            <>
-                                <stop stopColor="#F2BD24" />
-                                <stop offset="40%" stopColor="#F2BD24" stopOpacity="40%" />
-                                <stop offset="100%" stopColor="#FFF8E2" stopOpacity="0%" />
-                            </>
-                        ) : (
-                            <>
-                                <stop stopColor="#00F9FB" />
-                                <stop offset="40%" stopColor="#7CE7FF" stopOpacity="28%" />
-                                <stop offset="100%" stopColor="#FBF1FD" stopOpacity="0%" />
-                            </>
-                        )}
+                        <stop offset="40%" stopOpacity="5%" stopColor="#3131ff" />
                     </linearGradient>
                     <linearGradient id={lineGradientID}>
-                        {color === 'yellow' ? (
-                            <>
-                                <stop stopColor="#8D6E15" />
-                                <stop offset="100%" stopColor="#F2BD24" />
-                            </>
-                        ) : (
-                            <>
-                                <stop stopColor="#008BE9" />
-                                <stop offset="100%" stopColor="#00EEAC" />
-                            </>
-                        )}
+                        <stop stopColor="#3131ff" />
                     </linearGradient>
                 </defs>
-                <PatternCircles
-                    id={patternID}
-                    height={5}
-                    width={5}
-                    radius={1}
-                    fill="#000"
-                    className="opacity-5"
-                />
                 <AreaClosed<D>
                     curve={curve}
                     data={data}
@@ -216,7 +183,7 @@ export function AreaGraph<D>({
                     x={(d) => xScale(getX(d))}
                     y={(d) => yScale(getY(d))}
                     stroke={`url(#${lineGradientID})`}
-                    width="1"
+                    width="2"
                 />
                 <AxisBottom
                     top={height - 24}

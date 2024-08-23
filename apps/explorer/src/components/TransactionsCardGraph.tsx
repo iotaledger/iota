@@ -128,7 +128,6 @@ export function TransactionsCardGraph() {
                                             getY={({ epochTotalTransactions }) =>
                                                 Number(epochTotalTransactions)
                                             }
-                                            color="yellow"
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}
                                         />
