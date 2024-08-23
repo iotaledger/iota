@@ -31,6 +31,7 @@
         },
         "./styles": "./dist/style.css"
     },
+    "types": "./dist/index.d.ts",
     "dependencies": {
         "@fontsource/inter": "^5.0.17",
         "@iota/ui-icons": "workspace:*",
