@@ -31,7 +31,7 @@ There are a few different ways to concisely refer to an object without specifyin
 
 ## The transaction-object DAG: Relating objects and transactions 
 
-Transactions take objects as input, read/write/mutate these inputs, and produce mutated or newly created objects as output. Each object knows the (hash of the) last transaction that produced it as an output. Thus, a natural way to represent the relationship between objects and transactions is a directed acyclic graph (DAG) where:
+Transactions take objects as input, read/write/mutate these inputs, and produce mutated or newly created objects as output. Each object knows the (hash of the) last transaction that produced it as an output. Thus, a natural way to represent the relationship between objects and transactions is a directed acyclic graph ([DAG](https://en.wikipedia.org/wiki/Directed_acyclic_graph)) where:
 
 - Nodes are transactions.
 - Directed edges go from transaction `A` to transaction `B` if an output object of `A` is an input object of `B`. They are labeled by the reference of the object in question (which specifies the exact version of the object created by `A` and used by `B`).

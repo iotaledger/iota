@@ -44,7 +44,7 @@ const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
 const IS_DEV = process.env.NODE_ENV === 'development';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
-const APP_NAME = WALLET_BETA ? 'Iota Wallet (BETA)' : IS_DEV ? 'Iota Wallet (DEV)' : 'Iota Wallet';
+const APP_NAME = WALLET_BETA ? 'IOTA Wallet (BETA)' : IS_DEV ? 'IOTA Wallet (DEV)' : 'IOTA Wallet';
 
 dotenv.config({
     path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],

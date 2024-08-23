@@ -28,9 +28,9 @@ REPLACE_MAP = (
     ('Sui', 'Iota'),
     ('sui', 'iota'),
     ('@mysten/', '@iota/'),
-    ('MIST', 'MICROS'),
-    ('Mist', 'Micros'),
-    ('mist', 'micros')
+    ('MIST', 'NANOS'),
+    ('Mist', 'Nanos'),
+    ('mist', 'nanos')
 )
 
 REPLACE_DICT = dict(REPLACE_MAP)

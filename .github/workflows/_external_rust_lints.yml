@@ -34,9 +34,7 @@ jobs:
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      - run: rustup component add clippy
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
-      - name: cargo move-clippy
-        run: |
-          cargo ci-clippy-external
+      - name: Check Clippy Lints
+        run: cargo ci-clippy-external

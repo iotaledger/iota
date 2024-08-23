@@ -3486,6 +3486,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
+name = "docs-examples"
+version = "0.1.4"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "bip32",
+ "iota-keys",
+ "iota-move-build",
+ "iota-sdk 0.1.4",
+ "move-core-types",
+ "serde_json",
+ "shared-crypto",
+ "tokio",
+]
+
+[[package]]
 name = "downcast"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8372,7 +8388,7 @@ dependencies = [
  "anyhow",
  "move-binary-format",
  "move-core-types",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "serde",
  "serde-reflection",
  "serde_yaml",
@@ -8387,7 +8403,7 @@ dependencies = [
  "move-borrow-graph",
  "move-core-types",
  "move-vm-config",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
 ]
 
 [[package]]
@@ -8399,7 +8415,7 @@ dependencies = [
  "move-borrow-graph",
  "move-core-types",
  "move-vm-config",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
 ]
 
 [[package]]
@@ -8492,7 +8508,7 @@ dependencies = [
  "move-symbol-pool",
  "once_cell",
  "pathdiff",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "regex",
  "serde",
  "similar",
@@ -8539,7 +8555,7 @@ dependencies = [
  "move-command-line-common",
  "move-core-types",
  "move-ir-types",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "serde",
 ]
 
@@ -8687,7 +8703,7 @@ dependencies = [
  "move-symbol-pool",
  "named-lock",
  "once_cell",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "regex",
  "serde",
  "serde_yaml",
@@ -8745,7 +8761,7 @@ dependencies = [
  "move-core-types",
  "move-model",
  "num",
- "petgraph 0.6.5",
+ "petgraph 0.5.1",
  "serde",
 ]
 
