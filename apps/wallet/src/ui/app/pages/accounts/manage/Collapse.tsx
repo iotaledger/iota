@@ -53,7 +53,7 @@ export function CollapseBody({ children }: { children: React.ReactNode }) {
         } else {
             setHeight(0);
         }
-    }, [isOpen]);
+    }, [isOpen, children]);
 
     return (
         <div

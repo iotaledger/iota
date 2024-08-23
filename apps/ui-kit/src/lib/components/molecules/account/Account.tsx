@@ -110,21 +110,21 @@ export function Account({
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
                     onClick={onOptionsClick}
-                    icon={<MoreHoriz />}
+                    icon={<MoreHoriz className="h-5 w-5 text-neutral-40" />}
                 />
                 {isLocked ? (
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
                         onClick={onUnlockAccountClick}
-                        icon={<LockLocked />}
+                        icon={<LockLocked className="h-5 w-5 text-neutral-40" />}
                     />
                 ) : (
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
                         onClick={onLockAccountClick}
-                        icon={<LockUnlocked />}
+                        icon={<LockUnlocked className="h-5 w-5 text-neutral-40" />}
                     />
                 )}
             </div>

@@ -11,6 +11,7 @@ import {
     NicknameDialog,
     VerifyPasswordModal,
     ExplorerLinkType,
+    useUnlockAccount,
 } from '_components';
 import { useResolveIotaNSName } from '@iota/core';
 
@@ -159,7 +160,7 @@ function AccountFooter({ accountID, showExport }: { accountID: string; showExpor
 
 function AccountAvatar({ account }: { account: SerializedUIAccount }) {
     let logo = null;
-    console.log('--- account', account);
+
     if (account.type === AccountType.LedgerDerived) {
         logo = <LedgerLogo17 className="h-4 w-4" />;
     } else {
@@ -177,6 +178,7 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
 function AccountItem2({ account }: { account: SerializedUIAccount }) {
     const { data: domainName } = useResolveIotaNSName(account?.address);
     const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+    const { unlockAccount, lockAccount } = useUnlockAccount();
 
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
@@ -184,6 +186,7 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
     });
 
     async function handleCopy(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
+        e.preventDefault();
         await navigator.clipboard.writeText(account.address);
         toast.success('Address copied');
     }
@@ -193,8 +196,18 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
         if (newWindow) newWindow.opener = null;
     }
 
+    function handleToggleLock() {
+        // prevent the account from being selected when clicking the lock button
+        if (account.isLocked) {
+            unlockAccount(account);
+        } else {
+            lockAccount(account);
+        }
+    }
+
     return (
         <Account
+            isLocked={account.isLocked}
             isCopyable
             isExternal
             onOpen={handleOpen}
@@ -203,8 +216,8 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
             subtitle={formatAddress(account.address)}
             onCopy={handleCopy}
             onOptionsClick={() => {}}
-            onLockAccountClick={() => {}}
-            onUnlockAccountClick={() => {}}
+            onLockAccountClick={handleToggleLock}
+            onUnlockAccountClick={handleToggleLock}
         />
     );
 }
@@ -226,21 +239,41 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+
+    async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
+        if (!accountSource) return;
+
+        // prevent the collapsible from closing when clicking the "new" button
+        e.stopPropagation();
+        const accountsFormType = isMnemonicDerivedGroup
+            ? AccountsFormType.MnemonicSource
+            : AccountsFormType.SeedSource;
+        setAccountsFormValues({
+            type: accountsFormType,
+            sourceID: accountSource.id,
+        });
+        if (accountSource.isLocked) {
+            setPasswordModalVisible(true);
+        } else {
+            createAccountMutation.mutate({
+                type: accountsFormType,
+            });
+        }
+    }
+
     return (
         <>
             <Collapse>
-                <CollapseHeader title="Header">
+                <CollapseHeader title={getGroupTitle(accounts[0])}>
                     <div className="flex items-center gap-1">
-                        <Button2
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            // className="relative state-layer rounded-full"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('click on button.');
-                            }}
-                            icon={<Add className="h-5 w-5 text-neutral-10" />}
-                        />
+                        {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
+                            <Button2
+                                size={ButtonSize.Small}
+                                type={ButtonType.Ghost}
+                                onClick={handleAdd}
+                                icon={<Add className="h-5 w-5 text-neutral-10" />}
+                            />
+                        ) : null}
                         <Button2
                             size={ButtonSize.Small}
                             type={ButtonType.Ghost}
