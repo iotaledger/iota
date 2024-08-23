@@ -2,16 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatDate } from '@iota/core';
+import { formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import clsx from 'clsx';
 
 import { AreaGraph } from './AreaGraph';
-import { FormattedStatsAmount } from './home-metrics/FormattedStatsAmount';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import { Card } from '~/components/ui';
+import { LabelText, LabelTextSize, Panel, Title } from '@iota/apps-ui-kit';
 
 interface TooltipContentProps {
     data: {
@@ -78,25 +77,30 @@ export function TransactionsCardGraph() {
         epochMetrics?.[epochMetrics.length - 1]?.epochTotalTransactions;
 
     return (
-        <Card bg="white/80" spacing={!epochMetrics?.length ? 'lg' : 'lgGraph'} height="full">
-            <div className="flex h-full flex-col gap-4 overflow-hidden">
-                <Heading variant="heading4/semibold" color="steel-darker">
-                    Transaction Blocks
-                </Heading>
-                <div className="flex flex-wrap gap-6">
-                    <FormattedStatsAmount
-                        orientation="vertical"
-                        label="Total"
-                        tooltip="Total transaction blocks"
-                        amount={totalTransactions}
-                        size="md"
-                    />
-                    <FormattedStatsAmount
-                        orientation="vertical"
-                        label="Last Epoch"
-                        amount={lastEpochTotalTransactions}
-                        size="md"
-                    />
+        <Panel>
+            <div className="py-sm">
+                <Title title="Transaction Blocks" />
+                <div className="flex flex-row gap-2 p-md--rs">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Total"
+                            text={totalTransactions ? formatBalance(totalTransactions, 0) : '--'}
+                            showSupportingLabel={false}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Medium}
+                            label="Last epoch"
+                            text={
+                                lastEpochTotalTransactions
+                                    ? lastEpochTotalTransactions.toString()
+                                    : '--'
+                            }
+                            showSupportingLabel={false}
+                        />
+                    </div>
                 </div>
                 <div
                     className={clsx(
@@ -139,6 +143,6 @@ export function TransactionsCardGraph() {
                     )}
                 </div>
             </div>
-        </Card>
+        </Panel>
     );
 }
