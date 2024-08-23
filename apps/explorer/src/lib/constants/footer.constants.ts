@@ -28,7 +28,7 @@ export const SOCIAL_LINKS = [
     },
     {
         icon: SocialTwitter24,
-        href: 'https://twitter.com/iota',
+        href: 'https://x.com/iota',
     },
     {
         icon: SocialLinkedin24,
