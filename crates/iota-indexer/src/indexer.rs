@@ -89,9 +89,7 @@ impl Indexer {
             vec![Box::new(checkpoint_handler)],
             metrics,
         )
-        .await;
-
-        Ok(())
+        .await
     }
 
     pub async fn start_reader(
