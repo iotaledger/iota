@@ -23,7 +23,7 @@ jobs:
   test:
     name: Test rust crates
     needs: changes
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
+    if: always() && inputs.isRust
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
