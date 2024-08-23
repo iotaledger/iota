@@ -1121,8 +1121,7 @@ impl IndexerReader {
                         .first::<i64>(conn)
                         .optional()
                 })?
-                .map(|max_tx_seq| max_tx_seq + 1)
-                .unwrap_or(-1);
+                .map_or(-1, |max_tx_seq| max_tx_seq + 1);
 
             (max_tx_seq, 0)
         } else {
