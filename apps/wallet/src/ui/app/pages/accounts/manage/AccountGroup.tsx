@@ -10,7 +10,10 @@ import {
     useAccountsFormContext,
     NicknameDialog,
     VerifyPasswordModal,
+    ExplorerLinkType,
 } from '_components';
+import { useResolveIotaNSName } from '@iota/core';
+
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
@@ -24,18 +27,20 @@ import {
     DialogHeader,
     DialogTitle,
 } from '_src/ui/app/shared/Dialog';
-import { Button as Button2, ButtonType, ButtonSize } from '@iota/apps-ui-kit';
+import { Button as Button2, ButtonType, ButtonSize, Account } from '@iota/apps-ui-kit';
 import { Add, MoreHoriz } from '@iota/ui-icons';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
+import { ArrowBgFill16, Plus12, Search16, LedgerLogo17, Iota } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { Collapse, CollapseBody, CollapseHeader } from './Collapse';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { formatAddress } from '@iota/iota-sdk/utils';
+import { useExplorerLink } from '_app/hooks/useExplorerLink';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Passphrase Derived',
@@ -152,6 +157,58 @@ function AccountFooter({ accountID, showExport }: { accountID: string; showExpor
     );
 }
 
+function AccountAvatar({ account }: { account: SerializedUIAccount }) {
+    let logo = null;
+    console.log('--- account', account);
+    if (account.type === AccountType.LedgerDerived) {
+        logo = <LedgerLogo17 className="h-4 w-4" />;
+    } else {
+        logo = <Iota />;
+    }
+    return (
+        <div
+            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white ${account.isLocked ? 'bg-neutral-80' : 'bg-primary-30'}`}
+        >
+            {logo}
+        </div>
+    );
+}
+
+function AccountItem2({ account }: { account: SerializedUIAccount }) {
+    const { data: domainName } = useResolveIotaNSName(account?.address);
+    const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
+
+    const explorerHref = useExplorerLink({
+        type: ExplorerLinkType.Address,
+        address: account.address,
+    });
+
+    async function handleCopy(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
+        await navigator.clipboard.writeText(account.address);
+        toast.success('Address copied');
+    }
+
+    function handleOpen() {
+        const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
+        if (newWindow) newWindow.opener = null;
+    }
+
+    return (
+        <Account
+            isCopyable
+            isExternal
+            onOpen={handleOpen}
+            avatarContent={() => <AccountAvatar account={account} />}
+            title={accountName}
+            subtitle={formatAddress(account.address)}
+            onCopy={handleCopy}
+            onOptionsClick={() => {}}
+            onLockAccountClick={() => {}}
+            onUnlockAccountClick={() => {}}
+        />
+    );
+}
+
 export function AccountGroup({
     accounts,
     type,
@@ -195,100 +252,106 @@ export function AccountGroup({
                         />
                     </div>
                 </CollapseHeader>
-                <CollapseBody>Body</CollapseBody>
+                <CollapseBody>
+                    {accounts.map((account) => (
+                        <AccountItem2 account={account} />
+                    ))}
+                </CollapseBody>
             </Collapse>
-            <CollapsiblePrimitive.Root defaultOpen asChild>
-                <div className="flex w-full flex-col gap-4">
-                    <CollapsiblePrimitive.Trigger asChild>
-                        <div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
-                            <ArrowBgFill16 className="text-hero-darkest/20 h-4 w-4 group-data-[state=open]:rotate-90" />
-                            <Heading variant="heading5" weight="semibold" color="steel-darker">
-                                {getGroupTitle(accounts[0])}
-                            </Heading>
-                            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
-                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
-                                <ButtonOrLink
-                                    className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
-                                    onClick={() => {
-                                        navigate(
-                                            `/accounts/manage/accounts-finder/${accountSourceID}`,
-                                        );
-                                    }}
-                                >
-                                    <Search16 />
-                                </ButtonOrLink>
-                            ) : null}
-                            {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                                <>
+            <div className="">
+                <CollapsiblePrimitive.Root defaultOpen asChild>
+                    <div className="flex w-full flex-col gap-4">
+                        <CollapsiblePrimitive.Trigger asChild>
+                            <div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
+                                <ArrowBgFill16 className="text-hero-darkest/20 h-4 w-4 group-data-[state=open]:rotate-90" />
+                                <Heading variant="heading5" weight="semibold" color="steel-darker">
+                                    {getGroupTitle(accounts[0])}
+                                </Heading>
+                                <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
+                                {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
                                     <ButtonOrLink
-                                        loading={createAccountMutation.isPending}
-                                        onClick={async (e) => {
-                                            // prevent the collapsible from closing when clicking the "new" button
-                                            e.stopPropagation();
-                                            const accountsFormType = isMnemonicDerivedGroup
-                                                ? AccountsFormType.MnemonicSource
-                                                : AccountsFormType.SeedSource;
-                                            setAccountsFormValues({
-                                                type: accountsFormType,
-                                                sourceID: accountSource.id,
-                                            });
-                                            if (accountSource.isLocked) {
-                                                setPasswordModalVisible(true);
-                                            } else {
-                                                createAccountMutation.mutate({
-                                                    type: accountsFormType,
-                                                });
-                                            }
-                                        }}
                                         className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
+                                        onClick={() => {
+                                            navigate(
+                                                `/accounts/manage/accounts-finder/${accountSourceID}`,
+                                            );
+                                        }}
                                     >
-                                        <Plus12 />
-                                        <Text variant="bodySmall" weight="semibold">
-                                            New
-                                        </Text>
+                                        <Search16 />
                                     </ButtonOrLink>
-                                </>
-                            ) : null}
-                        </div>
-                    </CollapsiblePrimitive.Trigger>
-                    <CollapsiblePrimitive.CollapsibleContent asChild>
-                        <div className="flex w-full flex-shrink-0 flex-col gap-3">
-                            {accounts.map((account) => {
-                                return (
-                                    <AccountItem
-                                        key={account.id}
-                                        background="gradient"
-                                        accountID={account.id}
-                                        icon={<AccountIcon account={account} />}
-                                        footer={
-                                            <AccountFooter
-                                                accountID={account.id}
-                                                showExport={account.isKeyPairExportable}
-                                            />
-                                        }
+                                ) : null}
+                                {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
+                                    <>
+                                        <ButtonOrLink
+                                            loading={createAccountMutation.isPending}
+                                            onClick={async (e) => {
+                                                // prevent the collapsible from closing when clicking the "new" button
+                                                e.stopPropagation();
+                                                const accountsFormType = isMnemonicDerivedGroup
+                                                    ? AccountsFormType.MnemonicSource
+                                                    : AccountsFormType.SeedSource;
+                                                setAccountsFormValues({
+                                                    type: accountsFormType,
+                                                    sourceID: accountSource.id,
+                                                });
+                                                if (accountSource.isLocked) {
+                                                    setPasswordModalVisible(true);
+                                                } else {
+                                                    createAccountMutation.mutate({
+                                                        type: accountsFormType,
+                                                    });
+                                                }
+                                            }}
+                                            className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
+                                        >
+                                            <Plus12 />
+                                            <Text variant="bodySmall" weight="semibold">
+                                                New
+                                            </Text>
+                                        </ButtonOrLink>
+                                    </>
+                                ) : null}
+                            </div>
+                        </CollapsiblePrimitive.Trigger>
+                        <CollapsiblePrimitive.CollapsibleContent asChild>
+                            <div className="flex w-full flex-shrink-0 flex-col gap-3">
+                                {accounts.map((account) => {
+                                    return (
+                                        <AccountItem
+                                            key={account.id}
+                                            background="gradient"
+                                            accountID={account.id}
+                                            icon={<AccountIcon account={account} />}
+                                            footer={
+                                                <AccountFooter
+                                                    accountID={account.id}
+                                                    showExport={account.isKeyPairExportable}
+                                                />
+                                            }
+                                        />
+                                    );
+                                })}
+                                {isMnemonicDerivedGroup && accountSource ? (
+                                    <Button
+                                        variant="secondary"
+                                        size="tall"
+                                        text="Export Passphrase"
+                                        to={`../export/passphrase/${accountSource.id}`}
                                     />
-                                );
-                            })}
-                            {isMnemonicDerivedGroup && accountSource ? (
-                                <Button
-                                    variant="secondary"
-                                    size="tall"
-                                    text="Export Passphrase"
-                                    to={`../export/passphrase/${accountSource.id}`}
-                                />
-                            ) : null}
-                            {isSeedDerivedGroup && accountSource ? (
-                                <Button
-                                    variant="secondary"
-                                    size="tall"
-                                    text="Export Seed"
-                                    to={`../export/seed/${accountSource.id}`}
-                                />
-                            ) : null}
-                        </div>
-                    </CollapsiblePrimitive.CollapsibleContent>
-                </div>
-            </CollapsiblePrimitive.Root>
+                                ) : null}
+                                {isSeedDerivedGroup && accountSource ? (
+                                    <Button
+                                        variant="secondary"
+                                        size="tall"
+                                        text="Export Seed"
+                                        to={`../export/seed/${accountSource.id}`}
+                                    />
+                                ) : null}
+                            </div>
+                        </CollapsiblePrimitive.CollapsibleContent>
+                    </div>
+                </CollapsiblePrimitive.Root>
+            </div>
             {isPasswordModalVisible ? (
                 <VerifyPasswordModal
                     open

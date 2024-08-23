@@ -78,7 +78,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                 <div className="flex items-center justify-start gap-3">
                     <div className="mt-0.5 self-start">{icon}</div>
                     <div className="flex flex-col items-start gap-1 overflow-hidden">
-                        {!isActiveAccount && !editable ? (
+                        {!isActiveAccount && !editable ? ( // TODO make it in AccountGroup
                             <Text variant="pBody" weight="semibold" color="steel-darker" truncate>
                                 {accountName}
                             </Text>
