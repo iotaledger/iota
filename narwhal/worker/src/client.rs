@@ -9,8 +9,8 @@ use std::{
 };
 
 use arc_swap::{ArcSwap, ArcSwapOption};
-use mysten_metrics::metered_channel::Sender;
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_metrics::metered_channel::Sender;
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use thiserror::Error;
 use tokio::time::{sleep, timeout, Duration};
 use tracing::info;

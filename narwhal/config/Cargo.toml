@@ -1,13 +1,13 @@
 [package]
 name = "narwhal-config"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
-match_opt.workspace = true
+match_opt = "0.1"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -15,8 +15,8 @@ tracing.workspace = true
 
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 fastcrypto.workspace = true
-mysten-network.workspace = true
-mysten-util-mem.workspace = true
+iota-network-stack.workspace = true
+iota-util-mem.workspace = true
 rand.workspace = true
 
 [dev-dependencies]

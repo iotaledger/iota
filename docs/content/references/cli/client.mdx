@@ -44,7 +44,7 @@ Commands:
   publish                     Publish Move modules
   split-coin                  Split a coin object into multiple coins
   switch                      Switch active address and network(e.g., devnet, local rpc server)
-  tx-block                    Get the effects of executing the given transaction block
+  tx-block                    Get a transaction block with the effects, events and object changes of its execution
   transfer                    Transfer object
   transfer-iota               Transfer IOTA, and pay gas with the same IOTA coin object. If amount is specified, only the amount is transferred; otherwise the entire object is transferred
   upgrade                     Upgrade Move modules
@@ -170,7 +170,7 @@ $ iota client object 0xfffbb30ccb631f15f6cd36700589fc9c31cb04af28a95f3ed26d62daf
 
 ### Get dynamic fields of an object
 
-Use the `iota client dynamic-field <DYNAMIC-FIELD-ID>` command to list the details of the dynamic field with the ID you provide.
+Use the `iota client dynamic-field <OBJECT-ID>` command to list the dynamic field details of the object with the ID you provide.
 
 ```
 $ iota client dynamic-field 0x5

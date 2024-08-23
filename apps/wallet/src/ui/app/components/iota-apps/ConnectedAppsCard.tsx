@@ -12,7 +12,7 @@ import { useEffect, useMemo } from 'react';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
-import Loading from '../loading';
+import { Loading } from '_components';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 
@@ -70,7 +70,7 @@ function ConnectedDapps() {
             </div>
             <div className="my-4">
                 <Text variant="pBodySmall" color="gray-80" weight="normal">
-                    Apps you have connected to through the Iota Wallet in this browser.
+                    Apps you have connected to through the IOTA Wallet in this browser.
                 </Text>
             </div>
 

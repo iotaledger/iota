@@ -1,7 +1,7 @@
 [package]
 name = "iota-tool"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-clap = { version = "4.1.4", features = ["derive"] }
+clap.workspace = true
 colored.workspace = true
 comfy-table.workspace = true
 diesel.workspace = true
@@ -23,7 +23,7 @@ num_cpus.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true
-ron.workspace = true
+ron = "0.8"
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
@@ -37,7 +37,7 @@ telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 typed-store.workspace = true
 
-const-str = "0.5.6"
+const-str = "0.5"
 git-version.workspace = true
 iota-archival.workspace = true
 iota-config.workspace = true

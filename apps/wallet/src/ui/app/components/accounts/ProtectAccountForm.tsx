@@ -55,20 +55,20 @@ const formSchema = z
     })
     .merge(zodSchema);
 
-export type FormValues = z.infer<typeof formSchema>;
+export type ProtectAccountFormValues = z.infer<typeof formSchema>;
 
 interface ProtectAccountFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
-    onSubmit: SubmitHandler<FormValues>;
-    displayToS?: boolean;
+    onSubmit: SubmitHandler<ProtectAccountFormValues>;
+    hideToS?: boolean;
 }
 
 export function ProtectAccountForm({
     submitButtonText,
     cancelButtonText,
     onSubmit,
-    displayToS,
+    hideToS,
 }: ProtectAccountFormProps) {
     const autoLock = useAutoLockMinutes();
     const form = useZodForm({
@@ -76,7 +76,7 @@ export function ProtectAccountForm({
         schema: formSchema,
         values: {
             password: { input: '', confirmation: '' },
-            acceptedTos: !!displayToS,
+            acceptedTos: !!hideToS,
             autoLock: parseAutoLock(autoLock.data || null),
         },
     });
@@ -125,7 +125,7 @@ export function ProtectAccountForm({
                 <AutoLockSelector />
             </div>
             <div className="flex flex-col gap-4 pt-xxxs">
-                {displayToS ? null : (
+                {hideToS ? null : (
                     <CheckboxField
                         name="acceptedTos"
                         label={
@@ -133,7 +133,11 @@ export function ProtectAccountForm({
                                 <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                                     I read and agreed to the
                                 </span>
-                                <a href={ToS_LINK} className="text-label-lg text-primary-30">
+                                <a
+                                    href={ToS_LINK}
+                                    className="text-label-lg text-primary-30"
+                                    target="_blank"
+                                >
                                     Terms of Services
                                 </a>
                             </div>

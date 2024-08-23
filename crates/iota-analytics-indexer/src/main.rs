@@ -19,7 +19,7 @@ async fn main() -> Result<(), AnalyticsIndexerError> {
 
     let config = AnalyticsIndexerConfig::parse();
     info!("Parsed config: {:#?}", config);
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!(
             "{}:{}",
             config.client_metric_host, config.client_metric_port
@@ -28,7 +28,7 @@ async fn main() -> Result<(), AnalyticsIndexerError> {
         .unwrap(),
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let metrics = AnalyticsMetrics::new(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
 
@@ -41,6 +41,6 @@ async fn main() -> Result<(), AnalyticsIndexerError> {
         .rest_url(&rest_url)
         .handler(processor)
         .run()
-        .await;
-    Ok(())
+        .await
+        .map_err(|e| AnalyticsIndexerError::GenericError(e.to_string()))
 }

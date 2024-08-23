@@ -5,7 +5,7 @@
 use std::{future, time::Duration};
 
 use futures::{stream::FuturesUnordered, StreamExt};
-use mysten_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
+use iota_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
 use prometheus::IntGauge;
 
 use super::DagError;

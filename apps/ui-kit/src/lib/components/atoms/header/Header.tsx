@@ -21,7 +21,7 @@ interface HeaderProps {
     /**
      * On close click handler (optional). If provided, a close button will be displayed.
      */
-    onClose?: () => void;
+    onClose?: (() => void) | ((e: React.MouseEvent<HTMLElement>) => void);
 }
 
 export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): JSX.Element {
@@ -29,13 +29,13 @@ export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): 
     const keepSpaceForIcon = titleCentered && (!onBack || !onClose);
 
     return (
-        <div className="flex min-h-[56px] w-full items-center bg-neutral-100 px-md--rs pb-xs pt-sm text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92">
+        <div className="flex min-h-[56px] w-full items-center bg-neutral-100 px-md--rs pb-xs pt-sm text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
             {onBack ? (
                 <Button
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
                     onClick={onBack}
-                    icon={<ArrowLeft className="h-5 w-5" />}
+                    icon={<ArrowLeft />}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />
@@ -50,7 +50,7 @@ export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): 
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
                     onClick={onClose}
-                    icon={<Close className="h-5 w-5" />}
+                    icon={<Close />}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />
