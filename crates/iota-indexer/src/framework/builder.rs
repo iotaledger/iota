@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::Result;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use super::{fetcher::CheckpointFetcher, Handler};
-use crate::metrics::IndexerMetrics;
+use crate::{errors::IndexerError, metrics::IndexerMetrics};
 
 pub struct IndexerBuilder {
     rest_url: Option<String>,
@@ -52,7 +53,7 @@ impl IndexerBuilder {
         self
     }
 
-    pub async fn run(self) {
+    pub async fn run(self) -> Result<(), IndexerError> {
         let (downloaded_checkpoint_data_sender, downloaded_checkpoint_data_receiver) =
             iota_metrics::metered_channel::channel(
                 self.checkpoint_buffer_size,
@@ -80,6 +81,6 @@ impl IndexerBuilder {
             self.handlers,
             self.metrics.clone(),
         )
-        .await;
+        .await
     }
 }

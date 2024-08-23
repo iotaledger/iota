@@ -24,10 +24,10 @@ export function OnTheNetwork(): JSX.Element {
         : null;
     return (
         <Panel>
-            <Title title="Network Activity" size={TitleSize.Small} />
-            <div className="mt-sm flex flex-col gap-6 px-md py-sm--rs">
-                <div className="flex">
-                    <div className="min-w-[164px]">
+            <Title title="Network Activity" size={TitleSize.Medium} />
+            <div className="flex flex-col gap-md p-md--rs">
+                <div className="flex gap-md">
+                    <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
                             label="TPS Now"
@@ -39,20 +39,25 @@ export function OnTheNetwork(): JSX.Element {
                             showSupportingLabel={false}
                         />
                     </div>
-                    <LabelText
-                        size={LabelTextSize.Large}
-                        label="Peak 30d TPS"
-                        text={
-                            networkMetrics?.tps30Days
-                                ? Math.floor(networkMetrics?.tps30Days).toString()
-                                : '-'
-                        }
-                        showSupportingLabel={false}
-                    />
+
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Peak 30d TPS"
+                            text={
+                                networkMetrics?.tps30Days
+                                    ? Math.floor(networkMetrics?.tps30Days).toString()
+                                    : '-'
+                            }
+                            showSupportingLabel={false}
+                        />
+                    </div>
                 </div>
+
                 <Divider />
-                <div className="flex">
-                    <div className="min-w-[164px]">
+
+                <div className="flex gap-x-md">
+                    <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total Packages"
@@ -60,16 +65,18 @@ export function OnTheNetwork(): JSX.Element {
                             showSupportingLabel={false}
                         />
                     </div>
-
-                    <LabelText
-                        size={LabelTextSize.Large}
-                        label="Objects"
-                        text={networkMetrics?.totalObjects ?? '-'}
-                        showSupportingLabel={false}
-                    />
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Objects"
+                            text={networkMetrics?.totalObjects ?? '-'}
+                            showSupportingLabel={false}
+                        />
+                    </div>
                 </div>
-                <div className="flex">
-                    <div className="min-w-[164px]">
+
+                <div className="flex gap-md">
+                    <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Reference Gas Price"
@@ -78,13 +85,15 @@ export function OnTheNetwork(): JSX.Element {
                             supportingLabel="IOTA"
                         />
                     </div>
-                    <LabelText
-                        size={LabelTextSize.Large}
-                        label="Total Supply"
-                        text={totalSupplyFormatted ?? '-'}
-                        showSupportingLabel={totalSupplyFormatted !== null}
-                        supportingLabel="IOTA"
-                    />
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Total Supply"
+                            text={totalSupplyFormatted ?? '-'}
+                            showSupportingLabel={totalSupplyFormatted !== null}
+                            supportingLabel="IOTA"
+                        />
+                    </div>
                 </div>
             </div>
         </Panel>

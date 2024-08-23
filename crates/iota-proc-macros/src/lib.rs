@@ -181,14 +181,16 @@ pub fn iota_test(args: TokenStream, item: TokenStream) -> TokenStream {
     result.into()
 }
 
-/// The sim_test macro will invoke `#[msim::test]` if the simulator config var
-/// is enabled.
+/// The `sim_test` macro will invoke `#[msim::test]` if the simulator config var
+/// (`msim`) is enabled.
 ///
-/// Otherwise, it will emit an ignored test - if forcibly run, the ignored test
-/// will panic.
+/// On this premise, this macro can be used in order to pass any
+/// simulator-specific arguments, such as `check_determinism`,
+/// which is not understood by tokio.
 ///
-/// This macro must be used in order to pass any simulator-specific arguments,
-/// such as `check_determinism`, which is not understood by tokio.
+/// If the simulator config var is disabled, tests will run via
+/// `#[tokio::test]`, unless disabled by setting the environment variable
+/// `IOTA_SKIP_SIMTESTS`.
 #[proc_macro_attribute]
 pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
