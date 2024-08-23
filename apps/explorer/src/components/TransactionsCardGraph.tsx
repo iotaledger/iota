@@ -6,11 +6,10 @@ import { formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
-import clsx from 'clsx';
 
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import { LabelText, LabelTextSize, Panel, Title } from '@iota/apps-ui-kit';
+import { LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 
 interface TooltipContentProps {
     data: {
@@ -78,13 +77,13 @@ export function TransactionsCardGraph() {
 
     return (
         <Panel>
-            <div className="flex h-full flex-col gap-4 overflow-hidden py-sm">
-                <Title title="Transaction Blocks" />
-                <div className="p-md--rs">
-                    <div className="flex flex-row gap-2 ">
+            <div className="py-md">
+                <Title title="Transaction Blocks" size={TitleSize.Medium} />
+                <div className="flex flex-col gap-lg py-sm">
+                    <div className="flex gap-sm px-md--rs">
                         <div className="flex-1">
                             <LabelText
-                                size={LabelTextSize.Medium}
+                                size={LabelTextSize.Large}
                                 label="Total"
                                 text={
                                     totalTransactions ? formatBalance(totalTransactions, 0) : '--'
@@ -92,9 +91,10 @@ export function TransactionsCardGraph() {
                                 showSupportingLabel={false}
                             />
                         </div>
+
                         <div className="flex-1">
                             <LabelText
-                                size={LabelTextSize.Medium}
+                                size={LabelTextSize.Large}
                                 label="Last epoch"
                                 text={
                                     lastEpochTotalTransactions
@@ -105,12 +105,7 @@ export function TransactionsCardGraph() {
                             />
                         </div>
                     </div>
-                    <div
-                        className={clsx(
-                            'flex min-h-[300px] flex-1 flex-col items-center justify-center rounded-xl transition-colors',
-                            !epochMetrics?.length,
-                        )}
-                    >
+                    <div className="flex min-h-[340px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
                         {isPending ? (
                             <div className="flex flex-col items-center gap-1">
                                 <LoadingIndicator />
