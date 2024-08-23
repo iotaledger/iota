@@ -21,7 +21,7 @@ export function Panel({
     return (
         <div
             className={cx(
-                'flex w-full flex-col rounded-xl bg-neutral-100 dark:bg-neutral-10',
+                'flex w-full flex-col rounded-xl bg-neutral-100 p-1.5 dark:bg-neutral-10',
                 borderClass,
             )}
         >
