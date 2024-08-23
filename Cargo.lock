@@ -3486,6 +3486,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
+name = "docs-examples"
+version = "0.1.4"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "bip32",
+ "iota-keys",
+ "iota-move-build",
+ "iota-sdk 0.1.4",
+ "move-core-types",
+ "serde_json",
+ "shared-crypto",
+ "tokio",
+]
+
+[[package]]
 name = "downcast"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

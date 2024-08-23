@@ -146,6 +146,7 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
+  "docs/examples/rust",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
