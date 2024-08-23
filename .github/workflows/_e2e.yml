@@ -27,7 +27,7 @@ jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRust
+    if: github.event.pull_request.draft == false && ( inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRust )
     runs-on: self-hosted
     services:
       postgres:

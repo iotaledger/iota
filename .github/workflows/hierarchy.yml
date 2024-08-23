@@ -17,7 +17,6 @@ concurrency:
 
 jobs:
   diff:
-    if: github.event.pull_request.draft == false
     runs-on: [self-hosted]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
@@ -38,7 +37,6 @@ jobs:
         id: diff
 
   dprint-format:
-    if: github.event.pull_request.draft == false
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -46,7 +44,6 @@ jobs:
         run: dprint check
 
   typos:
-    if: github.event.pull_request.draft == false
     uses: ./.github/workflows/_typos.yml
 
   license-check:

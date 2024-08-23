@@ -9,6 +9,7 @@ jobs:
   move-test:
     timeout-minutes: 10
     runs-on: [self-hosted]
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
