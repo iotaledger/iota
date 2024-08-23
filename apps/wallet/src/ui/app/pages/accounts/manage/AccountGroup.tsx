@@ -37,10 +37,9 @@ import {
     ListItem,
 } from '@iota/apps-ui-kit';
 import { Add, MoreHoriz } from '@iota/ui-icons';
-import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12, LedgerLogo17, Iota } from '@iota/icons';
+import { LedgerLogo17, Iota } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { Collapse, CollapseBody, CollapseHeader } from './Collapse';
 import { useMutation } from '@tanstack/react-query';
@@ -102,10 +101,6 @@ function AccountFooter({ accountID, showExport }: { accountID: string; showExpor
         <>
             <div className="flex w-full flex-shrink-0">
                 <div className="flex items-center gap-0.5 whitespace-nowrap">
-                    <NicknameDialog
-                        accountID={accountID}
-                        trigger={<FooterLink>Edit Nickname</FooterLink>}
-                    />
                     {showExport ? (
                         <FooterLink to={`/accounts/export/${accountID}`}>
                             Export Private Key
@@ -183,6 +178,8 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
 }
 
 function AccountItem2({ account }: { account: SerializedUIAccount }) {
+    const [isDropdownOpen, setDropdownOpen] = useState(false);
+    const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const { data: domainName } = useResolveIotaNSName(account?.address);
     const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
     const { unlockAccount, lockAccount } = useUnlockAccount();
@@ -213,19 +210,37 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
     }
 
     return (
-        <Account
-            isLocked={account.isLocked}
-            isCopyable
-            isExternal
-            onOpen={handleOpen}
-            avatarContent={() => <AccountAvatar account={account} />}
-            title={accountName}
-            subtitle={formatAddress(account.address)}
-            onCopy={handleCopy}
-            onOptionsClick={() => {}}
-            onLockAccountClick={handleToggleLock}
-            onUnlockAccountClick={handleToggleLock}
-        />
+        <div className="relative">
+            <Account
+                isLocked={account.isLocked}
+                isCopyable
+                isExternal
+                onOpen={handleOpen}
+                avatarContent={() => <AccountAvatar account={account} />}
+                title={accountName}
+                subtitle={formatAddress(account.address)}
+                onCopy={handleCopy}
+                onOptionsClick={() => setDropdownOpen(true)}
+                onLockAccountClick={handleToggleLock}
+                onUnlockAccountClick={handleToggleLock}
+            />
+            <div
+                className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+            >
+                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                    <Dropdown>
+                        <ListItem hideBottomBorder onClick={() => setDialogNicknameOpen(true)}>
+                            Edit Nickname
+                        </ListItem>
+                    </Dropdown>
+                </OutsideClickHandler>
+            </div>
+            <NicknameDialog
+                isOpen={isDialogNicknameOpen}
+                accountID={account.id}
+                setOpen={setDialogNicknameOpen}
+            />
+        </div>
     );
 }
 
@@ -300,6 +315,14 @@ export function AccountGroup({
         navigate(`/accounts/manage/accounts-finder/${accountSourceID}`);
     }
 
+    function handleExportPassphrase() {
+        navigate(`../export/passphrase/${accountSource!.id}`);
+    }
+
+    function handleExportSeed() {
+        navigate(`../export/seed/${accountSource!.id}`);
+    }
+
     return (
         <div className="relative">
             <Collapse>
@@ -332,13 +355,24 @@ export function AccountGroup({
                     ))}
                 </CollapseBody>
                 <div
-                    className={`z-99 absolute right-0 top-0 bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                    className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
                 >
                     <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                         <Dropdown>
                             {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && (
                                 <ListItem hideBottomBorder onClick={handleBalanceFinder}>
                                     Balance finder
+                                </ListItem>
+                            )}
+
+                            {isMnemonicDerivedGroup && accountSource && (
+                                <ListItem hideBottomBorder onClick={handleExportPassphrase}>
+                                    Export Passphrase
+                                </ListItem>
+                            )}
+                            {isSeedDerivedGroup && accountSource && (
+                                <ListItem hideBottomBorder onClick={handleExportSeed}>
+                                    Export Seed
                                 </ListItem>
                             )}
                         </Dropdown>
@@ -348,47 +382,6 @@ export function AccountGroup({
             <div className="">
                 <CollapsiblePrimitive.Root defaultOpen asChild>
                     <div className="flex w-full flex-col gap-4">
-                        <CollapsiblePrimitive.Trigger asChild>
-                            <div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
-                                <ArrowBgFill16 className="text-hero-darkest/20 h-4 w-4 group-data-[state=open]:rotate-90" />
-                                <Heading variant="heading5" weight="semibold" color="steel-darker">
-                                    {getGroupTitle(accounts[0])}
-                                </Heading>
-                                <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
-
-                                {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                                    <>
-                                        <ButtonOrLink
-                                            loading={createAccountMutation.isPending}
-                                            onClick={async (e) => {
-                                                // prevent the collapsible from closing when clicking the "new" button
-                                                e.stopPropagation();
-                                                const accountsFormType = isMnemonicDerivedGroup
-                                                    ? AccountsFormType.MnemonicSource
-                                                    : AccountsFormType.SeedSource;
-                                                setAccountsFormValues({
-                                                    type: accountsFormType,
-                                                    sourceID: accountSource.id,
-                                                });
-                                                if (accountSource.isLocked) {
-                                                    setPasswordModalVisible(true);
-                                                } else {
-                                                    createAccountMutation.mutate({
-                                                        type: accountsFormType,
-                                                    });
-                                                }
-                                            }}
-                                            className="text-hero hover:text-hero-darkest flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase outline-none"
-                                        >
-                                            <Plus12 />
-                                            <Text variant="bodySmall" weight="semibold">
-                                                New
-                                            </Text>
-                                        </ButtonOrLink>
-                                    </>
-                                ) : null}
-                            </div>
-                        </CollapsiblePrimitive.Trigger>
                         <CollapsiblePrimitive.CollapsibleContent asChild>
                             <div className="flex w-full flex-shrink-0 flex-col gap-3">
                                 {accounts.map((account) => {
@@ -407,22 +400,6 @@ export function AccountGroup({
                                         />
                                     );
                                 })}
-                                {isMnemonicDerivedGroup && accountSource ? (
-                                    <Button
-                                        variant="secondary"
-                                        size="tall"
-                                        text="Export Passphrase"
-                                        to={`../export/passphrase/${accountSource.id}`}
-                                    />
-                                ) : null}
-                                {isSeedDerivedGroup && accountSource ? (
-                                    <Button
-                                        variant="secondary"
-                                        size="tall"
-                                        text="Export Seed"
-                                        to={`../export/seed/${accountSource.id}`}
-                                    />
-                                ) : null}
                             </div>
                         </CollapsiblePrimitive.CollapsibleContent>
                     </div>
