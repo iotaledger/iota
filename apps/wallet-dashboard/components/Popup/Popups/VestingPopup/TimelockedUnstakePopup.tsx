@@ -4,7 +4,7 @@
 import React from 'react';
 import { Button } from '@/components';
 import { useTimelockedUnstakeTransaction } from '@/hooks';
-import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useIotaClient, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -23,19 +23,35 @@ function TimelockedUnstakePopup({
 }: UnstakePopupProps): JSX.Element {
     const objectIds = delegatedStake.stakes.map((stake) => stake.timelockedStakedIotaId);
     const queryClient = useQueryClient();
+    const iotaClient = useIotaClient();
     const { data: timelockedUnstake } = useTimelockedUnstakeTransaction(objectIds, accountAddress);
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
 
     async function handleTimelockedUnstake(): Promise<void> {
         if (!timelockedUnstake) return;
-        await signAndExecuteTransactionBlock({
-            transactionBlock: timelockedUnstake.transaction,
-        });
-        queryClient.invalidateQueries({
-            queryKey: ['get-staked-timelocked-objects'],
-        });
-        closePopup();
+        await signAndExecuteTransactionBlock(
+            {
+                transactionBlock: timelockedUnstake.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    iotaClient
+                        .waitForTransactionBlock({
+                            digest: tx.digest,
+                        })
+                        .then(() => {
+                            queryClient.invalidateQueries({
+                                queryKey: ['get-staked-timelocked-objects'],
+                            });
+                            queryClient.invalidateQueries({
+                                queryKey: ['timelocked-unstake-transaction'],
+                            });
+                            closePopup();
+                        });
+                },
+            },
+        );
     }
 
     return (
