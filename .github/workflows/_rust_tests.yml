@@ -53,13 +53,12 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
+    if: always() && inputs.isRust
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
       fail-fast: false
     runs-on: [self-hosted]
-    needs: changes
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
