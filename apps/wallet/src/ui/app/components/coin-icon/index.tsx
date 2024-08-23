@@ -30,7 +30,7 @@ export interface CoinIconProps {
 
 export function CoinIcon({ coinType }: CoinIconProps) {
     return coinType === IOTA_TYPE_ARG ? (
-        <div className="h-full w-full p-1">
+        <div className="h-full w-full">
             <IotaLogoMark className="h-full w-full" />
         </div>
     ) : (

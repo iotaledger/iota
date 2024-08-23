@@ -10,12 +10,9 @@ import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
 import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 import { ListItem } from '../../atoms';
 
-export type SelectOption =
-    | string
-    | { id: string; renderLabel: () => React.JSX.Element }
-    | { id: string; label: React.ReactNode };
+export type SelectOption = { id: string; displayElement: React.ReactNode; selected?: boolean };
 
-interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled' | 'value'> {
+interface SelectProps {
     /**
      * The field label.
      */
@@ -41,13 +38,17 @@ interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled
      */
     errorMessage?: string;
     /**
-     * Placeholder for the selector
-     */
-    placeholder?: SelectOption;
-    /**
      * The callback to call when the value changes.
      */
-    onValueChange?: (id: string) => void;
+    onValueChange?: (option: SelectOption) => void;
+    /**
+     * Whether the field is disabled.
+     */
+    disabled?: boolean;
+    /**
+     * The rendered element in the select button
+     */
+    placeholder: React.ReactNode;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -60,23 +61,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             errorMessage,
             caption,
             options,
-            placeholder,
             onValueChange,
-            value,
+            placeholder,
         },
         ref,
     ) => {
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [selectedValue, setSelectedValue] = useState<SelectOption>(
-            findValueByProps(value, options),
-        );
-
-        const selectorText = selectedValue || placeholder;
-
-        useEffect(() => {
-            const newValue = findValueByProps(value, options);
-            setSelectedValue(newValue);
-        }, [value, options]);
 
         useEffect(() => {
             if (disabled && isOpen) {
@@ -84,22 +74,13 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             }
         }, [disabled, isOpen]);
 
-        function findValueByProps(value: SelectProps['value'], options: SelectOption[] = []) {
-            return (
-                options.find((option) =>
-                    typeof option === 'string' ? option === value : option.id === value,
-                ) ?? options[0]
-            );
-        }
-
         function onSelectorClick() {
             setIsOpen((prev) => !prev);
         }
 
-        function handleOptionClick(option: SelectOption) {
-            setSelectedValue(option);
+        function handleOptionClick(clickedOption: SelectOption) {
+            onValueChange?.(clickedOption);
             closeDropdown();
-            onValueChange?.(typeof option === 'string' ? option : option.id);
         }
 
         function closeDropdown() {
@@ -118,7 +99,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
-                        data-selected-value={value}
                         disabled={disabled}
                         className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5"
                     >
@@ -129,14 +109,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         )}
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
-                            {selectorText && (
-                                <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
-                                    <OptionLabel option={selectorText} />
-                                </div>
-                            )}
+                            {placeholder}
 
                             {supportingText && (
-                                <div className={cx(!placeholder && !selectedValue && 'ml-auto')}>
+                                <div className="ml-auto">
                                     <SecondaryText>{supportingText}</SecondaryText>
                                 </div>
                             )}
@@ -164,18 +140,15 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         })}
                     >
                         <Dropdown>
-                            {options.map((option) => {
-                                const optionIsString = typeof option === 'string';
-                                return (
-                                    <ListItem
-                                        onClick={() => handleOptionClick(option)}
-                                        hideBottomBorder
-                                        key={optionIsString ? option : option.id}
-                                    >
-                                        <OptionLabel option={option} />
-                                    </ListItem>
-                                );
-                            })}
+                            {options.map((option) => (
+                                <ListItem
+                                    onClick={() => handleOptionClick(option)}
+                                    hideBottomBorder
+                                    key={option.id}
+                                >
+                                    {option.displayElement}
+                                </ListItem>
+                            ))}
                         </Dropdown>
                     </div>
                 </div>
@@ -183,13 +156,3 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         );
     },
 );
-
-function OptionLabel({ option }: { option: SelectOption }) {
-    if (typeof option === 'string') {
-        return option;
-    } else if ('renderLabel' in option) {
-        return option.renderLabel();
-    } else {
-        return option.label;
-    }
-}
