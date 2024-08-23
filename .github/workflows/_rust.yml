@@ -41,6 +41,7 @@ jobs:
       isRust: ${{ inputs.isRust }}
 
   rust-tests:
+    if: github.event.pull_request.draft == false
     needs:
       - rust-lints
       - external-lints
@@ -49,6 +50,7 @@ jobs:
       isRust: ${{ inputs.isRust }}
 
   external-tests:
+    if: github.event.pull_request.draft == false
     needs:
       - rust-lints
       - external-lints
@@ -57,7 +59,7 @@ jobs:
       isRust: ${{ inputs.isRust }}
 
   mysticeti-tests:
-    if: inputs.isRust
+    if: inputs.isRust && github.event.pull_request.draft == false
     needs:
       - rust-lints
       - external-lints

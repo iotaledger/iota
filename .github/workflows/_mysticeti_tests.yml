@@ -62,7 +62,7 @@ jobs:
 
   test:
     name: Test ${{ matrix.components }}
-    if: needs.changes.outputs.components != '[]' && github.event.pull_request.draft == false
+    if: needs.changes.outputs.components != '[]'
     timeout-minutes: 45
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
@@ -94,7 +94,6 @@ jobs:
         os:
           - [self-hosted]
       fail-fast: false
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
         with:

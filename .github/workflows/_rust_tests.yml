@@ -23,7 +23,7 @@ jobs:
   test:
     name: Test ${{ matrix.components }}
     needs: changes
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]' && github.event.pull_request.draft == false
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -41,7 +41,7 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   iota-sdk-changes:
-    if: inputs.isRust && github.event.pull_request.draft == false
+    if: inputs.isRust
     runs-on: [self-hosted]
     outputs:
       changed: ${{ steps.filter.outputs.iota-sdk }}
@@ -56,7 +56,7 @@ jobs:
 
   test-iota-sdk:
     name: Test iota-sdk
-    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true' && github.event.pull_request.draft == false
+    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true'
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -75,7 +75,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]' && github.event.pull_request.draft == false
+    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     strategy:
       matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
@@ -91,7 +91,7 @@ jobs:
 
   check-unused-deps-iota-sdk:
     name: Check Unused Dependencies of iota-sdk (${{ matrix.flags }})
-    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true' && github.event.pull_request.draft == false
+    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true'
     runs-on: [self-hosted]
     needs: iota-sdk-changes
     strategy:
@@ -118,7 +118,6 @@ jobs:
         os:
           - [self-hosted]
       fail-fast: false
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: benchmark (smoke)
@@ -156,7 +155,6 @@ jobs:
   #         fail-fast: false
   #     env:
   #         MSIM_WATCHDOG_TIMEOUT_MS: 60000
-  #     if: github.event.pull_request.draft == false
   #     steps:
   #         - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
   #         - uses: taiki-e/install-action@nextest
@@ -171,7 +169,6 @@ jobs:
   # rosetta-validation:
   #   timeout-minutes: 45
   #   runs-on: [self-hosted]
-  #   if: github.event.pull_request.draft == false
   #   steps:
   #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
 
@@ -224,7 +221,6 @@ jobs:
           --name postgres_container
         ports:
           - 5432:5432
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
