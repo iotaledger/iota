@@ -141,7 +141,8 @@ export function getVestingOverview(
 
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
-    const totalVestedAmount = vestingPayoutsCount * latestPayout.amount;
+    // note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
+    const totalVestedAmount = (vestingPayoutsCount * latestPayout.amount) / 0.9;
     const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
         latestPayout,
         currentEpochTimestamp,
