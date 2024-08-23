@@ -48,7 +48,7 @@ export function LabelText({
     const gapClass = size === LabelTextSize.Small ? 'gap-0.5' : 'gap-1';
     return (
         <div className={cx('flex flex-col', centeredClasses, gapClass)}>
-            <div className="flex flex-row items-center gap-0.5">
+            <div className="flex flex-row flex-wrap items-center gap-0.5">
                 <span
                     className={cx('font-inter text-neutral-10 dark:text-neutral-92', textClasses)}
                 >
