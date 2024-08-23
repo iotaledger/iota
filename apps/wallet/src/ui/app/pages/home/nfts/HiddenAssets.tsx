@@ -2,14 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, NFTDisplayCard } from '_components';
+import { ErrorBoundary } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import { EyeClose16 } from '@iota/icons';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
+import {
+    getKioskIdFromOwnerCap,
+    isKioskOwnerToken,
+    useGetNFTMeta,
+    useGetObject,
+    useKioskClient,
+} from '@iota/core';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageShape,
+    ImageType,
+} from '@iota/apps-ui-kit';
+import { formatAddress } from '@iota/iota-sdk/utils';
+import { useResolveVideo } from '_src/ui/app/hooks/useResolveVideo';
+import { VisibilityOff } from '@iota/ui-icons';
 
 interface HiddenAssetsProps {
     items: {
@@ -26,50 +43,75 @@ interface HiddenAssetsProps {
 export default function HiddenAssets({ items }: HiddenAssetsProps) {
     const { showAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
-
+    const navigate = useNavigate();
     return (
-        <div className="grid w-full grid-cols-2 gap-x-3.5 gap-y-4">
+        <div className="flex w-full flex-col">
             {items?.map((object) => {
                 const { objectId, type } = object.data!;
+                const { data: objectData } = useGetObject(objectId);
+                const { data: nftMeta } = useGetNFTMeta(objectId);
+
+                const nftName = nftMeta?.name || formatAddress(objectId);
+                const nftImageUrl = nftMeta?.imageUrl || '';
+                const video = useResolveVideo(objectData);
                 return (
-                    <div className="flex items-center justify-between pr-1 pt-2" key={objectId}>
-                        <Link
-                            to={
-                                isKioskOwnerToken(kioskClient.network, object.data)
-                                    ? `/kiosk?${new URLSearchParams({
-                                          kioskId: getKioskIdFromOwnerCap(object.data!),
-                                      })}`
-                                    : `/nft-details?${new URLSearchParams({
-                                          objectId,
-                                      }).toString()}`
-                            }
+                    <ErrorBoundary>
+                        <Card
+                            type={CardType.Default}
                             onClick={() => {
+                                navigate(
+                                    isKioskOwnerToken(kioskClient.network, object.data)
+                                        ? `/kiosk?${new URLSearchParams({
+                                              kioskId: getKioskIdFromOwnerCap(object.data!),
+                                          })}`
+                                        : `/nft-details?${new URLSearchParams({
+                                              objectId,
+                                          }).toString()}`,
+                                );
                                 ampli.clickedCollectibleCard({
                                     objectId,
                                     collectibleType: type!,
                                 });
                             }}
-                            className="relative truncate no-underline"
                         >
-                            <ErrorBoundary>
-                                <NFTDisplayCard
-                                    objectId={objectId}
-                                    size="xs"
-                                    orientation="horizontal"
-                                />
-                            </ErrorBoundary>
-                        </Link>
-                        <div className="h-8 w-8">
-                            <Button
-                                variant="secondaryIota"
-                                size="icon"
+                            <CardImage
+                                type={ImageType.BgTransparent}
+                                shape={ImageShape.SquareRounded}
+                            >
+                                {video ? (
+                                    <video
+                                        className="h-full w-full object-cover"
+                                        src={video}
+                                        controls
+                                        autoPlay
+                                        muted
+                                    />
+                                ) : (
+                                    <img
+                                        src={nftImageUrl}
+                                        alt={nftName}
+                                        className="h-full w-full object-cover"
+                                    />
+                                )}
+                            </CardImage>
+                            <CardBody
+                                title={nftMeta?.name ?? 'Asset'}
+                                subtitle={formatAddress(objectId)}
+                            />
+                            <CardAction
+                                type={CardActionType.Link}
                                 onClick={() => {
                                     showAsset(objectId);
                                 }}
-                                after={<EyeClose16 />}
+                                icon={<VisibilityOff />}
                             />
-                        </div>
-                    </div>
+                        </Card>
+                        {/* <NFTDisplayCard
+                                    objectId={objectId}
+                                    size="xs"
+                                    orientation="horizontal"
+                                /> */}
+                    </ErrorBoundary>
                 );
             })}
         </div>
