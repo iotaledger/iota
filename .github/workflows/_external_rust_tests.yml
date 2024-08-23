@@ -21,7 +21,7 @@ jobs:
           filters: .github/external-crates-filters.yml
 
   test:
-    name: Test ${{ matrix.components }}
+    name: Test external crates
     needs: changes
     if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     env:
@@ -29,10 +29,6 @@ jobs:
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
-    strategy:
-      matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -40,20 +36,34 @@ jobs:
       - name: Install python dependencies
         run: pip install pyopenssl --upgrade --break-system-packages
       - name: cargo test
-        run: >
-          cargo nextest run
-          --config-file .config/nextest.toml
-          --manifest-path external-crates/move/Cargo.toml
-          -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml) and rdeps(${{matrix.components}})'
-          -p ${{matrix.components}}
-          --profile ci
+        run: |
+          array=(${{ join(needs.changes.outputs.components, ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E rdeps(${item})"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          cargo nextest run --profile ci $result
+          cargo nextest run \
+            --config-file .config/nextest.toml \
+            --manifest-path external-crates/move/Cargo.toml \
+            -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' \
+            $result \
+            --profile ci
 
   check-unused-deps:
-    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
+    name: Check Unused Dependencies (${{ matrix.flags }})
     if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
     strategy:
       matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
         flags: ["--all-features", "--no-default-features"]
       fail-fast: false
     runs-on: [self-hosted]
@@ -62,4 +72,4 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps-external -p ${{matrix.components}} ${{ matrix.flags }}
+        run: cargo +nightly ci-udeps-external ${{ matrix.flags }}
