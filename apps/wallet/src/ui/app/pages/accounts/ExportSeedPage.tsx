@@ -1,13 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import Alert from '_components/alert';
-import { HideShowDisplayBox } from '_components/HideShowDisplayBox';
+import { Alert, HideShowDisplayBox, VerifyPasswordModal, Loading, Overlay } from '_components';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
-import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
-import Loading from '../../components/loading';
-import Overlay from '../../components/overlay';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportSeedMutation } from '../../hooks/useExportSeedMutation';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';

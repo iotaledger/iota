@@ -1,7 +1,7 @@
 [package]
 name = "move-vm-integration-tests"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 homepage = "https://diem.com"
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ description = "Move VM Integration Tests"
 [dependencies]
 anyhow.workspace = true
 fail = { workspace = true, features = ["failpoints"] }
-memory-stats = "1.0.0"
+memory-stats = "1.2"
 tempfile.workspace = true
 
 move-binary-format.workspace = true

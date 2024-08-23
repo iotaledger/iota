@@ -12,6 +12,7 @@ import {
     FOCUS_CLASSES,
 } from './chip.classes';
 import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { Close } from '@iota/ui-icons';
 
 interface ChipProps {
     /**
@@ -66,8 +67,11 @@ export function Chip({ label, showClose, selected, onClose, avatar, icon }: Chip
                 {avatar ?? icon}
                 <span className="text-body-md">{label}</span>
                 {showClose && (
-                    <ButtonUnstyled onClick={onClose} className="cursor-pointer text-body-md">
-                        &#x2715;
+                    <ButtonUnstyled
+                        onClick={onClose}
+                        className="cursor-pointer [&_svg]:h-4 [&_svg]:w-4"
+                    >
+                        <Close />
                     </ButtonUnstyled>
                 )}
             </span>

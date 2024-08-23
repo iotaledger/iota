@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
+import { ExplorerLinkType } from '_components';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { ArrowUpRight12 } from '@iota/icons';
 import { useEffect, useState } from 'react';

@@ -277,7 +277,7 @@ importers:
         version: 4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   apps/explorer:
     dependencies:
@@ -305,6 +305,9 @@ importers:
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@iota/apps-ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@iota/core':
         specifier: workspace:*
         version: link:../core
@@ -320,6 +323,9 @@ importers:
       '@iota/ui':
         specifier: workspace:*
         version: link:../ui
+      '@iota/ui-icons':
+        specifier: workspace:*
+        version: link:../ui-icons
       '@radix-ui/react-collapsible':
         specifier: ^1.0.3
         version: 1.0.3(@types/react-dom@18.2.7)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -451,8 +457,8 @@ importers:
         specifier: ^7.22.9
         version: 7.22.9
       '@playwright/test':
-        specifier: ^1.36.1
-        version: 1.36.1
+        specifier: ^1.46.1
+        version: 1.46.1
       '@testing-library/dom':
         specifier: ^9.3.1
         version: 9.3.1
@@ -518,7 +524,7 @@ importers:
         version: 3.2.0(rollup@3.29.4)(vite@4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0))
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   apps/icons:
     devDependencies:
@@ -834,8 +840,8 @@ importers:
         specifier: ^5.40.1
         version: 5.45.0(@tanstack/react-query@5.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       axios:
-        specifier: ^1.7.2
-        version: 1.7.2
+        specifier: ^1.7.4
+        version: 1.7.4
       bech32:
         specifier: ^2.0.0
         version: 2.0.0
@@ -946,8 +952,8 @@ importers:
         specifier: ^0.20.0
         version: 0.20.0
       '@playwright/test':
-        specifier: ^1.36.1
-        version: 1.36.1
+        specifier: ^1.46.1
+        version: 1.46.1
       '@sentry/react':
         specifier: ^7.59.2
         version: 7.59.2(react@18.3.1)
@@ -1040,7 +1046,7 @@ importers:
         version: 3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))
       tailwindcss-animate:
         specifier: ^1.0.6
-        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3)))
+        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3)))
       ts-loader:
         specifier: ^9.4.4
         version: 9.4.4(typescript@5.3.3)(webpack@5.79.0(@swc/core@1.3.92)(webpack-cli@5.0.1))
@@ -1061,7 +1067,7 @@ importers:
         version: 4.2.0(typescript@5.3.3)(vite@4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0))
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
       web-ext:
         specifier: ^7.6.2
         version: 7.6.2(body-parser@1.20.2)(express@4.18.2)
@@ -1097,7 +1103,7 @@ importers:
         version: 3.5.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next:
         specifier: 14.2.3
-        version: 14.2.3(@babel/core@7.23.9)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.63.6)
+        version: 14.2.3(@babel/core@7.23.9)(@playwright/test@1.46.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.63.6)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -1304,7 +1310,7 @@ importers:
         version: 3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))
       tailwindcss-animate:
         specifier: ^1.0.6
-        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3)))
+        version: 1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3)))
       typescript:
         specifier: ^5.3.3
         version: 5.3.3
@@ -1392,7 +1398,7 @@ importers:
         version: 11.11.5(@emotion/react@11.11.4(@types/react@18.3.3)(react@18.3.1))(@types/react@18.3.3)(react@18.3.1)
       '@graphql-markdown/docusaurus':
         specifier: ^1.24.1
-        version: 1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)
+        version: 1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)
       '@graphql-tools/graphql-file-loader':
         specifier: ^8.0.1
         version: 8.0.1(graphql@16.8.1)
@@ -1415,8 +1421,8 @@ importers:
         specifier: ^10.4.14
         version: 10.4.19(postcss@8.4.38)
       axios:
-        specifier: ^1.7.2
-        version: 1.7.2
+        specifier: ^1.7.4
+        version: 1.7.4
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
@@ -1476,7 +1482,7 @@ importers:
         version: 6.0.0
       tailwindcss:
         specifier: ^3.3.3
-        version: 3.4.4(ts-node@10.9.1(typescript@5.4.5))
+        version: 3.4.4(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.4.5))
       web3:
         specifier: ^4.2.2
         version: 4.11.0(typescript@5.4.5)(zod@3.21.4)
@@ -1526,7 +1532,7 @@ importers:
         version: 5.3.3
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   sdk/build-scripts:
     dependencies:
@@ -1792,7 +1798,7 @@ importers:
         version: 4.4.11(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   sdk/graphql-transport:
     dependencies:
@@ -1847,7 +1853,7 @@ importers:
         version: 5.3.3
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
       wait-on:
         specifier: ^7.0.1
         version: 7.0.1(debug@4.3.4)
@@ -1875,7 +1881,7 @@ importers:
         version: 5.3.3
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   sdk/kiosk:
     dependencies:
@@ -1903,7 +1909,7 @@ importers:
         version: 4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
       wait-on:
         specifier: ^7.0.1
         version: 7.0.1(debug@4.3.4)
@@ -1937,7 +1943,7 @@ importers:
         version: 5.3.3
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   sdk/move-bytecode-template:
     devDependencies:
@@ -1952,7 +1958,7 @@ importers:
         version: 5.3.3
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
       wasm-pack:
         specifier: ^0.12.1
         version: 0.12.1
@@ -2055,7 +2061,7 @@ importers:
         version: 4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
       wait-on:
         specifier: ^7.0.1
         version: 7.0.1(debug@4.3.4)
@@ -2108,7 +2114,7 @@ importers:
         version: 5.3.3
       vitest:
         specifier: ^0.33.0
-        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+        version: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
 packages:
 
@@ -5483,10 +5489,9 @@ packages:
     resolution: {integrity: sha512-cq8o4cWH0ibXh9VGi5P20Tu9XF/0fFXl9EUinr9QfTM7a7p0oTA4iJRCQWppXR1Pg8dSM0UCItCkPwsk9qWWYA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
-  '@playwright/test@1.36.1':
-    resolution: {integrity: sha512-YK7yGWK0N3C2QInPU6iaf/L3N95dlGdbsezLya4n0ZCh3IL7VgPGxC6Gnznh9ApWdOmkJeleT2kMTcWPRZvzqg==}
-    engines: {node: '>=16'}
-    deprecated: Please update to the latest version of Playwright to test up-to-date browsers.
+  '@playwright/test@1.46.1':
+    resolution: {integrity: sha512-Fq6SwLujA/DOIvNC2EL/SojJnkKf/rAwJ//APpJJHRyMi1PdKrY3Az+4XNQ51N4RTbItbIByQ0jgd1tayq1aeA==}
+    engines: {node: '>=18'}
     hasBin: true
 
   '@pnpm/config.env-replace@1.1.0':
@@ -8657,8 +8662,8 @@ packages:
   axios@0.27.2:
     resolution: {integrity: sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==}
 
-  axios@1.7.2:
-    resolution: {integrity: sha512-2A8QhOMrbomlDuiLeK9XibIBzuHeRcqqNOHp0Cyp5EoJ1IFDh+XZH3A6BkXtv0K4gFGCI0Y4BM7B1wOEi0Rmgw==}
+  axios@1.7.4:
+    resolution: {integrity: sha512-DukmaFRnY6AzAALSH4J2M3k6PkaC+MfaAGdEERRWcC9q3/TWQwLpHR8ZRLKTdQ3aBDL64EdluRDjJqKw+BPZEw==}
 
   axobject-query@3.2.1:
     resolution: {integrity: sha512-jsyHu61e6N4Vbz/v18DHwWYKK0bSWLqn47eeDSKPB7m8tqMHF9YJ+mhIk2lVteyZrY8tnSj/jHOv4YiTCuCJgg==}
@@ -11005,15 +11010,6 @@ packages:
   flow-parser@0.212.0:
     resolution: {integrity: sha512-45eNySEs7n692jLN+eHQ6zvC9e1cqu9Dq1PpDHTcWRri2HFEs8is8Anmp1RcIhYxA5TZYD6RuESG2jdj6nkDJQ==}
     engines: {node: '>=0.4.0'}
-
-  follow-redirects@1.15.1:
-    resolution: {integrity: sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==}
-    engines: {node: '>=4.0'}
-    peerDependencies:
-      debug: '*'
-    peerDependenciesMeta:
-      debug:
-        optional: true
 
   follow-redirects@1.15.6:
     resolution: {integrity: sha512-wWN62YITEaOpSK584EZXJafH1AGpO8RVgElfkuXbTOrPX4fIfOyEpW/CsiNd8JdYrAoOvafRTOEnvsO++qCqFA==}
@@ -14086,9 +14082,14 @@ packages:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
 
-  playwright-core@1.36.1:
-    resolution: {integrity: sha512-7+tmPuMcEW4xeCL9cp9KxmYpQYHKkyjwoXRnoeTowaeNat8PoBMk/HwCYhqkH2fRkshfKEOiVus/IhID2Pg8kg==}
-    engines: {node: '>=16'}
+  playwright-core@1.46.1:
+    resolution: {integrity: sha512-h9LqIQaAv+CYvWzsZ+h3RsrqCStkBHlgo6/TJlFst3cOTlLghBQlJwPOZKQJTKNaD3QIB7aAVQ+gfWbN3NXB7A==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.46.1:
+    resolution: {integrity: sha512-oPcr1yqoXLCkgKtD5eNUPLiN40rYEM39odNpIb6VE6S7/15gJmA1NzVv6zJYusV0e7tzvkU/utBFNa/Kpxmwng==}
+    engines: {node: '>=18'}
     hasBin: true
 
   pluralize@8.0.0:
@@ -21735,7 +21736,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@graphql-markdown/core@1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)':
+  '@graphql-markdown/core@1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)':
     dependencies:
       '@graphql-markdown/graphql': 1.1.3(graphql@16.8.1)(prettier@3.3.2)
       '@graphql-markdown/logger': 1.0.3
@@ -21747,10 +21748,10 @@ snapshots:
       - graphql
       - prettier
 
-  '@graphql-markdown/docusaurus@1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)':
+  '@graphql-markdown/docusaurus@1.24.2(@docusaurus/logger@3.4.0)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)':
     dependencies:
       '@docusaurus/logger': 3.4.0
-      '@graphql-markdown/core': 1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)
+      '@graphql-markdown/core': 1.10.2(@graphql-markdown/printer-legacy@1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5))(graphql-config@5.0.3(@types/node@20.4.2)(graphql@16.8.1))(graphql@16.8.1)(prettier@3.3.2)
       '@graphql-markdown/logger': 1.0.3
       '@graphql-markdown/printer-legacy': 1.8.2(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.8.1)(prettier@3.3.2)(typescript@5.4.5)
     transitivePeerDependencies:
@@ -23212,12 +23213,9 @@ snapshots:
 
   '@pkgr/core@0.1.1': {}
 
-  '@playwright/test@1.36.1':
+  '@playwright/test@1.46.1':
     dependencies:
-      '@types/node': 20.4.2
-      playwright-core: 1.36.1
-    optionalDependencies:
-      fsevents: 2.3.2
+      playwright: 1.46.1
 
   '@pnpm/config.env-replace@1.1.0': {}
 
@@ -25796,7 +25794,7 @@ snapshots:
       '@jest/globals': 29.7.0
       '@types/jest': 29.5.3
       jest: 29.7.0(@types/node@20.4.2)(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.4.5))
-      vitest: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+      vitest: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   '@testing-library/react@14.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -26949,7 +26947,7 @@ snapshots:
       pathe: 1.1.1
       picocolors: 1.0.0
       sirv: 2.0.3
-      vitest: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0)
+      vitest: 0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0)
 
   '@vitest/utils@0.33.0':
     dependencies:
@@ -27720,20 +27718,20 @@ snapshots:
 
   axios@0.26.1:
     dependencies:
-      follow-redirects: 1.15.1(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
     transitivePeerDependencies:
       - debug
 
   axios@0.27.2(debug@4.3.4):
     dependencies:
-      follow-redirects: 1.15.1(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
       form-data: 4.0.0
     transitivePeerDependencies:
       - debug
 
-  axios@1.7.2:
+  axios@1.7.4:
     dependencies:
-      follow-redirects: 1.15.6
+      follow-redirects: 1.15.6(debug@4.3.4)
       form-data: 4.0.0
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
@@ -31000,11 +30998,9 @@ snapshots:
 
   flow-parser@0.212.0: {}
 
-  follow-redirects@1.15.1(debug@4.3.4):
+  follow-redirects@1.15.6(debug@4.3.4):
     optionalDependencies:
       debug: 4.3.4(supports-color@8.1.1)
-
-  follow-redirects@1.15.6: {}
 
   for-each@0.3.3:
     dependencies:
@@ -31935,7 +31931,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.15.1(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -34469,7 +34465,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  next@14.2.3(@babel/core@7.23.9)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.63.6):
+  next@14.2.3(@babel/core@7.23.9)(@playwright/test@1.46.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.63.6):
     dependencies:
       '@next/env': 14.2.3
       '@swc/helpers': 0.5.5
@@ -34490,6 +34486,7 @@ snapshots:
       '@next/swc-win32-arm64-msvc': 14.2.3
       '@next/swc-win32-ia32-msvc': 14.2.3
       '@next/swc-win32-x64-msvc': 14.2.3
+      '@playwright/test': 1.46.1
       sass: 1.63.6
     transitivePeerDependencies:
       - '@babel/core'
@@ -35061,7 +35058,13 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  playwright-core@1.36.1: {}
+  playwright-core@1.46.1: {}
+
+  playwright@1.46.1:
+    dependencies:
+      playwright-core: 1.46.1
+    optionalDependencies:
+      fsevents: 2.3.2
 
   pluralize@8.0.0: {}
 
@@ -37477,7 +37480,7 @@ snapshots:
 
   tailwind-merge@1.14.0: {}
 
-  tailwindcss-animate@1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))):
+  tailwindcss-animate@1.0.6(tailwindcss@3.3.3(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3))):
     dependencies:
       tailwindcss: 3.3.3(ts-node@10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3))
 
@@ -37535,7 +37538,7 @@ snapshots:
     transitivePeerDependencies:
       - ts-node
 
-  tailwindcss@3.4.4(ts-node@10.9.1(typescript@5.4.5)):
+  tailwindcss@3.4.4(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.4.5)):
     dependencies:
       '@alloc/quick-lru': 5.2.0
       arg: 5.0.2
@@ -38553,7 +38556,7 @@ snapshots:
       sass: 1.63.6
       terser: 5.31.0
 
-  vitest@0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(sass@1.63.6)(terser@5.31.0):
+  vitest@0.33.0(@vitest/ui@0.33.0)(happy-dom@10.5.1)(jsdom@23.0.0)(playwright@1.46.1)(sass@1.63.6)(terser@5.31.0):
     dependencies:
       '@types/chai': 4.3.5
       '@types/chai-subset': 1.3.3
@@ -38583,6 +38586,7 @@ snapshots:
       '@vitest/ui': 0.33.0(vitest@0.33.0)
       happy-dom: 10.5.1
       jsdom: 23.0.0
+      playwright: 1.46.1
     transitivePeerDependencies:
       - less
       - lightningcss

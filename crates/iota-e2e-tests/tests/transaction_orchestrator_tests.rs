@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use iota_core::{
     authority::EffectsNotifyRead, authority_client::NetworkAuthorityClient,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
 use iota_storage::{
@@ -38,7 +38,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     // Start orchestrator inside container so that it will be properly shutdown.
     let orchestrator = handle
         .with(|node| {
-            TransactiondOrchestrator::new_with_network_clients(
+            TransactionOrchestrator::new_with_network_clients(
                 node.state(),
                 node.subscribe_to_epoch_change(),
                 temp_dir.path(),
@@ -121,7 +121,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
     // Start orchestrator inside container so that it will be properly shutdown.
     let orchestrator = handle
         .with(|node| {
-            TransactiondOrchestrator::new_with_network_clients(
+            TransactionOrchestrator::new_with_network_clients(
                 node.state(),
                 node.subscribe_to_epoch_change(),
                 temp_dir.path(),
@@ -309,7 +309,7 @@ async fn test_tx_across_epoch_boundaries() {
 }
 
 async fn execute_with_orchestrator(
-    orchestrator: &TransactiondOrchestrator<NetworkAuthorityClient>,
+    orchestrator: &TransactionOrchestrator<NetworkAuthorityClient>,
     txn: Transaction,
     request_type: ExecuteTransactionRequestType,
 ) -> Result<ExecuteTransactionResponse, QuorumDriverError> {

@@ -56,7 +56,7 @@ fn build_anemo_services(out_dir: &Path) {
     let mut automock_attribute = anemo_build::Attributes::default();
     automock_attribute.push_trait(".", r#"#[mockall::automock]"#);
 
-    let codec_path = "mysten_network::codec::anemo::BcsSnappyCodec";
+    let codec_path = "iota_network_stack::codec::anemo::BcsSnappyCodec";
 
     let service = anemo_build::manual::Service::builder()
         .name("ConsensusRpc")

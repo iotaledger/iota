@@ -1,7 +1,7 @@
 [package]
 name = "move-bytecode-viewer"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,7 +10,7 @@ description = "Explore Move bytecode and how the source code compiles to it"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-crossterm.workspace = true
+crossterm = "0.28"
 ratatui.workspace = true
 regex.workspace = true
 

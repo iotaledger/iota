@@ -1,6 +1,6 @@
 # Docs site
 
-For more complete docs, visit the [Iota TypeScript SDK docs](https://sdk.mystenlabs.com/)
+For more complete docs, visit the [Iota TypeScript SDK docs]()
 
 # Iota TypeScript SDK
 
@@ -196,7 +196,7 @@ console.log({ result });
 
 ### Transfer Iota
 
-To transfer `1000` MICROS to another address:
+To transfer `1000` nano to another address:
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';

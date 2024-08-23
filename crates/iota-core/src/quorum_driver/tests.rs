@@ -4,6 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
+use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
     crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair},
@@ -12,7 +13,6 @@ use iota_types::{
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse, QuorumDriverResult},
     transaction::Transaction,
 };
-use mysten_common::sync::notify_read::{NotifyRead, Registration};
 use tokio::time::timeout;
 
 use crate::{

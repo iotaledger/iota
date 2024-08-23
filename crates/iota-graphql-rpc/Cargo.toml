@@ -1,7 +1,7 @@
 [package]
 name = "iota-graphql-rpc"
 version = "2024.2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,8 +9,8 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
-async-graphql-axum.workspace = true
-async-graphql-value.workspace = true
+async-graphql-axum = "7.0"
+async-graphql-value = "7.0"
 async-trait.workspace = true
 axum.workspace = true
 axum-extra = { workspace = true, features = ["typed-header"] }
@@ -29,16 +29,16 @@ http-body-util.workspace = true
 hyper.workspace = true
 hyper-util = { workspace = true, features = ["http2", "server", "tokio"] }
 im.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
 lru.workspace = true
-markdown-gen.workspace = true
+markdown-gen = "1.2"
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 rand.workspace = true # todo: cleanup test only deps
@@ -48,7 +48,6 @@ serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
-serial_test.workspace = true
 shared-crypto.workspace = true
 similar.workspace = true
 tap.workspace = true
@@ -76,7 +75,6 @@ iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-swarm-config.workspace = true
 move-bytecode-utils.workspace = true
-simulacrum.workspace = true # todo: cleanup test only deps
 test-cluster.workspace = true
 
 [dev-dependencies]
@@ -85,9 +83,14 @@ hyper.workspace = true
 insta.workspace = true
 iota-framework.workspace = true
 serde_json.workspace = true
+serial_test = "2.0"
+simulacrum.workspace = true
 tower.workspace = true
 
 [features]
 default = ["pg_backend"]
 pg_integration = []
 pg_backend = []
+
+[package.metadata.cargo-udeps.ignore]
+development = ["serial_test", "simulacrum"]

@@ -57,7 +57,7 @@ export function OnTheNetwork(): JSX.Element {
                     orientation="horizontal"
                     label="Reference Gas Price"
                     tooltip="The reference gas price of the current epoch"
-                    postfix={gasPriceFormatted !== null ? 'MICROS' : null}
+                    postfix={gasPriceFormatted !== null ? 'nano' : null}
                     size="sm"
                 >
                     {gasPriceFormatted}

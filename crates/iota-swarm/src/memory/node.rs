@@ -100,7 +100,7 @@ impl Node {
         }
 
         if is_validator {
-            let channel = mysten_network::client::connect(self.config.network_address())
+            let channel = iota_network_stack::client::connect(self.config.network_address())
                 .await
                 .map_err(|err| anyhow!(err.to_string()))
                 .map_err(HealthCheckError::Failure)

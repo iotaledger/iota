@@ -69,7 +69,7 @@ use iota_core::{
     signature_verifier::SignatureVerifierMetrics,
     state_accumulator::StateAccumulator,
     storage::RocksDbStore,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc::{
     coin_api::CoinReadApi, governance_api::GovernanceReadApi, indexer_api::IndexerApi,
@@ -78,9 +78,11 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
+use iota_metrics::{spawn_monitored_task, RegistryService};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
+use iota_network_stack::server::ServerBuilder;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -103,8 +105,6 @@ use iota_types::{
     messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
 };
-use mysten_metrics::{spawn_monitored_task, RegistryService};
-use mysten_network::server::ServerBuilder;
 use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };
@@ -208,7 +208,7 @@ pub struct IotaNode {
     /// experimental rest service
     _http_server: Option<tokio::task::JoinHandle<()>>,
     state: Arc<AuthorityState>,
-    transaction_orchestrator: Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
     metrics: Arc<IotaNodeMetrics>,
 
@@ -256,6 +256,10 @@ impl IotaNode {
         Self::start_async(config, registry_service, custom_rpc_runtime, "unknown").await
     }
 
+    /// Starts the JWK (JSON Web Key) updater tasks for the specified node
+    /// configuration.
+    /// This function ensures continuous fetching, validation, and submission of
+    /// JWKs, maintaining up-to-date keys for the specified providers.
     fn start_jwk_updater(
         config: &NodeConfig,
         metrics: Arc<IotaNodeMetrics>,
@@ -418,7 +422,7 @@ impl IotaNode {
 
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
-        mysten_metrics::init_metrics(&prometheus_registry);
+        iota_metrics::init_metrics(&prometheus_registry);
 
         let genesis = config.genesis()?;
 
@@ -655,14 +659,12 @@ impl IotaNode {
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
         let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
-            Some(Arc::new(
-                TransactiondOrchestrator::new_with_network_clients(
-                    state.clone(),
-                    end_of_epoch_receiver,
-                    &config.db_path(),
-                    &prometheus_registry,
-                )?,
-            ))
+            Some(Arc::new(TransactionOrchestrator::new_with_network_clients(
+                state.clone(),
+                end_of_epoch_receiver,
+                &config.db_path(),
+                &prometheus_registry,
+            )?))
         } else {
             None
         };
@@ -1061,6 +1063,8 @@ impl IotaNode {
         ))
     }
 
+    /// Asynchronously constructs and initializes the components necessary for
+    /// the validator node.
     async fn construct_validator_components(
         config: NodeConfig,
         state: Arc<AuthorityState>,
@@ -1204,6 +1208,8 @@ impl IotaNode {
         .await
     }
 
+    /// Initializes and starts components specific to the current
+    /// epoch for the validator node.
     async fn start_epoch_specific_validator_components(
         config: &NodeConfig,
         state: Arc<AuthorityState>,
@@ -1312,6 +1318,12 @@ impl IotaNode {
         })
     }
 
+    /// Starts the checkpoint service for the validator node, initializing
+    /// necessary components and settings.
+    /// The function ensures proper initialization of the checkpoint service,
+    /// preparing it to handle checkpoint creation and submission to consensus,
+    /// while also setting up the necessary monitoring and synchronization
+    /// mechanisms.
     fn start_checkpoint_service(
         config: &NodeConfig,
         consensus_adapter: Arc<ConsensusAdapter>,
@@ -1399,7 +1411,7 @@ impl IotaNode {
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
         );
 
-        let mut server_conf = mysten_network::config::Config::new();
+        let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
         server_conf.load_shed = config.grpc_load_shed;
         let mut server_builder =
@@ -1450,7 +1462,7 @@ impl IotaNode {
 
     pub fn transaction_orchestrator(
         &self,
-    ) -> Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>> {
+    ) -> Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>> {
         self.transaction_orchestrator.clone()
     }
 
@@ -1471,8 +1483,9 @@ impl IotaNode {
     }
 
     /// This function awaits the completion of checkpoint execution of the
-    /// current epoch, after which it iniitiates reconfiguration of the
-    /// entire system.
+    /// current epoch, after which it initiates reconfiguration of the
+    /// entire system. This function also handles role changes for the node when
+    /// epoch changes.
     pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
         let mut checkpoint_executor = CheckpointExecutor::new(
             self.state_sync_handle.subscribe_to_synced_checkpoints(),
@@ -1706,6 +1719,8 @@ impl IotaNode {
         }
     }
 
+    /// Asynchronously reconfigures the state of the authority node for the next
+    /// epoch.
     async fn reconfigure_state(
         &self,
         state: &Arc<AuthorityState>,
@@ -1886,10 +1901,26 @@ fn build_kv_store(
     )))
 }
 
+/// Builds and starts the HTTP server for the Iota node, exposing JSON-RPC and
+/// REST APIs based on the node's configuration.
+///
+/// This function performs the following tasks:
+/// 1. Checks if the node is a validator by inspecting the consensus
+///    configuration; if so, it returns early as validators do not expose these
+///    APIs.
+/// 2. Creates an Axum router to handle HTTP requests.
+/// 3. Initializes the JSON-RPC server and registers various RPC modules based
+///    on the node's state and configuration, including CoinApi,
+///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
+///    IndexerApi.
+/// 4. Optionally, if the REST API is enabled, nests the REST API router under
+///    the `/rest` path.
+/// 5. Binds the server to the specified JSON-RPC address and starts listening
+///    for incoming connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     store: RocksDbStore,
-    transaction_orchestrator: &Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
     _custom_runtime: Option<Handle>,

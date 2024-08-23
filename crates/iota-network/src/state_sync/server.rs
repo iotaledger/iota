@@ -47,6 +47,9 @@ impl<S> StateSync for Server<S>
 where
     S: WriteStore + Send + Sync + 'static,
 {
+    /// Pushes a checkpoint summary to the server.
+    /// If the checkpoint is higher than the highest verified checkpoint, it
+    /// will notify the event loop to potentially sync it.
     async fn push_checkpoint_summary(
         &self,
         request: Request<Checkpoint>,
@@ -83,6 +86,8 @@ where
         Ok(Response::new(()))
     }
 
+    /// Gets a checkpoint summary by digest or sequence number, or get the
+    /// latest one.
     async fn get_checkpoint_summary(
         &self,
         request: Request<GetCheckpointSummaryRequest>,
@@ -104,6 +109,8 @@ where
         Ok(Response::new(checkpoint))
     }
 
+    /// Gets the highest synced checkpoint and the lowest available checkpoint
+    /// of the node.
     async fn get_checkpoint_availability(
         &self,
         _request: Request<()>,
@@ -124,6 +131,7 @@ where
         }))
     }
 
+    /// Gets the contents of a checkpoint.
     async fn get_checkpoint_contents(
         &self,
         request: Request<CheckpointContentsDigest>,

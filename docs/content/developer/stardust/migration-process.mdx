@@ -28,7 +28,7 @@ migration. They will only be created in the genesis ledger state via the migrati
 
 ## Foundry Outputs & Native Tokens
 
-Foundry Outputs in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
+[Foundry Outputs](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#foundry-output) in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
 are established ways for these operations, in particular using
 [`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin) and
 [`TreasuryCap`](../../references/framework/iota-framework/coin.mdx#resource-treasurycap). The two main goals of the
@@ -54,7 +54,7 @@ The result of the foundry migration is the following:
 - A package representing the native token, in particular containing a one-time witness representing the unique type of
 the native token (to be used as `Coin<package_id::token_name::NativeTokenOneTimeWitness>`; abbreviated in the rest of
 this document).
-- A `CoinManager` and `CoinManagerTreasuryCap` object, the latter of which is owned by the address of the alias that
+- A `CoinManager` and [`CoinManagerTreasuryCap`](../../references/framework/iota-framework/coin_manager.mdx#resource-coinmanagertreasurycap) object, the latter of which is owned by the address of the alias that
 owned the original foundry.
 - A minted coin (`Coin<NativeTokenOneTimeWitness>`) containing the entire circulating supply of the native tokens owned
 by the `0x0` address.
