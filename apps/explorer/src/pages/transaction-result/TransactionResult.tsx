@@ -52,23 +52,26 @@ export default function TransactionResult(): JSX.Element {
     const txnErrorText = txnExecutionError || (getTxnError as Error)?.message;
 
     return (
-        <PageLayout loading={isPending}>
-            <>
-                <TransactionResultPageHeader
-                    transaction={data}
-                    error={txnErrorText}
-                    loading={isPending}
-                />
-                {getTxnErrorBool || !data ? (
-                    <Banner variant="error" spacing="lg" fullWidth>
-                        {!id
-                            ? "Can't search for a transaction without a digest"
-                            : `Data could not be extracted for the following specified transaction ID: ${id}`}
-                    </Banner>
-                ) : (
-                    <TransactionView transaction={data} />
-                )}
-            </>
-        </PageLayout>
+        <PageLayout
+            loading={isPending}
+            content={
+                <>
+                    <TransactionResultPageHeader
+                        transaction={data}
+                        error={txnErrorText}
+                        loading={isPending}
+                    />
+                    {getTxnErrorBool || !data ? (
+                        <Banner variant="error" spacing="lg" fullWidth>
+                            {!id
+                                ? "Can't search for a transaction without a digest"
+                                : `Data could not be extracted for the following specified transaction ID: ${id}`}
+                        </Banner>
+                    ) : (
+                        <TransactionView transaction={data} />
+                    )}
+                </>
+            }
+        />
     );
 }

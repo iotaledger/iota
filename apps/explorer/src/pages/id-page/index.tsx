@@ -69,12 +69,15 @@ function PageLayoutContainer({ address }: PageLayoutContainerProps): JSX.Element
     } = useResolveIotaNSAddress(address, isIotaNSAddress);
 
     return (
-        <PageLayout loading={isLoading}>
-            <>
-                <Header address={address} />
-                <PageContent address={data || address} error={iotansAddressError} />
-            </>
-        </PageLayout>
+        <PageLayout
+            loading={isLoading}
+            content={
+                <>
+                    <Header address={address} />
+                    <PageContent address={data || address} error={iotansAddressError} />
+                </>
+            }
+        />
     );
 }
 

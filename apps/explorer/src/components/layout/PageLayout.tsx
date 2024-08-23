@@ -15,11 +15,11 @@ import { useNetworkContext } from '~/contexts';
 import { Banner } from '~/components/ui';
 
 type PageLayoutProps = {
-    children: ReactNode;
+    content: ReactNode;
     loading?: boolean;
 };
 
-export function PageLayout({ children, loading }: PageLayoutProps): JSX.Element {
+export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn('network-outage-override');
@@ -62,7 +62,7 @@ export function PageLayout({ children, loading }: PageLayoutProps): JSX.Element 
             <main className="relative z-10 bg-neutral-98">
                 {!loading && (
                     <section className="mx-auto max-w-[1440px] p-5 pb-20 sm:py-8 md:p-10 md:pb-20">
-                        {children}
+                        {content}
                     </section>
                 )}
             </main>
