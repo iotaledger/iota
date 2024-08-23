@@ -14,7 +14,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Heading, Text } from '@iota/ui';
-import { lazy, Suspense, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { DelegationAmount, ErrorBoundary, PageLayout, StakeColumn } from '~/components';
 import {
@@ -30,8 +30,6 @@ import {
 } from '~/components/ui';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { ampli, getValidatorMoveEvent } from '~/lib/utils';
-
-const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 
 export function validatorsTableData(
     validators: IotaValidatorSummary[],
@@ -362,12 +360,6 @@ function ValidatorPageResult(): JSX.Element {
                                     </div>
                                 </div>
                             </Card>
-
-                            <ErrorBoundary>
-                                <Suspense fallback={null}>
-                                    <ValidatorMap minHeight={230} />
-                                </Suspense>
-                            </ErrorBoundary>
                         </div>
                         <div className="mt-8">
                             <ErrorBoundary>
