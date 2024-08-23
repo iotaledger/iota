@@ -6,11 +6,10 @@ import { formatAmount, formatBalance, formatDate } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
-import clsx from 'clsx';
 
 import { AreaGraph } from './AreaGraph';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
-import { LabelText, LabelTextSize, Panel, Title } from '@iota/apps-ui-kit';
+import { LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 
 interface TooltipContentProps {
     data: {
@@ -78,69 +77,69 @@ export function TransactionsCardGraph() {
 
     return (
         <Panel>
-            <div className="flex h-full flex-col gap-4 overflow-hidden py-sm">
-                <Title title="Transaction Blocks" />
-                <div className="flex flex-row gap-2 p-md--rs">
-                    <div className="flex-1">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Total"
-                            text={totalTransactions ? formatBalance(totalTransactions, 0) : '--'}
-                            showSupportingLabel={false}
-                        />
+            <div className="py-md">
+                <Title title="Transaction Blocks" size={TitleSize.Medium} />
+                <div className="flex flex-col gap-lg py-sm">
+                    <div className="flex gap-sm px-md--rs">
+                        <div className="flex-1">
+                            <LabelText
+                                size={LabelTextSize.Large}
+                                label="Total"
+                                text={
+                                    totalTransactions ? formatBalance(totalTransactions, 0) : '--'
+                                }
+                                showSupportingLabel={false}
+                            />
+                        </div>
+
+                        <div className="flex-1">
+                            <LabelText
+                                size={LabelTextSize.Large}
+                                label="Last epoch"
+                                text={
+                                    lastEpochTotalTransactions
+                                        ? lastEpochTotalTransactions.toString()
+                                        : '--'
+                                }
+                                showSupportingLabel={false}
+                            />
+                        </div>
                     </div>
-                    <div className="flex-1">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Last epoch"
-                            text={
-                                lastEpochTotalTransactions
-                                    ? lastEpochTotalTransactions.toString()
-                                    : '--'
-                            }
-                            showSupportingLabel={false}
-                        />
-                    </div>
-                </div>
-                <div
-                    className={clsx(
-                        'flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl transition-colors',
-                        !epochMetrics?.length && 'bg-gray-40',
-                    )}
-                >
-                    {isPending ? (
-                        <div className="flex flex-col items-center gap-1">
-                            <LoadingIndicator />
+                    <div className="flex min-h-[340px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
+                        {isPending ? (
+                            <div className="flex flex-col items-center gap-1">
+                                <LoadingIndicator />
+                                <Text color="steel" variant="body/medium">
+                                    loading data
+                                </Text>
+                            </div>
+                        ) : epochMetrics?.length ? (
+                            <div className="relative flex-1 self-stretch">
+                                <ErrorBoundary>
+                                    <ParentSize className="absolute">
+                                        {({ height, width }) => (
+                                            <AreaGraph
+                                                data={epochMetrics}
+                                                height={height}
+                                                width={width}
+                                                getX={({ epoch }) => Number(epoch)}
+                                                getY={({ epochTotalTransactions }) =>
+                                                    Number(epochTotalTransactions)
+                                                }
+                                                color="yellow"
+                                                formatY={formatAmount}
+                                                tooltipContent={TooltipContent}
+                                            />
+                                        )}
+                                    </ParentSize>
+                                </ErrorBoundary>
+                            </div>
+                        ) : (
                             <Text color="steel" variant="body/medium">
-                                loading data
+                                No historical data available
                             </Text>
-                        </div>
-                    ) : epochMetrics?.length ? (
-                        <div className="relative flex-1 self-stretch">
-                            <ErrorBoundary>
-                                <ParentSize className="absolute">
-                                    {({ height, width }) => (
-                                        <AreaGraph
-                                            data={epochMetrics}
-                                            height={height}
-                                            width={width}
-                                            getX={({ epoch }) => Number(epoch)}
-                                            getY={({ epochTotalTransactions }) =>
-                                                Number(epochTotalTransactions)
-                                            }
-                                            color="yellow"
-                                            formatY={formatAmount}
-                                            tooltipContent={TooltipContent}
-                                        />
-                                    )}
-                                </ParentSize>
-                            </ErrorBoundary>
-                        </div>
-                    ) : (
-                        <Text color="steel" variant="body/medium">
-                            No historical data available
-                        </Text>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         </Panel>
