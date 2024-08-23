@@ -14,7 +14,7 @@ export function HighlightedTableCol({ children, first }: HighlightedTableColProp
     return (
         <div
             className={clsx(
-                'mr-3 flex h-full items-center rounded hover:bg-iota-light',
+                'mr-3 flex h-full items-center rounded hover:bg-primary-60 hover:bg-opacity-8',
                 !first && '-ml-3',
             )}
         >

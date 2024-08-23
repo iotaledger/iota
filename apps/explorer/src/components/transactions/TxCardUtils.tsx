@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTotalGasUsed } from '@iota/core';
-import { X12, Dot12 } from '@iota/icons';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { IotaAmount } from '../table/IotaAmount';
@@ -33,7 +32,6 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
 } {
     return {
         data: results.map((transaction) => {
-            const status = transaction.effects?.status.status;
             const sender = transaction.transaction?.data.sender;
 
             return {
@@ -44,16 +42,7 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
                 ),
                 digest: (
                     <HighlightedTableCol first>
-                        <TransactionLink
-                            digest={transaction.digest}
-                            before={
-                                status === 'success' ? (
-                                    <Dot12 className="text-success" />
-                                ) : (
-                                    <X12 className="text-issue-dark" />
-                                )
-                            }
-                        />
+                        <TransactionLink digest={transaction.digest} />
                     </HighlightedTableCol>
                 ),
                 txns: (

@@ -86,7 +86,7 @@ export function TableCard<DataType extends object>({
                                         key={id}
                                         colSpan={colSpan}
                                         scope="col"
-                                        className="h-7.5 text-left text-subtitle font-semibold uppercase text-steel-dark"
+                                        className="h-12 text-left text-subtitle text-neutral-10"
                                         onClick={
                                             column.columnDef.enableSorting
                                                 ? column.getToggleSortingHandler()
@@ -122,7 +122,7 @@ export function TableCard<DataType extends object>({
                             {row.getVisibleCells().map(({ column, id, getContext }) => (
                                 <td
                                     key={id}
-                                    className="h-7.5 text-body text-gray-75 group-hover:bg-gray-40 group-hover:text-gray-90 group-hover:first:rounded-l group-hover:last:rounded-r"
+                                    className="border-shader-inverted-dark h-12 border-t text-body text-neutral-40 group-hover:text-gray-90 group-hover:first:rounded-l group-hover:last:rounded-r"
                                 >
                                     {flexRender(column.columnDef.cell, getContext())}
                                 </td>

@@ -67,13 +67,13 @@ export function Activity({
                 <div className="relative">
                     <TabsList>
                         <TabsTrigger value="transactions">
-                            <Heading variant="heading4/semibold">Transaction Blocks</Heading>
+                            <Heading variant="heading4/medium">Transaction Blocks</Heading>
                         </TabsTrigger>
                         <TabsTrigger value="epochs">
-                            <Heading variant="heading4/semibold">Epochs</Heading>
+                            <Heading variant="heading4/medium">Epochs</Heading>
                         </TabsTrigger>
                         <TabsTrigger value="checkpoints">
-                            <Heading variant="heading4/semibold">Checkpoints</Heading>
+                            <Heading variant="heading4/medium">Checkpoints</Heading>
                         </TabsTrigger>
                     </TabsList>
                     <div className="absolute inset-y-0 -top-1 right-0 flex items-center gap-3 text-2xl">
