@@ -78,7 +78,7 @@ export function TransactionsCardGraph() {
 
     return (
         <Panel>
-            <div className="py-sm">
+            <div className="flex h-full flex-col gap-4 overflow-hidden py-sm">
                 <Title title="Transaction Blocks" />
                 <div className="flex flex-row gap-2 p-md--rs">
                     <div className="flex-1">
