@@ -1,0 +1,59 @@
+[package]
+name = "docs-examples"
+version.workspace = true
+authors = ["IOTA Stiftung"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+
+iota-keys.workspace = true
+iota-move-build.workspace = true
+iota-sdk.workspace = true
+shared-crypto.workspace = true
+
+[dev-dependencies]
+bcs.workspace = true
+bip32.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+move-core-types.workspace = true
+
+[[example]]
+name = "address-unlock-condition"
+path = "stardust/address-unlock-condition.rs"
+
+[[example]]
+name = "nft-output-claim"
+path = "stardust/nft-output-claim.rs"
+
+[[example]]
+name = "alias-output-claim"
+path = "stardust/alias-output-claim.rs"
+
+[[example]]
+name = "basic-output-claim"
+path = "stardust/basic-output-claim.rs"
+
+[[example]]
+name = "check-basic-output-unlock-conditions"
+path = "stardust/check-basic-output-unlock-conditions.rs"
+
+[[example]]
+name = "alias-migration"
+path = "stardust/alias-migration.rs"
+
+[[example]]
+name = "nft-migration"
+path = "stardust/nft-migration.rs"
+
+[[example]]
+name = "foundry-output-claim"
+path = "stardust/foundry-output-claim.rs"
+
+[[example]]
+name = "shimmer-self-sponsor"
+path = "stardust/shimmer-self-sponsor.rs"

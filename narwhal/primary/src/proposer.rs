@@ -11,7 +11,7 @@ use std::{
 
 use config::{AuthorityIdentifier, Committee, WorkerId};
 use fastcrypto::hash::Hash as _;
-use mysten_metrics::{
+use iota_metrics::{
     metered_channel::{Receiver, Sender},
     spawn_logged_monitored_task,
 };

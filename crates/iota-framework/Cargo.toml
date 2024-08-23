@@ -1,7 +1,7 @@
 [package]
 name = "iota-framework"
 version = "0.1.0"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -21,7 +21,9 @@ move-core-types.workspace = true
 [build-dependencies]
 anyhow.workspace = true
 bcs.workspace = true
+capitalize = "0.3.4"
 regex.workspace = true
+serde_json.workspace = true
 
 iota-move-build.workspace = true
 

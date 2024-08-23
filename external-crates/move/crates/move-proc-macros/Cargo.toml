@@ -1,7 +1,7 @@
 [package]
 name = "move-proc-macros"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -10,6 +10,5 @@ publish = false
 proc-macro = true
 
 [dependencies]
-enum-compat-util.workspace = true
-quote.workspace = true
+quote = "1.0"
 syn = { version = "2", features = ["full", "fold", "extra-traits"] }

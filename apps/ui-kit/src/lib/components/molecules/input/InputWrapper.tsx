@@ -54,8 +54,8 @@ export function InputWrapper({
 }: React.PropsWithChildren<InputWrapperProps>) {
     return (
         <div
-            className={cx('group flex flex-col gap-y-2', {
-                'opacity-40': disabled,
+            className={cx('group flex w-full flex-col gap-y-2', {
+                'cursor-not-allowed opacity-40': disabled,
                 errored: errorMessage,
                 enabled: !disabled,
                 required: required,

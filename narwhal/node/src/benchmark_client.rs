@@ -9,7 +9,7 @@ use bytes::Bytes;
 use clap::*;
 use eyre::Context;
 use futures::future::join_all;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use narwhal_node::metrics::NarwhalBenchMetrics;
 use prometheus::Registry;
 use rand::{
@@ -106,13 +106,13 @@ async fn main() -> Result<(), eyre::Report> {
 
     set_global_default(subscriber).expect("Failed to set subscriber");
 
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!("{}:{}", app.client_metric_host, app.client_metric_port)
             .parse()
             .unwrap(),
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let metrics = NarwhalBenchMetrics::new(&registry);
 
     let target = app.addr;

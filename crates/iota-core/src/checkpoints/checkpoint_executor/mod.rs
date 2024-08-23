@@ -31,6 +31,7 @@ use std::{
 use futures::stream::FuturesOrdered;
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::{fail_point, fail_point_async};
+use iota_metrics::{spawn_monitored_task, MonitoredFutureExt};
 use iota_types::{
     base_types::{ExecutionDigests, TransactionDigest, TransactionEffectsDigest},
     crypto::RandomnessRound,
@@ -42,7 +43,6 @@ use iota_types::{
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
 use itertools::izip;
-use mysten_metrics::{spawn_monitored_task, MonitoredFutureExt};
 use prometheus::Registry;
 use tap::{TapFallible, TapOptional};
 use tokio::{

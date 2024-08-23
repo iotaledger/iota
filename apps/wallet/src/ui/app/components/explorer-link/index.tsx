@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import ExternalLink from '_components/external-link';
+import { ExternalLink } from '_components';
 import { ArrowUpRight16 } from '@iota/icons';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import type { ReactNode } from 'react';
@@ -20,7 +20,7 @@ export type ExplorerLinkProps = ExplorerLinkConfig & {
     showIcon?: boolean;
 };
 
-function ExplorerLink({
+export function ExplorerLink({
     track,
     children,
     className,
@@ -55,5 +55,7 @@ export function AddressLink({ address }: { address: string }) {
         </ExplorerLink>
     );
 }
+
+export * from './ExplorerLinkType';
 
 export default ExplorerLink;

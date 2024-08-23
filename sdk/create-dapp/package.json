@@ -1,9 +1,9 @@
 {
     "name": "@iota/create-dapp",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "private": true,
+    "author": "IOTA Foundation <contact@iota.org>",
     "description": "A CLI for creating new Iota dApps",
-    "homepage": "https://sdk.mystenlabs.com",
-    "version": "0.2.9",
+    "version": "0.0.0",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",
@@ -30,9 +30,6 @@
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
-    },
-    "publishConfig": {
-        "access": "public"
     },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",

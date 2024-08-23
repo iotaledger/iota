@@ -9,7 +9,7 @@ import {
     LedgerConnectionFailedError,
     LedgerDeviceNotFoundError,
     LedgerNoTransportMechanismError,
-} from '../components/ledger/ledgerErrors';
+} from '_components';
 
 /**
  * Helper method for producing user-friendly error messages from Signer operations
@@ -42,7 +42,7 @@ export function getLedgerConnectionErrorMessage(error: unknown) {
 
 /**
  * Helper method for producing user-friendly error messages from errors that arise from
- * operations on the Iota Ledger application
+ * operations on the IOTA Ledger application
  */
 export function getIotaApplicationErrorMessage(error: unknown) {
     if (error instanceof LockedDeviceError) {
@@ -51,7 +51,7 @@ export function getIotaApplicationErrorMessage(error: unknown) {
         if (error.statusCode === StatusCodes.INS_NOT_SUPPORTED) {
             return "Something went wrong. We're working on it!";
         } else {
-            return 'Make sure the Iota app is open on your device.';
+            return 'Make sure the IOTA app is open on your device.';
         }
     }
     return null;

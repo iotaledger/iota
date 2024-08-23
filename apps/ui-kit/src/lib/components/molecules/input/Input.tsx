@@ -89,6 +89,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     isVisibilityToggleEnabled ??= inputProps.type === InputType.Password;
     const inputRef = useRef<HTMLInputElement | null>(null);
 
+    const [hasBlurred, setHasBlurred] = useState<boolean>(false);
+
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
         isContentVisible ?? inputProps.type !== InputType.Password,
     );
@@ -107,6 +109,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         }
     }
 
+    function handleBlur() {
+        setHasBlurred(true);
+    }
+
     function assignRefs(element: HTMLInputElement) {
         if (ref) {
             if (typeof ref === 'function') {
@@ -123,7 +129,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             label={label}
             caption={caption}
             disabled={disabled}
-            errorMessage={errorMessage}
+            errorMessage={hasBlurred && errorMessage ? errorMessage : ''}
             amountCounter={amountCounter}
             required={inputProps.required}
         >
@@ -155,6 +161,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
                         INPUT_PLACEHOLDER_CLASSES,
                         INPUT_NUMBER_CLASSES,
                     )}
+                    onBlur={handleBlur}
                 />
 
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
@@ -183,25 +190,24 @@ function InputTrailingElement({
     const showPasswordToggle = Boolean(type === InputType.Password && onToggleButtonClick);
     const showTrailingElement = Boolean(trailingElement && !showClearInput && !showPasswordToggle);
 
-    const ICON_WIDTH_HEIGHT = 20;
-
     if (showClearInput) {
         return (
-            <ButtonUnstyled className="text-neutral-10 dark:text-neutral-92" onClick={onClearInput}>
-                <Close width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
+            <ButtonUnstyled
+                className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                onClick={onClearInput}
+                tabIndex={-1}
+            >
+                <Close />
             </ButtonUnstyled>
         );
     } else if (showPasswordToggle) {
         return (
             <ButtonUnstyled
                 onClick={onToggleButtonClick}
-                className="text-neutral-10 dark:text-neutral-92"
+                className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                tabIndex={-1}
             >
-                {isContentVisible ? (
-                    <VisibilityOn width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
-                ) : (
-                    <VisibilityOff width={ICON_WIDTH_HEIGHT} height={ICON_WIDTH_HEIGHT} />
-                )}
+                {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
             </ButtonUnstyled>
         );
     } else if (showTrailingElement) {

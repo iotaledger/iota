@@ -5,7 +5,7 @@
 use std::{collections::BTreeSet, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use mysten_metrics::{metered_channel, monitored_scope, spawn_logged_monitored_task};
+use iota_metrics::{metered_channel, monitored_scope, spawn_logged_monitored_task};
 use thiserror::Error;
 use tokio::sync::{oneshot, oneshot::error::RecvError};
 use tracing::warn;
@@ -100,6 +100,8 @@ pub(crate) struct ChannelCoreThreadDispatcher {
 }
 
 impl ChannelCoreThreadDispatcher {
+    /// Starts the core thread for the consensus authority and returns a
+    /// dispatcher and handle for managing the core thread.
     pub(crate) fn start(core: Core, context: Arc<Context>) -> (Self, CoreThreadHandle) {
         let (sender, receiver) = metered_channel::channel_with_total(
             CORE_THREAD_COMMANDS_CHANNEL_SIZE,

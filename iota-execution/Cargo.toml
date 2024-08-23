@@ -1,7 +1,7 @@
 [package]
 name = "iota-execution"
 version = "0.1.0"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -32,8 +32,8 @@ move-vm-runtime-v0 = { path = "../external-crates/move/move-execution/v0/crates/
 # move-vm-runtime-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-vm-runtime" }
 
 [dev-dependencies]
-cargo_metadata = "0.15.4"
-petgraph = "0.5.1"
+cargo_metadata = "0.15"
+petgraph = "0.5"
 
 [features]
 default = []

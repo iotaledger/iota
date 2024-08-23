@@ -3,7 +3,7 @@
     "main": "src/index.ts",
     "private": true,
     "sideEffects": false,
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"

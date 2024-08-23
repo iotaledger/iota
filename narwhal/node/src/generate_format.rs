@@ -11,8 +11,8 @@ use fastcrypto::{
     hash::Hash,
     traits::{KeyPair as _, Signer},
 };
+use iota_network_stack::Multiaddr;
 use move_bytecode_utils::layout::YamlRegistry;
-use mysten_network::Multiaddr;
 use rand::{prelude::StdRng, SeedableRng};
 use serde_reflection::{Result, Samples, Tracer, TracerConfig};
 use types::{

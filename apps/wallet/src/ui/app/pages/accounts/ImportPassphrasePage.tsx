@@ -8,12 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
+    ImportRecoveryPhraseForm,
+    PageTemplate,
+} from '_components';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
-import { PageTemplate } from '../../components/PageTemplate';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();

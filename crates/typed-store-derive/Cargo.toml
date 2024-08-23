@@ -1,7 +1,7 @@
 [package]
 name = "typed-store-derive"
 version = "0.3.0"
-authors = ["Ade A. <ade@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -23,3 +23,12 @@ rocksdb.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 typed-store.workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+development = [
+  "eyre",
+  "rocksdb",
+  "tempfile",
+  "tokio",
+  "typed-store",
+]

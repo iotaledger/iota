@@ -22,7 +22,7 @@ runs:
   steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
     - name: Detect Changes
-      uses: dorny/paths-filter@v2.10.2
+      uses: dorny/paths-filter@v3
       id: diff
       with:
         filters: |
@@ -32,13 +32,21 @@ runs:
             - "external-crates/**"
             - "narwhal/**"
             - "iota-execution/**"
+            - "docs/examples/rust/**"
+            - ".github/workflows/hierarchy.yml"
             - ".github/workflows/codecov.yml"
-            - ".github/workflows/rust.yml"
-            - ".github/workflows/external.yml"
+            - ".github/workflows/_rust.yml"
+            - ".github/workflows/_rust_tests.yml"
+            - ".github/workflows/_rust_lints.yml"
+            - ".github/workflows/_external_rust_tests.yml"
+            - ".github/workflows/_external_rust_lints.yml"
+            - ".github/workflows/_mysticeti_tests.yml"
           isDoc:
             - "docs/content/**"
+            - "docs/site/**"
             - "*.mdx"
-            - ".github/workflows/docs.yml"
+            - ".github/workflows/_docs_lint.yml"
+            - ".github/workflows/_docusaurus.yml"
           isOldDoc:
             - "doc/**"
             - "*.md"
@@ -50,6 +58,7 @@ runs:
             - "Cargo.toml"
             - "examples/**"
             - "iota_programmability/**"
+            - ".github/workflows/_move_tests.yml"
           isReleaseNotesEligible:
             - "consensus/**"
             - "crates/**"

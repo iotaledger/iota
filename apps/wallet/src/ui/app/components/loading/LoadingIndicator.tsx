@@ -16,7 +16,7 @@ const styles = cva('', {
 
 export type LoadingIndicatorProps = VariantProps<typeof styles>;
 
-function LoadingIndicator({ color = 'iota' }: LoadingIndicatorProps) {
+export function LoadingIndicator({ color = 'iota' }: LoadingIndicatorProps) {
     return <Spinner16 className={styles({ className: 'animate-spin', color })} />;
 }
 

@@ -5,7 +5,7 @@
 use std::env;
 
 use anyhow::Result;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use tracing::info;
 
@@ -58,9 +58,9 @@ impl Indexer {
             .parse::<usize>()
             .expect("Invalid DOWNLOAD_QUEUE_SIZE");
         let (downloaded_checkpoint_data_sender, downloaded_checkpoint_data_receiver) =
-            mysten_metrics::metered_channel::channel(
+            iota_metrics::metered_channel::channel(
                 download_queue_size,
-                &mysten_metrics::get_metrics()
+                &iota_metrics::get_metrics()
                     .unwrap()
                     .channels
                     .with_label_values(&["checkpoint_tx_downloading"]),
@@ -85,15 +85,11 @@ impl Indexer {
 
         let checkpoint_handler = new_handlers(store, metrics.clone()).await?;
         crate::framework::runner::run(
-            mysten_metrics::metered_channel::ReceiverStream::new(
-                downloaded_checkpoint_data_receiver,
-            ),
+            iota_metrics::metered_channel::ReceiverStream::new(downloaded_checkpoint_data_receiver),
             vec![Box::new(checkpoint_handler)],
             metrics,
         )
-        .await;
-
-        Ok(())
+        .await
     }
 
     pub async fn start_reader(

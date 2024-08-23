@@ -20,6 +20,7 @@ use futures::{
     future::{select, Either},
     pin_mut, FutureExt,
 };
+use iota_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
 use iota_protocol_config::ProtocolConfig;
 use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
 use iota_types::{
@@ -30,7 +31,6 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
 use itertools::Itertools;
-use mysten_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use narwhal_worker::LazyNarwhalClient;
 use parking_lot::RwLockReadGuard;
@@ -74,7 +74,7 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_success: IntCounterVec,
     pub sequencing_certificate_failures: IntCounterVec,
     pub sequencing_certificate_inflight: IntGaugeVec,
-    pub sequencing_acknowledge_latency: mysten_metrics::histogram::HistogramVec,
+    pub sequencing_acknowledge_latency: iota_metrics::histogram::HistogramVec,
     pub sequencing_certificate_latency: HistogramVec,
     pub sequencing_certificate_authority_position: Histogram,
     pub sequencing_certificate_positions_moved: Histogram,
@@ -116,7 +116,7 @@ impl ConsensusAdapterMetrics {
                 registry,
             )
                 .unwrap(),
-            sequencing_acknowledge_latency: mysten_metrics::histogram::HistogramVec::new_in_registry(
+            sequencing_acknowledge_latency: iota_metrics::histogram::HistogramVec::new_in_registry(
                 "sequencing_acknowledge_latency",
                 "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
                 &["retry", "tx_type"],

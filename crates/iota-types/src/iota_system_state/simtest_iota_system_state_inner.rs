@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
