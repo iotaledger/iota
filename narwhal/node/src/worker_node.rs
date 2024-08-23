@@ -9,7 +9,7 @@ use arc_swap::{ArcSwap, ArcSwapOption};
 use config::{Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{NetworkKeyPair, PublicKey};
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::{RegistryID, RegistryService};
 use network::client::NetworkClient;
 use prometheus::Registry;
 use storage::NodeStorage;

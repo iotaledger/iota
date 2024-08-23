@@ -30,6 +30,7 @@ use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_network_keypair_from_file,
     write_authority_keypair_to_file, write_keypair_to_file,
 };
+use iota_metrics::start_prometheus_server;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     crypto::{
@@ -37,7 +38,6 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
 };
-use mysten_metrics::start_prometheus_server;
 use narwhal_node as node;
 use narwhal_node::{
     metrics::NarwhalBenchMetrics, primary_node::PrimaryNode, worker_node::WorkerNode,
@@ -662,7 +662,7 @@ async fn run(
                 .await?;
 
             let registry: Registry = registry_service.default_registry();
-            mysten_metrics::init_metrics(&registry);
+            iota_metrics::init_metrics(&registry);
             let metrics = NarwhalBenchMetrics::new(&registry);
 
             let target = addr;
@@ -698,12 +698,12 @@ async fn run(
     };
 
     if let Some(registry) = worker_registry {
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         registry_service.add(registry);
     }
 
     if let Some(registry) = primary_registry {
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         registry_service.add(registry);
     }
 

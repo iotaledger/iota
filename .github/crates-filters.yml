@@ -2,16 +2,16 @@ consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
-mysten-common:
-  - "crates/mysten-common/**"
-mysten-metrics:
-  - "crates/mysten-metrics/**"
-mysten-network:
-  - "crates/mysten-network/**"
-mysten-util-mem:
-  - "crates/mysten-util-mem/**"
-mysten-util-mem-derive:
-  - "crates/mysten-util-mem-derive/**"
+iota-common:
+  - "crates/iota-common/**"
+iota-metrics:
+  - "crates/iota-metrics/**"
+iota-network-stack:
+  - "crates/iota-network-stack/**"
+iota-util-mem:
+  - "crates/iota-util-mem/**"
+iota-util-mem-derive:
+  - "crates/iota-util-mem-derive/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 shared-crypto:

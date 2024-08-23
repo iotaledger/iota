@@ -21,6 +21,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
     ProtocolConfigResponse,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
@@ -47,7 +48,6 @@ use move_core_types::{
     annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
     language_storage::StructTag,
 };
-use mysten_metrics::spawn_monitored_task;
 use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 

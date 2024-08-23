@@ -1,6 +1,6 @@
 # Docs site
 
-For more complete docs, visit the [Iota TypeScript SDK docs](https://sdk.mystenlabs.com/)
+For more complete docs, visit the [Iota TypeScript SDK docs]()
 
 # Iota TypeScript SDK
 

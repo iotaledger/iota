@@ -9,12 +9,9 @@ Behind the scenes, `create_regulated_currency` uses the `create_currency` functi
 
 ```move title="regcoin.move"
 module examples::regcoin {
-    use std::option;
     use iota::coin;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
-    struct REGCOIN has drop {}
+    public struct REGCOIN has drop {}
 
     fun init(witness: REGCOIN, ctx: &mut TxContext) {
         let (treasury, deny_cap, metadata) = coin::create_regulated_currency(witness, 6, b"REGCOIN", b"", b"", option::none(), ctx);

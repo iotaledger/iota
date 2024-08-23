@@ -19,8 +19,8 @@ use anemo_tower::{
 };
 use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{traits::KeyPair as _, NetworkKeyPair, NetworkPublicKey};
-use mysten_metrics::{metered_channel::channel_with_total, spawn_logged_monitored_task};
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_metrics::{metered_channel::channel_with_total, spawn_logged_monitored_task};
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use network::{
     client::NetworkClient,
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
