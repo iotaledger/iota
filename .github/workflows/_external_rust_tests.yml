@@ -37,7 +37,7 @@ jobs:
         run: pip install pyopenssl --upgrade --break-system-packages
       - name: cargo test
         run: |
-          array=(${{ join(needs.changes.outputs.components, ' ') }})
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
 
           result=""
 

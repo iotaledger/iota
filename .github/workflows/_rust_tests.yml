@@ -35,7 +35,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: cargo test
         run: |
-          array=(${{ join(needs.changes.outputs.components, ' ') }})
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
 
           result=""
 
