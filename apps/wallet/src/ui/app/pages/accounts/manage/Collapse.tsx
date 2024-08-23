@@ -9,8 +9,14 @@ const CollapseContext = createContext({
     toggleOpen: () => {},
 });
 
-export function Collapse({ children }: { children: React.ReactNode }) {
-    const [isOpen, setIsOpen] = useState(false);
+export function Collapse({
+    defaultOpen,
+    children,
+}: {
+    defaultOpen?: boolean;
+    children: React.ReactNode;
+}) {
+    const [isOpen, setIsOpen] = useState(defaultOpen || false);
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
@@ -18,7 +24,7 @@ export function Collapse({ children }: { children: React.ReactNode }) {
 
     return (
         <CollapseContext.Provider value={{ isOpen, toggleOpen }}>
-            <div>{children}</div>
+            <div className="overflow-visible">{children}</div>
         </CollapseContext.Provider>
     );
 }
@@ -57,7 +63,7 @@ export function CollapseBody({ children }: { children: React.ReactNode }) {
 
     return (
         <div
-            className="overflow-hidden px-4 transition-all duration-300 ease-in-out"
+            className="overflow-visible px-4 transition-all duration-300 ease-in-out"
             ref={contentRef}
             style={{ maxHeight: `${height}px` }}
         >

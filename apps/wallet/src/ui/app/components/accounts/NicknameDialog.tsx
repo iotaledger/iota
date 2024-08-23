@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useZodForm } from '@iota/core';
-// import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 import {

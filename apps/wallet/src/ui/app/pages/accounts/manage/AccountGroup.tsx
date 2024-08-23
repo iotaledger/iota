@@ -4,8 +4,6 @@
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import {
-    AccountIcon,
-    AccountItem,
     AccountsFormType,
     useAccountsFormContext,
     NicknameDialog,
@@ -19,15 +17,6 @@ import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '_src/ui/app/shared/Dialog';
 import {
     Button as Button2,
     ButtonType,
@@ -35,15 +24,16 @@ import {
     Account,
     Dropdown,
     ListItem,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    Header,
 } from '@iota/apps-ui-kit';
 import { Add, MoreHoriz } from '@iota/ui-icons';
-import { Text } from '_src/ui/app/shared/text';
-import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
 import { LedgerLogo17, Iota } from '@iota/icons';
-import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { Collapse, CollapseBody, CollapseHeader } from './Collapse';
 import { useMutation } from '@tanstack/react-query';
-import { forwardRef, useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -65,98 +55,63 @@ export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
 
-// todo: we probably have some duplication here with the various FooterLink / ButtonOrLink
-// components - we should look to add these to base components somewhere
-const FooterLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLinkProps>(
-    ({ children, to, ...props }, ref) => {
-        return (
-            <ButtonOrLink
-                ref={ref}
-                className="text-hero-darkest/40 hover:text-hero-darkest/50 cursor-pointer border-none bg-transparent uppercase no-underline outline-none transition"
-                to={to}
-                {...props}
-            >
-                <Text variant="captionSmallExtra" weight="medium">
-                    {children}
-                </Text>
-            </ButtonOrLink>
-        );
-    },
-);
-
-// todo: this is slightly different than the account footer in the AccountsList - look to consolidate :(
-function AccountFooter({ accountID, showExport }: { accountID: string; showExport?: boolean }) {
+function RemoveDialog({
+    isOpen,
+    setOpen,
+    accountID,
+}: {
+    accountID: string;
+    isOpen: boolean;
+    setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
     const allAccounts = useAccounts();
     const totalAccounts = allAccounts?.data?.length || 0;
     const backgroundClient = useBackgroundClient();
-    const [isConfirmationVisible, setIsConfirmationVisible] = useState(false);
     const removeAccountMutation = useMutation({
         mutationKey: ['remove account mutation', accountID],
         mutationFn: async () => {
-            await backgroundClient.removeAccount({ accountID });
-            setIsConfirmationVisible(false);
+            await backgroundClient.removeAccount({ accountID: accountID });
+            setOpen(false);
         },
     });
     return (
-        <>
-            <div className="flex w-full flex-shrink-0">
-                <div className="flex items-center gap-0.5 whitespace-nowrap">
-                    {showExport ? (
-                        <FooterLink to={`/accounts/export/${accountID}`}>
-                            Export Private Key
-                        </FooterLink>
-                    ) : null}
-                    {allAccounts.isPending ? null : (
-                        <FooterLink
-                            onClick={() => setIsConfirmationVisible(true)}
-                            disabled={isConfirmationVisible}
-                        >
-                            Remove
-                        </FooterLink>
-                    )}
-                </div>
-            </div>
-            <Dialog open={isConfirmationVisible}>
-                <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
-                    <DialogHeader>
-                        <DialogTitle>Are you sure you want to remove this account?</DialogTitle>
-                    </DialogHeader>
+        <Dialog open={isOpen} onOpenChange={setOpen}>
+            <DialogContent containerId="overlay-portal-container">
+                <Header
+                    title="Are you sure you want to remove this account?"
+                    onClose={() => setOpen(false)}
+                />
+                <DialogBody>
                     {totalAccounts === 1 ? (
                         <div className="text-center">
-                            <DialogDescription>
-                                Removing this account will require you to set up your IOTA wallet
-                                again.
-                            </DialogDescription>
+                            Removing this account will require you to set up your IOTA wallet again.
                         </div>
                     ) : null}
-                    <DialogFooter>
-                        <div className="flex gap-2.5">
-                            <Button
-                                variant="outline"
-                                size="tall"
-                                text="Cancel"
-                                onClick={() => setIsConfirmationVisible(false)}
-                            />
-                            <Button
-                                variant="warning"
-                                size="tall"
-                                text="Remove"
-                                loading={removeAccountMutation.isPending}
-                                onClick={() => {
-                                    removeAccountMutation.mutate(undefined, {
-                                        onSuccess: () => toast.success('Account removed'),
-                                        onError: (e) =>
-                                            toast.error(
-                                                (e as Error)?.message || 'Something went wrong',
-                                            ),
-                                    });
-                                }}
-                            />
-                        </div>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
+                    <div className="flex gap-2.5">
+                        <Button2
+                            fullWidth
+                            type={ButtonType.Secondary}
+                            text="Cancel"
+                            onClick={() => setOpen(false)}
+                        />
+                        <Button2
+                            fullWidth
+                            type={ButtonType.Primary}
+                            text="Remove"
+                            onClick={() => {
+                                removeAccountMutation.mutate(undefined, {
+                                    onSuccess: () => toast.success('Account removed'),
+                                    onError: (e) =>
+                                        toast.error(
+                                            (e as Error)?.message || 'Something went wrong',
+                                        ),
+                                });
+                            }}
+                        />
+                    </div>
+                </DialogBody>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -177,12 +132,15 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
     );
 }
 
-function AccountItem2({ account }: { account: SerializedUIAccount }) {
+function AccountItem2({ account, isLast }: { account: SerializedUIAccount; isLast: boolean }) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
+    const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
     const { data: domainName } = useResolveIotaNSName(account?.address);
     const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
     const { unlockAccount, lockAccount } = useUnlockAccount();
+    const navigate = useNavigate();
+    const allAccounts = useAccounts();
 
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
@@ -209,8 +167,20 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
         }
     }
 
+    function handleEditNickname() {
+        setDialogNicknameOpen(true);
+    }
+
+    function handleExportPrivateKey() {
+        navigate(`/accounts/export/${account!.id}`);
+    }
+
+    function handleRemove() {
+        setDialogRemoveOpen(true);
+    }
+
     return (
-        <div className="relative">
+        <div className="relative overflow-visible">
             <Account
                 isLocked={account.isLocked}
                 isCopyable
@@ -225,20 +195,35 @@ function AccountItem2({ account }: { account: SerializedUIAccount }) {
                 onUnlockAccountClick={handleToggleLock}
             />
             <div
-                className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-0 ${isLast ? 'bottom-0' : 'top-0'} z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
-                        <ListItem hideBottomBorder onClick={() => setDialogNicknameOpen(true)}>
+                        <ListItem hideBottomBorder onClick={handleEditNickname}>
                             Edit Nickname
                         </ListItem>
+                        {account.isKeyPairExportable ? (
+                            <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
+                                Export Private Key
+                            </ListItem>
+                        ) : null}
+                        {allAccounts.isPending ? null : (
+                            <ListItem hideBottomBorder onClick={handleRemove}>
+                                Remove
+                            </ListItem>
+                        )}
                     </Dropdown>
                 </OutsideClickHandler>
             </div>
             <NicknameDialog
                 isOpen={isDialogNicknameOpen}
-                accountID={account.id}
                 setOpen={setDialogNicknameOpen}
+                accountID={account.id}
+            />
+            <RemoveDialog
+                isOpen={isDialogRemoveOpen}
+                setOpen={setDialogRemoveOpen}
+                accountID={account.id}
             />
         </div>
     );
@@ -324,8 +309,8 @@ export function AccountGroup({
     }
 
     return (
-        <div className="relative">
-            <Collapse>
+        <div className="relative overflow-visible">
+            <Collapse defaultOpen>
                 <CollapseHeader title={getGroupTitle(accounts[0])}>
                     <div className="flex items-center gap-1">
                         {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
@@ -350,8 +335,8 @@ export function AccountGroup({
                     </div>
                 </CollapseHeader>
                 <CollapseBody>
-                    {accounts.map((account) => (
-                        <AccountItem2 account={account} />
+                    {accounts.map((account, index) => (
+                        <AccountItem2 account={account} isLast={index === accounts.length - 1} />
                     ))}
                 </CollapseBody>
                 <div
@@ -379,32 +364,6 @@ export function AccountGroup({
                     </OutsideClickHandler>
                 </div>
             </Collapse>
-            <div className="">
-                <CollapsiblePrimitive.Root defaultOpen asChild>
-                    <div className="flex w-full flex-col gap-4">
-                        <CollapsiblePrimitive.CollapsibleContent asChild>
-                            <div className="flex w-full flex-shrink-0 flex-col gap-3">
-                                {accounts.map((account) => {
-                                    return (
-                                        <AccountItem
-                                            key={account.id}
-                                            background="gradient"
-                                            accountID={account.id}
-                                            icon={<AccountIcon account={account} />}
-                                            footer={
-                                                <AccountFooter
-                                                    accountID={account.id}
-                                                    showExport={account.isKeyPairExportable}
-                                                />
-                                            }
-                                        />
-                                    );
-                                })}
-                            </div>
-                        </CollapsiblePrimitive.CollapsibleContent>
-                    </div>
-                </CollapsiblePrimitive.Root>
-            </div>
             {isPasswordModalVisible ? (
                 <VerifyPasswordModal
                     open
