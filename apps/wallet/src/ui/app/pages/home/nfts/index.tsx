@@ -103,7 +103,7 @@ function NftsPage() {
     }
     return (
         <PageTemplate title="Assets" isTitleCentered>
-            <div className="flex h-full w-full flex-col items-start gap-xxxs">
+            <div className="flex h-full w-full flex-col items-start gap-xxxs gap-y-lg">
                 <SegmentedButton type={SegmentedButtonType.Filled}>
                     {ASSET_CATEGORIES.map(({ label, value }) => (
                         <ButtonSegment
@@ -130,17 +130,19 @@ function NftsPage() {
                             <small>{(error as Error).message}</small>
                         </Alert>
                     ) : null}
-                    {selectedAssetCategory === AssetCategory.Visual ? (
-                        <VisualAssets items={filteredAssets} />
-                    ) : selectedAssetCategory === AssetCategory.Other ? (
-                        <NonVisualAssets items={filteredAssets} />
-                    ) : selectedAssetCategory === AssetCategory.Hidden ? (
-                        <HiddenAssets items={filteredHiddenAssets} />
-                    ) : (
-                        <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
-                            No Assets found
-                        </div>
-                    )}
+                    <div className="flex h-full w-full flex-col">
+                        {selectedAssetCategory === AssetCategory.Visual ? (
+                            <VisualAssets items={filteredAssets} />
+                        ) : selectedAssetCategory === AssetCategory.Other ? (
+                            <NonVisualAssets items={filteredAssets} />
+                        ) : selectedAssetCategory === AssetCategory.Hidden ? (
+                            <HiddenAssets items={filteredHiddenAssets} />
+                        ) : (
+                            <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
+                                No Assets found
+                            </div>
+                        )}
+                    </div>
                 </Loading>
                 <div ref={observerElem}>
                     {isSpinnerVisible ? (

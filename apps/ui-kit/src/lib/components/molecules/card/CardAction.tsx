@@ -22,7 +22,7 @@ export function CardAction({ type, onClick, subtitle, title, icon }: CardActionP
         return (
             <div
                 onClick={handleActionCardActionClick}
-                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-6 [&_svg]:w-6"
+                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
             >
                 {icon ? icon : <ArrowRight />}
             </div>
