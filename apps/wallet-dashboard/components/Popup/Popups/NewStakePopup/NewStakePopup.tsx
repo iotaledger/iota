@@ -12,6 +12,7 @@ import { NotificationType } from '@/stores/notificationStore';
 interface NewStakePopupProps {
     onClose: () => void;
     isTimelockedStaking?: boolean;
+    onSuccess?: (digest: string) => void;
 }
 
 enum Step {
@@ -19,7 +20,11 @@ enum Step {
     EnterAmount,
 }
 
-function NewStakePopup({ onClose, isTimelockedStaking }: NewStakePopupProps): JSX.Element {
+function NewStakePopup({
+    onClose,
+    onSuccess,
+    isTimelockedStaking,
+}: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
@@ -60,9 +65,18 @@ function NewStakePopup({ onClose, isTimelockedStaking }: NewStakePopupProps): JS
             addNotification('Stake transaction was not created', NotificationType.Error);
             return;
         }
-        signAndExecuteTransactionBlock({
-            transactionBlock: newStakeData?.transaction,
-        })
+        signAndExecuteTransactionBlock(
+            {
+                transactionBlock: newStakeData?.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    if (onSuccess) {
+                        onSuccess(tx.digest);
+                    }
+                },
+            },
+        )
             .then(() => {
                 onClose();
                 addNotification('Stake transaction has been sent');
