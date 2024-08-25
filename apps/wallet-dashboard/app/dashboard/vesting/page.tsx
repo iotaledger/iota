@@ -13,11 +13,14 @@ import {
     useGetAllOwnedObjects,
     useGetStakedTimelockedObjects,
 } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
+    const queryClient = useQueryClient();
+    const iotaClient = useIotaClient();
     const { addNotification } = useNotifications();
     const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -39,6 +42,27 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    function handleOnSuccess(digest: string): void {
+        iotaClient
+            .waitForTransactionBlock({
+                digest,
+            })
+            .then(() => {
+                queryClient.invalidateQueries({
+                    queryKey: ['get-staked-timelocked-objects', account?.address],
+                });
+                queryClient.invalidateQueries({
+                    queryKey: [
+                        'get-all-owned-objects',
+                        account?.address,
+                        {
+                            StructType: TIMELOCK_IOTA_TYPE,
+                        },
+                    ],
+                });
+            });
+    }
+
     function handleUnstake(delegatedTimelocked: DelegatedTimelockedStake): void {
         const validatorInfo = getValidatorByAddress(delegatedTimelocked.validatorAddress);
         if (!account || !validatorInfo) {
@@ -52,6 +76,7 @@ function VestingDashboardPage(): JSX.Element {
                 delegatedStake={delegatedTimelocked}
                 validatorInfo={validatorInfo}
                 closePopup={closePopup}
+                onSuccess={handleOnSuccess}
             />,
         );
     }

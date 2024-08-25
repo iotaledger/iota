@@ -3,16 +3,17 @@
 
 import React from 'react';
 import { Button } from '@/components';
-import { useTimelockedUnstakeTransaction } from '@/hooks';
-import { useIotaClient, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useNotifications, useTimelockedUnstakeTransaction } from '@/hooks';
+import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { NotificationType } from '@/stores/notificationStore';
 
 interface UnstakePopupProps {
     accountAddress: string;
     delegatedStake: DelegatedTimelockedStake;
     validatorInfo: IotaValidatorSummary;
     closePopup: () => void;
+    onSuccess?: (digest: string) => void;
 }
 
 function TimelockedUnstakePopup({
@@ -20,38 +21,35 @@ function TimelockedUnstakePopup({
     delegatedStake,
     validatorInfo,
     closePopup,
+    onSuccess,
 }: UnstakePopupProps): JSX.Element {
     const objectIds = delegatedStake.stakes.map((stake) => stake.timelockedStakedIotaId);
-    const queryClient = useQueryClient();
-    const iotaClient = useIotaClient();
     const { data: timelockedUnstake } = useTimelockedUnstakeTransaction(objectIds, accountAddress);
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
+    const { addNotification } = useNotifications();
 
     async function handleTimelockedUnstake(): Promise<void> {
         if (!timelockedUnstake) return;
-        await signAndExecuteTransactionBlock(
+        signAndExecuteTransactionBlock(
             {
                 transactionBlock: timelockedUnstake.transaction,
             },
             {
                 onSuccess: (tx) => {
-                    iotaClient
-                        .waitForTransactionBlock({
-                            digest: tx.digest,
-                        })
-                        .then(() => {
-                            queryClient.invalidateQueries({
-                                queryKey: ['get-staked-timelocked-objects'],
-                            });
-                            queryClient.invalidateQueries({
-                                queryKey: ['timelocked-unstake-transaction'],
-                            });
-                            closePopup();
-                        });
+                    if (onSuccess) {
+                        onSuccess(tx.digest);
+                    }
                 },
             },
-        );
+        )
+            .then(() => {
+                closePopup();
+                addNotification('Unstake transaction has been sent');
+            })
+            .catch(() => {
+                addNotification('Unstake transaction was not sent', NotificationType.Error);
+            });
     }
 
     return (
