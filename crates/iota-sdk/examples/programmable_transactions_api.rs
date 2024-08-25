@@ -2,6 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This example shows how to use programmable transactions to chain multiple
+//! actions into one transaction. Specifically, the example retrieves two
+//! addresses from the local wallet, and then
+//! 1) finds a coin from the active address that has Iota,
+//! 2) splits the coin into one coin of 1000 NANOS and the rest,
+//! 3  transfers the split coin to second Iota address,
+//! 4) signs the transaction,
+//! 5) executes it.
+//! For some of these actions it prints some output.
+//! Finally, at the end of the program it prints the number of coins for the
+//! Iota address that received the coin.
+//! If you run this program several times, you should see the number of coins
+//! for the recipient address increases.
+//!
+//! cargo run --example programmable_transactions_api
+
 mod utils;
 use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
@@ -15,20 +31,6 @@ use iota_sdk::{
 };
 use shared_crypto::intent::Intent;
 use utils::setup_for_write;
-
-// This example shows how to use programmable transactions to chain multiple
-// actions into one transaction. Specifically, the example retrieves two
-// addresses from the local wallet, and then
-// 1) finds a coin from the active address that has Iota,
-// 2) splits the coin into one coin of 1000 MICROS and the rest,
-// 3  transfers the split coin to second Iota address,
-// 4) signs the transaction,
-// 5) executes it.
-// For some of these actions it prints some output.
-// Finally, at the end of the program it prints the number of coins for the
-// Iota address that received the coin.
-// If you run this program several times, you should see the number of coins
-// for the recipient address increases.
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -48,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut ptb = ProgrammableTransactionBuilder::new();
 
     // 2) split coin
-    // the amount we want in the new coin, 1000 MICROS
+    // the amount we want in the new coin, 1000 NANOS
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
     ptb.command(Command::SplitCoins(
         Argument::GasCoin,

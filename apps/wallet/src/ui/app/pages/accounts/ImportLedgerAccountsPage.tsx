@@ -17,16 +17,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-} from '../../components/accounts/AccountsFormContext';
-import {
     LedgerAccountList,
     type SelectableLedgerAccount,
-} from '../../components/ledger/LedgerAccountList';
-import {
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
-} from '../../components/ledger/useDeriveLedgerAccounts';
-import Overlay from '../../components/overlay';
+    Overlay,
+} from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '../../hooks/useAccounts';
 

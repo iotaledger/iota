@@ -1,7 +1,7 @@
 [package]
 name = "move-vm-runtime-v0"
 version = "0.1.0"
-authors = ["Diem Association <opensource@diem.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 homepage = "https://diem.com"
 license = "Apache-2.0"
@@ -14,7 +14,6 @@ better_any.workspace = true
 fail.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-sha3.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
@@ -28,9 +27,6 @@ move-vm-types.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 hex.workspace = true
-move-compiler.workspace = true
-move-ir-compiler.workspace = true
-proptest.workspace = true
 
 [features]
 default = []

@@ -11,7 +11,7 @@ use std::{
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{monitored_future, monitored_scope};
+use iota_metrics::{monitored_future, monitored_scope};
 use parking_lot::Mutex;
 #[cfg(not(test))]
 use rand::{rngs::ThreadRng, seq::SliceRandom};
@@ -94,6 +94,8 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C, V, D> {
+    /// Starts the synchronizer, which is responsible for fetching blocks from
+    /// other authorities and managing block synchronization tasks.
     pub fn start(
         network_client: Arc<C>,
         context: Arc<Context>,

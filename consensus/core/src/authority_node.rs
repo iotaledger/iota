@@ -56,6 +56,7 @@ pub enum NetworkType {
 }
 
 impl ConsensusAuthority {
+    /// Starts the `ConsensusAuthority` for the specified network type.
     pub async fn start(
         network_type: NetworkType,
         own_index: AuthorityIndex,
@@ -143,6 +144,9 @@ impl<N> AuthorityNode<N>
 where
     N: NetworkManager<AuthorityService<ChannelCoreThreadDispatcher>>,
 {
+    /// This function initializes and starts the consensus authority node
+    /// It ensures that the authority node is fully initialized and
+    /// ready to participate in the consensus process.
     pub(crate) async fn start(
         own_index: AuthorityIndex,
         committee: Committee,

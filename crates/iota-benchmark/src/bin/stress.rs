@@ -70,13 +70,13 @@ async fn main() -> Result<()> {
     }
     let _guard = config.with_env().init();
 
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!("{}:{}", opts.client_metric_host, opts.client_metric_port)
             .parse()
             .unwrap(),
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
 
     let barrier = Arc::new(Barrier::new(2));
     let cloned_barrier = barrier.clone();

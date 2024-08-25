@@ -1,0 +1,49 @@
+name: Rust lints
+
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
+
+jobs:
+  rustfmt:
+    if: always() && inputs.isRust
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Install latest nightly
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+      - name: Check Rust formatting
+        run: cargo +nightly ci-fmt
+
+  cargo-deny:
+    if: always() && inputs.isRust
+    name: cargo-deny (advisories, licenses, bans, ...)
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: EmbarkStudios/cargo-deny-action@v1
+
+  clippy:
+    if: always() && inputs.isRust
+    needs:
+      - rustfmt
+      - cargo-deny
+    runs-on: [self-hosted]
+    steps:
+      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # pin@v3.0.0
+        # this avoids rate-limiting
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
+      # Enable caching of the 'librocksdb-sys' crate by additionally caching the
+      # 'librocksdb-sys' src directory which is managed by cargo
+      # - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+      #   with:
+      #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
+
+      # See '.cargo/config' for list of enabled/disabled clippy lints
+      - name: Check Clippy Lints
+        run: cargo ci-clippy

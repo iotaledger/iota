@@ -23,6 +23,7 @@ use iota_sdk::types::block::{
 };
 use iota_types::{
     gas_coin::STARDUST_TOTAL_SUPPLY_IOTA,
+    stardust::coin_type::CoinType,
     timelock::timelock::{self},
 };
 use packable::{
@@ -33,12 +34,19 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
 
-const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
+pub const IOTA_COIN_TYPE: u32 = 4218;
+const IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
-const MERGE_MILESTONE_INDEX: u32 = 7669900;
-const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
-pub const fn to_micros(n: u64) -> u64 {
+pub const SHIMMER_COIN_TYPE: u32 = 4219;
+pub const STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO: u64 = 1_813_620_509_061_365;
+const SHIMMER_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
+    "0x4c337ea67697cb8dd0267cced8d9b51c479eb61dea04842138dcef31218d63810000";
+
+pub const MERGE_MILESTONE_INDEX: u32 = 7669900;
+pub const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
+
+pub const fn to_nanos(n: u64) -> u64 {
     match n.checked_mul(1_000_000) {
         Some(res) => res,
         None => panic!("should not overflow"),
@@ -60,6 +68,7 @@ const PROBABILITY_OF_PICKING_A_BASIC_OUTPUT: f64 = 0.1;
 pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     current_path: impl AsRef<Path> + core::fmt::Debug,
     new_path: impl AsRef<Path> + core::fmt::Debug,
+    coin_type: CoinType,
     randomness_seed: u64,
     delegator: impl Into<Option<Ed25519Address>>,
     with_sampling: bool,
@@ -72,13 +81,29 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
+    let address_derivation_coin_type = match coin_type {
+        CoinType::Iota => IOTA_COIN_TYPE,
+        CoinType::Shimmer => SHIMMER_COIN_TYPE,
+    };
+
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = [
-        alias_ownership::outputs(&mut rng).await?,
-        stardust_mix::outputs(&mut rng, &mut vested_index).await?,
-        vesting_schedule_entity::outputs(&mut rng, &mut vested_index).await?,
-        vesting_schedule_iota_airdrop::outputs(&mut rng, &mut vested_index).await?,
-        vesting_schedule_portfolio_mix::outputs(&mut rng, &mut vested_index).await?,
+        alias_ownership::outputs(&mut rng, address_derivation_coin_type).await?,
+        stardust_mix::outputs(&mut rng, &mut vested_index, address_derivation_coin_type).await?,
+        vesting_schedule_entity::outputs(&mut rng, &mut vested_index, address_derivation_coin_type)
+            .await?,
+        vesting_schedule_iota_airdrop::outputs(
+            &mut rng,
+            &mut vested_index,
+            address_derivation_coin_type,
+        )
+        .await?,
+        vesting_schedule_portfolio_mix::outputs(
+            &mut rng,
+            &mut vested_index,
+            address_derivation_coin_type,
+        )
+        .await?,
     ]
     .concat();
 
@@ -91,9 +116,10 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
             delegator,
             with_sampling.then_some(&mut parser),
             new_temp_amount,
+            coin_type,
         )?
     } else {
-        add_all_previous_outputs_and_test_outputs(&mut parser, new_temp_amount)?
+        add_all_previous_outputs_and_test_outputs(&mut parser, new_temp_amount, coin_type)?
     });
 
     // Adjust the output count according to newly generated outputs.
@@ -117,12 +143,18 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
 fn add_all_previous_outputs_and_test_outputs<R: Read>(
     parser: &mut HornetSnapshotParser<R>,
     new_amount: u64,
+    coin_type: CoinType,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut new_outputs = Vec::new();
 
+    let target_output = match coin_type {
+        CoinType::Iota => IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM,
+        CoinType::Shimmer => SHIMMER_OUTPUT_TO_DECREASE_AMOUNT_FROM,
+    };
+
     // Writes previous outputs.
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
-        if output_header.output_id() == OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)? {
+        if output_header.output_id() == OutputId::from_str(target_output)? {
             let basic = output.as_basic();
             let amount = basic
                 .amount()
@@ -154,6 +186,7 @@ fn add_only_test_outputs<R: Read>(
     delegator: Ed25519Address,
     parser: Option<&mut HornetSnapshotParser<R>>,
     new_temp_amount: u64,
+    coin_type: CoinType,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     // Needed outputs for delegator
     let mut new_outputs = delegator_outputs::outputs(rng, vested_index, delegator)?;
@@ -165,7 +198,11 @@ fn add_only_test_outputs<R: Read>(
 
     // Add all the remainder tokens to the zero address
     let zero_address = Ed25519Address::new([0; 32]);
-    let remainder = to_micros(STARDUST_TOTAL_SUPPLY_IOTA)
+    let network_total_supply = match coin_type {
+        CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
+        CoinType::Shimmer => STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO,
+    };
+    let remainder = network_total_supply
         .checked_sub(new_temp_amount + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>())
         .ok_or_else(|| anyhow!("new amount should not be higher than total supply"))?;
     let remainder_per_output = remainder / 4;

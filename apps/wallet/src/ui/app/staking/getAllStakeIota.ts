@@ -4,7 +4,7 @@
 
 import { type DelegatedStake } from '@iota/iota-sdk/client';
 
-// Get staked Iota
+// Get staked IOTA
 export function getAllStakeIota(allDelegation: DelegatedStake[]) {
     return (
         allDelegation.reduce(

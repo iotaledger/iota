@@ -23,7 +23,8 @@ use futures::{
     FutureExt,
 };
 use iota_macros::fail_point;
-use iota_network::default_mysten_network_config;
+use iota_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
+use iota_network::default_iota_network_stack_config;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
@@ -50,7 +51,6 @@ use iota_types::{
     transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
 };
 use itertools::Itertools;
-use mysten_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
 use parking_lot::Mutex;
 use rand::{rngs::OsRng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
@@ -821,6 +821,8 @@ impl CheckpointBuilder {
         }
     }
 
+    /// Runs the `CheckpointBuilder` in an asynchronous loop, managing the
+    /// creation of checkpoints.
     async fn run(mut self) {
         info!("Starting CheckpointBuilder");
         'main: loop {
@@ -865,6 +867,8 @@ impl CheckpointBuilder {
         info!("Shutting down CheckpointBuilder");
     }
 
+    /// Creates a checkpoint at the specified height using the provided pending
+    /// checkpoint data.
     #[instrument(level = "debug", skip_all, fields(?height))]
     async fn make_checkpoint(
         &self,
@@ -898,6 +902,7 @@ impl CheckpointBuilder {
         Ok(())
     }
 
+    /// Writes the new checkpoints to the DB storage and processes them.
     #[instrument(level = "debug", skip_all)]
     async fn write_checkpoints(
         &self,
@@ -1010,6 +1015,8 @@ impl CheckpointBuilder {
         Ok(chunks)
     }
 
+    /// Creates checkpoints using the provided transaction effects and pending
+    /// checkpoint information.
     #[instrument(level = "debug", skip_all)]
     async fn create_checkpoints(
         &self,
@@ -1261,6 +1268,8 @@ impl CheckpointBuilder {
         }
     }
 
+    /// Augments the last checkpoint of the epoch by creating and executing an
+    /// advance epoch transaction.
     #[instrument(level = "error", skip_all)]
     async fn augment_epoch_last_checkpoint(
         &self,
@@ -1380,6 +1389,11 @@ impl CheckpointAggregator {
         }
     }
 
+    /// Runs the `CheckpointAggregator` in an asynchronous loop, managing the
+    /// aggregation of checkpoints.
+    /// The function ensures continuous aggregation of checkpoints, handling
+    /// errors and retries gracefully, and allowing for proper shutdown on
+    /// receiving an exit signal.
     async fn run(mut self) {
         info!("Starting CheckpointAggregator");
         loop {
@@ -1654,7 +1668,7 @@ async fn diagnose_split_brain(
     let committee = epoch_store
         .epoch_start_state()
         .get_iota_committee_with_network_metadata();
-    let network_config = default_mysten_network_config();
+    let network_config = default_iota_network_stack_config();
     let network_clients =
         make_network_authority_clients_with_network_config(&committee, &network_config)
             .expect("Failed to make authority clients from committee {committee}");
@@ -1818,6 +1832,8 @@ pub struct CheckpointService {
 }
 
 impl CheckpointService {
+    /// Spawns the checkpoint service, initializing and starting the checkpoint
+    /// builder and aggregator tasks.
     pub fn spawn(
         state: Arc<AuthorityState>,
         checkpoint_store: Arc<CheckpointStore>,

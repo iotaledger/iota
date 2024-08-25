@@ -24,7 +24,7 @@ module example::clock {
     use iota::clock::{Self, Clock};
     use iota::event;
 
-    struct TimeEvent has copy, drop, store {
+    public struct TimeEvent has copy, drop, store {
         timestamp_ms: u64
     }
 

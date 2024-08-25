@@ -28,7 +28,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         recognizedPackagesList,
     });
 
-    // we only show Iota Transfer amount or the first non-Iota transfer amount
+    // we only show IOTA Transfer amount or the first non-IOTA transfer amount
 
     const recipientAddress = useGetTxnRecipientAddress({ txn, address });
 

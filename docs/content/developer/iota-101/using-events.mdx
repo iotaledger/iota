@@ -124,9 +124,40 @@ Move smart contracts can call other smart contracts that emit events. For exampl
 
 This example leverages the IOTA TypeScript SDK to subscribe to events the package with ID `<PACKAGE_ID>` emits. Each time the event fires, the code displays the response to the console.
 
+<Tabs>
+<TabItem value="rs" label="Rust">
+
+### Rust
+
+<AlphaNet />
+
+See [Rust SDK](../../references/rust-sdk.mdx#rust-sdk).
+
+```rust
+use futures::StreamExt;
+use iota_sdk::rpc_types::EventFilter;
+use iota_sdk::IOTAClientBuilder;
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let iota = IOTAClientBuilder::default()
+        .ws_url("wss://fullnode.mainnet.iota.io:443")
+        .build("https://fullnode.mainnet.iota.io:443")
+        .await.unwrap();
+    let mut subscribe_all = iota.event_api().subscribe_event(EventFilter::All(vec![])).await?;
+    loop {
+        println!("{:?}", subscribe_all.next().await);
+    }
+}
+```
+
+</TabItem>
+<TabItem value="ts" label="TypeScript">
+
 ### TypeScript
 
-To create the event subscription, you can use a basic Node.js app. You need the IOTA TypeScript SDK, so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
+To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx#iota-typescript-sdk), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
 ```ts
 import { JsonRpcProvider, testnetConnection } from '@iota/iota-sdk';
@@ -185,28 +216,8 @@ subscribeEvent {
 }
 ```
 
-### Rust SDK
-
-<AlphaNet />
-
-```rust
-use futures::StreamExt;
-use iota_sdk::rpc_types::EventFilter;
-use iota_sdk::IOTAClientBuilder;
-use anyhow::Result;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let iota = IOTAClientBuilder::default()
-        .ws_url("wss://fullnode.mainnet.iota.io:443")
-        .build("https://fullnode.mainnet.iota.io:443")
-        .await.unwrap();
-    let mut subscribe_all = iota.event_api().subscribe_event(EventFilter::All(vec![])).await?;
-    loop {
-        println!("{:?}", subscribe_all.next().await);
-    }
-}
-```
+</TabItem>
+</Tabs>
 
 ## Filtering event queries
 
