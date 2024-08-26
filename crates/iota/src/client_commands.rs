@@ -16,6 +16,7 @@ use anyhow::{anyhow, bail, ensure, Context};
 use bip32::DerivationPath;
 //
 use clap::*;
+//
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
