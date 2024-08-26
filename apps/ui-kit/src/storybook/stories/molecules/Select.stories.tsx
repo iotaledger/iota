@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Select, SelectOption } from '@/components/molecules/select/Select';
-import { ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { IotaLogoMark, PlaceholderReplace } from '@iota/ui-icons';
 
 const meta: Meta<typeof Select> = {
@@ -17,7 +17,7 @@ type Story = StoryObj<typeof meta>;
 
 const INVALID_OPTION = {
     id: 'Invalid Option',
-    displayElement: 'Invalid Option',
+    value: 'Invalid Option',
 };
 
 const options = new Array(4).fill(0).map((_, index, arr) => {
@@ -25,7 +25,7 @@ const options = new Array(4).fill(0).map((_, index, arr) => {
 
     return isLastItem
         ? INVALID_OPTION
-        : { id: `Option ${index + 1}`, displayElement: `Option ${index + 1}` };
+        : { id: `Option ${index + 1}`, value: `Option ${index + 1}` };
 });
 
 export const Default: Story = {
@@ -33,43 +33,36 @@ export const Default: Story = {
         label: 'Select Input',
         supportingText: 'Info',
         caption: 'Caption',
-        placeholder: options[0].displayElement,
+        value: options[0].value,
         options: new Array(4).fill(0).map((_, index, arr) => {
             const isLastItem = index === arr.length - 1;
 
             return isLastItem
                 ? INVALID_OPTION
-                : { id: `Option ${index + 1}`, displayElement: `Option ${index + 1}` };
+                : { id: `Option ${index + 1}`, value: `Option ${index + 1}` };
         }),
     },
     argTypes: {
-        placeholder: {
+        value: {
             control: {
                 type: 'text',
             },
         },
     },
-    render: ({ placeholder, ...args }) => {
+    render: ({ value, ...args }) => {
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-        const [selectorPlaceholder, setSelectorPlaceholder] = useState<ReactNode>(placeholder);
 
         function onChange(option: SelectOption) {
             if (option.id === INVALID_OPTION.id) {
                 setErrorMessage('Invalid Option Selected');
             } else {
-                setSelectorPlaceholder(option.displayElement);
                 setErrorMessage(undefined);
             }
         }
 
         return (
             <div className="h-60">
-                <Select
-                    {...args}
-                    placeholder={selectorPlaceholder}
-                    onValueChange={onChange}
-                    errorMessage={errorMessage}
-                />
+                <Select {...args} onValueChange={onChange} errorMessage={errorMessage} />
             </div>
         );
     },
@@ -78,11 +71,11 @@ export const Default: Story = {
 export const CustomOptions: Story = {
     args: {
         label: 'Send Coins',
-        placeholder: 'Select a coin',
+        value: 'Select a coin',
         options: [
             {
                 id: 'iota',
-                displayElement: (
+                renderValue: (
                     <div className="flex items-center gap-2">
                         <IotaLogoMark />
                         IOTA
@@ -91,7 +84,7 @@ export const CustomOptions: Story = {
             },
             {
                 id: 'smr',
-                displayElement: (
+                renderValue: (
                     <div className="flex items-center gap-2">
                         <PlaceholderReplace />
                         SMR

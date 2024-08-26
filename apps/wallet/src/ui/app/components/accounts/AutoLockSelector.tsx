@@ -9,17 +9,17 @@ import { z } from 'zod';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import FormField from '../../shared/forms/FormField';
 import { SelectField } from '../../shared/forms/SelectField';
-import { Input, InputType } from '@iota/apps-ui-kit';
+import { Input, InputType, type SelectOption } from '@iota/apps-ui-kit';
 
-const LOCK_INTERVALS = [
-    { id: 'day', label: 'Day' },
-    { id: 'hour', label: 'Hour' },
-    { id: 'minute', label: 'Minute' },
+const LOCK_INTERVALS: SelectOption[] = [
+    { id: 'day', value: 'Day' },
+    { id: 'hour', value: 'Hour' },
+    { id: 'minute', value: 'Minute' },
 ];
-const LOCK_INTERVALS_PLURAL = [
-    { id: 'day', label: 'Days' },
-    { id: 'hour', label: 'Hours' },
-    { id: 'minute', label: 'Minutes' },
+const LOCK_INTERVALS_PLURAL: SelectOption[] = [
+    { id: 'day', value: 'Days' },
+    { id: 'hour', value: 'Hours' },
+    { id: 'minute', value: 'Minutes' },
 ];
 
 export const zodSchema = z.object({

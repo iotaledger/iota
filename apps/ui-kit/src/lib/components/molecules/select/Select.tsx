@@ -10,7 +10,20 @@ import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
 import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
 import { ListItem } from '../../atoms';
 
-export type SelectOption = { id: string; displayElement: React.ReactNode; selected?: boolean };
+export interface SelectOption {
+    /**
+     * The id of the option.
+     */
+    id: string;
+    /**
+     * The value of the option.
+     */
+    value?: string;
+    /**
+     * The element to render in the selector option.
+     */
+    renderValue?: React.ReactNode;
+}
 
 interface SelectProps {
     /**
@@ -46,9 +59,13 @@ interface SelectProps {
      */
     disabled?: boolean;
     /**
-     * The rendered element in the select button
+     * The initial value of the select. This should be the id of the option.
      */
-    placeholder: React.ReactNode;
+    value?: string;
+    /**
+     * Render a different value in the selector.
+     */
+    renderValue?: React.ReactNode;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -62,11 +79,14 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             caption,
             options,
             onValueChange,
-            placeholder,
+            value,
+            renderValue,
         },
         ref,
     ) => {
+        const initialOption = options.find((opt) => opt.id === value) ?? options[0];
         const [isOpen, setIsOpen] = useState<boolean>(false);
+        const [selectedOption, setSelectedOption] = useState<SelectOption>(initialOption);
 
         useEffect(() => {
             if (disabled && isOpen) {
@@ -80,12 +100,16 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
         function handleOptionClick(clickedOption: SelectOption) {
             onValueChange?.(clickedOption);
+            setSelectedOption(clickedOption);
             closeDropdown();
         }
 
         function closeDropdown() {
             setIsOpen(false);
         }
+
+        const currentOption = selectedOption ?? initialOption;
+        const displayValue = renderValue ?? currentOption.renderValue ?? currentOption.value;
 
         return (
             <InputWrapper
@@ -109,7 +133,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         )}
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
-                            {placeholder}
+                            {renderValue ?? displayValue}
 
                             {supportingText && (
                                 <div className="ml-auto">
@@ -146,7 +170,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                                     hideBottomBorder
                                     key={option.id}
                                 >
-                                    {option.displayElement}
+                                    {option.renderValue ?? option.value}
                                 </ListItem>
                             ))}
                         </Dropdown>

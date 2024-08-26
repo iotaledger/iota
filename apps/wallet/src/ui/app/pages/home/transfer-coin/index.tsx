@@ -18,9 +18,9 @@ import {
 } from '@iota/core';
 import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm } from './SendTokenForm';
@@ -175,23 +175,25 @@ function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: stri
     );
 
     const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType) ?? coins?.[0];
+    const initialValue = activeCoin?.coinType;
     const coinsOptions: SelectOption[] =
-        coins?.map((coin) => {
-            return {
-                id: coin.coinType,
-                displayElement: <CoinSelectOption coin={coin} />,
-            };
-        }) || [];
-
-    const selectPlaceholder: ReactNode = activeCoin ? (
-        <CoinSelectOption coin={activeCoin} />
-    ) : (
-        coinsOptions[0].displayElement
-    );
+        coins?.map((coin) => ({
+            id: coin.coinType,
+            displayValue: (
+                <Link
+                    to={`/send?${new URLSearchParams({
+                        type: coin.coinType,
+                    }).toString()}`}
+                    className="w-full"
+                >
+                    <CoinSelectOption coin={coin} />
+                </Link>
+            ),
+        })) || [];
 
     return (
         <Loading loading={isPending}>
-            <Select label="Select Coins" placeholder={selectPlaceholder} options={coinsOptions} />
+            <Select label="Select Coins" value={initialValue} options={coinsOptions} />
         </Loading>
     );
 }
