@@ -102,7 +102,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: always() && needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true'
+    if: always() && needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true' && github.event.pull_request.draft == false
     uses: ./.github/workflows/_move_tests.yml
 
   rust:
@@ -117,6 +117,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
 
   e2e:
+    if: github.event.pull_request.draft == false
     needs:
       - diff
       - dprint-format
