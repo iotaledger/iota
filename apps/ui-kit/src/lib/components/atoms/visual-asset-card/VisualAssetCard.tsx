@@ -5,6 +5,7 @@ import React from 'react';
 import { VisualAssetType } from './visual-asset-card.enums';
 import { ButtonUnstyled } from '../button';
 import { MoreHoriz } from '@iota/ui-icons';
+import cx from 'classnames';
 
 export interface VisualAssetCardProps {
     /**
@@ -30,11 +31,15 @@ export interface VisualAssetCardProps {
     /**
      * The icon to be displayed.
      */
-    icon: React.ReactNode;
+    icon?: React.ReactNode;
     /**
      * The title text to be displayed on hover.
      */
     assetTitle?: string;
+    /**
+     * Whether the card is hoverable.
+     */
+    isHoverable?: boolean;
 }
 
 export function VisualAssetCard({
@@ -45,14 +50,31 @@ export function VisualAssetCard({
     onClick,
     icon = <MoreHoriz />,
     assetTitle,
+    isHoverable = true,
 }: VisualAssetCardProps): React.JSX.Element {
     const handleIconClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         onIconClick?.(event);
         event?.stopPropagation();
     };
+
+    // Define class names based on the isHoverable prop
+    const hoverableClass = isHoverable
+        ? 'absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48'
+        : 'hidden';
+
+    const iconButtonClass = isHoverable
+        ? 'absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100'
+        : 'hidden';
+
+    const titleClass = isHoverable
+        ? 'absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100'
+        : 'hidden';
+
     return (
         <div
-            className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-xl"
+            className={cx('relative aspect-square w-full overflow-hidden rounded-xl', {
+                'group cursor-pointer': isHoverable,
+            })}
             onClick={onClick}
         >
             {assetType === VisualAssetType.Video ? (
@@ -60,16 +82,19 @@ export function VisualAssetCard({
             ) : (
                 <img src={assetSrc} alt={altText} className="h-full w-full object-cover" />
             )}
-            <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48" />
-            <ButtonUnstyled
-                className="absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100"
-                onClick={handleIconClick}
-            >
-                {icon}
-            </ButtonUnstyled>
-            <div className="absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                {assetTitle && <span className="text-title-md text-neutral-100">{assetTitle}</span>}
-            </div>
+            <div className={cx(hoverableClass)} />
+            {isHoverable && (
+                <>
+                    <ButtonUnstyled className={iconButtonClass} onClick={handleIconClick}>
+                        {icon}
+                    </ButtonUnstyled>
+                    <div className={titleClass}>
+                        {assetTitle && (
+                            <span className="text-title-md text-neutral-100">{assetTitle}</span>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
