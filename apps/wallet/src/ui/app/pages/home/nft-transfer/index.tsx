@@ -26,7 +26,7 @@ function NftTransferPage() {
                     {nftId && !!ownedNFT && isAssetTransferable(ownedNFT) ? (
                         <>
                             <div className="mb-7.5">
-                                <NFTDisplayCard objectId={nftId} wideView size="sm" />
+                                <NFTDisplayCard objectId={nftId} wideView />
                             </div>
                             <TransferNFTForm objectId={nftId} objectType={ownedNFT.type} />
                         </>

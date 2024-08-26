@@ -7,15 +7,12 @@ import { VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
 export interface NftImageProps {
     src: string | null;
     video?: string | null;
-    name: string | null;
     title?: string;
-    playable?: boolean;
     className?: string;
-    isLocked?: boolean;
     isHoverable?: boolean;
 }
 
-export function NftImage({ src, name, title, isHoverable, video }: NftImageProps) {
+export function NftImage({ src, title, isHoverable, video }: NftImageProps) {
     const imgSrc = src ? src.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
 
     return video ? (
@@ -23,7 +20,7 @@ export function NftImage({ src, name, title, isHoverable, video }: NftImageProps
             assetSrc={video}
             assetTitle={title}
             assetType={VisualAssetType.Video}
-            altText={name || 'NFT'}
+            altText={title || 'NFT'}
             isHoverable={isHoverable}
         />
     ) : !imgSrc ? (
@@ -35,7 +32,7 @@ export function NftImage({ src, name, title, isHoverable, video }: NftImageProps
             assetSrc={imgSrc}
             assetTitle={title}
             assetType={VisualAssetType.Image}
-            altText={name || 'NFT'}
+            altText={title || 'NFT'}
             isHoverable={isHoverable}
         />
     );

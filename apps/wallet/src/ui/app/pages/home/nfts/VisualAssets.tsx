@@ -64,12 +64,7 @@ export default function VisualAssets({ items }: VisualAssetsProps) {
                             ) : null}
                         </div>
                         <ErrorBoundary>
-                            <NFTDisplayCard
-                                objectId={object.objectId}
-                                size="lg"
-                                animateHover
-                                borderRadius="xl"
-                            />
+                            <NFTDisplayCard objectId={object.objectId} isHoverable />
                         </ErrorBoundary>
                     </div>
                 </Link>

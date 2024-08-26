@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_app/shared/heading';
-import { Loading, NftImage, type NftImageProps } from '_components';
+import { Loading, NftImage } from '_components';
 import { useFileExtensionType } from '_hooks';
 import { isKioskOwnerToken, useGetNFTMeta, useGetObject, useKioskClient } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -16,7 +16,7 @@ import { Kiosk } from './Kiosk';
 
 const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {
     variants: {
-        animateHover: {
+        isHoverable: {
             true: 'group',
         },
         wideView: {
@@ -37,22 +37,15 @@ const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative'
 export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardStyles> {
     objectId: string;
     hideLabel?: boolean;
-    size: NftImageProps['size'];
-    borderRadius?: NftImageProps['borderRadius'];
-    playable?: boolean;
     isLocked?: boolean;
 }
 
 export function NFTDisplayCard({
     objectId,
     hideLabel,
-    size,
     wideView,
-    animateHover,
-    borderRadius = 'md',
-    playable,
+    isHoverable,
     orientation,
-    isLocked,
 }: NFTDisplayCardProps) {
     const { data: objectData } = useGetObject(objectId);
     const { data: nftMeta, isPending } = useGetNFTMeta(objectId);
@@ -62,29 +55,17 @@ export function NFTDisplayCard({
     const fileExtensionType = useFileExtensionType(nftImageUrl);
     const kioskClient = useKioskClient();
     const isOwnerToken = isKioskOwnerToken(kioskClient.network, objectData);
-    const shouldShowLabel = !wideView && orientation !== 'horizontal';
 
     return (
-        <div className={nftDisplayCardStyles({ animateHover, wideView, orientation })}>
+        <div className={nftDisplayCardStyles({ isHoverable, wideView, orientation })}>
             <Loading loading={isPending}>
                 {objectData?.data && isOwnerToken ? (
-                    <Kiosk
-                        object={objectData}
-                        borderRadius={borderRadius}
-                        size={size}
-                        orientation={orientation}
-                        playable={playable}
-                        showLabel={shouldShowLabel}
-                    />
+                    <Kiosk object={objectData} />
                 ) : (
                     <NftImage
-                        name={nftName}
+                        title={nftName}
                         src={nftImageUrl}
-                        animateHover={animateHover}
-                        showLabel={shouldShowLabel}
-                        borderRadius={borderRadius}
-                        size={size}
-                        isLocked={isLocked}
+                        isHoverable={isHoverable ?? false}
                         video={video}
                     />
                 )}

@@ -106,7 +106,6 @@ function HiddenNftsPage() {
                                         <ErrorBoundary>
                                             <NFTDisplayCard
                                                 objectId={objectId}
-                                                size="xs"
                                                 orientation="horizontal"
                                             />
                                         </ErrorBoundary>
