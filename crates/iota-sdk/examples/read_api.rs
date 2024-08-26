@@ -116,28 +116,6 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", client.read_api().get_protocol_config(None).await?);
     println!(" *** Protocol Config ***\n ");
 
-    // we make a dummy transaction which returns a transaction digest
-    let tx_digest = split_coin_digest(&client, &active_address).await?;
-    println!(" *** Transaction data *** ");
-    let tx_response = client
-        .read_api()
-        .get_transaction_with_options(
-            tx_digest,
-            IotaTransactionBlockResponseOptions {
-                show_input: true,
-                show_raw_input: true,
-                show_effects: true,
-                show_events: true,
-                show_object_changes: true,
-                show_balance_changes: true,
-                show_raw_effects: true,
-            },
-        )
-        .await?;
-    println!("Transaction succeeded: {:?}\n\n", tx_response.status_ok());
-
-    println!("Transaction data: {tx_response:?}");
-
     let tx_blocks = client.read_api().get_total_transaction_blocks().await?;
     println!("Total transaction blocks {tx_blocks}");
     // ************ END OF READ API ************ //
