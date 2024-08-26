@@ -37,5 +37,6 @@ export * from './useIotaAddressValidation';
 export * from './useGetAllOwnedObjects';
 export * from './useGetTimelockedStakedObjects';
 export * from './useGetActiveValidatorsInfo';
+export * from './useUnlockTimelockedObjects';
 
 export * from './stake';
