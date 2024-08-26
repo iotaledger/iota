@@ -827,7 +827,7 @@ impl TransactionBuilder {
                 builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
             ];
             builder.command(Command::move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                IOTA_SYSTEM_PACKAGE_ID,
                 TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
                 ADD_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
                 vec![],
