@@ -5,16 +5,21 @@
 import { LoadingIndicator } from '_components';
 import { ArrowBottomLeft, ArrowTopRight, Info, IotaLogoMark, Person, Stake } from '@iota/ui-icons';
 
+const ICON_COLORS = {
+    primary: 'text-primary-30',
+    error: 'text-error-30',
+};
+
 const icons = {
-    Send: <ArrowTopRight className="text-primary-30" />,
-    Receive: <ArrowBottomLeft className="text-primary-30" />,
-    Transaction: <ArrowTopRight className="text-primary-30" />,
-    Staked: <Stake className=" text-primary-30" />,
-    Unstaked: <Stake className="text-primary-30" />,
-    Rewards: <IotaLogoMark className="text-primary-30" />,
-    Failed: <Info className="text-error-30" />,
+    Send: <ArrowTopRight className={ICON_COLORS.primary} />,
+    Receive: <ArrowBottomLeft className={ICON_COLORS.primary} />,
+    Transaction: <ArrowTopRight className={ICON_COLORS.primary} />,
+    Staked: <Stake className={ICON_COLORS.primary} />,
+    Unstaked: <Stake className={ICON_COLORS.primary} />,
+    Rewards: <IotaLogoMark className={ICON_COLORS.primary} />,
+    Failed: <Info className={ICON_COLORS.error} />,
     Loading: <LoadingIndicator />,
-    PersonalMessage: <Person className="text-primary-30" />,
+    PersonalMessage: <Person className={ICON_COLORS.primary} />,
 };
 
 interface TxnItemIconProps {
