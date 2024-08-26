@@ -30,7 +30,7 @@ export function ProgressBar({ progress }: ProgressBarProps): JSX.Element {
             <div className="relative h-1 w-full rounded-full bg-primary-90">
                 <motion.div
                     variants={getProgressBarVariant(progress)}
-                    className="rounded-full bg-primary-30 py-1"
+                    className="rounded-full bg-primary-30"
                     initial="initial"
                     animate="animate"
                 />
