@@ -49,26 +49,25 @@ export default function HiddenAsset(item: HiddenAssetProps) {
     const nftName = nftMeta?.name || formatAddress(objectId);
     const nftImageUrl = nftMeta?.imageUrl || '';
     const video = useResolveVideo(objectData);
+
+    function handleHiddenAssetClick() {
+        navigate(
+            isKioskOwnerToken(kioskClient.network, item.data)
+                ? `/kiosk?${new URLSearchParams({
+                      kioskId: getKioskIdFromOwnerCap(item.data!),
+                  })}`
+                : `/nft-details?${new URLSearchParams({
+                      objectId,
+                  }).toString()}`,
+        );
+        ampli.clickedCollectibleCard({
+            objectId,
+            collectibleType: type!,
+        });
+    }
     return (
         <ErrorBoundary>
-            <Card
-                type={CardType.Default}
-                onClick={() => {
-                    navigate(
-                        isKioskOwnerToken(kioskClient.network, item.data)
-                            ? `/kiosk?${new URLSearchParams({
-                                  kioskId: getKioskIdFromOwnerCap(item.data!),
-                              })}`
-                            : `/nft-details?${new URLSearchParams({
-                                  objectId,
-                              }).toString()}`,
-                    );
-                    ampli.clickedCollectibleCard({
-                        objectId,
-                        collectibleType: type!,
-                    });
-                }}
-            >
+            <Card type={CardType.Default} onClick={handleHiddenAssetClick}>
                 <CardImage type={ImageType.BgTransparent} shape={ImageShape.SquareRounded}>
                     {video ? (
                         <video

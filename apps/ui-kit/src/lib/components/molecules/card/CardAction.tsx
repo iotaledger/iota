@@ -14,14 +14,15 @@ export type CardActionProps = {
 };
 
 export function CardAction({ type, onClick, subtitle, title, icon }: CardActionProps) {
-    const handleActionCardActionClick = (event: React.MouseEvent) => {
+    function handleActionClick(event: React.MouseEvent) {
         event?.stopPropagation();
         onClick?.();
-    };
+    }
+
     if (type === CardActionType.Link) {
         return (
             <div
-                onClick={handleActionCardActionClick}
+                onClick={handleActionClick}
                 className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
             >
                 {icon ? icon : <ArrowRight />}
@@ -52,7 +53,7 @@ export function CardAction({ type, onClick, subtitle, title, icon }: CardActionP
                     type={ButtonType.Outlined}
                     size={ButtonSize.Small}
                     text={title}
-                    onClick={handleActionCardActionClick}
+                    onClick={handleActionClick}
                 />
             </div>
         );
