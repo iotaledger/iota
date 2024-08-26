@@ -20,12 +20,17 @@ function NftTransferPage() {
     const isGuardLoading = useUnlockedGuard();
     const isPending = isNftLoading || isGuardLoading;
     return (
-        <Overlay showModal={true} title="Send NFT" closeOverlay={() => navigate('/nfts')}>
-            <div className="flex h-full w-full flex-col">
+        <Overlay
+            showModal={true}
+            title="Send NFT"
+            closeOverlay={() => navigate('/nfts')}
+            showBackButton
+        >
+            <div className="flex h-full w-full flex-col gap-md">
                 <Loading loading={isPending}>
                     {nftId && !!ownedNFT && isAssetTransferable(ownedNFT) ? (
                         <>
-                            <div className="mb-7.5">
+                            <div className="w-[172px] self-center">
                                 <NFTDisplayCard objectId={nftId} wideView />
                             </div>
                             <TransferNFTForm objectId={nftId} objectType={ownedNFT.type} />
