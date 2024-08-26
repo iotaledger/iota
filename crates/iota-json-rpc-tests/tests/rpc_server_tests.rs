@@ -973,8 +973,6 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// Need to be enable when the Stardust package is integrated in the system
-// packages list.
 #[sim_test]
 async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -1127,8 +1125,6 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// Ignored because there is a problem with the StakeStatus::Unstaked state.
-// The same behavior reproduces in the original test_unstaking test.
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
