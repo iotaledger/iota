@@ -1,0 +1,120 @@
+---
+description: Guide to creating and understanding a Move module in an IOTA package.
+tags: [move,  getting-started]
+---
+
+# Create a Move Module
+
+A [package](create-a-package.mdx)'s utility is defined by its modules. A module contains the logic for your package. You can create any number of modules per package. To add a module, create a `.move` file in the `sources` directory. For this guide, create a file called `my_module.move` and add the following content:
+
+:::tip Comments in `.move` files
+
+In `.move` files, use double slashes (`//`) to denote a comment.
+
+:::
+
+
+```move
+module my_first_package::my_module {
+
+    // Imports
+    use iota::object::{Self, UID};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
+
+    // Struct definitions
+    struct Sword has key, store {
+        id: UID,
+        magic: u64,
+        strength: u64,
+    }
+
+    struct Forge has key, store {
+        id: UID,
+        swords_created: u64,
+    }
+
+    // Module initializer to be executed when this module is published
+    fun init(ctx: &mut TxContext) {
+        let admin = Forge {
+            id: object::new(ctx),
+            swords_created: 0,
+        };
+        // Transfer the forge object to the module/package publisher
+        transfer::public_transfer(admin, tx_context::sender(ctx));
+    }
+
+    // Accessors required to read the struct attributes
+    public fun magic(self: &Sword): u64 {
+        self.magic
+    }
+
+    public fun strength(self: &Sword): u64 {
+        self.strength
+    }
+
+    public fun swords_created(self: &Forge): u64 {
+        self.swords_created
+    }
+
+    // Public/entry functions
+
+    // Private functions
+}
+```
+## Module Name
+
+The first line of the module defines the module's name and the package it belongs to. In this case, `my_module` belongs to [`my_first_package`](create-a-package.mdx).
+
+## Imports
+
+Move's [object model](../iota-101/objects/object-model.mdx) allows for code reuse. You can use types and functions declared in other modules, even if they belong to different packages.
+
+In this example, the module imports from the `object`, `transfer`, and `tx_context` modules from the `iota` package, which was defined as a [package dependency](create-a-package.mdx#dependencies).
+
+## Struct Declarations
+
+Structs define the data structures your module can create, store, and destroy.
+
+### Abilities
+
+You can add abilities to any struct using the `has` keyword.
+
+#### `key`
+
+The `key` ability allows you to store and transfer a struct.
+
+#### `store`
+
+The `store` ability allows the struct to be stored in structs with the `key` ability. The `store` ability allows the value to be wrapped in an object. A type with the `key` ability can be stored at top-level and be directly owned by an account or address.
+
+#### `copy`
+
+The `copy` ability allows the struct to be copied. If a type has the `copy` ability, it should likely have the `drop` ability too, as the `drop` ability is required to clean up resources when the instance is no longer needed.
+
+#### `drop`
+
+The `drop` ability allows the struct to be dropped or discarded. In Move, all assets must be handled with appropriate care. If you attempt to ignore or discard a struct without the `drop` ability, your code will not compile.
+
+### Module Initializer
+
+A module initializer is a special function invoked exactly once when the module is published. It must have the following properties:
+
+- The function name must be `init`.
+- The parameter list must end with either `&mut TxContext` or `&TxContext`.
+- The function should have no return values.
+- It must be a private function.
+
+Keep in mind that if you [upgrade your package](../iota-101/iota-move-concepts/packages/upgrade.mdx), the initializer will not be called again.
+
+### Entry Functions
+
+Add the `entry` modifier to functions you want to call from a [programmable transaction block](../iota-101/transactions/ptb/prog-txn-blocks.mdx). All parameters passed to the function must be inputs to the transaction block, not results from other transactions in the block, nor can they be modified by previous transactions in the block. These functions can only return types with the `drop` ability.
+
+### Public Functions
+
+`public` functions can be called from a [programmable transaction block](../iota-101/transactions/ptb/prog-txn-blocks.mdx) or another module.
+
+#### Accessor Functions
+
+Accessor functions are `public` functions that allow the fields of the module's structs to be read from other modules.
