@@ -48,7 +48,6 @@ export function AccountGroupItem({
     }
 
     function handleToggleLock() {
-        // prevent the account from being selected when clicking the lock button
         if (account.isLocked) {
             unlockAccount(account);
         } else {
@@ -56,7 +55,7 @@ export function AccountGroupItem({
         }
     }
 
-    function handleEditNickname() {
+    function handleRename() {
         setDialogNicknameOpen(true);
     }
 
@@ -64,7 +63,7 @@ export function AccountGroupItem({
         navigate(`/accounts/export/${account!.id}`);
     }
 
-    function handleRemove() {
+    function handleDelete() {
         setDialogRemoveOpen(true);
     }
 
@@ -88,8 +87,8 @@ export function AccountGroupItem({
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
-                        <ListItem hideBottomBorder onClick={handleEditNickname}>
-                            Edit Nickname
+                        <ListItem hideBottomBorder onClick={handleRename}>
+                            Rename
                         </ListItem>
                         {account.isKeyPairExportable ? (
                             <ListItem hideBottomBorder onClick={handleExportPrivateKey}>
@@ -97,8 +96,8 @@ export function AccountGroupItem({
                             </ListItem>
                         ) : null}
                         {allAccounts.isPending ? null : (
-                            <ListItem hideBottomBorder onClick={handleRemove}>
-                                Remove
+                            <ListItem hideBottomBorder onClick={handleDelete}>
+                                Delete
                             </ListItem>
                         )}
                     </Dropdown>

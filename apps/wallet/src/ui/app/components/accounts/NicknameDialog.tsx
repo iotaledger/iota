@@ -83,7 +83,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
                                 htmlType={ButtonHtmlType.Submit}
                                 type={ButtonType.Primary}
                                 disabled={isSubmitting || !isValid}
-                                text={'Save'}
+                                text="Save"
                                 fullWidth
                             />
                         </div>
