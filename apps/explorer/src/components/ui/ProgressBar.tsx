@@ -26,15 +26,13 @@ export interface ProgressBarProps {
 
 export function ProgressBar({ progress }: ProgressBarProps): JSX.Element {
     return (
-        <div className="px-md--rs py-sm--rs">
-            <div className="relative h-1 w-full rounded-full bg-primary-90">
-                <motion.div
-                    variants={getProgressBarVariant(progress)}
-                    className="rounded-full bg-primary-30"
-                    initial="initial"
-                    animate="animate"
-                />
-            </div>
+        <div className="relative h-1 w-full rounded-full bg-primary-90">
+            <motion.div
+                variants={getProgressBarVariant(progress)}
+                className="rounded-full bg-primary-30"
+                initial="initial"
+                animate="animate"
+            />
         </div>
     );
 }
