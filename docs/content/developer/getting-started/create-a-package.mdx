@@ -31,13 +31,12 @@ In `.toml` files, use the hash mark (`#`) to denote a comment.
 ```toml title="my_first_package/Move.toml"
 [package]
 name = "my_first_package"
-
-# edition = "2024.beta " # To use the Move 2024 edition, currently in beta
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
 [dependencies]
-IOTA = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.
