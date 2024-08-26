@@ -41,6 +41,6 @@ async fn main() -> Result<(), AnalyticsIndexerError> {
         .rest_url(&rest_url)
         .handler(processor)
         .run()
-        .await;
-    Ok(())
+        .await
+        .map_err(|e| AnalyticsIndexerError::GenericError(e.to_string()))
 }
