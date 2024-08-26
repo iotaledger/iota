@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@iota/core';
+import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
@@ -30,11 +30,18 @@ import { ValidatorStatus } from './stats/ValidatorStatus';
 
 function IotaStats({
     amount,
+    showSign,
     ...props
 }: Omit<StatsProps, 'children'> & {
     amount: bigint | number | string | undefined | null;
+    showSign?: boolean;
 }): JSX.Element {
-    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG);
+    const [formattedAmount, symbol] = useFormatCoin(
+        amount,
+        IOTA_TYPE_ARG,
+        CoinFormat.ROUNDED,
+        showSign,
+    );
 
     return (
         <Stats postfix={formattedAmount && symbol} {...props}>
@@ -141,6 +148,7 @@ export default function EpochDetail() {
                             <IotaStats
                                 label="Supply Change"
                                 amount={getSupplyChangeAfterEpochEnd(epochData.endOfEpochInfo)}
+                                showSign
                             />
                         </EpochStats>
 

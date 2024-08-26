@@ -1,3 +1,4 @@
+
 <a name="0x1_ascii"></a>
 
 # Module `0x1::ascii`
@@ -5,24 +6,28 @@
 The <code>ASCII</code> module defines basic string and char newtypes in Move that verify
 that characters are valid ASCII, and that strings consist of only valid ASCII characters.
 
-- [Struct `String`](#0x1_ascii_String)
-- [Struct `Char`](#0x1_ascii_Char)
-- [Constants](#@Constants_0)
-- [Function `char`](#0x1_ascii_char)
-- [Function `string`](#0x1_ascii_string)
-- [Function `try_string`](#0x1_ascii_try_string)
-- [Function `all_characters_printable`](#0x1_ascii_all_characters_printable)
-- [Function `push_char`](#0x1_ascii_push_char)
-- [Function `pop_char`](#0x1_ascii_pop_char)
-- [Function `length`](#0x1_ascii_length)
-- [Function `as_bytes`](#0x1_ascii_as_bytes)
-- [Function `into_bytes`](#0x1_ascii_into_bytes)
-- [Function `byte`](#0x1_ascii_byte)
-- [Function `is_valid_char`](#0x1_ascii_is_valid_char)
-- [Function `is_printable_char`](#0x1_ascii_is_printable_char)
+
+-  [Struct `String`](#0x1_ascii_String)
+-  [Struct `Char`](#0x1_ascii_Char)
+-  [Constants](#@Constants_0)
+-  [Function `char`](#0x1_ascii_char)
+-  [Function `string`](#0x1_ascii_string)
+-  [Function `try_string`](#0x1_ascii_try_string)
+-  [Function `all_characters_printable`](#0x1_ascii_all_characters_printable)
+-  [Function `push_char`](#0x1_ascii_push_char)
+-  [Function `pop_char`](#0x1_ascii_pop_char)
+-  [Function `length`](#0x1_ascii_length)
+-  [Function `as_bytes`](#0x1_ascii_as_bytes)
+-  [Function `into_bytes`](#0x1_ascii_into_bytes)
+-  [Function `byte`](#0x1_ascii_byte)
+-  [Function `is_valid_char`](#0x1_ascii_is_valid_char)
+-  [Function `is_printable_char`](#0x1_ascii_is_printable_char)
+
 
 <pre><code><b>use</b> <a href="option.md#0x1_option">0x1::option</a>;
 </code></pre>
+
+
 
 <a name="0x1_ascii_String"></a>
 
@@ -34,11 +39,15 @@ be printable. To determine if a <code><a href="ascii.md#0x1_ascii_String">String
 characters you should use the <code>all_characters_printable</code> predicate
 defined in this module.
 
+
 <pre><code><b>struct</b> <a href="ascii.md#0x1_ascii_String">String</a> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
+
+
 <details>
 <summary>Fields</summary>
+
 
 <dl>
 <dt>
@@ -49,6 +58,7 @@ defined in this module.
 </dd>
 </dl>
 
+
 </details>
 
 <a name="0x1_ascii_Char"></a>
@@ -57,11 +67,15 @@ defined in this module.
 
 An ASCII character.
 
+
 <pre><code><b>struct</b> <a href="ascii.md#0x1_ascii_Char">Char</a> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
+
+
 <details>
 <summary>Fields</summary>
+
 
 <dl>
 <dt>
@@ -72,18 +86,23 @@ An ASCII character.
 </dd>
 </dl>
 
+
 </details>
 
 <a name="@Constants_0"></a>
 
 ## Constants
 
+
 <a name="0x1_ascii_EINVALID_ASCII_CHARACTER"></a>
 
 An invalid ASCII character was encountered when creating an ASCII string.
 
+
 <pre><code><b>const</b> <a href="ascii.md#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</a>: u64 = 65536;
 </code></pre>
+
+
 
 <a name="0x1_ascii_char"></a>
 
@@ -91,17 +110,23 @@ An invalid ASCII character was encountered when creating an ASCII string.
 
 Convert a <code>byte</code> into a <code><a href="ascii.md#0x1_ascii_Char">Char</a></code> that is checked to make sure it is valid ASCII.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_char">char</a>(byte: u8): <a href="ascii.md#0x1_ascii_Char">ascii::Char</a>
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_char">char</a>(byte: u8): <a href="ascii.md#0x1_ascii_Char">Char</a> {
     <b>assert</b>!(<a href="ascii.md#0x1_ascii_is_valid_char">is_valid_char</a>(byte), <a href="ascii.md#0x1_ascii_EINVALID_ASCII_CHARACTER">EINVALID_ASCII_CHARACTER</a>);
     <a href="ascii.md#0x1_ascii_Char">Char</a> { byte }
 }
 </code></pre>
+
+
 
 </details>
 
@@ -112,11 +137,15 @@ Convert a <code>byte</code> into a <code><a href="ascii.md#0x1_ascii_Char">Char<
 Convert a vector of bytes <code>bytes</code> into an <code><a href="ascii.md#0x1_ascii_String">String</a></code>. Aborts if
 <code>bytes</code> contains non-ASCII characters.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="string.md#0x1_string">string</a>(bytes: <a href="vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="ascii.md#0x1_ascii_String">ascii::String</a>
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="string.md#0x1_string">string</a>(bytes: <a href="vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="ascii.md#0x1_ascii_String">String</a> {
    <b>let</b> x = <a href="ascii.md#0x1_ascii_try_string">try_string</a>(bytes);
@@ -128,6 +157,8 @@ Convert a vector of bytes <code>bytes</code> into an <code><a href="ascii.md#0x1
 }
 </code></pre>
 
+
+
 </details>
 
 <a name="0x1_ascii_try_string"></a>
@@ -138,11 +169,15 @@ Convert a vector of bytes <code>bytes</code> into an <code><a href="ascii.md#0x1
 <code>Some(&lt;ascii_string&gt;)</code> if the <code>bytes</code> contains all valid ASCII
 characters. Otherwise returns <code>None</code>.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_try_string">try_string</a>(bytes: <a href="vector.md#0x1_vector">vector</a>&lt;u8&gt;): <a href="option.md#0x1_option_Option">option::Option</a>&lt;<a href="ascii.md#0x1_ascii_String">ascii::String</a>&gt;
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_try_string">try_string</a>(bytes: <a href="vector.md#0x1_vector">vector</a>&lt;u8&gt;): Option&lt;<a href="ascii.md#0x1_ascii_String">String</a>&gt; {
     <b>let</b> len = <a href="vector.md#0x1_vector_length">vector::length</a>(&bytes);
@@ -156,6 +191,8 @@ characters. Otherwise returns <code>None</code>.
 }
 </code></pre>
 
+
+
 </details>
 
 <a name="0x1_ascii_all_characters_printable"></a>
@@ -165,11 +202,15 @@ characters. Otherwise returns <code>None</code>.
 Returns <code><b>true</b></code> if all characters in <code><a href="string.md#0x1_string">string</a></code> are printable characters
 Returns <code><b>false</b></code> otherwise. Not all <code><a href="ascii.md#0x1_ascii_String">String</a></code>s are printable strings.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_all_characters_printable">all_characters_printable</a>(<a href="string.md#0x1_string">string</a>: &<a href="ascii.md#0x1_ascii_String">ascii::String</a>): bool
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_all_characters_printable">all_characters_printable</a>(<a href="string.md#0x1_string">string</a>: &<a href="ascii.md#0x1_ascii_String">String</a>): bool {
     <b>let</b> len = <a href="vector.md#0x1_vector_length">vector::length</a>(&<a href="string.md#0x1_string">string</a>.bytes);
@@ -183,22 +224,31 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="ascii.md#0x1
 }
 </code></pre>
 
+
+
 </details>
 
 <a name="0x1_ascii_push_char"></a>
 
 ## Function `push_char`
 
+
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_push_char">push_char</a>(<a href="string.md#0x1_string">string</a>: &<b>mut</b> <a href="ascii.md#0x1_ascii_String">ascii::String</a>, char: <a href="ascii.md#0x1_ascii_Char">ascii::Char</a>)
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_push_char">push_char</a>(<a href="string.md#0x1_string">string</a>: &<b>mut</b> <a href="ascii.md#0x1_ascii_String">String</a>, char: <a href="ascii.md#0x1_ascii_Char">Char</a>) {
     <a href="vector.md#0x1_vector_push_back">vector::push_back</a>(&<b>mut</b> <a href="string.md#0x1_string">string</a>.bytes, char.byte);
 }
 </code></pre>
+
+
 
 </details>
 
@@ -206,16 +256,23 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="ascii.md#0x1
 
 ## Function `pop_char`
 
+
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_pop_char">pop_char</a>(<a href="string.md#0x1_string">string</a>: &<b>mut</b> <a href="ascii.md#0x1_ascii_String">ascii::String</a>): <a href="ascii.md#0x1_ascii_Char">ascii::Char</a>
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_pop_char">pop_char</a>(<a href="string.md#0x1_string">string</a>: &<b>mut</b> <a href="ascii.md#0x1_ascii_String">String</a>): <a href="ascii.md#0x1_ascii_Char">Char</a> {
     <a href="ascii.md#0x1_ascii_Char">Char</a> { byte: <a href="vector.md#0x1_vector_pop_back">vector::pop_back</a>(&<b>mut</b> <a href="string.md#0x1_string">string</a>.bytes) }
 }
 </code></pre>
+
+
 
 </details>
 
@@ -223,16 +280,23 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="ascii.md#0x1
 
 ## Function `length`
 
+
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_length">length</a>(<a href="string.md#0x1_string">string</a>: &<a href="ascii.md#0x1_ascii_String">ascii::String</a>): u64
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_length">length</a>(<a href="string.md#0x1_string">string</a>: &<a href="ascii.md#0x1_ascii_String">String</a>): u64 {
     <a href="vector.md#0x1_vector_length">vector::length</a>(<a href="ascii.md#0x1_ascii_as_bytes">as_bytes</a>(<a href="string.md#0x1_string">string</a>))
 }
 </code></pre>
+
+
 
 </details>
 
@@ -242,16 +306,22 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="ascii.md#0x1
 
 Get the inner bytes of the <code><a href="string.md#0x1_string">string</a></code> as a reference
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_as_bytes">as_bytes</a>(<a href="string.md#0x1_string">string</a>: &<a href="ascii.md#0x1_ascii_String">ascii::String</a>): &<a href="vector.md#0x1_vector">vector</a>&lt;u8&gt;
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_as_bytes">as_bytes</a>(<a href="string.md#0x1_string">string</a>: &<a href="ascii.md#0x1_ascii_String">String</a>): &<a href="vector.md#0x1_vector">vector</a>&lt;u8&gt; {
    &<a href="string.md#0x1_string">string</a>.bytes
 }
 </code></pre>
+
+
 
 </details>
 
@@ -261,17 +331,23 @@ Get the inner bytes of the <code><a href="string.md#0x1_string">string</a></code
 
 Unpack the <code><a href="string.md#0x1_string">string</a></code> to get its backing bytes
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_into_bytes">into_bytes</a>(<a href="string.md#0x1_string">string</a>: <a href="ascii.md#0x1_ascii_String">ascii::String</a>): <a href="vector.md#0x1_vector">vector</a>&lt;u8&gt;
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_into_bytes">into_bytes</a>(<a href="string.md#0x1_string">string</a>: <a href="ascii.md#0x1_ascii_String">String</a>): <a href="vector.md#0x1_vector">vector</a>&lt;u8&gt; {
    <b>let</b> <a href="ascii.md#0x1_ascii_String">String</a> { bytes } = <a href="string.md#0x1_string">string</a>;
    bytes
 }
 </code></pre>
+
+
 
 </details>
 
@@ -281,17 +357,23 @@ Unpack the <code><a href="string.md#0x1_string">string</a></code> to get its bac
 
 Unpack the <code>char</code> into its underlying byte.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_byte">byte</a>(char: <a href="ascii.md#0x1_ascii_Char">ascii::Char</a>): u8
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_byte">byte</a>(char: <a href="ascii.md#0x1_ascii_Char">Char</a>): u8 {
    <b>let</b> <a href="ascii.md#0x1_ascii_Char">Char</a> { byte } = char;
    byte
 }
 </code></pre>
+
+
 
 </details>
 
@@ -301,16 +383,22 @@ Unpack the <code>char</code> into its underlying byte.
 
 Returns <code><b>true</b></code> if <code>b</code> is a valid ASCII character. Returns <code><b>false</b></code> otherwise.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_is_valid_char">is_valid_char</a>(b: u8): bool
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_is_valid_char">is_valid_char</a>(b: u8): bool {
    b &lt;= 0x7F
 }
 </code></pre>
+
+
 
 </details>
 
@@ -320,11 +408,15 @@ Returns <code><b>true</b></code> if <code>b</code> is a valid ASCII character. R
 
 Returns <code><b>true</b></code> if <code>byte</code> is an printable ASCII character. Returns <code><b>false</b></code> otherwise.
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_is_printable_char">is_printable_char</a>(byte: u8): bool
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="ascii.md#0x1_ascii_is_printable_char">is_printable_char</a>(byte: u8): bool {
    byte &gt;= 0x20 && // Disallow metacharacters
@@ -332,6 +424,9 @@ Returns <code><b>true</b></code> if <code>byte</code> is an printable ASCII char
 }
 </code></pre>
 
+
+
 </details>
+
 
 [//]: # ("File containing references which can be used from documentation")
