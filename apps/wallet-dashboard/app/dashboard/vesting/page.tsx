@@ -18,12 +18,17 @@ import {
     useGetStakedTimelockedObjects,
     useUnlockTimelockedObjects,
 } from '@iota/core';
-import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClient,
+    useSignAndExecuteTransactionBlock,
+} from '@iota/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const queryClient = useQueryClient();
+    const iotaClient = useIotaClient();
 
     const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -51,6 +56,27 @@ function VestingDashboardPage(): JSX.Element {
         unlockedTimelockedObjectIds,
     );
 
+    function handleOnSuccess(digest: string): void {
+        iotaClient
+            .waitForTransactionBlock({
+                digest,
+            })
+            .then(() => {
+                queryClient.invalidateQueries({
+                    queryKey: ['get-staked-timelocked-objects', account?.address],
+                });
+                queryClient.invalidateQueries({
+                    queryKey: [
+                        'get-all-owned-objects',
+                        account?.address,
+                        {
+                            StructType: TIMELOCK_IOTA_TYPE,
+                        },
+                    ],
+                });
+            });
+    }
+
     const handleCollect = () => {
         if (!unlockAllTimelockedObjects?.transactionBlock) {
             addNotification('Failed to create a Transaction', NotificationType.Error);
@@ -61,17 +87,17 @@ function VestingDashboardPage(): JSX.Element {
                 transactionBlock: unlockAllTimelockedObjects.transactionBlock,
             },
             {
-                onSuccess: () => {
-                    queryClient.invalidateQueries({
-                        queryKey: ['get-all-timelocked-objects'],
-                    });
-                    addNotification('Transaction has been sent');
-                },
-                onError: () => {
-                    addNotification('Transaction was not sent', NotificationType.Error);
+                onSuccess: (tx) => {
+                    handleOnSuccess(tx.digest);
                 },
             },
-        );
+        )
+            .then(() => {
+                addNotification('Collect transaction has been sent');
+            })
+            .catch(() => {
+                addNotification('Collect transaction was not sent', NotificationType.Error);
+            });
     };
     const handleStake = () => {
         console.log('Stake');
