@@ -79,8 +79,8 @@ export function TransactionsCardGraph() {
         <Panel>
             <div className="py-md">
                 <Title title="Transaction Blocks" size={TitleSize.Medium} />
-                <div className="flex flex-col gap-lg py-sm">
-                    <div className="flex gap-sm px-md--rs">
+                <div className="flex flex-col gap-md p-md--rs">
+                    <div className="flex flex-row gap-md">
                         <div className="flex-1">
                             <LabelText
                                 size={LabelTextSize.Large}
