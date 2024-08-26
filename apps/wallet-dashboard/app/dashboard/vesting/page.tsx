@@ -10,7 +10,7 @@ import {
     TIMELOCK_IOTA_TYPE,
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
-    useGetStakedTimelockedObjects,
+    useGetTimelockedStakedObjects,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
@@ -22,11 +22,11 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
+    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...(stakedTimelockedObjects || [])],
+        [...timelockedMapped, ...(timelockedStakedObjects || [])],
         Number(currentEpochMs),
     );
 
@@ -34,13 +34,13 @@ function VestingDashboardPage(): JSX.Element {
         return (
             activeValidators?.find(
                 (activeValidator) => activeValidator.iotaAddress === validatorAddress,
-            )?.name || '-'
+            )?.name || validatorAddress
         );
     }
 
-    function handleUnstake(delegatedTimelocked: DelegatedTimelockedStake): void {
+    function handleUnstake(delegatedTimelockedStake: DelegatedTimelockedStake): void {
         // TODO: handle unstake logic
-        console.info('delegatedTimelocked', delegatedTimelocked);
+        console.info('delegatedTimelockedStake', delegatedTimelockedStake);
     }
 
     return (
@@ -82,18 +82,18 @@ function VestingDashboardPage(): JSX.Element {
                     </div>
                 </div>
                 <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                    {stakedTimelockedObjects?.map((stakedTimelockedObject) => {
+                    {timelockedStakedObjects?.map((timelockedStakedObject) => {
                         return (
                             <div
-                                key={stakedTimelockedObject.stakingPool}
+                                key={timelockedStakedObject.stakingPool}
                                 className="flex w-full flex-row items-center justify-center space-x-4"
                             >
                                 <span>
-                                    {getValidatorName(stakedTimelockedObject.validatorAddress)}
+                                    {getValidatorName(timelockedStakedObject.validatorAddress)}
                                 </span>
-                                <span>Stakes: {stakedTimelockedObject.stakes.length}</span>
+                                <span>Stakes: {timelockedStakedObject.stakes.length}</span>
 
-                                <Button onClick={() => handleUnstake(stakedTimelockedObject)}>
+                                <Button onClick={() => handleUnstake(timelockedStakedObject)}>
                                     Unstake
                                 </Button>
                             </div>
