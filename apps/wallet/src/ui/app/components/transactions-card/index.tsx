@@ -50,15 +50,6 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
 
     const error = txn.effects?.status.error;
 
-    // Transition label - depending on the transaction type and amount
-    // Epoch change without amount is delegation object
-    // Special case for staking and unstaking move call transaction,
-    // For other transaction show Sent or Received
-
-    // TODO: Support programmable tx:
-    // Show iota symbol only if transfer transferAmount coinType is IOTA_TYPE_ARG, staking or unstaking
-    // const SHOW_IOTA_SYMBOL = false;
-
     const timestamp = txn.timestampMs;
     const transactionDate = formatDate(Number(timestamp), ['month', 'day', 'hour', 'minute']);
 
