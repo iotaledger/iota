@@ -60,7 +60,7 @@ jobs:
         run: sudo apt-get install -y libpq-dev
 
       - name: Set os/arch variables
-        if: ${{ matrix.os != 'windows-ghcloud' }}
+        if: matrix.os != 'windows-ghcloud'
         shell: bash
         run: |
           export arch=$(uname -m)
