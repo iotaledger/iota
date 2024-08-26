@@ -11,6 +11,10 @@ on:
       SSH_GITHUB_KNOWN_HOSTS:
         required: true
 
+concurrency:
+  group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rustfmt:
     if: always() && inputs.isRust
