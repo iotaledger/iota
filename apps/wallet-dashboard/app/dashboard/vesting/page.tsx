@@ -6,11 +6,12 @@
 import { Button } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
-    ExtendedDelegatedTimelockedStake,
     formatDelegatedTimelockedStake,
     getVestingOverview,
+    groupTimelockedStakedObjects,
     isTimelockedUnlocked,
     mapTimelockObjects,
+    TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import {
@@ -26,13 +27,6 @@ import {
     useSignAndExecuteTransactionBlock,
 } from '@iota/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
-
-type TimelockedStakedObjectsGrouped = {
-    validatorAddress: string;
-    startEpoch: string;
-    label: string | null | undefined;
-    stakes: ExtendedDelegatedTimelockedStake[];
-};
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -58,34 +52,6 @@ function VestingDashboardPage(): JSX.Element {
         [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
     );
-
-    function groupTimelockedStakedObjects(
-        extendedDelegatedTimelockedStake: ExtendedDelegatedTimelockedStake[],
-    ): TimelockedStakedObjectsGrouped[] {
-        const groupedArray: TimelockedStakedObjectsGrouped[] = [];
-
-        extendedDelegatedTimelockedStake.forEach((obj) => {
-            let group = groupedArray.find(
-                (g) =>
-                    g.validatorAddress === obj.validatorAddress &&
-                    g.startEpoch === obj.stakeRequestEpoch &&
-                    g.label === obj.label,
-            );
-
-            if (!group) {
-                group = {
-                    validatorAddress: obj.validatorAddress,
-                    startEpoch: obj.stakeRequestEpoch,
-                    label: obj.label,
-                    stakes: [],
-                };
-                groupedArray.push(group);
-            }
-            group.stakes.push(obj);
-        });
-
-        return groupedArray;
-    }
 
     function getValidatorName(validatorAddress: string): string {
         return (
