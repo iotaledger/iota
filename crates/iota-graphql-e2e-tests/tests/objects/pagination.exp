@@ -201,8 +201,18 @@ Response: {
             "node": {
               "contents": {
                 "json": {
-                  "id": "0x3461c19618ae469f04352d1c04c3d4520bc39c47149974b21e077351a526918c",
-                  "value": "4"
+                  "id": "0xb7c210e39501d53eb57a29721f1bba1136779e3fdf30968484129c01540ae1d9",
+                  "value": "2"
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "contents": {
+                "json": {
+                  "id": "0xbf0de7c7e7ad0ba77c99aef6a50f77462e35c6b56d39c1a8587dd9aecd24bd7a",
+                  "value": "1"
                 }
               }
             }
