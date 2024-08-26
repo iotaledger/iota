@@ -13,7 +13,14 @@ import {
     useGetTimelockedStakedObjects,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
+import { DelegatedTimelockedStake, TimelockedStake } from '@iota/iota-sdk/client';
+
+type TimelockedStakedObjectsGrouped = {
+    validatorAddress: string;
+    startEpoch: string;
+    label: string | null | undefined;
+    stakes: TimelockedStake[];
+};
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
@@ -24,11 +31,42 @@ function VestingDashboardPage(): JSX.Element {
     });
     const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
 
+    const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] = groupByFields(
+        timelockedStakedObjects || [],
+    );
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
     const vestingSchedule = getVestingOverview(
         [...timelockedMapped, ...(timelockedStakedObjects || [])],
         Number(currentEpochMs),
     );
+
+    function groupByFields(myArray: DelegatedTimelockedStake[]): TimelockedStakedObjectsGrouped[] {
+        const groupedArray: TimelockedStakedObjectsGrouped[] = [];
+
+        myArray.forEach((obj) => {
+            obj.stakes.forEach((stake) => {
+                let group = groupedArray.find(
+                    (g) =>
+                        g.validatorAddress === obj.validatorAddress &&
+                        g.startEpoch === stake.stakeRequestEpoch &&
+                        g.label === stake.label,
+                );
+
+                if (!group) {
+                    group = {
+                        validatorAddress: obj.validatorAddress,
+                        startEpoch: stake.stakeRequestEpoch,
+                        label: stake.label,
+                        stakes: [],
+                    };
+                    groupedArray.push(group);
+                }
+                group.stakes.push(stake);
+            });
+        });
+
+        return groupedArray;
+    }
 
     function getValidatorName(validatorAddress: string): string {
         return (
@@ -38,7 +76,7 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    function handleUnstake(delegatedTimelockedStake: DelegatedTimelockedStake): void {
+    function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
         // TODO: handle unstake logic
         console.info('delegatedTimelockedStake', delegatedTimelockedStake);
     }
@@ -82,10 +120,14 @@ function VestingDashboardPage(): JSX.Element {
                     </div>
                 </div>
                 <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                    {timelockedStakedObjects?.map((timelockedStakedObject) => {
+                    {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
                         return (
                             <div
-                                key={timelockedStakedObject.stakingPool}
+                                key={
+                                    timelockedStakedObject.validatorAddress +
+                                    timelockedStakedObject.startEpoch +
+                                    timelockedStakedObject.label
+                                }
                                 className="flex w-full flex-row items-center justify-center space-x-4"
                             >
                                 <span>
