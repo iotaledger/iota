@@ -76,3 +76,31 @@ export function formatDelegatedTimelockedStake(
         });
     });
 }
+
+export function groupTimelockedStakedObjects(
+    extendedDelegatedTimelockedStake: ExtendedDelegatedTimelockedStake[],
+): TimelockedStakedObjectsGrouped[] {
+    const groupedArray: TimelockedStakedObjectsGrouped[] = [];
+
+    extendedDelegatedTimelockedStake.forEach((obj) => {
+        let group = groupedArray.find(
+            (g) =>
+                g.validatorAddress === obj.validatorAddress &&
+                g.startEpoch === obj.stakeRequestEpoch &&
+                g.label === obj.label,
+        );
+
+        if (!group) {
+            group = {
+                validatorAddress: obj.validatorAddress,
+                startEpoch: obj.stakeRequestEpoch,
+                label: obj.label,
+                stakes: [],
+            };
+            groupedArray.push(group);
+        }
+        group.stakes.push(obj);
+    });
+
+    return groupedArray;
+}

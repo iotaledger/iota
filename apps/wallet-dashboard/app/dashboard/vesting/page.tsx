@@ -6,9 +6,9 @@
 import { Button, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
-    ExtendedDelegatedTimelockedStake,
     formatDelegatedTimelockedStake,
     getVestingOverview,
+    groupTimelockedStakedObjects,
     isTimelockedUnlocked,
     mapTimelockObjects,
     TimelockedStakedObjectsGrouped,
@@ -58,34 +58,6 @@ function VestingDashboardPage(): JSX.Element {
         return activeValidators?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
-    }
-
-    function groupTimelockedStakedObjects(
-        extendedDelegatedTimelockedStake: ExtendedDelegatedTimelockedStake[],
-    ): TimelockedStakedObjectsGrouped[] {
-        const groupedArray: TimelockedStakedObjectsGrouped[] = [];
-
-        extendedDelegatedTimelockedStake.forEach((obj) => {
-            let group = groupedArray.find(
-                (g) =>
-                    g.validatorAddress === obj.validatorAddress &&
-                    g.startEpoch === obj.stakeRequestEpoch &&
-                    g.label === obj.label,
-            );
-
-            if (!group) {
-                group = {
-                    validatorAddress: obj.validatorAddress,
-                    startEpoch: obj.stakeRequestEpoch,
-                    label: obj.label,
-                    stakes: [],
-                };
-                groupedArray.push(group);
-            }
-            group.stakes.push(obj);
-        });
-
-        return groupedArray;
     }
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
