@@ -94,7 +94,7 @@ export function ValidatorsCard() {
 
     return (
         <div className="flex h-full w-full flex-col flex-nowrap">
-            <div className="flex gap-md py-md">
+            <div className="flex gap-xs py-md">
                 <StatsDetail title="Your stake" balance={totalDelegatedStake} />
                 <StatsDetail title="Earned" balance={totalDelegatedRewards} />
             </div>
