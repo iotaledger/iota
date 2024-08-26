@@ -1,88 +1,118 @@
 ---
- title: Claiming Nft Outputs
+description: A guide on how to claim and convert NFT Outputs in the Move-based IOTA ledger.
 ---
 
-An address can own `NftOutput` objects that needs to be unlocked. 
-In this case, some off-chain queries can be used to check the unlock conditions of the `NftOutput` and assess if it can be unlocked. 
-Check the example above, as it works the same as the [`Basic Output`](basic.mdx).
-    
-## Claim of an Nft Output
-Once an Nft Output can be unlocked the claim of its assets can start
+# Claiming NFT Outputs
 
-1. The first step is to fetch the `NftOutput` object that needs to be claimed.
+As an owner of `NftOutput` objects, you may need to unlock these assets before you can claim them. 
+This guide will help you understand how to evaluate the unlock conditions for an `NftOutput` and proceed with claiming the associated NFT.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+## Evaluating Unlock Conditions
+
+To start, you must determine whether your `NftOutput` can be unlocked. 
+This involves using off-chain queries to check the unlock conditions, 
+similar to the process for [`Basic Outputs`](basic.mdx).
+
+## Steps to Claim an NFT Output
+
+### 1. Fetch the `NftOutput`
+
+The first step in claiming your NFT is to retrieve the `NftOutput` object that you intend to claim.
+
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L56-L80
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
+
+Coming soon
 
 </TabItem>
 </Tabs>
 
+### 2. Verify the Native Token Balance
 
-2. Then we check the native tokens that were possibly held by this output. A [`Bag`](../../../references/framework/iota-framework/bag) is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
+After fetching the `NftOutput`, you need to check for any native tokens that might be held by this output. 
+These tokens are stored in a [`Bag`](../../../references/framework/iota-framework/bag). 
+You'll need to obtain the dynamic field keys used as bag indexes to access the native tokens. 
+For native tokens, these keys are strings 
+representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token 
+[`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L82-L107
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
+
+Coming soon
 
 </TabItem>
 </Tabs>
 
-3. Finally, a PTB can be created using the `nft_output` as input and the `Bag` keys for iterating the native tokens extracted.
-An Nft Output is different from a Basic Output as it contains the `Nft` object. 
-In fact, the main purpose of claiming is extracting the `Nft` object from the `NftOutput`.
+### 3. Create the PTB
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+Finally, 
+you can create a [Programmable Transaction Block (PTB)](../../iota-101/transactions/ptb/building-ptb.mdx) using the `nft_output` as an input, 
+along with the `Bag` keys to iterate over the extracted native tokens. 
+The primary goal of this process is to extract the `Nft` object from the `NftOutput`.
+
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L109-L175
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
+
+Coming soon
 
 </TabItem>
 </Tabs>
 
-## Conversion of an Nft Output into a custom Nft
-This topic outlines the process of converting an stardust Nft into a custom Nft.
+## Converting an Nft Output into a Custom Nft
 
-You need to have a prepared custom Nft package that you want to convert the Stardust Nft You need to have a prepared custom Nft package that you want to convert the Stardust Nft into. 
-The following is an example of a simple module for representing a custom NFT, minting it, burning it and converting it from a Stardust `Nft`:
+Once you've claimed the `Nft`, you may want to convert it into a custom NFT. 
+This section outlines the process of transforming a Stardust `Nft` into a custom NFT tailored to your specific needs.
 
-<Tabs>
+### Preparing a Custom Nft Package
+
+Before proceeding with the conversion, ensure you have a prepared custom NFT package.
+This package will represent the custom NFT. 
+The following is an example of a simple module for representing, minting, burning,
+and converting the custom NFT from the Stardust `Nft`.
+
+<Tabs groupId="code-language">
 <TabItem value="move" label="Move">
 
 ```move file=<rootDir>/docs/examples/move/custom_nft/sources/nft.move
 ```
 
 </TabItem>
-
 </Tabs>
 
+### Creating the PTB for Conversion
 
-Create a PTB that extracts the Stardust `Nft` from an `NftOutput` and then converts it into a custom NFT of the collection just published. 
-This conversion method extracts the Stardust `Nft` metadata and uses it for minting a new NFT.
+You can then create a PTB that extracts the Stardust `Nft` from an `NftOutput` and converts it into a custom NFT within your collection. 
+This method uses the metadata from the Stardust `Nft` to mint a new NFT.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="code-language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L77-L137
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
+
+Coming soon
 
 </TabItem>
 </Tabs>
-

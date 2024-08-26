@@ -1,9 +1,9 @@
 ---
-title: Stardust Migration
 description: Describes the migration from IOTA Stardust to the IOTA Move-based ledger.
 ---
+# Stardust Migration
 
-The (legacy) IOTA and Shimmer networks run the Stardust protocol version that represents assets and tokens in a UTXO-based ledger.
+The legacy IOTA and Shimmer networks run the Stardust protocol version that represents assets and tokens in a UTXO-based ledger.
 IOTA Rebased introduces the Move-based object ledger, which necessitates the migration of assets and tokens from the Stardust
 ledger to the Move-based ledger.
 
@@ -15,60 +15,60 @@ developers on how to use the new models and handle assets.
 The Stardust ledger state, and hence the assets and tokens in the network, are represented via the [Unspent Transaction Output (UTXO) model.](https://github.com/iotaledger/tips/blob/main/tips/TIP-0020/tip-0020.md#utxo)
 Transactions consume previously unspent outputs, essentially removing them from the ledger, and create new outputs, thus updating the ledger state.
 
-With the introduction of the object-based Move ledger in IOTA Rebased, transactions no longer consume and create outputs,
-but [`Move Objects`](../iota-101/objects/object-model.mdx) instead. A move transaction names `input objects` that it intends to operate on (consume), and executing
-the transaction produces the set of new objects to be written into the ledger, while the `input objects` are removed.
+With the introduction of the object-based Move ledger in IOTA Rebased, transactions no longer consume and create outputs
+but [`Move Objects`](../iota-101/objects/object-model.mdx) instead.
+A Move transaction names `input objects` that it intends to operate on (consume),
+and executing the transaction produces the set of new objects to be written into the ledger, while the `input objects` are removed.
 
-The two models are conceptually really similar, but the underlying data structures are different, since move objects can
-take any shape and form as opposed to the rigid format of UTXOs. The IOTA Foundation developed a move package (TODO link to stardust pkg in iota framework)
-that emulates the stardust output models in the move language with all the previous stardust functionality supported.
+The two models are conceptually very similar, but the underlying data structures are different, as Move objects can
+take any shape and form, as opposed to the rigid format of UTXOs. The IOTA Foundation developed a [Move package that emulates the Stardust output models](../../references/framework/stardust/) in the Move language with all the previous Stardust functionality supported.
 
-**The IOTA Rebased network will be started with a ledger state where all previous outputs, furthermore all tokens and assets held
- by them, are automatically converted into move objects, coins and balances.**
+**The IOTA Rebased network will be started with a ledger state where all previous outputs, and all tokens and assets held
+by them, are automatically converted into Move objects, coins, and balances.**
 
 ## What Happens To Shimmer?
 
-The Shimmer network state is migrated to the IOTA Rebased network, using the very same move models as the IOTA Stardust network.
+The Shimmer network state is migrated to the IOTA Rebased network, using the very same Move models as the IOTA Stardust network.
 The SMR token, and all native tokens and assets on the Shimmer network, live on in the IOTA Rebased network, under the same
 addresses.
 
 ## How Is The Migration Done?
 
-The migration is performed via a global snapshot, where all UTXOs are converted into move objects. These objects then
-are part of the move genesis that IOTA Rebased is started with.
+The migration is performed via a global snapshot, where all UTXOs are converted into Move objects. These objects then
+are part of the Move genesis that IOTA Rebased is started with.
 
 The process is as follows:
- 1. The IOTA Foundation announces the milestone indices at which snapshots of the IOTA and Shimmer networks are taken.
- 2. Once both milestones are reached in IOTA and SMR, global snapshots are taken via the Hornet node software. Both ShimmerEVM and IOTAEVM are stopped.
- 3. The snapshots are then processed by the migration tool, which converts all UTXOs into move objects.
- 4. A move genesis is prepared with all the move objects from both snapshots.
- 5. The genesis blob is published and the IOTA Rebased network is started with it.
- 6. ShimmerEVM and IOTAEVM are started with a new node software that connects to the IOTA Rebased network.
- 7. IOTA, SMR and stardust native tokens can be immediately used on the IOTA Rebased network, however more complex asset
-    structures such as NFTs, Aliases or time-locked assets need to be claimed via the official tools.
+1. The IOTA Foundation announces the milestone indices at which snapshots of the IOTA and Shimmer networks are taken.
+2. Once both milestones are reached in IOTA and SMR, global snapshots are taken via the Hornet node software. Both ShimmerEVM and IOTAEVM are stopped.
+3. The snapshots are then processed by the migration tool, which converts all UTXOs into Move objects.
+4. A Move genesis is prepared with all the Move objects from both snapshots.
+5. The genesis blob is published, and the IOTA Rebased network is started with it.
+6. ShimmerEVM and IOTAEVM are started with new node software that connects to the IOTA Rebased network.
+7. IOTA, SMR and stardust native tokens can be immediately used on the IOTA Rebased network; However, more complex asset
+   structures such as NFTs, Aliases or time-locked assets need to be claimed via the official tools.
 
 ## What Breaks For Developers?
 
-IOTA Rebased is a major change in the technology stack with introduction of move smart contracts and the object ledger.
+IOTA Rebased is a major change in the technology stack with the introduction of Move smart contracts and the object ledger.
 All previous IOTA and Shimmer integrations are broken and have to be reimplemented via the new APIs and SDKs.
 
 ## What Does Not Break?
 
-**IOTA Rebased uses the same address scheme as IOTA/SMR Stardust, so all addresses and keys are still valid, there is no
+**IOTA Rebased uses the same address scheme as IOTA/SMR Stardust, so all addresses and keys are still valid; there is no
 need to migrate secrets.**
 
 While the Ed25519 address scheme stays the same, address representation changes from Bech32 to Base58 hex encoding with
- a `0x` prefix. The [Addresses and Keys](./addresses.mdx) guide provides help on how to acquire how to parse Bech32 addresses to the new format.
+a `0x` prefix. The [Addresses and Keys](./addresses.mdx) guide provides help on how to parse Bech32 addresses to the new format.
 
 ## How Can I Access Migrated Assets?
 
 The IOTA Foundation provides a browser extension wallet where users can import their secrets from Stardust wallets and
-find their assets on the IOTA Rebased network. Should it be necessary based on the assets of the user, a web application
-that talks to the browser extension wallet helps users to claim their assets.
+find their assets on the IOTA Rebased network.
+If necessary, based on the assets of the user, a web application that communicates with the browser extension wallet helps users claim their assets.
 
-Developers can use the official SDKs and APIs to claim assets programmatically based on the information provided on the
+Developers can use the official SDKs and APIs to claim assets programmatically based on the information provided on the 
 following pages. Example transactions on how to claim are described in the [Claiming Stardust Assets](./claiming.mdx) guide.
 
-## What Tools Can I Use?
+[//]: # (## What Tools Can I Use?)
 
-## Highlights (main differences)
+[//]: # (## Highlights &#40;Main Differences&#41;)
