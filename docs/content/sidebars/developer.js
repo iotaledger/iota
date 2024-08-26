@@ -748,11 +748,6 @@ const developer = [
                     },
                 ],
             },
-            'developer/stardust/vested',
-            'developer/stardust/testing',
-            'developer/stardust/if-tools',
-            'developer/stardust/faq',
-            'developer/stardust/advanced',
         ],
     },
 
