@@ -1,11 +1,12 @@
 ---
 name: Release
 about: Request a new release
+title: '[Task(*)]: release version x.y.z'
 ---
 
 ```[tasklist]
 ### Tasks
-- [ ] Edit `.github/workflows/rust.yml`
+- [ ] Edit `.github/workflows/_rust_tests.yml`
 - [ ] Edit `Cargo.toml`
 - [ ] Edit `crates/iota-open-rpc/spec/openrpc.json`
 - [ ] Update `sdk/typescript/src/version.ts` (`pnpm sdk build`)
