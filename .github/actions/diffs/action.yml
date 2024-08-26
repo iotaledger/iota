@@ -41,6 +41,8 @@ runs:
             - ".github/workflows/_external_rust_tests.yml"
             - ".github/workflows/_external_rust_lints.yml"
             - ".github/workflows/_mysticeti_tests.yml"
+            - "Cargo.toml"
+            - "Cargo.lock"
           isDoc:
             - "docs/content/**"
             - "docs/site/**"
