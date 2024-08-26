@@ -15,9 +15,11 @@ use fastcrypto::traits::ToFromBytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult, ReduceOutput};
 use iota_config::genesis::Genesis;
+use iota_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
 use iota_network::{
-    default_mysten_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
+    default_iota_network_stack_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
 };
+use iota_network_stack::config::Config;
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
@@ -42,8 +44,6 @@ use iota_types::{
     quorum_driver_types::GroupedErrors,
     transaction::*,
 };
-use mysten_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
-use mysten_network::config::Config;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
@@ -182,12 +182,12 @@ impl AuthAggMetrics {
                 registry,
             )
             .unwrap(),
-            remaining_tasks_when_reaching_cert_quorum: mysten_metrics::histogram::Histogram::new_in_registry(
+            remaining_tasks_when_reaching_cert_quorum: iota_metrics::histogram::Histogram::new_in_registry(
                 "auth_agg_remaining_tasks_when_reaching_cert_quorum",
                 "Number of remaining tasks when reaching certificate quorum",
                 registry,
             ),
-            remaining_tasks_when_cert_broadcasting_post_quorum_timeout: mysten_metrics::histogram::Histogram::new_in_registry(
+            remaining_tasks_when_cert_broadcasting_post_quorum_timeout: iota_metrics::histogram::Histogram::new_in_registry(
                 "auth_agg_remaining_tasks_when_cert_broadcasting_post_quorum_timeout",
                 "Number of remaining tasks when post quorum certificate broadcasting times out",
                 registry,
@@ -687,7 +687,7 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
         auth_agg_metrics: Arc<AuthAggMetrics>,
         validator_display_names: Arc<HashMap<AuthorityName, String>>,
     ) -> anyhow::Result<Self> {
-        let net_config = default_mysten_network_config();
+        let net_config = default_iota_network_stack_config();
         let authority_clients =
             make_network_authority_clients_with_network_config(&committee, &net_config)?;
         Ok(Self::new_with_metrics(

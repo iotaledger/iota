@@ -5,10 +5,7 @@
 import { LoadingIndicator, Overlay } from '_components';
 import { useGetDelegatedStake } from '@iota/core';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
 import { DelegationDetailCard } from './DelegationDetailCard';
 
 export function DelegationDetail() {
@@ -17,12 +14,12 @@ export function DelegationDetail() {
     const stakeIdParams = searchParams.get('staked');
     const navigate = useNavigate();
     const accountAddress = useActiveAddress();
-    const { data, isPending } = useGetDelegatedStake({
+    const { isPending } = useGetDelegatedStake({
         address: accountAddress || '',
     });
 
     if (!validatorAddressParams || !stakeIdParams) {
-        return <Navigate to={'/stake'} replace={true} />;
+        return <Navigate to="/stake" replace={true} />;
     }
 
     if (isPending) {
@@ -33,22 +30,8 @@ export function DelegationDetail() {
         );
     }
 
-    const delegationData = data ? getDelegationDataByStakeId(data, stakeIdParams) : null;
     return (
-        <Overlay
-            showModal
-            title={
-                <div className="flex max-w-full items-center px-4">
-                    <ValidatorLogo
-                        validatorAddress={validatorAddressParams}
-                        isTitle
-                        size="body"
-                        activeEpoch={delegationData?.stakeRequestEpoch}
-                    />
-                </div>
-            }
-            closeOverlay={() => navigate('/')}
-        >
+        <Overlay showBackButton showModal title="Stake Details" closeOverlay={() => navigate('/')}>
             <DelegationDetailCard
                 validatorAddress={validatorAddressParams}
                 stakedId={stakeIdParams}

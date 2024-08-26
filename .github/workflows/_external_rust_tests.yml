@@ -6,6 +6,10 @@ on:
       isRust:
         type: boolean
 
+concurrency:
+  group: ext-rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
 jobs:
   changes:
     if: inputs.isRust
@@ -38,7 +42,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: Install python dependencies
-        run: pip install pyopenssl --upgrade
+        run: pip install pyopenssl --upgrade --break-system-packages
       - name: cargo test
         run: >
           cargo nextest run

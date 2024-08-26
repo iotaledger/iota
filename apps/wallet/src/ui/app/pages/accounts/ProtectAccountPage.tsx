@@ -12,6 +12,7 @@ import {
     Loading,
     AccountsFormType,
     PageTemplate,
+    type ProtectAccountFormValues,
 } from '_components';
 import { useAccounts } from '../../hooks/useAccounts';
 import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
@@ -113,6 +114,16 @@ export function ProtectAccountPage() {
     if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
+    async function handleOnSubmit({ password, autoLock }: ProtectAccountFormValues) {
+        try {
+            await autoLockMutation.mutateAsync({
+                minutes: autoLockDataToMinutes(autoLock),
+            });
+            await createAccountCallback(password.input, accountsFormType as AccountsFormType);
+        } catch (e) {
+            toast.error((e as Error)?.message || 'Something went wrong');
+        }
+    }
 
     return (
         <PageTemplate
@@ -132,12 +143,7 @@ export function ProtectAccountPage() {
                     <ProtectAccountForm
                         cancelButtonText="Back"
                         submitButtonText="Create Wallet"
-                        onSubmit={async ({ password, autoLock }) => {
-                            await autoLockMutation.mutateAsync({
-                                minutes: autoLockDataToMinutes(autoLock),
-                            });
-                            await createAccountCallback(password.input, accountsFormType);
-                        }}
+                        onSubmit={handleOnSubmit}
                     />
                 )}
             </Loading>

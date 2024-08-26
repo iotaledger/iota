@@ -15,6 +15,7 @@ use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Spanned;
 use move_package::BuildConfig;
 
+/// Disassemble move code.
 #[derive(Parser)]
 #[group(id = "iota-move-disassemmble")]
 pub struct Disassemble {

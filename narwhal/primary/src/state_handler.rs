@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use config::AuthorityIdentifier;
-use mysten_metrics::{
+use iota_metrics::{
     metered_channel::{Receiver, Sender},
     spawn_logged_monitored_task,
 };

@@ -14,7 +14,7 @@ on:
     - cron: "0 5 * * *"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: mysticeti-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
@@ -62,6 +62,7 @@ jobs:
 
   test:
     name: Test ${{ matrix.components }}
+    if: needs.changes.outputs.components != '[]'
     timeout-minutes: 45
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var

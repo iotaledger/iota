@@ -9,12 +9,13 @@ use std::{
 };
 
 use anyhow::Result;
+use capitalize::Capitalize;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Edition;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
-const DOCS_DIR: &str = "docs";
+const DOCS_DIR: &str = "../../docs/content/references/framework/";
 
 /// Save revision info to environment variable
 fn main() {
@@ -196,21 +197,20 @@ fn build_packages_with_move_config(
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
         let mut files_to_write = BTreeMap::new();
-        relocate_docs(
-            deepbook_dir,
-            &deepbook_pkg.package.compiled_docs.unwrap(),
-            &mut files_to_write,
-        );
+        create_category_file(system_dir);
         relocate_docs(
             system_dir,
             &system_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
         );
+        create_category_file(framework_dir);
+        create_category_file(stdlib_dir);
         relocate_docs(
             framework_dir,
             &framework_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
         );
+        create_category_file(stardust_dir);
         relocate_docs(
             stardust_dir,
             &stardust_pkg.package.compiled_docs.unwrap(),
@@ -219,10 +219,34 @@ fn build_packages_with_move_config(
         for (fname, doc) in files_to_write {
             let mut dst_path = PathBuf::from(DOCS_DIR);
             dst_path.push(fname);
-            fs::create_dir_all(dst_path.parent().unwrap()).unwrap();
             fs::write(dst_path, doc).unwrap();
         }
     }
+}
+
+/// Create a Docusaurus category file for the specified prefix.
+fn create_category_file(prefix: &str) {
+    let mut path = PathBuf::from(DOCS_DIR).join(prefix);
+    fs::create_dir_all(path.clone()).unwrap();
+    path.push("_category_.json");
+    let label = prefix
+        .split('-')
+        .map(|w| w.capitalize())
+        .collect::<Vec<_>>()
+        .join(" ");
+    fs::write(
+        path,
+        serde_json::json!({
+            "label": label,
+            "link": {
+                "type": "generated-index",
+                "slug": format!("/references/framework/{}", prefix),
+                "description": format!(
+                    "Documentation for the modules in the iota/crates/iota-framework/packages/{prefix} crate. Select a module from the list to see its details."
+                )
+            }
+        }).to_string()
+    ).unwrap()
 }
 
 /// Post process the generated docs so that they are in a format that can be
@@ -253,6 +277,7 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let link_to_regex = regex::Regex::new(r#"<a href="(\S*)">([\s\S]*?)</a>"#).unwrap();
     let code_regex = regex::Regex::new(r"<code>([\s\S]*?)<\/code>").unwrap();
     let type_regex = regex::Regex::new(r"(\S*?)<(IOTA|SMR|0xabcded::soon::SOON|T)>").unwrap();
+    let iota_system_regex = regex::Regex::new(r"((?:\.\.\/|\.\/)+)(iota_system)(\.md)").unwrap();
 
     for (file_name, file_content) in files {
         let path = PathBuf::from(file_name);
@@ -276,18 +301,32 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
         // need to make sure that `to` path don't contain extensions in a later step.
         let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
-        // Escape `{` in <code> and add new lines as this is a requirement from mdx
+        // Escape `{` in multi-line <code> and add new lines as this is a requirement
+        // from mdx
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
+            let match_content = caps.get(0).unwrap().as_str();
             let code_content = caps.get(1).unwrap().as_str();
-            format!("<code>\n{}</code>", code_content.replace('{', "\\{"))
+            if match_content.lines().count() == 1 {
+                return match_content.to_string();
+            }
+            format!("\n<code>\n{}</code>\n", code_content.replace('{', "\\{"))
         });
 
         // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as
         // React components otherwise
         let content = type_regex.replace_all(&content, r#"`$1<$2>`"#);
 
+        // Add the iota-system directory to links containing iota_system.md
+        // This is a quite specific case, as docs of packages, that are not
+        // dependencies, are created in root, but this script moves them to a
+        // folder with the name of the package. So their links are not correct anymore.
+        // We could improve this by checking all links that, are not from dependencies,
+        // against a list of all paths and replace them accordingly.
+        let content = iota_system_regex.replace_all(&content, r#"${1}iota-system/$2$3"#);
+
         let content = content
-            .replace("../../dependencies/", "../")
+            .replace("../../", "../")
+            .replace("../dependencies/", "../")
             .replace("dependencies/", "../")
             // Here we remove the extension from `to` property in Link tags
             .replace(".md", "");
@@ -298,8 +337,9 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
                     let title_type = caps.get(1).unwrap().as_str();
                     let name = caps.get(2).unwrap().as_str();
                     let anchor = name.replace("::", "_");
-                    format!("---\ntitle: {}`{}`\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, anchor)
-        }).to_string()
+                    // Remove backticks from title and add module name as sidebar label
+                    format!("---\ntitle: {}{}\nsidebar_label: {}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{}\"/>", title_type, name, name.split("::").last().unwrap(), anchor)
+            }).to_string()
         });
     }
 }

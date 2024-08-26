@@ -19,7 +19,7 @@ proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 ref-cast.workspace = true
 serde.workspace = true
-variant_count.workspace = true
+variant_count = "1.1"
 
 # wasm support (requires js feature of getrandom)
 getrandom = { workspace = true, features = ["js"], optional = true }

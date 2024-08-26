@@ -117,7 +117,7 @@ function NFTDetailsPage() {
                                                 mono
                                                 href={ownerExplorerLink}
                                                 text={formatAddress(ownerAddress)}
-                                                title="View on Iota Explorer"
+                                                title="View on IOTA Explorer"
                                             />
                                         }
                                     />
@@ -133,7 +133,7 @@ function NFTDetailsPage() {
                                                 mono
                                                 href={objectExplorerLink || ''}
                                                 text={formatAddress(nftId)}
-                                                title="View on Iota Explorer"
+                                                title="View on IOTA Explorer"
                                             />
                                         ) : null
                                     }
