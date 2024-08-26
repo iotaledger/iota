@@ -1,27 +1,37 @@
+
 <a name="0x1_type_name"></a>
 
 # Module `0x1::type_name`
 
 Functionality for converting Move types into values. Use with care!
 
-- [Struct `TypeName`](#0x1_type_name_TypeName)
-- [Function `get`](#0x1_type_name_get)
-- [Function `get_with_original_ids`](#0x1_type_name_get_with_original_ids)
-- [Function `borrow_string`](#0x1_type_name_borrow_string)
-- [Function `into_string`](#0x1_type_name_into_string)
+
+-  [Struct `TypeName`](#0x1_type_name_TypeName)
+-  [Function `get`](#0x1_type_name_get)
+-  [Function `get_with_original_ids`](#0x1_type_name_get_with_original_ids)
+-  [Function `borrow_string`](#0x1_type_name_borrow_string)
+-  [Function `into_string`](#0x1_type_name_into_string)
+
 
 <pre><code><b>use</b> <a href="ascii.md#0x1_ascii">0x1::ascii</a>;
 </code></pre>
+
+
 
 <a name="0x1_type_name_TypeName"></a>
 
 ## Struct `TypeName`
 
+
+
 <pre><code><b>struct</b> <a href="type_name.md#0x1_type_name_TypeName">TypeName</a> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
+
+
 <details>
 <summary>Fields</summary>
+
 
 <dl>
 <dt>
@@ -38,25 +48,32 @@ Functionality for converting Move types into values. Use with care!
 </dd>
 </dl>
 
+
 </details>
 
 <a name="0x1_type_name_get"></a>
 
 ## Function `get`
 
-Return a value representation of the type <code>T</code>. Package IDs
+Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
 this function are defining IDs (the ID of the package in
 storage that first introduced the type).
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="type_name.md#0x1_type_name_get">get</a>&lt;T&gt;(): <a href="type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>
 </code></pre>
+
+
 
 <details>
 <summary>Implementation</summary>
 
+
 <pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="type_name.md#0x1_type_name_get">get</a>&lt;T&gt;(): <a href="type_name.md#0x1_type_name_TypeName">TypeName</a>;
 </code></pre>
+
+
 
 </details>
 
@@ -64,20 +81,26 @@ storage that first introduced the type).
 
 ## Function `get_with_original_ids`
 
-Return a value representation of the type <code>T</code>. Package IDs
+Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
 this function are original IDs (the ID of the first version of
 the package, even if the type in question was introduced in a
 later upgrade).
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="type_name.md#0x1_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>
 </code></pre>
+
+
 
 <details>
 <summary>Implementation</summary>
 
+
 <pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="type_name.md#0x1_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="type_name.md#0x1_type_name_TypeName">TypeName</a>;
 </code></pre>
+
+
 
 </details>
 
@@ -87,16 +110,22 @@ later upgrade).
 
 Get the String representation of <code>self</code>
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="type_name.md#0x1_type_name_borrow_string">borrow_string</a>(self: &<a href="type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>): &<a href="ascii.md#0x1_ascii_String">ascii::String</a>
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="type_name.md#0x1_type_name_borrow_string">borrow_string</a>(self: &<a href="type_name.md#0x1_type_name_TypeName">TypeName</a>): &String {
     &self.name
 }
 </code></pre>
+
+
 
 </details>
 
@@ -106,17 +135,24 @@ Get the String representation of <code>self</code>
 
 Convert <code>self</code> into its inner String
 
+
 <pre><code><b>public</b> <b>fun</b> <a href="type_name.md#0x1_type_name_into_string">into_string</a>(self: <a href="type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>): <a href="ascii.md#0x1_ascii_String">ascii::String</a>
 </code></pre>
 
+
+
 <details>
 <summary>Implementation</summary>
+
 
 <pre><code><b>public</b> <b>fun</b> <a href="type_name.md#0x1_type_name_into_string">into_string</a>(self: <a href="type_name.md#0x1_type_name_TypeName">TypeName</a>): String {
     self.name
 }
 </code></pre>
 
+
+
 </details>
+
 
 [//]: # ("File containing references which can be used from documentation")
