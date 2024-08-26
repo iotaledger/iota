@@ -5,12 +5,13 @@ import React from 'react';
 import { Button } from '@/components';
 import { useNotifications, useTimelockedUnstakeTransaction } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
+import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { NotificationType } from '@/stores/notificationStore';
+import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 
 interface UnstakePopupProps {
     accountAddress: string;
-    delegatedStake: DelegatedTimelockedStake;
+    delegatedStake: TimelockedStakedObjectsGrouped;
     validatorInfo: IotaValidatorSummary;
     closePopup: () => void;
     onSuccess?: (digest: string) => void;
@@ -56,6 +57,7 @@ function TimelockedUnstakePopup({
         <div className="flex min-w-[300px] flex-col gap-2">
             <p>Validator Name: {validatorInfo.name}</p>
             <p>Validator Address: {delegatedStake.validatorAddress}</p>
+            <p>Start Epoch: {delegatedStake.startEpoch}</p>
             <p>Rewards: {validatorInfo.rewardsPool}</p>
             <p>Total Stakes: {delegatedStake.stakes.length}</p>
             {delegatedStake.stakes.map((stake, index) => {

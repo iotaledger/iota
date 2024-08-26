@@ -4,11 +4,9 @@
 
 import { CoinFormat, formatBalance } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading } from '@iota/ui';
+import { Panel, Divider, LabelText, LabelTextSize, Title, TitleSize } from '@iota/apps-ui-kit';
 
-import { Card, Divider } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
-import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function OnTheNetwork(): JSX.Element {
@@ -22,72 +20,82 @@ export function OnTheNetwork(): JSX.Element {
             ? formatBalance(referenceGasPrice, 0, CoinFormat.FULL)
             : null;
     const totalSupplyFormatted = totalSupply?.value
-        ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.FULL)
+        ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
         : null;
     return (
-        <Card bg="white/80" spacing="lg" height="full">
-            <div className="flex flex-col gap-4">
-                <Heading variant="heading4/semibold" color="steel-darker">
-                    Network Activity
-                </Heading>
-                <div className="flex gap-6">
-                    <FormattedStatsAmount
-                        label="TPS now"
-                        amount={
-                            networkMetrics?.currentTps
-                                ? Math.floor(networkMetrics.currentTps)
-                                : undefined
-                        }
-                        size="md"
-                    />
-                    <FormattedStatsAmount
-                        label="Peak 30d TPS"
-                        tooltip="Peak TPS in the past 30 days excluding this epoch"
-                        amount={
-                            networkMetrics?.tps30Days
-                                ? Math.floor(networkMetrics?.tps30Days)
-                                : undefined
-                        }
-                        size="md"
-                    />
+        <Panel>
+            <Title title="Network Activity" size={TitleSize.Medium} />
+            <div className="gap-md p-md--rs flex flex-col">
+                <div className="gap-md flex">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="TPS Now"
+                            text={
+                                networkMetrics?.currentTps
+                                    ? Math.floor(networkMetrics.currentTps).toString()
+                                    : '-'
+                            }
+                            showSupportingLabel={false}
+                        />
+                    </div>
+
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Peak 30d TPS"
+                            text={
+                                networkMetrics?.tps30Days
+                                    ? Math.floor(networkMetrics?.tps30Days).toString()
+                                    : '-'
+                            }
+                            showSupportingLabel={false}
+                        />
+                    </div>
                 </div>
-                <Divider color="hero/10" />
 
-                <StatsWrapper
-                    orientation="horizontal"
-                    label="Reference Gas Price"
-                    tooltip="The reference gas price of the current epoch"
-                    postfix={gasPriceFormatted !== null ? 'nano' : null}
-                    size="sm"
-                >
-                    {gasPriceFormatted}
-                </StatsWrapper>
+                <Divider />
 
-                <Divider color="hero/10" />
+                <div className="gap-x-md flex">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Total Packages"
+                            text={networkMetrics?.totalPackages ?? '-'}
+                            showSupportingLabel={false}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Objects"
+                            text={networkMetrics?.totalObjects ?? '-'}
+                            showSupportingLabel={false}
+                        />
+                    </div>
+                </div>
 
-                <div className="flex flex-1 flex-col gap-2">
-                    <FormattedStatsAmount
-                        orientation="horizontal"
-                        label="Total Packages"
-                        amount={networkMetrics?.totalPackages}
-                        size="sm"
-                    />
-                    <FormattedStatsAmount
-                        orientation="horizontal"
-                        label="Objects"
-                        amount={networkMetrics?.totalObjects}
-                        size="sm"
-                    />
-                    <StatsWrapper
-                        orientation="horizontal"
-                        label="Total Supply"
-                        size="sm"
-                        postfix={totalSupplyFormatted !== null ? 'IOTA' : null}
-                    >
-                        {totalSupplyFormatted}
-                    </StatsWrapper>
+                <div className="gap-md flex">
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Reference Gas Price"
+                            text={gasPriceFormatted ?? '-'}
+                            showSupportingLabel={gasPriceFormatted !== null}
+                            supportingLabel="IOTA"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <LabelText
+                            size={LabelTextSize.Large}
+                            label="Total Supply"
+                            text={totalSupplyFormatted ?? '-'}
+                            showSupportingLabel={totalSupplyFormatted !== null}
+                            supportingLabel="IOTA"
+                        />
+                    </div>
                 </div>
             </div>
-        </Card>
+        </Panel>
     );
 }
