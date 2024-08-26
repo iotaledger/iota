@@ -5,6 +5,7 @@ env:
   VERCEL_PROJECT_ID: ${{ secrets.EXPLORER_VERCEL_PROJECT_ID }}
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
