@@ -93,7 +93,7 @@ export function Account({
                     </div>
                     <Address
                         text={subtitle}
-                        onCopy={onCopy}
+                        onCopySuccess={onCopy}
                         onOpen={onOpen}
                         isCopyable={isCopyable}
                         isExternal={isExternal}
