@@ -1,7 +1,11 @@
 ---
 description: A guide to claiming Foundry Outputs by extracting the CoinManagerTreasuryCap from an AliasOutput in the Move-based IOTA ledger.
 ---
+import MigrationWarning from '../../../_snippets/migration-warning.mdx';
+
 # Claiming Foundry Outputs
+
+<MigrationWarning/ >
 
 In the Move-based IOTA ledger, Foundry Outputs don't have a direct equivalent representation. 
 Instead, claiming a Foundry Output involves extracting a [`CoinManagerTreasuryCap`](../../../references/framework/iota-framework/coin_manager.mdx#resource-coinmanagertreasurycap) from the [`AliasOutput`](../../../references/framework/stardust/alias_output#resource-aliasoutput) that originally controlled the Foundry in Stardust. This capability allows you to manage the supply of the [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin) created during migration to represent the native token controlled by the Foundry.

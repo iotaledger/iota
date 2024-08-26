@@ -2,7 +2,9 @@
 title: Stardust Move Models
 description: Describes how stardust assets are represented in the object-based Move ledger.
 ---
+import MigrationWarning from '../../_snippets/migration-warning.mdx';
 
+<MigrationWarning/ >
 
 This document describes what move models the Stardust UTXOs are migrated to in the Move-based ledger in IOTA Rebased. First, the Stardust
 Move Package is discussed that emulates the legacy UTXO models in object-based move.
@@ -160,7 +162,6 @@ foundry controllers.
 The Stardust Move Package preserves the Alias concept and models it as a separate object in the move ledger:
 [`Alias`](../../references/framework/stardust/alias.mdx#resource-alias). Applications that use aliases (ISC, DID, token issuer)
 can implement their own move models where the `Alias` asset migrated from Stardust is required to initialize the new object.
-A more detailed description on the process can be found in [Advanced Topics](./advanced.mdx).
 
 The unique `AliasID` of the Stardust asset is persisted as the `ObjectID` of the migrated `Alias` object. All assets and outputs
 that were owned by the `Alias Address` in Stardust are now owned by the `Alias` object in move. There is a special [receiving
