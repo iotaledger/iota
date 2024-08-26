@@ -6,7 +6,7 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Alert, Loading, LoadingIndicator, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useMultiGetObjects } from '@iota/core';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
@@ -35,7 +35,8 @@ const ASSET_CATEGORIES = [
 ];
 
 function NftsPage() {
-    const [selectedAssetCategory, setSelectedAssetCategory] = useState(AssetCategory.Visual);
+    const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
+    const [isAssetsLoaded, setIsAssetsLoaded] = useState(false);
     const observerElem = useRef<HTMLDivElement | null>(null);
 
     const accountAddress = useActiveAddress();
@@ -94,6 +95,27 @@ function NftsPage() {
             });
     }, [hiddenAssetIds, data]);
 
+    useEffect(() => {
+        if (ownedAssets) {
+            setIsAssetsLoaded(true);
+            // Determine the default category based on available assets
+            const defaultCategory =
+                ownedAssets.visual.length > 0
+                    ? AssetCategory.Visual
+                    : ownedAssets.other.length > 0
+                      ? AssetCategory.Other
+                      : hiddenAssetIds.length > 0
+                        ? AssetCategory.Hidden
+                        : null;
+
+            if (defaultCategory) {
+                setSelectedAssetCategory(defaultCategory);
+            } else {
+                setSelectedAssetCategory(null);
+            }
+        }
+    }, [ownedAssets, hiddenAssetIds]);
+
     if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
@@ -101,26 +123,29 @@ function NftsPage() {
             </div>
         );
     }
+
     return (
         <PageTemplate title="Assets" isTitleCentered>
-            <div className="flex h-full w-full flex-col items-start gap-xxxs">
-                <SegmentedButton type={SegmentedButtonType.Filled}>
-                    {ASSET_CATEGORIES.map(({ label, value }) => (
-                        <ButtonSegment
-                            key={value}
-                            onClick={() => setSelectedAssetCategory(value)}
-                            label={label}
-                            selected={selectedAssetCategory === value}
-                            disabled={
-                                AssetCategory.Hidden === value
-                                    ? !hiddenAssetIds.length
-                                    : AssetCategory.Visual === value
-                                      ? !ownedAssets?.visual.length
-                                      : !ownedAssets?.other.length
-                            }
-                        />
-                    ))}
-                </SegmentedButton>
+            <div className="flex h-full w-full flex-col items-start gap-md">
+                {isAssetsLoaded && (
+                    <SegmentedButton type={SegmentedButtonType.Outlined}>
+                        {ASSET_CATEGORIES.map(({ label, value }) => (
+                            <ButtonSegment
+                                key={value}
+                                onClick={() => setSelectedAssetCategory(value)}
+                                label={label}
+                                selected={selectedAssetCategory === value}
+                                disabled={
+                                    AssetCategory.Hidden === value
+                                        ? !hiddenAssetIds.length
+                                        : AssetCategory.Visual === value
+                                          ? !ownedAssets?.visual.length
+                                          : !ownedAssets?.other.length
+                                }
+                            />
+                        ))}
+                    </SegmentedButton>
+                )}
                 <Loading loading={isPending}>
                     {isError ? (
                         <Alert>
