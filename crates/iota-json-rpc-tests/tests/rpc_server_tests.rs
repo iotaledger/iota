@@ -975,7 +975,6 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
 
 // Need to be enable when the Stardust package is integrated in the system
 // packages list.
-#[ignore]
 #[sim_test]
 async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -1038,8 +1037,12 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(2, objects.data.len());
 
-    let coin = objects.data[0].object()?.object_id;
-    let timelocked_balance = objects.data[1].object()?.object_id;
+    let (coin, timelock): (Vec<_>, Vec<_>) = objects
+        .data
+        .into_iter()
+        .partition(|o| o.data.as_ref().unwrap().is_gas_coin());
+    let coin = coin[0].object()?.object_id;
+    let timelocked_balance = timelock[0].object()?.object_id;
 
     // Check TimelockedStakedIota object before test
     let staked_iota: Vec<DelegatedTimelockedStake> =
@@ -1126,7 +1129,6 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
 
 // Ignored because there is a problem with the StakeStatus::Unstaked state.
 // The same behavior reproduces in the original test_unstaking test.
-#[ignore]
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -1190,8 +1192,12 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(2, objects.data.len());
 
-    let coin = objects.data[0].object()?.object_id;
-    let timelocked_balance = objects.data[1].object()?.object_id;
+    let (coin, timelock): (Vec<_>, Vec<_>) = objects
+        .data
+        .into_iter()
+        .partition(|o| o.data.as_ref().unwrap().is_gas_coin());
+    let coin = coin[0].object()?.object_id;
+    let timelocked_balance = timelock[0].object()?.object_id;
 
     // Check TimelockedStakedIota object before test
     let staked_iota: Vec<DelegatedTimelockedStake> =
