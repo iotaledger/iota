@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Button } from '_app/shared/ButtonUI';
 import { CoinIcon, Loading, Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
@@ -26,7 +24,7 @@ import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm } from './SendTokenForm';
 import type { SubmitProps } from './SendTokenForm';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Select, type SelectOption } from '@iota/apps-ui-kit';
+import { Select, Button, type SelectOption, ButtonType } from '@iota/apps-ui-kit';
 import { useActiveAddress, useCoinsReFetchingConfig } from '_src/ui/app/hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { CoinBalance } from '@iota/iota-sdk/client';
@@ -109,36 +107,28 @@ function TransferCoinPage() {
         >
             <div className="flex h-full w-full flex-col gap-md">
                 {showTransactionPreview && formData ? (
-                    <BottomMenuLayout>
-                        <Content>
-                            <PreviewTransfer
-                                coinType={coinType}
-                                amount={formData.amount}
-                                to={formData.to}
-                                approximation={formData.isPayAllIota}
-                                gasBudget={formData.gasBudgetEst}
-                            />
-                        </Content>
-                        <Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => setShowTransactionPreview(false)}
-                                text="Back"
-                                before={<ArrowLeft16 />}
-                            />
-
-                            <Button
-                                type="button"
-                                variant="primary"
-                                onClick={() => executeTransfer.mutateAsync()}
-                                text="Send Now"
-                                disabled={coinType === null}
-                                after={<ArrowRight16 />}
-                                loading={executeTransfer.isPending}
-                            />
-                        </Menu>
-                    </BottomMenuLayout>
+                    <>
+                        <PreviewTransfer
+                            coinType={coinType}
+                            amount={formData.amount}
+                            to={formData.to}
+                            approximation={formData.isPayAllIota}
+                            gasBudget={formData.gasBudgetEst}
+                        />
+                        <Button
+                            type={ButtonType.Secondary}
+                            onClick={() => setShowTransactionPreview(false)}
+                            text="Back"
+                            icon={<ArrowLeft16 />}
+                        />
+                        <Button
+                            type={ButtonType.Primary}
+                            onClick={() => executeTransfer.mutateAsync()}
+                            text="Send Now"
+                            disabled={coinType === null || executeTransfer.isPending}
+                            icon={<ArrowRight16 />}
+                        />
+                    </>
                 ) : (
                     <>
                         <CoinSelector activeCoinType={coinType} />
@@ -179,7 +169,7 @@ function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: stri
     const coinsOptions: SelectOption[] =
         coins?.map((coin) => ({
             id: coin.coinType,
-            displayValue: (
+            renderValue: (
                 <Link
                     to={`/send?${new URLSearchParams({
                         type: coin.coinType,
