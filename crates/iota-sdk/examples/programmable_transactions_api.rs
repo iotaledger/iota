@@ -34,55 +34,55 @@ use utils::setup_for_write;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // 1) get the Iota client, the sender and recipient that we will use
-    // for the transaction, and find the coin we use as gas
+    // 1) Get the Iota client, the sender and recipient that we will use
+    // for the transaction
     let (iota, sender, recipient) = setup_for_write().await?;
 
-    // we need to find the coin we will use as gas
+    // We need to find the coin we will use as gas
     let coins = iota
         .coin_read_api()
         .get_coins(sender, None, None, None)
         .await?;
     let coin = coins.data.into_iter().next().unwrap();
 
-    // programmable transactions allows the user to bundle a number of actions into
+    // Programmable transactions allows the user to bundle a number of actions into
     // one transaction
     let mut ptb = ProgrammableTransactionBuilder::new();
 
-    // 2) split coin
-    // the amount we want in the new coin, 1000 NANOS
+    // 2) Split coin
+    // The amount we want in the new coin, 1000 NANOS
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
     ptb.command(Command::SplitCoins(
         Argument::GasCoin,
         vec![split_coin_amount],
     ));
 
-    // 3) transfer the new coin to a different address
+    // 3) Transfer the new coin to a different address
     let argument_address = ptb.pure(recipient)?;
     ptb.command(Command::TransferObjects(
         vec![Argument::Result(0)],
         argument_address,
     ));
 
-    // finish building the transaction block by calling finish on the ptb
-    let builder = ptb.finish();
+    // Finish building the transaction block by calling finish on the ptb
+    let transaction = ptb.finish();
 
     let gas_budget = 5_000_000;
     let gas_price = iota.read_api().get_reference_gas_price().await?;
-    // create the transaction data that will be sent to the network
+    // Create the transaction data that will be sent to the network
     let tx_data = TransactionData::new_programmable(
         sender,
         vec![coin.object_ref()],
-        builder,
+        transaction,
         gas_budget,
         gas_price,
     );
 
-    // 4) sign transaction
+    // 4) Sign transaction
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    // 5) execute the transaction
+    // 5) Execute the transaction
     print!("Executing the transaction...");
     let transaction_response = iota
         .quorum_driver_api()
