@@ -24,7 +24,6 @@ pub(crate) mod execution_result;
 pub(crate) mod gas;
 pub(crate) mod intersect;
 pub(crate) mod iota_address;
-pub(crate) mod iotans_registration;
 pub(crate) mod json;
 pub(crate) mod move_function;
 pub(crate) mod move_module;
