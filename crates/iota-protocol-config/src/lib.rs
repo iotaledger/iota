@@ -455,7 +455,7 @@ pub struct ProtocolConfig {
     /// Enforced by the Iota adapter.
     max_tx_gas: Option<u64>,
 
-    /// Maximum amount of the proposed gas price in MICROS (defined in the
+    /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
     max_gas_price: Option<u64>,
 
@@ -652,7 +652,7 @@ pub struct ProtocolConfig {
     /// In basis point.
     reward_slashing_rate: Option<u64>,
 
-    /// Unit gas price, Micros per internal gas unit.
+    /// Unit gas price, Nanos per internal gas unit.
     storage_gas_price: Option<u64>,
 
     /// The number of tokens that the set of validators should receive per
@@ -1306,7 +1306,7 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
-            // max gas budget is in MICROS and an absolute value 50IOTA
+            // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
             max_gas_computation_bucket: Some(5_000_000),
@@ -1345,7 +1345,7 @@ impl ProtocolConfig {
             object_runtime_max_num_cached_objects_system_tx: Some(1000 * 16),
             object_runtime_max_num_store_entries: Some(1000),
             object_runtime_max_num_store_entries_system_tx: Some(1000 * 16),
-            // min gas budget is in MICROS and an absolute value 1000MICROS or 0.000001IOTA
+            // min gas budget is in NANOS and an absolute value 1000 NANOS or 0.000001IOTA
             base_tx_cost_fixed: Some(1_000),
             package_publish_cost_fixed: Some(1_000),
             base_tx_cost_per_byte: Some(0),

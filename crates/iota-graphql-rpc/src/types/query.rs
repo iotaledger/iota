@@ -29,7 +29,6 @@ use super::{
     epoch::Epoch,
     event::{self, Event, EventFilter},
     iota_address::IotaAddress,
-    iotans_registration::{Domain, NameService},
     move_type::MoveType,
     object::{self, Object, ObjectFilter, ObjectLookupKey},
     owner::Owner,
@@ -423,25 +422,6 @@ impl Query {
         ProtocolConfigs::query(ctx.data_unchecked(), protocol_version)
             .await
             .extend()
-    }
-
-    /// Resolves a IotaNS `domain` name to an address, if it has been bound.
-    async fn resolve_iotans_address(
-        &self,
-        ctx: &Context<'_>,
-        domain: Domain,
-    ) -> Result<Option<Address>> {
-        let CheckpointViewedAt(checkpoint_viewed_at) = *ctx.data()?;
-        Ok(
-            NameService::resolve_to_record(ctx, &domain, Some(checkpoint_viewed_at))
-                .await
-                .extend()?
-                .and_then(|r| r.target_address)
-                .map(|a| Address {
-                    address: a.into(),
-                    checkpoint_viewed_at: Some(checkpoint_viewed_at),
-                }),
-        )
     }
 
     /// The coin metadata associated with the given coin type.

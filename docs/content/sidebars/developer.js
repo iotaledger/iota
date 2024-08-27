@@ -20,22 +20,12 @@ const developer = [
             'developer/getting-started/get-address',
             'developer/getting-started/get-coins',
             //'developer/getting-started/graphql-rpc',
-            {
-                type: 'category',
-                label: 'Your First IOTA dApp',
-                collapsed: false,
-                link: {
-                    type: 'doc',
-                    id: 'developer/getting-started/first-app/first-app',
-                },
-                items: [
-                    'developer/getting-started/first-app/write-package',
-                    'developer/getting-started/first-app/build-test',
-                    'developer/getting-started/first-app/publish',
-                    'developer/getting-started/first-app/debug',
-                    'developer/getting-started/first-app/client-tssdk',
-                ],
-            },
+            'developer/getting-started/create-a-package',
+            'developer/getting-started/create-a-module',
+            'developer/getting-started/build-test',
+            'developer/getting-started/publish',
+            'developer/getting-started/debug',
+            'developer/getting-started/client-tssdk',
         ],
     },
     {
@@ -718,7 +708,46 @@ const developer = [
             'developer/stardust/addresses',
             'developer/stardust/units',
             'developer/stardust/migration-process',
-            'developer/stardust/claiming',
+            {
+                type: 'category',
+                label: 'Claiming Stardust Assets',
+                link: {
+                    type: 'doc',
+                    id: 'developer/stardust/claiming',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Basic Outputs',
+                        id: 'developer/stardust/claiming/basic',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Nft Outputs',
+                        id: 'developer/stardust/claiming/nft',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Alias Outputs',
+                        id: 'developer/stardust/claiming/alias',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Foundry Outputs',
+                        id: 'developer/stardust/claiming/foundry',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Output unlockable by an Alias/Nft Address',
+                        id: 'developer/stardust/claiming/address-unlock-condition',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Self-sponsor Shimmer Claiming',
+                        id: 'developer/stardust/claiming/self-sponsor',
+                    },
+                ],
+            },
             'developer/stardust/vested',
             'developer/stardust/testing',
             'developer/stardust/if-tools',
@@ -731,6 +760,84 @@ const developer = [
         type: 'category',
         label: 'Exchange integration',
         items: ['developer/exchange-integration/exchange-integration'],
+    },
+    {
+        type: 'category',
+        label: 'Decentralized Identity',
+        link: {
+            type: 'doc',
+            id: 'developer/iota-identity/welcome',
+        },
+        items: [
+            {
+                type: 'doc',
+                id: 'developer/iota-identity/welcome',
+                label: 'Welcome',
+            },
+            {
+                type: 'category',
+                label: 'Getting Started',
+                collapsed: false,
+                items: [
+                    'developer/iota-identity/getting-started/rust',
+                    'developer/iota-identity/getting-started/wasm',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Explanations',
+                items: [
+                    'developer/iota-identity/explanations/decentralized-identifiers',
+                    'developer/iota-identity/explanations/verifiable-credentials',
+                    'developer/iota-identity/explanations/verifiable-presentations',
+                    'developer/iota-identity/explanations/about-alias-outputs',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'How To',
+                items: [
+                    {
+                        type: 'category',
+                        label: 'Decentralized Identifiers (DID)',
+                        items: [
+                            'developer/iota-identity/how-tos/decentralized-identifiers/create',
+                            'developer/iota-identity/how-tos/decentralized-identifiers/update',
+                            'developer/iota-identity/how-tos/decentralized-identifiers/resolve',
+                            'developer/iota-identity/how-tos/decentralized-identifiers/delete',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Verifiable Credentials',
+                        items: [
+                            'developer/iota-identity/how-tos/verifiable-credentials/create',
+                            'developer/iota-identity/how-tos/verifiable-credentials/revocation',
+                            'developer/iota-identity/how-tos/verifiable-credentials/selective-disclosure',
+                            'developer/iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Verifiable Presentations',
+                        items: [
+                            'developer/iota-identity/how-tos/verifiable-presentations/create-and-validate',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Domain Linkage',
+                        items: ['developer/iota-identity/how-tos/domain-linkage/create-and-verify'],
+                    },
+                    'developer/iota-identity/how-tos/key-storage',
+                ],
+            },
+            'developer/iota-identity/glossary',
+            'developer/iota-identity/contribute',
+            'developer/iota-identity/workflow',
+            'developer/iota-identity/contact',
+            'developer/iota-identity/faq',
+        ],
     },
     'developer/dev-cheat-sheet',
 ];

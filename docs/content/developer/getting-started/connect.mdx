@@ -8,50 +8,17 @@ import AlphaNet from "../../_snippets/alphanet.mdx";
 
 # Connect to an IOTA Network
 
-## Alphanet
-
-A temporary network while still in early development, used before public launch of IOTA Rebased. Will be replaced by the Testnet afterwards.
-
-<AlphaNet />
-
-## Devnet
-
-The latest stable release. As such, it has the latest features that were tested in the `development` branch of the
-repository.
-
-## Testnet
-
-Once a release has been battle-tested in the Devnet, it moves to the Testnet. You can use this network to
-test your software in real-world conditions.
-
-<DataWipe />
-
-:::info Testnet node validators
-
-The IOTA Alphanet, Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation. 
-
-:::
-
-## Mainnet
-
-The fully operational production network, with data persistence and where tokens have real value.
-
-:::tip Local Networks
-
-You can also spin up a [local IOTA network](local-network.mdx) for local development.
-
-:::
-
 ## IOTA CLI
 
-IOTA provides [IOTA command line interface (CLI)](/references/cli/client.mdx) to interact with IOTA networks:
+IOTA provides [IOTA command line interface (CLI)](/references/cli/client.mdx) to interact with [IOTA networks](#iota-networks):
 
 - Create and manage your private keys
 - Create example NFTs
 - Call and publish Move modules
 
 You can use the [CLI](iota-environment.mdx#iota-cli) or [SDKs](iota-environment.mdx#iota-sdks) to send transactions and
-read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the endpoint of choice for the given network.
+read requests from using the [JSON-RPC](../../references/iota-api/json-rpc-format.mdx) and the following
+endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443`.
 
 <AlphaNet />
 
@@ -130,9 +97,9 @@ Secret Recovery Phrase : [hat become demise beyond history wood stage add nice l
 
 ## Add a Network Environment
 
-If you previously used `iota genesis` with the force option (`-f` or `--force`), your client.yaml file already includes two RPC endpoints: `localnet` at `http://0.0.0.0:9000` and `devnet`. You can view the defined environments with the `iota client envs` command, and switch between them with the `iota client switch` command.
+The [IOTA CLI Client](../../references/cli/client.mdx) allows you to add any number of network environments.
 
-:::tip Check the current Network  ENVs
+### Check the Current Network ENVs
 
 You can easily check the currently configured environments using the following command, which will output the
 environment `alias` and URL, as well as indicate the currently active environment:
@@ -141,16 +108,13 @@ environment `alias` and URL, as well as indicate the currently active environmen
 iota client envs
 ```
 
-
-:::
-
-<AlphaNet />
-
 The command outputs the available environment aliases, with `(active)` denoting the currently active network.
 ```sh
 localnet => http://0.0.0.0:9000 (active)
 alphanet => https://api.iota-rebased-alphanet.iota.cafe:443
 ```
+
+<AlphaNet />
 
 You can add a new environment using the `iota client new` command. You should specify and `alias` and `rpc` URL, for
 example:
@@ -167,4 +131,43 @@ You can switch the current environment using the following command:
 iota client switch --env <EnvAlias>
 ```
 
-* Where `<EnvAlias>` is one of your currently set environments.   
+* Where `<EnvAlias>` is one of your currently set environments.
+  You can use the following networks to develop on IOTA. If you are still developing your application, you should use the
+  Devnet or Testnet, as these networks provide convenient faucets for test tokens.
+
+## IOTA Networks
+
+### Alphanet
+
+A temporary network while still in early development, used before public launch of IOTA Rebased. Will be replaced by the Testnet afterwards.
+
+<AlphaNet />
+
+### Devnet
+
+The latest stable release. As such, it has the latest features that were tested in the `development` branch of the
+repository.
+
+### Testnet
+
+Once a release has been battle-tested in the Devnet, it moves to the Testnet. You can use this network to
+test your software in real-world conditions.
+
+<DataWipe />
+
+:::info Testnet node validators
+
+The IOTA Alphanet, Testnet and Devnet networks consist of four validator nodes operated by the IOTA Foundation.
+
+:::
+
+### Mainnet
+
+The fully operational production network, with data persistence and where tokens have real value.
+
+
+:::tip Local Networks
+
+You can also spin up a [local IOTA network](local-network.mdx) for local development.
+
+:::

@@ -6,7 +6,7 @@ use std::{env, net::SocketAddr, time::Duration};
 
 use diesel::connection::SimpleConnection;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
-use mysten_metrics::init_metrics;
+use iota_metrics::init_metrics;
 use tokio::task::JoinHandle;
 use tracing::info;
 

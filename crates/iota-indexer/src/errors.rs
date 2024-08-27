@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoError;
-use iota_json_rpc::name_service::NameServiceError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_types::{
     base_types::ObjectIDParseError,
@@ -29,6 +28,7 @@ impl std::fmt::Display for DataDownloadError {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum IndexerError {
     #[error("Indexer failed to convert timestamp to NaiveDateTime with error: `{0}`")]
     DateTimeParsingError(String),
@@ -131,8 +131,8 @@ pub enum IndexerError {
     #[error("Indexer failed to send item to channel with error: `{0}`")]
     MpscChannelError(String),
 
-    #[error(transparent)]
-    NameServiceError(#[from] NameServiceError),
+    #[error("Failed to process checkpoint(s): `{0}`")]
+    CheckpointProcessingError(String),
 }
 
 pub trait Context<T> {

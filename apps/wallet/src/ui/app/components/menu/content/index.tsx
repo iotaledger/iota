@@ -13,9 +13,7 @@ import { useOnKeyboardEvent } from '_hooks';
 import { useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-
 import { AutoLockAccounts } from './AutoLockAccounts';
-import { MoreOptions } from './MoreOptions';
 import { NetworkSettings } from './NetworkSettings';
 import WalletSettingsMenuList from './WalletSettingsMenuList';
 
@@ -51,7 +49,6 @@ function MenuContent() {
                         <Route path="/" element={<WalletSettingsMenuList />} />
                         <Route path="/network" element={<NetworkSettings />} />
                         <Route path="/auto-lock" element={<AutoLockAccounts />} />
-                        <Route path="/more-options" element={<MoreOptions />} />
                         <Route path="*" element={<Navigate to={menuHomeUrl} replace={true} />} />
                     </Routes>
                 </MainLocationContext.Provider>
