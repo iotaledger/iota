@@ -2,6 +2,10 @@ name: Turborepo CI
 
 on: workflow_call
 
+concurrency:
+  group: turborepo-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
 jobs:
   audit:
     name: pnpm audit
@@ -60,10 +64,10 @@ jobs:
         continue-on-error: true
         run: pnpm dlx turbo-ignore iota-wallet
       - name: Wallet Extension Preview Package
-        if: ${{ steps.wallet-diff.outcome == 'failure' }}
+        if: steps.wallet-diff.outcome == 'failure'
         run: pnpm --filter iota-wallet pack:zip
       - uses: actions/upload-artifact@v3
-        if: ${{ steps.wallet-diff.outcome == 'failure' }}
+        if: steps.wallet-diff.outcome == 'failure'
         with:
           name: wallet-extension
           path: apps/wallet/web-ext-artifacts/*
