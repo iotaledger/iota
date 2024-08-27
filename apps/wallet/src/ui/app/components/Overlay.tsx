@@ -17,8 +17,6 @@ interface OverlayProps {
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-lightest';
     showBackButton?: boolean;
-    noContentPadding?: boolean;
-    actionBar?: ReactNode;
 }
 
 export function Overlay({
@@ -28,8 +26,6 @@ export function Overlay({
     closeOverlay,
     showBackButton,
     setShowModal,
-    noContentPadding,
-    actionBar,
 }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
@@ -51,12 +47,7 @@ export function Overlay({
                         onClose={closeModal}
                     />
                 )}
-                <div
-                    className={`w-full flex-1 overflow-hidden bg-neutral-100 ${noContentPadding ? '' : 'p-md'}`}
-                >
-                    {children}
-                </div>
-                {actionBar && <div className="w-full bg-white px-md pb-md pt-sm">{actionBar}</div>}
+                <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
             </div>
         </Portal>
     ) : null;
