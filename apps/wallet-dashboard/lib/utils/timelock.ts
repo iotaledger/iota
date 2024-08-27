@@ -30,7 +30,7 @@ export function isTimelockedObject(
     return referenceProperty in obj;
 }
 
-export function isTimelockedUnlocked(
+export function isTimelockedUnlockable(
     timelockedObject: TimelockedObject | ExtendedDelegatedTimelockedStake,
     currentEpochMs: number,
 ): boolean {

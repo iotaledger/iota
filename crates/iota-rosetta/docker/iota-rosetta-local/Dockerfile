@@ -17,6 +17,8 @@ COPY crates crates
 COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
+COPY docs docs
+
 RUN cargo build --release --bin iota --bin iota-rosetta
 
 # Production Image

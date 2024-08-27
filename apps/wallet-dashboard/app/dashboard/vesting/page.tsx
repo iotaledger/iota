@@ -9,7 +9,7 @@ import {
     formatDelegatedTimelockedStake,
     getVestingOverview,
     groupTimelockedStakedObjects,
-    isTimelockedUnlocked,
+    isTimelockedUnlockable,
     mapTimelockObjects,
     TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
@@ -62,7 +62,7 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
-        isTimelockedUnlocked(timelockedObject, Number(currentEpochMs)),
+        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
     );
     const unlockedTimelockedObjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
