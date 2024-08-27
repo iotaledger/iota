@@ -462,8 +462,8 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-8"
                     data-testid="coin-page"
                 >
-                    <div className="gap-lg flex w-full items-center justify-between px-sm py-lg">
-                        <div className="gap-xs flex flex-col">
+                    <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
+                        <div className="flex flex-col gap-xs">
                             <div>
                                 <Address
                                     isExternal={!!explorerHref}
@@ -480,7 +480,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                             </div>
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
-                        <div className="gap-xs flex [&_svg]:h-5 [&_svg]:w-5">
+                        <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
                             <Button
                                 onClick={() => setDialogReceiveOpen(true)}
                                 type={ButtonType.Secondary}
@@ -616,7 +616,7 @@ function DialogReceiveTokens({
                             <Address text={address} />
                         </div>
                     </DialogBody>
-                    <div className="px-md--rs pb-md--rs pt-sm--rs flex w-full flex-row justify-center gap-2">
+                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
                         <Button onClick={onCopy} fullWidth text="Copy Address" />
                     </div>
                 </DialogContent>

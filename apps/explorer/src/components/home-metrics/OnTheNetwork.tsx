@@ -25,8 +25,8 @@ export function OnTheNetwork(): JSX.Element {
     return (
         <Panel>
             <Title title="Network Activity" size={TitleSize.Medium} />
-            <div className="gap-md p-md--rs flex flex-col">
-                <div className="gap-md flex">
+            <div className="flex flex-col gap-md p-md--rs">
+                <div className="flex gap-md">
                     <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
@@ -56,7 +56,7 @@ export function OnTheNetwork(): JSX.Element {
 
                 <Divider />
 
-                <div className="gap-x-md flex">
+                <div className="flex gap-x-md">
                     <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
@@ -75,7 +75,7 @@ export function OnTheNetwork(): JSX.Element {
                     </div>
                 </div>
 
-                <div className="gap-md flex">
+                <div className="flex gap-md">
                     <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
