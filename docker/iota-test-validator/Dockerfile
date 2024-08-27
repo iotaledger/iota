@@ -15,6 +15,7 @@ COPY crates crates
 COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
+COPY docs docs
 
 RUN cargo build --profile ${PROFILE} --bin iota-test-validator
 RUN mv target/$(if [ $PROFILE = "dev" ]; then echo "debug"; else echo "release";fi)/iota-test-validator ./
