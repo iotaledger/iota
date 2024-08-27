@@ -11,8 +11,9 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
+import { truncateString } from '_src/ui/app/helpers';
 
 type NftFields = {
     metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
@@ -79,109 +80,127 @@ function NFTDetailsPage() {
     function handleSend() {
         navigate(`/nft-transfer/${nftId}`);
     }
+
+    function handleViewOnExplorer() {
+        window.open(objectExplorerLink || '', '_blank');
+    }
+
+    function formatMetaValue(value: string) {
+        if (value.includes('http')) {
+            return {
+                valueText: value.startsWith('http')
+                    ? truncateString(value, 20, 8)
+                    : formatAddress(value),
+                valueLink: value,
+            };
+        }
+        return {
+            valueText: value,
+            valueLink: undefined,
+        };
+    }
+
     return (
         <PageTemplate title="Visual Asset" isTitleCentered onClose={() => navigate(-1)}>
             <div
-                className={cl('flex h-full flex-1 flex-col flex-nowrap gap-5 overflow-y-auto', {
+                className={cl('flex h-full flex-1 flex-col flex-nowrap gap-5', {
                     'items-center': isPending,
                 })}
             >
                 <Loading loading={isPending}>
                     {objectData ? (
                         <>
-                            <div className="flex flex-1 flex-col flex-nowrap items-stretch gap-lg">
-                                <div className="flex w-[172px] flex-col items-center gap-sm self-center">
-                                    <NFTDisplayCard objectId={nftId!} />
-                                    {nftId ? (
-                                        <Link
-                                            to={objectExplorerLink || ''}
-                                            className="py-xs text-label-md text-neutral-10"
-                                            target="_blank"
-                                        >
-                                            View on Explorer
-                                        </Link>
-                                    ) : null}
-                                </div>
-                                <div className="flex flex-col gap-md">
-                                    <div className="flex flex-col gap-xxxs">
-                                        <span className="text-title-lg text-neutral-10">
-                                            {nftDisplayData?.name}
-                                        </span>
-                                        {nftDisplayData?.description ? (
-                                            <span className="text-body-md text-neutral-60">
-                                                {nftDisplayData?.description}
-                                            </span>
+                            <div className="flex h-full flex-1 flex-col flex-nowrap items-stretch gap-lg">
+                                <div className="flex h-full flex-col gap-lg overflow-y-auto">
+                                    <div className="flex w-[172px] flex-col items-center gap-xs self-center">
+                                        <NFTDisplayCard objectId={nftId!} />
+                                        {nftId ? (
+                                            <Button
+                                                type={ButtonType.Ghost}
+                                                onClick={handleViewOnExplorer}
+                                                text="View on Explorer"
+                                            />
                                         ) : null}
                                     </div>
-                                    {nftDisplayData?.projectUrl ||
-                                        (nftDisplayData?.creator && (
-                                            <div className="flex flex-col gap-xs">
-                                                {nftDisplayData?.projectUrl && (
-                                                    <KeyValueInfo
-                                                        keyText="Website"
-                                                        valueText={nftDisplayData?.projectUrl}
-                                                        valueLink={nftDisplayData?.projectUrl}
-                                                    />
-                                                )}
-                                                {nftDisplayData?.creator && (
-                                                    <KeyValueInfo
-                                                        keyText="Creator"
-                                                        valueText={nftDisplayData?.creator ?? '-'}
-                                                    />
-                                                )}
-                                            </div>
-                                        ))}
-                                </div>
-                                <div className="flex flex-col gap-md">
-                                    <Collapsible defaultOpen title="Details">
-                                        <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
-                                            {ownerAddress && (
-                                                <KeyValueInfo
-                                                    keyText="Owner"
-                                                    valueText={formatAddress(ownerAddress)}
-                                                    valueLink={ownerExplorerLink || ''}
-                                                />
-                                            )}
-                                            {nftId && (
-                                                <KeyValueInfo
-                                                    keyText="Object ID"
-                                                    valueText={formatAddress(nftId)}
-                                                />
-                                            )}
-                                            <KeyValueInfo
-                                                keyText="Media Type"
-                                                valueText={
-                                                    filePath &&
-                                                    fileExtensionType.name &&
-                                                    fileExtensionType.type
-                                                        ? `${fileExtensionType.name} ${fileExtensionType.type}`
-                                                        : '-'
-                                                }
-                                            />
+                                    <div className="flex flex-col gap-md">
+                                        <div className="flex flex-col gap-xxxs">
+                                            <span className="text-title-lg text-neutral-10">
+                                                {nftDisplayData?.name}
+                                            </span>
+                                            {nftDisplayData?.description ? (
+                                                <span className="text-body-md text-neutral-60">
+                                                    {nftDisplayData?.description}
+                                                </span>
+                                            ) : null}
                                         </div>
-                                    </Collapsible>
-                                    {metaKeys.length ? (
-                                        <Collapsible defaultOpen title="Attributes">
+                                        {nftDisplayData?.projectUrl ||
+                                            (nftDisplayData?.creator && (
+                                                <div className="flex flex-col gap-xs">
+                                                    {nftDisplayData?.projectUrl && (
+                                                        <KeyValueInfo
+                                                            keyText="Website"
+                                                            valueText={nftDisplayData?.projectUrl}
+                                                            valueLink={nftDisplayData?.projectUrl}
+                                                        />
+                                                    )}
+                                                    {nftDisplayData?.creator && (
+                                                        <KeyValueInfo
+                                                            keyText="Creator"
+                                                            valueText={
+                                                                nftDisplayData?.creator ?? '-'
+                                                            }
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                    </div>
+                                    <div className="flex flex-col gap-md">
+                                        <Collapsible defaultOpen title="Details">
                                             <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
-                                                {metaKeys.map((aKey, idx) => (
+                                                {ownerAddress && (
                                                     <KeyValueInfo
-                                                        key={aKey}
-                                                        keyText={aKey}
-                                                        valueText={
-                                                            metaValues[idx].includes('http')
-                                                                ? formatAddress(metaValues[idx])
-                                                                : metaValues[idx]
-                                                        }
-                                                        valueLink={
-                                                            metaValues[idx].includes('http')
-                                                                ? metaValues[idx]
-                                                                : undefined
-                                                        }
+                                                        keyText="Owner"
+                                                        valueText={formatAddress(ownerAddress)}
+                                                        valueLink={ownerExplorerLink || ''}
                                                     />
-                                                ))}
+                                                )}
+                                                {nftId && (
+                                                    <KeyValueInfo
+                                                        keyText="Object ID"
+                                                        valueText={formatAddress(nftId)}
+                                                    />
+                                                )}
+                                                <KeyValueInfo
+                                                    keyText="Media Type"
+                                                    valueText={
+                                                        filePath &&
+                                                        fileExtensionType.name &&
+                                                        fileExtensionType.type
+                                                            ? `${fileExtensionType.name} ${fileExtensionType.type}`
+                                                            : '-'
+                                                    }
+                                                />
                                             </div>
                                         </Collapsible>
-                                    ) : null}
+                                        {metaKeys.length ? (
+                                            <Collapsible defaultOpen title="Attributes">
+                                                <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
+                                                    {metaKeys.map((aKey, idx) => {
+                                                        const { valueText, valueLink } =
+                                                            formatMetaValue(metaValues[idx]);
+                                                        return (
+                                                            <KeyValueInfo
+                                                                key={aKey}
+                                                                keyText={aKey}
+                                                                valueText={valueText}
+                                                                valueLink={valueLink}
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
+                                            </Collapsible>
+                                        ) : null}
+                                    </div>
                                 </div>
                                 <div className="flex flex-col">
                                     {isContainedInKiosk && kioskItem?.isLocked ? (

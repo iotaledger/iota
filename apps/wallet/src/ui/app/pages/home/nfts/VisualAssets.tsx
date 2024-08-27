@@ -9,7 +9,7 @@ import { EyeClose16 } from '@iota/icons';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
-import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
+import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
 import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
 import { VisibilityOff } from '@iota/ui-icons';
 
