@@ -16,7 +16,7 @@ import {
     TIMELOCK_IOTA_TYPE,
     useGetAllOwnedObjects,
     useGetStakedTimelockedObjects,
-    useUnlockTimelockedObjects,
+    useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -51,7 +51,7 @@ function VestingDashboardPage(): JSX.Element {
     );
     const unlockedTimelockedObjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
-    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjects(
+    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjectsTransaction(
         account?.address || '',
         unlockedTimelockedObjectIds,
     );
