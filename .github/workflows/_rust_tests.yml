@@ -163,10 +163,10 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: cargo simtest
         run: |
-          scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+          scripts/simtest/cargo-simtest simtest -p ${{matrix.components}}
       - name: check new tests for flakiness
         run: |
-          scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+          scripts/simtest/stress-new-tests.sh -p ${{matrix.components}}
 
   # # Disabled
   # rosetta-validation:
