@@ -82,7 +82,6 @@ export function NetworkSelector() {
                             duration: 0.5,
                             ease: 'easeInOut',
                         }}
-                        className={st.customRpc}
                     >
                         <CustomRPCInput />
                     </motion.div>
