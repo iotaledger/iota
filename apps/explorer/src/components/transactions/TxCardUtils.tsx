@@ -5,18 +5,14 @@
 import { getTotalGasUsed } from '@iota/core';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { IotaAmount } from '../table/IotaAmount';
-import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components';
-import { AddressLink, TransactionLink } from '~/components/ui';
-import { type ReactNode } from 'react';
+import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
 
 interface TransactionData {
-    date: ReactNode;
-    digest: ReactNode;
-    txns: ReactNode;
-    gas: ReactNode;
-    sender: ReactNode;
+    date: TableCellProps;
+    digest: TableCellProps;
+    txns: TableCellProps;
+    gas: TableCellProps;
+    sender: TableCellProps;
 }
 
 interface TableColumn {
@@ -35,34 +31,22 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
             const sender = transaction.transaction?.data.sender;
 
             return {
-                date: (
-                    <HighlightedTableCol>
-                        <TxTimeType timestamp={Number(transaction.timestampMs || 0)} />
-                    </HighlightedTableCol>
-                ),
-                digest: (
-                    <HighlightedTableCol first>
-                        <TransactionLink digest={transaction.digest} />
-                    </HighlightedTableCol>
-                ),
-                txns: (
-                    <div>
-                        {transaction.transaction?.data.transaction.kind ===
-                        'ProgrammableTransaction'
-                            ? transaction.transaction.data.transaction.transactions.length
-                            : '--'}
-                    </div>
-                ),
-                gas: (
-                    <IotaAmount
-                        amount={transaction.effects ? getTotalGasUsed(transaction.effects) : 0}
-                    />
-                ),
-                sender: (
-                    <HighlightedTableCol>
-                        {sender ? <AddressLink address={sender} /> : '-'}
-                    </HighlightedTableCol>
-                ),
+                date: { type: TableCellType.Text, label: transaction.timestampMs?.toString() },
+                digest: { type: TableCellType.TextToCopy, label: transaction.digest },
+                txns: {
+                    type: TableCellType.Text,
+                    label:
+                        transaction.transaction?.data.transaction.kind === 'ProgrammableTransaction'
+                            ? transaction.transaction.data.transaction.transactions.length.toString()
+                            : '--',
+                },
+                gas: {
+                    type: TableCellType.Text,
+                    label: transaction.effects
+                        ? getTotalGasUsed(transaction.effects)?.toString()
+                        : '0',
+                },
+                sender: { type: TableCellType.TextToCopy, label: sender },
             };
         }),
         columns: [

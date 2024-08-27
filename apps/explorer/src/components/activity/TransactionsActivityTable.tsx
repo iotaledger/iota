@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
+import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -20,7 +21,6 @@ import {
 } from '~/hooks/useGetTransactionBlocks';
 import { numberSuffix } from '~/lib/utils';
 import { genTableDataFromTxData } from '../transactions/TxCardUtils';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -57,6 +57,7 @@ export function TransactionsActivityTable({
     useEffect(() => {
         goToFirstPageRef.current();
     }, [transactionKindFilter]);
+
     return (
         <div data-testid="tx">
             {isError && (
@@ -82,13 +83,13 @@ export function TransactionsActivityTable({
                     {!disablePagination ? (
                         <Pagination {...pagination} />
                     ) : (
-                        <Link to="/recent">
-                            <Button type={ButtonType.Secondary} text="View All" />
+                        <Link to="/recent" after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}>
+                            View all
                         </Link>
                     )}
 
                     <div className="flex items-center space-x-3">
-                        <Text variant="body/medium" color="neutral-40">
+                        <Text variant="body/medium" color="steel-dark">
                             {count ? numberSuffix(Number(count)) : '-'}
                             {` Total`}
                         </Text>
