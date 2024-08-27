@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight } from '@iota/ui-icons';
+import { ArrowRight, ArrowTopRight } from '@iota/ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
 import { CardActionType } from './card.enums';
 
@@ -10,16 +10,17 @@ export type CardActionProps = {
     subtitle?: string;
     type: CardActionType;
     onClick?: () => void;
+    isExternalLink?: boolean;
 };
 
-export function CardAction({ type, onClick, subtitle, title }: CardActionProps) {
+export function CardAction({ type, onClick, subtitle, title, isExternalLink }: CardActionProps) {
     if (type === CardActionType.Link) {
         return (
             <div
                 onClick={onClick}
                 className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-6 [&_svg]:w-6"
             >
-                <ArrowRight />
+                {isExternalLink ? <ArrowTopRight /> : <ArrowRight />}
             </div>
         );
     }

@@ -5,7 +5,6 @@
 import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
 import { createContext, useState, type ReactNode } from 'react';
-
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
@@ -63,6 +62,7 @@ export function PageMainLayout({
                     rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
                 />
             ) : null}
+
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                 <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
                     <main
