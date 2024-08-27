@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_json_rpc::{
-    name_service::{Domain, NameRecord, NameServiceConfig},
-    IotaRpcModule,
-};
+use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{cap_page_limit, internal_error, IndexerApiServer};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaObjectData, IotaObjectDataOptions,
@@ -17,7 +14,7 @@ use iota_open_rpc::Module;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldName, Field},
+    dynamic_field::DynamicFieldName,
     error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
@@ -25,20 +22,15 @@ use iota_types::{
 };
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, RpcModule};
 
-use crate::{indexer_reader::IndexerReader, IndexerError};
+use crate::indexer_reader::IndexerReader;
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
-    name_service_config: NameServiceConfig,
 }
 
 impl IndexerApi {
     pub fn new(inner: IndexerReader) -> Self {
-        Self {
-            inner,
-            // TODO allow configuring for other networks
-            name_service_config: Default::default(),
-        }
+        Self { inner }
     }
 
     async fn get_owned_objects_internal(
@@ -304,66 +296,6 @@ impl IndexerApiServer for IndexerApi {
         _sink: PendingSubscriptionSink,
         _filter: TransactionFilter,
     ) {
-    }
-
-    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
-        // TODO(manos): Implement new logic.
-        let domain = name
-            .parse::<Domain>()
-            .map_err(IndexerError::NameServiceError)?;
-
-        let record_id = self.name_service_config.record_field_id(&domain);
-
-        let field_record_object = match self.inner.get_object_in_blocking_task(record_id).await? {
-            Some(o) => o,
-            None => return Ok(None),
-        };
-
-        let record = NameRecord::try_from(field_record_object)
-            .map_err(|e| IndexerError::PersistentStorageDataCorruptionError(e.to_string()))?;
-
-        Ok(record.target_address)
-    }
-
-    async fn resolve_name_service_names(
-        &self,
-        address: IotaAddress,
-        _cursor: Option<ObjectID>,
-        _limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>> {
-        let reverse_record_id = self
-            .name_service_config
-            .reverse_record_field_id(address.as_ref());
-
-        let field_reverse_record_object = match self
-            .inner
-            .get_object_in_blocking_task(reverse_record_id)
-            .await?
-        {
-            Some(o) => o,
-            None => {
-                return Ok(Page {
-                    data: vec![],
-                    next_cursor: None,
-                    has_next_page: false,
-                });
-            }
-        };
-
-        let domain = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Domain>>()
-            .ok_or_else(|| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
-                    "Malformed Object {reverse_record_id}"
-                ))
-            })?
-            .value;
-
-        Ok(Page {
-            data: vec![domain.to_string()],
-            next_cursor: None,
-            has_next_page: false,
-        })
     }
 }
 
