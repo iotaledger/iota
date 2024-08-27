@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { Heading } from '@iota/ui';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -11,6 +10,7 @@ import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
 import { PlayPause, Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
+import { SegmentedButton, SegmentedButtonType } from '@iota/apps-ui-kit';
 
 const VALID_TABS = ['transactions', 'epochs', 'checkpoints'];
 
@@ -67,13 +67,19 @@ export function Activity({
                 <div className="relative">
                     <TabsList>
                         <TabsTrigger value="transactions">
-                            <Heading variant="heading4/medium">Transaction Blocks</Heading>
+                            <SegmentedButton type={SegmentedButtonType.Transparent}>
+                                Transaction Blocks
+                            </SegmentedButton>
                         </TabsTrigger>
                         <TabsTrigger value="epochs">
-                            <Heading variant="heading4/medium">Epochs</Heading>
+                            <SegmentedButton type={SegmentedButtonType.Transparent}>
+                                Epochs
+                            </SegmentedButton>
                         </TabsTrigger>
                         <TabsTrigger value="checkpoints">
-                            <Heading variant="heading4/medium">Checkpoints</Heading>
+                            <SegmentedButton type={SegmentedButtonType.Transparent}>
+                                Checkpoints
+                            </SegmentedButton>
                         </TabsTrigger>
                     </TabsList>
                     <div className="absolute inset-y-0 -top-1 right-0 flex items-center gap-3 text-2xl">
