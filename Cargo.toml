@@ -449,11 +449,3 @@ narwhal-types = { path = "narwhal/types" }
 narwhal-worker = { path = "narwhal/worker" }
 
 iota-execution = { path = "iota-execution" }
-
-[patch.crates-io.tokio]
-git = "ssh://git@github.com/iotaledger/iota-sim.git"
-branch = "main"
-
-[patch.crates-io.futures-timer]
-git = "ssh://git@github.com/iotaledger/iota-sim.git"
-branch = "main"
