@@ -12,7 +12,7 @@ import { useExplorerLink } from '_app/hooks/useExplorerLink';
 import toast from 'react-hot-toast';
 import { Account, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_pages/accounts/manage/OutsideClickHandler';
-import { Iota, LedgerLogo17 } from '@iota/icons';
+import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 
 export function AccountGroupItem({
@@ -121,9 +121,9 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
     let logo = null;
 
     if (account.type === AccountType.LedgerDerived) {
-        logo = <LedgerLogo17 className="h-4 w-4" />;
+        logo = <Ledger className="h-4 w-4" />;
     } else {
-        logo = <Iota />;
+        logo = <IotaLogoMark />;
     }
     return (
         <div
