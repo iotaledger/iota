@@ -271,7 +271,7 @@ leb128 = "0.2"
 lru = "0.12"
 mockall = "0.13"
 more-asserts = "0.3"
-msim = { git = "ssh://git@github.com/iotaledger/iota-sim.git", branch = "main", package = "msim" }
+msim = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim" }
 notify = "6.1"
 num-bigint = "0.4"
 num_cpus = "1.15"

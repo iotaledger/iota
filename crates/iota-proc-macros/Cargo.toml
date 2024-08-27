@@ -15,4 +15,4 @@ quote.workspace = true
 syn = { version = "2.0", features = ["full", "fold", "extra-traits"] }
 
 [target.'cfg(msim)'.dependencies]
-msim-macros = { git = "ssh://git@github.com/iotaledger/iota-sim.git", branch = "main", package = "msim-macros" }
+msim-macros = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim-macros" }
