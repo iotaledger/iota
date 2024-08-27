@@ -57,13 +57,15 @@ export function AddressInput({
                 onChange={handleOnChange}
                 errorMessage={meta.error}
                 trailingElement={
-                    <button
-                        onClick={clearAddress}
-                        type="button"
-                        className="flex items-center justify-center"
-                    >
-                        <Close />
-                    </button>
+                    formattedValue ? (
+                        <button
+                            onClick={clearAddress}
+                            type="button"
+                            className="flex items-center justify-center"
+                        >
+                            <Close />
+                        </button>
+                    ) : undefined
                 }
             />
         </>
