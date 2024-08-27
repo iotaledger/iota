@@ -77,7 +77,7 @@ function VestingDashboardPage(): JSX.Element {
             })
             .then(() => {
                 queryClient.invalidateQueries({
-                    queryKey: ['get-staked-timelocked-objects', account?.address],
+                    queryKey: ['get-timelocked-staked-objects', account?.address],
                 });
                 queryClient.invalidateQueries({
                     queryKey: [
