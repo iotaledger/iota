@@ -9,7 +9,7 @@ import { DelegationDetail } from '../delegation-detail';
 import StakePage from '../stake';
 import { Validators } from '../validators';
 
-export function Staking() {
+export function StakingPage() {
     if (useUnlockedGuard()) {
         return null;
     }
