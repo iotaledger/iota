@@ -179,7 +179,7 @@ function VestingDashboardPage(): JSX.Element {
                             <div
                                 key={
                                     timelockedStakedObject.validatorAddress +
-                                    timelockedStakedObject.startEpoch +
+                                    timelockedStakedObject.stakeRequestEpoch +
                                     timelockedStakedObject.label
                                 }
                                 className="flex w-full flex-row items-center justify-center space-x-4"
@@ -189,7 +189,9 @@ function VestingDashboardPage(): JSX.Element {
                                     {getValidatorByAddress(timelockedStakedObject.validatorAddress)
                                         ?.name || timelockedStakedObject.validatorAddress}
                                 </span>
-                                <span>Start Epoch: {timelockedStakedObject.startEpoch}</span>
+                                <span>
+                                    Stake Request Epoch: {timelockedStakedObject.stakeRequestEpoch}
+                                </span>
                                 <span>Stakes: {timelockedStakedObject.stakes.length}</span>
 
                                 <Button onClick={() => handleUnstake(timelockedStakedObject)}>
