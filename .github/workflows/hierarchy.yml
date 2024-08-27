@@ -58,7 +58,7 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: always() && needs.diff.outputs.isDoc == 'true'
+    if: always() && needs.diff.outputs.isDoc == 'true' && github.event.pull_request.draft == false
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
