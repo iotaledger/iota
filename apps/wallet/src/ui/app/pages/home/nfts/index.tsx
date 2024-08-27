@@ -96,7 +96,13 @@ function NftsPage() {
     }, [hiddenAssetIds, data]);
 
     useEffect(() => {
-        if (ownedAssets) {
+        if (
+            ownedAssets &&
+            (selectedAssetCategory === null ||  // hasn't loaded a category
+                (selectedAssetCategory === AssetCategory.Hidden &&
+                    filteredHiddenAssets.length === 0) || // In the HiddenAssets page and no more items there
+                (filteredAssets.length === 0 && selectedAssetCategory !== AssetCategory.Hidden)) // Other page and no items left
+        ) {
             setIsAssetsLoaded(true);
             // Determine the default category based on available assets
             const defaultCategory =
@@ -114,7 +120,7 @@ function NftsPage() {
                 setSelectedAssetCategory(null);
             }
         }
-    }, [ownedAssets, hiddenAssetIds]);
+    }, [ownedAssets, hiddenAssetIds, filteredHiddenAssets]);
 
     if (isLoading) {
         return (
