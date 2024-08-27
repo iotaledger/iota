@@ -8,7 +8,7 @@ import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
     getVestingOverview,
-    isTimelockedUnlocked,
+    isTimelockedUnlockable,
     mapTimelockObjects,
 } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
@@ -47,7 +47,7 @@ function VestingDashboardPage(): JSX.Element {
     );
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
-        isTimelockedUnlocked(timelockedObject, Number(currentEpochMs)),
+        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
     );
     const unlockedTimelockedObjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
