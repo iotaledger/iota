@@ -57,7 +57,7 @@ function TimelockedUnstakePopup({
         <div className="flex min-w-[300px] flex-col gap-2">
             <p>Validator Name: {validatorInfo.name}</p>
             <p>Validator Address: {delegatedStake.validatorAddress}</p>
-            <p>Start Epoch: {delegatedStake.startEpoch}</p>
+            <p>Stake Request Epoch: {delegatedStake.stakeRequestEpoch}</p>
             <p>Rewards: {validatorInfo.rewardsPool}</p>
             <p>Total Stakes: {delegatedStake.stakes.length}</p>
             {delegatedStake.stakes.map((stake, index) => {
