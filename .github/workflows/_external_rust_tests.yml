@@ -55,14 +55,16 @@ jobs:
               fi
           done
 
-          echo "$result"
-
-          cargo nextest run \
+          command="cargo nextest run \
             --config-file .config/nextest.toml \
             --manifest-path external-crates/move/Cargo.toml \
             -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' \
             $result \
-            --profile ci
+            --profile ci"
+
+          echo "$command"
+
+          eval ${command}
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})

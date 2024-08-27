@@ -53,9 +53,11 @@ jobs:
               fi
           done
 
-          echo "$result"
+          command="cargo nextest run --profile ci $result"
 
-          cargo nextest run --profile ci $result
+          echo "$command"
+
+          eval ${command}
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
