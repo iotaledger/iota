@@ -29,17 +29,17 @@ export function RemoveDialog({
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header
-                    title="Are you sure you want to remove this account?"
-                    onClose={() => setOpen(false)}
-                />
+                <Header title="Remove account" onClose={() => setOpen(false)} />
                 <DialogBody>
+                    <div className="mb-md text-body-md">
+                        Are you sure you want to remove this account?
+                    </div>
                     {totalAccounts === 1 ? (
                         <div className="text-center">
                             Removing this account will require you to set up your IOTA wallet again.
                         </div>
                     ) : null}
-                    <div className="flex gap-2.5">
+                    <div className="flex gap-xs">
                         <Button
                             fullWidth
                             type={ButtonType.Secondary}

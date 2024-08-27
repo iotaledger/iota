@@ -15,8 +15,8 @@ import { OutsideClickHandler } from '_pages/accounts/manage/OutsideClickHandler'
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
-    [AccountType.MnemonicDerived]: 'Passphrase Derived',
-    [AccountType.SeedDerived]: 'Seed Derived',
+    [AccountType.MnemonicDerived]: 'Mnemonic',
+    [AccountType.SeedDerived]: 'Seed',
     [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.LedgerDerived]: 'Ledger',
 };
