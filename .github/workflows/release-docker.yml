@@ -28,7 +28,7 @@ on:
 
 jobs:
   build-iota-node:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_node == 'true' || github.event_name == 'release' }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_node == 'true' || github.event_name == 'release'
     runs-on: self-hosted
     environment: release
     steps:
@@ -73,7 +73,7 @@ jobs:
           pull: true
 
   build-iota-indexer:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release' }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_indexer == 'true' || github.event_name == 'release'
     runs-on: self-hosted
     environment: release
     steps:
@@ -118,7 +118,7 @@ jobs:
           pull: true
 
   build-iota-tools:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release' }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_tools == 'true' || github.event_name == 'release'
     runs-on: self-hosted
     environment: release
     steps:
@@ -163,7 +163,7 @@ jobs:
           pull: true
 
   build-iota-graphql-rpc:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_graphql_rpc == 'true' || github.event_name == 'release' }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.iota_graphql_rpc == 'true' || github.event_name == 'release'
     runs-on: self-hosted
     environment: release
     steps:
