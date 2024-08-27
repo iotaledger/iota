@@ -4,10 +4,10 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useGetStakedTimelockedObjects(address: string) {
+export function useGetTimelockedStakedObjects(address: string) {
     const client = useIotaClient();
     return useQuery({
-        queryKey: ['get-staked-timelocked-objects', address],
+        queryKey: ['get-timelocked-staked-objects', address],
         queryFn: () =>
             client.getTimelockedStakes({
                 owner: address,
