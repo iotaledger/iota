@@ -83,17 +83,18 @@ export function groupTimelockedStakedObjects(
     const groupedArray: TimelockedStakedObjectsGrouped[] = [];
 
     extendedDelegatedTimelockedStake.forEach((obj) => {
+        const startStakeEpoch = obj.stakeRequestEpoch + 1
         let group = groupedArray.find(
             (g) =>
                 g.validatorAddress === obj.validatorAddress &&
-                g.startEpoch === obj.stakeRequestEpoch &&
+                g.startEpoch === startStakeEpoch &&
                 g.label === obj.label,
         );
 
         if (!group) {
             group = {
                 validatorAddress: obj.validatorAddress,
-                startEpoch: obj.stakeRequestEpoch,
+                startEpoch: startStakeEpoch,
                 label: obj.label,
                 stakes: [],
             };
