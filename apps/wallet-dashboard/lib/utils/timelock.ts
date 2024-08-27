@@ -11,7 +11,7 @@ export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
 
 export type TimelockedStakedObjectsGrouped = {
     validatorAddress: string;
-    startEpoch: string;
+    stakeRequestEpoch: string;
     label: string | null | undefined;
     stakes: ExtendedDelegatedTimelockedStake[];
 };
@@ -83,18 +83,17 @@ export function groupTimelockedStakedObjects(
     const groupedArray: TimelockedStakedObjectsGrouped[] = [];
 
     extendedDelegatedTimelockedStake.forEach((obj) => {
-        const startStakeEpoch = obj.stakeRequestEpoch + 1
         let group = groupedArray.find(
             (g) =>
                 g.validatorAddress === obj.validatorAddress &&
-                g.startEpoch === startStakeEpoch &&
+                g.stakeRequestEpoch === obj.stakeRequestEpoch &&
                 g.label === obj.label,
         );
 
         if (!group) {
             group = {
                 validatorAddress: obj.validatorAddress,
-                startEpoch: startStakeEpoch,
+                stakeRequestEpoch: obj.stakeRequestEpoch,
                 label: obj.label,
                 stakes: [],
             };
