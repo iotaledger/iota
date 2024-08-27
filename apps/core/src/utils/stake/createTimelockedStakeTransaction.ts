@@ -4,7 +4,7 @@
 import { TransactionBlock, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 import { IOTA_SYSTEM_STATE_OBJECT_ID, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-export interface VestingObject {
+export interface ExtendedTimelockObject {
     objectId: string;
     expirationTimestamp: string;
     totalLockedAmount: bigint;
@@ -14,14 +14,14 @@ export interface VestingObject {
 }
 
 export function createTimelockedStakeTransaction(
-    vestingObjects: VestingObject[],
+    timelockedObjects: ExtendedTimelockObject[],
     validatorAddress: string,
 ) {
     const tx = new TransactionBlock();
     /**
-     * Create tranasctions to merge Vesting Objects that need merging
+     * Create tranasctions to merge timelocked objects that need merging
      */
-    const mergeObjects = vestingObjects.filter((obj) => obj.objectIds.length > 1);
+    const mergeObjects = timelockedObjects.filter((obj) => obj.objectIds.length > 1);
 
     for (const mergeObject of mergeObjects) {
         // create an array of objectIds to be merged without the first element because first element is the principal object and its id is contained in mergeObject.objectId
@@ -38,25 +38,25 @@ export function createTimelockedStakeTransaction(
         });
     }
     /**
-     * Create transactions to split Vesting Objects that need splitting.
+     * Create transactions to split timelocked objects that need splitting.
      */
-    const splitVestingObject: VestingObject[] = vestingObjects.filter(
+    const splitTimelockedObjects: ExtendedTimelockObject[] = timelockedObjects.filter(
         (obj) => obj.splitAmount !== undefined && obj.splitAmount > 0,
     );
-    const splitVestingTransactions: TransactionObjectArgument[] = [];
-    splitVestingObject.forEach((obj) => {
+    const splitTimelockedObjectTransactions: TransactionObjectArgument[] = [];
+    splitTimelockedObjects.forEach((obj) => {
         const [splitTx] = tx.moveCall({
             target: `0x02::timelock::split`,
             typeArguments: [`${IOTA_TYPE_ARG}`],
             arguments: [tx.object(obj.objectId), tx.pure.u64(obj.splitAmount!)],
         });
-        splitVestingTransactions.push(tx.object(splitTx));
+        splitTimelockedObjectTransactions.push(tx.object(splitTx));
     });
 
     /**
-     * Create transactions to stake the vesting objects
+     * Create transactions to stake the timelocked objects
      */
-    const stakingReadyObjects = vestingObjects
+    const stakingReadyObjects = timelockedObjects
         .filter((obj) => obj.splitAmount === undefined || obj.splitAmount === BigInt(0))
         .map((obj) => tx.object(obj.objectId));
     tx.moveCall({
@@ -67,7 +67,7 @@ export function createTimelockedStakeTransaction(
                 initialSharedVersion: 1,
                 mutable: true,
             }),
-            tx.makeMoveVec({ objects: [...splitVestingTransactions, ...stakingReadyObjects] }), // add the split object to the array of timelocked objects
+            tx.makeMoveVec({ objects: [...splitTimelockedObjectTransactions, ...stakingReadyObjects] }), // add the split object to the array of timelocked objects
             tx.pure.address(validatorAddress),
         ],
     });

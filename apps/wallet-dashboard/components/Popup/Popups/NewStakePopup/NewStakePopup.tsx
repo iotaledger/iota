@@ -3,11 +3,23 @@
 
 import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
-import { useNotifications, useNewStakeTransaction } from '@/hooks';
-import { parseAmount, useCoinMetadata, useGetValidatorsApy } from '@iota/core';
+import {
+    useNotifications,
+    useNewStakeTransaction,
+    useGetCurrentEpochStartTimestamp,
+} from '@/hooks';
+import {
+    ExtendedTimelockObject,
+    parseAmount,
+    TIMELOCK_IOTA_TYPE,
+    useCoinMetadata,
+    useGetAllOwnedObjects,
+    useGetValidatorsApy,
+} from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NotificationType } from '@/stores/notificationStore';
+import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 
 interface NewStakePopupProps {
     onClose: () => void;
@@ -29,16 +41,30 @@ function NewStakePopup({
     const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
     const account = useCurrentAccount();
+    const senderAddress = account?.address ?? '';
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = metadata?.decimals ?? 0;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
+    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
+
+    let extendedTimelockObjects: ExtendedTimelockObject[] = [];
+    if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
+        extendedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+            timelockedObjects,
+            amountWithoutDecimals,
+            currentEpochMs,
+        );
+    }
 
     const { data: newStakeData } = useNewStakeTransaction(
         selectedValidator,
         amountWithoutDecimals,
-        account?.address ?? '',
-        isTimelockedStaking,
+        senderAddress,
+        extendedTimelockObjects,
     );
 
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();

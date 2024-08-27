@@ -113,9 +113,6 @@ function VestingDashboardPage(): JSX.Element {
                 addNotification('Collect transaction was not sent', NotificationType.Error);
             });
     };
-    const handleStake = () => {
-        console.log('Stake');
-    };
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
         const validatorInfo = getValidatorByAddress(delegatedTimelockedStake.validatorAddress);
