@@ -384,7 +384,7 @@ impl TelemetryConfig {
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
 
-            let config = opentelemetry_sdk::trace::config()
+            let config = opentelemetry_sdk::trace::Config::default()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
                     "iota-node",
@@ -423,7 +423,8 @@ impl TelemetryConfig {
                     )
                     .with_trace_config(config)
                     .install_batch(opentelemetry_sdk::runtime::Tokio)
-                    .expect("Could not create async Tracer");
+                    .expect("Could not create async Tracer")
+                    .tracer("iota-node");
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
             };
