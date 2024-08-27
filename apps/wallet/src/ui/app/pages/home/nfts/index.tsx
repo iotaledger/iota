@@ -133,25 +133,26 @@ function NftsPage() {
     return (
         <PageTemplate title="Assets" isTitleCentered>
             <div className="flex h-full w-full flex-col items-start gap-md">
-                {isAssetsLoaded && (filteredAssets.length || filteredHiddenAssets.length) && (
-                    <SegmentedButton type={SegmentedButtonType.Filled}>
-                        {ASSET_CATEGORIES.map(({ label, value }) => (
-                            <ButtonSegment
-                                key={value}
-                                onClick={() => setSelectedAssetCategory(value)}
-                                label={label}
-                                selected={selectedAssetCategory === value}
-                                disabled={
-                                    AssetCategory.Hidden === value
-                                        ? !hiddenAssetIds.length
-                                        : AssetCategory.Visual === value
-                                          ? !ownedAssets?.visual.length
-                                          : !ownedAssets?.other.length
-                                }
-                            />
-                        ))}
-                    </SegmentedButton>
-                )}
+                {isAssetsLoaded &&
+                    Boolean(filteredAssets.length || filteredHiddenAssets.length) && (
+                        <SegmentedButton type={SegmentedButtonType.Filled}>
+                            {ASSET_CATEGORIES.map(({ label, value }) => (
+                                <ButtonSegment
+                                    key={value}
+                                    onClick={() => setSelectedAssetCategory(value)}
+                                    label={label}
+                                    selected={selectedAssetCategory === value}
+                                    disabled={
+                                        AssetCategory.Hidden === value
+                                            ? !hiddenAssetIds.length
+                                            : AssetCategory.Visual === value
+                                              ? !ownedAssets?.visual.length
+                                              : !ownedAssets?.other.length
+                                    }
+                                />
+                            ))}
+                        </SegmentedButton>
+                    )}
                 <Loading loading={isPending}>
                     {isError ? (
                         <Alert>
@@ -161,17 +162,19 @@ function NftsPage() {
                             <small>{(error as Error).message}</small>
                         </Alert>
                     ) : null}
-                    {selectedAssetCategory === AssetCategory.Visual ? (
-                        <VisualAssets items={filteredAssets} />
-                    ) : selectedAssetCategory === AssetCategory.Other ? (
-                        <NonVisualAssets items={filteredAssets} />
-                    ) : selectedAssetCategory === AssetCategory.Hidden ? (
-                        <HiddenAssets items={filteredHiddenAssets} />
-                    ) : (
-                        <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
-                            No Assets found
-                        </div>
-                    )}
+                    <div className="flex h-full w-full flex-col">
+                        {selectedAssetCategory === AssetCategory.Visual ? (
+                            <VisualAssets items={filteredAssets} />
+                        ) : selectedAssetCategory === AssetCategory.Other ? (
+                            <NonVisualAssets items={filteredAssets} />
+                        ) : selectedAssetCategory === AssetCategory.Hidden ? (
+                            <HiddenAssets items={filteredHiddenAssets} />
+                        ) : (
+                            <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
+                                No Assets found
+                            </div>
+                        )}
+                    </div>
                 </Loading>
                 <div ref={observerElem}>
                     {isSpinnerVisible ? (
