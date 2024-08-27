@@ -5,16 +5,28 @@
 
 import { Button, NewStakePopup, TimelockedUnstakePopup } from '@/components';
 import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
-import { getVestingOverview, mapTimelockObjects } from '@/lib/utils';
+import {
+    formatDelegatedTimelockedStake,
+    getVestingOverview,
+    groupTimelockedStakedObjects,
+    isTimelockedUnlockable,
+    mapTimelockObjects,
+    TimelockedStakedObjectsGrouped,
+} from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import {
     TIMELOCK_IOTA_TYPE,
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
-    useGetStakedTimelockedObjects,
+    useGetTimelockedStakedObjects,
+    useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import { DelegatedTimelockedStake, IotaValidatorSummary } from '@iota/iota-sdk/client';
+import {
+    useCurrentAccount,
+    useIotaClient,
+    useSignAndExecuteTransactionBlock,
+} from '@iota/dapp-kit';
+import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 
 function VestingDashboardPage(): JSX.Element {
@@ -28,11 +40,17 @@ function VestingDashboardPage(): JSX.Element {
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
+    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
+    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
+    const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
+
+    const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
+        groupTimelockedStakedObjects(timelockedstakedMapped || []);
+
     const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...(stakedTimelockedObjects || [])],
+        [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
     );
 
@@ -42,6 +60,16 @@ function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
+        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
+    );
+    const unlockedTimelockedObjectIds: string[] =
+        unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
+    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjectsTransaction(
+        account?.address || '',
+        unlockedTimelockedObjectIds,
+    );
+
     function handleOnSuccess(digest: string): void {
         iotaClient
             .waitForTransactionBlock({
@@ -49,7 +77,7 @@ function VestingDashboardPage(): JSX.Element {
             })
             .then(() => {
                 queryClient.invalidateQueries({
-                    queryKey: ['get-staked-timelocked-objects', account?.address],
+                    queryKey: ['get-timelocked-staked-objects', account?.address],
                 });
                 queryClient.invalidateQueries({
                     queryKey: [
@@ -63,8 +91,34 @@ function VestingDashboardPage(): JSX.Element {
             });
     }
 
-    function handleUnstake(delegatedTimelocked: DelegatedTimelockedStake): void {
-        const validatorInfo = getValidatorByAddress(delegatedTimelocked.validatorAddress);
+    const handleCollect = () => {
+        if (!unlockAllTimelockedObjects?.transactionBlock) {
+            addNotification('Failed to create a Transaction', NotificationType.Error);
+            return;
+        }
+        signAndExecuteTransactionBlock(
+            {
+                transactionBlock: unlockAllTimelockedObjects.transactionBlock,
+            },
+            {
+                onSuccess: (tx) => {
+                    handleOnSuccess(tx.digest);
+                },
+            },
+        )
+            .then(() => {
+                addNotification('Collect transaction has been sent');
+            })
+            .catch(() => {
+                addNotification('Collect transaction was not sent', NotificationType.Error);
+            });
+    };
+    const handleStake = () => {
+        console.log('Stake');
+    };
+
+    function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
+        const validatorInfo = getValidatorByAddress(delegatedTimelockedStake.validatorAddress);
         if (!account || !validatorInfo) {
             addNotification('Cannot create transaction', NotificationType.Error);
             return;
@@ -73,7 +127,7 @@ function VestingDashboardPage(): JSX.Element {
         openPopup(
             <TimelockedUnstakePopup
                 accountAddress={account.address}
-                delegatedStake={delegatedTimelocked}
+                delegatedStake={delegatedTimelockedStake}
                 validatorInfo={validatorInfo}
                 closePopup={closePopup}
                 onSuccess={handleOnSuccess}
@@ -127,25 +181,43 @@ function VestingDashboardPage(): JSX.Element {
                     </div>
                 </div>
                 <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
-                    {stakedTimelockedObjects?.map((stakedTimelockedObject) => {
+                    {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
                         return (
                             <div
-                                key={stakedTimelockedObject.stakingPool}
+                                key={
+                                    timelockedStakedObject.validatorAddress +
+                                    timelockedStakedObject.stakeRequestEpoch +
+                                    timelockedStakedObject.label
+                                }
                                 className="flex w-full flex-row items-center justify-center space-x-4"
                             >
                                 <span>
-                                    {getValidatorByAddress(stakedTimelockedObject.validatorAddress)
-                                        ?.name || '-'}
+                                    Validator:{' '}
+                                    {getValidatorByAddress(timelockedStakedObject.validatorAddress)
+                                        ?.name || timelockedStakedObject.validatorAddress}
                                 </span>
-                                <span>Stakes: {stakedTimelockedObject.stakes.length}</span>
+                                <span>
+                                    Stake Request Epoch: {timelockedStakedObject.stakeRequestEpoch}
+                                </span>
+                                <span>Stakes: {timelockedStakedObject.stakes.length}</span>
 
-                                <Button onClick={() => handleUnstake(stakedTimelockedObject)}>
+                                <Button onClick={() => handleUnstake(timelockedStakedObject)}>
                                     Unstake
                                 </Button>
                             </div>
                         );
                     })}
                 </div>
+                {account?.address && (
+                    <div className="flex flex-row space-x-4">
+                        {vestingSchedule.availableClaiming ? (
+                            <Button onClick={handleCollect}>Collect</Button>
+                        ) : null}
+                        {vestingSchedule.availableStaking ? (
+                            <Button onClick={handleStake}>Stake</Button>
+                        ) : null}
+                    </div>
+                )}
             </div>
         </div>
     );
