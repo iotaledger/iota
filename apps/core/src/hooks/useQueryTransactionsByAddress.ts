@@ -11,6 +11,8 @@ export function useQueryTransactionsByAddress(address?: string | null) {
         showInput: true,
         showEffects: true,
         showEvents: true,
+        showBalanceChanges: true,
+        showObjectChanges: true,
     };
 
     const rpc = useIotaClient();

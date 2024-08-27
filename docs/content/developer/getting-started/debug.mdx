@@ -1,37 +1,38 @@
 ---
-title: Debugging
-description: Move does not have a native debugger. You can, however, use the std::debug module to monitor variable values while your code executes.
+description: Learn how to use the std::debug module in Move for debugging and printing values.
+tags: [move, getting-started, testing]
 ---
+# Debugging
 
-Move does not currently have a native debugger. You can use the `std::debug` module, however, to print arbitrary values to the console. Monitoring variable values in this manner can provide insight into the logic of your modules. To do so, first import the debug module in your source file:
+Move does not currently have a built-in debugger. However, you can leverage the `std::debug` module to print various values directly to the console. This approach helps you observe and understand the behavior and logic of your modules. Start by importing the debug module into your source file:
 
 ```move
 use std::debug;
 ```
 
-Then in places where you want to print out a value `v`, regardless of its type, add the following code:
+To print a variable `v`, irrespective of its type, use the following code:
 
 ```move
 debug::print(&v);
 ```
 
-or the following if `v` is already a reference:
+If `v` is already a reference, you can use:
 
 ```move
 debug::print(v);
 ```
 
-The debug module also provides a function to print out the current stacktrace:
+Additionally, the debug module offers a function to display the current stack trace:
 
 ```move
 debug::print_stack_trace();
 ```
 
-Alternatively, any call to abort or assertion failure also prints the stacktrace at the point of failure.
+Moreover, if an abort or assertion fails, the stack trace at that failure point is automatically printed.
 
-## Using debug in my_module
+## Implementing Debug in `my_module`
 
-To see the module in action, update your `my_module` code to include debug calls. Specifically, update the `new_sword` function so that you print the value of `forge` before and after updating `swords_created`. Also, include a `print_stack_trace` so that the function looks like the following:
+To demonstrate the use of the `std::debug` module, update your `my_module` by integrating debug statements. Specifically, modify the `new_sword` function to output the `forge` value both before and after incrementing `swords_created`. Incorporate a `print_stack_trace` as well, resulting in the following function:
 
 ```move
 /// Constructor for creating swords.
@@ -53,13 +54,13 @@ public fun new_sword(forge: &mut Forge, magic: u64, strength: u64, ctx: &mut TxC
 }
 ```
 
-To see the results, run the module's tests.
+To view the output, execute the module's tests:
 
 ```shell
 $ iota move test test_sword_transactions
 ```
 
-The response prints out the expected results as the test calls the `new_sword` function.
+This will display the expected results as the test calls the `new_sword` function:
 
 ```shell
 INCLUDING DEPENDENCY Iota
@@ -110,7 +111,3 @@ Operand Stack:
 [ PASS    ] 0x0::my_module::test_sword_transactions
 Test result: OK. Total tests: 1; passed: 1; failed: 0
 ```
-
-## Related links
-
-- [Publish a Package](publish.mdx): Publish the example to the IOTA network.

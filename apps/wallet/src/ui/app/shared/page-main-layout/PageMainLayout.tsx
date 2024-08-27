@@ -5,7 +5,6 @@
 import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
 import { createContext, useState, type ReactNode } from 'react';
-
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import DappStatus from '../dapp-status';
@@ -38,6 +37,7 @@ export function PageMainLayout({
     const isFullScreen = appType === AppType.Fullscreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
+    const isHomePage = window.location.hash === '#/tokens';
 
     return (
         <div
@@ -46,25 +46,29 @@ export function PageMainLayout({
                 isFullScreen ? 'rounded-xl' : '',
             )}
         >
-            <Header
-                network={network}
-                leftContent={
-                    <LeftContent
-                        account={activeAccount?.address}
-                        isLedgerAccount={isLedgerAccount}
-                        isLocked={activeAccount?.isLocked}
-                    />
-                }
-                middleContent={
-                    dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
-                }
-                rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
-            />
+            {isHomePage ? (
+                <Header
+                    network={network}
+                    leftContent={
+                        <LeftContent
+                            account={activeAccount?.address}
+                            isLedgerAccount={isLedgerAccount}
+                            isLocked={activeAccount?.isLocked}
+                        />
+                    }
+                    middleContent={
+                        dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
+                    }
+                    rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
+                />
+            ) : null}
+
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                 <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
-                            'p-5': bottomNavEnabled,
+                            'p-5': bottomNavEnabled && isHomePage,
+                            'h-full': !isHomePage,
                         })}
                     >
                         <PageMainLayoutContext.Provider value={titlePortalContainer}>

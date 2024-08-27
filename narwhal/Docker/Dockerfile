@@ -2,7 +2,7 @@
 #
 # Copy in all crates, Cargo.toml and Cargo.lock unmodified,
 # and build the application.
-FROM rust:1.73-bullseye AS builder
+FROM rust:1.74-bullseye AS builder
 ARG PROFILE=release
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
@@ -15,6 +15,7 @@ COPY crates crates
 COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
+COPY docs docs
 
 RUN cargo build --profile ${PROFILE} --bin narwhal-node
 RUN cargo build --profile ${PROFILE} --features=benchmark --bin narwhal-benchmark-client
