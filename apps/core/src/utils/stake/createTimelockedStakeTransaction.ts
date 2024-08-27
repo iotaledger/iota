@@ -68,7 +68,7 @@ export function createTimelockedStakeTransaction(
                 mutable: true,
             }),
             tx.makeMoveVec({
-                objects: [...splitTimelockedObjectTransactions, ...stakingReadyObjects]
+                objects: [...splitTimelockedObjectTransactions, ...stakingReadyObjects],
             }),
             tx.pure.address(validatorAddress),
         ],
