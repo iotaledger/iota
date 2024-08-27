@@ -67,7 +67,9 @@ export function createTimelockedStakeTransaction(
                 initialSharedVersion: 1,
                 mutable: true,
             }),
-            tx.makeMoveVec({ objects: [...splitTimelockedObjectTransactions, ...stakingReadyObjects] }), // add the split object to the array of timelocked objects
+            tx.makeMoveVec({
+                objects: [...splitTimelockedObjectTransactions, ...stakingReadyObjects]
+            }),
             tx.pure.address(validatorAddress),
         ],
     });
