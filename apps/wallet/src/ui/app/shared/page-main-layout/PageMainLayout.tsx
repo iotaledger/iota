@@ -62,7 +62,6 @@ export function PageMainLayout({
                     rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
                 />
             ) : null}
-
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                 <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
                     <main
