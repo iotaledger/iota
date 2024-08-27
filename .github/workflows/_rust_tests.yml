@@ -57,7 +57,7 @@ jobs:
 
           echo "$command"
 
-          eval ${command}
+          eval "${command}"
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
