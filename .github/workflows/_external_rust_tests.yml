@@ -55,7 +55,7 @@ jobs:
               fi
           done
 
-          echo $result
+          echo "$result"
 
           cargo nextest run \
             --config-file .config/nextest.toml \

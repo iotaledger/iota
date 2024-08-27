@@ -53,7 +53,7 @@ jobs:
               fi
           done
 
-          echo $result
+          echo "$result"
 
           cargo nextest run --profile ci $result
 
