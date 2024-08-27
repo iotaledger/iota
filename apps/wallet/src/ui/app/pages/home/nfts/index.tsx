@@ -98,7 +98,7 @@ function NftsPage() {
     useEffect(() => {
         if (
             ownedAssets &&
-            (selectedAssetCategory === null ||  // hasn't loaded a category
+            (selectedAssetCategory === null || // hasn't loaded a category
                 (selectedAssetCategory === AssetCategory.Hidden &&
                     filteredHiddenAssets.length === 0) || // In the HiddenAssets page and no more items there
                 (filteredAssets.length === 0 && selectedAssetCategory !== AssetCategory.Hidden)) // Other page and no items left
