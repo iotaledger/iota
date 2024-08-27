@@ -57,19 +57,6 @@ export function VisualAssetCard({
         event?.stopPropagation();
     };
 
-    // Define class names based on the isHoverable prop
-    const hoverableClass = isHoverable
-        ? 'absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48'
-        : 'hidden';
-
-    const iconButtonClass = isHoverable
-        ? 'absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100'
-        : 'hidden';
-
-    const titleClass = isHoverable
-        ? 'absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100'
-        : 'hidden';
-
     return (
         <div
             className={cx('relative aspect-square w-full overflow-hidden rounded-xl', {
@@ -82,13 +69,18 @@ export function VisualAssetCard({
             ) : (
                 <img src={assetSrc} alt={altText} className="h-full w-full object-cover" />
             )}
-            <div className={cx(hoverableClass)} />
+            {isHoverable && (
+                <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48" />
+            )}
             {isHoverable && (
                 <>
-                    <ButtonUnstyled className={iconButtonClass} onClick={handleIconClick}>
+                    <ButtonUnstyled
+                        className="absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100"
+                        onClick={handleIconClick}
+                    >
                         {icon}
                     </ButtonUnstyled>
-                    <div className={titleClass}>
+                    <div className="absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                         {assetTitle && (
                             <span className="text-title-md text-neutral-100">{assetTitle}</span>
                         )}
