@@ -46,7 +46,7 @@ jobs:
           result=""
 
           for item in "${array[@]}"; do
-              mapped_item="-E rdeps(${item})"
+              mapped_item="-E 'rdeps(${item})'"
 
               if [ -z "$result" ]; then
                   result="$mapped_item"
@@ -64,7 +64,7 @@ jobs:
 
           echo "$command"
 
-          eval "${command}"
+          eval ${command}
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
