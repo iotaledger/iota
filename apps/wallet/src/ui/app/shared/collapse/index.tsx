@@ -2,27 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronDown12, ChevronRight12 } from '@iota/icons';
-import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
-import cn from 'clsx';
+import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
 import { useState, type ReactNode } from 'react';
 
 interface CollapsibleProps {
-    title: string;
+    title?: string;
     defaultOpen?: boolean;
     children: ReactNode | ReactNode[];
     shade?: 'lighter' | 'darker';
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
+    titleSize?: TitleSize;
+    renderHeader?: ({ isOpen }: { isOpen: boolean }) => ReactNode;
+    hideArrow?: boolean;
+    hideBorder?: boolean;
 }
 
 export function Collapsible({
-    title,
+    title = '',
     children,
     defaultOpen,
     isOpen,
     onOpenChange,
-    shade = 'lighter',
+    titleSize = TitleSize.Small,
+    renderHeader,
+    hideArrow,
+    hideBorder,
 }: CollapsibleProps) {
     const [open, setOpen] = useState(isOpen ?? defaultOpen ?? false);
 
@@ -32,40 +37,20 @@ export function Collapsible({
     };
 
     return (
-        <CollapsiblePrimitive.Root
-            className="flex w-full flex-shrink-0 flex-col justify-start gap-3"
-            open={isOpen ?? open}
-            onOpenChange={handleOpenChange}
-        >
-            <CollapsiblePrimitive.Trigger className="group flex w-full cursor-pointer items-center gap-2 border-none bg-transparent p-0">
-                <div
-                    className={cn(
-                        'group-hover:text-hero text-captionSmall font-semibold uppercase',
-                        {
-                            'text-steel': shade === 'lighter',
-                            'text-steel-darker': shade === 'darker',
-                        },
-                    )}
-                >
-                    {title}
-                </div>
-                <div
-                    className={cn('group-hover:bg-hero h-px flex-1', {
-                        'bg-steel': shade === 'darker',
-                        'bg-gray-45 group-hover:bg-steel': shade === 'lighter',
-                    })}
-                />
-                <div
-                    className={cn('group-hover:text-hero inline-flex', {
-                        'text-steel': shade === 'darker',
-                        'text-gray-45': shade === 'lighter',
-                    })}
-                >
-                    {open ? <ChevronDown12 /> : <ChevronRight12 />}
-                </div>
-            </CollapsiblePrimitive.Trigger>
-
-            <CollapsiblePrimitive.Content>{children}</CollapsiblePrimitive.Content>
-        </CollapsiblePrimitive.Root>
+        <Accordion hideBorder={hideBorder}>
+            <AccordionHeader
+                hideBorder={hideBorder}
+                hideArrow={hideArrow}
+                isExpanded={isOpen ?? open}
+                onToggle={() => handleOpenChange(!open)}
+            >
+                {renderHeader ? (
+                    renderHeader({ isOpen: open })
+                ) : (
+                    <Title size={titleSize} title={title} />
+                )}
+            </AccordionHeader>
+            <AccordionContent isExpanded={isOpen ?? open}>{children}</AccordionContent>
+        </Accordion>
     );
 }

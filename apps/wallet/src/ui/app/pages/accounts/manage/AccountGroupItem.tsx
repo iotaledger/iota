@@ -68,7 +68,7 @@ export function AccountGroupItem({
     }
 
     return (
-        <div className="relative overflow-visible">
+        <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <Account
                 isLocked={account.isLocked}
                 isCopyable

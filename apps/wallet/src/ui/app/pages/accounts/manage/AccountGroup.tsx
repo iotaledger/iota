@@ -7,12 +7,12 @@ import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { Add, MoreHoriz } from '@iota/ui-icons';
-import { Collapse, CollapseBody, CollapseHeader } from './Collapse';
-import { useState } from 'react';
+import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { OutsideClickHandler } from '_pages/accounts/manage/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
+import { Collapsible } from '_app/shared/collapse';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -84,63 +84,70 @@ export function AccountGroup({
 
     return (
         <div className="relative overflow-visible">
-            <Collapse defaultOpen>
-                <CollapseHeader title={getGroupTitle(accounts[0])}>
-                    <div className="flex items-center gap-1">
-                        {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                            <Button
-                                size={ButtonSize.Small}
-                                type={ButtonType.Ghost}
-                                onClick={handleAdd}
-                                icon={<Add className="h-5 w-5 text-neutral-10" />}
+            <Collapsible
+                defaultOpen
+                hideArrow
+                hideBorder
+                renderHeader={({ isOpen }) => (
+                    <div className="relative flex w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
+                        <div className="flex items-center gap-1">
+                            <TriangleDown
+                                className={`${isOpen ? 'rotate-0 transition-transform ease-linear' : '-rotate-90 transition-transform ease-linear'} h-5 w-5 text-neutral-60`}
                             />
-                        ) : null}
-                        <div className="relative">
-                            <Button
-                                size={ButtonSize.Small}
-                                type={ButtonType.Ghost}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDropdownOpen(true);
-                                }}
-                                icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
-                            />
+                            <div className="text-title-md">{getGroupTitle(accounts[0])}</div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
+                                <Button
+                                    size={ButtonSize.Small}
+                                    type={ButtonType.Ghost}
+                                    onClick={handleAdd}
+                                    icon={<Add className="h-5 w-5 text-neutral-10" />}
+                                />
+                            ) : null}
+                            <div className="relative">
+                                <Button
+                                    size={ButtonSize.Small}
+                                    type={ButtonType.Ghost}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDropdownOpen(true);
+                                    }}
+                                    icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
+                                />
+                            </div>
                         </div>
                     </div>
-                </CollapseHeader>
-                <CollapseBody>
-                    {accounts.map((account, index) => (
-                        <AccountGroupItem
-                            account={account}
-                            isLast={index === accounts.length - 1}
-                        />
-                    ))}
-                </CollapseBody>
-                <div
-                    className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
-                >
-                    <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                        <Dropdown>
-                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && (
-                                <ListItem hideBottomBorder onClick={handleBalanceFinder}>
-                                    Balance finder
-                                </ListItem>
-                            )}
+                )}
+            >
+                {accounts.map((account, index) => (
+                    <AccountGroupItem account={account} isLast={index === accounts.length - 1} />
+                ))}
+            </Collapsible>
+            <div
+                className={`absolute right-0 top-0 z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+            >
+                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                    <Dropdown>
+                        {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && (
+                            <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                Balance finder
+                            </ListItem>
+                        )}
 
-                            {isMnemonicDerivedGroup && accountSource && (
-                                <ListItem hideBottomBorder onClick={handleExportPassphrase}>
-                                    Export Passphrase
-                                </ListItem>
-                            )}
-                            {isSeedDerivedGroup && accountSource && (
-                                <ListItem hideBottomBorder onClick={handleExportSeed}>
-                                    Export Seed
-                                </ListItem>
-                            )}
-                        </Dropdown>
-                    </OutsideClickHandler>
-                </div>
-            </Collapse>
+                        {isMnemonicDerivedGroup && accountSource && (
+                            <ListItem hideBottomBorder onClick={handleExportPassphrase}>
+                                Export Passphrase
+                            </ListItem>
+                        )}
+                        {isSeedDerivedGroup && accountSource && (
+                            <ListItem hideBottomBorder onClick={handleExportSeed}>
+                                Export Seed
+                            </ListItem>
+                        )}
+                    </Dropdown>
+                </OutsideClickHandler>
+            </div>
             {isPasswordModalVisible ? (
                 <VerifyPasswordModal
                     open
