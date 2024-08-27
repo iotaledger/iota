@@ -127,7 +127,7 @@ function NftsPage() {
     return (
         <PageTemplate title="Assets" isTitleCentered>
             <div className="flex h-full w-full flex-col items-start gap-md">
-                {isAssetsLoaded && (
+                {isAssetsLoaded && (filteredAssets.length || filteredHiddenAssets.length) && (
                     <SegmentedButton type={SegmentedButtonType.Filled}>
                         {ASSET_CATEGORIES.map(({ label, value }) => (
                             <ButtonSegment
