@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DelegatedTimelockedStake, IotaObjectData } from '@iota/iota-sdk/client';
 import {
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
@@ -14,14 +13,17 @@ import {
     SupplyIncreaseUserType,
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
-    TimelockedIotaResponse,
     TimelockedObject,
     VestingOverview,
 } from '../../interfaces';
-import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
+import {
+    ExtendedDelegatedTimelockedStake,
+    isTimelockedObject,
+    isTimelockedStakedIota,
+} from '../timelock';
 
 export function getLastSupplyIncreaseVestingPayout(
-    objects: (TimelockedObject | DelegatedTimelockedStake)[],
+    objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
 ): SupplyIncreaseVestingPayout | undefined {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
 
@@ -56,7 +58,7 @@ function addVestingPayoutToSupplyIncreaseMap(
 }
 
 function supplyIncreaseVestingObjectsToPayoutMap(
-    vestingObjects: (TimelockedObject | DelegatedTimelockedStake)[],
+    vestingObjects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
 ): Map<number, SupplyIncreaseVestingPayout> {
     const expirationToVestingPayout = new Map<number, SupplyIncreaseVestingPayout>();
 
@@ -69,15 +71,13 @@ function supplyIncreaseVestingObjectsToPayoutMap(
                 expirationToVestingPayout,
             );
         } else if (isTimelockedStakedIota(vestingObject)) {
-            for (const vestingStake of vestingObject.stakes) {
-                const objectValue = Number(vestingStake.principal);
-                const expirationTimestampMs = Number(vestingStake.expirationTimestampMs);
-                addVestingPayoutToSupplyIncreaseMap(
-                    objectValue,
-                    expirationTimestampMs,
-                    expirationToVestingPayout,
-                );
-            }
+            const objectValue = Number(vestingObject.principal);
+            const expirationTimestampMs = Number(vestingObject.expirationTimestampMs);
+            addVestingPayoutToSupplyIncreaseMap(
+                objectValue,
+                expirationTimestampMs,
+                expirationToVestingPayout,
+            );
         }
     }
 
@@ -122,7 +122,7 @@ export function buildSupplyIncreaseVestingSchedule(
 }
 
 export function getVestingOverview(
-    objects: (TimelockedObject | DelegatedTimelockedStake)[],
+    objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
     currentEpochTimestamp: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
@@ -155,14 +155,10 @@ export function getVestingOverview(
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
 
     const timelockedStakedObjects = vestingObjects.filter(isTimelockedStakedIota);
-    let totalStaked: number = 0;
-    for (const timelockedStakedObject of timelockedStakedObjects) {
-        const stakesAmount = timelockedStakedObject.stakes.reduce(
-            (acc, current) => acc + Number(current.principal),
-            0,
-        );
-        totalStaked += stakesAmount;
-    }
+    const totalStaked = timelockedStakedObjects.reduce(
+        (acc, current) => acc + Number(current.principal),
+        0,
+    );
 
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
@@ -201,33 +197,8 @@ export function getSupplyIncreaseVestingPayoutsCount(userType: SupplyIncreaseUse
     return SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * vestingDuration;
 }
 
-export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
-    return iotaObjects.map((iotaObject) => {
-        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
-            return {
-                id: { id: '' },
-                locked: { value: 0 },
-                expirationTimestampMs: 0,
-            };
-        }
-        const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
-        return {
-            id: fields.id,
-            locked: { value: Number(fields.locked) },
-            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
-            label: fields.label,
-        };
-    });
-}
-
 export function isSupplyIncreaseVestingObject(
-    obj: TimelockedObject | DelegatedTimelockedStake,
+    obj: TimelockedObject | ExtendedDelegatedTimelockedStake,
 ): boolean {
-    if (isTimelockedObject(obj)) {
-        return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
-    } else if (isTimelockedStakedIota(obj)) {
-        return obj.stakes.some((stake) => stake.label === SUPPLY_INCREASE_VESTING_LABEL);
-    } else {
-        return false;
-    }
+    return obj.label === SUPPLY_INCREASE_VESTING_LABEL;
 }

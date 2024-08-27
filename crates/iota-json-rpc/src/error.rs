@@ -24,11 +24,12 @@ use jsonrpsee::{
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::{authority_state::StateReadError, name_service::NameServiceError};
+use crate::authority_state::StateReadError;
 
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error(transparent)]
     IotaError(IotaError),
@@ -76,9 +77,6 @@ pub enum Error {
 
     #[error("Unsupported Feature: {0}")]
     UnsupportedFeature(String),
-
-    #[error("transparent")]
-    NameServiceError(#[from] NameServiceError),
 }
 
 impl From<IotaError> for Error {
@@ -107,25 +105,6 @@ impl From<Error> for RpcError {
                 | IotaObjectResponseError::DynamicFieldNotFound { .. }
                 | IotaObjectResponseError::Deleted { .. }
                 | IotaObjectResponseError::DisplayError { .. } => {
-                    RpcError::Call(ErrorObject::owned::<()>(
-                        ErrorCode::InvalidParams.code(),
-                        err.to_string(),
-                        None,
-                    ))
-                }
-                _ => RpcError::Call(ErrorObject::owned::<()>(
-                    CALL_EXECUTION_FAILED_CODE,
-                    err.to_string(),
-                    None,
-                )),
-            },
-            Error::NameServiceError(err) => match err {
-                NameServiceError::ExceedsMaxLength { .. }
-                | NameServiceError::InvalidHyphens { .. }
-                | NameServiceError::InvalidLength { .. }
-                | NameServiceError::InvalidUnderscore { .. }
-                | NameServiceError::LabelsEmpty { .. }
-                | NameServiceError::InvalidSeparator { .. } => {
                     RpcError::Call(ErrorObject::owned::<()>(
                         ErrorCode::InvalidParams.code(),
                         err.to_string(),
