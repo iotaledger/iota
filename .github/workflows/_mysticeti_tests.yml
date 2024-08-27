@@ -61,25 +61,39 @@ jobs:
           filters: .github/crates-filters.yml
 
   test:
-    name: Test ${{ matrix.components }}
-    if: needs.changes.outputs.components != '[]'
+    name: Test Mysticeti
     timeout-minutes: 45
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
-    strategy:
-      matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
     runs-on: [self-hosted]
     needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: cargo test
-        run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+        run: |
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E 'rdeps(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          command="cargo nextest run --profile ci $result"
+
+          echo "$command"
+
+          eval ${command}
 
   test-extra:
     timeout-minutes: 45
