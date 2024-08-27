@@ -25,15 +25,15 @@ Useful local development and testing.
 
 ### Using manual setup
 
-1) Install a local [Postgres server](https://www.postgresql.org/download) and start it.
+1. Install a local [Postgres server](https://www.postgresql.org/download) and start it.
 
-2) Install [Diesel](https://diesel.rs/):
-        
- `cargo install diesel_cli --no-default-features --features postgres`
+2. Install [Diesel](https://diesel.rs/):
 
-  refer to [Diesel Getting Started guide](https://diesel.rs/guides/getting-started) for more details
+`cargo install diesel_cli --no-default-features --features postgres`
 
-3) Setup the database:
+refer to [Diesel Getting Started guide](https://diesel.rs/guides/getting-started) for more details
+
+3. Setup the database:
 
 Make sure you are in the `iota/crates/iota-indexer` directory and run the following command to setup the database:
 
@@ -50,7 +50,7 @@ In case the database already exists, you can run the following command to reset 
 diesel database reset --database-url="postgres://postgres:postgres@localhost/iota_indexer"
 ```
 
-4) Run the Indexer together with a local network or standalone:
+4. Run the Indexer together with a local network or standalone:
 
 #### Running the Indexer with a local network, including fullnode, validator, and faucet
 
@@ -85,11 +85,14 @@ diesel database reset --database-url="postgres://postgres:postgres@localhost/iot
 
 ### Running tests
 
+To run the tests, you need to have a running postgres instance with the database `iota_indexer` which can be accessed with the user `postgres` and the password `postgres`.
 The crate provides following tests currently:
+
 - unit tests for DB models (objects, events) which test the conversion between the database representation and the Rust representation of the objects and events.
 - unit tests for the DB query filters, which test the conversion of filters to the correct SQL queries.
 - integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
-They require a running postgres instance with the database `iota_indexer` and the `pg_integration` feature enabled.
+
+  They require a running postgres instance with the database `iota_indexer` and the `pg_integration` feature enabled.
 
 ```sh
 cargo test --features pg_integration
