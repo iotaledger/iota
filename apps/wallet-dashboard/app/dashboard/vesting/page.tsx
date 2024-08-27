@@ -8,14 +8,17 @@ import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
     getVestingOverview,
+    groupTimelockedStakedObjects,
     isTimelockedUnlockable,
     mapTimelockObjects,
+    TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import {
     TIMELOCK_IOTA_TYPE,
+    useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
-    useGetStakedTimelockedObjects,
+    useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import {
@@ -32,19 +35,31 @@ function VestingDashboardPage(): JSX.Element {
 
     const { addNotification } = useNotifications();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const { data: stakedTimelockedObjects } = useGetStakedTimelockedObjects(account?.address || '');
+    const { data: timelockedStakedObjects } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
     const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
-    const stakedTimelockedMapped = formatDelegatedTimelockedStake(stakedTimelockedObjects || []);
+    const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
+
+    const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
+        groupTimelockedStakedObjects(timelockedstakedMapped || []);
 
     const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...stakedTimelockedMapped],
+        [...timelockedMapped, ...timelockedstakedMapped],
         Number(currentEpochMs),
     );
+
+    function getValidatorName(validatorAddress: string): string {
+        return (
+            activeValidators?.find(
+                (activeValidator) => activeValidator.iotaAddress === validatorAddress,
+            )?.name || validatorAddress
+        );
+    }
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
         isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
@@ -103,35 +118,75 @@ function VestingDashboardPage(): JSX.Element {
         console.log('Stake');
     };
 
+    function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
+        // TODO: handle unstake logic
+        console.info('delegatedTimelockedStake', delegatedTimelockedStake);
+    }
+
     return (
-        <div className="flex flex-col items-center justify-center space-y-4 pt-12">
-            <h1>VESTING</h1>
-            <div className="flex flex-row space-x-4">
-                <div className="flex flex-col items-center rounded-lg border p-4">
-                    <span>Total Vested</span>
-                    <span>{vestingSchedule.totalVested}</span>
+        <div className="flex flex-row">
+            <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
+                <h1>VESTING</h1>
+                <div className="flex flex-row space-x-4">
+                    <div className="flex flex-col items-center rounded-lg border p-4">
+                        <span>Total Vested</span>
+                        <span>{vestingSchedule.totalVested}</span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-lg border p-4">
+                        <span>Total Locked</span>
+                        <span>{vestingSchedule.totalLocked}</span>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center rounded-lg border p-4">
-                    <span>Total Locked</span>
-                    <span>{vestingSchedule.totalLocked}</span>
-                </div>
-                <div className="flex flex-col items-center rounded-lg border p-4">
-                    <span>Total Unlocked</span>
-                    <span>{vestingSchedule.totalUnlocked}</span>
-                </div>
-                <div className="flex flex-col items-center rounded-lg border p-4">
-                    <span>Total Staked</span>
-                    <span>{vestingSchedule.totalStaked}</span>
+                <hr />
+                <div className="flex flex-row space-x-4">
+                    <div className="flex flex-col items-center rounded-lg border p-4">
+                        <span>Available Claiming</span>
+                        <span>{vestingSchedule.availableClaiming}</span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-lg border p-4">
+                        <span>Available Staking</span>
+                        <span>{vestingSchedule.availableStaking}</span>
+                    </div>
                 </div>
             </div>
-            <div className="flex flex-row space-x-4">
-                <div className="flex flex-col items-center rounded-lg border p-4">
-                    <span>Available Claiming</span>
-                    <span>{vestingSchedule.availableClaiming}</span>
+            <div className="flex w-1/2 flex-col items-center justify-center space-y-4 pt-12">
+                <h1>Staked Vesting</h1>
+                <div className="flex flex-row space-x-4">
+                    <div className="flex flex-col items-center rounded-lg border p-4">
+                        <span>Your stake</span>
+                        <span>{vestingSchedule.totalStaked}</span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-lg border p-4">
+                        <span>Total Unlocked</span>
+                        <span>{vestingSchedule.totalUnlocked}</span>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center rounded-lg border p-4">
-                    <span>Available Staking</span>
-                    <span>{vestingSchedule.availableStaking}</span>
+                <div className="flex w-full flex-col items-center justify-center space-y-4 pt-4">
+                    {timelockedStakedObjectsGrouped?.map((timelockedStakedObject) => {
+                        return (
+                            <div
+                                key={
+                                    timelockedStakedObject.validatorAddress +
+                                    timelockedStakedObject.stakeRequestEpoch +
+                                    timelockedStakedObject.label
+                                }
+                                className="flex w-full flex-row items-center justify-center space-x-4"
+                            >
+                                <span>
+                                    Validator:{' '}
+                                    {getValidatorName(timelockedStakedObject.validatorAddress)}
+                                </span>
+                                <span>
+                                    Stake Request Epoch: {timelockedStakedObject.stakeRequestEpoch}
+                                </span>
+                                <span>Stakes: {timelockedStakedObject.stakes.length}</span>
+
+                                <Button onClick={() => handleUnstake(timelockedStakedObject)}>
+                                    Unstake
+                                </Button>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
             {account?.address && (

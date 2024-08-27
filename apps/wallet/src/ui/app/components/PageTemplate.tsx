@@ -33,7 +33,9 @@ export function PageTemplate({
                     onClose={onClose}
                 />
             )}
-            <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
+            <div className="w-full flex-1 overflow-y-auto overflow-x-hidden bg-neutral-100 p-md">
+                {children}
+            </div>
         </div>
     );
 }
