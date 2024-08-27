@@ -27,37 +27,37 @@ use iota_types::{
 
 #[async_trait]
 pub trait AuthorityAPI {
-    /// Initiates a new transaction to a Iota or Primary account.
+    /// Handles a `Transaction` for this account.
     async fn handle_transaction(
         &self,
         transaction: Transaction,
     ) -> Result<HandleTransactionResponse, IotaError>;
 
-    /// Executes a certificate.
+    /// Handles a `CertifiedTransaction` for this account.
     async fn handle_certificate_v2(
         &self,
         certificate: CertifiedTransaction,
     ) -> Result<HandleCertificateResponseV2, IotaError>;
 
-    /// Handles Object information requests for this account.
+    /// Handles a `ObjectInfoRequest` for this account.
     async fn handle_object_info_request(
         &self,
         request: ObjectInfoRequest,
     ) -> Result<ObjectInfoResponse, IotaError>;
 
-    /// Handles Transaction information requests for this account.
+    /// Handles a `TransactionInfoRequest` for this account.
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
     ) -> Result<TransactionInfoResponse, IotaError>;
 
-    /// Handles Checkpoint requests for this account.
+    /// Handles a `CheckpointRequest` for this account.
     async fn handle_checkpoint(
         &self,
         request: CheckpointRequest,
     ) -> Result<CheckpointResponse, IotaError>;
 
-    /// Handles Checkpoint V2 requests for this account.
+    /// Handles a `CheckpointRequestV2` for this account.
     async fn handle_checkpoint_v2(
         &self,
         request: CheckpointRequestV2,
@@ -108,7 +108,7 @@ impl NetworkAuthorityClient {
 
 #[async_trait]
 impl AuthorityAPI for NetworkAuthorityClient {
-    /// Initiates a new transfer to a Iota or Primary account.
+    /// Handles a `Transaction` for this account.
     async fn handle_transaction(
         &self,
         transaction: Transaction,
@@ -120,7 +120,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Executes a certificate.
+    /// Handles a `CertifiedTransaction` for this account.
     async fn handle_certificate_v2(
         &self,
         certificate: CertifiedTransaction,
@@ -134,7 +134,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
         response.map_err(Into::into)
     }
 
-    /// Handles Object information requests for this account.
+    /// Handles a `ObjectInfoRequest` for this account.
     async fn handle_object_info_request(
         &self,
         request: ObjectInfoRequest,
@@ -146,7 +146,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handles Transaction information requests for this account.
+    /// Handles a `TransactionInfoRequest` for this account.
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
@@ -158,7 +158,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handles Object information requests for this account.
+    /// Handles a `CheckpointRequest` for this account.
     async fn handle_checkpoint(
         &self,
         request: CheckpointRequest,
@@ -170,7 +170,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handles Object information requests for this account.
+    /// Handles a `CheckpointRequestV2` for this account.
     async fn handle_checkpoint_v2(
         &self,
         request: CheckpointRequestV2,
@@ -195,7 +195,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
     }
 }
 
-/// Creates a network authority client with network configuration.
+/// Creates authority clients with network configuration.
 pub fn make_network_authority_clients_with_network_config(
     committee: &CommitteeWithNetworkMetadata,
     network_config: &Config,
@@ -218,7 +218,7 @@ pub fn make_network_authority_clients_with_network_config(
     Ok(authority_clients)
 }
 
-/// Creates a network authority client with timeout configuration.
+/// Creates authority clients with a timeout configuration.
 pub fn make_authority_clients_with_timeout_config(
     committee: &CommitteeWithNetworkMetadata,
     connect_timeout: Duration,
