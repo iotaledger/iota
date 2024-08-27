@@ -201,17 +201,17 @@ function VestingDashboardPage(): JSX.Element {
                         );
                     })}
                 </div>
+                {account?.address && (
+                    <div className="flex flex-row space-x-4">
+                        {vestingSchedule.availableClaiming ? (
+                            <Button onClick={handleCollect}>Collect</Button>
+                        ) : null}
+                        {vestingSchedule.availableStaking ? (
+                            <Button onClick={handleStake}>Stake</Button>
+                        ) : null}
+                    </div>
+                )}
             </div>
-            {account?.address && (
-                <div className="flex flex-row space-x-4">
-                    {vestingSchedule.availableClaiming ? (
-                        <Button onClick={handleCollect}>Collect</Button>
-                    ) : null}
-                    {vestingSchedule.availableStaking ? (
-                        <Button onClick={handleStake}>Stake</Button>
-                    ) : null}
-                </div>
-            )}
         </div>
     );
 }
