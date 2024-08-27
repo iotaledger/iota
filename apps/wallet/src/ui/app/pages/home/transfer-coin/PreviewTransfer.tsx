@@ -55,7 +55,7 @@ export function PreviewTransfer({
                 </CardImage>
                 <CardBody
                     title={`${approximation ? '~' : ''}${formatted} ${symbol}`}
-                    subtitle="amount"
+                    subtitle="Amount"
                 />
                 <CardAction type={CardActionType.SupportingText} />
             </Card>
