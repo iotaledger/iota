@@ -10,9 +10,11 @@ export interface NftImageProps {
     title?: string;
     className?: string;
     isHoverable?: boolean;
+    icon?: React.ReactNode;
+    onIconClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-export function NftImage({ src, title, isHoverable, video }: NftImageProps) {
+export function NftImage({ src, title, isHoverable, video, icon, onIconClick }: NftImageProps) {
     const imgSrc = src ? src.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
 
     if (video) {
@@ -23,6 +25,8 @@ export function NftImage({ src, title, isHoverable, video }: NftImageProps) {
                 assetType={VisualAssetType.Video}
                 altText={title || 'NFT'}
                 isHoverable={isHoverable}
+                icon={icon}
+                onIconClick={onIconClick}
             />
         );
     }
@@ -41,6 +45,8 @@ export function NftImage({ src, title, isHoverable, video }: NftImageProps) {
             assetType={VisualAssetType.Image}
             altText={title || 'NFT'}
             isHoverable={isHoverable}
+            icon={icon}
+            onIconClick={onIconClick}
         />
     );
 }

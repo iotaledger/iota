@@ -38,6 +38,8 @@ export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardS
     objectId: string;
     hideLabel?: boolean;
     isLocked?: boolean;
+    icon?: React.ReactNode;
+    onIconClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function NFTDisplayCard({
@@ -46,6 +48,8 @@ export function NFTDisplayCard({
     wideView,
     isHoverable,
     orientation,
+    icon,
+    onIconClick,
 }: NFTDisplayCardProps) {
     const { data: objectData } = useGetObject(objectId);
     const { data: nftMeta, isPending } = useGetNFTMeta(objectId);
@@ -67,6 +71,8 @@ export function NFTDisplayCard({
                         src={nftImageUrl}
                         isHoverable={isHoverable ?? false}
                         video={video}
+                        icon={icon}
+                        onIconClick={onIconClick}
                     />
                 )}
                 {wideView && (
