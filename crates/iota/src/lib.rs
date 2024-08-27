@@ -17,3 +17,4 @@ pub mod shell;
 pub mod validator_commands;
 // Commented: https://github.com/iotaledger/iota/issues/1777
 // pub mod zklogin_commands_util;
+// TEMP
