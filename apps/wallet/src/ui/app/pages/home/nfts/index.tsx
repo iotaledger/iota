@@ -96,7 +96,13 @@ function NftsPage() {
     }, [hiddenAssetIds, data]);
 
     useEffect(() => {
-        if (ownedAssets) {
+        if (
+            ownedAssets &&
+            (selectedAssetCategory === null || // hasn't loaded a category
+                (selectedAssetCategory === AssetCategory.Hidden &&
+                    filteredHiddenAssets.length === 0) || // In the HiddenAssets page and no more items there
+                (filteredAssets.length === 0 && selectedAssetCategory !== AssetCategory.Hidden)) // Other page and no items left
+        ) {
             setIsAssetsLoaded(true);
             // Determine the default category based on available assets
             const defaultCategory =
@@ -114,7 +120,7 @@ function NftsPage() {
                 setSelectedAssetCategory(null);
             }
         }
-    }, [ownedAssets, hiddenAssetIds]);
+    }, [ownedAssets, hiddenAssetIds, filteredHiddenAssets]);
 
     if (isLoading) {
         return (
@@ -127,25 +133,26 @@ function NftsPage() {
     return (
         <PageTemplate title="Assets" isTitleCentered>
             <div className="flex h-full w-full flex-col items-start gap-md">
-                {isAssetsLoaded && (
-                    <SegmentedButton type={SegmentedButtonType.Filled}>
-                        {ASSET_CATEGORIES.map(({ label, value }) => (
-                            <ButtonSegment
-                                key={value}
-                                onClick={() => setSelectedAssetCategory(value)}
-                                label={label}
-                                selected={selectedAssetCategory === value}
-                                disabled={
-                                    AssetCategory.Hidden === value
-                                        ? !hiddenAssetIds.length
-                                        : AssetCategory.Visual === value
-                                          ? !ownedAssets?.visual.length
-                                          : !ownedAssets?.other.length
-                                }
-                            />
-                        ))}
-                    </SegmentedButton>
-                )}
+                {isAssetsLoaded &&
+                    Boolean(filteredAssets.length || filteredHiddenAssets.length) && (
+                        <SegmentedButton type={SegmentedButtonType.Filled}>
+                            {ASSET_CATEGORIES.map(({ label, value }) => (
+                                <ButtonSegment
+                                    key={value}
+                                    onClick={() => setSelectedAssetCategory(value)}
+                                    label={label}
+                                    selected={selectedAssetCategory === value}
+                                    disabled={
+                                        AssetCategory.Hidden === value
+                                            ? !hiddenAssetIds.length
+                                            : AssetCategory.Visual === value
+                                              ? !ownedAssets?.visual.length
+                                              : !ownedAssets?.other.length
+                                    }
+                                />
+                            ))}
+                        </SegmentedButton>
+                    )}
                 <Loading loading={isPending}>
                     {isError ? (
                         <Alert>
