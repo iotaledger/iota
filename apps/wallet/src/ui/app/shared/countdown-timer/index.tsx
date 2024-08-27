@@ -33,6 +33,19 @@ export interface CountDownTimerProps extends VariantProps<typeof timeStyle> {
     endLabel?: string;
 }
 
+export function determineCountDownText({
+    timeAgo,
+    label,
+    endLabel,
+}: {
+    timeAgo: string;
+    label?: string;
+    endLabel?: string;
+}): string {
+    const showLabel = timeAgo !== endLabel;
+    return showLabel ? `${label} ${timeAgo}` : timeAgo;
+}
+
 export function CountDownTimer({
     timestamp,
     label,
@@ -49,7 +62,7 @@ export function CountDownTimer({
 
     return (
         <div className={timeStyle(styles)}>
-            {timeAgo === endLabel ? '' : label} {timeAgo}
+            {determineCountDownText({ timeAgo, label, endLabel })}
         </div>
     );
 }
