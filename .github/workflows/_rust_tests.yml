@@ -6,6 +6,10 @@ on:
       isRust:
         type: boolean
 
+concurrency:
+  group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
 jobs:
   changes:
     if: inputs.isRust
@@ -71,7 +75,7 @@ jobs:
         # iota-sdk version needs to be explicitly defined here due to this bug
         # https://github.com/rust-lang/cargo/issues/12891
         # (we have the stardust iota-sdk package as a dependency)
-        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
+        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.6
 
   check-unused-deps:
     name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
@@ -104,7 +108,7 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/12891
       # (we have the stardust iota-sdk package as a dependency)
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps -p iota-sdk@0.1.4 ${{ matrix.flags }}
+        run: cargo +nightly ci-udeps -p iota-sdk@0.1.6 ${{ matrix.flags }}
 
   test-extra:
     env:
