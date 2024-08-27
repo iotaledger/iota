@@ -55,6 +55,8 @@ jobs:
               fi
           done
 
+          echo $result
+
           cargo nextest run \
             --config-file .config/nextest.toml \
             --manifest-path external-crates/move/Cargo.toml \

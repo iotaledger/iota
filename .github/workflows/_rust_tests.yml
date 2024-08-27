@@ -53,6 +53,8 @@ jobs:
               fi
           done
 
+          echo $result
+
           cargo nextest run --profile ci $result
 
   check-unused-deps:
