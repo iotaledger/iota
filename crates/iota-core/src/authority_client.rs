@@ -27,35 +27,37 @@ use iota_types::{
 
 #[async_trait]
 pub trait AuthorityAPI {
-    /// Initiate a new transaction to a Iota or Primary account.
+    /// Initiates a new transaction to a Iota or Primary account.
     async fn handle_transaction(
         &self,
         transaction: Transaction,
     ) -> Result<HandleTransactionResponse, IotaError>;
 
-    /// Execute a certificate.
+    /// Executes a certificate.
     async fn handle_certificate_v2(
         &self,
         certificate: CertifiedTransaction,
     ) -> Result<HandleCertificateResponseV2, IotaError>;
 
-    /// Handle Object information requests for this account.
+    /// Handles Object information requests for this account.
     async fn handle_object_info_request(
         &self,
         request: ObjectInfoRequest,
     ) -> Result<ObjectInfoResponse, IotaError>;
 
-    /// Handle Object information requests for this account.
+    /// Handles Transaction information requests for this account.
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
     ) -> Result<TransactionInfoResponse, IotaError>;
 
+    /// Handles Checkpoint requests for this account.
     async fn handle_checkpoint(
         &self,
         request: CheckpointRequest,
     ) -> Result<CheckpointResponse, IotaError>;
 
+    /// Handles Checkpoint V2 requests for this account.
     async fn handle_checkpoint_v2(
         &self,
         request: CheckpointRequestV2,
@@ -69,12 +71,14 @@ pub trait AuthorityAPI {
     ) -> Result<IotaSystemState, IotaError>;
 }
 
+/// A client for the network authority.
 #[derive(Clone)]
 pub struct NetworkAuthorityClient {
     client: ValidatorClient<Channel>,
 }
 
 impl NetworkAuthorityClient {
+    /// Connects to a client address.
     pub async fn connect(address: &Multiaddr) -> anyhow::Result<Self> {
         let channel = iota_network_stack::client::connect(address)
             .await
@@ -82,18 +86,21 @@ impl NetworkAuthorityClient {
         Ok(Self::new(channel))
     }
 
+    /// Lazy connection to a client address.
     pub fn connect_lazy(address: &Multiaddr) -> anyhow::Result<Self> {
         let channel = iota_network_stack::client::connect_lazy(address)
             .map_err(|err| anyhow!(err.to_string()))?;
         Ok(Self::new(channel))
     }
 
+    /// Creates a new client with a `transport`` channel.
     pub fn new(channel: Channel) -> Self {
         Self {
             client: ValidatorClient::new(channel),
         }
     }
 
+    /// Gets the cloned client.
     fn client(&self) -> ValidatorClient<Channel> {
         self.client.clone()
     }
@@ -101,7 +108,7 @@ impl NetworkAuthorityClient {
 
 #[async_trait]
 impl AuthorityAPI for NetworkAuthorityClient {
-    /// Initiate a new transfer to a Iota or Primary account.
+    /// Initiates a new transfer to a Iota or Primary account.
     async fn handle_transaction(
         &self,
         transaction: Transaction,
@@ -113,7 +120,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Execute a certificate.
+    /// Executes a certificate.
     async fn handle_certificate_v2(
         &self,
         certificate: CertifiedTransaction,
@@ -127,6 +134,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
         response.map_err(Into::into)
     }
 
+    /// Handles Object information requests for this account.
     async fn handle_object_info_request(
         &self,
         request: ObjectInfoRequest,
@@ -138,7 +146,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handle Object information requests for this account.
+    /// Handles Transaction information requests for this account.
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
@@ -150,7 +158,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handle Object information requests for this account.
+    /// Handles Object information requests for this account.
     async fn handle_checkpoint(
         &self,
         request: CheckpointRequest,
@@ -162,7 +170,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    /// Handle Object information requests for this account.
+    /// Handles Object information requests for this account.
     async fn handle_checkpoint_v2(
         &self,
         request: CheckpointRequestV2,
@@ -174,6 +182,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
+    /// This API is exclusively used by the benchmark code.
     async fn handle_system_state_object(
         &self,
         request: SystemStateRequest,
@@ -186,6 +195,7 @@ impl AuthorityAPI for NetworkAuthorityClient {
     }
 }
 
+/// Creates a network authority client with network configuration.
 pub fn make_network_authority_clients_with_network_config(
     committee: &CommitteeWithNetworkMetadata,
     network_config: &Config,
@@ -208,6 +218,7 @@ pub fn make_network_authority_clients_with_network_config(
     Ok(authority_clients)
 }
 
+/// Creates a network authority client with timeout configuration.
 pub fn make_authority_clients_with_timeout_config(
     committee: &CommitteeWithNetworkMetadata,
     connect_timeout: Duration,
