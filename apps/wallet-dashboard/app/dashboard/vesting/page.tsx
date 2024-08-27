@@ -9,7 +9,7 @@ import {
     formatDelegatedTimelockedStake,
     getVestingOverview,
     groupTimelockedStakedObjects,
-    isTimelockedUnlocked,
+    isTimelockedUnlockable,
     mapTimelockObjects,
     TimelockedStakedObjectsGrouped,
 } from '@/lib/utils';
@@ -19,7 +19,7 @@ import {
     useGetActiveValidatorsInfo,
     useGetAllOwnedObjects,
     useGetTimelockedStakedObjects,
-    useUnlockTimelockedObjects,
+    useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -61,11 +61,11 @@ function VestingDashboardPage(): JSX.Element {
     }
 
     const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
-        isTimelockedUnlocked(timelockedObject, Number(currentEpochMs)),
+        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
     );
     const unlockedTimelockedObjectIds: string[] =
         unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
-    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjects(
+    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjectsTransaction(
         account?.address || '',
         unlockedTimelockedObjectIds,
     );
