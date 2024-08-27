@@ -57,7 +57,6 @@ export function TransactionsActivityTable({
     useEffect(() => {
         goToFirstPageRef.current();
     }, [transactionKindFilter]);
-
     return (
         <div data-testid="tx">
             {isError && (
