@@ -52,7 +52,7 @@ import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
 import SiteConnectPage from './pages/site-connect';
 import { AppType } from './redux/slices/app/AppType';
-import { Staking } from './staking/home';
+import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
@@ -176,7 +176,7 @@ const App = () => {
                 <Route path="receipt" element={<ReceiptPage />} />
                 <Route path="send" element={<TransferCoinPage />} />
                 <Route path="send/select" element={<CoinsSelectorPage />} />
-                <Route path="stake/*" element={<Staking />} />
+                <Route path="stake/*" element={<StakingPage />} />
                 <Route path="tokens/*" element={<TokenDetailsPage />} />
                 <Route path="transactions/:status?" element={<TransactionBlocksPage />} />
                 <Route path="*" element={<Navigate to="/tokens" replace={true} />} />
