@@ -47,7 +47,9 @@ export function Overlay({
                         onClose={closeModal}
                     />
                 )}
-                <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
+                <div className="flex w-full flex-1 overflow-hidden bg-neutral-100 p-md">
+                    {children}
+                </div>
             </div>
         </Portal>
     ) : null;
