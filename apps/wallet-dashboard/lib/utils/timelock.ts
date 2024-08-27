@@ -9,6 +9,13 @@ export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
     stakingPool: string;
 };
 
+export type TimelockedStakedObjectsGrouped = {
+    validatorAddress: string;
+    stakeRequestEpoch: string;
+    label: string | null | undefined;
+    stakes: ExtendedDelegatedTimelockedStake[];
+};
+
 export function isTimelockedStakedIota(
     obj: TimelockedObject | ExtendedDelegatedTimelockedStake,
 ): obj is ExtendedDelegatedTimelockedStake {
@@ -68,4 +75,32 @@ export function formatDelegatedTimelockedStake(
             };
         });
     });
+}
+
+export function groupTimelockedStakedObjects(
+    extendedDelegatedTimelockedStake: ExtendedDelegatedTimelockedStake[],
+): TimelockedStakedObjectsGrouped[] {
+    const groupedArray: TimelockedStakedObjectsGrouped[] = [];
+
+    extendedDelegatedTimelockedStake.forEach((obj) => {
+        let group = groupedArray.find(
+            (g) =>
+                g.validatorAddress === obj.validatorAddress &&
+                g.stakeRequestEpoch === obj.stakeRequestEpoch &&
+                g.label === obj.label,
+        );
+
+        if (!group) {
+            group = {
+                validatorAddress: obj.validatorAddress,
+                stakeRequestEpoch: obj.stakeRequestEpoch,
+                label: obj.label,
+                stakes: [],
+            };
+            groupedArray.push(group);
+        }
+        group.stakes.push(obj);
+    });
+
+    return groupedArray;
 }
