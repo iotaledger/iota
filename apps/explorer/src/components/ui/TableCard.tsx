@@ -75,7 +75,7 @@ export function TableCard<DataType extends object>({
                 refetching && 'opacity-50',
             )}
         >
-            <Table>
+            <Table rowIndexes={table.getRowModel().rows.map((row) => row.index)}>
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableHeaderRow key={headerGroup.id}>
