@@ -21,8 +21,7 @@ import { toast } from 'react-hot-toast';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PreviewTransfer } from './PreviewTransfer';
-import { SendTokenForm } from './SendTokenForm';
-import type { SubmitProps } from './SendTokenForm';
+import { SendTokenForm, type SubmitProps } from './SendTokenForm';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Select, Button, type SelectOption, ButtonType } from '@iota/apps-ui-kit';
 import { useActiveAddress, useCoinsReFetchingConfig } from '_src/ui/app/hooks';

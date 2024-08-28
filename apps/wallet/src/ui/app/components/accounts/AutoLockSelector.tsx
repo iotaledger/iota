@@ -60,17 +60,21 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
             />
             <FormField name="autoLock.timer">
                 <div className="flex items-start justify-between gap-xs">
-                    <Input
-                        disabled={disabled || !timerEnabled}
-                        type={InputType.Number}
-                        {...register('autoLock.timer')}
-                        data-testid="auto-lock-timer"
-                    />
-                    <SelectField
-                        disabled={disabled || !timerEnabled}
-                        name="autoLock.interval"
-                        options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
-                    />
+                    <div className="w-2/3">
+                        <Input
+                            disabled={disabled || !timerEnabled}
+                            type={InputType.Number}
+                            {...register('autoLock.timer')}
+                            data-testid="auto-lock-timer"
+                        />
+                    </div>
+                    <div className="w-1/3">
+                        <SelectField
+                            disabled={disabled || !timerEnabled}
+                            name="autoLock.interval"
+                            options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
+                        />
+                    </div>
                 </div>
             </FormField>
         </div>

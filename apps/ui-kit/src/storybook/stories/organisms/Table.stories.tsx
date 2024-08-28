@@ -108,5 +108,6 @@ export const Default: Story = {
         hasPagination: true,
         actionLabel: 'Action',
         hasCheckboxColumn: true,
+        rowIndexes: [0, 1, 2],
     },
 };
