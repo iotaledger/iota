@@ -204,7 +204,7 @@ impl AuthAggMetrics {
     }
 }
 
-/// Errors that can occur when processing transactions in a aggregator.
+/// Errors that can occur when processing transactions in an aggregator.
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum AggregatorProcessTransactionError {
     #[error(
