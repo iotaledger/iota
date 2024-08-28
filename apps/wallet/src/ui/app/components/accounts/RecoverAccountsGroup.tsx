@@ -5,7 +5,7 @@
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { AccountListItem } from './AccountListItem';
 import { Button, ButtonSize, ButtonType, Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
-import { CheckmarkFilled } from '@iota/ui-icons';
+import { CheckmarkFilled, Key } from '@iota/ui-icons';
 
 export interface RecoverAccountsGroupProps {
     title: string;
@@ -42,11 +42,13 @@ export function RecoverAccountsGroup({
                     ) : null}
                 </div>
             </div>
-            {accounts.map((anAccount) => (
-                <div className="rounded-xl border border-shader-neutral-light-8">
-                    <AccountListItem key={anAccount.id} account={anAccount} />
-                </div>
-            ))}
+            <div className="flex flex-col gap-xs">
+                {accounts.map((anAccount) => (
+                    <div className="rounded-xl border border-shader-neutral-light-8">
+                        <AccountListItem key={anAccount.id} account={anAccount} icon={<Key />} />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

@@ -52,7 +52,7 @@ export function RecoverManyPage() {
     }
 
     return (
-        <PageTemplate title="Forgot Password?" isTitleCentered onClose={handleCancel}>
+        <PageTemplate title="Forgot your Passwords?" isTitleCentered onClose={handleCancel}>
             <div className="flex h-full flex-col gap-lg overflow-auto">
                 <span className="text-center text-label-lg text-neutral-40">
                     Recover the following accounts by completing the recovery process

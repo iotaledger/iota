@@ -4,7 +4,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { AccountItem } from './AccountItem';
-import { Key } from '@iota/ui-icons';
+import { IotaLogoMark } from '@iota/ui-icons';
 
 interface AccountListItemProps {
     account: SerializedUIAccount;
@@ -14,6 +14,7 @@ interface AccountListItemProps {
     hideExplorerLink?: boolean;
     onLockAccountClick?: () => void;
     onUnlockAccountClick?: () => void;
+    icon?: React.ReactNode;
 }
 
 export function AccountListItem({
@@ -22,10 +23,11 @@ export function AccountListItem({
     hideExplorerLink,
     onLockAccountClick,
     onUnlockAccountClick,
+    icon,
 }: AccountListItemProps) {
     return (
         <AccountItem
-            icon={<Key />}
+            icon={icon ?? <IotaLogoMark />}
             onLockAccountClick={onLockAccountClick}
             onUnlockAccountClick={onUnlockAccountClick}
             accountID={account.id}
