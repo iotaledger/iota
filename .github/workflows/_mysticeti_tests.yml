@@ -152,9 +152,34 @@ jobs:
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
       - uses: taiki-e/install-action@nextest
+      - name: setup filter
+        run: |
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E 'rdeps(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          echo "filters=$command" >> "$GITHUB_ENV"
       - name: cargo simtest
         run: |
-          scripts/simtest/cargo-simtest simtest -p ${{matrix.components}}
+          command="scripts/simtest/cargo-simtest simtest $filters"
+
+          echo "$command"
+
+          eval ${command}
       - name: check new tests for flakiness
         run: |
-          scripts/simtest/stress-new-tests.sh -p ${{matrix.components}}
+          command="scripts/simtest/stress-new-tests.sh $filters"
+
+          echo "$command"
+
+          eval ${command}
