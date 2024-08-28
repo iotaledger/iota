@@ -1,53 +1,74 @@
----
-title: Strings
----
+# Strings
 
-Move does not have a native type for strings, but it has a useful wrapper.
+While Move does not have a built-in type to represent strings, it does offer two standard implementations for strings:
 
-```move
-module examples::strings {
-    // Use this dependency to get a type wrapper for UTF-8 strings
-    use std::string::{Self, String};
+* The [`std::string`](../../../references/framework/move-stdlib/string.mdx) module defines a `String` type and methods for working with UTF-8 encoded strings.
+* The [`std::ascii`](../../../references/framework/move-stdlib/ascii.mdx) module provides an ASCII `String` type along with its methods.
 
-    /// A dummy Object that holds a String type
-    public struct Name has key, store {
-        id: UID,
+:::tip
 
-        /// Here it is - the String type
-        name: String
-    }
+The IOTA execution environment automatically converts byte vectors into `String` types in transaction inputs. Therefore, in many cases, you don't need to manually construct a `String` in the [Transaction Block](./../transactions/transactions.mdx).
 
-    /// Create a name Object by passing raw bytes
-    public fun issue_name_nft(
-        name_bytes: vector<u8>, ctx: &mut TxContext
-    ): Name {
-        Name {
-            id: object::new(ctx),
-            name: string::utf8(name_bytes)
-        }
-    }
-}
+:::
+
+## Strings Are Bytes
+
+Regardless of the string type you choose, it's important to understand that strings are fundamentally just bytes. The `string` and `ascii` modules provide wrappers for these bytes, offering safety checks and methods to work with strings. However, at the core, they remain vectors of bytes.
+
+```move file=<rootDir>/docs/examples/move/move-overview/string.move#L5-L20
 ```
 
-## String literals
+## Working with UTF-8 Strings
 
-Define string literals in Move as byte strings. To do so, prepend `b` to your string.
+Although the standard library includes two types of strings, the `string` module should generally be considered the default choice. It includes native implementations of many common operations, making it more efficient than the `ascii` module, which is fully implemented in Move.
 
-```move
-const IMAGE_URL: vector<u8> = b"https://example.com/image/";
+### Definition
+
+The `String` type in the `std::string` module is defined as follows:
+
+
+```move file=<rootDir>/crates/iota-framework/packages/move-stdlib/sources/string.move#L16-L19
 ```
 
-To store it as a UTF-8 byte string, use the `utf8` function from the `std::string` module.
 
-```move
-use std::string::utf8;
+### Creating a String
 
-let keys = vector[
-            utf8(b"name"),
-            utf8(b"link"),
-            utf8(b"image_url"),
-            utf8(b"description"),
-            utf8(b"project_url"),
-            utf8(b"creator"),
-        ];
+To create a new UTF-8 `String` instance, you can use the `string::utf8` method.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/string.move#L49-L57
 ```
+
+### Common Operations
+
+The UTF-8 `String` type provides several methods to work with strings. The most common operations include:
+
+* [`append`](../../../references/framework/move-stdlib/string.mdx#function-append).
+* [`append_utf8`](../../../references/framework/move-stdlib/string.mdx#function-append_utf8).
+* [`substring`](../../../references/framework/move-stdlib/string.mdx#function-sub_string).
+* [`length`](../../../references/framework/move-stdlib/string.mdx#function-length).
+* [`is_empty`](../../../references/framework/move-stdlib/string.mdx#function-is_empty).
+
+Additionally, for custom string operations, the `as_bytes()` method can be used to access the underlying byte vector.
+
+```move file=<rootDir>/docs/examples/move/move-overview/string.move#L81-L97
+```
+
+### Safe UTF-8 Operations
+
+The default `utf8` method may abort if the bytes passed into it are not valid UTF-8. If you're unsure whether the bytes are valid, you should use the [`try_utf8`](../../../references/framework/move-stdlib/string.mdx#function-try_utf8) method instead. It returns an [`Option<String>`](../../../references/framework/move-stdlib/option.mdx#0x1_option_Option), which contains no value if the bytes are not valid UTF-8, and a `String` otherwise.
+
+:::tip Try
+
+Functions that start with `try_*` typically return an `Option` with the expected result or `none` if the operation fails. This naming convention is borrowed from Rust.
+
+:::
+
+```move file=<rootDir>/docs/examples/move/move-overview/string.move#L65-L73
+```
+
+### UTF-8 Limitations
+
+The `string` module does not provide a way to access individual characters in a string. This limitation arises because UTF-8 is a variable-length encoding, and the length of a character can range from 1 to 4 bytes. Similarly, the `length()` method returns the number of bytes in the string, not the number of characters.
+
+However, methods like `sub_string` and `insert` ensure character boundaries are respected and will abort if the index is in the middle of a character.
