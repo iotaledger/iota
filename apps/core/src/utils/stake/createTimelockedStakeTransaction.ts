@@ -37,7 +37,7 @@ export interface ExtendedTimelockObject {
      * The split amount of the extended timelocked object.
      * The split amount is the amount that will be split from the principal object.
      * Indicates if the object needs to be split during timelocked staking transaction.
-     * Splitting occures after merging.
+     * Splitting occurs after merging.
      */
     splitAmount?: bigint;
 }
