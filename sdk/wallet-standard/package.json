@@ -1,9 +1,9 @@
 {
     "name": "@iota/wallet-standard",
-    "version": "0.11.1",
+    "version": "0.1.2",
     "description": "A suite of standard utilities for implementing wallets based on the Wallet Standard.",
     "license": "Apache-2.0",
-    "author": "Mysten Labs <build@mystenlabs.com>",
+    "author": "IOTA Foundation <contact@iota.org>",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.js",
@@ -32,7 +32,7 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
     },
     "dependencies": {
-        "@iota/iota.js": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
         "@wallet-standard/core": "1.0.3"
     },
     "devDependencies": {

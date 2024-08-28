@@ -5,8 +5,8 @@
 import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info16 } from '@iota/icons';
-import { type CoinBalance } from '@iota/iota.js/client';
-import { normalizeIotaAddress } from '@iota/iota.js/utils';
+import { type CoinBalance } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
@@ -116,7 +116,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                 </div>
             ) : (
                 <div className="relative flex h-full flex-col gap-4 overflow-auto text-left">
-                    <div className="flex min-h-14 w-full flex-col justify-between gap-y-3 border-b border-gray-45 max-sm:pb-3 max-sm:pt-5 sm:flex-row sm:items-center">
+                    <div className="max-sm:pb-3 max-sm:pt-5 flex min-h-14 w-full flex-col justify-between gap-y-3 border-b border-gray-45 sm:flex-row sm:items-center">
                         <Heading color="steel-darker" variant="heading4/semibold">
                             {coinBalanceHeader}
                         </Heading>

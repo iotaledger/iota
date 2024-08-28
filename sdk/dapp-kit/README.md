@@ -4,7 +4,7 @@ The Iota dApp Kit is a set of React components, hooks, and utilities that make i
 dApp for the Iota ecosystem. It provides hooks and components for querying data from the Iota
 blockchain, and connecting to Iota wallets.
 
-See https://sdk.mystenlabs.com/typescript for full documentation
+See the TypeScript docs for full documentation
 
 ### Core Features
 
@@ -24,7 +24,7 @@ See https://sdk.mystenlabs.com/typescript for full documentation
 To use the Iota dApp Kit in your project, run the following command in your project root:
 
 ```sh npm2yarn
-npm i --save @iota/dapp-kit @iota/iota.js @tanstack/react-query
+npm i --save @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
 ```
 
 ## Setting up providers
@@ -35,7 +35,7 @@ pages.
 
 ```tsx
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl, type IotaClientOptions } from '@iota/iota.js/client';
+import { getFullnodeUrl, type IotaClientOptions } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
@@ -66,7 +66,7 @@ are customizable so you can quickly get your dApp up and running.
 
 To use our provided UI components, you will need to import the dApp Kit's CSS stylesheet into your
 dApp as shown below. For more information regarding customization options, check out the respective
-documentation pages for the components and [themes](https://sdk.mystenlabs.com/dapp-kit/themes).
+documentation pages for the components and [themes]().
 
 ```tsx
 import '@iota/dapp-kit/dist/index.css';

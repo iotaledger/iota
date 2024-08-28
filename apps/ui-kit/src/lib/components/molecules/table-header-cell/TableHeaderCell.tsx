@@ -46,7 +46,7 @@ export interface TableHeaderCellProps {
     /**
      * On Checkbox change.
      */
-    onCheckboxChange?: (checked: boolean) => void;
+    onCheckboxChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     /**
      * Whether the cell content should be centered.
      */
@@ -89,24 +89,29 @@ export function TableHeaderCell({
             )}
         >
             <div
-                className={cx('flex flex-row items-center gap-1', textColorClass, textSizeClass, {
-                    'justify-center': isContentCentered,
-                })}
+                className={cx(
+                    'flex flex-row items-center gap-1 [&_svg]:h-4 [&_svg]:w-4',
+                    textColorClass,
+                    textSizeClass,
+                    {
+                        'justify-center': isContentCentered,
+                    },
+                )}
             >
                 {hasCheckbox ? (
                     <Checkbox
                         isChecked={isChecked}
                         isIndeterminate={isIndeterminate}
-                        onChange={onCheckboxChange}
+                        onCheckedChange={onCheckboxChange}
                     />
                 ) : (
                     <span>{label}</span>
                 )}
                 {hasSort && sortOrder === TableHeaderCellSortOrder.Asc && (
-                    <SortByUp className="ml-auto h-4 w-4 cursor-pointer" onClick={handleSort} />
+                    <SortByUp className="cursor-pointer" onClick={handleSort} />
                 )}
                 {hasSort && sortOrder === TableHeaderCellSortOrder.Desc && (
-                    <SortByDown className="ml-auto h-4 w-4 cursor-pointer" onClick={handleSort} />
+                    <SortByDown className="cursor-pointer" onClick={handleSort} />
                 )}
             </div>
         </th>

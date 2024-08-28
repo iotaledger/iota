@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import ExplorerLink from '_components/explorer-link';
-import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
+import { ExplorerLink, ExplorerLinkType } from '_components';
 import { isIotaNSName } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface TxnAddressLinkProps {
     address: string;
@@ -16,7 +15,7 @@ export function TxnAddressLink({ address }: TxnAddressLinkProps) {
         <ExplorerLink
             type={ExplorerLinkType.Address}
             address={address}
-            title="View on Iota Explorer"
+            title="View on IOTA Explorer"
             showIcon={false}
         >
             {isIotaNSName(address) ? address : formatAddress(address)}

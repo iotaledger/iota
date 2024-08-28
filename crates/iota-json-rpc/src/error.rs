@@ -24,11 +24,12 @@ use jsonrpsee::{
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::{authority_state::StateReadError, name_service::NameServiceError};
+use crate::authority_state::StateReadError;
 
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error(transparent)]
     IotaError(IotaError),
@@ -76,17 +77,14 @@ pub enum Error {
 
     #[error("Unsupported Feature: {0}")]
     UnsupportedFeature(String),
-
-    #[error("transparent")]
-    NameServiceError(#[from] NameServiceError),
 }
 
 impl From<IotaError> for Error {
     fn from(e: IotaError) -> Self {
         match e {
-            IotaError::UserInputError { error } => Self::UserInputError(error),
-            IotaError::IotaObjectResponseError { error } => Self::IotaObjectResponseError(error),
-            IotaError::UnsupportedFeatureError { error } => Self::UnsupportedFeature(error),
+            IotaError::UserInput { error } => Self::UserInputError(error),
+            IotaError::IotaObjectResponse { error } => Self::IotaObjectResponseError(error),
+            IotaError::UnsupportedFeature { error } => Self::UnsupportedFeature(error),
             IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),
             ),
@@ -107,25 +105,6 @@ impl From<Error> for RpcError {
                 | IotaObjectResponseError::DynamicFieldNotFound { .. }
                 | IotaObjectResponseError::Deleted { .. }
                 | IotaObjectResponseError::DisplayError { .. } => {
-                    RpcError::Call(ErrorObject::owned::<()>(
-                        ErrorCode::InvalidParams.code(),
-                        err.to_string(),
-                        None,
-                    ))
-                }
-                _ => RpcError::Call(ErrorObject::owned::<()>(
-                    CALL_EXECUTION_FAILED_CODE,
-                    err.to_string(),
-                    None,
-                )),
-            },
-            Error::NameServiceError(err) => match err {
-                NameServiceError::ExceedsMaxLength { .. }
-                | NameServiceError::InvalidHyphens { .. }
-                | NameServiceError::InvalidLength { .. }
-                | NameServiceError::InvalidUnderscore { .. }
-                | NameServiceError::LabelsEmpty { .. }
-                | NameServiceError::InvalidSeparator { .. } => {
                     RpcError::Call(ErrorObject::owned::<()>(
                         ErrorCode::InvalidParams.code(),
                         err.to_string(),
@@ -180,7 +159,7 @@ impl From<Error> for RpcError {
                         let inner_error_str = match err {
                             // TODO(wlmyng): update IotaError display trait to render UserInputError
                             // with display
-                            IotaError::UserInputError { error } => error.to_string(),
+                            IotaError::UserInput { error } => error.to_string(),
                             _ => err.to_string(),
                         };
 
@@ -252,7 +231,7 @@ impl From<Error> for RpcError {
                                     // So, we take an easier route and consider them non-retryable
                                     // at all. Combining this with the sorting above, clients will
                                     // see the dominant error first.
-                                    IotaError::UserInputError { error } => Some(error.to_string()),
+                                    IotaError::UserInput { error } => Some(error.to_string()),
                                     _ => {
                                         if err.is_retryable().0 {
                                             None
@@ -476,7 +455,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::GasBalanceTooLow {
                                 gas_balance: 10,
                                 needed_gas_amount: 100,
@@ -486,7 +465,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::ObjectVersionUnavailableForConsumption {
                                 provided_obj_ref: test_object_ref(),
                                 current_version: 10.into(),
@@ -514,7 +493,7 @@ mod tests {
             let quorum_driver_error = QuorumDriverError::NonRecoverableTransactionError {
                 errors: vec![
                     (
-                        IotaError::UserInputError {
+                        IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
                                 object_id: test_object_ref().0,
                                 version: None,
@@ -524,7 +503,7 @@ mod tests {
                         vec![],
                     ),
                     (
-                        IotaError::RpcError("Hello".to_string(), "Testing".to_string()),
+                        IotaError::Rpc("Hello".to_string(), "Testing".to_string()),
                         0,
                         vec![],
                     ),

@@ -1,6 +1,9 @@
 ---
 description: Guide to creating an IOTA address for accounts and transactions.
-tags: [ address, account, CLI, wallet]
+tags:
+    - explanation
+    - cli
+    - address
 ---
 # Create an Address
 
@@ -12,14 +15,6 @@ derived from a mnemonic. Accounts can own any type of [object](../iota-101/objec
 transactions.
 
 ## What's an Address?
-
-In IOTA, an address is 32 bytes and is encoded in base16 (hexadecimal format) with the `0x` prefix. For example, this is a valid IOTA address: `0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331`. You can use the [IOTA network explorer](https://explorer.iota.cafe/) to find more information about this address and the objects it owns.
-
-:::warning Legacy address format
-
-In IOTA Stardust we used a different address standard by default (Bech32, starting with `iota1` and `smr1`). To read more about this change check out the [address details migration page](../stardust/addresses).
-
-:::
 
 An address is a way to uniquely and anonymously identify an [account](#whats-an-account)
 or [package](../iota-101/iota-move-concepts/packages/packages.mdx). In the same way your email or ID number is
@@ -35,6 +30,12 @@ address: `0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331`.
 
 You can use the [IOTA network explorer](https://explorer.iota.org/) to find more information about this address and the
 objects it owns.
+
+:::
+
+:::warning Legacy address format
+
+In IOTA Stardust we used a different address standard by default (Bech32, starting with `iota1` and `smr1`). To read more about this change check out the [address details migration page](../stardust/addresses.mdx).
 
 :::
 

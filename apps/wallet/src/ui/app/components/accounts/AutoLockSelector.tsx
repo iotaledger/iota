@@ -7,9 +7,9 @@ import { useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 
 import { CheckboxField } from '../../shared/forms/CheckboxField';
-import { Input } from '../../shared/forms/controls/Input';
 import FormField from '../../shared/forms/FormField';
 import { SelectField } from '../../shared/forms/SelectField';
+import { Input, InputType } from '@iota/apps-ui-kit';
 
 const LOCK_INTERVALS = [
     { id: 'day', label: 'Day' },
@@ -52,25 +52,29 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
         return unsubscribe;
     }, [watch, trigger]);
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-xs">
             <CheckboxField
                 name="autoLock.enabled"
-                label="Auto-lock after I am inactive for"
+                label="Auto-lock after I'm inactive for"
                 disabled={disabled}
             />
             <FormField name="autoLock.timer">
-                <div className="flex items-start justify-between gap-2">
-                    <Input
-                        disabled={disabled || !timerEnabled}
-                        type="number"
-                        {...register('autoLock.timer')}
-                        data-testid="auto-lock-timer"
-                    />
-                    <SelectField
-                        disabled={disabled || !timerEnabled}
-                        name="autoLock.interval"
-                        options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
-                    />
+                <div className="flex items-start justify-between gap-xs">
+                    <div className="w-2/3">
+                        <Input
+                            disabled={disabled || !timerEnabled}
+                            type={InputType.Number}
+                            {...register('autoLock.timer')}
+                            data-testid="auto-lock-timer"
+                        />
+                    </div>
+                    <div className="w-1/3">
+                        <SelectField
+                            disabled={disabled || !timerEnabled}
+                            name="autoLock.interval"
+                            options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
+                        />
+                    </div>
                 </div>
             </FormField>
         </div>

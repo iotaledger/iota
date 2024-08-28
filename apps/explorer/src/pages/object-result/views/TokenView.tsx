@@ -4,7 +4,7 @@
 
 import { useGetDynamicFields, useGetObject } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaObjectResponse } from '@iota/iota.js/client';
+import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { Heading } from '@iota/ui';
 import { type ReactNode, useState } from 'react';
 

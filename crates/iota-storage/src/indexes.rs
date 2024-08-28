@@ -133,6 +133,8 @@ impl IndexStoreMetrics {
     }
 }
 
+/// The `IndexStoreCaches` struct manages `ShardedLruCache` instances to
+/// facilitate balance lookups and ownership queries.
 pub struct IndexStoreCaches {
     per_coin_type_balance: ShardedLruCache<(IotaAddress, TypeTag), IotaResult<TotalBalance>>,
     all_balances: ShardedLruCache<IotaAddress, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>>,
@@ -146,6 +148,10 @@ pub struct IndexStoreCacheUpdates {
     all_balance_changes: Vec<(IotaAddress, IotaResult<Arc<AllBalance>>)>,
 }
 
+/// The `IndexStoreTables` struct defines a set of `DBMaps` used to index
+/// various aspects of transaction and object data. Each field corresponds to a
+/// specific index, with keys such as `IotaAddress`, `TransactionDigest`, etc.
+/// Each mapping is configured with custom database options.
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
     /// Index from iota address to transactions initiated by that address.
@@ -236,6 +242,9 @@ impl IndexStoreTables {
     }
 }
 
+/// The `IndexStore` enables users to access and manage indexed transaction
+/// data, including ownership and balance information for different objects and
+/// coins.
 pub struct IndexStore {
     next_sequence_number: AtomicU64,
     tables: IndexStoreTables,
@@ -462,6 +471,8 @@ impl IndexStore {
         Ok(cache_updates)
     }
 
+    /// Indexes a transaction by updating various indices in the `IndexStore`
+    /// with the provided transaction details.
     pub async fn index_tx(
         &self,
         sender: IotaAddress,
@@ -702,7 +713,7 @@ impl IndexStore {
             }
             // NOTE: filter via checkpoint sequence number is implemented in
             // `get_transactions` of authority.rs.
-            Some(_) => Err(IotaError::UserInputError {
+            Some(_) => Err(IotaError::UserInput {
                 error: UserInputError::Unsupported(format!("{:?}", filter)),
             }),
             None => {
@@ -841,7 +852,7 @@ impl IndexStore {
     ) -> IotaResult<Vec<TransactionDigest>> {
         // If we are passed a function with no module return a UserInputError
         if function.is_some() && module.is_none() {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::MoveFunctionInputError(
                     "Cannot supply function without supplying module".to_string(),
                 ),
@@ -850,7 +861,7 @@ impl IndexStore {
 
         // We cannot have a cursor without filling out the other keys.
         if cursor.is_some() && (module.is_none() || function.is_none()) {
-            return Err(IotaError::UserInputError {
+            return Err(IotaError::UserInput {
                 error: UserInputError::MoveFunctionInputError(
                     "Cannot supply cursor without supplying module and function".to_string(),
                 ),
@@ -1364,9 +1375,7 @@ impl IndexStore {
             })
             .await
             .unwrap()
-            .map_err(|e| {
-                IotaError::ExecutionError(format!("Failed to read balance frm DB: {:?}", e))
-            });
+            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e)));
         }
 
         self.metrics.balance_lookup_from_total.inc();
@@ -1403,7 +1412,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!("Failed to read balance frm DB: {:?}", e))
+                    IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
                 })
             })
             .await
@@ -1429,7 +1438,7 @@ impl IndexStore {
             .await
             .unwrap()
             .map_err(|e| {
-                IotaError::ExecutionError(format!("Failed to read all balance from DB: {:?}", e))
+                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
             });
         }
 
@@ -1445,10 +1454,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!(
-                        "Failed to read all balance from DB: {:?}",
-                        e
-                    ))
+                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
                 })
             })
             .await
@@ -1495,12 +1501,7 @@ impl IndexStore {
                 coin_object_count += 1;
             }
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
-                |e| {
-                    IotaError::ExecutionError(format!(
-                        "Failed to parse event sender address: {:?}",
-                        e
-                    ))
-                },
+                |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
             )?));
             balances.insert(
                 coin_type,

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@iota/core';
+import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -22,7 +22,7 @@ import {
     type StatsProps,
 } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
-import { getEpochStorageFundFlow } from '~/lib/utils';
+import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
 import { validatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
@@ -30,11 +30,18 @@ import { ValidatorStatus } from './stats/ValidatorStatus';
 
 function IotaStats({
     amount,
+    showSign,
     ...props
 }: Omit<StatsProps, 'children'> & {
     amount: bigint | number | string | undefined | null;
+    showSign?: boolean;
 }): JSX.Element {
-    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG);
+    const [formattedAmount, symbol] = useFormatCoin(
+        amount,
+        IOTA_TYPE_ARG,
+        CoinFormat.ROUNDED,
+        showSign,
+    );
 
     return (
         <Stats postfix={formattedAmount && symbol} {...props}>
@@ -135,6 +142,14 @@ export default function EpochDetail() {
                             <IotaStats label="Net Inflow" amount={netInflow} />
                             <IotaStats label="Fund Inflow" amount={fundInflow} />
                             <IotaStats label="Fund Outflow" amount={fundOutflow} />
+                        </EpochStats>
+
+                        <EpochStats label="Supply">
+                            <IotaStats
+                                label="Supply Change"
+                                amount={getSupplyChangeAfterEpochEnd(epochData.endOfEpochInfo)}
+                                showSign
+                            />
                         </EpochStats>
 
                         {isCurrentEpoch ? <ValidatorStatus /> : null}

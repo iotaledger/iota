@@ -17,19 +17,20 @@ use crate::stardust::{
 };
 
 const MNEMONIC: &str = "chunk beach oval twist manage spread street width view pig hen oak size fix lab tent say home team cube loop van they suit";
-const COIN_TYPE: u32 = 4218;
+
 const VESTING_WEEKS: usize = 208;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 
 pub(crate) async fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
+    coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     let address = secret_manager
-        .generate_ed25519_addresses(COIN_TYPE, 0, 0..1, None)
+        .generate_ed25519_addresses(coin_type, 0, 0..1, None)
         .await?[0];
     // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't
     // lose precision.

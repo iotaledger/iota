@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient } from '@iota/core';
-import { type IotaObjectData } from '@iota/iota.js/client';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
-
-import { useHiddenAssets } from '../pages/home/hidden-assets/HiddenAssetsProvider';
+import { useHiddenAssets } from '../pages/home/assets/HiddenAssetsProvider';
 
 type OwnedAssets = {
     visual: IotaObjectData[];

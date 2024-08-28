@@ -2,6 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
+import { SecondaryText } from '../../atoms/secondary-text';
+import { LABEL_CLASSES } from './input.classes';
+import { createElement } from 'react';
+
+export enum LabelHtmlTag {
+    Label = 'label',
+    Div = 'div',
+}
 
 export interface InputWrapperProps {
     /**
@@ -28,6 +36,10 @@ export interface InputWrapperProps {
      * Is the input disabled
      */
     disabled?: boolean;
+    /**
+     * Use a div as a label instead of a label element
+     */
+    labelHtmlTag?: LabelHtmlTag;
 }
 
 export function InputWrapper({
@@ -37,58 +49,49 @@ export function InputWrapper({
     errorMessage,
     amountCounter,
     required,
+    labelHtmlTag = LabelHtmlTag.Label,
     children,
 }: React.PropsWithChildren<InputWrapperProps>) {
     return (
         <div
-            className={cx('group flex flex-col gap-y-2', {
-                'opacity-40': disabled,
+            className={cx('group flex w-full flex-col gap-y-2', {
+                'cursor-not-allowed opacity-40': disabled,
                 errored: errorMessage,
                 enabled: !disabled,
                 required: required,
             })}
         >
             {label ? (
-                <label className="flex flex-col gap-y-2 text-label-lg text-neutral-40 dark:text-neutral-60">
+                <LabelWrapper labelHtmlTag={labelHtmlTag}>
                     {label}
                     {children}
-                </label>
+                </LabelWrapper>
             ) : (
                 children
             )}
 
-            <div
-                className={cx(
-                    'flex flex-row items-center',
-                    caption || errorMessage ? 'justify-between' : 'justify-end',
-                )}
-            >
-                {(errorMessage || caption) && (
-                    <SecondaryText>{errorMessage || caption}</SecondaryText>
-                )}
-                {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
-            </div>
+            {(errorMessage || caption || amountCounter) && (
+                <div
+                    className={cx(
+                        'flex flex-row items-center',
+                        caption || errorMessage ? 'justify-between' : 'justify-end',
+                    )}
+                >
+                    {(errorMessage || caption) && (
+                        <SecondaryText hasErrorStyles>{errorMessage || caption}</SecondaryText>
+                    )}
+                    {amountCounter && <SecondaryText>{amountCounter}</SecondaryText>}
+                </div>
+            )}
         </div>
     );
 }
 
-export function SecondaryText({
+function LabelWrapper({
+    labelHtmlTag,
     children,
-    noErrorStyles,
-    className,
-}: React.PropsWithChildren<{ noErrorStyles?: boolean; className?: string }>) {
-    const ERROR_STYLES = 'group-[.errored]:text-error-30 dark:group-[.errored]:text-error-80';
-    return (
-        <p
-            className={cx(
-                'text-label-lg text-neutral-40  dark:text-neutral-60 ',
-                {
-                    [ERROR_STYLES]: !noErrorStyles,
-                },
-                className,
-            )}
-        >
-            {children}
-        </p>
-    );
+}: Required<Pick<InputWrapperProps, 'labelHtmlTag'>> & {
+    children: React.ReactNode;
+}) {
+    return createElement(labelHtmlTag, { className: LABEL_CLASSES }, children);
 }

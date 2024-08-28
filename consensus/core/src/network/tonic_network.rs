@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cfg_if::cfg_if;
 use consensus_config::{AuthorityIndex, NetworkKeyPair};
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use parking_lot::RwLock;
 use tokio::{
     sync::oneshot::{self, Sender},
@@ -87,7 +87,7 @@ impl NetworkClient for TonicClient {
         client
             .send_block(request)
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("send_block failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("send_block failed: {e:?}")))?;
         Ok(())
     }
 
@@ -119,7 +119,7 @@ impl NetworkClient for TonicClient {
         let response = client
             .fetch_blocks(request)
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("fetch_blocks failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("fetch_blocks failed: {e:?}")))?;
         Ok(response.into_inner().blocks)
     }
 }
@@ -154,7 +154,7 @@ impl ChannelPool {
 
         let authority = self.context.committee.authority(peer);
         let address = to_host_port_str(&authority.address).map_err(|e| {
-            ConsensusError::NetworkError(format!("Cannot convert address to host:port: {e:?}"))
+            ConsensusError::Network(format!("Cannot convert address to host:port: {e:?}"))
         })?;
         let address = format!("http://{address}");
         let endpoint = Channel::from_shared(address.clone())
@@ -172,7 +172,7 @@ impl ChannelPool {
                 Err(e) => {
                     warn!("Timed out connecting to endpoint at {address}: {e:?}");
                     if tokio::time::Instant::now() >= deadline {
-                        return Err(ConsensusError::NetworkError(format!(
+                        return Err(ConsensusError::Network(format!(
                             "Timed out connecting to endpoint at {address}: {e:?}"
                         )));
                     }

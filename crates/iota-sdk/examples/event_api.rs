@@ -2,30 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This example showcases how to use the Event API.
+//! At the end of the program it subscribes to the events
+//! on the Iota testnet and prints every incoming event to
+//! the console. The program will loop until it is force
+//! stopped.
+//!
+//! cargo run --example event_api
+
 mod utils;
 use futures::stream::StreamExt;
 use iota_sdk::{rpc_types::EventFilter, IotaClientBuilder};
 use utils::{setup_for_write, split_coin_digest};
 
-// This example showcases how to use the Event API.
-// At the end of the program it subscribes to the events
-// on the Iota testnet and prints every incoming event to
-// the console. The program will loop until it is force
-// stopped.
-
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (iota, active_address, _second_address) = setup_for_write().await?;
+    let (client, active_address, _second_address) = setup_for_write().await?;
 
     println!(" *** Get events *** ");
     // for demonstration purposes, we set to make a transaction
-    let digest = split_coin_digest(&iota, &active_address).await?;
-    let events = iota.event_api().get_events(digest).await?;
+    let digest = split_coin_digest(&client, &active_address).await?;
+    let events = client.event_api().get_events(digest).await?;
     println!("{:?}", events);
     println!(" *** Get events ***\n ");
 
     let descending = true;
-    let query_events = iota
+    let query_events = client
         .event_api()
         .query_events(EventFilter::All(vec![]), None, Some(5), descending) // query first 5 events in descending order
         .await?;

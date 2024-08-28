@@ -1,7 +1,7 @@
 [package]
 name = "iota-source-validation"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -22,7 +22,7 @@ iota-sdk.workspace = true
 iota-types.workspace = true
 
 move-binary-format.workspace = true
-move-bytecode-source-map.workspace = true
+move-bytecode-source-map = { path = "../../external-crates/move/crates/move-bytecode-source-map" }
 move-command-line-common.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
@@ -30,9 +30,9 @@ move-package.workspace = true
 move-symbol-pool.workspace = true
 
 flate2.workspace = true
-tar.workspace = true
+tar = "0.4"
 tempfile.workspace = true
-ureq.workspace = true
+ureq = "2.10"
 
 [dev-dependencies]
 expect-test.workspace = true

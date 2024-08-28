@@ -10,7 +10,7 @@ A rule is represented as a witness - a type with a `drop` ability. You can eithe
 
 ```move
 /// The Rule type
-struct Rule has drop {}
+public struct Rule has drop {}
 ```
 
 After you [add a rule](token-policy.mdx#adding-rules) to an action in the `TokenPolicy`, the action requires a stamp of the rule to pass confirmation.
@@ -25,11 +25,10 @@ A rule module is a regular module with a `verify`-like function that typically t
 
 ```move
 module example::pass_rule {
-    use iota::tx_context;
     use iota::token::{Self, ActionRequest, TokenPolicy};
 
     /// The Rule type
-    struct Pass has drop {}
+    public struct Pass has drop {}
 
     /// Add approval from the Pass rule to the ActionRequest
     public fun verify<T>(

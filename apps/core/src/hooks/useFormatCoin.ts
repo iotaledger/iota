@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { CoinMetadata } from '@iota/iota.js/client';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { CoinMetadata } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
@@ -31,14 +31,20 @@ export function formatBalance(
     balance: bigint | number | string,
     decimals: number,
     format: CoinFormat = CoinFormat.ROUNDED,
+    showSign = false,
 ) {
     const bn = new BigNumber(balance.toString()).shiftedBy(-1 * decimals);
+    let formattedBalance = formatAmount(bn);
 
     if (format === CoinFormat.FULL) {
-        return bn.toFormat();
+        formattedBalance = bn.toFormat();
     }
 
-    return formatAmount(bn);
+    if (showSign && !formattedBalance.startsWith('-')) {
+        formattedBalance = `+${formattedBalance}`;
+    }
+
+    return formattedBalance;
 }
 
 const ELLIPSIS = '\u{2026}';
@@ -100,6 +106,7 @@ export function useFormatCoin(
     balance?: bigint | number | string | null,
     coinType?: string | null,
     format: CoinFormat = CoinFormat.ROUNDED,
+    showSign = false,
 ): FormattedCoin {
     const fallbackSymbol = useMemo(
         () => (coinType ? getCoinSymbol(coinType) ?? '' : ''),
@@ -114,7 +121,7 @@ export function useFormatCoin(
 
         if (!isFetched) return '...';
 
-        return formatBalance(balance, data?.decimals ?? 0, format);
+        return formatBalance(balance, data?.decimals ?? 0, format, showSign);
     }, [data?.decimals, isFetched, balance, format]);
 
     return [formatted, isFetched ? data?.symbol || fallbackSymbol : '', queryResult];

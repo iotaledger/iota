@@ -5,15 +5,14 @@
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight12, Copy12 } from '@iota/icons';
-import { formatAddress } from '@iota/iota.js/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useExplorerLink } from '../../hooks/useExplorerLink';
-import { ExplorerLinkType } from '../explorer-link/ExplorerLinkType';
-import { IconButton } from '../IconButton';
+import { ExplorerLinkType, IconButton } from '_components';
 import { EditableAccountName } from './EditableAccountName';
 
 interface AccountItemProps {

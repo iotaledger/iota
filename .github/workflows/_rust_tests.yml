@@ -1,0 +1,207 @@
+name: Rust tests
+
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
+
+concurrency:
+  group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+jobs:
+  changes:
+    if: inputs.isRust
+    runs-on: [self-hosted]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: "json"
+          filters: .github/crates-filters.yml
+
+  test:
+    name: Test rust crates
+    needs: changes
+    if: always() && inputs.isRust
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: taiki-e/install-action@nextest
+      - name: cargo test
+        run: |
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E 'rdeps(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          command="cargo nextest run --profile ci $result"
+
+          echo "$command"
+
+          eval ${command}
+
+  check-unused-deps:
+    name: Check Unused Dependencies (${{ matrix.flags }})
+    if: always() && inputs.isRust
+    strategy:
+      matrix:
+        flags: ["--all-features", "--no-default-features"]
+      fail-fast: false
+    runs-on: [self-hosted]
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: Run Cargo Udeps
+        run: cargo +nightly ci-udeps ${{ matrix.flags }}
+
+  test-extra:
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - [self-hosted]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - name: benchmark (smoke)
+        run: |
+          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+      - name: doctests
+        run: |
+          cargo test --doc
+      - name: rustdoc
+        run: |
+          cargo doc --all-features --workspace --no-deps
+      - name: Install cargo-hakari, and cache the binary
+        uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
+        with:
+          crate: cargo-hakari
+          locked: true
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+      - name: iota-execution
+        run: |
+          ./scripts/execution_layer.py generate-lib
+      # Ensure there are no uncommitted changes in the repo after running tests
+      - run: scripts/changed-files.sh
+        shell: bash
+
+  # TODO: Disabled until we can get an updated fork of msim with tokio 1.38 https://github.com/iotaledger/iota/issues/1212
+  # simtest:
+  #     name: Simtest ${{ matrix.components }}
+  #     needs: changes
+  #     timeout-minutes: 45
+  #     runs-on: [self-hosted]
+  #     strategy:
+  #         matrix:
+  #             components: ${{ fromJson(needs.changes.outputs.components) }}
+  #         fail-fast: false
+  #     env:
+  #         MSIM_WATCHDOG_TIMEOUT_MS: 60000
+  #     steps:
+  #         - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+  #         - uses: taiki-e/install-action@nextest
+  #         - name: cargo simtest
+  #           run: |
+  #               scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  #         - name: check new tests for flakiness
+  #           run: |
+  #               scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+
+  # # Disabled
+  # rosetta-validation:
+  #   timeout-minutes: 45
+  #   runs-on: [self-hosted]
+  #   steps:
+  #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+
+  #     - name: Setup environment
+  #       run: .github/scripts/rosetta/setup.sh
+  #       shell: bash
+
+  #     - name: Start local IOTA network
+  #       run: |
+  #         iota start --no-full-node &
+  #       shell: bash
+
+  #     - name: Start Rosetta servers
+  #       run: .github/scripts/rosetta/start_rosetta.sh
+  #       shell: bash
+
+  #     - name: Sleep for 20 seconds
+  #       run: sleep 20s
+  #       shell: bash
+
+  #     - name: Run check:construction test
+  #       run: |
+  #         ./bin/rosetta-cli --configuration-file rosetta_cli.json check:construction
+  #       shell: bash
+
+  #     - name: Run check:data test
+  #       run: |
+  #         ./bin/rosetta-cli --configuration-file rosetta_cli.json check:data
+  #       shell: bash
+
+  graphql-rpc:
+    name: graphql-rpc
+    timeout-minutes: 45
+    runs-on: [self-hosted]
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgrespw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --name postgres_container
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: taiki-e/install-action@nextest
+      - name: Install postgresql-client
+        run: sudo apt-get install -y postgresql-client
+      - name: Setup db
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+      - run: docker restart --time 0 postgres_container
+      - run: sleep 5
+      - name: tests-requiring-postgres
+        run: |
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
+          cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
+          cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration

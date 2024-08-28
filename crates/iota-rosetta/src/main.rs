@@ -177,7 +177,7 @@ impl RosettaServerCommand {
                 info!("Overriding Iota db path to : {:?}", config.db_path);
 
                 let registry_service =
-                    mysten_metrics::start_prometheus_server(config.metrics_address);
+                    iota_metrics::start_prometheus_server(config.metrics_address);
                 // Staring a full node for the rosetta server.
                 let rpc_address = format!("http://127.0.0.1:{}", config.json_rpc_address.port());
                 let _node = IotaNode::start(config, registry_service, None).await?;

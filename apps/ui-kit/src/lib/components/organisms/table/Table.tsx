@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren, useEffect } from 'react';
+import React, { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { TableRowType, TableProvider, useTableContext, TableProviderProps } from './TableContext';
 import { Button, ButtonSize, ButtonType, TableCell, TableCellType, TableHeaderCell } from '@/lib';
@@ -40,6 +40,10 @@ export type TableProps = {
      * The supporting label of the table.
      */
     supportingLabel?: string;
+    /**
+     * Numeric indexes of all the rows.
+     */
+    rowIndexes: number[];
 };
 
 export function Table({
@@ -54,6 +58,7 @@ export function Table({
     hasCheckboxColumn,
     onRowCheckboxChange,
     onHeaderCheckboxChange,
+    rowIndexes,
     children,
 }: PropsWithChildren<TableProps & TableProviderProps>): JSX.Element {
     return (
@@ -61,6 +66,7 @@ export function Table({
             hasCheckboxColumn={hasCheckboxColumn}
             onRowCheckboxChange={onRowCheckboxChange}
             onHeaderCheckboxChange={onHeaderCheckboxChange}
+            rowIndexes={rowIndexes}
         >
             <div className="w-full">
                 <div className="overflow-auto">
@@ -144,13 +150,7 @@ function TableRow({
     rowIndex,
     type = TableRowType.Body,
 }: PropsWithChildren<{ rowIndex?: number; type: TableRowType }>): JSX.Element {
-    const { hasCheckboxColumn, registerRowCheckbox } = useTableContext();
-
-    useEffect(() => {
-        if (rowIndex !== undefined && rowIndex !== null) {
-            registerRowCheckbox(rowIndex);
-        }
-    }, [registerRowCheckbox, rowIndex]);
+    const { hasCheckboxColumn } = useTableContext();
 
     return (
         <tr>
@@ -177,8 +177,6 @@ function TableRowCheckbox({
         rowsChecked,
         isHeaderChecked,
         isHeaderIndeterminate,
-        onRowCheckboxChange,
-        onHeaderCheckboxChange,
     } = useTableContext();
 
     if (type === TableRowType.Header) {
@@ -186,9 +184,8 @@ function TableRowCheckbox({
             <TableHeaderCell
                 isContentCentered
                 hasCheckbox
-                onCheckboxChange={(checked) => {
-                    toggleHeaderChecked(checked);
-                    onHeaderCheckboxChange?.(checked);
+                onCheckboxChange={(event) => {
+                    toggleHeaderChecked(event.target.checked);
                 }}
                 isChecked={isHeaderChecked}
                 columnKey={1}
@@ -200,14 +197,13 @@ function TableRowCheckbox({
     return (
         <TableCell
             isContentCentered
-            onChange={(checked) => {
+            onChange={(event) => {
                 if (rowIndex !== undefined) {
-                    const checkboxValues = toggleRowChecked?.(checked, rowIndex);
-                    onRowCheckboxChange?.(checked, rowIndex, checkboxValues);
+                    toggleRowChecked?.(event.target.checked, rowIndex);
                 }
             }}
             type={TableCellType.Checkbox}
-            isChecked={rowIndex !== undefined && rowsChecked?.[rowIndex]}
+            isChecked={rowIndex !== undefined && rowsChecked.has(rowIndex)}
         />
     );
 }

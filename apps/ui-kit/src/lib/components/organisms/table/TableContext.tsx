@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 
 export interface TableProviderProps {
     /**
@@ -11,20 +11,25 @@ export interface TableProviderProps {
     /**
      * On checkbox change callback.
      */
-    onRowCheckboxChange?: (value: boolean, index: number, tableValues: boolean[]) => void;
+    onRowCheckboxChange?: (value: boolean, index: number, tableValues: Set<number>) => void;
     /**
      * On header checkbox change callback.
      */
     onHeaderCheckboxChange?: (value: boolean) => void;
+    /**
+     * Numeric indexes of all the rows.
+     */
+    rowIndexes: number[];
 }
 
 type TableContextProps = {
+    hasCheckboxColumn?: boolean;
+    onRowCheckboxChange?: (value: boolean, index: number, tableValues: boolean[]) => void;
     isHeaderChecked: boolean;
     toggleHeaderChecked: (checked: boolean) => void;
-    rowsChecked: boolean[];
-    toggleRowChecked: (checked: boolean, index: number) => boolean[];
+    rowsChecked: Set<number>;
+    toggleRowChecked: (checked: boolean, index: number) => void;
     isHeaderIndeterminate: boolean;
-    registerRowCheckbox: (index: number) => void;
 };
 
 export enum TableRowType {
@@ -32,15 +37,13 @@ export enum TableRowType {
     Header = 'header',
 }
 
-export const TableContext = createContext<TableContextProps & TableProviderProps>({
+export const TableContext = createContext<TableContextProps>({
     hasCheckboxColumn: false,
     isHeaderChecked: false,
     toggleHeaderChecked: () => {},
-    rowsChecked: [],
-    toggleRowChecked: () => [],
+    rowsChecked: new Set(),
+    toggleRowChecked: () => new Set(),
     isHeaderIndeterminate: false,
-    onRowCheckboxChange: () => {},
-    registerRowCheckbox: () => {},
 });
 
 export const useTableContext = () => {
@@ -50,49 +53,37 @@ export const useTableContext = () => {
 
 export function TableProvider({
     children,
+    onHeaderCheckboxChange,
+    onRowCheckboxChange,
+    rowIndexes,
     ...props
 }: TableProviderProps & { children: React.ReactNode }) {
-    const [rowsChecked, setRowsChecked] = useState<boolean[]>([]);
-    const [isHeaderChecked, setIsHeaderChecked] = useState<boolean>(false);
-    const [isHeaderIndeterminate, setIsHeaderIndeterminate] = useState<boolean>(false);
-
-    useEffect(() => {
-        if (rowsChecked.length > 0) {
-            if (rowsChecked.every((checked) => checked)) {
-                setIsHeaderChecked(true);
-                setIsHeaderIndeterminate(false);
-            } else if (rowsChecked.some((checked) => checked)) {
-                setIsHeaderIndeterminate(true);
-            } else {
-                setIsHeaderChecked(false);
-                setIsHeaderIndeterminate(false);
-            }
-        }
-    }, [rowsChecked]);
+    const [rowsChecked, setRowsChecked] = useState<Set<number>>(new Set());
+    const isHeaderChecked = rowIndexes.length === rowsChecked.size;
+    const isHeaderIndeterminate = !isHeaderChecked && rowsChecked.size > 0;
 
     const toggleRowChecked = useCallback(
         (checked: boolean, index: number) => {
-            const newRowsChecked = [...rowsChecked];
-            newRowsChecked[index] = checked;
+            const newRowsChecked = new Set(rowsChecked);
+            if (checked) {
+                newRowsChecked.add(index);
+            } else {
+                newRowsChecked.delete(index);
+            }
             setRowsChecked(newRowsChecked);
-            return newRowsChecked;
+            onRowCheckboxChange?.(checked, index, newRowsChecked);
         },
         [rowsChecked],
     );
 
-    const registerRowCheckbox = useCallback((index: number) => {
-        setRowsChecked((prevRowsChecked) => {
-            const newRowsChecked = [...prevRowsChecked];
-            newRowsChecked[index] = false;
-            return newRowsChecked;
-        });
-    }, []);
-
     const toggleHeaderChecked = useCallback(
         (checked: boolean) => {
-            const newCheckedRows = Array(rowsChecked.length).fill(checked);
-            setIsHeaderChecked(checked);
+            let newCheckedRows = new Set<number>();
+            if (checked) {
+                newCheckedRows = new Set(rowIndexes);
+            }
             setRowsChecked(newCheckedRows);
+            onHeaderCheckboxChange?.(checked);
         },
         [rowsChecked],
     );
@@ -102,9 +93,8 @@ export function TableProvider({
             value={{
                 ...props,
                 isHeaderChecked,
-                toggleRowChecked,
                 toggleHeaderChecked,
-                registerRowCheckbox,
+                toggleRowChecked,
                 rowsChecked,
                 isHeaderIndeterminate,
             }}

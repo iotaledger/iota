@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota.js/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { Outlet } from 'react-router-dom';
@@ -27,7 +27,8 @@ export default function Root() {
                             <Outlet />
                         </div>
                         <div className="mt-6 border-t border-primary text-center py-6">
-                            Copyright © Mysten Labs, Inc.
+                            Copyright © Mysten Labs, Inc. Modifications Copyright © 2024 IOTA
+                            Stiftung
                         </div>
                         <Toaster position="bottom-center" />
                     </KisokClientProvider>

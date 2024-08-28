@@ -325,7 +325,7 @@ async fn exchange_rates(
         .await?
     {
         let pool_id: iota_types::id::ID = bcs::from_bytes(&df.bcs_name).map_err(|e| {
-            iota_types::error::IotaError::ObjectDeserializationError {
+            iota_types::error::IotaError::ObjectDeserialization {
                 error: e.to_string(),
             }
         })?;
@@ -364,11 +364,9 @@ async fn exchange_rates(
         {
             let dynamic_field = df
                 .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(
-                    || iota_types::error::IotaError::ObjectDeserializationError {
-                        error: "dynamic field malformed".to_owned(),
-                    },
-                )?;
+                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserialization {
+                    error: "dynamic field malformed".to_owned(),
+                })?;
 
             rates.push((dynamic_field.name, dynamic_field.value));
         }

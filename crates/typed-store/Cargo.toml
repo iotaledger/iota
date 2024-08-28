@@ -1,7 +1,7 @@
 [package]
 name = "typed-store"
 version = "0.4.0"
-authors = ["Francois Garillot <francois@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -12,14 +12,13 @@ description = "a typed database interface"
 async-trait.workspace = true
 bcs.workspace = true
 bincode.workspace = true
-collectable.workspace = true
+collectable = "0.0.2"
 eyre.workspace = true
 fdlimit.workspace = true
 hdrhistogram.workspace = true
-iota-macros.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
-ouroboros.workspace = true
+ouroboros = "0.18"
 prometheus.workspace = true
 rand.workspace = true
 rocksdb.workspace = true
@@ -30,16 +29,15 @@ tokio = { workspace = true, features = ["full", "test-util"] }
 tracing.workspace = true
 typed-store-error.workspace = true
 
+iota-macros.workspace = true
+
 [dev-dependencies]
 once_cell.workspace = true
-proc-macro2.workspace = true
-quote.workspace = true
 rand.workspace = true
 rstest.workspace = true
-syn.workspace = true
 tempfile.workspace = true
 typed-store-derive.workspace = true
-uint.workspace = true
+uint = "0.9"
 
 # Most packages should depend on iota-simulator instead of directly on msim, but for typed-store
 # that creates a circular dependency.

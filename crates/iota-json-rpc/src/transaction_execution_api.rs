@@ -8,13 +8,14 @@ use async_trait::async_trait;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlock,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_types::{
     base_types::IotaAddress,
@@ -31,7 +32,6 @@ use iota_types::{
     },
 };
 use jsonrpsee::{core::RpcResult, RpcModule};
-use mysten_metrics::spawn_monitored_task;
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tracing::instrument;
 
@@ -45,14 +45,14 @@ use crate::{
 
 pub struct TransactionExecutionApi {
     state: Arc<dyn StateRead>,
-    transaction_orchestrator: Arc<TransactiondOrchestrator<NetworkAuthorityClient>>,
+    transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
     metrics: Arc<JsonRpcMetrics>,
 }
 
 impl TransactionExecutionApi {
     pub fn new(
         state: Arc<AuthorityState>,
-        transaction_orchestrator: Arc<TransactiondOrchestrator<NetworkAuthorityClient>>,
+        transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
         metrics: Arc<JsonRpcMetrics>,
     ) -> Self {
         Self {

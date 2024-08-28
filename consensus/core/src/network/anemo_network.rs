@@ -87,7 +87,7 @@ impl AnemoClient {
         }
 
         let (mut subscriber, _) = network.subscribe().map_err(|e| {
-            ConsensusError::NetworkError(format!("Cannot subscribe to AnemoNetwork updates: {e:?}"))
+            ConsensusError::Network(format!("Cannot subscribe to AnemoNetwork updates: {e:?}"))
         })?;
 
         let sleep = tokio::time::sleep(timeout);
@@ -136,7 +136,7 @@ impl NetworkClient for AnemoClient {
         client
             .send_block(anemo::Request::new(request).with_timeout(timeout))
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("send_block failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("send_block failed: {e:?}")))?;
         Ok(())
     }
 
@@ -162,7 +162,7 @@ impl NetworkClient for AnemoClient {
         let response = client
             .fetch_blocks(anemo::Request::new(request).with_timeout(timeout))
             .await
-            .map_err(|e| ConsensusError::NetworkError(format!("fetch_blocks failed: {e:?}")))?;
+            .map_err(|e| ConsensusError::Network(format!("fetch_blocks failed: {e:?}")))?;
         Ok(response.into_body().blocks)
     }
 }
@@ -296,6 +296,7 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
         self.client.clone()
     }
 
+    /// Installs and starts the consensus service on the specified network.
     async fn install_service(&mut self, network_keypair: NetworkKeyPair, service: Arc<S>) {
         self.context
             .metrics

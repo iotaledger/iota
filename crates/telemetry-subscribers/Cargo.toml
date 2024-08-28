@@ -1,7 +1,7 @@
 [package]
 name = "telemetry-subscribers"
 version = "0.2.0"
-authors = ["Evan Chan <echan@mystenlabs.com>"]
+authors = ["IOTA Foundation <contact@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,40 +9,30 @@ repository = "https://github.com/mystenlabs/mysten-infra"
 description = "Library for common telemetry and observability functionality"
 
 [dependencies]
-atomic_float.workspace = true
+atomic_float = "1.0"
 bytes.workspace = true
-bytes-varint = { version = "1" }
+bytes-varint = "1.0"
 clap.workspace = true
-console-subscriber = { workspace = true, optional = true }
+console-subscriber = { version = "0.4", optional = true }
 crossterm.workspace = true
 futures.workspace = true
 once_cell.workspace = true
-opentelemetry = { version = "0.23.0", optional = true }
-opentelemetry-otlp = { version = "0.16.0", features = ["grpc-tonic"], optional = true }
-opentelemetry-proto = { version = "0.6.0", optional = true }
-opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"], optional = true }
+opentelemetry = "0.24"
+opentelemetry-otlp = { version = "0.17", features = ["grpc-tonic"] }
+opentelemetry-proto = "0.7"
+opentelemetry_sdk = { version = "0.24", features = ["rt-tokio"] }
 prometheus.workspace = true
+prost.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tonic.workspace = true
 tracing.workspace = true
-tracing-appender.workspace = true
-tracing-opentelemetry = { version = "0.24.0", optional = true }
+tracing-appender = "0.2"
+tracing-opentelemetry = "0.25"
 tracing-subscriber.workspace = true
 
-# must use same version as opentelemetry for tonic and prost, so we can't use from
-# workspace
-prost = "0.12"
-tonic = "0.11"
-
 [features]
-default = ["otlp"]
+default = []
 tokio-console = ["console-subscriber"]
-otlp = [
-  "tracing-opentelemetry",
-  "opentelemetry",
-  "opentelemetry_sdk",
-  "opentelemetry-otlp",
-  "opentelemetry-proto",
-]
 
 [dev-dependencies]
 camino.workspace = true
