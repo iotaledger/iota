@@ -5,9 +5,10 @@ export type CardBodyProps = {
     title: string;
     subtitle?: string;
     clickableAction?: React.ReactNode;
+    icon?: React.ReactNode;
 };
 
-export function CardBody({ title, subtitle, clickableAction }: CardBodyProps) {
+export function CardBody({ title, subtitle, clickableAction, icon }: CardBodyProps) {
     const handleActionCardBodyClick = (event: React.MouseEvent) => {
         event?.stopPropagation();
     };
@@ -17,6 +18,7 @@ export function CardBody({ title, subtitle, clickableAction }: CardBodyProps) {
                 <div className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                     {title}
                 </div>
+                {icon && <div>{icon}</div>}
                 {clickableAction && (
                     <div onClick={handleActionCardBodyClick}>{clickableAction}</div>
                 )}
