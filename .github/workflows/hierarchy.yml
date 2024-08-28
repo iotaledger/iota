@@ -15,7 +15,7 @@ jobs:
   diff:
     runs-on: [self-hosted]
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
@@ -38,7 +38,7 @@ jobs:
   dprint-format:
     runs-on: [self-hosted]
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
@@ -51,7 +51,7 @@ jobs:
   license-check:
     name: license-check
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     needs: diff
     if: always() && needs.diff.outputs.isRust == 'true'
@@ -74,7 +74,7 @@ jobs:
   release-notes-description-check:
     name: release-notes-check
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      group: release-notes-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     needs: diff
     if: always() && needs.diff.outputs.isReleaseNotesEligible == 'true'
