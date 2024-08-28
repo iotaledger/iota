@@ -20,10 +20,10 @@ use utils::setup_for_write;
 async fn main() -> Result<(), anyhow::Error> {
     // 1) Get the Iota client, the sender and recipient that we will use
     // for the transaction
-    let (iota, sender, recipient) = setup_for_write().await?;
+    let (client, sender, recipient) = setup_for_write().await?;
 
     // 2) Get the coin we will use as gas and for the payment
-    let coins = iota
+    let coins = client
         .coin_read_api()
         .get_coins(sender, None, None, None)
         .await?;
@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // 3) Build the transaction data, to transfer 1_000 NANOS from the gas coin to
     //    the recipient address
-    let tx_data = iota
+    let tx_data = client
         .transaction_builder()
         .pay_iota(
             sender,
@@ -50,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // 5) Execute the transaction
     println!("Executing the transaction...");
-    let transaction_response = iota
+    let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
