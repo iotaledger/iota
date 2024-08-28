@@ -105,7 +105,10 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         supportingLabel: '10.7k records',
-        hasPagination: true,
+        paginationOptions: {
+            onFirstPageClick: () => console.log("First"),
+            onNextPageClick: () => console.log("Next")
+        },
         actionLabel: 'Action',
         hasCheckboxColumn: true,
         rowIndexes: [0, 1, 2],
