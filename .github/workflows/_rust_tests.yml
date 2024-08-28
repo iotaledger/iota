@@ -136,7 +136,7 @@ jobs:
               fi
           done
 
-          echo "filters=$command" >> "$GITHUB_ENV"
+          echo "filters=$result" >> "$GITHUB_ENV"
       - name: cargo simtest
         run: |
           command="scripts/simtest/cargo-simtest simtest $filters"
