@@ -12,5 +12,5 @@ export const SUPPORTED_CHAINS = Object.values(getAllNetworks()).map((network) =>
  * @param chain a chain identifier in the form of `${string}:{$string}`
  */
 export function isSupportedChain(chain: IdentifierString): boolean {
-    return SUPPORTED_CHAINS.includes(chain);
+    return SUPPORTED_CHAINS.includes(chain) || chain.split(':')[0] === 'iota';
 }
