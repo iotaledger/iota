@@ -723,26 +723,4 @@ describe('GraphQL IotaClient compatibility', () => {
 
         expect(graphql).toEqual(rpc);
     });
-
-    test('resolveNameServiceAddress', async () => {
-        const rpc = await toolbox.client.resolveNameServiceAddress({
-            name: 'test.iota',
-        });
-        const graphql = await graphQLClient!.resolveNameServiceAddress({
-            name: 'test.iota',
-        });
-
-        expect(graphql).toEqual(rpc);
-    });
-
-    test('resolveNameServiceNames', async () => {
-        const rpc = await toolbox.client.resolveNameServiceNames({
-            address: toolbox.address(),
-        });
-        const graphql = await graphQLClient!.resolveNameServiceNames({
-            address: toolbox.address(),
-        });
-
-        expect(graphql).toEqual(rpc);
-    });
 });
