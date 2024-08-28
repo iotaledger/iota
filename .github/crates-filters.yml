@@ -116,6 +116,8 @@ iota-rosetta:
   - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
+iota-sdk:
+  - "crates/iota-sdk/**"
 iota-simulator:
   - "crates/iota-simulator/**"
 iota-single-node-benchmark:
