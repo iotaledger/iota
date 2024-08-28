@@ -7,7 +7,7 @@
 //! addresses from the local wallet, and then
 //! 1) finds a coin from the active address that has Iota,
 //! 2) splits the coin into one coin of 1000 NANOS and the rest,
-//! 3  transfers the split coin to second Iota address,
+//! 3) transfers the split coin to second Iota address,
 //! 4) signs the transaction and executes it.
 //! For some of these actions it prints some output.
 //! Finally, at the end of the program it prints the number of coins for the
