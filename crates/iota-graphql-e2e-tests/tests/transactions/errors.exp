@@ -20,7 +20,7 @@ Response: {
         {
           "effects": {
             "status": "FAILURE",
-            "errors": "Move Runtime Abort. Location: 114256a12ecac2ed48a6304208c521bb669f913b3e6e2de80aea1089a5d51c18::m::boom (function index 1) at offset 1, Abort Code: 42 in 1st command."
+            "errors": "Move Runtime Abort. Location: 764b07be3bf59740fe92e99140a9accc962da08fa44dd2caac7c15ac3245df51::m::boom (function index 1) at offset 1, Abort Code: 42 in 1st command."
           }
         }
       ]
@@ -43,7 +43,7 @@ Response: {
         {
           "effects": {
             "status": "FAILURE",
-            "errors": "Move Runtime Abort. Location: 114256a12ecac2ed48a6304208c521bb669f913b3e6e2de80aea1089a5d51c18::m::boom (function index 1) at offset 1, Abort Code: 42 in 3rd command."
+            "errors": "Move Runtime Abort. Location: 764b07be3bf59740fe92e99140a9accc962da08fa44dd2caac7c15ac3245df51::m::boom (function index 1) at offset 1, Abort Code: 42 in 3rd command."
           }
         }
       ]
