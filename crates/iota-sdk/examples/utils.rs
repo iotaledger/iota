@@ -246,7 +246,7 @@ pub async fn split_coin_digest(
         gas_price,
     );
 
-    let transaction_response = sign_and_execute_transaction(client, *sender, tx_data).await?;
+    let transaction_response = sign_and_execute_transaction(client, sender, tx_data).await?;
 
     Ok(transaction_response.digest)
 }
@@ -302,11 +302,11 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 
 pub async fn sign_and_execute_transaction(
     client: &IotaClient,
-    sender: IotaAddress,
+    sender: &IotaAddress,
     tx_data: TransactionData,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;
 
     let transaction_block_response = client
         .quorum_driver_api()
