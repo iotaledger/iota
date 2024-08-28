@@ -4,12 +4,41 @@
 import { TransactionBlock, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 import { IOTA_SYSTEM_STATE_OBJECT_ID, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
+/**
+ * The extended timelocked object is used to create a timelocked staking transaction.
+ * The extended object contains objectIds of the objects that need to be merged during staking transaction and the split amount if the object needs to be split.
+ */
 export interface ExtendedTimelockObject {
+    /**
+     * The object id of the extended timelocked object is the first object id in the objectIds array.
+     * The extended timelocked object will first undergo a merging process where all objects in the objectIds array are merged into the first one.
+     */
     objectId: string;
+    /**
+     * The expiration timestamp is the same for all objects in the objectIds array.
+     */
     expirationTimestamp: string;
+    /**
+     * The total locked amount is the sum of all locked amounts in the objectIds array
+     */
     totalLockedAmount: bigint;
+    /**
+     * The array of object ids of the extended timelocked object.
+     * The first element in the objectIds array is the principal object
+     * and the rest are the objects that will be merged into the principal object.
+     */
     objectIds: string[];
+    /**
+     * The label of the extended timelocked object.
+     * The label is the same for all objects in the objectIds array.
+     */
     label?: string;
+    /**
+     * The split amount of the extended timelocked object.
+     * The split amount is the amount that will be split from the principal object.
+     * Indicates if the object needs to be split during timelocked staking transaction.
+     * Splitting occures after merging.
+     */
     splitAmount?: bigint;
 }
 
