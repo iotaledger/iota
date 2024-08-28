@@ -2,21 +2,58 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading } from '_app/shared/heading';
-import { Text } from '_app/shared/text';
+import {
+    ButtonUnstyled,
+    Chip,
+    Header,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 import { useAppSelector } from '_hooks';
 import { Feature } from '_src/shared/experimentation/features';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
 import { Loading } from '_components';
-import { IotaApp, type DAppEntry } from './IotaApp';
+import { type DAppEntry, IotaApp } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 
+enum ConnectedDappCategory {
+    All = 'all',
+    DeFi = 'defi',
+    Dex = 'dex',
+    Connections = 'connections',
+}
+
+const CONNTECTED_DAPPS_CATEGORIES = [
+    {
+        label: 'All',
+        value: ConnectedDappCategory.All,
+    },
+    {
+        label: 'DeFi',
+        value: ConnectedDappCategory.DeFi,
+    },
+    {
+        label: 'Dex',
+        value: ConnectedDappCategory.Dex,
+    },
+    {
+        label: 'Connections',
+        value: ConnectedDappCategory.Connections,
+    },
+];
+
 function ConnectedDapps() {
+    const navigate = useNavigate();
+    const [selectedDappCategory, setSelectedDappCategory] = useState(ConnectedDappCategory.All);
+
     const backgroundClient = useBackgroundClient();
     useEffect(() => {
         backgroundClient.sendGetPermissionRequests();
@@ -61,31 +98,40 @@ function ConnectedDapps() {
                 }),
         [allPermissions, ecosystemApps],
     );
+
+    function handleBack() {
+        navigate('/');
+    }
+
     return (
         <Loading loading={loading}>
-            <div className="flex justify-center">
-                <Heading variant="heading6" color="gray-90" weight="semibold">
-                    Active Connections
-                </Heading>
-            </div>
-            <div className="my-4">
-                <Text variant="pBodySmall" color="gray-80" weight="normal">
-                    Apps you have connected to through the IOTA Wallet in this browser.
-                </Text>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3.75">
-                {connectedApps.length ? (
-                    connectedApps.map((app) => (
-                        <IotaApp key={app.permissionID} {...app} displayType="card" />
-                    ))
-                ) : (
-                    <>
-                        <IotaAppEmpty displayType="card" />
-                        <IotaAppEmpty displayType="card" />
-                    </>
-                )}
-            </div>
+            <>
+                <Header title={'Apps'} titleCentered onBack={handleBack} />
+                <div className="flex flex-col gap-md p-md">
+                    <SegmentedButton type={SegmentedButtonType.Transparent}>
+                        {CONNTECTED_DAPPS_CATEGORIES.map(({ label, value }) => (
+                            <ButtonUnstyled onClick={() => setSelectedDappCategory(value)}>
+                                <Chip label={label} selected={selectedDappCategory === value} />
+                            </ButtonUnstyled>
+                        ))}
+                    </SegmentedButton>
+                    {[ConnectedDappCategory.All, ConnectedDappCategory.Connections].includes(
+                        selectedDappCategory,
+                    ) && connectedApps.length ? (
+                        <div className="flex flex-col gap-xs">
+                            <Title title="Active Connections" size={TitleSize.Small} />
+                            {connectedApps.map((app) => (
+                                <IotaApp key={app.permissionID} {...app} displayType="card" />
+                            ))}
+                        </div>
+                    ) : (
+                        <>
+                            <IotaAppEmpty displayType="card" />
+                            <IotaAppEmpty displayType="card" />
+                        </>
+                    )}
+                </div>
+            </>
         </Loading>
     );
 }

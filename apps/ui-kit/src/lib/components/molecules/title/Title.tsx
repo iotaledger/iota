@@ -5,7 +5,7 @@ import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
 import { TitleSize } from './title-size.enum';
 import cx from 'classnames';
-import { TITLE_PADDINGS } from './title-classes.constants';
+import { TITLE_PADDINGS, TITLE_SIZE } from './title-classes.constants';
 
 interface TitleProps {
     /**
@@ -52,7 +52,7 @@ export function Title({
             <div className="flex flex-row items-center gap-x-xxxs">
                 <div className="flex flex-col justify-start">
                     <div className="flex flex-row items-center gap-x-0.5 text-neutral-10 dark:text-neutral-92">
-                        <h4 className="text-title-lg">{title}</h4>
+                        <h4 className={TITLE_SIZE[size]}>{title}</h4>
                         {tooltipText && (
                             <Tooltip text={tooltipText} position={tooltipPosition}>
                                 <Info />
