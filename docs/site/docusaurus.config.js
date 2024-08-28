@@ -149,9 +149,9 @@ const config = {
         typesenseServerConfig: {
           nodes: [
             {
-              host: '107.22.242.52',
+              host: 'docs-search.iota.org',
               port: 8108,
-              protocol: 'http',
+              protocol: 'https',
             },
           ],
           apiKey: 'w3S5cCbt5ICZR8CiybXuiusspn4NEMQyu6xwnddEHnInqZN6',
