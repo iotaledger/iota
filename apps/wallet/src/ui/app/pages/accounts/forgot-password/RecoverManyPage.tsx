@@ -57,71 +57,64 @@ export function RecoverManyPage() {
                 <span className="text-center text-label-lg text-neutral-40">
                     Recover the following accounts by completing the recovery process
                 </span>
-                <div className="flex h-full flex-col justify-between gap-lg">
-                    <div className="flex flex-col gap-lg">
-                        {mnemonicAccounts.length > 0
-                            ? mnemonicAccounts.map(([sourceID, accounts], index) => {
-                                  const recoveryData = value.find(
-                                      ({ accountSourceID }) => accountSourceID === sourceID,
-                                  );
-                                  const title = `Mnemonic ${index + 1}`;
-                                  return (
-                                      <RecoverAccountsGroup
-                                          key={sourceID}
-                                          title={title}
-                                          accounts={accounts}
-                                          showRecover={!recoveryData}
-                                          onRecover={() => {
-                                              setRecoverInfo({
-                                                  title,
-                                                  accountSourceID: sourceID,
-                                                  type: AccountSourceType.Mnemonic,
-                                              });
-                                          }}
-                                          recoverDone={!!recoveryData}
-                                      />
-                                  );
-                              })
-                            : null}
-                        {seedAccounts.length > 0
-                            ? seedAccounts.map(([sourceID, accounts], index) => {
-                                  const recoveryData = value.find(
-                                      ({ accountSourceID }) => accountSourceID === sourceID,
-                                  );
-                                  const title = `Seed ${index + 1}`;
-                                  return (
-                                      <RecoverAccountsGroup
-                                          key={sourceID}
-                                          title={title}
-                                          accounts={accounts}
-                                          showRecover={!recoveryData}
-                                          onRecover={() => {
-                                              setRecoverInfo({
-                                                  title,
-                                                  accountSourceID: sourceID,
-                                                  type: AccountSourceType.Seed,
-                                              });
-                                          }}
-                                          recoverDone={!!recoveryData}
-                                      />
-                                  );
-                              })
-                            : null}
-                    </div>
-                    <div className="flex w-full gap-xs">
-                        <Button
-                            type={ButtonType.Secondary}
-                            text="Cancel"
-                            onClick={handleCancel}
-                            fullWidth
-                        />
-                        <Button
-                            text="Next"
-                            disabled={!value.length}
-                            onClick={handleNext}
-                            fullWidth
-                        />
-                    </div>
+                <div className="flex w-full flex-1 flex-col gap-lg overflow-auto">
+                    {mnemonicAccounts.length > 0
+                        ? mnemonicAccounts.map(([sourceID, accounts], index) => {
+                              const recoveryData = value.find(
+                                  ({ accountSourceID }) => accountSourceID === sourceID,
+                              );
+                              const title = `Mnemonic ${index + 1}`;
+                              return (
+                                  <RecoverAccountsGroup
+                                      key={sourceID}
+                                      title={title}
+                                      accounts={accounts}
+                                      showRecover={!recoveryData}
+                                      onRecover={() => {
+                                          setRecoverInfo({
+                                              title,
+                                              accountSourceID: sourceID,
+                                              type: AccountSourceType.Mnemonic,
+                                          });
+                                      }}
+                                      recoverDone={!!recoveryData}
+                                  />
+                              );
+                          })
+                        : null}
+                    {seedAccounts.length > 0
+                        ? seedAccounts.map(([sourceID, accounts], index) => {
+                              const recoveryData = value.find(
+                                  ({ accountSourceID }) => accountSourceID === sourceID,
+                              );
+                              const title = `Seed ${index + 1}`;
+                              return (
+                                  <RecoverAccountsGroup
+                                      key={sourceID}
+                                      title={title}
+                                      accounts={accounts}
+                                      showRecover={!recoveryData}
+                                      onRecover={() => {
+                                          setRecoverInfo({
+                                              title,
+                                              accountSourceID: sourceID,
+                                              type: AccountSourceType.Seed,
+                                          });
+                                      }}
+                                      recoverDone={!!recoveryData}
+                                  />
+                              );
+                          })
+                        : null}
+                </div>
+                <div className="flex w-full gap-xs">
+                    <Button
+                        type={ButtonType.Secondary}
+                        text="Cancel"
+                        onClick={handleCancel}
+                        fullWidth
+                    />
+                    <Button text="Next" disabled={!value.length} onClick={handleNext} fullWidth />
                 </div>
                 <Overlay
                     title={recoverInfo?.title}
