@@ -48,7 +48,7 @@ export function createTimelockedStakeTransaction(
 ) {
     const tx = new TransactionBlock();
     /**
-     * Create tranasctions to merge timelocked objects that need merging
+     * Create the transactions to merge the timelocked objects that need merging
      */
     const mergeObjects = timelockedObjects.filter((obj) => obj.objectIds.length > 1);
 
@@ -67,7 +67,7 @@ export function createTimelockedStakeTransaction(
         });
     }
     /**
-     * Create transactions to split timelocked objects that need splitting.
+     * Create the transactions to split the timelocked objects that need splitting.
      */
     const splitTimelockedObjects: ExtendedTimelockObject[] = timelockedObjects.filter(
         (obj) => obj.splitAmount !== undefined && obj.splitAmount > 0,
@@ -83,7 +83,7 @@ export function createTimelockedStakeTransaction(
     });
 
     /**
-     * Create transactions to stake the timelocked objects
+     * Create the transactions to stake the timelocked objects
      */
     const stakingReadyObjects = timelockedObjects
         .filter((obj) => obj.splitAmount === undefined || obj.splitAmount === BigInt(0))
