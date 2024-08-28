@@ -25,6 +25,10 @@ Useful for local development and testing.
 
 ### Using manual setup
 
+To run an Indexer, you must first create a Postgres database so that it can store the data it indexes.
+
+#### Database setup
+
 1. Install a local [Postgres server](https://www.postgresql.org/download) and start it.
 
 2. Install [Diesel](https://diesel.rs/):
@@ -33,9 +37,7 @@ Useful for local development and testing.
 
 refer to [Diesel Getting Started guide](https://diesel.rs/guides/getting-started) for more details
 
-3. Setup the database:
-
-Make sure you are in the `iota/crates/iota-indexer` directory and run the following command to setup the database:
+3. Make sure you are in the `iota/crates/iota-indexer` directory and run the following command to create the database:
 
 ```sh
 diesel setup --database-url="postgres://postgres:postgres@localhost/iota_indexer"
@@ -50,24 +52,23 @@ In case the database already exists, you can run the following command to reset 
 diesel database reset --database-url="postgres://postgres:postgres@localhost/iota_indexer"
 ```
 
-4. Run the Indexer together with a local network or standalone:
+#### Indexer setup
 
-#### Running the Indexer with a local network, including fullnode, validator, and faucet
+You can run the Indexer as a standalone service or as part of a local network.
 
-Use [iota-test-validator](../../crates/iota-test-validator/README.md) to run the indexer with a local network.
+- to run it together with a local network, follow the README at [iota-test-validator](../../crates/iota-test-validator/README.md)
+- to run the indexer as a standalone service with an existing fullnode, follow the steps below
 
-#### Running a standalone indexer with an existing fullnode
+#### Indexer setup (standalone)
 
-You can run the indexer as a writer (Sync worker), which pulls data from the fullnode and writes data to the database or as a reader (RPC worker), which exposes a JSON RPC server with the [interface](https://docs.iota.io/iota-api-ref).
-
-- to run the indexer as a writer:
+To run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgres@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
 ```
 
-- to run indexer as a reader:
+To run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.io/iota-api-ref).
 
 ```
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgres@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
