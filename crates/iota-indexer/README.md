@@ -40,16 +40,16 @@ refer to [Diesel Getting Started guide](https://diesel.rs/guides/getting-started
 3. Make sure you are in the `iota/crates/iota-indexer` directory and run the following command to create the database:
 
 ```sh
-diesel setup --database-url="postgres://postgres:postgres@localhost/iota_indexer"
+diesel setup --database-url="postgres://postgres:postgrespw@localhost/iota_indexer"
 ```
 
 This command will create a database with the name `iota_indexer` for the indexer to work.
-Per default, the user and password are `postgres`.
+Per default, the user is `postgres` and the password is `postgrespw`.
 
 In case the database already exists, you can run the following command to reset the database:
 
 ```sh
-diesel database reset --database-url="postgres://postgres:postgres@localhost/iota_indexer"
+diesel database reset --database-url="postgres://postgres:postgrespw@localhost/iota_indexer"
 ```
 
 #### Indexer setup
@@ -65,13 +65,13 @@ To run the indexer as a writer (Sync worker), which pulls data from a fullnode a
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgres@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
 ```
 
 To run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.io/iota-api-ref).
 
 ```
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgres@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
 ```
 
 More flags that can be passed to the commands can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
@@ -81,12 +81,12 @@ More flags that can be passed to the commands can be found in this [file](https:
 To wipe the database, make sure you are in the `iota/crates/iota-indexer` directory and run following command. In case of schema changes in `.sql` files, this will also update corresponding `schema.rs` file:
 
 ```sh
-diesel database reset --database-url="postgres://postgres:postgres@localhost/iota_indexer"
+diesel database reset --database-url="postgres://postgres:postgrespw@localhost/iota_indexer"
 ```
 
 ### Running tests
 
-To run the tests, you need to have a running postgres instance with the database `iota_indexer` which can be accessed with the user `postgres` and the password `postgres`.
+To run the tests, you need to have a running postgres instance with the database `iota_indexer` which can be accessed with the user `postgres` and the password `postgrespw`.
 The crate provides following tests currently:
 
 - unit tests for DB models (objects, events) which test the conversion between the database representation and the Rust representation of the objects and events.
