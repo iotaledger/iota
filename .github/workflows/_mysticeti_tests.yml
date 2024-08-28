@@ -137,14 +137,10 @@ jobs:
         shell: bash
 
   simtest:
-    name: Simtest ${{ matrix.components }}
+    name: Simtest Mysticeti
     needs: changes
     timeout-minutes: 45
     runs-on: [self-hosted]
-    strategy:
-      matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:

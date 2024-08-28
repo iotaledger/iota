@@ -111,7 +111,7 @@ jobs:
         shell: bash
 
   simtest:
-    name: Simtest ${{ matrix.components }}
+    name: Simtest rust
     needs: changes
     timeout-minutes: 45
     runs-on: [self-hosted]
