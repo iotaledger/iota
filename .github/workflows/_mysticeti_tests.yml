@@ -14,7 +14,7 @@ on:
     - cron: "0 5 * * *"
 
 concurrency:
-  group: ${{ github.workflow_ref }}-${{ github.event.pull_request.number || github.ref }}
+  group: mysticeti-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:

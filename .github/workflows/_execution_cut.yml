@@ -3,7 +3,7 @@ name: Execution cut
 on: workflow_call
 
 concurrency:
-  group: ${{ github.workflow_ref }}-${{ github.event.pull_request.number || github.ref }}
+  group: execution-cut-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:

@@ -7,7 +7,7 @@ on:
         type: boolean
 
 concurrency:
-  group: ${{ github.workflow_ref }}-${{ github.event.pull_request.number || github.ref }}
+  group: ext-rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:
