@@ -2,8 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LedgerAccountRow } from './LedgerAccountRow';
+import {
+    Table,
+    TableBody,
+    TableBodyRow,
+    TableCell,
+    TableCellType,
+    TableHeader,
+    TableHeaderCell,
+    TableHeaderRow,
+} from '@iota/apps-ui-kit';
 import { type DerivedLedgerAccount } from './useDeriveLedgerAccounts';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useBalance, useFormatCoin, useResolveIotaNSName } from '@iota/core';
 
 export type SelectableLedgerAccount = DerivedLedgerAccount & {
     isSelected: boolean;
@@ -12,26 +23,57 @@ export type SelectableLedgerAccount = DerivedLedgerAccount & {
 interface LedgerAccountListProps {
     accounts: SelectableLedgerAccount[];
     onAccountClick: (account: SelectableLedgerAccount) => void;
+    selectAll: () => void;
 }
 
-export function LedgerAccountList({ accounts, onAccountClick }: LedgerAccountListProps) {
+export function LedgerAccountList({ accounts, onAccountClick, selectAll }: LedgerAccountListProps) {
+    const headersData = [
+        { label: 'Address', columnKey: 1 },
+        { label: '', columnKey: 2 },
+    ];
+
+    const rowsData = accounts.map((account) => {
+        const { data: coinBalance } = useBalance(account.address);
+        const { data: domainName } = useResolveIotaNSName(account.address);
+        const [totalAmount, totalAmountSymbol] = useFormatCoin(
+            coinBalance?.totalBalance ?? 0,
+            IOTA_TYPE_ARG,
+        );
+
+        return [
+            {
+                label: domainName ?? formatAddress(account.address),
+            },
+            {
+                label: `${totalAmount} ${totalAmountSymbol}`,
+            },
+        ];
+    });
+
     return (
-        <ul className="m-0 list-none p-0">
-            {accounts.map((account) => (
-                <li className="pb-2 pt-2 first:pt-1" key={account.address}>
-                    <button
-                        className="w-full cursor-pointer appearance-none border-0 bg-transparent p-0"
-                        onClick={() => {
-                            onAccountClick(account);
-                        }}
-                    >
-                        <LedgerAccountRow
-                            isSelected={account.isSelected}
-                            address={account.address}
-                        />
-                    </button>
-                </li>
-            ))}
-        </ul>
+        <Table
+            hasCheckboxColumn={true}
+            onRowCheckboxChange={(_, index) => {
+                onAccountClick(accounts[index]);
+            }}
+            onHeaderCheckboxChange={() => selectAll()}
+        >
+            <TableHeader>
+                <TableHeaderRow>
+                    {headersData.map((header, index) => (
+                        <TableHeaderCell key={index} {...header} />
+                    ))}
+                </TableHeaderRow>
+            </TableHeader>
+            <TableBody>
+                {rowsData.map((row, rowIndex) => (
+                    <TableBodyRow key={rowIndex} rowIndex={rowIndex}>
+                        {row.map((cell, cellIndex) => (
+                            <TableCell key={cellIndex} type={TableCellType.Text} {...cell} />
+                        ))}
+                    </TableBodyRow>
+                ))}
+            </TableBody>
+        </Table>
     );
 }
