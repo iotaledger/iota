@@ -197,7 +197,7 @@ impl AuthAggMetrics {
         }
     }
 
-    /// Creates a new instance of `AuthAggMetrics`` for testing.
+    /// Creates a new instance of `AuthAggMetrics` for testing.
     pub fn new_for_tests() -> Self {
         let registry = prometheus::Registry::new();
         Self::new(&registry)
