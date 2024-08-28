@@ -46,6 +46,10 @@ const aboutIota = [
             {
                 type: 'category',
                 label: 'Execution Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'about-iota/execution-architecture/execution-layer',
+                },
                 items: [
                     'about-iota/execution-architecture/iota-execution',
                     'about-iota/execution-architecture/adapter',
