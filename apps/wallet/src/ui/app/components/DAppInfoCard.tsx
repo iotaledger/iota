@@ -8,14 +8,14 @@ import { CheckFill16 } from '@iota/icons';
 import cn from 'clsx';
 
 import { useAccountByAddress } from '../hooks/useAccountByAddress';
-import { Heading } from '../shared/heading';
-import { Link } from '../shared/Link';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
 import { LockUnlockButton } from './accounts/LockUnlockButton';
 import { useUnlockAccount } from './accounts/UnlockAccountContext';
-import { DAppPermissionsList } from './DAppPermissionsList';
+import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
+import { Link } from 'react-router-dom';
+import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
 
 export interface DAppInfoCardProps {
     name: string;
@@ -33,33 +33,26 @@ export function DAppInfoCard({
     permissions,
 }: DAppInfoCardProps) {
     const validDAppUrl = getValidDAppUrl(url);
-    const appHostname = validDAppUrl?.hostname ?? url;
     const { data: account } = useAccountByAddress(connectedAddress);
     const { unlockAccount, lockAccount, isPending, accountToUnlock } = useUnlockAccount();
 
     return (
-        <div className="flex flex-col gap-5 bg-white p-6">
-            <div className="flex flex-row flex-nowrap items-center gap-3.75 py-3">
-                <div className="bg-steel/20 flex h-15 w-15 shrink-0 grow-0 items-stretch overflow-hidden rounded-2xl">
-                    {iconUrl ? <img className="flex-1" src={iconUrl} alt={name} /> : null}
-                </div>
-                <div className="flex flex-col flex-nowrap items-start gap-1 overflow-hidden">
-                    <div className="max-w-full overflow-hidden">
-                        <Heading variant="heading4" weight="semibold" color="gray-100" truncate>
-                            {name}
-                        </Heading>
-                    </div>
-                    <div className="max-w-full overflow-hidden">
+        <div className="flex flex-col gap-y-md">
+            <Card type={CardType.Default}>
+                <CardImage type={ImageType.BgSolid} shape={ImageShape.Rounded} url={iconUrl} />
+                <CardBody
+                    title={name}
+                    subtitle={
                         <Link
-                            href={validDAppUrl?.toString() ?? url}
-                            title={name}
-                            text={appHostname}
-                            color="heroDark"
-                            weight="medium"
-                        />
-                    </div>
-                </div>
-            </div>
+                            to={validDAppUrl?.toString() ?? url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {validDAppUrl?.toString() ?? url}
+                        </Link>
+                    }
+                />
+            </Card>
             {connectedAddress && account ? (
                 <AccountItem
                     icon={<AccountIcon account={account} />}
@@ -99,7 +92,7 @@ export function DAppInfoCard({
             {permissions?.length ? (
                 <SummaryCard
                     header="Permissions requested"
-                    body={<DAppPermissionsList permissions={permissions} />}
+                    body={<DAppPermissionList permissions={permissions} />}
                     boxShadow
                 />
             ) : null}

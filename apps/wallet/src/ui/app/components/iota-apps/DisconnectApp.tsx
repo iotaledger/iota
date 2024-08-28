@@ -2,13 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    Overlay,
-    DAppInfoCard,
-    DAppPermissionsList,
-    SummaryCard,
-    WalletListSelect,
-} from '_components';
+import { Overlay, DAppInfoCard, WalletListSelect } from '_components';
 import { useAppSelector } from '_hooks';
 import { permissionsSelectors } from '_redux/slices/permissions';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -18,9 +12,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { Button } from '../../shared/ButtonUI';
-import { Text } from '../../shared/text';
 import { type DAppEntry } from './IotaApp';
+
+import { CircleEmitter } from '@iota/ui-icons';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { SummaryPanel } from '../SummaryPanel';
+import { SummaryListItem } from '../SummaryListItem';
+import { DAppPermissionList } from '../DAppPermissionList';
 
 export interface DisconnectAppProps extends Omit<DAppEntry, 'description' | 'tags'> {
     permissionID: string;
@@ -74,36 +72,54 @@ function DisconnectApp({
         return null;
     }
     return (
-        <Overlay showModal setShowModal={setShowDisconnectApp} title="Connection Active">
-            <div className="flex flex-1 flex-col flex-nowrap items-stretch gap-3.75">
+        <Overlay
+            showBackButton
+            showModal
+            setShowModal={setShowDisconnectApp}
+            title="Active Connection"
+        >
+            <div className="flex max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
                 <DAppInfoCard name={name} iconUrl={icon} url={link} />
-                <SummaryCard
-                    header="Permissions given"
-                    body={<DAppPermissionsList permissions={permission.permissions} />}
+
+                <SummaryPanel
+                    title="Permissions requested"
+                    body={
+                        <div className="px-md">
+                            <DAppPermissionList permissions={permission.permissions} />
+                        </div>
+                    }
                 />
-                {connectedAccounts.length > 1 ? (
-                    <WalletListSelect
-                        title="Connected Accounts"
-                        visibleValues={connectedAccounts}
-                        values={accountsToDisconnect}
-                        onChange={setAccountsToDisconnect}
-                        mode="disconnect"
-                        disabled={disconnectMutation.isPending}
-                    />
-                ) : (
-                    <SummaryCard
-                        header="Connected Account"
-                        body={
-                            <Text variant="body" color="steel-dark" weight="semibold" mono>
-                                {connectedAccounts[0] ? formatAddress(connectedAccounts[0]) : null}
-                            </Text>
-                        }
-                    />
-                )}
-                <div className="sticky -bottom-5 flex flex-1 items-end bg-white pb-5 pt-1">
+
+                <SummaryPanel
+                    title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
+                    body={
+                        <div className="px-md">
+                            {connectedAccounts.length > 1 ? (
+                                <WalletListSelect
+                                    title="Connected Accounts"
+                                    visibleValues={connectedAccounts}
+                                    values={accountsToDisconnect}
+                                    onChange={setAccountsToDisconnect}
+                                    disabled={disconnectMutation.isPending}
+                                />
+                            ) : (
+                                <SummaryListItem
+                                    icon={<CircleEmitter className="h-5 w-5 text-neutral-10" />}
+                                    text={
+                                        connectedAccounts[0]
+                                            ? formatAddress(connectedAccounts[0])
+                                            : ''
+                                    }
+                                />
+                            )}
+                        </div>
+                    }
+                />
+
+                <div className="sticky bottom-0 flex flex-1 items-end pt-xs">
                     <Button
-                        size="tall"
-                        variant="warning"
+                        type={ButtonType.Secondary}
+                        fullWidth
                         text={
                             connectedAccounts.length === 1
                                 ? 'Disconnect'
@@ -112,7 +128,7 @@ function DisconnectApp({
                                   ? 'Disconnect All'
                                   : 'Disconnect Selected'
                         }
-                        loading={disconnectMutation.isPending}
+                        disabled={disconnectMutation.isPending}
                         onClick={() => disconnectMutation.mutate()}
                     />
                 </div>
