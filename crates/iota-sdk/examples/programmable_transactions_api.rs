@@ -36,10 +36,10 @@ use utils::setup_for_write;
 async fn main() -> Result<(), anyhow::Error> {
     // 1) Get the Iota client, the sender and recipient that we will use
     // for the transaction
-    let (iota, sender, recipient) = setup_for_write().await?;
+    let (client, sender, recipient) = setup_for_write().await?;
 
     // We need to find the coin we will use as gas
-    let coins = iota
+    let coins = client
         .coin_read_api()
         .get_coins(sender, None, None, None)
         .await?;
@@ -68,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction = ptb.finish();
 
     let gas_budget = 5_000_000;
-    let gas_price = iota.read_api().get_reference_gas_price().await?;
+    let gas_price = client.read_api().get_reference_gas_price().await?;
     // Create the transaction data that will be sent to the network
     let tx_data = TransactionData::new_programmable(
         sender,
@@ -84,7 +84,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // 5) Execute the transaction
     print!("Executing the transaction...");
-    let transaction_response = iota
+    let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
@@ -95,7 +95,7 @@ async fn main() -> Result<(), anyhow::Error> {
     print!("done\n Transaction information: ");
     println!("{:?}", transaction_response);
 
-    let coins = iota
+    let coins = client
         .coin_read_api()
         .get_coins(recipient, None, None, None)
         .await?;

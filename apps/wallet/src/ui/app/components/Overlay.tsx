@@ -16,6 +16,7 @@ interface OverlayProps {
     closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-lightest';
+    titleCentered?: boolean;
     showBackButton?: boolean;
 }
 
@@ -24,8 +25,9 @@ export function Overlay({
     children,
     showModal,
     closeOverlay,
-    showBackButton,
     setShowModal,
+    titleCentered = true,
+    showBackButton,
 }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
@@ -42,9 +44,9 @@ export function Overlay({
                 {title && (
                     <Header
                         onBack={showBackButton ? handleBack : undefined}
-                        titleCentered
                         title={title}
                         onClose={closeModal}
+                        titleCentered={titleCentered}
                     />
                 )}
                 <div className="flex w-full flex-1 overflow-hidden bg-neutral-100 p-md">
