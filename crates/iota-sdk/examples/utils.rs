@@ -94,7 +94,7 @@ pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error
 /// Request tokens from the Faucet for the given address
 pub async fn request_tokens_from_faucet(
     address: IotaAddress,
-    iota_client: &IotaClient,
+    client: &IotaClient,
 ) -> Result<(), anyhow::Error> {
     let address_str = address.to_string();
     let json_body = json![{
@@ -104,8 +104,8 @@ pub async fn request_tokens_from_faucet(
     }];
 
     // make the request to the faucet JSON RPC API for coin
-    let client = Client::new();
-    let resp = client
+    let reqwest_client = Client::new();
+    let resp = reqwest_client
         .post(format!("{IOTA_FAUCET_BASE_URL}/v1/gas"))
         .header("Content-Type", "application/json")
         .json(&json_body)
@@ -128,7 +128,7 @@ pub async fn request_tokens_from_faucet(
 
     // wait for the faucet to finish the batch of token requests
     let coin_id = loop {
-        let resp = client
+        let resp = reqwest_client
             .get(format!("{IOTA_FAUCET_BASE_URL}/v1/status/{task_id}"))
             .send()
             .await?;
@@ -152,7 +152,7 @@ pub async fn request_tokens_from_faucet(
     // wait until the fullnode has the coin object, and check if it has the same
     // owner
     loop {
-        let owner = iota_client
+        let owner = client
             .read_api()
             .get_object_with_options(
                 ObjectID::from_str(&coin_id)?,
@@ -175,11 +175,11 @@ pub async fn request_tokens_from_faucet(
 /// Return the coin owned by the address that has at least 5_000_000 NANOS,
 /// otherwise returns None
 pub async fn fetch_coin(
-    iota: &IotaClient,
+    client: &IotaClient,
     sender: &IotaAddress,
 ) -> Result<Option<Coin>, anyhow::Error> {
     let coin_type = "0x2::iota::IOTA".to_string();
-    let coins_stream = iota
+    let coins_stream = client
         .coin_read_api()
         .get_coins_stream(*sender, Some(coin_type));
 
@@ -192,13 +192,13 @@ pub async fn fetch_coin(
 
 /// Return a transaction digest from a split coin + merge coins transaction
 pub async fn split_coin_digest(
-    iota: &IotaClient,
+    client: &IotaClient,
     sender: &IotaAddress,
 ) -> Result<TransactionDigest, anyhow::Error> {
-    let coin = match fetch_coin(iota, sender).await? {
+    let coin = match fetch_coin(client, sender).await? {
         None => {
-            request_tokens_from_faucet(*sender, iota).await?;
-            fetch_coin(iota, sender)
+            request_tokens_from_faucet(*sender, client).await?;
+            fetch_coin(client, sender)
                 .await?
                 .expect("Supposed to get a coin with IOTA, but didn't. Aborting")
         }
@@ -214,7 +214,7 @@ pub async fn split_coin_digest(
     let max_gas_budget = 5_000_000;
 
     // get the reference gas price from the network
-    let gas_price = iota.read_api().get_reference_gas_price().await?;
+    let gas_price = client.read_api().get_reference_gas_price().await?;
 
     // now we programmatically build the transaction through several commands
     let mut ptb = ProgrammableTransactionBuilder::new();
@@ -250,7 +250,7 @@ pub async fn split_coin_digest(
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
     let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;
 
-    let transaction_response = iota
+    let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
@@ -314,7 +314,7 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 // and to reduce the number of allow(dead_code) annotations to just this one
 #[allow(dead_code)]
 async fn just_for_clippy() -> Result<(), anyhow::Error> {
-    let (iota, sender, _recipient) = setup_for_write().await?;
-    let _digest = split_coin_digest(&iota, &sender).await?;
+    let (client, sender, _recipient) = setup_for_write().await?;
+    let _digest = split_coin_digest(&client, &sender).await?;
     Ok(())
 }

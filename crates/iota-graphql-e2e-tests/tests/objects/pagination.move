@@ -98,7 +98,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors @{obj_5_0}
+//# run-graphql --cursors @{obj_2_0}
 {
   address(address: "@{A}") {
     # select 3rd and 4th object
