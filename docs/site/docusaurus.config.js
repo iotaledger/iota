@@ -145,7 +145,7 @@ const config = {
       typesense: {
         // Replace this with the name of your index/collection.
         // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs_1722883796',
+        typesenseCollectionName: 'IOTADocs_1724878003',
         typesenseServerConfig: {
           nodes: [
             {
@@ -154,7 +154,7 @@ const config = {
               protocol: 'https',
             },
           ],
-          apiKey: 'w3S5cCbt5ICZR8CiybXuiusspn4NEMQyu6xwnddEHnInqZN6',
+          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
         },
 
         // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
