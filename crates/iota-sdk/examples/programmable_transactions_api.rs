@@ -8,8 +8,7 @@
 //! 1) finds a coin from the active address that has Iota,
 //! 2) splits the coin into one coin of 1000 NANOS and the rest,
 //! 3  transfers the split coin to second Iota address,
-//! 4) signs the transaction,
-//! 5) executes it.
+//! 4) signs the transaction and executes it.
 //! For some of these actions it prints some output.
 //! Finally, at the end of the program it prints the number of coins for the
 //! Iota address that received the coin.
@@ -19,18 +18,11 @@
 //! cargo run --example programmable_transactions_api
 
 mod utils;
-use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
-use iota_sdk::{
-    rpc_types::IotaTransactionBlockResponseOptions,
-    types::{
-        programmable_transaction_builder::ProgrammableTransactionBuilder,
-        quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, Command, Transaction, TransactionData},
-    },
+use iota_sdk::types::{
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, Command, TransactionData},
 };
-use shared_crypto::intent::Intent;
-use utils::setup_for_write;
+use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -78,20 +70,9 @@ async fn main() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    // 4) Sign transaction
-    let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-
-    // 5) Execute the transaction
+    // 5) Sign and execute transaction
     print!("Executing the transaction...");
-    let transaction_response = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
+    let transaction_response = sign_and_execute_transaction(&client, sender, tx_data).await?;
     print!("done\n Transaction information: ");
     println!("{:?}", transaction_response);
 
