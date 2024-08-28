@@ -53,7 +53,7 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 #### Indexer setup
 
-You can run the Indexer as a standalone service or as part of a local network.
+You can spin up the Indexer together with a local network (similarly like the docker-compose setup) or as a standalone service that connects to an existing fullnode.
 
 - to run it together with a local network, follow the README at [iota-test-validator](../../crates/iota-test-validator/README.md)
 - to run the indexer as a standalone service with an existing fullnode, follow the steps below

@@ -18,7 +18,7 @@ latest successful run, scroll down to the bottom and download the artifacts. Thi
 
 1. Follow the [manual setup](../../crates/iota-indexer/README.md) in the `iota-indexer` README to set up the postgresdb on your local machine
 2. Make sure the `Posgresdb` starts on your local machine
-3. Run `RUST_LOG="consensus=off" ./target/debug/iota-test-validator --with-indexer --pg-password postgres` and change the postgres password if needed.
+3. Run `RUST_LOG="consensus=off" ./target/debug/iota-test-validator --with-indexer --pg-password postgrespw` and change the postgres password if needed.
 4. To check your local db, if you use the default db url `postgres://postgres:postgres@localhost:5432/iota_indexer`, you can login to the `postgres` database and run `\dt` to show all tables.
 
 ## Run with a persisted state
