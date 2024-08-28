@@ -313,6 +313,8 @@ tap = "1.0"
 tempfile = "3.12"
 test-fuzz = "5.2"
 thiserror = "1.0"
+# tokio is defined at a specific version to support patching with iota-sim
+# Do not upgrade without updating https://github.com/iotaledger/iota-sim first
 tokio = "=1.39.2"
 tokio-stream = { version = "0.1", features = ["sync", "net"] }
 tokio-util = "0.7"
