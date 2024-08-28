@@ -209,7 +209,6 @@ opt-level = 1
 [workspace.dependencies]
 anyhow = "1.0"
 arc-swap = { version = "1.5", features = ["serde"] }
-assert_cmd = "2.0"
 async-graphql = "7.0"
 async-recursion = "1.0"
 async-trait = "0.1"
