@@ -111,7 +111,7 @@ pub struct AuthAggMetrics {
 }
 
 impl AuthAggMetrics {
-    /// Create a new instance of `AuthAggMetrics`` with a Prometheus registry.
+    /// Create a new instance of `AuthAggMetrics` with a Prometheus registry.
     pub fn new(registry: &prometheus::Registry) -> Self {
         Self {
             total_tx_certificates_created: register_int_counter_with_registry!(
