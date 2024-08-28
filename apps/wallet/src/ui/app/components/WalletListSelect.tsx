@@ -5,12 +5,10 @@
 import { cx } from 'class-variance-authority';
 import { useAccounts } from '../hooks/useAccounts';
 import { useMemo } from 'react';
-import { SummaryPanel } from './SummaryPanel';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Checkbox } from '@iota/apps-ui-kit';
 
 export interface WalletListSelectProps {
-    title: string;
     values: string[];
     visibleValues?: string[];
     mode?: WalletListSelectMode;
@@ -25,7 +23,6 @@ enum WalletListSelectMode {
 }
 
 export function WalletListSelect({
-    title,
     values,
     visibleValues,
     disabled,
@@ -63,32 +60,27 @@ export function WalletListSelect({
     }
 
     return (
-        <SummaryPanel
-            title={title}
-            body={
-                <div className="flex flex-col gap-y-sm px-md">
-                    {filteredAccounts.map(({ address }) => {
-                        const accountAddress = formatAddress(address);
-                        return (
-                            <div
-                                key={address}
-                                className="flex cursor-default flex-row items-center justify-start gap-x-xs py-xxxs"
-                                onClick={() => onAccountClick(address)}
-                            >
-                                <Checkbox name={address} isChecked={values.includes(address)} />
-                                <span
-                                    className={cx(
-                                        'cursor-default text-body-md text-neutral-40',
-                                        disabled && 'text-opacity-40',
-                                    )}
-                                >
-                                    {accountAddress}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            }
-        />
+        <div className="flex flex-col gap-y-sm">
+            {filteredAccounts.map(({ address }) => {
+                const accountAddress = formatAddress(address);
+                return (
+                    <div
+                        key={address}
+                        className="flex cursor-default flex-row items-center justify-start gap-x-xs py-xxxs"
+                        onClick={() => onAccountClick(address)}
+                    >
+                        <Checkbox name={address} isChecked={values.includes(address)} />
+                        <span
+                            className={cx(
+                                'cursor-default text-body-md text-neutral-40',
+                                disabled && 'text-opacity-40',
+                            )}
+                        >
+                            {accountAddress}
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
     );
 }

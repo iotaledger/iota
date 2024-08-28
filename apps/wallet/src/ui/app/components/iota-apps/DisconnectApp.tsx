@@ -96,7 +96,6 @@ function DisconnectApp({
                         <div className="px-md">
                             {connectedAccounts.length > 1 ? (
                                 <WalletListSelect
-                                    title="Connected Accounts"
                                     visibleValues={connectedAccounts}
                                     values={accountsToDisconnect}
                                     onChange={setAccountsToDisconnect}
