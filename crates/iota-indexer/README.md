@@ -21,7 +21,7 @@ For more in depth information check the [Database Schema](./schema.md).
 ### Using docker compose (recommended)
 
 See [pg-services-local](../../docker/pg-services-local/README.md), which automatically sets up the Indexer Sync worker and the Indexer RPC worker along with a postgres database and local network.
-Useful local development and testing.
+Useful for local development and testing.
 
 ### Using manual setup
 
