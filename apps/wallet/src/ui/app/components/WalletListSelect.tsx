@@ -3,33 +3,36 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { cx } from 'class-variance-authority';
-import { useMemo } from 'react';
-
 import { useAccounts } from '../hooks/useAccounts';
-import { Link } from '../shared/Link';
-import { SummaryCard } from './SummaryCard';
-import { WalletListSelectItem, type WalletListSelectItemProps } from './WalletListSelectItem';
+import { useMemo } from 'react';
+import { SummaryPanel } from './SummaryPanel';
+import { formatAddress } from '@iota/iota-sdk/utils';
+import { Checkbox } from '@iota/apps-ui-kit';
 
 export interface WalletListSelectProps {
     title: string;
     values: string[];
     visibleValues?: string[];
-    mode?: WalletListSelectItemProps['mode'];
+    mode?: WalletListSelectMode;
     disabled?: boolean;
     onChange: (values: string[]) => void;
     boxShadow?: boolean;
+}
+
+enum WalletListSelectMode {
+    Select = 'select',
+    Disconnect = 'disconnect',
 }
 
 export function WalletListSelect({
     title,
     values,
     visibleValues,
-    mode = 'select',
-    disabled = false,
+    disabled,
     onChange,
-    boxShadow = false,
 }: WalletListSelectProps) {
     const { data: accounts } = useAccounts();
+
     const filteredAccounts = useMemo(() => {
         if (!accounts) {
             return [];
@@ -39,69 +42,53 @@ export function WalletListSelect({
         }
         return accounts;
     }, [accounts, visibleValues]);
+
+    function onAccountClick(address: string) {
+        if (disabled) {
+            return;
+        }
+        const newValues = [];
+        let found = false;
+        for (const anAddress of values) {
+            if (anAddress === address) {
+                found = true;
+                continue;
+            }
+            newValues.push(anAddress);
+        }
+        if (!found) {
+            newValues.push(address);
+        }
+        onChange(newValues);
+    }
+
     return (
-        <SummaryCard
-            header={title}
+        <SummaryPanel
+            title={title}
             body={
-                <ul
-                    className={cx(
-                        'm-0 flex flex-1 list-none flex-col items-stretch self-stretch p-0',
-                        disabled ? 'opacity-70' : '',
-                    )}
-                >
-                    {filteredAccounts.map(({ address }) => (
-                        <li
-                            key={address}
-                            onClick={() => {
-                                if (disabled) {
-                                    return;
-                                }
-                                const newValues = [];
-                                let found = false;
-                                for (const anAddress of values) {
-                                    if (anAddress === address) {
-                                        found = true;
-                                        continue;
-                                    }
-                                    newValues.push(anAddress);
-                                }
-                                if (!found) {
-                                    newValues.push(address);
-                                }
-                                onChange(newValues);
-                            }}
-                        >
-                            <WalletListSelectItem
-                                address={address}
-                                selected={values.includes(address)}
-                                mode={mode}
-                                disabled={disabled}
-                            />
-                        </li>
-                    ))}
-                </ul>
+                <div className="flex flex-col gap-y-sm px-md">
+                    {filteredAccounts.map(({ address }) => {
+                        const accountAddress = formatAddress(address);
+                        return (
+                            <div
+                                key={address}
+                                className="flex cursor-default flex-row items-center justify-start gap-x-xs py-xxxs"
+                                onClick={() => onAccountClick(address)}
+                            >
+                                <Checkbox name={address} isChecked={values.includes(address)} />
+                                <span
+                                    className={cx(
+                                        'cursor-default text-body-md text-neutral-40',
+                                        disabled && 'text-opacity-40',
+                                    )}
+                                >
+                                    {accountAddress}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
             }
-            footer={
-                mode === 'select' ? (
-                    <div className="flex flex-row flex-nowrap justify-between self-stretch">
-                        <div>
-                            {filteredAccounts.length > 1 ? (
-                                <Link
-                                    color="heroDark"
-                                    weight="medium"
-                                    text="Select all"
-                                    disabled={disabled}
-                                    onClick={() =>
-                                        onChange(filteredAccounts.map(({ address }) => address))
-                                    }
-                                />
-                            ) : null}
-                        </div>
-                    </div>
-                ) : null
-            }
-            minimalPadding
-            boxShadow={boxShadow}
         />
     );
 }
