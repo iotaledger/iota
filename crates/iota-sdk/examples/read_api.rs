@@ -13,12 +13,10 @@
 
 mod utils;
 use iota_sdk::{
-    rpc_types::{
-        IotaGetPastObjectRequest, IotaObjectDataOptions, IotaTransactionBlockResponseOptions,
-    },
+    rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
     types::base_types::ObjectID,
 };
-use utils::{setup_for_write, split_coin_digest};
+use utils::setup_for_write;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
