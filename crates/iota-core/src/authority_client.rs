@@ -93,7 +93,7 @@ impl NetworkAuthorityClient {
         Ok(Self::new(channel))
     }
 
-    /// Creates a new client with a `transport`` channel.
+    /// Creates a new client with a `transport` channel.
     pub fn new(channel: Channel) -> Self {
         Self {
             client: ValidatorClient::new(channel),
