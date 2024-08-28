@@ -28,6 +28,26 @@ export interface TableCardProps<DataType extends object> {
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
+     /**
+     * Does the table have pagination buttons.
+     */
+     hasPagination?: boolean;
+     /**
+      * On Next page button click.
+      */
+     onNextPageClick?: () => void;
+     /**
+      * On Previous page button click.
+      */
+     onPreviousPageClick?: () => void;
+     /**
+      * On First page button click.
+      */
+     onFirstPageClick?: () => void;
+     /**
+      * On Last page button click.
+      */
+     onLastPageClick?: () => void;
 }
 
 export function TableCard<DataType extends object>({
@@ -36,6 +56,11 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
+    hasPagination,
+    onNextPageClick,
+    onPreviousPageClick,
+    onFirstPageClick,
+    onLastPageClick
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -75,7 +100,7 @@ export function TableCard<DataType extends object>({
                 refetching && 'opacity-50',
             )}
         >
-            <Table rowIndexes={table.getRowModel().rows.map((row) => row.index)}>
+            <Table rowIndexes={table.getRowModel().rows.map((row) => row.index)} hasPagination={hasPagination} onLastPageClick={onLastPageClick} onFirstPageClick={onFirstPageClick} onNextPageClick={onNextPageClick} onPreviousPageClick={onPreviousPageClick}>
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableHeaderRow key={headerGroup.id}>

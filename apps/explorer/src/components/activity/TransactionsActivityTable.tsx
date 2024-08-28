@@ -74,19 +74,16 @@ export function TransactionsActivityTable({
                     />
                 ) : (
                     <div>
-                        <TableCard data={cardData.data} columns={cardData.columns} />
+                        <TableCard data={cardData.data} columns={cardData.columns} hasPagination={!disablePagination} onFirstPageClick={pagination.onFirst} onPreviousPageClick={pagination.onPrev} onNextPageClick={pagination.onNext}/>
                     </div>
                 )}
 
                 <div className="flex justify-between">
-                    {!disablePagination ? (
-                        <Pagination {...pagination} />
-                    ) : (
+                    {disablePagination && (
                         <Link to="/recent" after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}>
                             View all
                         </Link>
                     )}
-
                     <div className="flex items-center space-x-3">
                         <Text variant="body/medium" color="steel-dark">
                             {count ? numberSuffix(Number(count)) : '-'}
