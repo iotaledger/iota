@@ -1,13 +1,14 @@
 ---
-title: Conventions
 description: Recommended Move 2024 best practices for the IOTA blockchain.
 ---
 
+# Conventions
+
 The following recommendations are based on 2024 Move.
 
-## Add section titles
+## Add Section Titles
 
-Use titles in code comments to create sections for your Move code files. Structure your titles using `===` on either side of the title.
+Use section titles in code comments to organize your Move code files. Structure your titles using `===` on either side of the title.
 
 ```move
 module conventions::comments {
@@ -35,9 +36,10 @@ module conventions::comments {
 }
 ```
 
-## CRUD functions names
 
-These are the available CRUD functions:
+## CRUD Function Names
+
+The following are recommended names for CRUD functions:
 
 - `add`: Adds a value.
 - `new`: Creates an object.
@@ -46,29 +48,29 @@ These are the available CRUD functions:
 - `remove`: Removes a value.
 - `exists_`: Checks if a key exists.
 - `contains`: Checks if a collection contains a value.
-- `destroy_empty`: Destroys an object or data structure that has values with the **drop** ability.
-- `to_object_name`: Transforms an Object X to Object Y.
-- `from_object_name`: Transforms an Object Y to Object X.
+- `destroy_empty`: Destroys an object or data structure that contains values with the **drop** ability.
+- `to_object_name`: Transforms Object X to Object Y.
+- `from_object_name`: Transforms Object Y to Object X.
 - `property_name`: Returns an immutable reference or a copy.
 - `property_name_mut`: Returns a mutable reference.
 
-## Potato structs
+## Potato Structs
 
-Do not use 'potato' in the name of structs. The lack of abilities define it as a potato pattern.
+Avoid using 'potato' in the names of structs. The absence of abilities defines a potato pattern.
 
 ```move
 module conventions::request {
-  // ✅ Right
+  // ✅ Correct
   public struct Request {}
 
-  // ❌ Wrong
+  // ❌ Incorrect
   public struct RequestPotato {}
 }
 ```
 
-## Read functions
+## Read Functions
 
-Be mindful of the dot syntax when naming functions. Avoid using the object name on function names.
+When naming functions, be mindful of the dot syntax. Avoid using the object name in function names.
 
 ```move
 module conventions::profile {
@@ -77,12 +79,12 @@ module conventions::profile {
     age: u64
   }
 
-  // ✅ Right
+  // ✅ Correct
   public fun age(self: &Profile):  u64 {
     self.age
   }
 
-  // ❌ Wrong
+  // ❌ Incorrect
   public fun profile_age(self: &Profile): u64 {
     self.age
   }
@@ -94,18 +96,18 @@ module conventions::defi {
 
   public fun get_tokens(profile: &Profile) {
 
-   // ✅ Right
+   // ✅ Correct
    let name = profile.age();
 
-   // ❌ Wrong
+   // ❌ Incorrect
    let name2 = profile.profile_age();
   }
 }
 ```
 
-## Empty function
+## Empty Function
 
-Name the functions that create data structures as `empty`.
+Name functions that create data structures as `empty`.
 
 ```move
 module conventions::collection {
@@ -122,9 +124,9 @@ module conventions::collection {
 }
 ```
 
-## New function
+## New Function
 
-Name the functions that create objects as `new`.
+Name functions that create objects as `new`.
 
 ```move
 module conventions::object {
@@ -141,9 +143,11 @@ module conventions::object {
 }
 ```
 
-## Shared objects
+## Shared Objects
 
-Library modules that share objects should provide two functions: one to create the object and another to share it. It allows the caller to access its UID and run custom functionality before sharing it.
+Library modules that share objects should provide two functions:
+one to create the object and another to share it.
+This allows the caller to access its UID and execute custom functionality before sharing it.
 
 ```move
 module conventions::profile {
@@ -166,9 +170,10 @@ module conventions::profile {
 }
 ```
 
-## Reference functions
+## Reference Functions
 
-Name the functions that return a reference as `<PROPERTY-NAME>_mut` or `<PROPERTY-NAME>`, replacing with `<PROPERTY-NAME\>` the actual name of the property.
+Name functions that return a reference as `<PROPERTY-NAME>_mut` or `<PROPERTY-NAME>`,
+replacing `<PROPERTY-NAME>` with the actual name of the property.
 
 ```move
 module conventions::profile {
@@ -193,9 +198,11 @@ module conventions::profile {
 }
 ```
 
-## Separation of concerns
 
-Design your modules around one object or data structure. A variant structure should have its own module to avoid complexity and bugs.
+## Separation of Concerns
+
+Design your modules around a single object or data structure.
+A variant structure should have its own module to minimize complexity and reduce the likelihood of bugs.
 
 ```move
 module conventions::wallet {
@@ -221,21 +228,21 @@ module conventions::claw_back_wallet {
 
 ## Errors
 
-Use PascalCase for errors, start with an E and be descriptive.
+Use PascalCase for errors, starting with an `E` and ensuring they are descriptive.
 
 ```move
 module conventions::errors {
-  // ✅ Right
+  // ✅ Correct
   const ENameHasMaxLengthOf64Chars: u64 = 0;
 
-  // ❌ Wrong
+  // ❌ Incorrect
   const INVALID_NAME: u64 = 0;
 }
 ```
 
-## Struct property comments
+## Struct Property Comments
 
-Describe the properties of your structs.
+Document the properties of your structs with comments.
 
 ```move
 module conventions::profile {
@@ -252,9 +259,10 @@ module conventions::profile {
 }
 ```
 
-## Destroy functions
+## Destroy Functions
 
-Provide functions to delete objects. Destroy empty objects with the function `destroy_empty`. Use the function `drop` for objects that have types that can be dropped.
+Provide functions to delete objects. Use the `destroy_empty` function to destroy empty objects, and the `drop` function for objects containing types that can be dropped.
+
 
 ```move
 module conventions::wallet {
@@ -283,9 +291,10 @@ module conventions::wallet {
 }
 ```
 
-## Pure functions
+## Pure Functions
 
-Keep your functions pure to maintain composability. Do not use `transfer::transfer` or `transfer::public_transfer` inside core functions.
+Keep your functions pure to maintain composability.
+Avoid using `transfer::transfer` or `transfer::public_transfer` within core functions.
 
 ```move
 module conventions::amm {
@@ -296,14 +305,14 @@ module conventions::amm {
     id: UID
   }
 
-  // ✅ Right
+  // ✅ Correct
   // Return the excess coins even if they have zero value.
   public fun add_liquidity<CoinX, CoinY, LpCoin>(pool: &mut Pool, coin_x: Coin<CoinX>, coin_y: Coin<CoinY>): (Coin<LpCoin>, Coin<CoinX>, Coin<CoinY>) {
     // Implementation omitted.
     abort(0)
   }
 
-  // ✅ Right
+  // ✅ Correct
   public fun add_liquidity_and_transfer<CoinX, CoinY, LpCoin>(pool: &mut Pool, coin_x: Coin<CoinX>, coin_y: Coin<CoinY>, recipient: address) {
     let (lp_coin, coin_x, coin_y) = add_liquidity<CoinX, CoinY, LpCoin>(pool, coin_x, coin_y);
     transfer::public_transfer(lp_coin, recipient);
@@ -311,7 +320,7 @@ module conventions::amm {
     transfer::public_transfer(coin_y, recipient);
   }
 
-  // ❌ Wrong
+  // ❌ Incorrect
   public fun impure_add_liquidity<CoinX, CoinY, LpCoin>(pool: &mut Pool, coin_x: Coin<CoinX>, coin_y: Coin<CoinY>, ctx: &mut TxContext): Coin<LpCoin> {
     let (lp_coin, coin_x, coin_y) = add_liquidity<CoinX, CoinY, LpCoin>(pool, coin_x, coin_y);
     transfer::public_transfer(coin_x, tx_context::sender(ctx));
@@ -322,9 +331,10 @@ module conventions::amm {
 }
 ```
 
-## Coin argument
+## Coin Argument
 
-Pass the `Coin` object by value with the right amount directly because it's better for transaction readability from the frontend.
+Pass the `Coin` object by value with the correct amount directly,
+as this improves transaction readability from the frontend.
 
 ```move
 module conventions::amm {
@@ -335,13 +345,13 @@ module conventions::amm {
     id: UID
   }
 
-  // ✅ Right
+  // ✅ Correct
   public fun swap<CoinX, CoinY>(coin_in: Coin<CoinX>): Coin<CoinY> {
     // Implementation omitted.
     abort(0)
   }
 
-  // ❌ Wrong
+  // ❌ Incorrect
   public fun exchange<CoinX, CoinY>(coin_in: &mut Coin<CoinX>, value: u64): Coin<CoinY> {
     // Implementation omitted.
     abort(0)
@@ -349,7 +359,7 @@ module conventions::amm {
 }
 ```
 
-## Access control
+## Access Control
 
 To maintain composability, use capabilities instead of addresses for access control.
 
@@ -372,7 +382,7 @@ module conventions::access_control {
     balance: Balance<IOTA>
   }
 
-  // ✅ Right
+  // ✅ Correct
   // With this function, another protocol can hold the `Account` on behalf of a user.
   public fun withdraw(state: &mut State, account: &mut Account, ctx: &mut TxContext): Coin<IOTA> {
     let authorized_balance = account.balance;
@@ -382,7 +392,7 @@ module conventions::access_control {
     coin::take(&mut state.balance, authorized_balance, ctx)
   }
 
-  // ❌ Wrong
+  // ❌ Incorrect
   // This is less composable.
   public fun wrong_withdraw(state: &mut State, ctx: &mut TxContext): Coin<IOTA> {
     let sender = tx_context::sender(ctx);
@@ -395,9 +405,9 @@ module conventions::access_control {
 }
 ```
 
-## Data storage in owned vs shared objects
+## Data Storage in Owned vs. Shared Objects
 
-If your dApp data has a one to one relationship, it's best to use owned objects.
+For data with a one-to-one relationship, it's best to use owned objects.
 
 ```move
 module conventions::vesting_wallet {
@@ -439,9 +449,11 @@ module conventions::vesting_wallet {
 }
 ```
 
-## Admin capability
+## Admin Capability
 
-In admin-gated functions, the first parameter should be the capability. It helps the autocomplete with user types.
+In admin-gated functions, the first parameter should be the capability.
+This helps with autocomplete for user types.
+
 
 ```move
 module conventions::social_network {
@@ -457,14 +469,14 @@ module conventions::social_network {
     id: UID,
   }
 
-  // ✅ Right
+  // ✅ Correct
   // cap.update(&mut account, b"jose");
   public fun update(_: &Admin, account: &mut Account, new_name: String) {
     // Implementation omitted.
     abort(0)
   }
 
-  // ❌ Wrong
+  // ❌ Incorrect
   // account.update(&cap, b"jose");
   public fun set(account: &mut Account, _: &Admin, new_name: String) {
     // Implementation omitted.
