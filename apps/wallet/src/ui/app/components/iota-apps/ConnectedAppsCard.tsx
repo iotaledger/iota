@@ -12,9 +12,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
-import { Loading } from '_components';
+import { Loading, NoData } from '_components';
 import { type DAppEntry, IotaApp } from './IotaApp';
-import { IotaAppEmpty } from './IotaAppEmpty';
 
 function ConnectedDapps() {
     const navigate = useNavigate();
@@ -72,7 +71,7 @@ function ConnectedDapps() {
         <Loading loading={loading}>
             <>
                 <Header title={'Apps'} titleCentered onBack={handleBack} />
-                <div className="flex flex-col gap-md p-md">
+                <div className="flex flex-1 flex-col gap-md p-md">
                     {connectedApps.length ? (
                         <div className="flex flex-col gap-xs">
                             <Title title="Active Connections" size={TitleSize.Small} />
@@ -81,10 +80,7 @@ function ConnectedDapps() {
                             ))}
                         </div>
                     ) : (
-                        <>
-                            <IotaAppEmpty displayType="card" />
-                            <IotaAppEmpty displayType="card" />
-                        </>
+                        <NoData message="No connected apps found." />
                     )}
                 </div>
             </>
