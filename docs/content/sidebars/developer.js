@@ -39,11 +39,8 @@ const developer = [
             {
                 type: 'category',
                 label: 'Move Overview',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/move-overview/move-overview',
-                },
                 items: [
+                    'developer/iota-101/move-overview/move-overview',
                     'developer/iota-101/move-overview/strings',
                     'developer/iota-101/move-overview/collections',
                     'developer/iota-101/move-overview/init',
@@ -62,7 +59,7 @@ const developer = [
                         type: 'category',
                         label: 'Patterns',
                         items: [
-                            'developer/iota-101/move-overview/patterns',
+                            'developer/iota-101/move-overview/patterns/patterns',
                             'developer/iota-101/move-overview/patterns/capabilities',
                             'developer/iota-101/move-overview/patterns/witness',
                             'developer/iota-101/move-overview/patterns/transferable-witness',
