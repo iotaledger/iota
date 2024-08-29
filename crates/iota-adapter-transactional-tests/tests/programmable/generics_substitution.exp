@@ -10,7 +10,7 @@ gas summary: computation_cost: 1000000, storage_cost: 5456800,  storage_rebate: 
 
 task 2 'programmable'. lines 28-37:
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'programmable'. lines 38-45:
 Error: Transaction Effects Status: Invalid command argument at 0. The type of the value does not match the expected type

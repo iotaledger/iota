@@ -11,7 +11,7 @@ description = "Explore Move bytecode and how the source code compiles to it"
 anyhow.workspace = true
 clap.workspace = true
 crossterm = "0.28"
-ratatui.workspace = true
+ratatui = "0.28"
 regex.workspace = true
 
 move-binary-format.workspace = true
