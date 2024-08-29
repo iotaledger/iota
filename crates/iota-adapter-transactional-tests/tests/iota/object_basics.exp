@@ -20,7 +20,7 @@ Contents: test::object_basics::Object {id: iota::object::UID {id: iota::object::
 
 task 4 'run'. lines 74-74:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 2362536, non_refundable_storage_fee: 23864
+gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 2386400, non_refundable_storage_fee: 0
 
 task 5 'view-object'. lines 76-76:
 Owner: Account Address ( B )
@@ -35,9 +35,9 @@ gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 
 task 7 'run'. lines 80-80:
 events: Event { package_id: test, transaction_module: Identifier("object_basics"), sender: B, type_: StructTag { address: test, module: Identifier("object_basics"), name: Identifier("NewValueEvent"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1), object(2,0), object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 3784800,  storage_rebate: 3746952, non_refundable_storage_fee: 37848
+gas summary: computation_cost: 1000000, storage_cost: 3784800,  storage_rebate: 3784800, non_refundable_storage_fee: 0
 
 task 8 'run'. lines 82-82:
 mutated: object(0,1)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2362536, non_refundable_storage_fee: 23864
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2386400, non_refundable_storage_fee: 0

@@ -3,8 +3,8 @@
 
 'use client';
 
-import { Button } from '@/components';
-import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
+import { Button, TimelockedUnstakePopup } from '@/components';
+import { useGetCurrentEpochStartTimestamp, useNotifications, usePopups } from '@/hooks';
 import {
     formatDelegatedTimelockedStake,
     getVestingOverview,
@@ -26,14 +26,15 @@ import {
     useIotaClient,
     useSignAndExecuteTransactionBlock,
 } from '@iota/dapp-kit';
+import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { useQueryClient } from '@tanstack/react-query';
 
 function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
-
     const { addNotification } = useNotifications();
+    const { openPopup, closePopup } = usePopups();
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
@@ -53,11 +54,9 @@ function VestingDashboardPage(): JSX.Element {
         Number(currentEpochMs),
     );
 
-    function getValidatorName(validatorAddress: string): string {
-        return (
-            activeValidators?.find(
-                (activeValidator) => activeValidator.iotaAddress === validatorAddress,
-            )?.name || validatorAddress
+    function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
+        return activeValidators?.find(
+            (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
 
@@ -78,7 +77,7 @@ function VestingDashboardPage(): JSX.Element {
             })
             .then(() => {
                 queryClient.invalidateQueries({
-                    queryKey: ['get-staked-timelocked-objects', account?.address],
+                    queryKey: ['get-timelocked-staked-objects', account?.address],
                 });
                 queryClient.invalidateQueries({
                     queryKey: [
@@ -119,8 +118,21 @@ function VestingDashboardPage(): JSX.Element {
     };
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
-        // TODO: handle unstake logic
-        console.info('delegatedTimelockedStake', delegatedTimelockedStake);
+        const validatorInfo = getValidatorByAddress(delegatedTimelockedStake.validatorAddress);
+        if (!account || !validatorInfo) {
+            addNotification('Cannot create transaction', NotificationType.Error);
+            return;
+        }
+
+        openPopup(
+            <TimelockedUnstakePopup
+                accountAddress={account.address}
+                delegatedStake={delegatedTimelockedStake}
+                validatorInfo={validatorInfo}
+                closePopup={closePopup}
+                onSuccess={handleOnSuccess}
+            />,
+        );
     }
 
     return (
@@ -174,7 +186,8 @@ function VestingDashboardPage(): JSX.Element {
                             >
                                 <span>
                                     Validator:{' '}
-                                    {getValidatorName(timelockedStakedObject.validatorAddress)}
+                                    {getValidatorByAddress(timelockedStakedObject.validatorAddress)
+                                        ?.name || timelockedStakedObject.validatorAddress}
                                 </span>
                                 <span>
                                     Stake Request Epoch: {timelockedStakedObject.stakeRequestEpoch}
@@ -188,17 +201,17 @@ function VestingDashboardPage(): JSX.Element {
                         );
                     })}
                 </div>
+                {account?.address && (
+                    <div className="flex flex-row space-x-4">
+                        {vestingSchedule.availableClaiming ? (
+                            <Button onClick={handleCollect}>Collect</Button>
+                        ) : null}
+                        {vestingSchedule.availableStaking ? (
+                            <Button onClick={handleStake}>Stake</Button>
+                        ) : null}
+                    </div>
+                )}
             </div>
-            {account?.address && (
-                <div className="flex flex-row space-x-4">
-                    {vestingSchedule.availableClaiming ? (
-                        <Button onClick={handleCollect}>Collect</Button>
-                    ) : null}
-                    {vestingSchedule.availableStaking ? (
-                        <Button onClick={handleStake}>Stake</Button>
-                    ) : null}
-                </div>
-            )}
         </div>
     );
 }

@@ -8,12 +8,12 @@ gas summary: computation_cost: 1000000, storage_cost: 5342800,  storage_rebate: 
 task 2 'publish'. lines 27-35:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 4453600,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 4453600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'run'. lines 38-38:
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 4 'view-object'. lines 40-40:
 Owner: Shared
