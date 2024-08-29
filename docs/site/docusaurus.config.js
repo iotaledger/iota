@@ -150,7 +150,7 @@ const config = {
           nodes: [
             {
               host: 'docs-search.iota.org',
-              port: 8108,
+              port: '',
               protocol: 'https',
             },
           ],
