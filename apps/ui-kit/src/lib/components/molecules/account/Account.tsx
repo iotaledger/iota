@@ -5,7 +5,7 @@ import React from 'react';
 import cx from 'classnames';
 import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
-import { LockLocked, LockUnlocked, MoreHoriz } from '@iota/ui-icons';
+import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled } from '@iota/ui-icons';
 import { Address } from '../address';
 
 interface AccountProps {
@@ -54,6 +54,10 @@ interface AccountProps {
      */
     isExternal?: boolean;
     /**
+     * Show checkmark selected or unselected if not undefined (optional).
+     */
+    isSelected?: boolean;
+    /**
      * The type of the badge.
      */
     badgeType?: BadgeType;
@@ -77,6 +81,7 @@ export function Account({
     onOpen,
     isCopyable,
     isExternal,
+    isSelected,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
 
@@ -100,37 +105,53 @@ export function Account({
                     />
                 </div>
             </div>
-            <div
-                className={cx(
-                    'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
-                    isLocked && '[&_button:last-child]:flex',
-                )}
-            >
-                {onOptionsClick && (
+            <div className={cx('z-10 ml-auto flex items-center space-x-2 ')}>
+                <div
+                    className={cx(
+                        'flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
+                        isLocked && '[&_button:last-child]:flex',
+                    )}
+                >
+                    {onOptionsClick && (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onOptionsClick}
+                            icon={<MoreHoriz className="h-5 w-5" />}
+                        />
+                    )}
+                    {onLockAccountClick &&
+                        onUnlockAccountClick &&
+                        (isLocked ? (
+                            <Button
+                                size={ButtonSize.Small}
+                                type={ButtonType.Ghost}
+                                onClick={onUnlockAccountClick}
+                                icon={<LockLocked className="h-5 w-5" />}
+                            />
+                        ) : (
+                            <Button
+                                size={ButtonSize.Small}
+                                type={ButtonType.Ghost}
+                                onClick={onLockAccountClick}
+                                icon={<LockUnlocked className="h-5 w-5" />}
+                            />
+                        ))}
+                </div>
+                {isSelected !== undefined ? (
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
-                        onClick={onOptionsClick}
-                        icon={<MoreHoriz />}
+                        icon={
+                            <CheckmarkFilled
+                                className={cx('h-5 w-5', {
+                                    'text-neutral-10': !isSelected,
+                                    'text-primary-30': isSelected,
+                                })}
+                            />
+                        }
                     />
-                )}
-                {onLockAccountClick &&
-                    onUnlockAccountClick &&
-                    (isLocked ? (
-                        <Button
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            onClick={onUnlockAccountClick}
-                            icon={<LockLocked />}
-                        />
-                    ) : (
-                        <Button
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            onClick={onLockAccountClick}
-                            icon={<LockUnlocked />}
-                        />
-                    ))}
+                ) : null}
             </div>
         </div>
     );

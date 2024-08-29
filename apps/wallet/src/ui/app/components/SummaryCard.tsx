@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import clsx from 'clsx';
 import type { ReactNode } from 'react';
-
-import { Text } from '../shared/text';
+import { Title, TitleSize } from '@iota/apps-ui-kit';
 
 export interface SummaryCardProps {
     header?: string;
@@ -27,28 +25,14 @@ export function SummaryCard({
     boxShadow = false,
 }: SummaryCardProps) {
     return (
-        <div
-            className={clsx(
-                { 'border-gray-45 border border-solid': !noBorder, 'shadow-card-soft': boxShadow },
-                'flex w-full flex-col flex-nowrap rounded-2xl bg-white',
-            )}
-        >
+        <div className="flex w-full flex-col flex-nowrap gap-xs rounded-xl bg-neutral-96 pb-md">
             {header ? (
-                <div className="bg-gray-40 flex flex-row flex-nowrap items-center justify-center rounded-t-2xl px-3.75 py-2.5 uppercase">
-                    <Text variant="captionSmall" weight="bold" color="steel-darker" truncate>
-                        {header}
-                    </Text>
+                <div className="flex h-[56px] items-center">
+                    <Title title={header} size={TitleSize.Small} />
                 </div>
             ) : null}
-            <div
-                className={clsx(
-                    'flex flex-1 flex-col flex-nowrap items-stretch overflow-y-auto px-4',
-                    minimalPadding ? 'py-2' : 'py-4',
-                    showDivider ? 'divide-gray-40 divide-x-0 divide-y divide-solid' : '',
-                )}
-            >
-                {body}
-            </div>
+
+            {body && <div className="px-md">{body}</div>}
             {footer ? (
                 <div className="border-gray-40 border-x-0 border-b-0 border-t border-solid p-4 pt-3">
                     {footer}
