@@ -70,11 +70,29 @@ export function CheckpointsTable({
                     colWidths={['100px', '120px', '204px', '90px', '38px']}
                 />
             ) : (
-                <TableCard data={cardData.data} columns={cardData.columns} paginationOptions={ !disablePagination ? {
-                    onFirstPageClick: pagination.hasPrev ? pagination.onFirst : undefined,
-                    onNextPageClick:  (maxCursor ? Number(data && data.nextCursor) > Number(maxCursor) : pagination.hasNext) ? pagination.onNext : undefined,
-                    onPreviousPageClick: pagination.hasPrev ? pagination.onPrev : undefined,
-                } : undefined} />
+                <TableCard
+                    data={cardData.data}
+                    columns={cardData.columns}
+                    paginationOptions={
+                        !disablePagination
+                            ? {
+                                  onFirstPageClick: pagination.hasPrev
+                                      ? pagination.onFirst
+                                      : undefined,
+                                  onNextPageClick: (
+                                      maxCursor
+                                          ? Number(data && data.nextCursor) > Number(maxCursor)
+                                          : pagination.hasNext
+                                  )
+                                      ? pagination.onNext
+                                      : undefined,
+                                  onPreviousPageClick: pagination.hasPrev
+                                      ? pagination.onPrev
+                                      : undefined,
+                              }
+                            : undefined
+                    }
+                />
             )}
 
             <div className="flex justify-between">

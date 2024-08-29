@@ -70,21 +70,35 @@ export function EpochsActivityTable({
                     colWidths={['100px', '120px', '40px', '204px', '90px', '38px']}
                 />
             ) : (
-                <TableCard data={cardData.data} columns={cardData.columns} paginationOptions={ !disablePagination ? {
-                    onFirstPageClick: pagination.hasPrev ? pagination.onFirst : undefined,
-                    onNextPageClick: pagination.hasNext ? pagination.onNext : undefined,
-                    onPreviousPageClick: pagination.hasPrev ? pagination.onPrev : undefined,
-                } : undefined}  />
+                <TableCard
+                    data={cardData.data}
+                    columns={cardData.columns}
+                    paginationOptions={
+                        !disablePagination
+                            ? {
+                                  onFirstPageClick: pagination.hasPrev
+                                      ? pagination.onFirst
+                                      : undefined,
+                                  onNextPageClick: pagination.hasNext
+                                      ? pagination.onNext
+                                      : undefined,
+                                  onPreviousPageClick: pagination.hasPrev
+                                      ? pagination.onPrev
+                                      : undefined,
+                              }
+                            : undefined
+                    }
+                />
             )}
 
             <div className="flex justify-between">
                 {disablePagination ? (
                     <Link
-                    to="/recent?tab=epochs"
-                    after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}
-                >
-                    View all
-                </Link>
+                        to="/recent?tab=epochs"
+                        after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}
+                    >
+                        View all
+                    </Link>
                 ) : undefined}
 
                 <div className="flex items-center space-x-3">

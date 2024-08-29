@@ -29,7 +29,7 @@ export interface TableCardProps<DataType extends object> {
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
-    paginationOptions?: TablePaginationOptions
+    paginationOptions?: TablePaginationOptions;
 }
 
 export function TableCard<DataType extends object>({
@@ -38,7 +38,7 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
-    paginationOptions
+    paginationOptions,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -78,7 +78,10 @@ export function TableCard<DataType extends object>({
                 refetching && 'opacity-50',
             )}
         >
-            <Table rowIndexes={table.getRowModel().rows.map((row) => row.index)} paginationOptions={paginationOptions}>
+            <Table
+                rowIndexes={table.getRowModel().rows.map((row) => row.index)}
+                paginationOptions={paginationOptions}
+            >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableHeaderRow key={headerGroup.id}>

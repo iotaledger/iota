@@ -73,11 +73,25 @@ export function TransactionsActivityTable({
                         colWidths={['30%', '30%', '10%', '20%', '10%']}
                     />
                 ) : (
-                    <TableCard data={cardData.data} columns={cardData.columns} paginationOptions={ !disablePagination ? {
-                        onFirstPageClick: pagination.hasPrev ?  pagination.onFirst : undefined,
-                        onNextPageClick: pagination.hasNext ? pagination.onNext : undefined,
-                        onPreviousPageClick: pagination.hasPrev ? pagination.onPrev : undefined,
-                    } : undefined} />
+                    <TableCard
+                        data={cardData.data}
+                        columns={cardData.columns}
+                        paginationOptions={
+                            !disablePagination
+                                ? {
+                                      onFirstPageClick: pagination.hasPrev
+                                          ? pagination.onFirst
+                                          : undefined,
+                                      onNextPageClick: pagination.hasNext
+                                          ? pagination.onNext
+                                          : undefined,
+                                      onPreviousPageClick: pagination.hasPrev
+                                          ? pagination.onPrev
+                                          : undefined,
+                                  }
+                                : undefined
+                        }
+                    />
                 )}
 
                 <div className="flex justify-between">
@@ -85,7 +99,7 @@ export function TransactionsActivityTable({
                         <Link to="/recent" after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}>
                             View all
                         </Link>
-                    ): undefined}
+                    ) : undefined}
                     <div className="flex items-center space-x-3">
                         <Text variant="body/medium" color="steel-dark">
                             {count ? numberSuffix(Number(count)) : '-'}
