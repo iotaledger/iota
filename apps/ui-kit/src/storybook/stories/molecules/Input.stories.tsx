@@ -78,6 +78,17 @@ export const WithLeadingElement: Story = {
     render: (props) => <InputStory {...props} withLeadingIcon />,
 };
 
+const TrailingMaxButton = ({ onButtonClick }: { onButtonClick: () => void }) => {
+    return (
+        <ButtonUnstyled
+            onClick={onButtonClick}
+            className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs"
+        >
+            <span className="font-inter text-label-md">Max</span>
+        </ButtonUnstyled>
+    );
+};
+
 export const WithMaxTrailingButton: Story = {
     args: {
         type: InputType.Number,
@@ -88,15 +99,12 @@ export const WithMaxTrailingButton: Story = {
         trailingElement: <PlaceholderReplace />,
     },
     render: ({ value, ...props }) => {
-        const [inputValue, setInputValue] = useState(value ?? '');
+        const [inputValue, setInputValue] = useState<string>('');
         const [error, setError] = useState<string | undefined>();
-
-        useEffect(() => {
-            setInputValue(value ?? '');
-        }, [value]);
 
         function onMaxClick() {
             setInputValue('10');
+            checkInputValidity(inputValue);
         }
 
         const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,27 +125,42 @@ export const WithMaxTrailingButton: Story = {
             checkInputValidity(inputValue);
         }, [inputValue]);
 
-        const TrailingMaxButton = () => {
-            return (
-                <ButtonUnstyled
-                    onClick={onMaxClick}
-                    className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs"
-                >
-                    <span className="font-inter text-label-md">Max</span>
-                </ButtonUnstyled>
-            );
-        };
-
         return (
             <Input
                 {...props}
                 required
                 label="Send Tokens"
                 value={inputValue}
-                trailingElement={<TrailingMaxButton />}
+                trailingElement={<TrailingMaxButton onButtonClick={onMaxClick} />}
                 errorMessage={error}
                 onChange={onChange}
                 onClearInput={() => setInputValue('')}
+            />
+        );
+    },
+};
+
+export const WithPrefixAndSuffix: Story = {
+    args: {
+        type: InputType.Number,
+        placeholder: 'Enter the IOTA Amount',
+        amountCounter: '10',
+        caption: 'Caption',
+        suffix: ' IOTA',
+        prefix: '~',
+    },
+    render: (props) => {
+        const [inputValue, setInputValue] = useState<string>('');
+
+        function onMaxClick() {
+            setInputValue('10');
+        }
+
+        return (
+            <InputStory
+                {...props}
+                value={inputValue}
+                trailingElement={<TrailingMaxButton onButtonClick={onMaxClick} />}
             />
         );
     },
