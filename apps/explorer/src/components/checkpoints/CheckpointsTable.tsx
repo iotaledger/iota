@@ -70,30 +70,22 @@ export function CheckpointsTable({
                     colWidths={['100px', '120px', '204px', '90px', '38px']}
                 />
             ) : (
-                <div>
-                    <TableCard data={cardData.data} columns={cardData.columns} />
-                </div>
+                <TableCard data={cardData.data} columns={cardData.columns} paginationOptions={ !disablePagination ? {
+                    onFirstPageClick: pagination.hasPrev ? pagination.onFirst : undefined,
+                    onNextPageClick:  (maxCursor ? Number(data && data.nextCursor) > Number(maxCursor) : pagination.hasNext) ? pagination.onNext : undefined,
+                    onPreviousPageClick: pagination.hasPrev ? pagination.onPrev : undefined,
+                } : undefined} />
             )}
 
             <div className="flex justify-between">
-                {!disablePagination ? (
-                    <Pagination
-                        {...pagination}
-                        hasNext={
-                            maxCursor
-                                ? Number(data && data.nextCursor) > Number(maxCursor)
-                                : pagination.hasNext
-                        }
-                    />
-                ) : (
+                {disablePagination ? (
                     <Link
                         to="/recent?tab=checkpoints"
                         after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}
                     >
                         View all
                     </Link>
-                )}
-
+                ) : undefined}
                 <div className="flex items-center space-x-3">
                     <Text variant="body/medium" color="steel-dark">
                         {count ? numberSuffix(Number(count)) : '-'}
