@@ -58,6 +58,7 @@
         "@vitejs/plugin-react-swc": "^3.3.2",
         "autoprefixer": "^10.4.14",
         "cross-env": "^7.0.3",
+        "memfs": "^4.11.1",
         "postcss": "^8.4.31",
         "storybook": "^7.1.0",
         "storybook-dark-mode": "^4.0.2",
