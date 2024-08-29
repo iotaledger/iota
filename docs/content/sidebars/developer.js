@@ -52,23 +52,17 @@ const developer = [
                     {
                         type: 'category',
                         label: 'Package Upgrades',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/iota-101/move-overview/packages/packages',
-                        },
                         items: [
-                            'developer/iota-101/move-overview/packages/upgrade',
-                            'developer/iota-101/move-overview/packages/custom-policies',
+                            'developer/iota-101/move-overview/package-upgrades/introduction',
+                            'developer/iota-101/move-overview/package-upgrades/upgrade',
+                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
                     {
                         type: 'category',
                         label: 'Patterns',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/iota-101/move-overview/patterns',
-                        },
                         items: [
+                            'developer/iota-101/move-overview/patterns',
                             'developer/iota-101/move-overview/patterns/capabilities',
                             'developer/iota-101/move-overview/patterns/witness',
                             'developer/iota-101/move-overview/patterns/transferrable-witness',
