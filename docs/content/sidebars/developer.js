@@ -65,7 +65,7 @@ const developer = [
                             'developer/iota-101/move-overview/patterns',
                             'developer/iota-101/move-overview/patterns/capabilities',
                             'developer/iota-101/move-overview/patterns/witness',
-                            'developer/iota-101/move-overview/patterns/transferrable-witness',
+                            'developer/iota-101/move-overview/patterns/transferable-witness',
                             'developer/iota-101/move-overview/patterns/hot-potato',
                             'developer/iota-101/move-overview/patterns/id-pointer',
                         ],
