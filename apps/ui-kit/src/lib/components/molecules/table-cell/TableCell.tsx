@@ -83,6 +83,13 @@ type TableCellCheckbox = {
     isIndeterminate?: boolean;
 };
 
+type TableCellPlaceholder = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Placeholder;
+};
+
 export type TableCellProps = TableCellBaseProps &
     (
         | TableCellText
@@ -90,6 +97,7 @@ export type TableCellProps = TableCellBaseProps &
         | TableCellBadge
         | TableCellAvatarText
         | TableCellCheckbox
+        | TableCellPlaceholder
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
@@ -145,6 +153,10 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         onCheckedChange={onChange}
                         isIndeterminate={isIndeterminate}
                     />
+                );
+            case TableCellType.Placeholder:
+                return (
+                    <div className="h-[1em] w-full animate-shimmer rounded-md bg-placeholderShimmer bg-[length:1000px_100%] dark:bg-placeholderShimmerDark"></div>
                 );
             default:
                 return null;
