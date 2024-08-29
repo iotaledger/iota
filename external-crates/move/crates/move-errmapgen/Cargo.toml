@@ -18,5 +18,3 @@ serde.workspace = true
 
 [dev-dependencies]
 codespan-reporting.workspace = true
-datatest-stable.workspace = true
-move-prover.workspace = true
