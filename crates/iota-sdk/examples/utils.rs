@@ -11,7 +11,7 @@ use futures::{future, stream::StreamExt};
 use iota_config::{
     iota_config_dir, Config, PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
 };
-use iota_json_rpc_types::{Coin, IotaObjectDataOptions};
+use iota_json_rpc_types::{Coin, IotaObjectDataOptions, IotaTransactionBlockResponse};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
@@ -246,18 +246,8 @@ pub async fn split_coin_digest(
         gas_price,
     );
 
-    // sign & execute the transaction
-    let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
-    let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;
+    let transaction_response = sign_and_execute_transaction(client, sender, tx_data).await?;
 
-    let transaction_response = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::new(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
     Ok(transaction_response.digest)
 }
 
@@ -308,6 +298,26 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
     let wallet = WalletContext::new(&wallet_conf, Some(std::time::Duration::from_secs(60)), None)?;
 
     Ok(wallet)
+}
+
+pub async fn sign_and_execute_transaction(
+    client: &IotaClient,
+    sender: &IotaAddress,
+    tx_data: TransactionData,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
+    let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;
+
+    let transaction_block_response = client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_data(tx_data, vec![signature]),
+            IotaTransactionBlockResponseOptions::full_content(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+
+    Ok(transaction_block_response)
 }
 
 // this function should not be used. It is only used to make clippy happy,
