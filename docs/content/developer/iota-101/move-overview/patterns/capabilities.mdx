@@ -1,29 +1,34 @@
 ---
-title: Capabilities
+description: Introduction to capabilities and their use in authorizing actions within the Move language.
 ---
 
-A capability is a pattern that allows authorizing actions with an object. For example, the [`UpgradeCap`](../package-upgrades/upgrade.mdx#upgrade-requirements) authorizes the action of upgrading packages. One of the most common capabilities you might encounter is `TreasuryCap`, which is defined in [`iota::coin`](https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/packages/iota-framework/sources/coin.move).
+# Capabilities
 
+A capability is a design pattern that enables the authorization of specific actions with an object.
+For instance,
+the [`UpgradeCap`](../package-upgrades/upgrade.mdx#upgrade-requirements) is used to authorize the upgrading of packages.
+Another common example is the [`TreasuryCap`](../../../../references/framework/iota-framework/coin.mdx#resource-treasurycap),
+which grants the authority to manage treasury functions.
 
 ```move
 module examples::item {
     use std::string::String;
 
-    /// Type that marks Capability to create new `Item`s.
+    /// Type representing the capability to create new `Item`s.
     public struct AdminCap has key { id: UID }
 
-    /// Custom NFT-like type.
+    /// Custom NFT-like type representing an item.
     public struct Item has key, store { id: UID, name: String }
 
-    /// Module initializer is called once on module publish.
-    /// Here we create only one instance of `AdminCap` and send it to the publisher.
+    /// Module initializer, called once during the module's deployment.
+    /// This function creates a single instance of `AdminCap` and assigns it to the publisher.
     fun init(ctx: &mut TxContext) {
         transfer::transfer(AdminCap {
             id: object::new(ctx)
         }, tx_context::sender(ctx))
     }
 
-    /// The function can not be called if `AdminCap` is not passed as
+    /// Function to create a new `Item`. It requires `AdminCap` to authorize the action.
     public fun create_item(_: &AdminCap, name: String, ctx: &mut TxContext): Item {
         let item = Item {
             id: object::new(ctx),
