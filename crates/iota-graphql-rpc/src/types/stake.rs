@@ -17,7 +17,6 @@ use super::{
     dynamic_field::{DynamicField, DynamicFieldName},
     epoch::Epoch,
     iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotansRegistration},
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
     object,
@@ -132,33 +131,6 @@ impl StakedIota {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(&self.super_.super_)
-            .default_iotans_name(ctx, format)
-            .await
-    }
-
-    /// The IotansRegistration NFTs owned by this object. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotansRegistration>> {
-        OwnerImpl::from(&self.super_.super_)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 

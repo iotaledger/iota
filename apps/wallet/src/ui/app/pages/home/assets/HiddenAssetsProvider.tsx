@@ -7,7 +7,6 @@ import { Check12 } from '@iota/icons';
 import { get, set } from 'idb-keyval';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
-
 import { Link as InlineLink } from '../../../shared/Link';
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
@@ -80,7 +79,7 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
                                     }}
                                 >
                                     <InlineLink
-                                        to="/nfts/hidden-assets"
+                                        to="/nfts"
                                         color="hero"
                                         weight="medium"
                                         before={

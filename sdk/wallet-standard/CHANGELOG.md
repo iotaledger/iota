@@ -1,5 +1,11 @@
 # @iota/wallet-standard
 
+## 0.1.2
+
+### Patch Changes
+
+-   88b8857: Support non-default IOTA chains.
+
 ## 0.1.1
 
 ### Patch Changes

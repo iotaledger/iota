@@ -16,13 +16,13 @@ use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let ws = IotaClientBuilder::default()
+    let client = IotaClientBuilder::default()
         .ws_url("wss://rpc.testnet.iota.io:443")
         .build("https://fullnode.testnet.iota.io:443")
         .await?;
-    println!("WS version {:?}", ws.api_version());
+    println!("WS version {:?}", client.api_version());
 
-    let mut subscribe = ws
+    let mut subscribe = client
         .read_api()
         .subscribe_transaction(TransactionFilter::MoveFunction {
             package: "0x2".parse()?,
