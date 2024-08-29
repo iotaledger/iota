@@ -47,6 +47,14 @@ const rowsData: TableCellProps[][] = [
         { type: TableCellType.Text, label: '12.03.2019' },
     ],
     [
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+    ],
+    [
         { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Sam Johnson' },
         { type: TableCellType.Badge, badgeType: BadgeType.PrimarySoft, label: '40' },
         { type: TableCellType.Text, label: 'Project Manager' },

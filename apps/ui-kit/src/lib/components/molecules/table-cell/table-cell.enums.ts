@@ -7,4 +7,5 @@ export enum TableCellType {
     Badge = 'badge',
     AvatarText = 'avatar-text',
     Checkbox = 'checkbox',
+    Placeholder = 'placeholder'
 }
