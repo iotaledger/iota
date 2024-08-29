@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight, ArrowTopRight } from '@iota/ui-icons';
+import { ArrowRight } from '@iota/ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
 import { CardActionType } from './card.enums';
 
@@ -10,17 +10,22 @@ export type CardActionProps = {
     subtitle?: string;
     type: CardActionType;
     onClick?: () => void;
-    isExternalLink?: boolean;
+    icon?: React.ReactNode;
 };
 
-export function CardAction({ type, onClick, subtitle, title, isExternalLink }: CardActionProps) {
+export function CardAction({ type, onClick, subtitle, title, icon }: CardActionProps) {
+    function handleActionClick(event: React.MouseEvent) {
+        event?.stopPropagation();
+        onClick?.();
+    }
+
     if (type === CardActionType.Link) {
         return (
             <div
-                onClick={onClick}
-                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-6 [&_svg]:w-6"
+                onClick={handleActionClick}
+                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
             >
-                {isExternalLink ? <ArrowTopRight /> : <ArrowRight />}
+                {icon ? icon : <ArrowRight />}
             </div>
         );
     }
@@ -48,7 +53,7 @@ export function CardAction({ type, onClick, subtitle, title, isExternalLink }: C
                     type={ButtonType.Outlined}
                     size={ButtonSize.Small}
                     text={title}
-                    onClick={onClick}
+                    onClick={handleActionClick}
                 />
             </div>
         );

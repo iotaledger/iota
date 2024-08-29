@@ -11,32 +11,32 @@ gas summary: computation_cost: 1000000, storage_cost: 6171200,  storage_rebate: 
 task 2 'upgrade'. lines 18-27:
 created: object(2,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 6520800,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 6520800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 3 'upgrade'. lines 29-56:
 created: object(3,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 9135200,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 9135200,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 58-58:
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 5 'run'. lines 60-60:
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 6 'run'. lines 62-62:
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 7 'run'. lines 64-64:
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2728400,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 8 'view-object'. lines 66-66:
 Owner: Account Address ( A )

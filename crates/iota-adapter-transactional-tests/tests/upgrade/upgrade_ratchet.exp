@@ -11,11 +11,11 @@ gas summary: computation_cost: 1000000, storage_cost: 5646800,  storage_rebate: 
 task 2 'upgrade'. lines 14-17:
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 3 'run'. lines 19-21:
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 2622000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 2622000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 4 'upgrade'. lines 22-27:
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::authorize_upgrade (function index 21) at offset 24, Abort Code: 1
@@ -24,16 +24,16 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 5 'upgrade'. lines 28-33:
 created: object(5,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 6 'upgrade'. lines 34-37:
 created: object(6,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 7 'run'. lines 39-41:
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 2622000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 2622000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 8 'upgrade'. lines 42-47:
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::authorize_upgrade (function index 21) at offset 24, Abort Code: 1
@@ -46,7 +46,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 10 'upgrade'. lines 54-59:
 created: object(10,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 5016000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 11 'run'. lines 60-62:
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::restrict (function index 23) at offset 10, Abort Code: 1
@@ -55,7 +55,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 12 'run'. lines 63-63:
 mutated: object(0,0)
 deleted: object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 13 'view-object'. lines 65-67:
 No object at id 1,1

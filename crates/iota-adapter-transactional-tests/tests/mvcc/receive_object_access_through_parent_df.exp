@@ -61,10 +61,10 @@ task 12 'run'. lines 101-101:
 created: object(12,0)
 mutated: object(0,0), object(2,6)
 wrapped: object(2,5)
-gas summary: computation_cost: 1000000, storage_cost: 4278800,  storage_rebate: 3521232, non_refundable_storage_fee: 35568
+gas summary: computation_cost: 1000000, storage_cost: 4278800,  storage_rebate: 3556800, non_refundable_storage_fee: 0
 
 task 13 'run'. lines 103-103:
 created: object(13,0)
 mutated: object(0,0), object(2,6)
 wrapped: object(2,7)
-gas summary: computation_cost: 1000000, storage_cost: 4856400,  storage_rebate: 4093056, non_refundable_storage_fee: 41344
+gas summary: computation_cost: 1000000, storage_cost: 4856400,  storage_rebate: 4134400, non_refundable_storage_fee: 0
