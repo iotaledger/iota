@@ -82,9 +82,11 @@ const TrailingMaxButton = ({ onButtonClick }: { onButtonClick: () => void }) => 
     return (
         <ButtonUnstyled
             onClick={onButtonClick}
-            className="flex items-center justify-center rounded-xl border border-neutral-60 px-xxs py-xxxs"
+            className="flex items-center justify-center rounded-xl border border-neutral-60 px-sm py-xxxs dark:border-neutral-40"
         >
-            <span className="font-inter text-label-md">Max</span>
+            <span className="font-inter text-label-md text-neutral-10 dark:text-neutral-92">
+                Max
+            </span>
         </ButtonUnstyled>
     );
 };
