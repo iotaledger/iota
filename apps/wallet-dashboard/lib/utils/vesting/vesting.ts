@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExtendedTimelockObject } from '@iota/core';
+import { GroupedTimelockObject } from '@iota/core';
 import {
     MIN_STAKING_THRESHOLD,
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
@@ -207,15 +207,14 @@ export function isSupplyIncreaseVestingObject(
 }
 
 /**
- * Formats an array of timelocked objects into an array of vesting objects.
- * Vesting object is grouped object by expiration time, where objectId holds the id of the first object in the group to which the rest of the objects in the group will be merged.
+ * Group an array of timelocked objects into an array of grouped timelocked objects.
  *
- * @param timelockedObjects - The array of timelocked objects to be formatted.
- * @returns An array of vesting objects.
+ * @param timelockedObjects - The array of timelocked objects to be grouped.
+ * @returns An array of grouped timelocked objects.
  */
-export function getFormattedTimelockedObjects(
+export function groupTimelockedObjects(
     timelockedObjects: TimelockedObject[],
-): ExtendedTimelockObject[] {
+): GroupedTimelockObject[] {
     const expirationMap = new Map<number, TimelockedObject[]>();
 
     timelockedObjects.forEach((timelockedObject) => {
@@ -227,42 +226,44 @@ export function getFormattedTimelockedObjects(
         expirationMap.get(expirationTimestamp)!.push(timelockedObject);
     });
 
-    const result: ExtendedTimelockObject[] = [];
+    const groupedTimelockObjects: GroupedTimelockObject[] = Array.from(
+        expirationMap,
+        ([expirationTime, objects]) => {
+            const totalLockedAmount = objects.reduce((sum, obj) => {
+                return BigInt(sum) + BigInt(obj.locked.value);
+            }, 0n);
 
-    expirationMap.forEach((objects, expirationTime) => {
-        const totalLockedAmount = objects.reduce((sum, obj) => {
-            return BigInt(sum) + BigInt(obj.locked.value);
-        }, 0n);
+            const label = objects[0].label; // Assuming all objects in the group have the same label
+            const objectIds = objects.map((obj) => obj.id.id);
 
-        const label = objects[0].label; // Assuming all objects in the group have the same label
-        const objectIds = objects.map((obj) => obj.id.id);
-        result.push({
-            objectId: objectIds[0] || '',
-            expirationTimestamp: expirationTime.toString(),
-            totalLockedAmount,
-            objectIds,
-            label,
-        });
-    });
+            return {
+                objectId: objectIds[0] || '',
+                expirationTimestamp: expirationTime.toString(),
+                totalLockedAmount,
+                mergeObjectIds: objectIds.slice(1),
+                label,
+            };
+        },
+    );
 
-    return result;
+    return groupedTimelockObjects;
 }
 
 /**
- * Adjusts the split amounts in an array of extended timelocked objects based on the total remaining amount.
+ * Adjusts the split amounts in an array of grouped timelocked objects based on the total remaining amount.
  * The function iteratively splits the remaining amount among the timelocked objects until the split conditions are met.
  *
- * @param extendedTimelockObjects - An array of extended timelocked objects.
- * @param totalRemainingAmount - The total remaining amount to be split among the extended timelocked objects.
+ * @param groupedTimelockObjects - An array of grouped timelocked objects.
+ * @param totalRemainingAmount - The total remaining amount to be split among the grouped timelocked objects.
  */
 export function adjustSplitAmountsInExtendedTimelockObjects(
-    extendedTimelockObjects: ExtendedTimelockObject[],
+    extendedTimelockObjects: GroupedTimelockObject[],
     totalRemainderAmount: bigint,
 ) {
     let objectsToSplit = 1;
-    let splitAchieved = false;
+    let foundSplit = false;
 
-    while (!splitAchieved && objectsToSplit <= extendedTimelockObjects.length) {
+    while (!foundSplit && objectsToSplit <= extendedTimelockObjects.length) {
         const baseRemainderAmount = totalRemainderAmount / BigInt(objectsToSplit);
         // if the amount is odd value we need to add the remainder to the first object because we floored the division
         const remainder = totalRemainderAmount % BigInt(objectsToSplit);
@@ -282,13 +283,13 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
                 obj.splitAmount = amountToSplit;
                 foundObjectsToSplit++;
                 if (foundObjectsToSplit === objectsToSplit) {
-                    splitAchieved = true;
+                    foundSplit = true;
                     break;
                 }
             }
         }
 
-        if (!splitAchieved) {
+        if (!foundSplit) {
             extendedTimelockObjects.forEach((obj) => (obj.splitAmount = BigInt(0)));
             objectsToSplit++;
         }
@@ -296,18 +297,18 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
 }
 
 /**
- * Prepares vesting objects for timelocked staking.
+ * Prepares timelocked objects for timelocked staking.
  *
  * @param timelockedObjects - An array of timelocked objects.
  * @param amount - The amount to stake.
  * @param currentEpochMs - The current epoch in milliseconds.
- * @returns An array of vesting objects that meet the stake amount.
+ * @returns An array of timelocked objects that meet the stake amount.
  */
 export function prepareObjectsForTimelockedStakingTransaction(
     timelockedObjects: IotaObjectData[],
     amount: bigint,
     currentEpochMs: string,
-): ExtendedTimelockObject[] {
+): GroupedTimelockObject[] {
     const timelockedMapped = mapTimelockObjects(timelockedObjects);
     const filteredTimelockedObjects = timelockedMapped
         ?.filter(isSupplyIncreaseVestingObject)
@@ -318,35 +319,34 @@ export function prepareObjectsForTimelockedStakingTransaction(
             return Number(b.expirationTimestampMs) - Number(a.expirationTimestampMs);
         });
 
-    const extendedTimelockObjects: ExtendedTimelockObject[] = getFormattedTimelockedObjects(
+    const groupedTimelockObjects: GroupedTimelockObject[] = groupTimelockedObjects(
         filteredTimelockedObjects,
     ).filter((obj) => obj.totalLockedAmount >= MIN_STAKING_THRESHOLD);
 
-    /**
-     * Create a subset of objects that meet the stake amount (where total combined locked amount >= STAKE_AMOUNT)
-     */
+    // Create a subset of objects that meet the stake amount (where total combined locked amount >= STAKE_AMOUNT)
     let totalLocked: bigint = BigInt(0);
-    const subsetExtendedTimelockObjects: ExtendedTimelockObject[] = [];
+    const subsetGroupedTimelockObjects: GroupedTimelockObject[] = [];
 
-    for (const obj of extendedTimelockObjects) {
-        totalLocked += obj.totalLockedAmount;
-        subsetExtendedTimelockObjects.push(obj);
+    for (const groupedObject of groupedTimelockObjects) {
+        totalLocked += groupedObject.totalLockedAmount;
+        subsetGroupedTimelockObjects.push(groupedObject);
         if (totalLocked >= amount) {
             break;
         }
     }
 
-    /**
-     * Calculate the remaining amount after staking
-     */
-    const remainingAmount = totalLocked - amount;
-
-    /**
-     * Add splitAmount property to the vesting objects that need to be split
-     */
-    if (remainingAmount > 0) {
-        adjustSplitAmountsInExtendedTimelockObjects(subsetExtendedTimelockObjects, remainingAmount);
+    // If the total locked amount is less than the stake amount, return not enough locked amount
+    if (totalLocked < amount) {
+        return [];
     }
 
-    return subsetExtendedTimelockObjects;
+    // Calculate the remaining amount after staking
+    const remainingAmount = totalLocked - amount;
+
+    // Add splitAmount property to the vesting objects that need to be split
+    if (remainingAmount > 0) {
+        adjustSplitAmountsInExtendedTimelockObjects(subsetGroupedTimelockObjects, remainingAmount);
+    }
+    console.log(subsetGroupedTimelockObjects);
+    return subsetGroupedTimelockObjects;
 }

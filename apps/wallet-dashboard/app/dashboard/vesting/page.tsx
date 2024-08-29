@@ -161,7 +161,6 @@ function VestingDashboardPage(): JSX.Element {
                     <div className="flex flex-col items-center rounded-lg border p-4">
                         <span>Available Staking</span>
                         <span>{vestingSchedule.availableStaking}</span>
-                        <Button onClick={() => handleStake()}>Stake</Button>
                     </div>
                 </div>
             </div>

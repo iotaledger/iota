@@ -9,7 +9,7 @@ import {
     useGetCurrentEpochStartTimestamp,
 } from '@/hooks';
 import {
-    ExtendedTimelockObject,
+    GroupedTimelockObject,
     parseAmount,
     TIMELOCK_IOTA_TYPE,
     useCoinMetadata,
@@ -51,7 +51,7 @@ function NewStakePopup({
         StructType: TIMELOCK_IOTA_TYPE,
     });
 
-    let extendedTimelockObjects: ExtendedTimelockObject[] = [];
+    let extendedTimelockObjects: GroupedTimelockObject[] = [];
     if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
         extendedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
             timelockedObjects,
