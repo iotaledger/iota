@@ -12,9 +12,7 @@ use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let client = IotaClientBuilder::default()
-        .build("https://api.iota-rebased-alphanet.iota.cafe:443")
-        .await?;
+    let client = IotaClientBuilder::default().build_testnet().await?;
 
     // Get the latest 5 transaction blocks, so we can use a digest of it as cursor
     let transactions_block_page = client

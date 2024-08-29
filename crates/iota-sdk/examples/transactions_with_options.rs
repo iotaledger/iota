@@ -46,14 +46,14 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Transaction data:\n{tx_response:?}");
 
     // Get multiple transaction blocks with options
-    let transactions_blocks = client
+    let tx_responses = client
         .read_api()
         .multi_get_transactions_with_options(
             vec![tx_digest_0, tx_digest_1],
             IotaTransactionBlockResponseOptions::default(),
         )
         .await?;
-    println!("Transaction data:\n{transactions_blocks:?}");
+    println!("Transaction data:\n{tx_responses:?}");
 
     Ok(())
 }
