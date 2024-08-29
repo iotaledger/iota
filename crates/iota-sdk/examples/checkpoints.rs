@@ -31,7 +31,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .read_api()
         .get_checkpoints(Some((latest_checkpoint_number - 3).into()), Some(2), false)
         .await?;
-    println!("Second and third last checkpoint:\n{:?}", checkpoints);
+    println!("Second and third last checkpoints:\n{:?}", checkpoints);
 
     Ok(())
 }
