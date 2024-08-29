@@ -36,6 +36,7 @@ export * from './network-selector';
 export * from './nft-display';
 export * from './nft-display/NftImage';
 export * from './number-input';
+export * from './QR';
 export * from './receipt-card';
 export * from './receipt-card/TxnAddress';
 export * from './receipt-card/TxnAmount';

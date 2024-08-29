@@ -13,6 +13,7 @@ import {
     ExplorerLinkType,
     Loading,
     UnlockAccountButton,
+    QR,
 } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -612,7 +613,10 @@ function DialogReceiveTokens({
                 <DialogContent containerId="overlay-portal-container">
                     <Header title="Receive" onClose={() => setOpen(false)} />
                     <DialogBody>
-                        <div className="[&_span]:w-full [&_span]:break-words">
+                        <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
+                            <div className="self-center">
+                                <QR data={address} />
+                            </div>
                             <Address text={address} />
                         </div>
                     </DialogBody>
