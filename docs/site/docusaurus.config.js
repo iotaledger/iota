@@ -156,10 +156,8 @@ const config = {
           ],
           apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
         },
-
         // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
         typesenseSearchParameters: {},
-
         // Optional
         contextualSearch: true,
       },
