@@ -43,8 +43,10 @@ export const BASE_CONFIG: Config = {
                 inter: ['Inter', 'sans-serif'],
             },
             backgroundImage: {
-                placeholderShimmer: 'linear-gradient(90deg, #ecf1f4 -24.18%, rgba(237 242 245 / 40%) 73.61%, #f3f7f9 114.81%, #ecf1f4 114.82%)',
-                placeholderShimmerDark: 'linear-gradient(90deg, #1d1e20 -24.18%, #5e636e 73.61%, #111213 114.81%, #1d1e20 114.82%)',
+                placeholderShimmer:
+                    'linear-gradient(90deg, #ecf1f4 -24.18%, rgba(237 242 245 / 40%) 73.61%, #f3f7f9 114.81%, #ecf1f4 114.82%)',
+                placeholderShimmerDark:
+                    'linear-gradient(90deg, #1d1e20 -24.18%, #5e636e 73.61%, #111213 114.81%, #1d1e20 114.82%)',
             },
             keyframes: {
                 shimmer: {

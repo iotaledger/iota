@@ -156,10 +156,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 );
             case TableCellType.Placeholder:
                 return (
-                    <div
-                        className="h-[1em] w-full animate-shimmer bg-placeholderShimmer dark:bg-placeholderShimmerDark bg-[length:1000px_100%] rounded-md"
-                    >
-                    </div>
+                    <div className="h-[1em] w-full animate-shimmer rounded-md bg-placeholderShimmer bg-[length:1000px_100%] dark:bg-placeholderShimmerDark"></div>
                 );
             default:
                 return null;
