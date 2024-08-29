@@ -2,7 +2,7 @@
 name = "NestedDeps"
 
 [dependencies]
-MoveNursery = { git = "https://github.com/iotaledger/iota", rev = "72eee96", subdir = "external-crates/move/crates/move-stdlib/nursery" }
+MoveNursery = { git = "https://github.com/iotaledger/iota", rev = "f7e5011", subdir = "external-crates/move/crates/move-stdlib/nursery" }
 
 [addresses]
 std = "0x1"
