@@ -6,6 +6,7 @@
 //! cargo run --example transactions_with_options
 
 mod utils;
+
 use std::time::Duration;
 
 use iota_sdk::rpc_types::IotaTransactionBlockResponseOptions;

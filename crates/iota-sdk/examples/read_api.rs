@@ -12,6 +12,7 @@
 //! cargo run --example read_api
 
 mod utils;
+
 use iota_sdk::{
     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
     types::base_types::ObjectID,
