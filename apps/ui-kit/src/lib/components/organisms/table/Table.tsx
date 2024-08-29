@@ -7,11 +7,7 @@ import { TableRowType, TableProvider, useTableContext, TableProviderProps } from
 import { Button, ButtonSize, ButtonType, TableCell, TableCellType, TableHeaderCell } from '@/lib';
 import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/ui-icons';
 
-export type TableProps = {
-    /**
-     * Does the table have pagination buttons.
-     */
-    hasPagination?: boolean;
+export interface TablePaginationOptions {
     /**
      * On Next page button click.
      */
@@ -28,6 +24,13 @@ export type TableProps = {
      * On Last page button click.
      */
     onLastPageClick?: () => void;
+}
+
+export type TableProps = {
+    /**
+     * Options for the table pagination.
+     */
+    paginationOptions?: TablePaginationOptions;
     /**
      * The label of the action button.
      */
@@ -47,12 +50,8 @@ export type TableProps = {
 };
 
 export function Table({
-    hasPagination,
+    paginationOptions,
     actionLabel,
-    onNextPageClick,
-    onPreviousPageClick,
-    onFirstPageClick,
-    onLastPageClick,
     onActionClick,
     supportingLabel,
     hasCheckboxColumn,
@@ -74,34 +73,38 @@ export function Table({
                 </div>
                 <div
                     className={cx('flex w-full items-center justify-between gap-2 pt-md', {
-                        hidden: !supportingLabel && !hasPagination && !actionLabel,
+                        hidden: !supportingLabel && !paginationOptions && !actionLabel,
                     })}
                 >
-                    {hasPagination && (
+                    {paginationOptions && (
                         <div className="flex gap-2">
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<DoubleArrowLeft />}
-                                onClick={onFirstPageClick}
+                                disabled={!paginationOptions.onFirstPageClick}
+                                onClick={paginationOptions.onFirstPageClick}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<ArrowLeft />}
-                                onClick={onPreviousPageClick}
+                                disabled={!paginationOptions.onPreviousPageClick}
+                                onClick={paginationOptions.onPreviousPageClick}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<ArrowRight />}
-                                onClick={onNextPageClick}
+                                disabled={!paginationOptions.onNextPageClick}
+                                onClick={paginationOptions.onNextPageClick}
                             />
                             <Button
                                 type={ButtonType.Secondary}
                                 size={ButtonSize.Small}
                                 icon={<DoubleArrowRight />}
-                                onClick={onLastPageClick}
+                                disabled={!paginationOptions.onLastPageClick}
+                                onClick={paginationOptions.onLastPageClick}
                             />
                         </div>
                     )}
