@@ -8,7 +8,7 @@ gas summary: computation_cost: 1000000, storage_cost: 11286000,  storage_rebate:
 task 2 'run'. lines 80-80:
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'view-object'. lines 82-82:
 Owner: Account Address ( _ )
@@ -37,39 +37,39 @@ Contents: tto::M1::B {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 
 task 8 'programmable'. lines 93-96:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2181960, non_refundable_storage_fee: 22040
+gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
 
 task 9 'programmable'. lines 97-101:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2181960, non_refundable_storage_fee: 22040
+gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
 
 task 10 'programmable'. lines 102-106:
 mutated: object(0,0), object(2,0), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 5852000,  storage_rebate: 5793480, non_refundable_storage_fee: 58520
+gas summary: computation_cost: 1000000, storage_cost: 5852000,  storage_rebate: 5852000, non_refundable_storage_fee: 0
 
 task 11 'programmable'. lines 107-112:
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 6997320, non_refundable_storage_fee: 70680
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 7068000, non_refundable_storage_fee: 0
 
 task 12 'programmable'. lines 113-118:
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 6997320, non_refundable_storage_fee: 70680
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 7068000, non_refundable_storage_fee: 0
 
 task 13 'programmable'. lines 119-124:
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 6997320, non_refundable_storage_fee: 70680
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 7068000, non_refundable_storage_fee: 0
 
 task 14 'programmable'. lines 125-130:
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 6997320, non_refundable_storage_fee: 70680
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 7068000, non_refundable_storage_fee: 0
 
 task 15 'programmable'. lines 131-136:
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 6997320, non_refundable_storage_fee: 70680
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 7068000, non_refundable_storage_fee: 0
 
 task 16 'programmable'. lines 137-139:
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 6997320, non_refundable_storage_fee: 70680
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 7068000, non_refundable_storage_fee: 0
 
 task 17 'view-object'. lines 141-141:
 Owner: Account Address ( _ )

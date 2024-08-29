@@ -5,10 +5,11 @@ on:
     inputs:
       isRust:
         type: boolean
-
-concurrency:
-  group: rust-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    secrets:
+      SSH_PRIVATE_KEY_IOTA_CI:
+        required: true
+      SSH_GITHUB_KNOWN_HOSTS:
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,13 +39,16 @@ jobs:
     uses: ./.github/workflows/_rust_lints.yml
     with:
       isRust: ${{ inputs.isRust }}
+    secrets: inherit
 
   external-lints:
     uses: ./.github/workflows/_external_rust_lints.yml
     with:
       isRust: ${{ inputs.isRust }}
+    secrets: inherit
 
   rust-tests:
+    if: github.event.pull_request.draft == false
     needs:
       - rust-lints
       - external-lints
@@ -53,6 +57,7 @@ jobs:
       isRust: ${{ inputs.isRust }}
 
   external-tests:
+    if: github.event.pull_request.draft == false
     needs:
       - rust-lints
       - external-lints
@@ -61,7 +66,7 @@ jobs:
       isRust: ${{ inputs.isRust }}
 
   mysticeti-tests:
-    if: inputs.isRust
+    if: inputs.isRust && github.event.pull_request.draft == false
     needs:
       - rust-lints
       - external-lints
