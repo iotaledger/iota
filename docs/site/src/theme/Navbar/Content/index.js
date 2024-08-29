@@ -78,13 +78,6 @@ export default function NavbarContent() {
           )} {!searchBarItem && (
             <NavbarSearch>
                 <SearchBar />
-                {isHomePage && (
-                    <Link
-                        to="/developer/getting-started"
-                        className="button-cta">
-                        Get started
-                    </Link>
-                )}
             </NavbarSearch>
         )}
         </>
