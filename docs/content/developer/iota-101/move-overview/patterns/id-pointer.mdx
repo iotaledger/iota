@@ -1,50 +1,57 @@
 ---
-title: ID Pointer
+description: Overview of the ID pointer technique in Move and its practical applications.
 ---
+# ID Pointer
 
-ID pointer is a technique that separates the main data (an object) and its accessors/capabilities by linking the latter to the original. There's a few different ways you can use this pattern:
+The ID pointer is a technique used in Move to separate the main data (an object) 
+from its accessors or capabilities by linking these accessors back to the original object.
+This pattern can be applied in several ways:
 
-- Isiotang transferable capabilities for shared objects (for example, a TransferCap that changes 'owner' field of a shared object)
-- Splitting dynamic data and static (for example, an NFT and its collection information)
-- Avoiding unnecessary type linking (and witness requirement) in generic applications (LP token for a `LiquidityPool`)
+- Implementing transferable capabilities for shared objects, such as a `TransferCap` that updates the 'owner' field of a shared object.
+- Separating dynamic data from static data, for instance, distinguishing between an NFT and its collection information.
+- Avoiding unnecessary type linking (and witness requirements) in generic applications, like a Liquidity Pool (LP) token for a `LiquidityPool`.
 
-The following example implements basic `Lock` and `Key` mechanics on IOTA where `Lock<T>` is a shared object that can contain any object, and `Key` is an owned object, which is required to get access to the contents of the lock.
+The following example demonstrates basic `Lock` and `Key` mechanics on IOTA,
+where a `Lock<T>` is a shared object that can hold any content, 
+and a `Key` is an owned object that is necessary to access the contents of the lock.
 
-`Key` is linked to its `Lock` using an `ID` field. This check allows off-chain discovery of the target, as well as splits the dynamic transferable capability and the 'static' contents. Another benefit of this approach is that the target asset is always discoverable, while you can wrap its `Key` into another object (such as a marketplace listing).
+The `Key` is connected to its `Lock` through an `ID` field. 
+This setup enables off-chain discovery of the target, 
+while also separating the dynamic transferable capability from the 'static' contents. 
+An additional benefit is that the target asset remains discoverable even when its `Key` is wrapped within another object,
+such as a marketplace listing.
 
 ```move
 module examples::lock_and_key {
-    /// Lock is empty, nothing to take.
+    /// Error indicating that the Lock is empty and there is nothing to retrieve.
     const ELockIsEmpty: u64 = 0;
 
-    /// Key does not match the Lock.
+    /// Error indicating that the Key does not match the Lock.
     const EKeyMismatch: u64 = 1;
 
-    /// Lock already contains something.
+    /// Error indicating that the Lock already contains an item.
     const ELockIsFull: u64 = 2;
 
-    /// Lock that stores any content inside it.
+    /// A Lock that can store any content within it.
     public struct Lock<T: store + key> has key {
         id: UID,
         locked: Option<T>
     }
 
-    /// A key that is created with a Lock; is transferable
-    /// and contains all the needed information to open the Lock.
+    /// A Key that is created alongside a Lock; it is transferable and contains all the necessary information to unlock the Lock.
     public struct Key<phantom T: store + key> has key, store {
         id: UID,
         key_for: ID,
     }
 
-    /// Returns an ID of a Lock for a given Key.
+    /// Retrieves the ID of the Lock associated with a given Key.
     public fun key_for<T: store + key>(key: &Key<T>): ID {
         key.key_for
     }
 
-    /// Lock some content inside a shared object. A Key is created and is
-    /// sent to the transaction sender. For example, we could turn the
-    /// lock into a treasure chest by locking some `Coin<IOTA>` inside.
-    /// Sender gets the `Key` to this `Lock`.
+    /// Locks content within a shared object. A Key is generated and sent to the transaction sender.
+    /// For example, you could lock some `Coin<IOTA>` within a Lock to create a treasure chest.
+    /// The sender receives the Key to this Lock.
     public fun create<T: store + key>(obj: T, ctx: &mut TxContext): Key<T> {
         let id = object::new(ctx);
         let key_for = object::uid_to_inner(&id);
@@ -61,8 +68,7 @@ module examples::lock_and_key {
         key
     }
 
-    /// Lock something inside a shared object using a Key. Aborts if
-    /// lock is not empty or if key doesn't match the lock.
+    /// Locks an item within a shared object using a Key. Aborts if the Lock is not empty or if the Key does not match the Lock.
     public fun lock<T: store + key>(
         obj: T,
         lock: &mut Lock<T>,
@@ -74,10 +80,10 @@ module examples::lock_and_key {
         option::fill(&mut lock.locked, obj);
     }
 
-    /// Unlock the Lock with a Key and access its contents.
-    /// Can only be called if both conditions are met:
-    /// - key matches the lock
-    /// - lock is not empty
+    /// Unlocks a Lock with a Key to access its contents.
+    /// This function can only be called if:
+    /// - The Key matches the Lock.
+    /// - The Lock is not empty.
     public fun unlock<T: store + key>(
         lock: &mut Lock<T>,
         key: &Key<T>,
@@ -88,7 +94,7 @@ module examples::lock_and_key {
         option::extract(&mut lock.locked)
     }
 
-    /// Unlock the Lock and transfer its contents to the transaction sender.
+    /// Unlocks the Lock and transfers its contents to the transaction sender.
     public fun take<T: store + key>(
         lock: &mut Lock<T>,
         key: &Key<T>,
@@ -99,7 +105,4 @@ module examples::lock_and_key {
 }
 ```
 
-This pattern is used in these examples:
-
-- [Escrow](https://github.com/iotaledger/iota/blob/main/examples/move/escrow/sources/example.move)
-- [Hero](https://github.com/iotaledger/iota/blob/main/examples/move/hero/sources/example.move)
+This pattern is demonstrated in the [Hero](https://github.com/iotaledger/iota/blob/main/examples/move/hero/sources/example.move) example.
