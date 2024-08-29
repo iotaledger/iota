@@ -1,37 +1,43 @@
 ---
-title: Hot Potato
+description: Introduction to the hot potato pattern in Move and its practical application.
 ---
 
-A hot potato is a struct that has no capabilities, therefore you can only pack and unpack it in its module. In this struct, you must call function B after function A in the case where function A returns a hot potato and function B consumes it. A hot potato pattern is useful when implementing flash loans, for example.
+# Hot Potato
+
+The "hot potato" pattern in Move refers to a struct that lacks capabilities,
+meaning it can only be created and used within its defining module. 
+
+This pattern requires that function `B` must be called immediately after function `A`, when function `A` returns a hot potato and function `B` consumes it.
+This approach is particularly useful in scenarios like implementing flash loans.
 
 ```move
 module examples::trade_in {
     use iota::iota::IOTA;
     use iota::coin::{Self, Coin};
 
-    /// Price for the first phone model in series
+    /// Price for the first phone model in the series
     const MODEL_ONE_PRICE: u64 = 10000;
 
     /// Price for the second phone model
     const MODEL_TWO_PRICE: u64 = 20000;
 
-    /// For when someone tries to purchase non-existing model
+    /// Error when attempting to purchase a non-existent model
     const EWrongModel: u64 = 1;
 
-    /// For when paid amount does not match the price
+    /// Error when the paid amount does not match the required price
     const EIncorrectAmount: u64 = 2;
 
-    /// A phone; can be purchased or traded in for a newer model
+    /// Struct representing a phone, which can be purchased or traded in for a newer model
     public struct Phone has key, store { id: UID, model: u8 }
 
-    /// Payable receipt. Has to be paid directly or paid with a trade-in option.
-    /// Cannot be stored, owned or dropped - has to be used to select one of the
-    /// options for payment: `trade_in` or `pay_full`.
+    /// Struct representing a payable receipt. 
+    /// This receipt must be used immediately in one of the payment functions:
+    /// either `trade_in` or `pay_full`. It cannot be stored, owned, or dropped.
     public struct Receipt { price: u64 }
 
-    /// Get a phone, pay later.
-    /// Receipt has to be passed into one of the functions that accept it:
-    ///  in this case it's `pay_full` or `trade_in`.
+    /// Function to initiate the purchase of a phone, with the payment deferred.
+    /// The `Receipt` returned must be passed
+    /// to either the `pay_full` or `trade_in` functions to complete the transaction.
     public fun buy_phone(model: u8, ctx: &mut TxContext): (Phone, Receipt) {
         assert!(model == 1 || model == 2, EWrongModel);
 
@@ -43,16 +49,17 @@ module examples::trade_in {
         )
     }
 
-    /// Pay the full price for the phone and consume the `Receipt`.
+    /// Function to pay the full price for the phone and finalize the transaction by consuming the `Receipt`.
     public fun pay_full(receipt: Receipt, payment: Coin<IOTA>) {
         let Receipt { price } = receipt;
         assert!(coin::value(&payment) == price, EIncorrectAmount);
 
-        // for simplicity's sake transfer directly to @examples account
+        // For simplicity, transfer directly to the @examples account
         transfer::public_transfer(payment, @examples);
     }
 
-    /// Give back an old phone and get 50% of its price as a discount for the new one.
+    /// Function to trade in an old phone and receive a 50% discount on the new phone.
+    /// The `Receipt` is consumed as part of this transaction.
     public fun trade_in(receipt: Receipt, old_phone: Phone, payment: Coin<IOTA>) {
         let Receipt { price } = receipt;
         let tradein_price = if (old_phone.model == 1) MODEL_ONE_PRICE else MODEL_TWO_PRICE;
@@ -66,4 +73,4 @@ module examples::trade_in {
 }
 ```
 
-The IOTA repository includes [several examples](https://github.com/iotaledger/iota/tree/develop/examples/move) that demonstrate IOTA capabilities. The [Flash Loan](https://github.com/iotaledger/iota/blob/main/examples/move/flash_lender/sources/example.move) code in those examples demonstrates the pattern this topic describes.
+The [Flash Loan](https://github.com/iotaledger/iota/blob/main/examples/move/flash_lender/sources/example.move) example specifically illustrates the hot potato pattern described in this topic.
