@@ -18,10 +18,10 @@ This allows us to:
 
 ## How it works:
 
-The code for the simulator itself lives in the https://github.com/MystenLabs/mysten-sim repository.
+The code for the simulator itself lives in the https://github.com/iotaledger/iota-sim repository.
 It has the following main components:
 
-1. A [runtime](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
+1. A [runtime](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
    - A "node" context for all running tasks. The node is a simulated machine, which can be killed, restarted, or paused.
    - A randomized but deterministic executor.
    - Simulated clock facilities, including timers, sleep(), etc.
@@ -33,15 +33,15 @@ It has the following main components:
    - Most facilities from `tokio::runtime` and `tokio::time` are delegated back to the simulator runtime.
    - Custom implementations of the `tokio::net::Tcp*` structs are provided to interface with the network simulator.
    - Most other pieces of tokio (e.g. `sync`) did not need to be re-implemented because they don't interface with the runtime or the network. These are simply re-exported as is.
-   - A minimal [fork of tokio](https://github.com/mystenmark/tokio-madsim-fork) is required in order to expose certain internals to the simulator. This fork has very few modifications, which were written to be easily rebaseable when new tokio releases come out.
+   - A minimal [fork of tokio](https://github.com/iotaledger/tokio-madsim-fork) is required in order to expose certain internals to the simulator. This fork has very few modifications, which were written to be easily rebaseable when new tokio releases come out.
 
 1. A library of interceptor functions which intercept various posix API calls in order to enforce determinism throughout the test. These include:
    - `getrandom()`, `getentropy()` - intercepted and delegated to the simulator PRNG.
-   - Various [socket api calls](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
+   - Various [socket api calls](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
    - `mach_absolute_time()`, `clock_gettime()`: Intercepted to provide deterministic high-resolution timing behavior.
    - TODO: `gettimeofday()`: We would like to intercept this to provide deterministic wall-clock operations (e.g. on dates, etc). However, intercepting this currently breaks RocksDB.
 
-   This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
+   This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
 
 1. Procedural macros that replace `#[tokio::test]` and run test code inside a testing environment. These are `#[iota_test]` and `#[sim_test]` and are documented below. The test harness created by these macros initializes the simulator runtime with a starting seed, generates the simulator configuration, and runs the test inside a newly created thread. The test must be run in its own thread in order to provide each test case with fresh thread local storage.
 
@@ -154,13 +154,13 @@ Also, the world will not end if you break this rule. You just might see confusin
 
 `#[sim_test]` currently accepts two arguments:
 
-- `config = "config_expr"` - This argument accepts a string which will be evaluated as an expression that returns the configuration for the test. Generally, you should make this a function call, and then define the function to return the config. The function must return a type that can implements `Into<TestConfig>` - the most common choice is `SimConfig`, but `Vec<SimConfig>` and `Vec<(usize /* repeat count */, SimConfig)>` are also supported by default. See https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/config.rs for the `TestConfig` implementation.
+- `config = "config_expr"` - This argument accepts a string which will be evaluated as an expression that returns the configuration for the test. Generally, you should make this a function call, and then define the function to return the config. The function must return a type that can implements `Into<TestConfig>` - the most common choice is `SimConfig`, but `Vec<SimConfig>` and `Vec<(usize /* repeat count */, SimConfig)>` are also supported by default. See https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/config.rs for the `TestConfig` implementation.
 
 - `check_determinism` - If set, the framework will run the test twice, and verify that it executes identically each time. (It does this by keeping a log which contains an entry for every call to the PRNG. Each entry contains a hash of the value yielded by the PRNG at that point + the current time.). Tests with `check_determinism` are usually for testing the framework itself, so you probably won't need to use this.
 
 ### Configuring the network:
 
-Network latency and packet loss can be configured using [SimConfig](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/config.rs#L8), which is re-exported from this crate as `iota_simulator::config::SimConfig`.
+Network latency and packet loss can be configured using [SimConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/config.rs#L8), which is re-exported from this crate as `iota_simulator::config::SimConfig`.
 
 To configure a test, you write:
 
@@ -189,7 +189,7 @@ For instance, you might do:
          ...
       }
 
-Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
+Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
 
 There is a small but growing library of functions for building network configs in [iota_simulator::configs](https://github.com/iotaledger/iota/blob/main/crates/iota-simulator/src/lib.rs).
 
