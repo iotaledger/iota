@@ -338,6 +338,7 @@ const references = [
             'references/contribute/localize-iota-docs',
             'references/contribute/code-of-conduct',
             'references/contribute/style-guide',
+            'references/contribute/import-code-docs'
         ],
     },
 ];
