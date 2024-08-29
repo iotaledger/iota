@@ -34,7 +34,7 @@ export const Animated: StoryObj<ProgressBarProps> = {
         return (
             <div className="flex w-1/2 flex-col gap-4">
                 {progress.map((p, index) => (
-                    <ProgressBar key={p} progress={p} animate />
+                    <ProgressBar key={p} progress={p} />
                 ))}
             </div>
         );
