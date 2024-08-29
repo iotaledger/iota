@@ -173,7 +173,7 @@ impl DBCheckpointHandler {
                 kill_sender.subscribe(),
             ));
         }
-        // Start db checkpoint gc loop to remove epoch directories
+        // Starts db checkpoint gc loop to remove epoch directories
         // that contains success markers
         tokio::task::spawn(Self::run_db_checkpoint_gc_loop(
             self,
@@ -384,7 +384,7 @@ impl DBCheckpointHandler {
         Ok(())
     }
 
-    /// Delete old db checkpoints in the local store by checking for the
+    /// Deletes old db checkpoints in the local store by checking for the
     /// presence of all success markers in the directory.
     async fn garbage_collect_old_db_checkpoints(&self) -> Result<Vec<u64>> {
         let local_checkpoints_by_epoch =

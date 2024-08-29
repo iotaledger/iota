@@ -92,7 +92,7 @@ impl LiveObjectSetWriterV1 {
         })
     }
 
-    /// Write a live object to the object file and the reference to the
+    /// Writes a live object to the object file and the reference to the
     /// reference file.
     pub fn write(&mut self, object: &LiveObject) -> Result<()> {
         let object_reference = object.object_reference();
@@ -101,7 +101,7 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Finalize the object and reference files and return the FileMetadata of
+    /// Finalizes the object and reference files and returns the FileMetadata of
     /// the files.
     pub fn done(mut self) -> Result<Vec<FileMetadata>> {
         self.finalize_obj()?;
@@ -110,8 +110,8 @@ impl LiveObjectSetWriterV1 {
         Ok(self.files.clone())
     }
 
-    /// Create a new object file for the provided bucket number and part number,
-    /// and return the file and the number of bytes written to it.
+    /// Creates a new object file for the provided bucket number and part
+    /// number, and returns the file and the number of bytes written to it.
     fn object_file(dir_path: PathBuf, bucket_num: u32, part_num: u32) -> Result<(usize, File)> {
         let next_part_file_path = dir_path.join(format!("{bucket_num}_{part_num}.obj"));
         let next_part_file_tmp_path = dir_path.join(format!("{bucket_num}_{part_num}.obj.tmp"));
@@ -127,8 +127,8 @@ impl LiveObjectSetWriterV1 {
         Ok((n, f))
     }
 
-    /// Create a new reference file for the provided bucket number and part
-    /// number, and return the file and the number of bytes written to the
+    /// Creates a new reference file for the provided bucket number and part
+    /// number, and returns the file and the number of bytes written to the
     /// file.
     fn ref_file(dir_path: PathBuf, bucket_num: u32, part_num: u32) -> Result<File> {
         let ref_path = dir_path.join(format!("{bucket_num}_{part_num}.ref"));
@@ -145,10 +145,10 @@ impl LiveObjectSetWriterV1 {
         Ok(f)
     }
 
-    /// Finalize the object file by flushing the buffer to disk and send its
+    /// Finalizes the object file by flushing the buffer to disk and sends its
     /// FileMetadata to the channel.
     fn finalize_obj(&mut self) -> Result<()> {
-        // Flush the buffer and sync the data to disk
+        // Flushes the buffer and sync the data to disk
         self.obj_wbuf.flush()?;
         self.obj_wbuf.get_ref().sync_data()?;
         let off = self.obj_wbuf.get_ref().stream_position()?;
@@ -170,10 +170,10 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Finalize the reference file by flushing the buffer to disk and send its
-    /// FileMetadata to the channel.
+    /// Finalizes the reference file by flushing the buffer to disk and sends
+    /// its FileMetadata to the channel.
     fn finalize_ref(&mut self) -> Result<()> {
-        // Flush the buffer and sync the data to disk
+        // Flushes the buffer and sync the data to disk
         self.ref_wbuf.flush()?;
         self.ref_wbuf.get_ref().sync_data()?;
         let off = self.ref_wbuf.get_ref().stream_position()?;
@@ -195,7 +195,7 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Finalize the object file of current partition and create a new one for
+    /// Finalizes the object file of current partition and creates a new one for
     /// the next partition.
     fn cut(&mut self) -> Result<()> {
         self.finalize_obj()?;
@@ -209,7 +209,7 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Finalize the reference file of current partition and create a new one
+    /// Finalizes the reference file of current partition and creates a new one
     /// for the next partition.
     fn cut_reference_file(&mut self) -> Result<()> {
         self.finalize_ref()?;
@@ -222,7 +222,7 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Write a live object to the object file. Create a new partition (new
+    /// Writes a live object to the object file. Creates a new partition (new
     /// object file and reference file) if it exceeds the maximum size.
     fn write_object(&mut self, object: &LiveObject) -> Result<()> {
         let blob = Blob::encode(object, BlobEncoding::Bcs)?;
@@ -239,7 +239,7 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Write an object reference to the reference file.
+    /// Writes an object reference to the reference file.
     fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.0.as_ref());
@@ -334,8 +334,8 @@ impl StateSnapshotWriterV1 {
         .await
     }
 
-    /// Write the state snapshot for the provided epoch to the local staging
-    /// directory and upload it to the remote store.
+    /// Writes the state snapshot for the provided epoch to the local staging
+    /// directory and uploads it to the remote store.
     pub(crate) async fn write_internal(
         mut self,
         epoch: u64,
@@ -351,7 +351,7 @@ impl StateSnapshotWriterV1 {
         let remote_object_store = self.remote_object_store.clone();
 
         let (sender, receiver) = mpsc::channel::<FileMetadata>(1000);
-        // Start the upload loop, which listens on the receiver for FileMetadata
+        // Starts the upload loop, which listens on the receiver for FileMetadata
         let upload_handle = self.start_upload(epoch, receiver)?;
         let write_handler = tokio::task::spawn_blocking(move || {
             self.write_live_object_set(
@@ -363,20 +363,20 @@ impl StateSnapshotWriterV1 {
                 root_state_hash,
             )
         });
-        // Await the object and reference files to be written to the local staging
-        // directory and inform the upload loop
+        // Awaits the object and reference files to be written to the local staging
+        // directory and informs the upload loop
         write_handler.await?.context(format!(
             "Failed to write state snapshot for epoch: {}",
             &epoch
         ))?;
 
-        // Await the upload loop to finish
+        // Awaits the upload loop to finish
         upload_handle.await?.context(format!(
             "Failed to upload state snapshot for epoch: {}",
             &epoch
         ))?;
 
-        // Sync the manifest file to the remote store
+        // Syncs the manifest file to the remote store
         Self::sync_file_to_remote(
             local_staging_dir,
             manifest_file_path,
@@ -400,7 +400,7 @@ impl StateSnapshotWriterV1 {
         let epoch_dir = self.epoch_dir(epoch);
         let upload_concurrency = self.concurrency;
         let join_handle = tokio::spawn(async move {
-            // Upload the files to the remote store in parallel for each received
+            // Uploads the files to the remote store in parallel for each received
             // FileMetadata
             let results: Vec<Result<(), anyhow::Error>> = ReceiverStream::new(receiver)
                 .map(|file_metadata| {
@@ -452,7 +452,7 @@ impl StateSnapshotWriterV1 {
         for object in perpetual_db.iter_live_object_set(include_wrapped_tombstone) {
             StateAccumulator::accumulate_live_object(&mut acc, &object);
             let bucket_num = bucket_func(&object);
-            // Create a new LiveObjectSetWriterV1 for the bucket if it does not exist
+            // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
             if let Vacant(entry) = object_writers.entry(bucket_num) {
                 entry.insert(LiveObjectSetWriterV1::new(
                     local_staging_dir_path.clone(),
@@ -472,7 +472,7 @@ impl StateSnapshotWriterV1 {
             "Root state hash mismatch!"
         );
         let mut files = vec![];
-        // Flush the object and reference files to disk, inform the file channel of
+        // Flushes the object and reference files to disk, informs the file channel of
         // flushed files and get the FileMetadata
         for (_, writer) in object_writers.into_iter() {
             files.extend(writer.done()?);
@@ -482,7 +482,7 @@ impl StateSnapshotWriterV1 {
         Ok(())
     }
 
-    /// Write the manifest file for the provided FileMetadata of an epoch and
+    /// Writes the manifest file for the provided FileMetadata of an epoch and
     /// its sha3 checksum.
     fn write_manifest(&mut self, epoch: u64, file_metadata: Vec<FileMetadata>) -> Result<()> {
         let (f, manifest_file_path) = self.manifest_file(epoch)?;
@@ -497,8 +497,8 @@ impl StateSnapshotWriterV1 {
         wbuf.write_all(&serialized_manifest)?;
         wbuf.flush()?;
         wbuf.get_ref().sync_data()?;
-        // Compute the sha3 checksum of the manifest file and write it to the end of the
-        // file
+        // Computes the sha3 checksum of the manifest file and write it to the end of
+        // the file
         let sha3_digest = compute_sha3_checksum(&manifest_file_path)?;
         wbuf.write_all(&sha3_digest)?;
         wbuf.flush()?;
@@ -508,7 +508,7 @@ impl StateSnapshotWriterV1 {
         Ok(())
     }
 
-    /// Create a new manifest file for the provided epoch and return the file
+    /// Creates a new manifest file for the provided epoch and returns the file
     /// and the path to the file.
     fn manifest_file(&mut self, epoch: u64) -> Result<(File, PathBuf)> {
         let manifest_file_path = path_to_filesystem(
@@ -547,14 +547,14 @@ impl StateSnapshotWriterV1 {
     /// in the local store. Deletes the old ones if they exist.
     async fn setup_epoch_dir(&self, epoch: u64) -> Result<()> {
         let epoch_dir = self.epoch_dir(epoch);
-        // Delete remote epoch dir if it exists
+        // Deletes remote epoch dir if it exists
         delete_recursively(
             &epoch_dir,
             &self.remote_object_store,
             NonZeroUsize::new(self.concurrency).unwrap(),
         )
         .await?;
-        // Delete local staging epoch dir if it exists
+        // Deletes local staging epoch dir if it exists
         let local_epoch_dir_path = self.local_staging_dir.join(format!("epoch_{}", epoch));
         if local_epoch_dir_path.exists() {
             fs::remove_dir_all(&local_epoch_dir_path)?;
@@ -563,7 +563,7 @@ impl StateSnapshotWriterV1 {
         Ok(())
     }
 
-    /// Sync a file from local store to remote store and remove the local file
+    /// Syncs a file from local store to remote store and removes the local file
     async fn sync_file_to_remote(
         local_path: PathBuf,
         path: Path,

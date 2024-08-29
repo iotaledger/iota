@@ -121,13 +121,13 @@ impl StateSnapshotUploader {
     /// Uploads state snapshots to remote store if they are missing.
     async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
-        // Find all local checkpoints db by epoch
+        // Finds all local checkpoints db by epoch
         let local_checkpoints_by_epoch =
             find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store, None).await?;
         let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
         dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
         for (epoch, db_path) in dirs {
-            // Write state snapshot to remote store if it is missing
+            // Writes state snapshot to remote store if it is missing
             // or if the local has more advanced epochs than the remote
             if missing_epochs.contains(epoch) || *epoch >= last_missing_epoch {
                 info!("Starting state snapshot creation for epoch: {}", *epoch);
@@ -156,7 +156,7 @@ impl StateSnapshotUploader {
                     .write(*epoch, db, state_hash_commitment)
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
-                // Drop marker in the output directory that upload completed successfully
+                // Drops marker in the output directory that upload completed successfully
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;

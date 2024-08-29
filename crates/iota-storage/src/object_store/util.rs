@@ -132,8 +132,8 @@ pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
 ) -> Result<Vec<()>> {
     let mut instant = Instant::now();
     let progress_bar_clone = progress_bar.clone();
-    // Copy files from dest to src in parallel, and update the progress bar if it's
-    // provided
+    // Copies files from dest to src in parallel, and updates the progress bar if
+    // it's provided
     let results = futures::stream::iter(src.iter().zip(dest.iter()))
         .map(|(path_in, path_out)| async move {
             let ret = copy_file(path_in, path_out, src_store, dest_store).await;
@@ -153,7 +153,7 @@ pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
     Ok(results.into_iter().collect())
 }
 
-/// Copy all files in the directory from the source store to the destination
+/// Copies all files in the directory from the source store to the destination
 /// store.
 pub async fn copy_recursively<S: ObjectStoreGetExt + ObjectStoreListExt, D: ObjectStorePutExt>(
     dir: &Path,

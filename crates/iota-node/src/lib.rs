@@ -927,7 +927,7 @@ impl IotaNode {
         }
     }
 
-    /// Create an StateSnapshotUploader and start it if the StateSnapshotConfig
+    /// Creates an StateSnapshotUploader and start it if the StateSnapshotConfig
     /// is set.
     fn start_state_snapshot(
         config: &NodeConfig,
