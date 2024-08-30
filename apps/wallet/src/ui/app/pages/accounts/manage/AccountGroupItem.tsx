@@ -11,7 +11,7 @@ import { useAccounts } from '_app/hooks/useAccounts';
 import { useExplorerLink } from '_app/hooks/useExplorerLink';
 import toast from 'react-hot-toast';
 import { Account, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { OutsideClickHandler } from '_pages/accounts/manage/OutsideClickHandler';
+import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 

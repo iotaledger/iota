@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
-import { OutsideClickHandler } from '_pages/accounts/manage/OutsideClickHandler';
+import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { Collapsible } from '_app/shared/collapse';
 
