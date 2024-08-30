@@ -7,7 +7,7 @@ import { lazy, Suspense } from 'react';
 
 import { Network } from '@iota/iota-sdk/client';
 import {
-    AccountsCardGraph,
+    AddressesCardGraph,
     Activity,
     CurrentEpoch,
     ErrorBoundary,
@@ -53,8 +53,8 @@ function Home(): JSX.Element {
                         <div className="flex grow" style={{ gridArea: 'transactions' }}>
                             <TransactionsCardGraph />
                         </div>
-                        <div className="flex grow" style={{ gridArea: 'accounts' }}>
-                            <AccountsCardGraph />
+                        <div className="flex grow" style={{ gridArea: 'addresses' }}>
+                            <AddressesCardGraph />
                         </div>
                     </div>
                 ),

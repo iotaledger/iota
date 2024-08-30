@@ -26,7 +26,7 @@ export * from './ui';
 export * from './validator';
 export * from './validator-map';
 
-export * from './AccountCardGraph';
+export * from './AddressesCardGraph';
 export * from './AreaGraph';
 export * from './GraphTooltipContent';
 export * from './Icon';

@@ -15,7 +15,7 @@ import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetri
 import { LabelText, LabelTextSize, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
-const GRAPH_DATA_TEXT = 'Total accounts';
+const GRAPH_DATA_TEXT = 'Total addresses';
 
 function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JSX.Element {
     const dateFormatted = formatDate(new Date(data.timestampMs), ['day', 'month']);
@@ -35,7 +35,7 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
     );
 }
 
-export function AccountsCardGraph(): JSX.Element {
+export function AddressesCardGraph(): JSX.Element {
     const { data: addressMetrics } = useGetAddressMetrics();
     const { data: allEpochMetrics, isPending } = useGetAllEpochAddressMetrics({
         descendingOrder: false,
