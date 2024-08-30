@@ -14,13 +14,15 @@ export function CardBody({ title, subtitle, clickableAction, icon }: CardBodyPro
     };
     return (
         <div className="flex w-full flex-col">
-            <div className="flex flex-row gap-x-xxs">
+            <div className="flex flex-row items-center gap-x-xxs">
                 <div className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                     {title}
                 </div>
-                {icon && <div>{icon}</div>}
+                {icon && <div className="flex items-center">{icon}</div>}
                 {clickableAction && (
-                    <div onClick={handleActionCardBodyClick}>{clickableAction}</div>
+                    <div onClick={handleActionCardBodyClick} className="flex items-center">
+                        {clickableAction}
+                    </div>
                 )}
             </div>
             {subtitle && (
