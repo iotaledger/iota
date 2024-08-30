@@ -56,7 +56,7 @@ pub async fn fund_address(
     recipient: IotaAddress,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
-    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None)?;
+    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
     println!("Sponsor address: {sponsor:?}");
 

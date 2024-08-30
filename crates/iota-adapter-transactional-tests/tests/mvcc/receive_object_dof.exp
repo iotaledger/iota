@@ -36,7 +36,7 @@ Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 task 7 'run'. lines 71-71:
 created: object(7,0)
 mutated: object(0,0), object(2,2), object(2,3)
-gas summary: computation_cost: 1000000, storage_cost: 5996400,  storage_rebate: 3506184, non_refundable_storage_fee: 35416
+gas summary: computation_cost: 1000000, storage_cost: 5996400,  storage_rebate: 3541600, non_refundable_storage_fee: 0
 
 task 8 'view-object'. lines 73-75:
 Owner: Object ID: ( fake(2,3) )
@@ -60,7 +60,7 @@ Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 
 task 12 'programmable'. lines 82-83:
 mutated: object(0,0), object(2,1), object(2,2), object(2,3)
-gas summary: computation_cost: 1000000, storage_cost: 4818400,  storage_rebate: 4770216, non_refundable_storage_fee: 48184
+gas summary: computation_cost: 1000000, storage_cost: 4818400,  storage_rebate: 4818400, non_refundable_storage_fee: 0
 
 task 13 'view-object'. lines 85-87:
 Owner: Object ID: ( fake(2,3) )
@@ -85,19 +85,19 @@ Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 task 17 'programmable'. lines 94-97:
 mutated: object(0,0), object(2,2)
 deleted: object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 5936436, non_refundable_storage_fee: 59964
+gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 5996400, non_refundable_storage_fee: 0
 
 task 18 'programmable'. lines 99-100:
 mutated: object(_), object(2,2)
-gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1264032, non_refundable_storage_fee: 12768
+gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1276800, non_refundable_storage_fee: 0
 
 task 19 'programmable'. lines 102-103:
 mutated: object(_), object(2,2)
-gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1264032, non_refundable_storage_fee: 12768
+gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1276800, non_refundable_storage_fee: 0
 
 task 20 'programmable'. lines 105-108:
 mutated: object(_), object(2,2)
-gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1264032, non_refundable_storage_fee: 12768
+gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1276800, non_refundable_storage_fee: 0
 
 task 21 'programmable'. lines 110-111:
 Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0

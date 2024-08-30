@@ -11,12 +11,12 @@ gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 
 task 2 'upgrade'. lines 19-29:
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 3 'upgrade'. lines 31-43:
 created: object(3,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 5928000,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 4 'upgrade'. lines 45-55:
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
@@ -29,19 +29,19 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 6 'upgrade'. lines 70-88:
 created: object(6,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 6368800,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 6368800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 7 'upgrade'. lines 89-104:
 created: object(7,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 6292800,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 6292800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 8 'upgrade'. lines 105-119:
 created: object(8,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 6209200,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 6209200,  storage_rebate: 2622000, non_refundable_storage_fee: 0
 
 task 9 'upgrade'. lines 120-133:
 created: object(9,0)
 mutated: object(0,0), object(1,1)
-gas summary: computation_cost: 1000000, storage_cost: 6292800,  storage_rebate: 2595780, non_refundable_storage_fee: 26220
+gas summary: computation_cost: 1000000, storage_cost: 6292800,  storage_rebate: 2622000, non_refundable_storage_fee: 0
