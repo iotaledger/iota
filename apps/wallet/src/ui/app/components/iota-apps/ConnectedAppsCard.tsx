@@ -2,22 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Header, Title, TitleSize } from '@iota/apps-ui-kit';
+import { Title, TitleSize } from '@iota/apps-ui-kit';
 import { useAppSelector } from '_hooks';
+import cn from 'clsx';
 import { Feature } from '_src/shared/experimentation/features';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
-import { Loading, NoData } from '_components';
+import { Loading, NoData, PageTemplate } from '_components';
 import { type DAppEntry, IotaApp } from './IotaApp';
 
 function ConnectedDapps() {
-    const navigate = useNavigate();
-
     const backgroundClient = useBackgroundClient();
     useEffect(() => {
         backgroundClient.sendGetPermissionRequests();
@@ -63,15 +61,14 @@ function ConnectedDapps() {
         [allPermissions, ecosystemApps],
     );
 
-    function handleBack() {
-        navigate('/');
-    }
-
     return (
         <Loading loading={loading}>
-            <>
-                <Header title={'Apps'} titleCentered onBack={handleBack} />
-                <div className="flex flex-1 flex-col gap-md p-md">
+            <PageTemplate title="Apps" isTitleCentered>
+                <div
+                    className={cn('flex flex-1 flex-col gap-md p-md', {
+                        'h-full items-center': !connectedApps?.length,
+                    })}
+                >
                     {connectedApps.length ? (
                         <div className="flex flex-col gap-xs">
                             <Title title="Active Connections" size={TitleSize.Small} />
@@ -83,7 +80,7 @@ function ConnectedDapps() {
                         <NoData message="No connected apps found." />
                     )}
                 </div>
-            </>
+            </PageTemplate>
         </Loading>
     );
 }

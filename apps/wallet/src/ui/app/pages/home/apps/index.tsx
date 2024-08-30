@@ -70,24 +70,17 @@ function AppsPage() {
 
     return (
         <div className={st.container} data-testid="apps-page">
-            <Content>
-                <section>
-                    <FiltersPortal
-                        firstLastMargin
-                        tags={allFilterTags}
-                        callback={handleFiltersPortalClick}
-                    />
-                    <Routes>
-                        {/* Note: because we disabled the featured apps playground, disable any subroute that is not connected dapps */}
-                        {/* <Route path="/:tagName?" element={<AppsPlayGround />} /> */}
-                        <Route
-                            path="/*"
-                            element={<Navigate to="/apps/connected" replace={true} />}
-                        />
-                        <Route path="/connected" element={<ConnectedAppsCard />} />
-                    </Routes>
-                </section>
-            </Content>
+            <FiltersPortal
+                firstLastMargin
+                tags={allFilterTags}
+                callback={handleFiltersPortalClick}
+            />
+            <Routes>
+                {/* Note: because we disabled the featured apps playground, disable any subroute that is not connected dapps */}
+                {/* <Route path="/:tagName?" element={<AppsPlayGround />} /> */}
+                <Route path="/*" element={<Navigate to="/apps/connected" replace={true} />} />
+                <Route path="/connected" element={<ConnectedAppsCard />} />
+            </Routes>
         </div>
     );
 }
