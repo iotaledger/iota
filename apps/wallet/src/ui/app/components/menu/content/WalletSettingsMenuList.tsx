@@ -109,7 +109,7 @@ function MenuList() {
 
     return (
         <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
-            <div className="flex h-full flex-col justify-between">
+            <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.map((item, index) => (
                         <Card
