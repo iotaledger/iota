@@ -5,7 +5,7 @@ import { TransactionBlock } from '@iota/iota-sdk/transactions';
 import { IOTA_SYSTEM_STATE_OBJECT_ID, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 /**
- * The groupe timelocked object is used to create a timelocked staking transaction.
+ * The grouped timelocked object is used to create a timelocked staking transaction.
  * The grouped object contains mergeObjectIds of the objects that need to be merged during staking transaction and the split amount if the object needs to be split.
  */
 export interface GroupedTimelockObject {
