@@ -76,3 +76,4 @@ export { default as Unpined } from './Unpined';
 export { default as Vest } from './Vest';
 export { default as VisibilityOff } from './VisibilityOff';
 export { default as VisibilityOn } from './VisibilityOn';
+export { default as Warning } from './Warning';
