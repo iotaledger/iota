@@ -24,7 +24,7 @@ jobs:
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
-      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota.js')) }}
+      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
