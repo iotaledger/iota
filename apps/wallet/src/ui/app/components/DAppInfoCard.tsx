@@ -12,6 +12,7 @@ import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
 import { Link } from 'react-router-dom';
 import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
+import { ImageIcon } from '../shared/image-icon';
 
 export interface DAppInfoCardProps {
     name: string;
