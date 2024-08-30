@@ -34,48 +34,46 @@
 #### &emsp;&emsp;[Filter By Sender](#524282)
 ### [Iota System State Summary](#9)
 #### &emsp;&emsp;[Iota System State Summary](#589815)
-### [Name Service](#10)
-#### &emsp;&emsp;[Name Service](#655350)
-### [Object](#11)
-#### &emsp;&emsp;[Object](#720885)
-### [Object Connection](#12)
-#### &emsp;&emsp;[Filter Object Ids](#786420)
-#### &emsp;&emsp;[Filter On Generic Type](#786421)
-#### &emsp;&emsp;[Filter On Type](#786422)
-#### &emsp;&emsp;[Filter Owner](#786423)
-#### &emsp;&emsp;[Object Connection](#786424)
-### [Owner](#13)
-#### &emsp;&emsp;[Dynamic Field](#851955)
-#### &emsp;&emsp;[Dynamic Field Connection](#851956)
-#### &emsp;&emsp;[Dynamic Object Field](#851957)
-#### &emsp;&emsp;[Owner](#851958)
-### [Protocol Configs](#14)
-#### &emsp;&emsp;[Key Value](#917490)
-#### &emsp;&emsp;[Key Value Feature Flag](#917491)
-#### &emsp;&emsp;[Specific Config](#917492)
-#### &emsp;&emsp;[Specific Feature Flag](#917493)
-### [Service Config](#15)
-#### &emsp;&emsp;[Service Config](#983025)
-### [Stake Connection](#16)
-#### &emsp;&emsp;[Stake Connection](#1048560)
-### [Transaction Block](#17)
-#### &emsp;&emsp;[Transaction Block](#1114095)
-#### &emsp;&emsp;[Transaction Block Kind](#1114096)
-### [Transaction Block Connection](#18)
-#### &emsp;&emsp;[Before After Checkpoint](#1179630)
-#### &emsp;&emsp;[Changed Object Filter](#1179631)
-#### &emsp;&emsp;[Input Object Filter](#1179632)
-#### &emsp;&emsp;[Input Object Sign Addr Filter](#1179633)
-#### &emsp;&emsp;[Package Filter](#1179634)
-#### &emsp;&emsp;[Package Module Filter](#1179635)
-#### &emsp;&emsp;[Package Module Func Filter](#1179636)
-#### &emsp;&emsp;[Recv Addr Filter](#1179637)
-#### &emsp;&emsp;[Sign Addr Filter](#1179638)
-#### &emsp;&emsp;[Tx Ids Filter](#1179639)
-#### &emsp;&emsp;[Tx Kind Filter](#1179640)
-#### &emsp;&emsp;[With Defaults Ascending](#1179641)
-### [Transaction Block Effects](#19)
-#### &emsp;&emsp;[Transaction Block Effects](#1245165)
+### [Object](#10)
+#### &emsp;&emsp;[Object](#655350)
+### [Object Connection](#11)
+#### &emsp;&emsp;[Filter Object Ids](#720885)
+#### &emsp;&emsp;[Filter On Generic Type](#720886)
+#### &emsp;&emsp;[Filter On Type](#720887)
+#### &emsp;&emsp;[Filter Owner](#720888)
+#### &emsp;&emsp;[Object Connection](#720889)
+### [Owner](#12)
+#### &emsp;&emsp;[Dynamic Field](#786420)
+#### &emsp;&emsp;[Dynamic Field Connection](#786421)
+#### &emsp;&emsp;[Dynamic Object Field](#786422)
+#### &emsp;&emsp;[Owner](#786423)
+### [Protocol Configs](#13)
+#### &emsp;&emsp;[Key Value](#851955)
+#### &emsp;&emsp;[Key Value Feature Flag](#851956)
+#### &emsp;&emsp;[Specific Config](#851957)
+#### &emsp;&emsp;[Specific Feature Flag](#851958)
+### [Service Config](#14)
+#### &emsp;&emsp;[Service Config](#917490)
+### [Stake Connection](#15)
+#### &emsp;&emsp;[Stake Connection](#983025)
+### [Transaction Block](#16)
+#### &emsp;&emsp;[Transaction Block](#1048560)
+#### &emsp;&emsp;[Transaction Block Kind](#1048561)
+### [Transaction Block Connection](#17)
+#### &emsp;&emsp;[Before After Checkpoint](#1114095)
+#### &emsp;&emsp;[Changed Object Filter](#1114096)
+#### &emsp;&emsp;[Input Object Filter](#1114097)
+#### &emsp;&emsp;[Input Object Sign Addr Filter](#1114098)
+#### &emsp;&emsp;[Package Filter](#1114099)
+#### &emsp;&emsp;[Package Module Filter](#1114100)
+#### &emsp;&emsp;[Package Module Func Filter](#1114101)
+#### &emsp;&emsp;[Recv Addr Filter](#1114102)
+#### &emsp;&emsp;[Sign Addr Filter](#1114103)
+#### &emsp;&emsp;[Tx Ids Filter](#1114104)
+#### &emsp;&emsp;[Tx Kind Filter](#1114105)
+#### &emsp;&emsp;[With Defaults Ascending](#1114106)
+### [Transaction Block Effects](#18)
+#### &emsp;&emsp;[Transaction Block Effects](#1179630)
 ## <a id=0></a>
 ## Address
 ### <a id=0></a>
@@ -782,32 +780,8 @@
 >}</pre>
 
 ## <a id=10></a>
-## Name Service
-### <a id=655350></a>
-### Name Service
-
-><pre>{
->  resolveIotansAddress(domain: "example.iota") {
->    address
->  }
->  address(
->    address: "0x0b86be5d779fac217b41d484b8040ad5145dc9ba0cba099d083c6cbda50d983e"
->  ) {
->    address
->    balance(type: "0x2::iota::IOTA") {
->      coinType {
->        repr
->      }
->      coinObjectCount
->      totalBalance
->    }
->    defaultIotansName
->  }
->}</pre>
-
-## <a id=11></a>
 ## Object
-### <a id=720885></a>
+### <a id=655350></a>
 ### Object
 
 ><pre>{
@@ -842,9 +816,9 @@
 >  }
 >}</pre>
 
-## <a id=12></a>
+## <a id=11></a>
 ## Object Connection
-### <a id=786420></a>
+### <a id=720885></a>
 ### Filter Object Ids
 ####  Filter on objectIds
 
@@ -878,7 +852,7 @@
 >  }
 >}</pre>
 
-### <a id=786421></a>
+### <a id=720886></a>
 ### Filter On Generic Type
 
 ><pre>{
@@ -895,7 +869,7 @@
 >  }
 >}</pre>
 
-### <a id=786422></a>
+### <a id=720887></a>
 ### Filter On Type
 
 ><pre>{
@@ -914,7 +888,7 @@
 >  }
 >}</pre>
 
-### <a id=786423></a>
+### <a id=720888></a>
 ### Filter Owner
 ####  Filter on owner
 
@@ -948,7 +922,7 @@
 >  }
 >}</pre>
 
-### <a id=786424></a>
+### <a id=720889></a>
 ### Object Connection
 
 ><pre>{
@@ -959,7 +933,7 @@
 >      storageRebate
 >      previousTransactionBlock {
 >        digest
->        sender { defaultIotansName }
+>        sender { address }
 >        gasInput {
 >          gasPrice
 >          gasBudget
@@ -972,9 +946,9 @@
 >  }
 >}</pre>
 
-## <a id=13></a>
+## <a id=12></a>
 ## Owner
-### <a id=851955></a>
+### <a id=786420></a>
 ### Dynamic Field
 
 ><pre>fragment DynamicFieldValueSelection on DynamicFieldValue {
@@ -1029,7 +1003,7 @@
 >  }
 >}</pre>
 
-### <a id=851956></a>
+### <a id=786421></a>
 ### Dynamic Field Connection
 
 ><pre>fragment DynamicFieldValueSelection on DynamicFieldValue {
@@ -1086,7 +1060,7 @@
 >  }
 >}</pre>
 
-### <a id=851957></a>
+### <a id=786422></a>
 ### Dynamic Object Field
 
 ><pre>fragment DynamicFieldValueSelection on DynamicFieldValue {
@@ -1138,7 +1112,7 @@
 >  }
 >}</pre>
 
-### <a id=851958></a>
+### <a id=786423></a>
 ### Owner
 
 ><pre>{
@@ -1149,9 +1123,9 @@
 >  }
 >}</pre>
 
-## <a id=14></a>
+## <a id=13></a>
 ## Protocol Configs
-### <a id=917490></a>
+### <a id=851955></a>
 ### Key Value
 ####  Select the key and value of the protocol configuration
 
@@ -1164,7 +1138,7 @@
 >  }
 >}</pre>
 
-### <a id=917491></a>
+### <a id=851956></a>
 ### Key Value Feature Flag
 ####  Select the key and value of the feature flag
 
@@ -1177,7 +1151,7 @@
 >  }
 >}</pre>
 
-### <a id=917492></a>
+### <a id=851957></a>
 ### Specific Config
 ####  Select the key and value of the specific protocol configuration, in this case `max_move_identifier_len`
 
@@ -1190,7 +1164,7 @@
 >  }
 >}</pre>
 
-### <a id=917493></a>
+### <a id=851958></a>
 ### Specific Feature Flag
 
 ><pre>{
@@ -1202,9 +1176,9 @@
 >  }
 >}</pre>
 
-## <a id=15></a>
+## <a id=14></a>
 ## Service Config
-### <a id=983025></a>
+### <a id=917490></a>
 ### Service Config
 ####  Get the configuration of the running service
 
@@ -1222,9 +1196,9 @@
 >  }
 >}</pre>
 
-## <a id=16></a>
+## <a id=15></a>
 ## Stake Connection
-### <a id=1048560></a>
+### <a id=983025></a>
 ### Stake Connection
 ####  Get all the staked objects for this address and all the active validators at the epoch when the stake became active
 
@@ -1266,9 +1240,9 @@
 >  }
 >}</pre>
 
-## <a id=17></a>
+## <a id=16></a>
 ## Transaction Block
-### <a id=1114095></a>
+### <a id=1048560></a>
 ### Transaction Block
 ####  Get the data for a TransactionBlock by its digest
 
@@ -1303,7 +1277,7 @@
 >  }
 >}</pre>
 
-### <a id=1114096></a>
+### <a id=1048561></a>
 ### Transaction Block Kind
 
 ><pre>{
@@ -1341,9 +1315,9 @@
 >  }
 >}</pre>
 
-## <a id=18></a>
+## <a id=17></a>
 ## Transaction Block Connection
-### <a id=1179630></a>
+### <a id=1114095></a>
 ### Before After Checkpoint
 ####  Filter on before_ and after_checkpoint. If both are provided, before must be greater than after
 
@@ -1363,7 +1337,7 @@
 >  }
 >}</pre>
 
-### <a id=1179631></a>
+### <a id=1114096></a>
 ### Changed Object Filter
 ####  Filter on changedObject
 
@@ -1385,7 +1359,7 @@
 >  }
 >}</pre>
 
-### <a id=1179632></a>
+### <a id=1114097></a>
 ### Input Object Filter
 ####  Filter on inputObject
 
@@ -1407,7 +1381,7 @@
 >  }
 >}</pre>
 
-### <a id=1179633></a>
+### <a id=1114098></a>
 ### Input Object Sign Addr Filter
 ####  multiple filters
 
@@ -1437,7 +1411,7 @@
 >  }
 >}</pre>
 
-### <a id=1179634></a>
+### <a id=1114099></a>
 ### Package Filter
 ####  Filtering on package
 
@@ -1455,7 +1429,7 @@
 >  }
 >}</pre>
 
-### <a id=1179635></a>
+### <a id=1114100></a>
 ### Package Module Filter
 ####  Filtering on package and module
 
@@ -1477,7 +1451,7 @@
 >  }
 >}</pre>
 
-### <a id=1179636></a>
+### <a id=1114101></a>
 ### Package Module Func Filter
 ####  Filtering on package, module and function
 
@@ -1499,7 +1473,7 @@
 >  }
 >}</pre>
 
-### <a id=1179637></a>
+### <a id=1114102></a>
 ### Recv Addr Filter
 ####  Filter on recvAddress
 
@@ -1521,7 +1495,7 @@
 >  }
 >}</pre>
 
-### <a id=1179638></a>
+### <a id=1114103></a>
 ### Sign Addr Filter
 ####  Filter on signing address
 
@@ -1543,7 +1517,7 @@
 >  }
 >}</pre>
 
-### <a id=1179639></a>
+### <a id=1114104></a>
 ### Tx Ids Filter
 ####  Filter on transactionIds
 
@@ -1563,7 +1537,7 @@
 >  }
 >}</pre>
 
-### <a id=1179640></a>
+### <a id=1114105></a>
 ### Tx Kind Filter
 ####  Filter on TransactionKind (only SYSTEM_TX or PROGRAMMABLE_TX)
 
@@ -1581,7 +1555,7 @@
 >  }
 >}</pre>
 
-### <a id=1179641></a>
+### <a id=1114106></a>
 ### With Defaults Ascending
 ####  Fetch some default amount of transactions, ascending
 
@@ -1618,9 +1592,9 @@
 >  }
 >}</pre>
 
-## <a id=19></a>
+## <a id=18></a>
 ## Transaction Block Effects
-### <a id=1245165></a>
+### <a id=1179630></a>
 ### Transaction Block Effects
 
 ><pre>{

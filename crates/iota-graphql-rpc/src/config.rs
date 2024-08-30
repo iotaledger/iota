@@ -6,7 +6,6 @@ use std::{collections::BTreeSet, fmt::Display, time::Duration};
 
 use async_graphql::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-use iota_json_rpc::name_service::NameServiceConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{functional_group::FunctionalGroup, types::big_int::BigInt};
@@ -92,9 +91,6 @@ pub struct ServiceConfig {
 
     #[serde(default)]
     pub(crate) experiments: Experiments,
-
-    #[serde(default)]
-    pub(crate) name_service: NameServiceConfig,
 
     #[serde(default)]
     pub(crate) background_tasks: BackgroundTasksConfig,
@@ -557,7 +553,6 @@ mod tests {
         let actual = ServiceConfig::read(
             r#" disabled-features = [
                   "coins",
-                  "name-service",
                 ]
             "#,
         )
@@ -565,7 +560,7 @@ mod tests {
 
         use FunctionalGroup as G;
         let expect = ServiceConfig {
-            disabled_features: BTreeSet::from([G::Coins, G::NameService]),
+            disabled_features: BTreeSet::from([G::Coins]),
             ..Default::default()
         };
 

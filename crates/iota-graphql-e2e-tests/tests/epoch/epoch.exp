@@ -15,11 +15,11 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 17-19:
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [212, 87, 108, 251, 56, 39, 131, 80, 243, 226, 24, 38, 212, 155, 194, 14, 147, 80, 75, 129, 235, 34, 120, 3, 145, 155, 56, 192, 29, 182, 130, 250, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [95, 135, 174, 233, 197, 147, 52, 55, 236, 249, 148, 154, 21, 252, 46, 105, 210, 250, 18, 116, 95, 45, 151, 207, 146, 210, 63, 157, 136, 99, 111, 87, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 15412800,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 14789600,  storage_rebate: 1976000, non_refundable_storage_fee: 0
 
 task 5 'create-checkpoint'. lines 20-20:
 Checkpoint created: 3
@@ -38,7 +38,7 @@ Checkpoint created: 5
 task 9 'advance-epoch'. lines 32-33:
 Epoch advanced: 2
 
-task 10 'run-graphql'. lines 34-63:
+task 10 'run-graphql'. lines 34-62:
 Response: {
   "data": {
     "epoch": {
@@ -52,12 +52,11 @@ Response: {
           ]
         },
         "validatorCandidatesSize": 0,
-        "inactivePoolsId": "0xd4a9ede0b4418386db6fb0efa05aca2bc36c8b87c06bfe98ab08709988dc18e7"
+        "inactivePoolsId": "0x7a410699534b7228fce55c67cbe982de1751beb87a10d8951518ec3e4305a36d"
       },
       "totalGasFees": "1000000",
       "totalStakeRewards": "767000000000000",
-      "totalStakeSubsidies": "0",
-      "fundSize": "15412800",
+      "fundSize": "14789600",
       "fundInflow": "1976000",
       "fundOutflow": "988000",
       "netInflow": "988000",
@@ -67,7 +66,7 @@ Response: {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "4QHtybfsbce7DxceYeMi1pDxr3QLdDh99YcN9Y26sApi"
+            "digest": "832vtFgFDPCdQQHieuKsNHKha4tMdgkpBQrwapxDMPWX"
           },
           {
             "kind": {

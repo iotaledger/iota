@@ -33,7 +33,7 @@ It has the following main components:
    - Most facilities from `tokio::runtime` and `tokio::time` are delegated back to the simulator runtime.
    - Custom implementations of the `tokio::net::Tcp*` structs are provided to interface with the network simulator.
    - Most other pieces of tokio (e.g. `sync`) did not need to be re-implemented because they don't interface with the runtime or the network. These are simply re-exported as is.
-   - A minimal [fork of tokio](https://github.com/mystenmark/tokio-madsim-fork) is required in order to expose certain internals to the simulator. This fork has very few modifications, which were written to be easily rebaseable when new tokio releases come out.
+   - A minimal [fork of tokio](https://github.com/iotaledger/tokio-madsim-fork) is required in order to expose certain internals to the simulator. This fork has very few modifications, which were written to be easily rebaseable when new tokio releases come out.
 
 1. A library of interceptor functions which intercept various posix API calls in order to enforce determinism throughout the test. These include:
    - `getrandom()`, `getentropy()` - intercepted and delegated to the simulator PRNG.

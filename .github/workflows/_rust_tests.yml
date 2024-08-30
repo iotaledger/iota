@@ -6,6 +6,10 @@ on:
       isRust:
         type: boolean
 
+concurrency:
+  group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
 jobs:
   changes:
     if: inputs.isRust
@@ -21,90 +25,53 @@ jobs:
           filters: .github/crates-filters.yml
 
   test:
-    name: Test ${{ matrix.components }}
+    name: Test rust crates
     needs: changes
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
-    env:
-      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-      # non-deterministic `test` job.
-      IOTA_SKIP_SIMTESTS: 1
-    strategy:
-      matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-      - uses: taiki-e/install-action@nextest
-      - name: cargo test
-        run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
-
-  iota-sdk-changes:
-    if: inputs.isRust
-    runs-on: [self-hosted]
-    outputs:
-      changed: ${{ steps.filter.outputs.iota-sdk }}
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            iota-sdk:
-              - "crates/iota-sdk/**"
-
-  test-iota-sdk:
-    name: Test iota-sdk
-    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true'
+    if: always() && inputs.isRust
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
     runs-on: [self-hosted]
-    needs: iota-sdk-changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: taiki-e/install-action@nextest
       - name: cargo test
-        # iota-sdk version needs to be explicitly defined here due to this bug
-        # https://github.com/rust-lang/cargo/issues/12891
-        # (we have the stardust iota-sdk package as a dependency)
-        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@0.1.4
+        run: |
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E 'rdeps(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          command="cargo nextest run --profile ci $result"
+
+          echo "$command"
+
+          eval ${command}
 
   check-unused-deps:
-    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
+    name: Check Unused Dependencies (${{ matrix.flags }})
+    if: always() && inputs.isRust
     strategy:
       matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
         flags: ["--all-features", "--no-default-features"]
       fail-fast: false
     runs-on: [self-hosted]
-    needs: changes
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps -p ${{matrix.components}} ${{ matrix.flags }}
-
-  check-unused-deps-iota-sdk:
-    name: Check Unused Dependencies of iota-sdk (${{ matrix.flags }})
-    if: always() && inputs.isRust && needs.iota-sdk-changes.outputs.changed == 'true'
-    runs-on: [self-hosted]
-    needs: iota-sdk-changes
-    strategy:
-      matrix:
-        flags: ["--all-features", "--no-default-features"]
-
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-      # iota-sdk version needs to be explicitly defined here due to this bug
-      # https://github.com/rust-lang/cargo/issues/12891
-      # (we have the stardust iota-sdk package as a dependency)
-      - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps -p iota-sdk@0.1.4 ${{ matrix.flags }}
+        run: cargo +nightly ci-udeps ${{ matrix.flags }}
 
   test-extra:
     env:
@@ -143,27 +110,47 @@ jobs:
       - run: scripts/changed-files.sh
         shell: bash
 
-  # TODO: Disabled until we can get an updated fork of msim with tokio 1.38 https://github.com/iotaledger/iota/issues/1212
-  # simtest:
-  #     name: Simtest ${{ matrix.components }}
-  #     needs: changes
-  #     timeout-minutes: 45
-  #     runs-on: [self-hosted]
-  #     strategy:
-  #         matrix:
-  #             components: ${{ fromJson(needs.changes.outputs.components) }}
-  #         fail-fast: false
-  #     env:
-  #         MSIM_WATCHDOG_TIMEOUT_MS: 60000
-  #     steps:
-  #         - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
-  #         - uses: taiki-e/install-action@nextest
-  #         - name: cargo simtest
-  #           run: |
-  #               scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
-  #         - name: check new tests for flakiness
-  #           run: |
-  #               scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  simtest:
+    name: Simtest rust
+    needs: changes
+    timeout-minutes: 45
+    runs-on: [self-hosted]
+    env:
+      MSIM_WATCHDOG_TIMEOUT_MS: 60000
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: taiki-e/install-action@nextest
+      - name: setup filter
+        run: |
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E 'rdeps(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          echo "filters=$result" >> "$GITHUB_ENV"
+      - name: cargo simtest
+        run: |
+          command="scripts/simtest/cargo-simtest simtest $filters"
+
+          echo "$command"
+
+          eval ${command}
+      - name: check new tests for flakiness
+        run: |
+          command="scripts/simtest/stress-new-tests.sh $filters"
+
+          echo "$command"
+
+          eval ${command}
 
   # # Disabled
   # rosetta-validation:

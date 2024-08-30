@@ -7,10 +7,6 @@ import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@iota/icons'
 export const FOOTER_LINKS = [
     { title: 'Blog', href: 'https://blog.iota.org' },
     {
-        title: 'Whitepaper',
-        href: 'https://github.com/iotaledger/iota/blob/main/doc/paper/iota.pdf',
-    },
-    {
         title: 'Docs',
         href: 'https://wiki.iota.org',
     },
