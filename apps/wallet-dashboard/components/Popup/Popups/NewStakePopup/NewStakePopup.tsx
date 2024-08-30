@@ -51,9 +51,9 @@ function NewStakePopup({
         StructType: TIMELOCK_IOTA_TYPE,
     });
 
-    let extendedTimelockObjects: GroupedTimelockObject[] = [];
+    let groupedTimelockObjects: GroupedTimelockObject[] = [];
     if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
-        extendedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+        groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
             timelockedObjects,
             amountWithoutDecimals,
             currentEpochMs,
@@ -64,7 +64,8 @@ function NewStakePopup({
         selectedValidator,
         amountWithoutDecimals,
         senderAddress,
-        extendedTimelockObjects,
+        isTimelockedStaking,
+        groupedTimelockObjects,
     );
 
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
@@ -87,6 +88,10 @@ function NewStakePopup({
     }
 
     function handleStake(): void {
+        if (isTimelockedStaking && groupedTimelockObjects.length === 0) {
+            addNotification('Invalid stake amount. Please try again.', NotificationType.Error);
+            return;
+        }
         if (!newStakeData?.transaction) {
             addNotification('Stake transaction was not created', NotificationType.Error);
             return;

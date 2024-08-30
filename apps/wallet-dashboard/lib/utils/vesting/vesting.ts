@@ -259,41 +259,20 @@ export function groupTimelockedObjects(
 export function adjustSplitAmountsInExtendedTimelockObjects(
     extendedTimelockObjects: GroupedTimelockObject[],
     totalRemainderAmount: bigint,
-) {
-    let objectsToSplit = 1;
+): GroupedTimelockObject[] {
     let foundSplit = false;
+    extendedTimelockObjects.forEach((timelockedObject) => {
+        const amountToSplit = timelockedObject.totalLockedAmount - totalRemainderAmount;
 
-    while (!foundSplit && objectsToSplit <= extendedTimelockObjects.length) {
-        const baseRemainderAmount = totalRemainderAmount / BigInt(objectsToSplit);
-        // if the amount is odd value we need to add the remainder to the first object because we floored the division
-        const remainder = totalRemainderAmount % BigInt(objectsToSplit);
-
-        // counter for objects that have splitAmount > 0
-        let foundObjectsToSplit = 0;
-
-        for (let i = 0; i < extendedTimelockObjects.length; i++) {
-            const obj = extendedTimelockObjects[i];
-            let adjustedRemainderAmount = baseRemainderAmount;
-            if (i === 0 && remainder > 0) {
-                adjustedRemainderAmount += remainder;
-            }
-            const amountToSplit = obj.totalLockedAmount - adjustedRemainderAmount;
-
-            if (amountToSplit > MIN_STAKING_THRESHOLD) {
-                obj.splitAmount = amountToSplit;
-                foundObjectsToSplit++;
-                if (foundObjectsToSplit === objectsToSplit) {
-                    foundSplit = true;
-                    break;
-                }
-            }
+        if (amountToSplit >= MIN_STAKING_THRESHOLD) {
+            timelockedObject.splitAmount = amountToSplit;
+            foundSplit = true;
         }
-
-        if (!foundSplit) {
-            extendedTimelockObjects.forEach((obj) => (obj.splitAmount = BigInt(0)));
-            objectsToSplit++;
-        }
+    });
+    if (!foundSplit) {
+        return [];
     }
+    return extendedTimelockObjects;
 }
 
 /**
@@ -309,23 +288,30 @@ export function prepareObjectsForTimelockedStakingTransaction(
     amount: bigint,
     currentEpochMs: string,
 ): GroupedTimelockObject[] {
+    if (Number(amount) === 0) {
+        return [];
+    }
     const timelockedMapped = mapTimelockObjects(timelockedObjects);
-    const filteredTimelockedObjects = timelockedMapped
+    const filterTimelockedVestingObjects = timelockedMapped
         ?.filter(isSupplyIncreaseVestingObject)
         .filter((obj: TimelockedObject) => {
             return Number(obj.expirationTimestampMs) > Number(currentEpochMs);
-        })
-        .sort((a: TimelockedObject, b: TimelockedObject) => {
-            return Number(b.expirationTimestampMs) - Number(a.expirationTimestampMs);
         });
 
     const groupedTimelockObjects: GroupedTimelockObject[] = groupTimelockedObjects(
-        filteredTimelockedObjects,
-    ).filter((obj) => obj.totalLockedAmount >= MIN_STAKING_THRESHOLD);
+        filterTimelockedVestingObjects,
+    )
+        .filter((obj) => obj.totalLockedAmount >= MIN_STAKING_THRESHOLD)
+        .sort((a: GroupedTimelockObject, b: GroupedTimelockObject) => {
+            if (b.totalLockedAmount !== a.totalLockedAmount) {
+                return Number(b.totalLockedAmount - a.totalLockedAmount); // Descending order for totalLockedAmount
+            }
+            return Number(b.expirationTimestamp) - Number(a.expirationTimestamp); // Descending order for expirationTimestamp
+        });
 
     // Create a subset of objects that meet the stake amount (where total combined locked amount >= STAKE_AMOUNT)
     let totalLocked: bigint = BigInt(0);
-    const subsetGroupedTimelockObjects: GroupedTimelockObject[] = [];
+    let subsetGroupedTimelockObjects: GroupedTimelockObject[] = [];
 
     for (const groupedObject of groupedTimelockObjects) {
         totalLocked += groupedObject.totalLockedAmount;
@@ -345,8 +331,11 @@ export function prepareObjectsForTimelockedStakingTransaction(
 
     // Add splitAmount property to the vesting objects that need to be split
     if (remainingAmount > 0) {
-        adjustSplitAmountsInExtendedTimelockObjects(subsetGroupedTimelockObjects, remainingAmount);
+        subsetGroupedTimelockObjects = adjustSplitAmountsInExtendedTimelockObjects(
+            subsetGroupedTimelockObjects,
+            remainingAmount,
+        );
     }
-    console.log(subsetGroupedTimelockObjects);
+
     return subsetGroupedTimelockObjects;
 }
