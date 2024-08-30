@@ -112,6 +112,7 @@ type TableCellLink = {
      */
     isExternal?: boolean;
 };
+
 export type TableCellProps = TableCellBaseProps &
     (
         | TableCellText
