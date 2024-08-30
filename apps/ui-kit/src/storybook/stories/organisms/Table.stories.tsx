@@ -47,6 +47,14 @@ const rowsData: TableCellProps[][] = [
         { type: TableCellType.Text, label: '12.03.2019' },
     ],
     [
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+    ],
+    [
         { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Sam Johnson' },
         { type: TableCellType.Badge, badgeType: BadgeType.PrimarySoft, label: '40' },
         { type: TableCellType.Text, label: 'Project Manager' },
@@ -105,8 +113,12 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         supportingLabel: '10.7k records',
-        hasPagination: true,
+        paginationOptions: {
+            onFirstPageClick: () => console.log('First'),
+            onNextPageClick: () => console.log('Next'),
+        },
         actionLabel: 'Action',
         hasCheckboxColumn: true,
+        rowIndexes: [0, 1, 2],
     },
 };

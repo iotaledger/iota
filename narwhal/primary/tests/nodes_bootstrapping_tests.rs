@@ -45,7 +45,7 @@ async fn test_response_error_after_shutdown_internal_consensus() {
     };
     assert!(
         e.message()
-            .contains("error trying to connect: tcp connect error:"),
+            .contains("tcp connect error: Connection refused"),
         "Actual: {}",
         e
     );

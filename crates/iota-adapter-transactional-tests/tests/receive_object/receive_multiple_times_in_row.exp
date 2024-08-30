@@ -11,7 +11,7 @@ gas summary: computation_cost: 1000000, storage_cost: 7007200,  storage_rebate: 
 task 2 'run'. lines 39-39:
 created: object(2,0), object(2,1)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'run'. lines 41-41:
 created: object(3,0)
@@ -30,7 +30,7 @@ Contents: tto::M1::B {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 
 task 6 'run'. lines 48-48:
 mutated: object(0,1), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3385800, non_refundable_storage_fee: 34200
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
 
 task 7 'view-object'. lines 50-50:
 Owner: Account Address ( _ )
@@ -48,7 +48,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 10 'run'. lines 58-60:
 mutated: object(0,1), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3385800, non_refundable_storage_fee: 34200
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
 
 task 11 'run'. lines 61-63:
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 3
@@ -56,4 +56,4 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 12 'run'. lines 64-64:
 mutated: object(0,1), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3385800, non_refundable_storage_fee: 34200
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0

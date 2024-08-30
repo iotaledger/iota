@@ -24,6 +24,7 @@ export function Collapsible({
     defaultOpen,
     isOpen,
     onOpenChange,
+    shade = 'lighter',
     titleSize = TitleSize.Small,
     renderHeader,
     hideArrow,

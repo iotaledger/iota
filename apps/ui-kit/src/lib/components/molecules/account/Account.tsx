@@ -24,15 +24,15 @@ interface AccountProps {
     /**
      * Handler for more options click.
      */
-    onOptionsClick: () => void;
+    onOptionsClick?: () => void;
     /**
      * Handler for the lock account icon click.
      */
-    onLockAccountClick: () => void;
+    onLockAccountClick?: () => void;
     /**
      * Handle for the unlock account icon click.
      */
-    onUnlockAccountClick: () => void;
+    onUnlockAccountClick?: () => void;
     /**
      * Function to render avatar content.
      */
@@ -106,27 +106,31 @@ export function Account({
                     isLocked && '[&_button:last-child]:flex',
                 )}
             >
-                <Button
-                    size={ButtonSize.Small}
-                    type={ButtonType.Ghost}
-                    onClick={onOptionsClick}
-                    icon={<MoreHoriz className="h-5 w-5 text-neutral-40" />}
-                />
-                {isLocked ? (
+                {onOptionsClick && (
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
-                        onClick={onUnlockAccountClick}
-                        icon={<LockLocked className="h-5 w-5 text-neutral-40" />}
-                    />
-                ) : (
-                    <Button
-                        size={ButtonSize.Small}
-                        type={ButtonType.Ghost}
-                        onClick={onLockAccountClick}
-                        icon={<LockUnlocked className="h-5 w-5 text-neutral-40" />}
+                        onClick={onOptionsClick}
+                        icon={<MoreHoriz className="h-5 w-5 text-neutral-40" />}
                     />
                 )}
+                {onLockAccountClick &&
+                    onUnlockAccountClick &&
+                    (isLocked ? (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onUnlockAccountClick}
+                            icon={<LockLocked className="h-5 w-5 text-neutral-40" />}
+                        />
+                    ) : (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onLockAccountClick}
+                            icon={<LockUnlocked className="h-5 w-5 text-neutral-40" />}
+                        />
+                    ))}
             </div>
         </div>
     );

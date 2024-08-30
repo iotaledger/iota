@@ -3,13 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+    VerifyPasswordModal,
+} from '_components';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
-import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import { OutsideClickHandler } from '_pages/accounts/manage/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { Collapsible } from '_app/shared/collapse';

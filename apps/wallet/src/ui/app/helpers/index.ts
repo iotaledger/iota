@@ -7,3 +7,4 @@ export { default as notEmpty } from './notEmptyCheck';
 // export { getEventsSummary } from './getEventsSummary';
 export { getAmount } from './getAmount';
 export { checkStakingTxn } from './checkStakingTxn';
+export { truncateString } from './truncateString';

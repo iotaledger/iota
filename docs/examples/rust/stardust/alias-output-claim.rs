@@ -39,7 +39,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default.
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None)?;
+    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
     println!("Sender address: {sender:?}");
 
