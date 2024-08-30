@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading, NftImage } from '_components';
-import { Heading } from '_app/shared/heading';
-import { useFileExtensionType } from '_hooks';
 import { isKioskOwnerToken, useGetNFTMeta, useGetObject, useKioskClient } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
