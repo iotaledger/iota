@@ -172,27 +172,31 @@ function InputElement({
     inputRef,
     ...inputProps
 }: InputProps & {
-    inputRef: React.ForwardedRef<HTMLInputElement> | undefined;
+    inputRef: React.ForwardedRef<HTMLInputElement>;
 }) {
     return type !== InputType.Number ? (
         <input {...inputProps} type={type} ref={inputRef} />
     ) : (
-        <NumericInput {...inputProps} type={type} />
+        <NumericInput inputRef={inputRef} {...inputProps} type={type} />
     );
 }
 
 function NumericInput({
     type,
     onValueChange,
+    inputRef,
     ...inputProps
-}: GenericInputProps & NumberInputProps) {
+}: GenericInputProps &
+    NumberInputProps & {
+        inputRef: React.ForwardedRef<HTMLInputElement>;
+    }) {
     const numericFormatProps: ComponentProps<typeof NumericFormat> = {
         decimalScale: inputProps.decimals ? undefined : 0,
         thousandSeparator: true,
         onChange: (e) => inputProps.onChange?.(e),
         onValueChange: (values) => onValueChange?.(values.value),
     };
-    return <NumericFormat {...numericFormatProps} {...inputProps} />;
+    return <NumericFormat getInputRef={inputRef} {...numericFormatProps} {...inputProps} />;
 }
 
 function InputTrailingElement({
