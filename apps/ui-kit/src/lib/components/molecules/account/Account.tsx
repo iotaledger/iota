@@ -108,7 +108,7 @@ export function Account({
             <div className={cx('z-10 ml-auto flex items-center space-x-2 ')}>
                 <div
                     className={cx(
-                        'flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
+                        'flex items-center space-x-2 z-10 ml-auto flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
                         isLocked && '[&_button:last-child]:flex',
                     )}
                 >
