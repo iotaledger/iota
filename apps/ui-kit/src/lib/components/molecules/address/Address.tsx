@@ -4,7 +4,7 @@
 import React from 'react';
 import cx from 'classnames';
 import { Copy, ArrowTopRight } from '@iota/ui-icons';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { ButtonUnstyled } from '../../atoms/button';
 
 interface AddressProps {
     /**

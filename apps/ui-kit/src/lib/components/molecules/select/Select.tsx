@@ -7,7 +7,7 @@ import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { ButtonUnstyled } from '../../atoms/button';
 import { ListItem } from '../../atoms';
 
 export interface SelectOption {

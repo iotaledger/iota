@@ -19,7 +19,7 @@ import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { ButtonPill, Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -103,14 +103,9 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                         placeholder="0 IOTA"
                         caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
                         trailingElement={
-                            <button
-                                onClick={setMaxToken}
-                                type="button"
-                                disabled={queryResult.isPending}
-                                className="flex items-center justify-center rounded-xl border border-neutral-70 px-sm text-body-md text-neutral-40"
-                            >
+                            <ButtonPill onClick={setMaxToken} disabled={queryResult.isPending}>
                                 Max
-                            </button>
+                            </ButtonPill>
                         }
                         errorMessage={errors.amount}
                         label="Amount"

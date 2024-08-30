@@ -31,6 +31,7 @@ import {
     Button,
     ButtonType,
     ButtonHtmlType,
+    ButtonPill,
 } from '@iota/apps-ui-kit';
 import { FormInput } from './FormInput';
 import { Exclamation } from '@iota/ui-icons';
@@ -270,6 +271,7 @@ export function SendTokenForm({
 
                                     <SendTokenFormInput
                                         coinDecimals={coinDecimals}
+                                        symbol={symbol}
                                         coins={coins}
                                         values={values}
                                         onActionClick={onMaxTokenButtonClick}
@@ -311,6 +313,7 @@ export function SendTokenForm({
 interface SendTokenInputProps {
     coinDecimals: number;
     coins?: CoinStruct[];
+    symbol: string;
     values: {
         amount: string;
         isPayAllIota: boolean;
@@ -323,6 +326,7 @@ function SendTokenFormInput({
     coinDecimals,
     coins,
     values,
+    symbol,
     onActionClick,
     isActionButtonDisabled,
 }: SendTokenInputProps) {
@@ -338,20 +342,22 @@ function SendTokenFormInput({
             label="Send Amount"
             placeholder="0.00"
             caption="Est. Gas Fees:"
+            suffix={` ${symbol}`}
+            decimals
+            allowNegative={false}
+            prefix={values.isPayAllIota ? '~ ' : undefined}
             amountCounter={coins ? gasBudgetEstimation : '--'}
             renderAction={(isButtonDisabled) => (
-                <button
-                    type="button"
+                <ButtonPill
                     disabled={
                         isActionButtonDisabled === 'auto'
                             ? isButtonDisabled
                             : isActionButtonDisabled
                     }
-                    className="flex items-center justify-center rounded-xl border border-neutral-70 px-sm text-body-md text-neutral-40 disabled:opacity-40"
                     onClick={onActionClick}
                 >
                     Max
-                </button>
+                </ButtonPill>
             )}
         />
     );

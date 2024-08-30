@@ -14,7 +14,7 @@ import {
 import { InputType } from './input.enums';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { ButtonUnstyled } from '../../atoms/button';
 import { InputPropsByType, NumberInputProps } from './input.types';
 import { NumericFormat } from 'react-number-format';
 

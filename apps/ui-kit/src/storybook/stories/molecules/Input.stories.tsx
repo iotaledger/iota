@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { Input, InputType } from '@/lib/components/molecules/input';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import { ComponentProps, useCallback, useEffect, useState } from 'react';
-import { ButtonUnstyled } from '@/lib/components/atoms/button/ButtonUnstyled';
+import { ButtonPill } from '@/lib/components/atoms/button';
 
 type CustomStoryProps = {
     withLeadingIcon?: boolean;
@@ -78,19 +78,6 @@ export const WithLeadingElement: Story = {
     render: (props) => <InputStory {...props} withLeadingIcon />,
 };
 
-const TrailingMaxButton = ({ onButtonClick }: { onButtonClick: () => void }) => {
-    return (
-        <ButtonUnstyled
-            onClick={onButtonClick}
-            className="flex items-center justify-center rounded-xl border border-neutral-60 px-sm py-xxxs dark:border-neutral-40"
-        >
-            <span className="font-inter text-label-md text-neutral-10 dark:text-neutral-92">
-                Max
-            </span>
-        </ButtonUnstyled>
-    );
-};
-
 export const WithMaxTrailingButton: Story = {
     args: {
         type: InputType.Number,
@@ -133,7 +120,7 @@ export const WithMaxTrailingButton: Story = {
                 required
                 label="Send Tokens"
                 value={inputValue}
-                trailingElement={<TrailingMaxButton onButtonClick={onMaxClick} />}
+                trailingElement={<ButtonPill onClick={onMaxClick}>Max</ButtonPill>}
                 errorMessage={error}
                 onChange={onChange}
                 onClearInput={() => setInputValue('')}
@@ -162,7 +149,7 @@ export const WithPrefixAndSuffix: Story = {
             <InputStory
                 {...props}
                 value={inputValue}
-                trailingElement={<TrailingMaxButton onButtonClick={onMaxClick} />}
+                trailingElement={<ButtonPill onClick={onMaxClick}>Max</ButtonPill>}
             />
         );
     },
