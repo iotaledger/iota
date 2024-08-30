@@ -4,7 +4,7 @@
 
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import { getValidDAppUrl } from '_src/shared/utils';
-import { Card, CardBody, CardImage } from '@iota/apps-ui-kit';
+import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
 import { useAccountByAddress } from '../hooks/useAccountByAddress';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
@@ -12,7 +12,6 @@ import { useUnlockAccount } from './accounts/UnlockAccountContext';
 import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
 import { Link } from 'react-router-dom';
-import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
 import { ImageIcon } from '../shared/image-icon';
 
 export interface DAppInfoCardProps {
