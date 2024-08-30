@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './DAppInfoCard';
-export * from './DAppPermissionsList';
+export * from './DAppPermissionList';
 export * from './HideShowDisplayBox';
 export * from './IconButton';
 export * from './LabelValueItem';

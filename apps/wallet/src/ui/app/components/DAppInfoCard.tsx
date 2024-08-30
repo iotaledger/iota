@@ -9,8 +9,11 @@ import { useAccountByAddress } from '../hooks/useAccountByAddress';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
 import { useUnlockAccount } from './accounts/UnlockAccountContext';
-import { DAppPermissionsList } from './DAppPermissionsList';
+import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
+import { Link } from 'react-router-dom';
+import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
+import { ImageIcon } from '../shared/image-icon';
 
 export interface DAppInfoCardProps {
     name: string;
@@ -28,7 +31,6 @@ export function DAppInfoCard({
     permissions,
 }: DAppInfoCardProps) {
     const validDAppUrl = getValidDAppUrl(url);
-    const appHostname = validDAppUrl?.hostname ?? url;
     const { data: account } = useAccountByAddress(connectedAddress);
     const { unlockAccount, lockAccount } = useUnlockAccount();
     function handleLockAndUnlockClick() {
@@ -40,21 +42,21 @@ export function DAppInfoCard({
         }
     }
     return (
-        <div className="flex flex-col gap-md">
-            <Card>
-                <CardImage>
-                    {iconUrl ? <img className="flex-1" src={iconUrl} alt={name} /> : null}
+        <div className="flex flex-col gap-y-md">
+            <Card type={CardType.Default}>
+                <CardImage type={ImageType.BgSolid} shape={ImageShape.Rounded}>
+                    <ImageIcon src={iconUrl || null} label={name} fallback={name} />
                 </CardImage>
                 <CardBody
                     title={name}
                     subtitle={
-                        <a
+                        <Link
+                            to={validDAppUrl?.toString() ?? url}
                             target="_blank"
-                            rel="noreferrer noopener"
-                            href={validDAppUrl?.toString() ?? url}
+                            rel="noopener noreferrer"
                         >
-                            {appHostname}
-                        </a>
+                            {validDAppUrl?.toString() ?? url}
+                        </Link>
                     }
                 />
             </Card>
@@ -71,7 +73,7 @@ export function DAppInfoCard({
             {permissions?.length ? (
                 <SummaryCard
                     header="Permissions requested"
-                    body={<DAppPermissionsList permissions={permissions} />}
+                    body={<DAppPermissionList permissions={permissions} />}
                     boxShadow
                 />
             ) : null}
