@@ -68,11 +68,11 @@ function TransferCoinPage() {
                     showEvents: true,
                 },
             });
-        },
 
-        // finally {
-        // sentryTransaction.finish();
-        // }
+            // finally {
+            // sentryTransaction.finish();
+            // }
+        },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });
             queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
