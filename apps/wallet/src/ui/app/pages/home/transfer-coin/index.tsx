@@ -14,6 +14,7 @@ import {
     useCoinMetadata,
     useFormatCoin,
 } from '@iota/core';
+// import * as Sentry from '@sentry/react';
 import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
