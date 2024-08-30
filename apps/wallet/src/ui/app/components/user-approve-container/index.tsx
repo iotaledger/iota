@@ -59,9 +59,9 @@ export function UserApproveContainer({
     const { data: selectedAccount } = useAccountByAddress(address);
     const parsedOrigin = useMemo(() => new URL(origin), [origin]);
     return (
-        <div className="flex h-full flex-1 flex-col flex-nowrap">
+        <div className="flex h-full flex-1 flex-col flex-nowrap gap-md">
             {headerTitle && <Header title={headerTitle} titleCentered />}
-            <div className="flex flex-1 flex-col pb-0">
+            <div className="flex flex-1 flex-col gap-md p-md">
                 <DAppInfoCard
                     name={parsedOrigin.host}
                     url={origin}
@@ -69,7 +69,7 @@ export function UserApproveContainer({
                     iconUrl={originFavIcon}
                     connectedAddress={!addressHidden && address ? address : undefined}
                 />
-                <div className="bg-hero-darkest/5 flex flex-1 flex-col px-6">{children}</div>
+                <div className="flex flex-1 flex-col">{children}</div>
             </div>
             <div className="sticky bottom-0 z-10">
                 <div

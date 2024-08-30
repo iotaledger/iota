@@ -86,15 +86,16 @@ export function Account({
     const Avatar = avatarContent;
 
     return (
-        <div className="state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer">
+        <div
+            className="state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer">
             <div className="flex items-center space-x-3">
-                <Avatar isLocked={isLocked} />
+                <Avatar isLocked={isLocked}/>
                 <div className="flex flex-col items-start py-xs">
                     <div className="flex items-center space-x-2">
                         <span className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                             {title}
                         </span>
-                        {badgeType && badgeText && <Badge type={badgeType} label={badgeText} />}
+                        {badgeType && badgeText && <Badge type={badgeType} label={badgeText}/>}
                     </div>
                     <Address
                         text={subtitle}
@@ -117,7 +118,7 @@ export function Account({
                             size={ButtonSize.Small}
                             type={ButtonType.Ghost}
                             onClick={onOptionsClick}
-                            icon={<MoreHoriz className="h-5 w-5" />}
+                            icon={<MoreHoriz className="h-5 w-5"/>}
                         />
                     )}
                     {onLockAccountClick &&
@@ -127,14 +128,14 @@ export function Account({
                                 size={ButtonSize.Small}
                                 type={ButtonType.Ghost}
                                 onClick={onUnlockAccountClick}
-                                icon={<LockLocked className="h-5 w-5" />}
+                                icon={<LockLocked className="h-5 w-5"/>}
                             />
                         ) : (
                             <Button
                                 size={ButtonSize.Small}
                                 type={ButtonType.Ghost}
                                 onClick={onLockAccountClick}
-                                icon={<LockUnlocked className="h-5 w-5" />}
+                                icon={<LockUnlocked className="h-5 w-5"/>}
                             />
                         ))}
                 </div>

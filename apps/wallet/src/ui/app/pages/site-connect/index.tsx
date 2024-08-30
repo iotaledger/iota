@@ -139,7 +139,7 @@ function SiteConnectPage() {
                         approveDisabled={!accountsToConnect.length}
                         blended
                     >
-                        <div className="flex flex-col gap-8 py-6">
+                        <div className="flex flex-col gap-md">
                             {unlockedAccounts.length > 0 ? (
                                 <AccountMultiSelectWithControls
                                     selectedAccountIDs={accountsToConnect.map(

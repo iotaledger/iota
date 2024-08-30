@@ -40,7 +40,7 @@ export function DAppInfoCard({
         }
     }
     return (
-        <div className="flex flex-col gap-md bg-white p-md">
+        <div className="flex flex-col gap-md">
             <Card>
                 <CardImage>
                     {iconUrl ? <img className="flex-1" src={iconUrl} alt={name} /> : null}
