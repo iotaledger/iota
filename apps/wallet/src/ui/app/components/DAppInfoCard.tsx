@@ -39,7 +39,9 @@ export function DAppInfoCard({
     return (
         <div className="flex flex-col gap-y-md">
             <Card type={CardType.Default}>
-                <CardImage type={ImageType.BgSolid} shape={ImageShape.Rounded} url={iconUrl} />
+                <CardImage type={ImageType.BgSolid} shape={ImageShape.Rounded}>
+                    <ImageIcon src={iconUrl || null} label={name} fallback={name} />
+                </CardImage>
                 <CardBody
                     title={name}
                     subtitle={
