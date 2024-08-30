@@ -1,18 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import cx from 'classnames';
 import { Close } from '@iota/ui-icons';
 import { SnackbarType } from './snackbar.enums';
 import { BACKGROUND_COLOR, TEXT_COLOR } from '@/components/atoms/snackbar/snackbar.classes';
 
+type Renderable = JSX.Element | string | null;
 export interface SnackbarProps {
     /**
      * The message to display in the snackbar.
      */
-    text: string;
-
+    text: Renderable;
     /**
      * Type of the snackbar.
      */

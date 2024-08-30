@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast';
 import { useFaucetMutation } from './useFaucetMutation';
 import { useFaucetRateLimiter } from './useFaucetRateLimiter';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
+import FaucetMessageInfo from './FaucetMessageInfo';
 
 function FaucetRequestButton(): JSX.Element | null {
     const network = useAppSelector(({ app }) => app.network);
@@ -33,9 +34,9 @@ function FaucetRequestButton(): JSX.Element | null {
             disabled={isRateLimited}
             onClick={() => {
                 toast.promise(mutation.mutateAsync(), {
-                    loading: 'Request in progress...',
-                    success: () => toast.success('Tokens requested successfully'),
-                    error: (error) => toast.error(`Failed to request tokens: ${error.message}`),
+                    loading: <FaucetMessageInfo loading />,
+                    success: (totalReceived) => <FaucetMessageInfo totalReceived={totalReceived} />,
+                    error: (error) => <FaucetMessageInfo error={error.message} />,
                 });
             }}
             text={`Request ${networkConfig?.name} Tokens`}

@@ -6,14 +6,7 @@ import { useMenuIsOpen } from '_components';
 import { useAppSelector } from '_hooks';
 import { getNavIsVisible } from '_redux/slices/app';
 import cl from 'clsx';
-import toast, {
-    type Renderable,
-    type Toast,
-    Toaster as ToasterLib,
-    type ValueOrFunction,
-    type ToastType,
-    resolveValue,
-} from 'react-hot-toast';
+import toast, { Toaster as ToasterLib, type ToastType, resolveValue } from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { Portal } from '../Portal';
 import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
@@ -43,19 +36,6 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
         }
     }
 
-    function convertMessageToString(
-        message: ValueOrFunction<Renderable, Toast>,
-        t: Toast,
-    ): string | undefined {
-        const messageValue = resolveValue(message, t);
-        if (typeof messageValue === 'string') {
-            return messageValue;
-        } else if (typeof messageValue === 'object') {
-            return JSON.stringify(messageValue);
-        }
-        return undefined;
-    }
-
     return (
         <Portal containerId="toaster-portal-container">
             <ToasterLib
@@ -70,7 +50,7 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
                     <div style={{ opacity: t.visible ? 1 : 0 }}>
                         <Snackbar
                             onClose={() => toast.dismiss(t.id)}
-                            text={convertMessageToString(t.message, t) || ''}
+                            text={resolveValue(t.message, t)}
                             type={getSnackbarType(t.type)}
                             showClose={true}
                             duration={t.duration}
