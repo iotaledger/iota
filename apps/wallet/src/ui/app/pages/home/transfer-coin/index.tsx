@@ -56,6 +56,9 @@ function TransferCoinPage() {
                 throw new Error('Missing data');
             }
 
+            // const sentryTransaction = Sentry.startTransaction({
+            // 	name: 'send-tokens',
+            // });
             return signer.signAndExecuteTransactionBlock({
                 transactionBlock: transaction,
                 options: {
@@ -65,6 +68,10 @@ function TransferCoinPage() {
                 },
             });
         },
+
+        // finally {
+        // sentryTransaction.finish();
+        // }
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });
             queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
