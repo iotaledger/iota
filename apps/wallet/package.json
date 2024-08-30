@@ -134,7 +134,7 @@
         "jose": "^5.2.3",
         "mitt": "^3.0.1",
         "poseidon-lite": "^0.2.0",
-        "qrious": "^4.0.2",
+        "qrcode.react": "^4.0.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "react-error-boundary": "^4.0.10",

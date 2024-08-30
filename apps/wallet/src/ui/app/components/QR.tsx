@@ -1,29 +1,42 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useEffect, useState } from 'react';
-import { default as QrCode } from 'qrious';
+import { QRCodeSVG } from 'qrcode.react';
 
-export function QR({ data }: { data: string }) {
-    const [qrImage, setQrImage] = useState('');
-    const qrCode = new QrCode();
+export enum QRLevel {
+    L = 'L',
+    M = 'M',
+    Q = 'Q',
+    H = 'H',
+}
+interface QRProps {
+    value: string;
+    size: number;
+    bgColor?: string;
+    fgColor?: string;
+    level?: QRLevel;
+    marginSize?: number;
+    title?: string;
+}
 
-    useEffect(() => {
-        if (data) {
-            generateQrCode();
-        }
-    }, [data]);
-
-    function generateQrCode(): void {
-        qrCode.set({
-            background: '#ffffff',
-            foreground: '#000000',
-            level: 'L',
-            size: 150,
-            value: data,
-        });
-
-        setQrImage(qrCode.toDataURL('image/png'));
-    }
-    return <img src={qrImage} alt={data} />;
+export function QR({
+    value,
+    size,
+    bgColor = '#ffffff',
+    fgColor = '#000000',
+    level = QRLevel.L,
+    marginSize,
+    title,
+}: QRProps) {
+    return (
+        <QRCodeSVG
+            value={value}
+            size={size}
+            bgColor={bgColor}
+            fgColor={fgColor}
+            level={level}
+            marginSize={marginSize}
+            title={title}
+        />
+    );
 }

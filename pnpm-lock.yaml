@@ -887,9 +887,9 @@ importers:
       poseidon-lite:
         specifier: ^0.2.0
         version: 0.2.0
-      qrious:
-        specifier: ^4.0.2
-        version: 4.0.2
+      qrcode.react:
+        specifier: ^4.0.1
+        version: 4.0.1(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -14855,8 +14855,10 @@ packages:
     resolution: {integrity: sha512-pMpnA0qRdFp32b1sJl1wOJNxZLQ2cbQx+k6tjNtZ8CpvVhNqEPRgivZ2WOUev2YMajecdH7ctUPDvEe87nariQ==}
     engines: {node: '>=6.0.0'}
 
-  qrious@4.0.2:
-    resolution: {integrity: sha512-xWPJIrK1zu5Ypn898fBp8RHkT/9ibquV2Kv24S/JY9VYEhMBMKur1gHVsOiNUh7PHP9uCgejjpZUHUIXXKoU/g==}
+  qrcode.react@4.0.1:
+    resolution: {integrity: sha512-Lpj0tPBn561WiQ3QQWXbkx8xTtB8BZkJeMZWLJIL8iaPBCoWzW1IpCeU3gY5MDqsb0+efCvEGkl9O0naP64crA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0
 
   qs@6.11.0:
     resolution: {integrity: sha512-MvjoMCJwEarSbUYk5O+nmoSzSutSsTwF85zcHPQ9OrlFoZOYIjaqBAJIqIXjptyD5vThxGq52Xu/MaJzRkIk4Q==}
@@ -35846,7 +35848,9 @@ snapshots:
 
   pvutils@1.1.3: {}
 
-  qrious@4.0.2: {}
+  qrcode.react@4.0.1(react@18.3.1):
+    dependencies:
+      react: 18.3.1
 
   qs@6.11.0:
     dependencies:

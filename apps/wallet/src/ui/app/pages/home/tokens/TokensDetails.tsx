@@ -615,7 +615,7 @@ function DialogReceiveTokens({
                     <DialogBody>
                         <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
                             <div className="self-center">
-                                <QR data={address} />
+                                <QR value={address} size={130} />
                             </div>
                             <Address text={address} />
                         </div>
