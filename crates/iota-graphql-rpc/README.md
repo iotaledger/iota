@@ -71,7 +71,7 @@ cargo run --bin iota-graphql-rpc start-server [--rpc-url] [--db-url] [--port] [-
 
 ### Launching the server w/ indexer
 
-For local dev, it might be useful to spin up an indexer as well. Instructions are at [Running standalone indexer](../iota-indexer/README.md#indexer-setup)
+For local dev, it might be useful to spin up an indexer as well. You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), part of [iota-test-validator](../../crates/iota-test-validator/README.md)  or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
 
 ## Compatibility with json-rpc
 
