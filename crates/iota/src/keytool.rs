@@ -617,6 +617,7 @@ impl KeyToolCommand {
                         let iota_address = keystore.import_from_mnemonic(
                             &input_string,
                             key_scheme,
+                            None,
                             derivation_path,
                         )?;
                         let ikp = keystore.get_key(&iota_address)?;
