@@ -16,12 +16,12 @@ gas summary: computation_cost: 1000000, storage_cost: 2470000,  storage_rebate: 
 task 3 'run'. lines 64-64:
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 66-66:
 created: object(4,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 6224400,  storage_rebate: 3731904, non_refundable_storage_fee: 37696
+gas summary: computation_cost: 1000000, storage_cost: 6224400,  storage_rebate: 3769600, non_refundable_storage_fee: 0
 
 task 5 'view-object'. lines 68-68:
 Owner: Object ID: ( fake(4,0) )
@@ -32,7 +32,7 @@ task 6 'run'. lines 70-70:
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 5251600,  storage_rebate: 6162156, non_refundable_storage_fee: 62244
+gas summary: computation_cost: 1000000, storage_cost: 5251600,  storage_rebate: 6224400, non_refundable_storage_fee: 0
 
 task 7 'view-object'. lines 72-72:
 Owner: Account Address ( A )
