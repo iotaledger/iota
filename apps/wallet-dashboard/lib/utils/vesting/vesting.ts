@@ -260,18 +260,47 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
     extendedTimelockObjects: GroupedTimelockObject[],
     totalRemainderAmount: bigint,
 ): GroupedTimelockObject[] {
+    let objectsToSplit = 1;
     let foundSplit = false;
-    extendedTimelockObjects.forEach((timelockedObject) => {
-        const amountToSplit = timelockedObject.totalLockedAmount - totalRemainderAmount;
 
-        if (amountToSplit >= MIN_STAKING_THRESHOLD) {
-            timelockedObject.splitAmount = amountToSplit;
-            foundSplit = true;
+    while (!foundSplit && objectsToSplit <= extendedTimelockObjects.length) {
+        const baseRemainderAmount = totalRemainderAmount / BigInt(objectsToSplit);
+        // if the amount is odd value we need to add the remainder to the first object because we floored the division
+        const remainder = totalRemainderAmount % BigInt(objectsToSplit);
+
+        // counter for objects that have splitAmount > 0
+        let foundObjectsToSplit = 0;
+
+        for (let i = 0; i < extendedTimelockObjects.length; i++) {
+            const timelockedObject = extendedTimelockObjects[i];
+            let adjustedRemainderAmount = baseRemainderAmount;
+            if (i === 0 && remainder > 0) {
+                adjustedRemainderAmount += remainder;
+            }
+            const amountToSplit = timelockedObject.totalLockedAmount - adjustedRemainderAmount;
+
+            if (amountToSplit >= MIN_STAKING_THRESHOLD) {
+                timelockedObject.splitAmount = amountToSplit;
+                foundObjectsToSplit++;
+                if (foundObjectsToSplit === objectsToSplit) {
+                    foundSplit = true;
+                    break;
+                }
+            }
         }
-    });
+
+        if (!foundSplit) {
+            extendedTimelockObjects.forEach(
+                (timelockedObject) => (timelockedObject.splitAmount = BigInt(0)),
+            );
+            objectsToSplit++;
+        }
+    }
+
     if (!foundSplit) {
         return [];
     }
+
     return extendedTimelockObjects;
 }
 
