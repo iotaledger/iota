@@ -729,15 +729,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dir-diff"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7ad16bf5f84253b50d6557681c58c3ab67c47c77d39fed9aeb56e947290bd10"
-dependencies = [
- "walkdir",
-]
-
-[[package]]
 name = "dirs-next"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1698,11 +1689,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "codespan-reporting",
- "datatest-stable",
  "move-command-line-common",
  "move-core-types",
  "move-model",
- "move-prover",
  "serde",
 ]
 
@@ -1854,7 +1843,6 @@ dependencies = [
  "anyhow",
  "clap 4.5.16",
  "codespan-reporting",
- "datatest-stable",
  "itertools 0.13.0",
  "log",
  "move-command-line-common",
@@ -1862,11 +1850,9 @@ dependencies = [
  "move-docgen",
  "move-errmapgen",
  "move-model",
- "move-prover-test-utils",
  "move-stackless-bytecode",
  "once_cell",
  "serde",
- "shell-words",
  "simplelog",
  "tempfile",
  "toml",
@@ -1924,12 +1910,10 @@ dependencies = [
  "bytecode-interpreter-crypto",
  "clap 4.5.16",
  "codespan-reporting",
- "datatest-stable",
  "itertools 0.13.0",
  "move-binary-format",
  "move-core-types",
  "move-model",
- "move-prover-test-utils",
  "move-stackless-bytecode",
  "num",
 ]
@@ -1965,19 +1949,15 @@ name = "move-stdlib-v0"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "dir-diff",
  "file_diff",
  "hex",
  "log",
  "move-binary-format",
- "move-cli",
  "move-command-line-common",
  "move-core-types",
  "move-docgen",
  "move-errmapgen",
- "move-package",
  "move-prover",
- "move-unit-test",
  "move-vm-runtime-v0",
  "move-vm-types",
  "sha2 0.10.8",
@@ -3055,12 +3035,6 @@ checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
 ]
-
-[[package]]
-name = "shell-words"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shlex"

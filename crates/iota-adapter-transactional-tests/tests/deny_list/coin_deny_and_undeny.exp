@@ -39,12 +39,12 @@ task 7 'view-object'. lines 47-49:
 task 8 'run'. lines 50-52:
 created: object(8,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 3936800,  storage_rebate: 2437776, non_refundable_storage_fee: 24624
+gas summary: computation_cost: 1000000, storage_cost: 3936800,  storage_rebate: 2462400, non_refundable_storage_fee: 0
 
 task 9 'run'. lines 53-55:
 created: object(9,0), object(9,1)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
-gas summary: computation_cost: 1000000, storage_cost: 11415200,  storage_rebate: 2723688, non_refundable_storage_fee: 27512
+gas summary: computation_cost: 1000000, storage_cost: 11415200,  storage_rebate: 2751200, non_refundable_storage_fee: 0
 
 task 10 'transfer-object'. lines 56-58:
 Error: Error checking transaction input objects: AddressDeniedForCoin { address: @B, coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
@@ -55,8 +55,8 @@ Error: Error checking transaction input objects: AddressDeniedForCoin { address:
 task 12 'run'. lines 62-64:
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(9,1)
 deleted: object(9,0)
-gas summary: computation_cost: 1000000, storage_cost: 9522800,  storage_rebate: 11301048, non_refundable_storage_fee: 114152
+gas summary: computation_cost: 1000000, storage_cost: 9522800,  storage_rebate: 11415200, non_refundable_storage_fee: 0
 
 task 13 'transfer-object'. lines 65-65:
 mutated: object(0,1), object(8,0)
-gas summary: computation_cost: 1000000, storage_cost: 2462400,  storage_rebate: 1459656, non_refundable_storage_fee: 14744
+gas summary: computation_cost: 1000000, storage_cost: 2462400,  storage_rebate: 1474400, non_refundable_storage_fee: 0
