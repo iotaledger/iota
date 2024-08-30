@@ -31,36 +31,8 @@ The example below demonstrates how to implement a transferable witness using Mov
 It defines a `WITNESS` struct that can be stored and transferred within a `WitnessCarrier`.
 This carrier can be sent to authorized users, who can then extract the witness when needed.
 
-```move
-module examples::transferable_witness {
 
-    /// A witness struct that is storable and droppable.
-    public struct WITNESS has store, drop {}
-
-    /// A carrier that holds the WITNESS and can be transferred.
-    public struct WitnessCarrier has key {
-        id: UID,
-        witness: WITNESS
-    }
-
-    /// Initializes the module by sending a WitnessCarrier to the module publisher.
-    fun init(ctx: &mut TxContext) {
-        transfer::transfer(
-            WitnessCarrier {
-                id: object::new(ctx),
-                witness: WITNESS {}
-            },
-            tx_context::sender(ctx)
-        )
-    }
-
-    /// Extracts the WITNESS from the WitnessCarrier, consuming the carrier.
-    public fun get_witness(carrier: WitnessCarrier): WITNESS {
-        let WitnessCarrier { id, witness } = carrier;
-        object::delete(id);
-        witness
-    }
-}
+```move file=<rootDir>/docs/examples/move/move-overview/patterns/transferable-witness.move
 ```
 
 - **`WITNESS` Struct:** Defined with `store` and `drop` abilities, allowing it to be stored persistently and cleaned up after use.
