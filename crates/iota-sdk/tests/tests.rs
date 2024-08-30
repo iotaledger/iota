@@ -18,7 +18,7 @@ fn mnemonic_test() {
     let keystore_path_2 = temp_dir.path().join("iota2.keystore");
     let mut keystore2 = Keystore::from(FileBasedKeystore::new(&keystore_path_2).unwrap());
     let imported_address = keystore2
-        .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None)
+        .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
     assert_eq!(scheme.flag(), Ed25519IotaSignature::SCHEME.flag());
     assert_eq!(address, imported_address);
