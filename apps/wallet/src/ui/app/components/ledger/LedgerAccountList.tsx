@@ -57,6 +57,7 @@ export function LedgerAccountList({ accounts, onAccountClick, selectAll }: Ledge
                 onAccountClick(accounts[index]);
             }}
             onHeaderCheckboxChange={() => selectAll()}
+            rowIndexes={rowsData.map((_, i) => i)}
         >
             <TableHeader>
                 <TableHeaderRow>

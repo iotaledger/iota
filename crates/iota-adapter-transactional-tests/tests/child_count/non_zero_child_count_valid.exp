@@ -21,11 +21,11 @@ Contents: test::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 task 4 'run'. lines 56-56:
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5859600,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 5859600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 5 'run'. lines 58-58:
 mutated: object(0,0), object(4,2)
-gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 2174436, non_refundable_storage_fee: 21964
+gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 2196400, non_refundable_storage_fee: 0
 
 task 6 'view-object'. lines 60-64:
 Owner: Account Address ( B )
@@ -35,11 +35,11 @@ Contents: test::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(4
 task 7 'run'. lines 66-66:
 created: object(7,0), object(7,1), object(7,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5859600,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 5859600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 8 'transfer-object'. lines 68-68:
 mutated: object(0,0), object(7,1)
-gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 2174436, non_refundable_storage_fee: 21964
+gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 2196400, non_refundable_storage_fee: 0
 
 task 9 'view-object'. lines 70-70:
 Owner: Account Address ( B )
