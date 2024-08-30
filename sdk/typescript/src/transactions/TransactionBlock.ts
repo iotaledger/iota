@@ -43,7 +43,7 @@ const DefaultOfflineLimits = {
     maxTxSizeBytes: 128 * 1024,
 } satisfies Limits;
 
-function createTransactionResult(index: number): TransactionResult {
+function createTransactionResult(index: number, maxResults?: number): TransactionResult {
     const baseResult: TransactionArgument = { kind: 'Result', index };
 
     const nestedResults: TransactionArgument[] = [];
@@ -76,6 +76,9 @@ function createTransactionResult(index: number): TransactionResult {
                     while (true) {
                         yield nestedResultFor(i);
                         i++;
+                        if(i == maxResults){
+                            break;
+                        }
                     }
                 };
             }
@@ -355,9 +358,9 @@ export class TransactionBlock {
     }
 
     /** Add a transaction to the transaction block. */
-    add(transaction: TransactionType) {
+    add(transaction: TransactionType, maxResults?: number) {
         const index = this.#blockData.transactions.push(transaction);
-        return createTransactionResult(index - 1);
+        return createTransactionResult(index - 1, maxResults);
     }
 
     #normalizeTransactionArgument(
@@ -377,6 +380,8 @@ export class TransactionBlock {
         coin: TransactionObjectArgument | string,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         amounts: (TransactionArgument | SerializedBcs<any> | number | string | bigint)[],
+
+        maxResults?: number
     ) {
         return this.add(
             Transactions.SplitCoins(
@@ -389,6 +394,7 @@ export class TransactionBlock {
                         : this.#normalizeTransactionArgument(amount),
                 ),
             ),
+            maxResults
         );
     }
     mergeCoins(
