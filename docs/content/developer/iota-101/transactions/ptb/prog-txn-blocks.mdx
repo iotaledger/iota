@@ -54,7 +54,7 @@ If an object is shared, then use `Object::SharedObject { id: ObjectID, initial_s
 
 If the object is owned by another object, as in it was sent to an object's ID via the `TransferObjects` command or the `iota::transfer::transfer` function, then use `ObjectArg::Receiving(ObjectID, SequenceNumber, ObjectDigest)`. The object data is the same as for the `ImmOrOwnedObject` case.
 
-For pure inputs, the only data provided is the [BCS](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/docs/bcs.md) bytes, which are deserialized to construct Move values. Not all Move values can be constructed from BCS bytes. This means that even if the bytes match the expected layout for a given Move type, they cannot be deserialized into a value of that type unless the type is one of the types permitted for `Pure` values. The following types are allowed to be used with pure values:
+For pure inputs, the only data provided is the [BCS](/references/framework/iota-framework/bcs.md) bytes, which are deserialized to construct Move values. Not all Move values can be constructed from BCS bytes. This means that even if the bytes match the expected layout for a given Move type, they cannot be deserialized into a value of that type unless the type is one of the types permitted for `Pure` values. The following types are allowed to be used with pure values:
 
 - All primitive types:
   - `u8`
