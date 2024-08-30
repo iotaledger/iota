@@ -27,8 +27,8 @@ To run an Indexer, a running postgres instance is required.
 
 #### Database setup
 
-You can either run a postgres instance as a single service via [docker-compose](../../docker/pg-services-local/README.md) or manually set up it up.
-If you choose for manual database setup, follow the steps below:
+You can either spin up the postgres instance as a single service via [docker-compose](../../docker/pg-services-local/README.md) or manually set up it up.
+If you choose for manual setup, follow the steps below:
 
 1. Install a local [Postgres server](https://www.postgresql.org/download) and start it.
 
@@ -55,7 +55,9 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 You can spin up an Indexer as part of [iota-test-validator](../../crates/iota-test-validator/README.md) which creates a simple local network or as a standalone service that connects to an existing fullnode.
 
-To run the indexer as a standalone service with an existing fullnode, follow the steps below:
+To run the indexer as a standalone service with an existing fullnode, follow the steps below.
+
+#### Standalone Indexer setup
 
 - to run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
 
@@ -70,7 +72,7 @@ cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localho
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
 ```
 
-More flags that can be passed to the commands can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
+More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
 
 ### DB reset
 
