@@ -76,7 +76,7 @@ function createTransactionResult(index: number, maxResults?: number): Transactio
                     while (true) {
                         yield nestedResultFor(i);
                         i++;
-                        if(i == maxResults){
+                        if (i == maxResults) {
                             break;
                         }
                     }
@@ -380,8 +380,7 @@ export class TransactionBlock {
         coin: TransactionObjectArgument | string,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         amounts: (TransactionArgument | SerializedBcs<any> | number | string | bigint)[],
-
-        maxResults?: number
+        maxResults?: number,
     ) {
         return this.add(
             Transactions.SplitCoins(
@@ -394,39 +393,48 @@ export class TransactionBlock {
                         : this.#normalizeTransactionArgument(amount),
                 ),
             ),
-            maxResults
+            maxResults,
         );
     }
     mergeCoins(
         destination: TransactionObjectArgument | string,
         sources: (TransactionObjectArgument | string)[],
+        maxResults?: number,
     ) {
         return this.add(
             Transactions.MergeCoins(
                 typeof destination === 'string' ? this.object(destination) : destination,
                 sources.map((src) => (typeof src === 'string' ? this.object(src) : src)),
             ),
+            maxResults,
         );
     }
-    publish({ modules, dependencies }: { modules: number[][] | string[]; dependencies: string[] }) {
+    publish(
+        { modules, dependencies }: { modules: number[][] | string[]; dependencies: string[] },
+        maxResults?: number,
+    ) {
         return this.add(
             Transactions.Publish({
                 modules,
                 dependencies,
             }),
+            maxResults,
         );
     }
-    upgrade({
-        modules,
-        dependencies,
-        packageId,
-        ticket,
-    }: {
-        modules: number[][] | string[];
-        dependencies: string[];
-        packageId: string;
-        ticket: TransactionObjectArgument | string;
-    }) {
+    upgrade(
+        {
+            modules,
+            dependencies,
+            packageId,
+            ticket,
+        }: {
+            modules: number[][] | string[];
+            dependencies: string[];
+            packageId: string;
+            ticket: TransactionObjectArgument | string;
+        },
+        maxResults?: number,
+    ) {
         return this.add(
             Transactions.Upgrade({
                 modules,
@@ -434,30 +442,36 @@ export class TransactionBlock {
                 packageId,
                 ticket: typeof ticket === 'string' ? this.object(ticket) : ticket,
             }),
+            maxResults,
         );
     }
-    moveCall({
-        arguments: args,
-        typeArguments,
-        target,
-    }: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        arguments?: (TransactionArgument | SerializedBcs<any>)[];
-        typeArguments?: string[];
-        target: `${string}::${string}::${string}`;
-    }) {
+    moveCall(
+        {
+            arguments: args,
+            typeArguments,
+            target,
+        }: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            arguments?: (TransactionArgument | SerializedBcs<any>)[];
+            typeArguments?: string[];
+            target: `${string}::${string}::${string}`;
+        },
+        maxResults?: number,
+    ) {
         return this.add(
             Transactions.MoveCall({
                 arguments: args?.map((arg) => this.#normalizeTransactionArgument(arg)),
                 typeArguments,
                 target,
             }),
+            maxResults,
         );
     }
     transferObjects(
         objects: (TransactionObjectArgument | string)[],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         address: TransactionArgument | SerializedBcs<any> | string,
+        maxResults?: number,
     ) {
         return this.add(
             Transactions.TransferObjects(
@@ -466,20 +480,25 @@ export class TransactionBlock {
                     ? this.pure.address(address)
                     : this.#normalizeTransactionArgument(address),
             ),
+            maxResults,
         );
     }
-    makeMoveVec({
-        type,
-        objects,
-    }: {
-        objects: (TransactionObjectArgument | string)[];
-        type?: string;
-    }) {
+    makeMoveVec(
+        {
+            type,
+            objects,
+        }: {
+            objects: (TransactionObjectArgument | string)[];
+            type?: string;
+        },
+        maxResults?: number,
+    ) {
         return this.add(
             Transactions.MakeMoveVec({
                 type,
                 objects: objects.map((obj) => (typeof obj === 'string' ? this.object(obj) : obj)),
             }),
+            maxResults,
         );
     }
 
