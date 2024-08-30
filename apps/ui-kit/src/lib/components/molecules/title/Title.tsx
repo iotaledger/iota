@@ -52,7 +52,7 @@ export function Title({
             <div className="flex flex-row items-center gap-x-xxxs">
                 <div className="flex flex-col justify-start">
                     <div className="flex flex-row items-center gap-x-0.5 text-neutral-10 dark:text-neutral-92">
-                        <h4 className={TITLE_SIZE[size]}>{title}</h4>
+                        <h4 className={cx(TITLE_SIZE[size])}>{title}</h4>
                         {tooltipText && (
                             <Tooltip text={tooltipText} position={tooltipPosition}>
                                 <Info />

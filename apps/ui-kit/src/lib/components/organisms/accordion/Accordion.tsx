@@ -62,7 +62,7 @@ export function AccordionContent({
 }: PropsWithChildren<AccordionContentProps>) {
     return (
         <div
-            className={cx('px-lg pb-md pt-xs', {
+            className={cx({
                 hidden: !isExpanded,
             })}
         >
