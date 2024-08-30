@@ -15,18 +15,20 @@ IOTA Indexer is an off-fullnode service to serve data from the IOTA protocol, in
 
 For more in depth information check the [Database Schema](./schema.md).
 
-## Steps to run an IOTA Indexer locally
+## Steps to run an Indexer locally
 
 ### Using docker compose (recommended)
 
 See [pg-services-local](../../docker/pg-services-local/README.md), which automatically sets up the Indexer Sync worker and the Indexer RPC worker along with a postgres database and local network.
-Useful for local development and testing.
 
 ### Using manual setup
 
-To run an Indexer, you must first create a Postgres database so that it can store the data it indexes.
+To run an Indexer, a running postgres instance is required.
 
 #### Database setup
+
+You can either spin up the postgres instance as a single service via [docker-compose](../../docker/pg-services-local/README.md) or manually set up it up.
+If you choose for manual setup, follow the steps below:
 
 1. Install a local [Postgres server](https://www.postgresql.org/download) and start it.
 
@@ -34,15 +36,13 @@ To run an Indexer, you must first create a Postgres database so that it can stor
 
 `cargo install diesel_cli --no-default-features --features postgres`
 
-refer to [Diesel Getting Started guide](https://diesel.rs/guides/getting-started) for more details
-
 3. Make sure you are in the `iota/crates/iota-indexer` directory and run the following command to create the database:
 
 ```sh
 diesel setup --database-url="postgres://postgres:postgrespw@localhost/iota_indexer"
 ```
 
-This command will create a database with the name `iota_indexer` for the indexer to work.
+This command will create a database with the name `iota_indexer` to store the indexed data.
 Per default, the user is `postgres` and the password is `postgrespw`.
 
 In case the database already exists, you can run the following command to reset the database:
@@ -53,27 +53,26 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 #### Indexer setup
 
-You can spin up the Indexer together with a local network (similarly like the docker-compose setup) or as a standalone service that connects to an existing fullnode.
+You can spin up an Indexer as part of [iota-test-validator](../../crates/iota-test-validator/README.md) which creates a simple local network or as a standalone service that connects to an existing fullnode.
 
-- to run it together with a local network, follow the README at [iota-test-validator](../../crates/iota-test-validator/README.md)
-- to run the indexer as a standalone service with an existing fullnode, follow the steps below
+To run the indexer as a standalone service with an existing fullnode, follow the steps below.
 
-#### Indexer setup (standalone)
+#### Standalone Indexer setup
 
-To run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
+- to run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
 ```
 
-To run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.io/iota-api-ref).
+- to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.io/iota-api-ref).
 
 ```
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
 ```
 
-More flags that can be passed to the commands can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
+More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
 
 ### DB reset
 
@@ -85,14 +84,11 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 ### Running tests
 
-To run the tests, you need to have a running postgres instance with the database `iota_indexer` which can be accessed with the user `postgres` and the password `postgrespw`.
-The crate provides following tests currently:
+To run the tests, a running postgres instance is required. The crate provides following tests currently:
 
 - unit tests for DB models (objects, events) which test the conversion between the database representation and the Rust representation of the objects and events.
 - unit tests for the DB query filters, which test the conversion of filters to the correct SQL queries.
 - integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
-
-  They require a running postgres instance with the database `iota_indexer` and the `pg_integration` feature enabled.
 
 ```sh
 cargo test --features pg_integration
