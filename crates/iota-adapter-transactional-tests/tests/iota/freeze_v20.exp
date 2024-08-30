@@ -15,7 +15,7 @@ gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 
 
 task 3 'run'. lines 72-72:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 2362536, non_refundable_storage_fee: 23864
+gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 2386400, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 74-74:
 Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.

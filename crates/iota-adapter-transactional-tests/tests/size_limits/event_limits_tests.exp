@@ -8,12 +8,12 @@ gas summary: computation_cost: 1000000, storage_cost: 7311200,  storage_rebate: 
 task 2 'run'. lines 57-59:
 events: 1
 mutated: 1
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'run'. lines 60-62:
 events: 50
 mutated: 1
-gas summary: computation_cost: 3000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 3000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 4 'run'. lines 63-65:
 Error: Transaction Effects Status: Move Primitive Runtime Error. Location: iota::event::emit (function index 0) at offset 0. Arithmetic error, stack overflow, max value depth, etc.
@@ -26,12 +26,12 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 6 'run'. lines 69-71:
 events: 1
 mutated: 1
-gas summary: computation_cost: 1393000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1393000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 7 'run'. lines 72-74:
 events: 1
 mutated: 1
-gas summary: computation_cost: 1814000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1814000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 8 'run'. lines 75-77:
 Error: Transaction Effects Status: Move Primitive Runtime Error. Location: iota::event::emit (function index 0) at offset 0. Arithmetic error, stack overflow, max value depth, etc.
