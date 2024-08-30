@@ -13,8 +13,7 @@ export function LegalText(): JSX.Element {
         <div className="flex justify-center md:justify-start">
             <Text color="steel-darker" variant="pSubtitleSmall/medium">
                 &copy;
-                {`${new Date().getFullYear()} IOTA Foundation. All
-  rights reserved.`}
+                {`${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>. The explorer is adapted from the <a href='https://github.com/MystenLabs/sui/tree/mainnet-v1.22.0/apps/explorer'>Sui Explorer</a>, © 2024 by <a href='https://mystenlabs.com/'>Mysten Labs</a>, licensed under <a href='https://github.com/MystenLabs/sui/blob/mainnet-v1.22.0/LICENSE'>Apache License 2.0</a>. All rights reserved.`}
             </Text>
         </div>
     );

@@ -318,7 +318,8 @@ export const developmentFeatures = {
                 force: {
                     enabled: false,
                     bannerUrl: 'https://iota.io/basecamp',
-                    imageUrl: 'https://fe-assets.iota.org/basecamp/wallet_basecamp_banner.png',
+                    imageUrl:
+                        'https://fe-assets.iota.org/basecamp/wallet_basecamp_banner.png',
                 },
             },
         ],
