@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading, NftImage } from '_components';
+import { Heading } from '_app/shared/heading';
+import { useFileExtensionType } from '_hooks';
 import { isKioskOwnerToken, useGetNFTMeta, useGetObject, useKioskClient } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
@@ -27,10 +29,16 @@ const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative'
 
 export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardStyles> {
     objectId: string;
+    hideLabel?: boolean;
     isLocked?: boolean;
 }
 
-export function NFTDisplayCard({ objectId, wideView, isHoverable }: NFTDisplayCardProps) {
+export function NFTDisplayCard({
+    objectId,
+    hideLabel,
+    wideView,
+    isHoverable,
+}: NFTDisplayCardProps) {
     const { data: objectData } = useGetObject(objectId);
     const { data: nftMeta, isPending } = useGetNFTMeta(objectId);
     const nftName = nftMeta?.name || formatAddress(objectId);

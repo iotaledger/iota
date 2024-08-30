@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExplorerLink, ExplorerLinkType } from '_components';
+import { ExplorerLink, ExplorerLinkType, NoData } from '_components';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
 import { Card, CardAction, CardActionType, CardBody, CardType } from '@iota/apps-ui-kit';
@@ -41,9 +41,7 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                     })}
                 </div>
             ) : (
-                <div className="h-full content-center text-title-lg text-neutral-10">
-                    No Assets found
-                </div>
+                <NoData message="No non-visual assets found." />
             )}
         </div>
     );
