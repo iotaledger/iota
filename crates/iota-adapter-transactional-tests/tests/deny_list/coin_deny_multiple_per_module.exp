@@ -64,11 +64,11 @@ Contents: iota::coin::TreasuryCap<test::second_coin::SECOND_COIN> {id: iota::obj
 task 13 'run'. lines 80-82:
 created: object(13,0), object(13,1)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,5)
-gas summary: computation_cost: 1000000, storage_cost: 11293600,  storage_rebate: 2663496, non_refundable_storage_fee: 26904
+gas summary: computation_cost: 1000000, storage_cost: 11293600,  storage_rebate: 2690400, non_refundable_storage_fee: 0
 
 task 14 'transfer-object'. lines 83-85:
 Error: Error checking transaction input objects: AddressDeniedForCoin { address: @A, coin_type: "object(1,0)::first_coin::FIRST_COIN" }
 
 task 15 'transfer-object'. lines 86-86:
 mutated: object(0,0), object(1,2)
-gas summary: computation_cost: 1000000, storage_cost: 2416800,  storage_rebate: 2392632, non_refundable_storage_fee: 24168
+gas summary: computation_cost: 1000000, storage_cost: 2416800,  storage_rebate: 2416800, non_refundable_storage_fee: 0

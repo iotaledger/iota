@@ -8,7 +8,7 @@ gas summary: computation_cost: 1000000, storage_cost: 10579200,  storage_rebate:
 task 2 'run'. lines 66-66:
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 7068000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'view-object'. lines 68-68:
 Owner: Account Address ( _ )
@@ -37,11 +37,11 @@ Contents: tto::M1::C {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 
 task 8 'programmable'. lines 79-82:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2181960, non_refundable_storage_fee: 22040
+gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
 
 task 9 'programmable'. lines 83-87:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2181960, non_refundable_storage_fee: 22040
+gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
 
 task 10 'programmable'. lines 88-93:
 Error: Transaction Effects Status: Invalid command argument at 0. The type of the value does not match the expected type

@@ -136,25 +136,46 @@ jobs:
       - run: scripts/changed-files.sh
         shell: bash
 
-  # TODO: Disabled until we can get an updated fork of msim with tokio 1.38 https://github.com/iotaledger/iota/issues/1212
-  # simtest:
-  #   name: Simtest ${{ matrix.components }}
-  #   needs: changes
-  #   runs-on: [self-hosted]
-  #   strategy:
-  #     matrix:
-  #       components: ${{ fromJson(needs.changes.outputs.components) }}
-  #     fail-fast: false
-  #   env:
-  #     MSIM_WATCHDOG_TIMEOUT_MS: 60000
-  #   steps:
-  #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-  #       with:
-  #         ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-  #     - uses: taiki-e/install-action@nextest
-  #     - name: cargo simtest
-  #       run: |
-  #         scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
-  #     - name: check new tests for flakiness
-  #       run: |
-  #         scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+  simtest:
+    name: Simtest Mysticeti
+    needs: changes
+    timeout-minutes: 45
+    runs-on: [self-hosted]
+    env:
+      MSIM_WATCHDOG_TIMEOUT_MS: 60000
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        with:
+          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
+      - uses: taiki-e/install-action@nextest
+      - name: setup filter
+        run: |
+          array=(${{ join(fromJson(needs.changes.outputs.components), ' ') }})
+
+          result=""
+
+          for item in "${array[@]}"; do
+              mapped_item="-E 'rdeps(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
+          echo "filters=$result" >> "$GITHUB_ENV"
+      - name: cargo simtest
+        run: |
+          command="scripts/simtest/cargo-simtest simtest $filters"
+
+          echo "$command"
+
+          eval ${command}
+      - name: check new tests for flakiness
+        run: |
+          command="scripts/simtest/stress-new-tests.sh $filters"
+
+          echo "$command"
+
+          eval ${command}

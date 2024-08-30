@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import { Alert, Loading, LoadingIndicator, PageTemplate } from '_components';
+import { Alert, Loading, LoadingIndicator, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useMultiGetObjects } from '@iota/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -170,9 +170,7 @@ function NftsPage() {
                         ) : selectedAssetCategory === AssetCategory.Hidden ? (
                             <HiddenAssets items={filteredHiddenAssets} />
                         ) : (
-                            <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
-                                No Assets found
-                            </div>
+                            <NoData message="No assets found yet." />
                         )}
                     </div>
                 </Loading>
