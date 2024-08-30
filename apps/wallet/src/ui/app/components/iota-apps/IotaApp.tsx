@@ -33,7 +33,7 @@ function CardView({ name, link, icon }: CardViewProps) {
     return (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>
-                <ImageIcon src={icon || null} label={name} fallback={name} />
+                <ImageIcon src={icon || null} label={name} fallback={name} rounded={false} />
             </CardImage>
             <CardBody title={name} subtitle={originLabel} />
         </Card>

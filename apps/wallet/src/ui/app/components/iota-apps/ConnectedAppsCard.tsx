@@ -65,13 +65,15 @@ function ConnectedDapps() {
         <Loading loading={loading}>
             <PageTemplate title="Apps" isTitleCentered>
                 <div
-                    className={cn('flex flex-1 flex-col gap-md p-md', {
+                    className={cn('flex flex-1 flex-col gap-md', {
                         'h-full items-center': !connectedApps?.length,
                     })}
                 >
                     {connectedApps.length ? (
                         <div className="flex flex-col gap-xs">
-                            <Title title="Active Connections" size={TitleSize.Small} />
+                            <div className="flex min-h-[56px] items-center">
+                                <Title title="Active Connections" size={TitleSize.Small} />
+                            </div>
                             {connectedApps.map((app) => (
                                 <IotaApp key={app.permissionID} {...app} displayType="card" />
                             ))}
