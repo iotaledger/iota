@@ -59,7 +59,7 @@ export function initSentry() {
         allowUrls: [
             /.*\.iota\.io/i,
             /.*-iota-foundation\.vercel\.app/i,
-            'explorer-topaz.vercel.app'
+            'explorer-topaz.vercel.app',
         ],
     });
 }
