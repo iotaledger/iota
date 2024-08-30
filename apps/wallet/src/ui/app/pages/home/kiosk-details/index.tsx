@@ -54,10 +54,7 @@ function KioskDetailsPage() {
                                         <ErrorBoundary>
                                             <NFTDisplayCard
                                                 objectId={item.data.objectId}
-                                                size="md"
-                                                animateHover
-                                                borderRadius="xl"
-                                                isLocked={item?.isLocked}
+                                                isHoverable
                                             />
                                         </ErrorBoundary>
                                     </Link>

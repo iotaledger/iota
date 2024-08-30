@@ -3,7 +3,7 @@
 
 import cx from 'classnames';
 import { Button, ButtonSize, ButtonType } from '../button';
-import { ArrowLeft, Close } from '@iota/ui-icons';
+import { ArrowBack, Close } from '@iota/ui-icons';
 
 interface HeaderProps {
     /**
@@ -35,7 +35,7 @@ export function Header({ title, titleCentered, onBack, onClose }: HeaderProps): 
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
                     onClick={onBack}
-                    icon={<ArrowLeft />}
+                    icon={<ArrowBack />}
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />
