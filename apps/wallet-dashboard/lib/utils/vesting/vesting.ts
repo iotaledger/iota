@@ -261,41 +261,25 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
     groupedTimelockObjects: GroupedTimelockObject[],
     totalRemainderAmount: bigint,
 ): GroupedTimelockObject[] {
-    let objectsToSplit = 1;
     let foundSplit = false;
 
-    while (!foundSplit && objectsToSplit <= groupedTimelockObjects.length) {
-        const baseRemainderAmount = totalRemainderAmount / BigInt(objectsToSplit);
-        // if the amount is odd value we need to add the remainder to the first object because we floored the division
-        const remainder = totalRemainderAmount % BigInt(objectsToSplit);
+    for (const timelockedObject of groupedTimelockObjects) {
+        const amountAvailableToUseAsRemainder = timelockedObject.totalLockedAmount - BigInt(MIN_STAKING_THRESHOLD);
 
-        // counter for objects that have splitAmount > 0
-        let foundObjectsToSplit = 0;
-
-        for (let i = 0; i < groupedTimelockObjects.length; i++) {
-            const timelockedObject = groupedTimelockObjects[i];
-            let adjustedRemainderAmount = baseRemainderAmount;
-            if (i === 0 && remainder > 0) {
-                adjustedRemainderAmount += remainder;
-            }
-            const amountToSplit = timelockedObject.totalLockedAmount - adjustedRemainderAmount;
-
-            if (amountToSplit >= MIN_STAKING_THRESHOLD) {
-                timelockedObject.splitAmount = amountToSplit;
-                foundObjectsToSplit++;
-                if (foundObjectsToSplit === objectsToSplit) {
-                    foundSplit = true;
-                    break;
-                }
+        if (amountAvailableToUseAsRemainder > 0) {
+            if (amountAvailableToUseAsRemainder >= totalRemainderAmount) {
+                timelockedObject.splitAmount = timelockedObject.totalLockedAmount - totalRemainderAmount;
+                foundSplit = true;
+            } else {
+                totalRemainderAmount -= amountAvailableToUseAsRemainder;
+                timelockedObject.splitAmount = timelockedObject.totalLockedAmount - amountAvailableToUseAsRemainder;
             }
         }
 
-        if (!foundSplit) {
-            groupedTimelockObjects.forEach(
-                (timelockedObject) => (timelockedObject.splitAmount = BigInt(0)),
-            );
-            objectsToSplit++;
+        if (foundSplit) {
+            break;
         }
+
     }
 
     if (!foundSplit) {
