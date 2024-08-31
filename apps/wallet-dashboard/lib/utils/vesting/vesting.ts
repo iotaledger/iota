@@ -145,7 +145,8 @@ export function getVestingOverview(
 
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
-    const totalVestedAmount = vestingPayoutsCount * latestPayout.amount;
+    // note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
+    const totalVestedAmount = (vestingPayoutsCount * latestPayout.amount) / 0.9;
     const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
         latestPayout,
         currentEpochTimestamp,
@@ -256,14 +257,14 @@ export function groupTimelockedObjects(
  * @param groupedTimelockObjects - An array of grouped timelocked objects.
  * @param totalRemainingAmount - The total remaining amount to be split among the grouped timelocked objects.
  */
-export function adjustSplitAmountsInExtendedTimelockObjects(
-    extendedTimelockObjects: GroupedTimelockObject[],
+export function adjustSplitAmountsInGroupedTimelockObjects(
+    groupedTimelockObjects: GroupedTimelockObject[],
     totalRemainderAmount: bigint,
 ): GroupedTimelockObject[] {
     let objectsToSplit = 1;
     let foundSplit = false;
 
-    while (!foundSplit && objectsToSplit <= extendedTimelockObjects.length) {
+    while (!foundSplit && objectsToSplit <= groupedTimelockObjects.length) {
         const baseRemainderAmount = totalRemainderAmount / BigInt(objectsToSplit);
         // if the amount is odd value we need to add the remainder to the first object because we floored the division
         const remainder = totalRemainderAmount % BigInt(objectsToSplit);
@@ -271,8 +272,8 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
         // counter for objects that have splitAmount > 0
         let foundObjectsToSplit = 0;
 
-        for (let i = 0; i < extendedTimelockObjects.length; i++) {
-            const timelockedObject = extendedTimelockObjects[i];
+        for (let i = 0; i < groupedTimelockObjects.length; i++) {
+            const timelockedObject = groupedTimelockObjects[i];
             let adjustedRemainderAmount = baseRemainderAmount;
             if (i === 0 && remainder > 0) {
                 adjustedRemainderAmount += remainder;
@@ -290,7 +291,7 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
         }
 
         if (!foundSplit) {
-            extendedTimelockObjects.forEach(
+            groupedTimelockObjects.forEach(
                 (timelockedObject) => (timelockedObject.splitAmount = BigInt(0)),
             );
             objectsToSplit++;
@@ -300,8 +301,7 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
     if (!foundSplit) {
         return [];
     }
-
-    return extendedTimelockObjects;
+    return groupedTimelockObjects;
 }
 
 /**
@@ -360,7 +360,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
 
     // Add splitAmount property to the vesting objects that need to be split
     if (remainingAmount > 0) {
-        subsetGroupedTimelockObjects = adjustSplitAmountsInExtendedTimelockObjects(
+        subsetGroupedTimelockObjects = adjustSplitAmountsInGroupedTimelockObjects(
             subsetGroupedTimelockObjects,
             remainingAmount,
         );
