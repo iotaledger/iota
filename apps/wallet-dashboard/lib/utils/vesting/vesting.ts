@@ -256,12 +256,12 @@ export function groupTimelockedObjects(
  * @param groupedTimelockObjects - An array of grouped timelocked objects.
  * @param totalRemainingAmount - The total remaining amount to be split among the grouped timelocked objects.
  */
-export function adjustSplitAmountsInExtendedTimelockObjects(
-    extendedTimelockObjects: GroupedTimelockObject[],
+export function adjustSplitAmountsInGroupedTimelockObjects(
+    groupedTimelockObjects: GroupedTimelockObject[],
     totalRemainderAmount: bigint,
 ): GroupedTimelockObject[] {
     let foundSplit = false;
-    extendedTimelockObjects.forEach((timelockedObject) => {
+    groupedTimelockObjects.forEach((timelockedObject) => {
         const amountToSplit = timelockedObject.totalLockedAmount - totalRemainderAmount;
 
         if (amountToSplit >= MIN_STAKING_THRESHOLD) {
@@ -272,7 +272,7 @@ export function adjustSplitAmountsInExtendedTimelockObjects(
     if (!foundSplit) {
         return [];
     }
-    return extendedTimelockObjects;
+    return groupedTimelockObjects;
 }
 
 /**
@@ -331,7 +331,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
 
     // Add splitAmount property to the vesting objects that need to be split
     if (remainingAmount > 0) {
-        subsetGroupedTimelockObjects = adjustSplitAmountsInExtendedTimelockObjects(
+        subsetGroupedTimelockObjects = adjustSplitAmountsInGroupedTimelockObjects(
             subsetGroupedTimelockObjects,
             remainingAmount,
         );
