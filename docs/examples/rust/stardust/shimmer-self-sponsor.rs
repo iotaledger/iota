@@ -53,6 +53,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let sponsor = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
         ED25519,
+        None,
         Some(sponsor_derivation_path),
     )?;
     println!("Sponsor address: {sponsor:?}");
@@ -61,6 +62,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
         ED25519,
+        None,
         Some(sender_derivation_path),
     )?;
     println!("Sender address: {sender:?}");

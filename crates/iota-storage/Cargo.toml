@@ -63,3 +63,8 @@ tempfile.workspace = true
 iota-macros = { workspace = true }
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
+
+[target.'cfg(msim)'.dev-dependencies]
+axum.workspace = true
+iota-simulator.workspace = true
+rustls = "0.23"

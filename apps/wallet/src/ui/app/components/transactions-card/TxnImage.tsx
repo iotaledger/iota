@@ -24,7 +24,7 @@ export function TxnImage({ id, actionLabel }: TxnImageProps) {
                 </Text>
             ) : null}
             <div className="flex w-full gap-2">
-                <NftImage borderRadius="sm" size="xs" name={nftMeta.name} src={nftMeta.imageUrl} />
+                <NftImage title={nftMeta.name ?? ''} src={nftMeta.imageUrl} />
                 <div className="flex w-56 flex-col justify-center gap-1 break-all">
                     {nftMeta.name && (
                         <Text color="gray-90" weight="semibold" variant="subtitleSmall" truncate>
