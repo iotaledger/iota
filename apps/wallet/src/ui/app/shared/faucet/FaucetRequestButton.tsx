@@ -33,11 +33,19 @@ function FaucetRequestButton(): JSX.Element | null {
             type={ButtonType.Secondary}
             disabled={isRateLimited}
             onClick={() => {
-                toast.promise(mutation.mutateAsync(), {
-                    loading: <FaucetMessageInfo loading />,
-                    success: (totalReceived) => <FaucetMessageInfo totalReceived={totalReceived} />,
-                    error: (error) => <FaucetMessageInfo error={error.message} />,
-                });
+                toast.promise(
+                    mutation.mutateAsync(),
+                    {
+                        loading: <FaucetMessageInfo loading />,
+                        success: (totalReceived) => (
+                            <FaucetMessageInfo totalReceived={totalReceived} />
+                        ),
+                        error: (error) => <FaucetMessageInfo error={error.message} />,
+                    },
+                    {
+                        duration: 5000,
+                    },
+                );
             }}
             text={`Request ${networkConfig?.name} Tokens`}
         />
