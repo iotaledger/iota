@@ -1,9 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ReactNode } from 'react';
+
 export type CardBodyProps = {
     title: string;
-    subtitle?: string;
+    subtitle?: string | ReactNode;
     clickableAction?: React.ReactNode;
 };
 
