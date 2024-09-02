@@ -27,7 +27,7 @@ export function generateTableDataFromCheckpointsData(results: CheckpointPage): C
     return {
         data:
             results.data.map((checkpoint) => ({
-                digest: { type: TableCellType.Text, label: checkpoint.digest },
+                digest: { type: TableCellType.TextToCopy, label: checkpoint.digest, textToCopy: checkpoint.digest },
                 time: { type: TableCellType.Text, label: checkpoint.timestampMs },
                 sequenceNumber: { type: TableCellType.Text, label: checkpoint.sequenceNumber },
                 transactionBlockCount: {

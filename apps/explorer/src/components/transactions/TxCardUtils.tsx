@@ -32,7 +32,7 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
 
             return {
                 date: { type: TableCellType.Text, label: transaction.timestampMs?.toString() },
-                digest: { type: TableCellType.TextToCopy, label: transaction.digest },
+                digest: { type: TableCellType.TextToCopy, label: transaction.digest, textToCopy: transaction.digest },
                 txns: {
                     type: TableCellType.Text,
                     label:
@@ -46,7 +46,7 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
                         ? getTotalGasUsed(transaction.effects)?.toString()
                         : '0',
                 },
-                sender: { type: TableCellType.TextToCopy, label: sender },
+                sender: { type: TableCellType.TextToCopy, label: sender, textToCopy: sender },
             };
         }),
         columns: [
