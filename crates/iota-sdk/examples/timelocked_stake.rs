@@ -54,8 +54,7 @@ async fn main() -> Result<(), anyhow::Error> {
             address,
             Some(IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(
-    "0x0000000000000000000000000000000000000000000000000000000000000002::timelock::TimeLock<0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>"
-                        .parse()?,
+                    "0x2::timelock::TimeLock<0x2::balance::Balance<0x2::iota::IOTA>>".parse()?,
                 )),
                 Some(
                     IotaObjectDataOptions::new()
