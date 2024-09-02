@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import cx from 'classnames';
 
+import { ReactNode } from 'react';
+
 export type CardBodyProps = {
     title: string;
-    subtitle?: string;
+    subtitle?: string | ReactNode;
     clickableAction?: React.ReactNode;
     isTruncateText?: boolean;
 };
