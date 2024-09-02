@@ -44,6 +44,7 @@ impl ReadApi {
     pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
     }
+
     /// Return a paginated response with the objects owned by the given address,
     /// or an error upon failure.
     ///

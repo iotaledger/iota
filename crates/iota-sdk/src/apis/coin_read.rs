@@ -69,6 +69,7 @@ impl CoinReadApi {
             .get_coins(owner, coin_type, cursor, limit)
             .await?)
     }
+
     /// Return a paginated response with all the coins for the given address, or
     /// an error upon failure.
     ///
