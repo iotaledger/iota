@@ -171,6 +171,10 @@ function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: stri
         },
     );
 
+    if (!coins?.length) {
+        return <Navigate to="/" replace={true} />;
+    }
+
     const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType) ?? coins?.[0];
     const initialValue = activeCoin?.coinType;
     const coinsOptions: SelectOption[] =
