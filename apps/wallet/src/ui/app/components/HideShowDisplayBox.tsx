@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
 import { Button, ButtonType, TextArea } from '@iota/apps-ui-kit';
 import toast from 'react-hot-toast';
 
@@ -19,8 +18,6 @@ export function HideShowDisplayBox({
     copiedMessage,
     isContentVisible = false,
 }: HideShowDisplayBoxProps) {
-    const [valueCopied, setValueCopied] = useState(false);
-
     async function handleCopy() {
         if (!value) {
             return;
@@ -28,10 +25,6 @@ export function HideShowDisplayBox({
         const textToCopy = Array.isArray(value) ? value.join(' ') : value;
         try {
             await navigator.clipboard.writeText(textToCopy);
-            setValueCopied(true);
-            setTimeout(() => {
-                setValueCopied(false);
-            }, 1000);
             toast.success(copiedMessage || 'Copied');
         } catch {
             toast.error('Failed to copy');
@@ -48,11 +41,7 @@ export function HideShowDisplayBox({
             />
             {!hideCopy && (
                 <div className="flex justify-end">
-                    <Button
-                        onClick={handleCopy}
-                        type={ButtonType.Secondary}
-                        text={valueCopied ? 'Copied' : 'Copy'}
-                    />
+                    <Button onClick={handleCopy} type={ButtonType.Secondary} text="Copy" />
                 </div>
             )}
         </div>
