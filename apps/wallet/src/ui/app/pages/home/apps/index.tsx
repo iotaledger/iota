@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeature } from '@growthbook/growthbook-react';
-import { Content } from '_app/shared/bottom-menu-layout';
 import { FiltersPortal, ConnectedAppsCard, type DAppEntry } from '_components';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
 import { Feature } from '_src/shared/experimentation/features';
