@@ -1,12 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, HideShowDisplayBox, VerifyPasswordModal, Loading, Overlay } from '_components';
+import { HideShowDisplayBox, VerifyPasswordModal, Loading, Overlay } from '_components';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportSeedMutation } from '../../hooks/useExportSeedMutation';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Info } from '@iota/ui-icons';
 
 export function ExportSeedPage() {
     const { accountSourceID } = useParams();
@@ -24,13 +25,14 @@ export function ExportSeedPage() {
         <Overlay title="Export Seed" closeOverlay={() => navigate(-1)} showModal>
             <Loading loading={isPending}>
                 {exportMutation.data ? (
-                    <div className="flex min-w-0 flex-col gap-3">
-                        <Alert>
-                            <div className="break-normal">Do not share your Seed!</div>
-                            <div className="break-normal">
-                                It provides full control of all accounts derived from it.
-                            </div>
-                        </Alert>
+                    <div className="flex flex-col gap-md">
+                        <InfoBox
+                            icon={<Info />}
+                            type={InfoBoxType.Default}
+                            title="Do not share your seed"
+                            supportingText="All accounts derived from it can be controlled fully."
+                            style={InfoBoxStyle.Default}
+                        />
                         <HideShowDisplayBox
                             value={exportMutation.data}
                             copiedMessage="Seed copied"
