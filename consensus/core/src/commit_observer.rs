@@ -26,7 +26,7 @@ use crate::{
 /// - The committed subdags are sent as consensus output via an unbounded tokio
 ///   channel.
 /// No back pressure mechanism is needed as backpressure is handled as input
-/// into consenus.
+/// into consensus.
 /// - Commit metadata including index is persisted in store, before the
 ///   CommittedSubDag
 /// is sent to the consumer.

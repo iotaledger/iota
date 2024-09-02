@@ -120,7 +120,7 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch_with_reward_amounts_return_rebate(
-      validator_target_reward: u64, storage_charge: u64, computation_charge: u64, stoarge_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+      validator_target_reward: u64, storage_charge: u64, computation_charge: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
@@ -129,7 +129,7 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_target_reward, storage_charge, computation_charge, stoarge_rebate, non_refundable_storage_rebate, 0, 0, ctx,
+            new_epoch, 1, validator_target_reward, storage_charge, computation_charge, storage_rebate, non_refundable_storage_rebate, 0, 0, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
