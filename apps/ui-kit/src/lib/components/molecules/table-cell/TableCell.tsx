@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import React from 'react';
-import { BadgeType, Badge, Checkbox } from '../../atoms';
+import { BadgeType, Badge, Checkbox, ButtonUnstyled } from '../../atoms';
 import { TableCellType } from './table-cell.enums';
 import { Copy } from '@iota/ui-icons';
 import cx from 'classnames';
@@ -37,9 +37,17 @@ type TableCellTextToCopy = {
      */
     type: TableCellType.TextToCopy;
     /**
-     * The function to call when the copy icon is clicked.
+     * The text to be copied.
      */
-    onCopy?: () => void;
+    textToCopy: string;
+    /**
+     * The onCopySuccess event of the Address  (optional).
+     */
+    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
+    /**
+     * The onCopyError event of the Address  (optional).
+     */
+    onCopyError?: (e: unknown, text: string) => void;
 };
 
 type TableCellBadge = {
@@ -83,6 +91,28 @@ type TableCellCheckbox = {
     isIndeterminate?: boolean;
 };
 
+type TableCellPlaceholder = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Placeholder;
+};
+
+type TableCellLink = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Link;
+    /**
+     * The link to navigate to.
+     */
+    to: string;
+    /**
+     * If true the link will open in a new tab.
+     */
+    isExternal?: boolean;
+};
+
 export type TableCellProps = TableCellBaseProps &
     (
         | TableCellText
@@ -90,6 +120,8 @@ export type TableCellProps = TableCellBaseProps &
         | TableCellBadge
         | TableCellAvatarText
         | TableCellCheckbox
+        | TableCellPlaceholder
+        | TableCellLink
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
@@ -97,6 +129,18 @@ export function TableCell(props: TableCellProps): JSX.Element {
 
     const textColorClass = 'text-neutral-40 dark:text-neutral-60';
     const textSizeClass = 'text-body-md';
+
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
+        if (props.type === TableCellType.TextToCopy) {
+            try {
+                await navigator.clipboard.writeText(props.textToCopy);
+                props.onCopySuccess?.(event, props.textToCopy);
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                props.onCopyError?.(error, props.textToCopy);
+            }
+        }
+    }
 
     const Cell = () => {
         switch (type) {
@@ -113,7 +157,6 @@ export function TableCell(props: TableCellProps): JSX.Element {
                     </div>
                 );
             case TableCellType.TextToCopy:
-                const { onCopy } = props;
                 return (
                     <div
                         className={cx(
@@ -123,7 +166,9 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         )}
                     >
                         <span>{label}</span>
-                        <Copy className="cursor-pointer" onClick={onCopy} />
+                        <ButtonUnstyled onClick={handleCopyClick}>
+                            <Copy />
+                        </ButtonUnstyled>
                     </div>
                 );
             case TableCellType.Badge:
@@ -145,6 +190,23 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         onCheckedChange={onChange}
                         isIndeterminate={isIndeterminate}
                     />
+                );
+            case TableCellType.Placeholder:
+                return (
+                    <div className="h-[1em] w-full animate-shimmer rounded-md bg-placeholderShimmer bg-[length:1000px_100%] dark:bg-placeholderShimmerDark"></div>
+                );
+
+            case TableCellType.Link:
+                const { to, isExternal } = props;
+                return (
+                    <a
+                        href={to}
+                        target={isExternal ? '_blank' : '_self'}
+                        rel="noopener noreferrer"
+                        className={cx('text-primary-30 dark:text-primary-80', textSizeClass)}
+                    >
+                        {label}
+                    </a>
                 );
             default:
                 return null;
