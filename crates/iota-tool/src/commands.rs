@@ -553,13 +553,13 @@ impl ToolCommand {
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Chain::Mainnet, false) => Some(
                             env::var("MAINNET_FORMAL_SIGNED_BUCKET")
-                                .unwrap_or("mysten-mainnet-formal".to_string()),
+                                .unwrap_or("iota-mainnet-formal".to_string()),
                         ),
                         (Chain::Mainnet, true) => env::var("MAINNET_FORMAL_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, true) => env::var("TESTNET_FORMAL_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, _) => Some(
                             env::var("TESTNET_FORMAL_SIGNED_BUCKET")
-                                .unwrap_or("mysten-testnet-formal".to_string()),
+                                .unwrap_or("iota-testnet-formal".to_string()),
                         ),
                         (Chain::Unknown, _) => {
                             panic!("Cannot generate default snapshot bucket for unknown network");
@@ -641,11 +641,11 @@ impl ToolCommand {
                 let archive_bucket = archive_bucket.or_else(|| match network {
                     Chain::Mainnet => Some(
                         env::var("MAINNET_ARCHIVE_BUCKET")
-                            .unwrap_or("mysten-mainnet-archives".to_string()),
+                            .unwrap_or("iota-mainnet-archives".to_string()),
                     ),
                     Chain::Testnet => Some(
                         env::var("TESTNET_ARCHIVE_BUCKET")
-                            .unwrap_or("mysten-testnet-archives".to_string()),
+                            .unwrap_or("iota-testnet-archives".to_string()),
                     ),
                     Chain::Unknown => {
                         panic!("Cannot generate default archive bucket for unknown network");
@@ -748,13 +748,13 @@ impl ToolCommand {
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Chain::Mainnet, false) => Some(
                             env::var("MAINNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("mysten-mainnet-snapshots".to_string()),
+                                .unwrap_or("iota-mainnet-snapshots".to_string()),
                         ),
                         (Chain::Mainnet, true) => env::var("MAINNET_DB_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, true) => env::var("TESTNET_DB_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, _) => Some(
                             env::var("TESTNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("mysten-testnet-snapshots".to_string()),
+                                .unwrap_or("iota-testnet-snapshots".to_string()),
                         ),
                         (Chain::Unknown, _) => {
                             panic!("Cannot generate default snapshot bucket for unknown network");

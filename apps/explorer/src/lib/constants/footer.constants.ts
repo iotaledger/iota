@@ -5,40 +5,40 @@
 import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@iota/icons';
 
 export const FOOTER_LINKS = [
-    { title: 'Blog', href: 'https://mystenlabs.com/blog' },
+    { title: 'Blog', href: 'https://blog.iota.org' },
     {
         title: 'Docs',
-        href: 'https://docs.mystenlabs.com',
+        href: 'https://wiki.iota.org',
     },
     {
         title: 'GitHub',
-        href: 'https://github.com/MystenLabs',
+        href: 'https://github.com/iotaledger',
     },
-    { title: 'Press', href: 'https://mystenlabs.com/#community' },
+    { title: 'Press', href: 'https://iota.org/connect/contact' },
 ];
 
 export const SOCIAL_LINKS = [
     {
         icon: SocialDiscord24,
-        href: 'https://discord.gg/BK6WFhud',
+        href: 'https://discord.iota.org',
     },
     {
         icon: SocialTwitter24,
-        href: 'https://twitter.com/Mysten_Labs',
+        href: 'https://x.com/iota',
     },
     {
         icon: SocialLinkedin24,
-        href: 'https://www.linkedin.com/company/mysten-labs/',
+        href: 'https://www.linkedin.com/company/iotafoundation/',
     },
 ];
 
 export const LEGAL_LINKS = [
     {
         title: 'Terms & Conditions',
-        href: 'https://mystenlabs.com/legal#termsofservice',
+        href: 'https://iota.org/terms-of-use',
     },
     {
         title: 'Privacy Policy',
-        href: 'https://mystenlabs.com/legal#privacypolicy',
+        href: 'https://iota.org/privacy-policy',
     },
 ];

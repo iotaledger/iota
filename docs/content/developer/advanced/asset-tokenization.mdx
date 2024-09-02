@@ -559,7 +559,7 @@ To represent a new asset as a fractional asset, modify this module to `<template
 
         kiosk::list<TokenizedAsset<T>>(kiosk, kiosk_cap, ta2_id, 0);
         let (ta1, promise_ta1) = kiosk::borrow_val(kiosk, kiosk_cap, ta1_id);
-        let coin = coin::zero<SUI>(ctx);
+        let coin = coin::zero<IOTA>(ctx);
         let (ta2, request) = kiosk::purchase(kiosk, ta2_id, coin);
 
         let tp_ref = proxy::transfer_policy(protected_tp);

@@ -40,7 +40,7 @@ use tracing::{debug, instrument};
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    logger::with_tracing,
+    logger::FutureWithTracing as _,
     IotaRpcModule,
 };
 
@@ -156,54 +156,52 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
-        with_tracing(
-            async move {
-                let limit = validate_limit(limit, *QUERY_MAX_RESULT_LIMIT)
-                    .map_err(IotaRpcInputError::from)?;
-                self.metrics.get_owned_objects_limit.report(limit as u64);
-                let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
-                let options = options.unwrap_or_default();
-                let mut objects =
-                    self.state
-                        .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
+        async move {
+            let limit =
+                validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(IotaRpcInputError::from)?;
+            self.metrics.get_owned_objects_limit.report(limit as u64);
+            let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+            let options = options.unwrap_or_default();
+            let mut objects =
+                self.state
+                    .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
 
-                // objects here are of size (limit + 1), where the last one is the cursor for
-                // the next page
-                let has_next_page = objects.len() > limit;
-                objects.truncate(limit);
-                let next_cursor = objects
-                    .last()
-                    .cloned()
-                    .map_or(cursor, |o_info| Some(o_info.object_id));
+            // objects here are of size (limit + 1), where the last one is the cursor for
+            // the next page
+            let has_next_page = objects.len() > limit;
+            objects.truncate(limit);
+            let next_cursor = objects
+                .last()
+                .cloned()
+                .map_or(cursor, |o_info| Some(o_info.object_id));
 
-                let data = match options.is_not_in_object_info() {
-                    true => {
-                        let object_ids = objects.iter().map(|obj| obj.object_id).collect();
-                        self.read_api
-                            .multi_get_objects(object_ids, Some(options))
-                            .await
-                            .map_err(|e| Error::InternalError(anyhow!(e)))?
-                    }
-                    false => objects
-                        .into_iter()
-                        .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
-                        .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
-                };
+            let data = match options.is_not_in_object_info() {
+                true => {
+                    let object_ids = objects.iter().map(|obj| obj.object_id).collect();
+                    self.read_api
+                        .multi_get_objects(object_ids, Some(options))
+                        .await
+                        .map_err(|e| Error::InternalError(anyhow!(e)))?
+                }
+                false => objects
+                    .into_iter()
+                    .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
+                    .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
+            };
 
-                self.metrics
-                    .get_owned_objects_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .get_owned_objects_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(Page {
-                    data,
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+            self.metrics
+                .get_owned_objects_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .get_owned_objects_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(Page {
+                data,
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
 
@@ -216,57 +214,55 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<TransactionBlocksPage> {
-        with_tracing(
-            async move {
-                let limit = cap_page_limit(limit);
-                self.metrics.query_tx_blocks_limit.report(limit as u64);
-                let descending = descending_order.unwrap_or_default();
-                let opts = query.options.unwrap_or_default();
+        async move {
+            let limit = cap_page_limit(limit);
+            self.metrics.query_tx_blocks_limit.report(limit as u64);
+            let descending = descending_order.unwrap_or_default();
+            let opts = query.options.unwrap_or_default();
 
-                // Retrieve 1 extra item for next cursor
-                let mut digests = self
-                    .state
-                    .get_transactions(
-                        &self.transaction_kv_store,
-                        query.filter,
-                        cursor,
-                        Some(limit + 1),
-                        descending,
-                    )
+            // Retrieve 1 extra item for next cursor
+            let mut digests = self
+                .state
+                .get_transactions(
+                    &self.transaction_kv_store,
+                    query.filter,
+                    cursor,
+                    Some(limit + 1),
+                    descending,
+                )
+                .await
+                .map_err(Error::from)?;
+
+            // extract next cursor
+            let has_next_page = digests.len() > limit;
+            digests.truncate(limit);
+            let next_cursor = digests.last().cloned().map_or(cursor, Some);
+
+            let data: Vec<IotaTransactionBlockResponse> = if opts.only_digest() {
+                digests
+                    .into_iter()
+                    .map(IotaTransactionBlockResponse::new)
+                    .collect()
+            } else {
+                self.read_api
+                    .multi_get_transaction_blocks(digests, Some(opts))
                     .await
-                    .map_err(Error::from)?;
+                    .map_err(|e| Error::InternalError(anyhow!(e)))?
+            };
 
-                // extract next cursor
-                let has_next_page = digests.len() > limit;
-                digests.truncate(limit);
-                let next_cursor = digests.last().cloned().map_or(cursor, Some);
-
-                let data: Vec<IotaTransactionBlockResponse> = if opts.only_digest() {
-                    digests
-                        .into_iter()
-                        .map(IotaTransactionBlockResponse::new)
-                        .collect()
-                } else {
-                    self.read_api
-                        .multi_get_transaction_blocks(digests, Some(opts))
-                        .await
-                        .map_err(|e| Error::InternalError(anyhow!(e)))?
-                };
-
-                self.metrics
-                    .query_tx_blocks_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .query_tx_blocks_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(Page {
-                    data,
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+            self.metrics
+                .query_tx_blocks_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .query_tx_blocks_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(Page {
+                data,
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
     #[instrument(skip(self))]
@@ -278,40 +274,38 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage> {
-        with_tracing(
-            async move {
-                let descending = descending_order.unwrap_or_default();
-                let limit = cap_page_limit(limit);
-                self.metrics.query_events_limit.report(limit as u64);
-                // Retrieve 1 extra item for next cursor
-                let mut data = self
-                    .state
-                    .query_events(
-                        &self.transaction_kv_store,
-                        query,
-                        cursor,
-                        limit + 1,
-                        descending,
-                    )
-                    .await
-                    .map_err(Error::from)?;
-                let has_next_page = data.len() > limit;
-                data.truncate(limit);
-                let next_cursor = data.last().map_or(cursor, |e| Some(e.id));
-                self.metrics
-                    .query_events_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .query_events_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(EventPage {
-                    data,
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+        async move {
+            let descending = descending_order.unwrap_or_default();
+            let limit = cap_page_limit(limit);
+            self.metrics.query_events_limit.report(limit as u64);
+            // Retrieve 1 extra item for next cursor
+            let mut data = self
+                .state
+                .query_events(
+                    &self.transaction_kv_store,
+                    query,
+                    cursor,
+                    limit + 1,
+                    descending,
+                )
+                .await
+                .map_err(Error::from)?;
+            let has_next_page = data.len() > limit;
+            data.truncate(limit);
+            let next_cursor = data.last().map_or(cursor, |e| Some(e.id));
+            self.metrics
+                .query_events_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .query_events_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(EventPage {
+                data,
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
 
@@ -350,31 +344,29 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage> {
-        with_tracing(
-            async move {
-                let limit = cap_page_limit(limit);
-                self.metrics.get_dynamic_fields_limit.report(limit as u64);
-                let mut data = self
-                    .state
-                    .get_dynamic_fields(parent_object_id, cursor, limit + 1)
-                    .map_err(Error::from)?;
-                let has_next_page = data.len() > limit;
-                data.truncate(limit);
-                let next_cursor = data.last().cloned().map_or(cursor, |c| Some(c.0));
-                self.metrics
-                    .get_dynamic_fields_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .get_dynamic_fields_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(DynamicFieldPage {
-                    data: data.into_iter().map(|(_, w)| w).collect(),
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+        async move {
+            let limit = cap_page_limit(limit);
+            self.metrics.get_dynamic_fields_limit.report(limit as u64);
+            let mut data = self
+                .state
+                .get_dynamic_fields(parent_object_id, cursor, limit + 1)
+                .map_err(Error::from)?;
+            let has_next_page = data.len() > limit;
+            data.truncate(limit);
+            let next_cursor = data.last().cloned().map_or(cursor, |c| Some(c.0));
+            self.metrics
+                .get_dynamic_fields_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .get_dynamic_fields_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(DynamicFieldPage {
+                data: data.into_iter().map(|(_, w)| w).collect(),
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
 
@@ -384,29 +376,26 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        with_tracing(
-            async move {
-                let (name_type, name_bcs_value) =
-                    self.extract_values_from_dynamic_field_name(name)?;
+        async move {
+            let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
 
-                let id = self
-                    .state
-                    .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
-                    .map_err(Error::from)?;
-                // TODO(chris): add options to `get_dynamic_field_object` API as well
-                if let Some(id) = id {
-                    self.read_api
-                        .get_object(id, Some(IotaObjectDataOptions::full_content()))
-                        .await
-                        .map_err(|e| Error::InternalError(anyhow!(e)))
-                } else {
-                    Ok(IotaObjectResponse::new_with_error(
-                        IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
-                    ))
-                }
-            },
-            None,
-        )
+            let id = self
+                .state
+                .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
+                .map_err(Error::from)?;
+            // TODO(chris): add options to `get_dynamic_field_object` API as well
+            if let Some(id) = id {
+                self.read_api
+                    .get_object(id, Some(IotaObjectDataOptions::full_content()))
+                    .await
+                    .map_err(|e| Error::InternalError(anyhow!(e)))
+            } else {
+                Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
+                ))
+            }
+        }
+        .trace()
         .await
     }
 }
