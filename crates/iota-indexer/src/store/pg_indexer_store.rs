@@ -1004,11 +1004,10 @@ impl IndexerStore for PgIndexerStore {
         let chunks = chunk!(transactions, self.parallel_chunk_size);
         let futures = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_transactions_chunk(c)))
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_transactions_chunk(c)));
 
-        futures::future::join_all(futures)
-            .await
+        futures::future::try_join_all(futures)
+            .await?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
