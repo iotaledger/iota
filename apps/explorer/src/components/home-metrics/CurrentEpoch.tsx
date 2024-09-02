@@ -43,6 +43,7 @@ export function CurrentEpoch(): JSX.Element {
 
     return (
         <LinkWithQuery
+            className="flex w-full"
             to={`/epoch/${epoch}`}
             onClick={() => ampli.clickedCurrentEpochCard({ epoch: Number(epoch) })}
         >
