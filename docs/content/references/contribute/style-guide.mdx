@@ -8,7 +8,7 @@ toc_max_heading_level: 2
 
 This document defines the styles, word and term usage, and content formatting for IOTA documentation. Entries are in alphabetical order. A style guide is never finished. Expect continued iterations to add additional styles, additional information to existing styles, and infrequently a change to an existing style.
 
-## Accessibility {#accessibility}
+## Accessibility
 
 Reference works for making content accessible:
 
@@ -19,11 +19,11 @@ Reference works for making content accessible:
 - [Microsoft Style Guide Accessibility Terms](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/term-collections/accessibility-terms)
 - [Writing for All Abilities](https://learn.microsoft.com/en-us/style-guide/accessibility/writing-all-abilities) (Microsoft Style Guide)
 
-### Formatting {#formatting}
+### Formatting
 
 Don't use color or special symbols to add emphasis to text. Screen readers are designed to interpret bold (`<strong>`) and italic (`<em>`) in web pages.
 
-### Images {#images}
+### Images
 
 Add captions and alt text that describe the image for someone using a screen reader. What are the important details in the image that someone using a screen reader can't see?
 
@@ -31,7 +31,7 @@ Use alt text to describe what the image shows. Use the caption to explain why th
 
 An image is not a substitute for text; images should only supplement text. Do not rely on an image to convey information not in text form. For example, an image of a table of values does no one any good if the image fails to display for a host of possible reasons.
 
-## Acronyms {#acronyms}
+## Acronyms
 
 Spell out a term or phrase on first use in a topic, followed by the acronym in parentheses. Then use the acronym for subsequent mentions.
 
@@ -39,11 +39,11 @@ Spell out a term or phrase on first use in a topic, followed by the acronym in p
 
 > You can mint non-fungible tokens (NFTs) using your IOTA Wallet. To view an NFT after you mint it, click the NFTs tab of your wallet.
 
-## Alerts {#alerts}
+## Alerts
 
 Alerts add emphasis to information. Use Admonitions, a Docusaurus feature, to indicate the alert is a Note, Tip, or Caution. The explanation in the alert must be a complete sentence and use sentence case.
 
-### Note {#note}
+### Note
 
 Use Note to add emphasis to information that the reader should know, but could be overlooked when scanning a topic or document. Provide information that prevents users from getting stuck.
 
@@ -71,7 +71,7 @@ The system processes updates only once every 24 hours at UTC 00:00.
 </TabItem>
 </Tabs>
 
-### Tip {#tip}
+### Tip
 
 Use Tip to give the reader advice that might be helpful, such as a best practice.
 
@@ -100,7 +100,7 @@ Change your home directory after installing the IDE.
 </TabItem>
 </Tabs>
 
-### Caution {#caution}
+### Caution
 
 Use Caution when the information could cause the user to lose data or to start over. If you instruct a user to delete something, warn them about what happens when they delete it.
 
@@ -129,7 +129,7 @@ Backup your configuration files before you delete your network.
 </TabItem>
 </Tabs>
 
-## Capitalization {#capitalization}
+## Capitalization
 
 **Do:**
 
@@ -155,7 +155,7 @@ When words are joined by a slash, capitalize the word after the slash if the wor
 
 > Turn on the On/Off toggle.
 
-### Title capitalization {#title-capitalization}
+### Title capitalization
 
 For title capitalization, follow these guidelines:
 
@@ -165,11 +165,11 @@ For title capitalization, follow these guidelines:
 - Match casing for commands or special terms, such as cURL or dApp.
 - Match the casing for API elements and programming language keywords
 
-## Code {#code}
+## Code
 
 Use inline code in a sentence to refer to functions and other code pieces. Use codeblocks to show larger sections of a program. All code should be written exactly as it appears in a code editor, so that other people can copy and paste it from documentation directly into a code editor. Do not use images to show code.
 
-### Inline code {#inline-code}
+### Inline code
 
 Use backticks (\`) around individual code within a sentence, which will format it as code in markdown. Do not use quotes, emphasis, or any other formatting to distinguish code from surrounding text.
 
@@ -190,7 +190,7 @@ The `display::new<T>` call creates a `Display`.
 </TabItem>
 </Tabs>
 
-### Codeblocks {#codeblocks}
+### Codeblocks
 
 Use the text before a codeblock to describe what the codeblock does. Use text after the codeblock to point out particular elements in the code and how they work. Do not use codeblocks as a substitute for descriptive text. Codeblocks help readers understand descriptive text in the documentation.
 
@@ -208,9 +208,9 @@ values: vector`<String>`
 ) { /* ... \*/ }
 ```
 
-## Grammar {#grammar}
+## Grammar
 
-### Active voice {#active-voice}
+### Active voice
 
 Use Active voice whenever possible. Active voice is direct, clear, and uses fewer words. Passive voice is often less clear, awkward, and uses more words.
 
@@ -220,7 +220,7 @@ Use Active voice whenever possible. Active voice is direct, clear, and uses fewe
 
 > **Passive:** The software was installed by her.
 
-### Verbs {#verbs}
+### Verbs
 
 Use present tense verbs with the appropriate mood.
 
@@ -230,7 +230,7 @@ There are three grammatical moods:
 - **Imperative –** used to provide directions
 - **Subjunctive –** used to convey a wish or possibility
 
-#### Verb moods {#verb-moods}
+#### Verb moods
 
 Use indicative verbs most of the time in conceptual content.
 
@@ -242,7 +242,7 @@ Use imperative verbs for tasks, procedures, and instructions.
 - **Imperative –** Open a IOTA network explorer to view transactions on the network.
 - **Subjunctive –** We suggest that you view your transaction in a IOTA network explorer after you complete a transfer.
 
-### Person {#person}
+### Person
 
 Use second person in most cases.
 
@@ -254,7 +254,7 @@ Use second person in most cases.
 
 > We used to could view transaction history in IOTA Explorer.
 
-### Present tense {#present-tense}
+### Present tense
 
 Use present tense whenever possible. Use future tense (something will happen) only for events that occur on a future date, such as a product release or trade show.
 
@@ -278,7 +278,7 @@ While this is technically accurate, it separates the person from the object of t
 
 In this example, when will the file be written to disk? It happens immediately upon clicking Save. If you check the timestamp on the file, the time reflects the moment at which you clicked Save, not a time after that moment.
 
-### Oxford / serial commas {#oxford-serial-commas}
+### Oxford / serial commas
 
 Do use serial commas.
 
@@ -294,15 +294,15 @@ Do use serial commas.
 
 > You must install Cargo, Rust, Docker, and the IOTA CLI to create a IOTA node.
 
-## Headings and titles {#headings-titles}
+## Headings and titles
 
 Use descriptive titles that include keywords to help readers find the information. Use shorter titles in the navigation pane.
 
-### Optimize for discoverability {#optimize-discoverability}
+### Optimize for discoverability
 
 Use enough words in headings and titles to make it easy to know which link to click on a search results page. One word titles (Installing) do not provide enough information to determine the contents of a topic.
 
-### Topic titles {#topic-titles}
+### Topic titles
 
 Users search for information to complete a specific task, so help them identify the topic that helps them by using descriptive titles. For example, _Get Started_. Get started with what? If there are multiple products or programs available it could be anything.
 
@@ -325,7 +325,7 @@ _Get Started with IOTA_ is better, but users want to get started with a specific
 </TabItem>
 </Tabs>
 
-### Section headings {#section-headings}
+### Section headings
 
 Use sentence casing for section headers.
 
@@ -346,24 +346,24 @@ Use sentence casing for section headers.
 </TabItem>
 </Tabs>
 
-## Images / Graphics {#images-graphics}
+## Images / Graphics
 
 Only use images and screenshots to supplement and help explain text. Images do not replace text. Readers should be able to understand the documentation without the images. However, images can help readers understand the text more clearly.
 
-### Image format {#image-format}
+### Image format
 
 Use .png when possible, otherwise use .jpg
 
-### Image resolution {#image-resolution}
+### Image resolution
 
 Images should be at least 400 pixels wide. If an image looks blurry when uploaded, try making a new image in higher resolution.
 
-### Captions {#captions}
+### Captions
 
 Use alt text to describe what the image shows. Use the caption to explain why the image is meaningful in the context of the page.
 See Accessibility considerations for captions.
 
-### Mermaid for images in Markdown {#mermaid}
+### Mermaid for images in Markdown
 
 You can create flowcharts and similar images directly in Markdown.
 
@@ -371,7 +371,7 @@ You can create flowcharts and similar images directly in Markdown.
 
 Use [Snagit](https://www.techsmith.com/screen-capture.html) or other tools to capture screenshots.
 
-## Lists {#lists}
+## Lists
 
 Use a list for a series of items or steps instead of writing them as a sentence. Introduce the list with a description of the list elements ending in a colon (:).
 
@@ -389,7 +389,7 @@ The Build section of the documentation includes the following topics:
 - IOTA Tutorial
 - IOTA Examples
 
-### Numbered or ordered lists {#numbered-ordered-lists}
+### Numbered or ordered lists
 
 Use a numbered list when:
 
@@ -417,7 +417,7 @@ Use a numbered list when:
 </TabItem>
 </Tabs>
 
-### Bulleted lists {#bulleted-lists}
+### Bulleted lists
 
 Use bulleted lists to list more than two pieces of related information, such as links or terms, that don't need to be in a specific order. Optionally, use a bulleted list for only two items to include a description of the items in the list. Use sentence capitalization in lists, and use punctuation consistently for all list items. Do not use an ending period unless the list item includes a full sentence.
 
@@ -446,7 +446,7 @@ IOTA Explorer used to support the following browsers:
 </TabItem>
 </Tabs>
 
-### Term list {#term-list}
+### Term list
 
 Use a term list to define terms or concepts.
 
@@ -470,7 +470,7 @@ Use a term list to define terms or concepts.
 </TabItem>
 </Tabs>
 
-### Capitalization in lists {#capitalization-in-lists}
+### Capitalization in lists
 
 Use initial / sentence capitalization in list items.
 
@@ -512,9 +512,9 @@ Use initial / sentence capitalization in list items.
 </TabItem>
 </Tabs>
 
-## Numbers {#numbers}
+## Numbers
 
-### Numerals vs. words {#numerals-vs-words}
+### Numerals vs. words
 
 Write out numbers less than 10
 
@@ -554,7 +554,7 @@ Measurements should be written as numerals.
 
 > The server processes 2 terabytes of data in 8 milliseconds.
 
-## Links {#links}
+## Links
 
 Always use relative links when linking to topics on docs.iota.io.
 
@@ -581,7 +581,7 @@ Before you install IOTA, make sure to install the [prerequisites](/developer/get
 </TabItem>
 </Tabs>
 
-## Procedures / Tasks / Instructions {#procedures-tasks-instructions}
+## Procedures / Tasks / Instructions
 
 Introduce a procedure with an infinitive verb. Format procedures using a numbered or ordered list.
 
@@ -610,11 +610,11 @@ To get the latest version of the IOTA Wallet extension:
 </TabItem>
 </Tabs>
 
-### Keyboard keys in procedures {#keyboard-keys-procedures}
+### Keyboard keys in procedures
 
 When you provide instructions to press keyboard keys, such as Press **Enter** to continue, use uppercase for the key name and format the key name as bold text.
 
-## Proper nouns {#proper-nouns}
+## Proper nouns
 
 Capitalize proper nouns throughout.
 
@@ -631,7 +631,7 @@ Proper nouns include:
 
 > IOTA Wallet
 
-## Product names {#product-names}
+## Product names
 
 Product names are proper nouns. Capitalize all words of a product name. When referring to a product, use only the product name without “the”. When referring specifically to a IOTA wallet, use IOTA Wallet or Ethos Wallet and not just wallet. Users likely have multiple wallets, and we want to make it clear which wallet. Use wallet generically when referring to the concept of a wallet.
 
@@ -655,7 +655,7 @@ Product names are proper nouns. Capitalize all words of a product name. When ref
 
 > You can mint an NFT directly from your IOTA Wallet.
 
-## Slashes {#slashes}
+## Slashes
 
 Avoid using slashes in place of "and" or "or", such as True / False or True/False. Use True or False, or True | False in code documentation.
 
@@ -663,13 +663,13 @@ If you do use a slash, include a space between the term and slash.
 
 When using fractions, use no spaces, for example 3/4.
 
-## Spelling {#spelling}
+## Spelling
 
 Use US English spelling in source content.
 
-## Tables {#tables}
+## Tables
 
-### Table headings {#table-headings}
+### Table headings
 
 Capitalize the first word in the heading. Center align the text. Bold labels in the Header row.
 
@@ -692,7 +692,7 @@ Capitalize the first word in the heading. Center align the text. Bold labels in 
 </TabItem>
 </Tabs>
 
-### Table alignment {#table-alignment}
+### Table alignment
 
 Center align labels in the Heading row. Left align strings of text. Center align values and Xs or checkmarks.
 
@@ -716,11 +716,11 @@ Center align labels in the Heading row. Left align strings of text. Center align
 </TabItem>
 </Tabs>
 
-### Table text {#table-text}
+### Table text
 
 Follow style guidelines for regular body text.
 
-## UI elements {#ui-elements}
+## UI elements
 
 Format UI elements, such as field labels, button names, and menu commands, in bold text. Always match the exact text or label of the UI element, including capitalization. Do not include special characters, such as ellipses, if included in the element label.
 
@@ -732,13 +732,13 @@ Format UI elements, such as field labels, button names, and menu commands, in bo
 
 > Click **More Transactions** to open the **Transactions** page.
 
-## URLs and web addresses {#urls-web-addresses}
+## URLs and web addresses
 
 Add text and create a link to a site or URL. Provide the URL only when a reader needs to copy it, such as in example code or configuration files.
 
-## Word choice {#word-choice}
+## Word choice
 
-### Referring to pages in our docs {#referring}
+### Referring to pages in our docs
 
 Refer to pages in the documentation set as “topic”s. A “guide” can comprise many related topics.
 
@@ -752,22 +752,22 @@ You can also just refer to a topic by title where it makes sense. See Installing
 
 :::
 
-### General considerations {#general-considerations}
+### General considerations
 
 - Use simple words, concise sentences
 - Don't use common words in new ways
 - Use technical terms carefully
 - Avoid jargon
 
-### Contractions {#contractions}
+### Contractions
 
 Optionally use contractions to provide a more conversational tone. It's OK to use them inconsistently. Be mindful that they can be confusing to non-native speakers.
 
-## New section template (Heading 2) {#heading-2}
+## New section template (Heading 2)
 
 Describe the section.
 
-### Subsection or category (Heading 3) {#heading-3}
+### Subsection or category (Heading 3)
 
 Describe the additional entry.
 
@@ -788,7 +788,7 @@ Indented example for the section. (Roboto Mono Light)
 </TabItem>
 </Tabs>
 
-## Reference Style Guides {#reference-style-guides}
+## Reference Style Guides
 
 - [Write the Docs Style Guide article](https://www.writethedocs.org/guide/writing/style-guides/)
 - [GitLab Style Guide](https://docs.gitlab.com/ee/development/documentation/styleguide/index.html) - managed as a community project

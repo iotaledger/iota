@@ -102,7 +102,7 @@ You must get the latest source files from the IOTA GitHub repository.
 1. Check out the branch associated with the network version you want to run (for example, `devnet` to run a Devnet Full node):
     `git checkout --track upstream/<BRANCH-NAME>`
 
-### Setting up a Full node from source {#set-up-from-source}
+### Setting up a Full node from source
 
 Open a terminal or console to the `iota` directory you downloaded in the previous steps to complete the following:
 1. Install the required prerequisites.
@@ -151,7 +151,7 @@ Open a terminal or console to the `iota` directory you downloaded in the previou
         genesis-file-location: "/iota-fullnode/genesis.blob"
     ```
 
-### Compiling the node {#compiling-node}
+### Compiling the node
 
 Run the following command to compile the `iota-node`.
 
@@ -236,7 +236,7 @@ If you followed the instructions for Building from Source, use the following ste
         curl -fLJO TODO
         ```
 1. Update your `fullnode.yaml` configuration file, if needed.
-1. Recompile your IOTA Full node with the same command as in [Compiling the node](#compiling-node):
+1. Recompile your IOTA Full node with the same command as in [Compiling the node](#compiling-the-node):
 1. Restart your IOTA Full node:
     ```shell
     ./target/release/iota-node --config-path fullnode.yaml
@@ -244,7 +244,7 @@ If you followed the instructions for Building from Source, use the following ste
     
 Your Full node starts on: http://127.0.0.1:9000.
 
-## Object pruning {#object-pruning}
+## Object pruning
 
 IOTA adds new object versions to the database as part of transaction execution. This makes previous versions ready for 
 garbage collection. However, without pruning, this can result in database performance degradation and requires large 
@@ -283,7 +283,7 @@ authority-store-pruning-config:
   # settings are appropriate for most use cases.
   max-transactions-in-batch: 1000
 ```
-## Transaction pruning {#transaction-pruning}
+## Transaction pruning
 
 Transaction pruning removes previous transactions and effects from the database.
 IOTA periodically creates checkpoints. Each checkpoint contains the transactions that occurred during the checkpoint and their associated effects.

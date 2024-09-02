@@ -40,14 +40,14 @@ Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-f
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.
-# MyRemotePackage = { git = "https://some.remote/host.git", subdir = "remote/path", rev = "main" }
+# MyRemotePackage =
 
 # For local dependencies use `local = path`. Path is relative to the package root
-# Local = { local = "../path/to" }
+# Local =
 
 # To resolve a version conflict and force a specific version for dependency
 # override use `override = true`
-# Override = { local = "../conflicting/version", override = true }
+# Override =
 
 [addresses]
 my_first_package = "0x0"
@@ -59,7 +59,7 @@ my_first_package = "0x0"
 [dev-dependencies]
 # The dev-dependencies section allows overriding dependencies for `--test` and
 # `--dev` modes. You can introduce test-only dependencies here.
-# Local = { local = "../path/to/dev-build" }
+# Local =
 
 [dev-addresses]
 # The dev-addresses section allows overwriting named addresses for the `--test`
