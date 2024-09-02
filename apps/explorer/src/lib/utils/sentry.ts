@@ -56,6 +56,10 @@ export function initSentry() {
             /^chrome(?:-extension)?:\/\//i,
             /<anonymous>/,
         ],
-        allowUrls: [/.*\.iota\.io/i, /.*-mysten-labs\.vercel\.app/i, 'explorer-topaz.vercel.app'],
+        allowUrls: [
+            /.*\.iota\.io/i,
+            /.*-iota-foundation\.vercel\.app/i,
+            'explorer-topaz.vercel.app',
+        ],
     });
 }

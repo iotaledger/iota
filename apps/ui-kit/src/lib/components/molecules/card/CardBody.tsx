@@ -8,10 +8,17 @@ export type CardBodyProps = {
     title: string;
     subtitle?: string | ReactNode;
     clickableAction?: React.ReactNode;
+    icon?: React.ReactNode;
     isTextTruncated?: boolean;
 };
 
-export function CardBody({ title, subtitle, clickableAction, isTextTruncated }: CardBodyProps) {
+export function CardBody({
+    title,
+    subtitle,
+    clickableAction,
+    icon,
+    isTextTruncated,
+}: CardBodyProps) {
     const handleActionCardBodyClick = (event: React.MouseEvent) => {
         event?.stopPropagation();
     };
@@ -22,7 +29,7 @@ export function CardBody({ title, subtitle, clickableAction, isTextTruncated }: 
             })}
         >
             <div
-                className={cx('flex flex-row gap-x-xs', {
+                className={cx('flex flex-row items-center gap-x-xxs', {
                     'grow-1': isTextTruncated,
                 })}
             >
@@ -33,8 +40,11 @@ export function CardBody({ title, subtitle, clickableAction, isTextTruncated }: 
                 >
                     {title}
                 </div>
+                {icon && <div className="flex items-center">{icon}</div>}
                 {clickableAction && (
-                    <div onClick={handleActionCardBodyClick}>{clickableAction}</div>
+                    <div onClick={handleActionCardBodyClick} className="flex items-center">
+                        {clickableAction}
+                    </div>
                 )}
             </div>
             {subtitle && (

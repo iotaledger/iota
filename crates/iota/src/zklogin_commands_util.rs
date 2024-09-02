@@ -84,7 +84,7 @@ pub async fn perform_zk_login_test_tx(
                          * zklogin sig. */
 ) -> Result<String, anyhow::Error> {
     let (gas_url, fullnode_url) = get_config(network);
-    let user_salt = get_salt(parsed_token, "https://salt.api.mystenlabs.com/get_salt")
+    let user_salt = get_salt(parsed_token, "https://salt.api.iota.org/get_salt")
         .await
         .unwrap_or("129390038577185583942388216820280642146".to_string());
     println!("User salt: {user_salt}");
@@ -94,7 +94,7 @@ pub async fn perform_zk_login_test_tx(
         jwt_randomness,
         kp_bigint,
         &user_salt,
-        "https://prover-dev.mystenlabs.com/v1",
+        "https://prover-dev.iota.org/v1",
     )
     .await
     .map_err(|e| anyhow!("Failed to get proof {e}"))?;
