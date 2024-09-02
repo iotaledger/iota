@@ -103,6 +103,7 @@ export function Account({
             <div
                 className={cx(
                     'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
+                    '[&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-neutral-40',
                     isLocked && '[&_button:last-child]:flex',
                 )}
             >
@@ -111,7 +112,7 @@ export function Account({
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
                         onClick={onOptionsClick}
-                        icon={<MoreHoriz className="h-5 w-5 text-neutral-40" />}
+                        icon={<MoreHoriz />}
                     />
                 )}
                 {onLockAccountClick &&
@@ -121,14 +122,14 @@ export function Account({
                             size={ButtonSize.Small}
                             type={ButtonType.Ghost}
                             onClick={onUnlockAccountClick}
-                            icon={<LockLocked className="h-5 w-5 text-neutral-40" />}
+                            icon={<LockLocked />}
                         />
                     ) : (
                         <Button
                             size={ButtonSize.Small}
                             type={ButtonType.Ghost}
                             onClick={onLockAccountClick}
-                            icon={<LockUnlocked className="h-5 w-5 text-neutral-40" />}
+                            icon={<LockUnlocked />}
                         />
                     ))}
             </div>
