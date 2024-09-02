@@ -78,4 +78,4 @@ const nameObject = await iotansClient.getNameObject('iotans.iota', {
 
 ## License
 
-[Apache-2.0](https://github.com/SuiNSdapp/toolkit/blob/main/LICENSE)
+[Apache-2.0](https://github.com/IotaNSdapp/toolkit/blob/main/LICENSE)
