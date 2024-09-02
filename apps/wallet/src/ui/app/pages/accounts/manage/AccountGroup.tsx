@@ -138,7 +138,7 @@ export function AccountGroup({
 
                         {isMnemonicDerivedGroup && accountSource && (
                             <ListItem hideBottomBorder onClick={handleExportPassphrase}>
-                                Export Passphrase
+                                Export Mnemonic
                             </ListItem>
                         )}
                         {isSeedDerivedGroup && accountSource && (

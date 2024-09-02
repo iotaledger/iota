@@ -63,7 +63,7 @@ export function AccountGroupItem({
         navigate(`/accounts/export/${account!.id}`);
     }
 
-    function handleDelete() {
+    function handleRemove() {
         setDialogRemoveOpen(true);
     }
 
@@ -96,7 +96,7 @@ export function AccountGroupItem({
                             </ListItem>
                         ) : null}
                         {allAccounts.isPending ? null : (
-                            <ListItem hideBottomBorder onClick={handleDelete}>
+                            <ListItem hideBottomBorder onClick={handleRemove}>
                                 Delete
                             </ListItem>
                         )}
