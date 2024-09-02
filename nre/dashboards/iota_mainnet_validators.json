@@ -1575,7 +1575,7 @@
         "type": "prometheus",
         "uid": "8Xt1pVoVk"
       },
-      "description": "Error rate (as reported by all the Mysten FNs) for the RPC errors",
+      "description": "Error rate (as reported by all the IOTA Foundation FNs) for the RPC errors",
       "fieldConfig": {
         "defaults": {
           "color": {

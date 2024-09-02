@@ -25,7 +25,7 @@ use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
@@ -123,27 +123,16 @@ impl JsonRpcServerBuilder {
     fn trace_layer() -> TraceLayer<
         tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
         impl tower_http::trace::MakeSpan<Body> + Clone,
-        (),
-        (),
-        (),
-        (),
-        (),
     > {
-        TraceLayer::new_for_http()
-            .make_span_with(|request: &Request<Body>| {
-                let request_id = request
-                    .headers()
-                    .get("x-req-id")
-                    .and_then(|v| v.to_str().ok())
-                    .map(tracing::field::display);
+        TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+            let request_id = request
+                .headers()
+                .get("x-req-id")
+                .and_then(|v| v.to_str().ok())
+                .map(tracing::field::display);
 
-                tracing::info_span!("json-rpc-request", "x-req-id" = request_id)
-            })
-            .on_request(())
-            .on_response(())
-            .on_body_chunk(())
-            .on_eos(())
-            .on_failure(())
+            tracing::info_span!("json-rpc-request", "x-req-id" = request_id)
+        })
     }
 
     pub fn to_router(&self, server_type: Option<ServerType>) -> Result<axum::Router, Error> {
@@ -217,7 +206,7 @@ impl JsonRpcServerBuilder {
     pub async fn start(
         self,
         listen_address: SocketAddr,
-        _custom_runtime: Option<Handle>,
+        custom_runtime: Option<Handle>,
         server_type: Option<ServerType>,
     ) -> Result<ServerHandle, Error> {
         let app = self.to_router(server_type)?;
@@ -231,11 +220,17 @@ impl JsonRpcServerBuilder {
         let addr = listener.local_addr().map_err(|e| {
             Error::UnexpectedError(format!("invalid listen address {listen_address}: {e}"))
         })?;
-        let handle = tokio::spawn(async move {
+        let fut = async move {
             axum::serve(listener, app.into_make_service())
                 .await
                 .unwrap()
-        });
+        };
+        let handle = if let Some(custom_runtime) = custom_runtime {
+            debug!("Spawning server with custom runtime");
+            custom_runtime.spawn(fut)
+        } else {
+            tokio::spawn(fut)
+        };
 
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),
