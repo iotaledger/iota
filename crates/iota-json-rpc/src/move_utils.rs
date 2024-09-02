@@ -31,7 +31,7 @@ use tracing::{error, instrument, warn};
 use crate::{
     authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    logger::with_tracing,
+    logger::FutureWithTracing as _,
     IotaRpcModule,
 };
 
@@ -157,16 +157,14 @@ impl MoveUtilsServer for MoveUtils {
         &self,
         package: ObjectID,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
-        with_tracing(
-            async move {
-                let modules = self.internal.get_move_modules_by_package(package).await?;
-                Ok(modules
-                    .into_iter()
-                    .map(|(name, module)| (name, module.into()))
-                    .collect::<BTreeMap<String, IotaMoveNormalizedModule>>())
-            },
-            None,
-        )
+        async move {
+            let modules = self.internal.get_move_modules_by_package(package).await?;
+            Ok(modules
+                .into_iter()
+                .map(|(name, module)| (name, module.into()))
+                .collect::<BTreeMap<String, IotaMoveNormalizedModule>>())
+        }
+        .trace()
         .await
     }
 
@@ -176,13 +174,11 @@ impl MoveUtilsServer for MoveUtils {
         package: ObjectID,
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule> {
-        with_tracing(
-            async move {
-                let module = self.internal.get_move_module(package, module_name).await?;
-                Ok(module.into())
-            },
-            None,
-        )
+        async move {
+            let module = self.internal.get_move_module(package, module_name).await?;
+            Ok(module.into())
+        }
+        .trace()
         .await
     }
 
@@ -193,22 +189,20 @@ impl MoveUtilsServer for MoveUtils {
         module_name: String,
         struct_name: String,
     ) -> RpcResult<IotaMoveNormalizedStruct> {
-        with_tracing(
-            async move {
-                let module = self.internal.get_move_module(package, module_name).await?;
-                let structs = module.structs;
-                let identifier = Identifier::new(struct_name.as_str())
-                    .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
-                match structs.get(&identifier) {
-                    Some(struct_) => Ok(struct_.clone().into()),
-                    None => Err(IotaRpcInputError::GenericNotFound(format!(
-                        "No struct was found with struct name {}",
-                        struct_name
-                    )))?,
-                }
-            },
-            None,
-        )
+        async move {
+            let module = self.internal.get_move_module(package, module_name).await?;
+            let structs = module.structs;
+            let identifier = Identifier::new(struct_name.as_str())
+                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
+            match structs.get(&identifier) {
+                Some(struct_) => Ok(struct_.clone().into()),
+                None => Err(IotaRpcInputError::GenericNotFound(format!(
+                    "No struct was found with struct name {}",
+                    struct_name
+                )))?,
+            }
+        }
+        .trace()
         .await
     }
 
@@ -219,21 +213,19 @@ impl MoveUtilsServer for MoveUtils {
         module_name: String,
         function_name: String,
     ) -> RpcResult<IotaMoveNormalizedFunction> {
-        with_tracing(
-            async move {
-                let module = self.internal.get_move_module(package, module_name).await?;
-                let functions = module.functions;
-                let identifier = Identifier::new(function_name.as_str())
-                    .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
-                match functions.get(&identifier) {
-                    Some(function) => Ok(function.clone().into()),
-                    None => Err(IotaRpcInputError::GenericNotFound(format!(
-                        "No function was found with function name {function_name}",
-                    )))?,
-                }
-            },
-            None,
-        )
+        async move {
+            let module = self.internal.get_move_module(package, module_name).await?;
+            let functions = module.functions;
+            let identifier = Identifier::new(function_name.as_str())
+                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
+            match functions.get(&identifier) {
+                Some(function) => Ok(function.clone().into()),
+                None => Err(IotaRpcInputError::GenericNotFound(format!(
+                    "No function was found with function name {function_name}",
+                )))?,
+            }
+        }
+        .trace()
         .await
     }
 
@@ -244,61 +236,58 @@ impl MoveUtilsServer for MoveUtils {
         module: String,
         function: String,
     ) -> RpcResult<Vec<MoveFunctionArgType>> {
-        with_tracing(
-            async move {
-                let object_read = self.internal.get_object_read(package)?;
+        async move {
+            let object_read = self.internal.get_object_read(package)?;
 
-                let normalized = match object_read {
-                    ObjectRead::Exists(_obj_ref, object, _layout) => match object.into_inner().data
-                    {
-                        Data::Package(p) => {
-                            // we are on the read path - it's OK to use VERSION_MAX of the supported
-                            // Move binary format
-                            let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
-                            normalize_modules(p.serialized_module_map().values(), &binary_config)
-                                .map_err(Error::from)
+            let normalized = match object_read {
+                ObjectRead::Exists(_obj_ref, object, _layout) => match object.into_inner().data {
+                    Data::Package(p) => {
+                        // we are on the read path - it's OK to use VERSION_MAX of the supported
+                        // Move binary format
+                        let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
+                        normalize_modules(p.serialized_module_map().values(), &binary_config)
+                            .map_err(Error::from)
+                    }
+                    _ => Err(IotaRpcInputError::GenericInvalid(format!(
+                        "Object is not a package with ID {package}",
+                    )))?,
+                },
+                _ => Err(IotaRpcInputError::GenericNotFound(format!(
+                    "Package object does not exist with ID {package}",
+                )))?,
+            }?;
+
+            let identifier = Identifier::new(function.as_str())
+                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
+            let parameters = normalized
+                .get(&module)
+                .and_then(|m| m.functions.get(&identifier).map(|f| f.parameters.clone()));
+
+            match parameters {
+                Some(parameters) => Ok(parameters
+                    .iter()
+                    .map(|p| match p {
+                        Type::Struct {
+                            address: _,
+                            module: _,
+                            name: _,
+                            type_arguments: _,
+                        } => MoveFunctionArgType::Object(ObjectValueKind::ByValue),
+                        Type::Reference(_) => {
+                            MoveFunctionArgType::Object(ObjectValueKind::ByImmutableReference)
                         }
-                        _ => Err(IotaRpcInputError::GenericInvalid(format!(
-                            "Object is not a package with ID {package}",
-                        )))?,
-                    },
-                    _ => Err(IotaRpcInputError::GenericNotFound(format!(
-                        "Package object does not exist with ID {package}",
-                    )))?,
-                }?;
-
-                let identifier = Identifier::new(function.as_str())
-                    .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
-                let parameters = normalized
-                    .get(&module)
-                    .and_then(|m| m.functions.get(&identifier).map(|f| f.parameters.clone()));
-
-                match parameters {
-                    Some(parameters) => Ok(parameters
-                        .iter()
-                        .map(|p| match p {
-                            Type::Struct {
-                                address: _,
-                                module: _,
-                                name: _,
-                                type_arguments: _,
-                            } => MoveFunctionArgType::Object(ObjectValueKind::ByValue),
-                            Type::Reference(_) => {
-                                MoveFunctionArgType::Object(ObjectValueKind::ByImmutableReference)
-                            }
-                            Type::MutableReference(_) => {
-                                MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference)
-                            }
-                            _ => MoveFunctionArgType::Pure,
-                        })
-                        .collect::<Vec<MoveFunctionArgType>>()),
-                    None => Err(IotaRpcInputError::GenericNotFound(format!(
-                        "No parameters found for function {function}",
-                    )))?,
-                }
-            },
-            None,
-        )
+                        Type::MutableReference(_) => {
+                            MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference)
+                        }
+                        _ => MoveFunctionArgType::Pure,
+                    })
+                    .collect::<Vec<MoveFunctionArgType>>()),
+                None => Err(IotaRpcInputError::GenericNotFound(format!(
+                    "No parameters found for function {function}",
+                )))?,
+            }
+        }
+        .trace()
         .await
     }
 }

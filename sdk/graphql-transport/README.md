@@ -17,7 +17,7 @@ import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     transport: new IotaClientGraphQLTransport({
-        url: 'https://iota-testnet.mystenlabs.com/graphql',
+        url: 'https://iota-testnet.iota.org/graphql',
         // When specified, the transport will fallback to JSON RPC for unsupported method and parameters
         fallbackFullNodeUrl: getFullnodeUrl('testnet'),
     }),

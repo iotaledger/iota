@@ -36,7 +36,7 @@ export default function UnstakeTransactionCard({ event }: UnstakeTransactionCard
                 )}
 
                 <div className="flex w-full justify-between py-3.5">
-                    <div className="text-steel flex items-baseline gap-1">Your SUI Stake</div>
+                    <div className="text-steel flex items-baseline gap-1">Your IOTA Stake</div>
 
                     <div className="text-steel flex items-baseline gap-1">
                         {formatPrinciple} {symbol}
