@@ -614,6 +614,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_all_good() {
         let (committee, full_checkpoint) = read_data().await;
 
@@ -626,6 +627,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_bad_committee() {
         let (mut committee, full_checkpoint) = read_data().await;
 
@@ -644,6 +646,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_no_transaction() {
         let (committee, full_checkpoint) = read_data().await;
 
@@ -659,6 +662,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_bad_contents() {
         let (committee, mut full_checkpoint) = read_data().await;
 
@@ -678,6 +682,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "waiting for upstream changes"]
     async fn test_checkpoint_bad_events() {
         let (committee, mut full_checkpoint) = read_data().await;
 
