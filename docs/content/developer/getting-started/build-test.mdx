@@ -320,11 +320,11 @@ This test function is more complex than the [previous example](#add-tests), so l
     test_scenario::end(scenario_val);
     ```
    
-Since [the `sword` cannot simply disappear](#debugging-tests), the function transfers the `sword` object to the fake address using the  `test_scenario::return_to_sender` function. If returning the object to a dummy address is not your desired behavior, you can also call the [`test_utils:destroy`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) function. 
+Since [the `sword` cannot simply disappear](#debugging-tests), the function transfers the `sword` object to the fake address using the  `test_scenario::return_to_sender` function. If returning the object to a dummy address is not your desired behavior, you can also call the [`test_utils:destroy`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) function. 
 
 :::tip Know your toolbox
 
-This guide only covers the basics. You should check out the available functions for both [`test_scenario`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) and [`test_utils`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) modules to see everything you can do. 
+This guide only covers the basics. You should check out the available functions for both [`test_scenario`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) and [`test_utils`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) modules to see everything you can do. 
 
 :::
 

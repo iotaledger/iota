@@ -14,6 +14,8 @@ import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { Heading } from '../../shared/heading';
 import { AccountListItem } from './AccountListItem';
 import { FooterLink } from './FooterLink';
+import { useUnlockAccount } from './UnlockAccountContext';
+import { type SerializedUIAccount } from '_src/background/accounts/Account';
 
 export function AccountsList() {
     const accountGroups = useAccountGroups();
@@ -21,12 +23,19 @@ export function AccountsList() {
     const activeAccount = useActiveAccount();
     const backgroundClient = useBackgroundClient();
     const [isSwitchToAccountOpen, setIsSwitchToAccountOpen] = useState(false);
+    const { unlockAccount, lockAccount } = useUnlockAccount();
 
     const otherAccounts = useMemo(
         () => accounts.filter((a) => a.id !== activeAccount?.id) || [],
         [accounts, activeAccount?.id],
     );
-
+    function handleLockAndUnlockClick(account: SerializedUIAccount) {
+        if (account.isLocked) {
+            unlockAccount(account);
+        } else {
+            lockAccount(account);
+        }
+    }
     const handleSelectAccount = async (accountID: string) => {
         const account = accounts?.find((a) => a.id === accountID);
         if (!account) return;
@@ -56,7 +65,17 @@ export function AccountsList() {
                     <Collapsible defaultOpen title="Current" shade="darker">
                         <ToggleGroup.Item asChild value={activeAccount.id}>
                             <div>
-                                <AccountListItem account={activeAccount} editable showLock />
+                                <AccountListItem
+                                    account={activeAccount}
+                                    editable
+                                    showLock
+                                    onLockAccountClick={() =>
+                                        handleLockAndUnlockClick(activeAccount)
+                                    }
+                                    onUnlockAccountClick={() =>
+                                        handleLockAndUnlockClick(activeAccount)
+                                    }
+                                />
                             </div>
                         </ToggleGroup.Item>
                     </Collapsible>
@@ -77,7 +96,16 @@ export function AccountsList() {
                                             value={account.id}
                                         >
                                             <div>
-                                                <AccountListItem account={account} showLock />
+                                                <AccountListItem
+                                                    account={account}
+                                                    showLock
+                                                    onLockAccountClick={() =>
+                                                        handleLockAndUnlockClick(account)
+                                                    }
+                                                    onUnlockAccountClick={() =>
+                                                        handleLockAndUnlockClick(account)
+                                                    }
+                                                />
                                             </div>
                                         </ToggleGroup.Item>
                                     );

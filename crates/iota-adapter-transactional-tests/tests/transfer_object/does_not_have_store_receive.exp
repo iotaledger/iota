@@ -26,12 +26,12 @@ Contents: test::m::S {id: iota::object::UID {id: iota::object::ID {bytes: fake(2
 task 5 'programmable'. lines 86-88:
 mutated: object(0,0), object(2,0)
 deleted: object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3408372, non_refundable_storage_fee: 34428
+gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3442800, non_refundable_storage_fee: 0
 
 task 6 'run'. lines 90-90:
 created: object(6,0), object(6,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 3465600,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 7 'view-object'. lines 92-92:
 Owner: Account Address ( fake(6,1) )
@@ -46,12 +46,12 @@ Contents: test::m::Parent {id: iota::object::UID {id: iota::object::ID {bytes: f
 task 9 'programmable'. lines 96-100:
 mutated: object(0,0), object(6,1)
 deleted: object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3430944, non_refundable_storage_fee: 34656
+gas summary: computation_cost: 1000000, storage_cost: 2234400,  storage_rebate: 3465600, non_refundable_storage_fee: 0
 
 task 10 'run'. lines 102-102:
 created: object(10,0), object(10,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3442800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 3442800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 11 'view-object'. lines 104-104:
 Owner: Account Address ( A )
@@ -74,7 +74,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 15 'run'. lines 120-120:
 created: object(15,0), object(15,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3473200,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 3473200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 16 'view-object'. lines 122-122:
 Owner: Account Address ( A )
@@ -93,4 +93,4 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 19 'programmable'. lines 131-135:
 mutated: object(0,0)
 deleted: object(15,0), object(15,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 3438468, non_refundable_storage_fee: 34732
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 3473200, non_refundable_storage_fee: 0
