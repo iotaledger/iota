@@ -9,7 +9,7 @@
 mod utils;
 
 use futures::StreamExt;
-use iota_json_rpc_types::{DelegatedStake, EventFilter};
+use iota_json_rpc_types::EventFilter;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -57,7 +57,7 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("{:?}", object_change);
     }
 
-    // Unstake IOTA, if staking for longer than 1 day already
+    // Unstake IOTA, if staking for longer than 1 epoch already
 
     let current_epoch = client
         .read_api()
@@ -65,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?
         .data[0]
         .epoch;
-    let staked_iota: Vec<DelegatedStake> = client.governance_api().get_stakes(sender).await?;
+    let staked_iota = client.governance_api().get_stakes(sender).await?;
 
     if let Some(staked_iota_id) = staked_iota.into_iter().find_map(|d| {
         d.stakes.into_iter().find_map(|s| {
@@ -89,10 +89,10 @@ async fn main() -> Result<(), anyhow::Error> {
             println!("{:?}", object_change);
         }
     } else {
-        println!("No stake found that can be unlocked (must be staked >= 1 day)")
+        println!("No stake found that can be unlocked (must be staked >= 1 epoch)")
     };
 
-    // Wait some time to let the indexer to process the tx, before requesting the
+    // Wait some time to let the indexer process the tx, before requesting the
     // events
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
@@ -102,7 +102,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .collect::<Vec<_>>()
         .await;
     println!("{events:?}");
-    println!("Events: {:?}", events.len());
 
     Ok(())
 }

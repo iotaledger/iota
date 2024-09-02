@@ -6,10 +6,9 @@
 //! cargo run --example timelocked_stake
 
 mod utils;
+
 use iota_json_rpc_api::GovernanceReadApiClient;
-use iota_json_rpc_types::{
-    DelegatedTimelockedStake, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-};
+use iota_json_rpc_types::{IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
@@ -105,8 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
     // // Check DelegatedTimelockedStake object
-    let staked_iota: Vec<DelegatedTimelockedStake> =
-        client.http().get_timelocked_stakes(address).await?;
+    let staked_iota = client.http().get_timelocked_stakes(address).await?;
     println!("Staked: {staked_iota:?}\n\n");
 
     // Unstake timelocked IOTA, if staking for longer than 1 day already
@@ -167,8 +165,7 @@ async fn main() -> Result<(), anyhow::Error> {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
         // Check DelegatedTimelockedStake object
-        let staked_iota: Vec<DelegatedTimelockedStake> =
-            client.http().get_timelocked_stakes(address).await?;
+        let staked_iota = client.http().get_timelocked_stakes(address).await?;
         println!("Staked: {staked_iota:?}");
     } else {
         println!("No stake found that can be unlocked (must be staked >= 1 day)")
