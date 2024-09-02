@@ -57,6 +57,10 @@ pg_integration = []
 iota-keys.workspace = true
 iota-move-build.workspace = true
 simulacrum.workspace = true
+iota-genesis-builder.workspace = true
+iota-config.workspace = true
+iota-swarm-config.workspace = true
+rand.workspace = true
 
 [[bin]]
 name = "iota-indexer"
@@ -64,3 +68,7 @@ path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
 development = ["simulacrum"]
+
+[[example]]
+name = "index_genesis_transaction"
+path = "examples/index_genesis_transaction.rs"
