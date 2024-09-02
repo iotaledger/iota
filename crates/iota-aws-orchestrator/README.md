@@ -92,7 +92,7 @@ needing more instances down the line.
 
 ## Step 4. Choose protocol
 
-There is support to benchmark either Iota or Narwhal only. To choose which protocol to benchmark, you can set the `Protocol` & `BenchmarkType` field [here](https://github.com/iotaledger/iota/blob/main/crates/iota-aws-orchestrator/src/main.rs#L33-L34)
+There is support to benchmark either Iota or Narwhal only. To choose which protocol to benchmark, you can set the `Protocol` & `BenchmarkType` field [here](https://github.com/iotaledger/iota/blob/develop/crates/iota-aws-orchestrator/src/main.rs#L33-L34)
 
 ```
 // Iota
