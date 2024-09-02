@@ -32,7 +32,11 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
 
             return {
                 date: { type: TableCellType.Text, label: transaction.timestampMs?.toString() },
-                digest: { type: TableCellType.TextToCopy, label: transaction.digest, textToCopy: transaction.digest },
+                digest: {
+                    type: TableCellType.TextToCopy,
+                    label: transaction.digest,
+                    textToCopy: transaction.digest,
+                },
                 txns: {
                     type: TableCellType.Text,
                     label:
