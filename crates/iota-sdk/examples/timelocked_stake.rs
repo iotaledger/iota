@@ -24,9 +24,7 @@ const MNEMONIC_WITH_TIMELOCKED_IOTA: &str = "mesh dose off wage gas tent key lig
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let client = IotaClientBuilder::default()
-        .build("https://api.iota-rebased-alphanet.iota.cafe:443")
-        .await?;
+    let client = IotaClientBuilder::default().build_testnet().await?;
 
     let mut keystore = Keystore::from(
         FileBasedKeystore::new(&"staking-example.keystore".to_string().into()).unwrap(),
@@ -34,6 +32,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let address = keystore.import_from_mnemonic(
         MNEMONIC_WITH_TIMELOCKED_IOTA,
         SignatureScheme::ED25519,
+        None,
         None,
     )?;
     println!("Sender address: {address:?}");
