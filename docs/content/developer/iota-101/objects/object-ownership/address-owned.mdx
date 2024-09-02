@@ -9,7 +9,7 @@ As the owner (of the address that owns) an address-owned objects, you can transf
 
 ## Creating address-owned objects
 
-You can use one of the following functions (defined in the [transfer module](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/transfer.move)) to create address-owned objects.
+You can use one of the following functions (defined in the [transfer module](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/transfer.move)) to create address-owned objects.
 
 ```move
 public fun transfer<T: key>(obj: T, recipient: address)
@@ -34,7 +34,7 @@ Use address-owned objects in cases where you want or need only a single owner fo
 
 ## Example
 
-An example of an object that is frequently address-owned is that of a [Coin object](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/coin.move). If address `0xA11CE` had a coin `C` with 100 IOTA and wanted to pay address `0xB0B` 100 IOTA, `0xA11CE` could do so by transferring `C` to `0xB0B`.
+An example of an object that is frequently address-owned is that of a [Coin object](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/coin.move). If address `0xA11CE` had a coin `C` with 100 IOTA and wanted to pay address `0xB0B` 100 IOTA, `0xA11CE` could do so by transferring `C` to `0xB0B`.
 
 ```move
 iota::transfer::public_transfer(C, @0xB0B);

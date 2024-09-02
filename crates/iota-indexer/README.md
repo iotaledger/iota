@@ -100,7 +100,7 @@ cargo run --bin iota-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "http
 cargo run --bin iota-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
 ```
 
-More flags info can be found in this [file](https://github.com/iotaledger/iota/blob/main/crates/iota-indexer/src/lib.rs#L83-L123).
+More flags info can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs#L83-L123).
 
 ### DB reset
 
