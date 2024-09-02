@@ -11,10 +11,6 @@ export interface CardProps {
      * If `true`, the card will be disabled.
      */
     isDisabled?: boolean;
-    /**
-     * If `true`, we expect to truncate text and have it in 1 line.
-     */
-    isTruncateText?: boolean;
 
     /**
      * Handler on click to the card.
@@ -34,7 +30,6 @@ export interface CardProps {
 
 export function Card({
     isDisabled = false,
-    isTruncateText = false,
     type = CardType.Default,
     onClick,
     children,
@@ -49,7 +44,6 @@ export function Card({
                     'state-layer': !isDisabled,
                     [CARD_DISABLED_CLASSES]: isDisabled,
                     'cursor-pointer': onClick,
-                    'w-full': isTruncateText,
                 },
             )}
         >

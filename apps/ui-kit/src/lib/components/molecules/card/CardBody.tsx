@@ -8,27 +8,27 @@ export type CardBodyProps = {
     title: string;
     subtitle?: string | ReactNode;
     clickableAction?: React.ReactNode;
-    isTruncateText?: boolean;
+    isTextTruncated?: boolean;
 };
 
-export function CardBody({ title, subtitle, clickableAction, isTruncateText }: CardBodyProps) {
+export function CardBody({ title, subtitle, clickableAction, isTextTruncated }: CardBodyProps) {
     const handleActionCardBodyClick = (event: React.MouseEvent) => {
         event?.stopPropagation();
     };
     return (
         <div
             className={cx('flex w-full flex-col', {
-                'grow-1 overflow-hidden': isTruncateText,
+                'grow-1 overflow-hidden': isTextTruncated,
             })}
         >
             <div
                 className={cx('flex flex-row gap-x-xs', {
-                    'grow-1': isTruncateText,
+                    'grow-1': isTextTruncated,
                 })}
             >
                 <div
                     className={cx('font-inter text-title-md text-neutral-10 dark:text-neutral-92', {
-                        'grow-1 overflow-hidden text-ellipsis whitespace-nowrap': isTruncateText,
+                        'grow-1 overflow-hidden text-ellipsis whitespace-nowrap': isTextTruncated,
                     })}
                 >
                     {title}
@@ -40,7 +40,7 @@ export function CardBody({ title, subtitle, clickableAction, isTruncateText }: C
             {subtitle && (
                 <div
                     className={cx('font-inter text-body-md text-neutral-40 dark:text-neutral-60', {
-                        'grow-1 overflow-hidden text-ellipsis whitespace-nowrap': isTruncateText,
+                        'grow-1 overflow-hidden text-ellipsis whitespace-nowrap': isTextTruncated,
                     })}
                 >
                     {subtitle}

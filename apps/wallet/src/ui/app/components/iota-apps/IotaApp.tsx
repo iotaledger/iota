@@ -31,11 +31,11 @@ function CardView({ name, link, icon }: CardViewProps) {
     const appUrl = getDAppUrl(link);
     const originLabel = appUrl.hostname;
     return (
-        <Card isTruncateText>
+        <Card>
             <CardImage shape={ImageShape.SquareRounded}>
                 <ImageIcon src={icon || null} label={name} fallback={name} rounded={false} />
             </CardImage>
-            <CardBody isTruncateText title={name} subtitle={originLabel} />
+            <CardBody isTextTruncated title={name} subtitle={originLabel} />
         </Card>
     );
 }
