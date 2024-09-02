@@ -1,11 +1,24 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ComponentProps } from 'react';
 import { InputType } from '.';
+import { NumericFormat } from 'react-number-format';
+
+type InputElementProps = Omit<
+    React.ComponentProps<'input'>,
+    'type' | 'className' | 'ref' | 'value' | 'defaultValue'
+>;
+
+export type PasswordInputProps = {
+    type: InputType.Password;
+};
 
 export type TextInputProps = {
-    type: InputType.Text | InputType.Password;
+    type: InputType.Text;
 };
+
+type NumericFormatProps = ComponentProps<typeof NumericFormat>;
 
 export type NumberInputProps = {
     type: InputType.Number;
@@ -14,25 +27,30 @@ export type NumberInputProps = {
      */
     pattern?: string;
     /**
-     * If the input should allow negative numbers
+     * onValueChange callback
      */
-    allowNegative?: boolean;
+    onValueChange?: NumericFormatProps['onValueChange'];
     /**
-     * If the input should allow decimals
+     * The decimal scale
      */
-    decimals?: boolean;
+    decimalScale?: NumericFormatProps['decimalScale'];
     /**
-     * The suffix to be shown after the input
+     * The thousand separator
      */
-    suffix?: string;
+    thousandSeparator?: NumericFormatProps['thousandSeparator'];
     /**
-     * The prefix to be shown before the input
+     * Allow negative numbers
      */
-    prefix?: string;
+    allowNegative?: NumericFormatProps['allowNegative'];
     /**
-     * On value change callback
+     * The suffix
      */
-    onValueChange?: (value: string) => void;
+    suffix?: NumericFormatProps['suffix'];
+    /**
+     * The prefix
+     */
+    prefix?: NumericFormatProps['prefix'];
 };
 
-export type InputPropsByType = TextInputProps | NumberInputProps;
+export type InputPropsByType = InputElementProps &
+    (TextInputProps | NumberInputProps | PasswordInputProps);

@@ -37,7 +37,7 @@ interface SelectProps {
     /**
      * The dropdown elements to render.
      */
-    options: SelectOption[];
+    options?: SelectOption[];
     /**
      * The icon to show on the left of the field.
      */
@@ -84,9 +84,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         },
         ref,
     ) => {
-        const initialOption = options.find((opt) => opt.id === value) ?? options[0];
+        const initialOption: SelectOption | undefined =
+            options?.find((opt) => opt.id === value) ?? options?.[0];
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [selectedOption, setSelectedOption] = useState<SelectOption>(initialOption);
+        const [selectedOption, setSelectedOption] = useState<SelectOption | undefined>(
+            initialOption,
+        );
 
         useEffect(() => {
             if (disabled && isOpen) {
@@ -109,7 +112,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         }
 
         const currentOption = selectedOption ?? initialOption;
-        const displayValue = renderValue ?? currentOption.renderValue ?? currentOption.value;
+        const displayValue = renderValue ?? currentOption?.renderValue ?? currentOption?.value;
 
         return (
             <InputWrapper
@@ -164,7 +167,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         })}
                     >
                         <Dropdown>
-                            {options.map((option) => (
+                            {options?.map((option) => (
                                 <ListItem
                                     onClick={() => handleOptionClick(option)}
                                     hideBottomBorder

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ComponentProps, forwardRef, Fragment, useEffect, useRef, useState } from 'react';
+import { forwardRef, Fragment, useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { InputWrapper, InputWrapperProps } from './InputWrapper';
 import {
@@ -18,12 +18,7 @@ import { ButtonUnstyled } from '../../atoms/button';
 import { InputPropsByType, NumberInputProps } from './input.types';
 import { NumericFormat } from 'react-number-format';
 
-export type GenericInputProps = Omit<
-    React.InputHTMLAttributes<HTMLInputElement>,
-    'type' | 'className' | 'ref' | 'value' | 'defaultValue'
->;
-
-export interface BaseInputProps extends GenericInputProps, InputWrapperProps {
+export interface BaseInputProps extends InputWrapperProps {
     /**
      * A leading icon that is shown before the input
      */
@@ -40,10 +35,6 @@ export interface BaseInputProps extends GenericInputProps, InputWrapperProps {
      * Trailing element that is shown after the input
      */
     trailingElement?: React.JSX.Element;
-    /**
-     * Ref for the input
-     */
-    ref?: React.RefObject<HTMLInputElement>;
     /**
      * Is the content of the input visible
      */
@@ -66,100 +57,88 @@ export interface BaseInputProps extends GenericInputProps, InputWrapperProps {
     isVisibilityToggleEnabled?: boolean;
 }
 
-type InputProps = BaseInputProps & InputPropsByType;
+export type InputProps = BaseInputProps & InputPropsByType;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComponent(
     {
-        name,
         label,
-        placeholder,
         caption,
         disabled,
         errorMessage,
-        value,
         leadingIcon,
         supportingText,
         amountCounter,
-        pattern,
-        autoFocus,
         trailingElement,
-        onClearInput,
         isContentVisible,
+        value,
+        defaultValue,
+        onClearInput,
         isVisibilityToggleEnabled,
+        type,
         ...inputProps
     },
     forwardRef,
 ) {
-    isVisibilityToggleEnabled ??= inputProps.type === InputType.Password;
+    isVisibilityToggleEnabled ??= type === InputType.Password;
     const inputWrapperRef = useRef<HTMLDivElement | null>(null);
 
-    const [hasBlurred, setHasBlurred] = useState<boolean>(false);
-
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
-        isContentVisible ?? inputProps.type !== InputType.Password,
+        isContentVisible ?? type !== InputType.Password,
     );
 
     useEffect(() => {
-        setIsInputContentVisible(isContentVisible ?? inputProps.type !== InputType.Password);
-    }, [inputProps.type, isContentVisible]);
+        setIsInputContentVisible(isContentVisible ?? type !== InputType.Password);
+    }, [type, isContentVisible]);
 
     function onToggleButtonClick() {
         setIsInputContentVisible((prev) => !prev);
     }
 
-    function focusInput() {
+    function focusOnInput() {
         if (inputWrapperRef.current) {
             inputWrapperRef.current.querySelector('input')?.focus();
         }
     }
-
-    function handleBlur() {
-        setHasBlurred(true);
-    }
-
-    const inputElementProps = {
-        ...inputProps,
-        name,
-        placeholder,
-        disabled,
-        value,
-        pattern,
-        autoFocus,
-        onBlur: handleBlur,
-        className: cx(
-            INPUT_CLASSES,
-            INPUT_TEXT_CLASSES,
-            INPUT_PLACEHOLDER_CLASSES,
-            INPUT_NUMBER_CLASSES,
-        ),
-    };
 
     return (
         <InputWrapper
             label={label}
             caption={caption}
             disabled={disabled}
-            errorMessage={hasBlurred && errorMessage ? errorMessage : ''}
+            errorMessage={errorMessage}
             amountCounter={amountCounter}
             required={inputProps.required}
         >
             <div
                 className={cx('relative flex flex-row items-center gap-x-3', BORDER_CLASSES)}
-                onClick={focusInput}
+                onClick={focusOnInput}
                 ref={inputWrapperRef}
             >
                 {leadingIcon && (
                     <span className="text-neutral-10 dark:text-neutral-92">{leadingIcon}</span>
                 )}
-                <InputElement {...inputElementProps} inputRef={forwardRef} />
+                <InputElement
+                    {...inputProps}
+                    inputRef={forwardRef}
+                    value={value}
+                    type={type}
+                    disabled={disabled}
+                    className={cx(
+                        INPUT_CLASSES,
+                        INPUT_TEXT_CLASSES,
+                        INPUT_PLACEHOLDER_CLASSES,
+                        INPUT_NUMBER_CLASSES,
+                    )}
+                />
 
                 {supportingText && <SecondaryText>{supportingText}</SecondaryText>}
                 <InputTrailingElement
                     value={value}
-                    type={inputProps.type}
+                    type={type}
                     onClearInput={onClearInput}
                     isContentVisible={isInputContentVisible}
                     trailingElement={trailingElement}
+                    isVisibilityToggleEnabled={isVisibilityToggleEnabled}
                     onToggleButtonClick={onToggleButtonClick}
                 />
             </div>
@@ -170,33 +149,59 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
 function InputElement({
     type,
     inputRef,
+    value,
     ...inputProps
 }: InputProps & {
     inputRef: React.ForwardedRef<HTMLInputElement>;
+    className: string;
 }) {
     return type !== InputType.Number ? (
-        <input {...inputProps} type={type} ref={inputRef} />
+        <input {...inputProps} value={value} type={type} ref={inputRef} />
     ) : (
-        <NumericInput inputRef={inputRef} {...inputProps} type={type} />
+        <NumericInput inputRef={inputRef} value={value} {...inputProps} type={type} />
     );
 }
 
 function NumericInput({
-    type,
     onValueChange,
     inputRef,
-    ...inputProps
-}: GenericInputProps &
-    NumberInputProps & {
+    placeholder,
+    disabled,
+    decimalScale,
+    value,
+    thousandSeparator,
+    name,
+    allowNegative,
+    onBlur,
+    prefix,
+    suffix,
+    autoFocus,
+    className,
+}: NumberInputProps &
+    InputProps & {
         inputRef: React.ForwardedRef<HTMLInputElement>;
+        className: string;
+        value?: string | number;
     }) {
-    const numericFormatProps: ComponentProps<typeof NumericFormat> = {
-        decimalScale: inputProps.decimals ? undefined : 0,
-        thousandSeparator: true,
-        onChange: (e) => inputProps.onChange?.(e),
-        onValueChange: (values) => onValueChange?.(values.value),
-    };
-    return <NumericFormat getInputRef={inputRef} {...numericFormatProps} {...inputProps} />;
+    return (
+        <NumericFormat
+            className={className}
+            valueIsNumericString
+            getInputRef={inputRef}
+            placeholder={placeholder}
+            disabled={disabled}
+            value={value}
+            name={name}
+            allowNegative={allowNegative}
+            decimalScale={decimalScale}
+            thousandSeparator={thousandSeparator}
+            onBlur={onBlur}
+            onValueChange={onValueChange}
+            prefix={prefix}
+            suffix={suffix}
+            autoFocus={autoFocus}
+        />
+    );
 }
 
 function InputTrailingElement({
@@ -206,12 +211,13 @@ function InputTrailingElement({
     isContentVisible,
     trailingElement,
     onToggleButtonClick,
+    isVisibilityToggleEnabled,
 }: BaseInputProps & {
     onToggleButtonClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    type: InputProps['type'];
+    type: InputPropsByType['type'];
 }) {
     const showClearInput = Boolean(type === InputType.Text && value && onClearInput);
-    const showPasswordToggle = Boolean(type === InputType.Password && onToggleButtonClick);
+    const showPasswordToggle = Boolean(type === InputType.Password && isVisibilityToggleEnabled);
     const showTrailingElement = Boolean(trailingElement && !showClearInput && !showPasswordToggle);
 
     if (showClearInput) {
