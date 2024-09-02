@@ -8,7 +8,6 @@ import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Button, ButtonType, Header } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
-
 import { useAccountByAddress } from '../../hooks/useAccountByAddress';
 import { DAppInfoCard, UnlockAccountButton } from '_components';
 
