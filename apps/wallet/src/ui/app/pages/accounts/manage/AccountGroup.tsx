@@ -75,7 +75,7 @@ export function AccountGroup({
         navigate(`/accounts/manage/accounts-finder/${accountSourceID}`);
     }
 
-    function handleExportPassphrase() {
+    function handleExportMnemonic() {
         navigate(`../export/passphrase/${accountSource!.id}`);
     }
 
@@ -137,7 +137,7 @@ export function AccountGroup({
                         )}
 
                         {isMnemonicDerivedGroup && accountSource && (
-                            <ListItem hideBottomBorder onClick={handleExportPassphrase}>
+                            <ListItem hideBottomBorder onClick={handleExportMnemonic}>
                                 Export Mnemonic
                             </ListItem>
                         )}
