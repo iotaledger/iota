@@ -53,7 +53,7 @@ interface SelectProps {
     /**
      * The callback to call when the value changes.
      */
-    onValueChange?: (option: SelectOption) => void;
+    onValueChange?: (id: SelectOption['id']) => void;
     /**
      * Whether the field is disabled.
      */
@@ -102,7 +102,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         }
 
         function handleOptionClick(clickedOption: SelectOption) {
-            onValueChange?.(clickedOption);
+            onValueChange?.(clickedOption.id);
             setSelectedOption(clickedOption);
             closeDropdown();
         }

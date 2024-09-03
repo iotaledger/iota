@@ -121,7 +121,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
                     {...inputProps}
                     inputRef={forwardRef}
                     value={value}
-                    type={type}
+                    type={
+                        type === InputType.Password && isInputContentVisible ? InputType.Text : type
+                    }
                     disabled={disabled}
                     className={cx(
                         INPUT_CLASSES,
@@ -163,20 +165,10 @@ function InputElement({
 }
 
 function NumericInput({
-    onValueChange,
     inputRef,
-    placeholder,
-    disabled,
-    decimalScale,
-    value,
-    thousandSeparator,
-    name,
-    allowNegative,
-    onBlur,
-    prefix,
-    suffix,
-    autoFocus,
     className,
+    type,
+    ...inputProps
 }: NumberInputProps &
     InputProps & {
         inputRef: React.ForwardedRef<HTMLInputElement>;
@@ -188,18 +180,7 @@ function NumericInput({
             className={className}
             valueIsNumericString
             getInputRef={inputRef}
-            placeholder={placeholder}
-            disabled={disabled}
-            value={value}
-            name={name}
-            allowNegative={allowNegative}
-            decimalScale={decimalScale}
-            thousandSeparator={thousandSeparator}
-            onBlur={onBlur}
-            onValueChange={onValueChange}
-            prefix={prefix}
-            suffix={suffix}
-            autoFocus={autoFocus}
+            {...inputProps}
         />
     );
 }
