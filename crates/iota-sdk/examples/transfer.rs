@@ -20,7 +20,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     let mut coins = coins_page.data.into_iter();
     let gas_coin = coins.next().expect("missing gas coin");
-    println!("{gas_coin:?}");
 
     let gas_budget = 5_000_000;
 
@@ -43,7 +42,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let object_to_transfer = coins.next().expect("missing coin");
     let gas_coin = coins.next().expect("missing gas coin");
-    println!("{gas_coin:?}");
 
     // Build the transaction data to transfer the object to the recipient address
     let tx_data = client
