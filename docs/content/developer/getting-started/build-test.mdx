@@ -185,6 +185,7 @@ The `Scenario` instance will emulate the IOTA object storage with an object pool
 
 You should update the `my_module.move` file to include entry functions callable from IOTA that implement `sword` creation and transfer. You can add these after the accessor functions.
 
+
 ```move
 public fun create_sword(magic: u64, strength: u64, recipient: address, ctx: &mut TxContext) {
     // Create a sword.

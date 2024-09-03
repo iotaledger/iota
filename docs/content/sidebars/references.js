@@ -55,6 +55,7 @@ const references = [
             'references/cli/keytool',
             'references/cli/move',
             'references/cli/validator',
+            'references/cli/cheatsheet',
         ],
     },
     {

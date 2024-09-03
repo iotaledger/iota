@@ -160,22 +160,25 @@ async fn main() -> Result<()> {
 To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
 ```ts
-import { JsonRpcProvider, testnetConnection } from '@iota/iota-sdk';
+
+import { getFullnodeUrl, IotaClient } from '@iota/sdk/client';
 
 // Package is on Testnet.
-const provider = new JsonRpcProvider(testnetConnection);
+const client = new IotaClient({
+	url: getFullnodeUrl('testnet'),
+});
 const Package = '<PACKAGE_ID>';
 
 const MoveEventType = '<PACKAGE_ID>::<MODULE_NAME>::<METHOD_NAME>';
 
 console.log(
-	await provider.getObject({
+	await client.getObject({
 		id: Package,
 		options: { showPreviousTransaction: true },
 	}),
 );
 
-let unsubscribe = await provider.subscribeEvent({
+let unsubscribe = await client.subscribeEvent({
 	filter: { Package },
 	onMessage: (event) => {
 		console.log('subscribeEvent', JSON.stringify(event, null, 2));
@@ -221,7 +224,14 @@ subscribeEvent {
 
 ## Filtering event queries
 
-To filter the events returned from your queries, use the following data structures. Currently, you cannot combine filters.
+To filter the events returned from your queries, use the following data structures.
+
+:::info
+
+This set of filters applies only to event querying APIs. It differs from the filters offered for the subscriptions API (see following section). In particular, it does not support combinations like `"All": [...]`, `"Any": [...]`, `"And": [_, _]`, `"Or": [_, _]`, and `"Not": _`.
+
+:::
+
 
 | Query         | Description                                              | JSON-RPC Parameter Example                                                                          |
 | ------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |

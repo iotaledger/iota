@@ -123,10 +123,11 @@ The following code block describes the `TransactionData` structure for sponsored
 **`TransactionData` Structure**
 ```rust
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct TransactionData {
-   pub kind: TransactionKind,
-   pub sender: IOTAAddress,
-   pub gas_data: GasData,
+pub struct TransactionDataV1 {
+pub kind: TransactionKind,
+pub sender: SuiAddress,
+pub gas_data: GasData,
+pub expiration: TransactionExpiration,
 }
 ```
 
@@ -134,7 +135,7 @@ pub struct TransactionData {
 ```rust
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GasData {
-   pub payment: ObjectRef,
+    pub payment: Vec<ObjectRef>,
    pub owner: IOTAAddress,
    pub price: u64,
    pub budget: u64,

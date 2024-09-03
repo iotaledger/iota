@@ -18,6 +18,18 @@ Usage: iota client ptb [OPTIONS]
 
 Options:
       --assign <NAME> <VALUE>                                         Assign a value to a variable name to use later in the PTB.
+       If only a name is supplied, the result of the last transaction is bound to that name.
+           If a name and value are supplied, then the name is bound to that value.
+
+          Examples:
+           --assign MYVAR 100
+           --assign X [100,5000]
+           --split-coins gas [1000, 5000, 75000]
+           --assign new_coins # bound new_coins to the result of previous transaction
+
+      --dry-run
+          Perform a dry run of the PTB instead of executing it.
+          
       --gas-coin <ID>                                                 The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
       --gas-budget <NANOS>                                            The gas budget for the transaction, in NANOS.
       --make-move-vec <TYPE> <[VALUES]>                               Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
@@ -47,6 +59,38 @@ Besides using existing [traditional PTB](../../developer/iota-101/transactions/p
 All the following examples were tested using a `bash` shell environment and your experience may vary depending on how your shell interprets the input values (e.g., zsh requires to pass values in brackets by adding quotes around it: "[]"; bash accepts them without quotes).
 
 :::
+### Types
+
+Sometimes, CLI PTBs require that you specify the type of a value or variable. For instance, in the following example you must provide the `<u64>` type when calling the `0x1::option::is_none` function.
+
+```shell
+iota client ptb \
+--assign my_variable none \
+--move-call 0x1::option::is_none "<u64>" my_variable \
+--gas-budget 50000000
+```
+
+To pass in multiple types, delimit them with a comma:
+
+```shell
+...
+--move-call package::module::function "<u64,u8,u256>" \
+...
+```
+
+### Strings
+
+CLI PTBs support string literals as inputs, which will be encoded as pure values that can be used as inputs to `vector<u8>`, `std::ascii::String` and `std::string::String` parameters. The following example previews a transaction block that passes the string `"Hello, world"` to a function `m::f` in a package `$PKG` (its ID is held in an environment variable).
+
+```bash
+iota client ptb --move-call "$PKG::m::f" '"Hello, world"' --gas-budget 10000000 --preview
+```
+
+:::warning
+
+Double-quoted string literals tend to also be valid syntax for shells (like `bash`), so when inputting PTBs on the command-line, remember to wrap the entire string in single-quotes so that its double-quotes are interpreted literally, as in the previous example.
+
+:::
 
 ### Addresses and Object IDs
 
@@ -55,7 +99,7 @@ All the following examples were tested using a `bash` shell environment and your
 Here are some examples for `transfer-objects` and `gas-coin`:
 
 ```bash
-iota client ptb transfer-objects [ARRAY_OF_OBJECTS] @0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331 --gas-coin @0x00002819ee07a66e53800495ccf5eeade8a02054a2e0827546c70e4b226f0495
+iota client ptb --transfer-objects [ARRAY_OF_OBJECTS] @0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331 --gas-coin @0x00002819ee07a66e53800495ccf5eeade8a02054a2e0827546c70e4b226f0495
 ```
 
 ### Assign

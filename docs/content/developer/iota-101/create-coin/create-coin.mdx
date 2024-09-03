@@ -6,40 +6,15 @@ Coins and tokens on IOTA are similar. In practice, the terms are used interchang
 
 Publishing a coin on IOTA is nearly as straightforward as publishing a new type. The main difference is the requirement of a [one-time witness](../move-overview/one-time-witness.mdx) when creating a coin.
 
-```move
-module examples::mycoin {
-    use iota::coin::{Self, TreasuryCap};
-
-    /// The type identifier of coin. The coin will have a type
-    /// tag of kind: `Coin<package_object::mycoin::MYCOIN>`
-    /// Make sure that the name of the type matches the module's name.
-    public struct MYCOIN has drop {}
-
-    /// Module initializer is called once on module publish. A treasury
-    /// cap is sent to the publisher, who then controls minting and burning
-    fun init(witness: MYCOIN, ctx: &mut TxContext) {
-        let (treasury, metadata) = coin::create_currency(witness, 6, b"MYCOIN", b"", b"", option::none(), ctx);
-        transfer::public_freeze_object(metadata);
-        transfer::public_transfer(treasury, tx_context::sender(ctx))
-    }
-}
+```move file=<rootDir>/examples/move/coin/sources/my_coin.move 
 ```
 
 The `Coin<T>` is a generic implementation of a coin on IOTA. Access to the `TreasuryCap` provides control over the minting and burning of coins. Further transactions can be sent directly to the `iota::coin::Coin` with `TreasuryCap` object as authorization.
 
 Extending the example further, add a `mint` function to the module. Use the `mint` function of the `Coin` module to create (mint) a coin and then transfer it to an address. 
 
-```move
-public fun mint(
-    treasury_cap: &mut TreasuryCap<MYCOIN>, 
-    amount: u64, 
-    recipient: address, 
-    ctx: &mut TxContext,
-) {
-    let coin = coin::mint(treasury_cap, amount, ctx);
-    transfer::public_transfer(coin, recipient)
-}
-``` 
+```move file=<rootDir>/examples/move/coin/sources/my_coin.move#L23-L31 
+```
 
 ### IOTA CLI
 

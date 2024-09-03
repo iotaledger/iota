@@ -143,14 +143,14 @@ You can use either the TypeScript or Rust SDK to manipulate the addresses held i
 <TabItem label="TypeScript" value="typescript">
 
 ```ts
-const txb = new TransactionBlock();
+const tx = new Transaction();
 
-txb.moveCall({
+tx.moveCall({
     target: `0x2::coin::deny_list_add`,
     arguments: [
-        txb.object(<IOTA-DENY-LIST-OBJECT-ID>),
-        txb.object(<DENY-CAP-ID>),
-        txb.pure.address(options.address),
+        tx.object(<SUI-DENY-LIST-OBJECT-ID>),
+        tx.object(<DENY-CAP-ID>),
+        tx.pure.address(options.address),
     ],
     typeArguments: [<COIN-TYPE>],
 });

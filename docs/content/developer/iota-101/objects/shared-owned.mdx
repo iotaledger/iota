@@ -90,26 +90,7 @@ flowchart LR
 
 A third party acts as a custodian, holding the objects until both have arrived, then completing the swap:
 
-```move
-public fun create<T: key + store>(
-    key: Key,
-    locked: Locked<T>,
-    exchange_key: ID,
-    recipient: address,
-    custodian: address,
-    ctx: &mut TxContext,
-) {
-    let escrow = Escrow {
-        id: object::new(ctx),
-        sender: tx_context::sender(ctx),
-        recipient,
-        exchange_key,
-        escrowed_key: object::id(&key),
-        escrowed: lock::unlock(locked, key),
-    };
-
-    transfer::transfer(escrow, custodian);
-}
+```move file=<rootDir>/examples/trading/contracts/escrow/sources/owned.move#L89-L107
 ```
 
 ```mermaid
@@ -156,45 +137,7 @@ flowchart TB
     Third_Party--fa:fa-coins B-->Seller
 ```
 
-
-```move
-public fun swap<T: key + store, U: key + store>(
-    obj1: Escrow<T>,
-    obj2: Escrow<U>,
-) {
-    let Escrow {
-        id: id1,
-        sender: sender1,
-        recipient: recipient1,
-        exchange_key: exchange_key1,
-        escrowed_key: escrowed_key1,
-        escrowed: escrowed1,
-    } = obj1;
-
-    let Escrow {
-        id: id2,
-        sender: sender2,
-        recipient: recipient2,
-        exchange_key: exchange_key2,
-        escrowed_key: escrowed_key2,
-        escrowed: escrowed2,
-    } = obj2;
-
-    object::delete(id1);
-    object::delete(id2);
-
-    // Ensure sender and recipient match each other
-    assert!(sender1 == recipient2, EMismatchedSenderRecipient);
-    assert!(sender2 == recipient1, EMismatchedSenderRecipient);
-
-    // Ensure the objects match and haven't been modified
-    assert!(escrowed_key1 == exchange_key2, EMismatchedExchangeObject);
-    assert!(escrowed_key2 == exchange_key1, EMismatchedExchangeObject);
-
-    // Perform the swap
-    transfer::public_transfer(escrowed1, recipient1);
-    transfer::public_transfer(escrowed2, recipient2);
-}
+```move file=<rootDir>/examples/trading/contracts/escrow/sources/owned.move#L112-L149
 ```
 
 The `swap` function verifies that the senders and recipients match and that each party wants the object being offered by the other.
@@ -232,23 +175,7 @@ flowchart TB
     end
 ```
 
-```move
-public fun create<T: key + store>(
-    escrowed: T,
-    exchange_key: ID,
-    recipient: address,
-    ctx: &mut TxContext
-) {
-    let escrow = Escrow {
-        id: object::new(ctx),
-        sender: tx_context::sender(ctx),
-        recipient,
-        exchange_key,
-        escrowed,
-    };
-
-    transfer::public_share_object(escrow);
-}
+```move file=<rootDir>/examples/trading/contracts/escrow/sources/shared.move#L67-L91
 ```
 
 This request creates a shared `Escrow` object that remembers the sender, recipient, and the object being escrowed.
@@ -267,30 +194,7 @@ flowchart TB
     swap--fa:fa-coins B-->Seller
 ```
 
-```move
-public fun swap<T: key + store, U: key + store>(
-    escrow: Escrow<T>,
-    key: Key,
-    locked: Locked<U>,
-    ctx: &TxContext,
-): T {
-    let Escrow {
-        id,
-        sender,
-        recipient,
-        exchange_key,
-        escrowed,
-    } = escrow;
-
-    assert!(recipient == tx_context::sender(ctx), EMismatchedSenderRecipient);
-    assert!(exchange_key == object::id(&key), EMismatchedExchangeObject);
-
-    // Do the actual swap
-    transfer::public_transfer(lock::unlock(locked, key), sender);
-    object::delete(id);
-
-    escrowed
-}
+```move file=<rootDir>/examples/trading/contracts/escrow/sources/shared.move#L94-L122
 ```
 
 Even though the `Escrow` object is a shared object accessible by anyone,

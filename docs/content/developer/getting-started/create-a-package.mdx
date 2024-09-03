@@ -85,7 +85,9 @@ specification to the `[dev-dependencies]` section.
 
 The `[addresses]` section is used to add aliases for the addresses you use in your package. You can add any address in
 this section, and then use its alias in the code instead of the actual address. For example, if you
-add `alice = "0xA11CE"` to this section, you can use `alice` as `0xA11CE` in the code.
+add `alice = "0xA11CE"` to this section, you can use `alice` as `0xA11CE` in the code. 
+
+If you created your package with the `iota client new` commenda, this section includes a `0x0` address for your package. You do not need to update this as [package addresses are automatically managed](../iota-101/move-overview/package-upgrades/automated-address-management.mdx).
 
 ### Dev-addresses
 

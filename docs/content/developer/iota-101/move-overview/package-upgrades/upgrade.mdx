@@ -1,6 +1,7 @@
 ---
 description: Learn how to upgrade your packages on the IOTA network while maintaining their immutable properties.
 ---
+import AutomatedAddressManagement from '../../../../_snippets/automated-address-management.mdx'
 
 # Managing Package Upgrades
 
@@ -55,6 +56,13 @@ the process may fail because the old function is not aware of the `Progress` eve
 
 ## Addressing Compatibility Issues
 
+:::tip Automated Address Management
+
+IOTA supports [Automated Address Management](automated-address-management.mdx),
+with which addresses will automatically be updated in the `Move.lock` file.
+
+:::
+
 When upgrading packages, you might encounter issues where dynamic fields need to stay synchronized with a struct’s original fields.
 These issues can be mitigated by introducing a new type as part of the upgrade, effectively breaking backward compatibility and compelling users to update.
 
@@ -81,6 +89,8 @@ providing a safeguard while changes are being made.
 It’s advisable to create such a flag if you anticipate needing to perform migrations in the future, rather than relying on intentionally flawed logic to need it.
 
 ### Managing Versioned Shared Objects
+
+<AutomatedAddressManagement />
 
 When dealing with shared objects within your packages, versioning and upgrade considerations become crucial as *all prior versions of a package still exist on-chain**. 
 You can limit access to only the latest version of your package by introducing version tracking within your shared objects which can effectively safeguard your shared objects from being accessed from old versions of your package.
@@ -351,6 +361,8 @@ It generates the upgrade digest, authorizes the upgrade with the `UpgradeCap` to
 and updates the `UpgradeCap` with the `UpgradeReceipt` after a successful upgrade.
 
 ## Example: Upgrading an `iota_package`
+
+<AutomatedAddressManagement />
 
 Let's walk through an example of developing and upgrading a package named `iota_package`.
 Initially, your manifest might look like this:

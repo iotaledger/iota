@@ -19,10 +19,10 @@ With a signature and the transaction bytes, a transaction can be submitted to be
 
 The following high-level process describes the overall workflow for constructing, signing and executing an on-chain transaction:
 
-- Construct the transaction data by creating a `TransactionBlock` where multiple transactions are chained. See [Building Programmable Transaction Blocks](ptb/building-ptb.mdx) for more information.
+- Construct the transaction data by creating a `Transaction` where multiple transactions are chained. See [Building Programmable Transaction Blocks](ptb/building-ptb.mdx) for more information.
 - The [SDK's](../../../references/iota-sdks.mdx) built-in gas estimation and coin selection picks the gas coin.
 - Sign the transaction to generate a [signature](../../cryptography/transaction-auth/signatures.mdx).
-- Submit the `TransactionBlock` and its signature for on-chain execution.
+- Submit the `Transaction` and its signature for on-chain execution.
 
 :::info
 
@@ -49,7 +49,7 @@ import { type Keypair } from '@iota/iota-sdk/cryptography';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Secp256k1Keypair } from '@iota/iota-sdk/keypairs/secp256k1';
 import { Secp256r1Keypair } from '@iota/iota-sdk/keypairs/secp256r1';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 const kp_rand_0 = new Ed25519Keypair();
 const kp_rand_1 = new Secp256k1Keypair();
@@ -79,15 +79,15 @@ const pk = kp_rand_0.getPublicKey();
 const sender = pk.toIOTAAddress();
 
 // create an example transaction block.
-const txb = new TransactionBlock();
+const txb = new Transaction();
 txb.setSender(sender);
 txb.setGasPrice(5);
 txb.setGasBudget(100);
 const bytes = await txb.build();
-const serializedSignature = (await keypair.signTransactionBlock(bytes)).signature;
+const serializedSignature = (await keypair.signTransaction(bytes)).signature;
 
 // verify the signature locally
-expect(await keypair.getPublicKey().verifyTransactionBlock(bytes, serializedSignature)).toEqual(
+expect(await keypair.getPublicKey().verifyTransaction(bytes, serializedSignature)).toEqual(
 	true,
 );
 
@@ -95,8 +95,8 @@ expect(await keypair.getPublicKey().verifyTransactionBlock(bytes, serializedSign
 const client = new IOTAClient({ url: getFullnodeUrl('testnet') });
 
 // execute transaction.
-let res = client.executeTransactionBlock({
-	transactionBlock: bytes,
+let res = client.executeTransaction({
+	Transaction: bytes,
 	signature: serializedSignature,
 });
 console.log(res);
@@ -210,7 +210,7 @@ Finally, submit the transaction with the signature.
                 Intent::iota_transaction(),
                 vec![GenericSignature::Signature(iota_sig)],
             ),
-            IOTATransactionBlockResponseOptions::default(),
+            IOTATransactionResponseOptions::default(),
             None,
         )
         .await?;

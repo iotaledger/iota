@@ -28,7 +28,7 @@ IOTA provides several built-in package compatibility policies, ordered from most
 Each policy is a superset of the previous one, allowing progressively more flexibility in package upgrades.
 
 When you publish a package, it defaults to the most relaxed, compatible policy.
-However, you can adjust the policy during the transaction block that publishes the package,
+However, you can adjust the policy during the transaction that publishes the package,
 setting the desired policy level before the package goes live on-chain.
 
 You can restrict the current policy by invoking functions from the `iota::package` module
@@ -39,7 +39,7 @@ attempting to set a less restrictive policy like `only_additive_upgrades` will r
 
 ## Upgrade Process Overview
 
-Package upgrades must be executed in a single transaction block, involving three key steps:
+Package upgrades must be executed in a single transaction, involving three key steps:
 
 1. **Authorization:** Obtain permission via the `UpgradeCap`, creating an `UpgradeTicket`.
 2. **Execution:** Use the `UpgradeTicket` to verify package bytecode and compatibility, and create the upgraded package on-chain. A successful upgrade returns an `UpgradeReceipt`.
@@ -117,7 +117,7 @@ specific to:
 - The package contents specified by `digest: vector<u8>`.
 
 The upgrade process checks that these conditions match before proceeding.
-The `UpgradeTicket` must be used within the same transaction block it was created; otherwise, the transaction fails.
+The `UpgradeTicket` must be used within the same transaction it was created; otherwise, the transaction fails.
 
 ### Package Digest
 
@@ -161,7 +161,7 @@ package: ID,
 An [`UpgradeReceipt`](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt) confirms
 that the upgrade was successfully executed, and the new package was added to the transaction's created objects.
 
-The `UpgradeReceipt` must be used within the same transaction block to update the `UpgradeCap`
+The `UpgradeReceipt` must be used within the same transaction to update the `UpgradeCap`
 , or the transaction will fail.
 
 ## Best Practices for Custom Upgrade Policies
@@ -650,9 +650,9 @@ wrap its `UpgradeCap` in the "Day of the Week" policy (allowing upgrades only on
 and send the new policy back:
 
 ```js
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
-const tx = new TransactionBlock();
+const tx = new Transaction();
 const packageUpgradeCap = tx.publish({ modules, dependencies });
 const tuesdayUpgradeCap = tx.moveCall({
     target: `${POLICY_PACKAGE_ID}::day_of_week::new_policy`,
@@ -674,9 +674,9 @@ Testnet, or Mainnet, respectively:
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({ url: getFullnodeUrl('localnet')})
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer,
-    transactionBlock: tx,
+    transaction: tx,
     options: {
         showEffects: true,
         showObjectChanges: true,
@@ -703,7 +703,7 @@ import { fileURLToPath } from 'url';
 
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { fromB64 } from '@iota/iota-sdk/utils';
 
 const IOTA = 'iota';
@@ -742,7 +742,7 @@ const { modules, dependencies } = JSON.parse(
     ),
 );
 
-const tx = new TransactionBlock();
+const tx = new Transaction();
 const packageUpgradeCap = tx.publish({ modules, dependencies });
 const tuesdayUpgradeCap = tx.moveCall({
     target: `${POLICY_PACKAGE_ID}::day_of_week::new_policy`,
@@ -755,9 +755,9 @@ const tuesdayUpgradeCap = tx.moveCall({
 tx.transferObjects([tuesdayUpgradeCap], tx.pure(sender));
 
 const client = new IotaClient({ url: getFullnodeUrl('localnet')})
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer,
-    transactionBlock: tx,
+    transaction: tx,
     options: {
         showEffects: true,
         showObjectChanges: true,
@@ -958,7 +958,7 @@ import { fileURLToPath } from 'url';
 
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { TransactionBlock, UpgradePolicy } from '@iota/iota-sdk/transactions';
+import { Transaction, UpgradePolicy } from '@iota/iota-sdk/transactions';
 import { fromB64 } from '@iota/iota-sdk/utils';
 
 const IOTA = 'iota';
@@ -999,7 +999,7 @@ const { modules, dependencies, digest } = JSON.parse(
     ),
 );
 
-const tx = new TransactionBlock();
+const tx = new Transaction();
 const cap = tx.object(CAP_ID);
 const ticket = tx.moveCall({
     target: `${POLICY_PACKAGE_ID}::day_of_week::authorize_upgrade`,
@@ -1023,9 +1023,9 @@ tx.moveCall({
 });
 
 const client = new IotaClient({ url: getFullnodeUrl('localnet') });
-const result = await client.signAndExecuteTransactionBlock({
+const result = await client.signAndExecuteTransaction({
     signer,
-    transactionBlock: tx,
+    transaction: tx,
     options: {
         showEffects: true,
         showObjectChanges: true,
