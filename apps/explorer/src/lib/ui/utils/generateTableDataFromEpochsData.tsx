@@ -5,7 +5,7 @@
 import { type EpochMetricsPage } from '@iota/iota-sdk/client';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
-import { epochToLink } from '~/components';
+import { checkpointSequenceToLink, epochToLink } from '~/components';
 
 interface EpochData {
     epoch: TableCellProps;
@@ -40,7 +40,11 @@ export function generateTableDataFromEpochsData(results: EpochMetricsPage): Epoc
                 type: TableCellType.Text,
                 label: epoch.endOfEpochInfo?.totalStakeRewardsDistributed ?? '0',
             },
-            checkpointSet: { type: TableCellType.Text, label: 'TODO' },
+            checkpointSet: {
+                type: TableCellType.Link,
+                label: epoch.firstCheckpointId,
+                to: checkpointSequenceToLink({ sequence: epoch.firstCheckpointId }),
+            },
             storageNetInflow: {
                 type: TableCellType.Text,
                 label: getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow?.toString(),

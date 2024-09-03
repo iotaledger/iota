@@ -4,7 +4,7 @@
 
 import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
 import { type CheckpointPage } from '@iota/iota-sdk/client';
-import { checkpointToLink } from '~/components';
+import { checkpointSequenceToLink, checkpointToLink } from '~/components';
 
 interface CheckpointData {
     digest: TableCellProps;
@@ -34,7 +34,11 @@ export function generateTableDataFromCheckpointsData(results: CheckpointPage): C
                     to: checkpointToLink({ digest: checkpoint.digest }),
                 },
                 time: { type: TableCellType.Text, label: checkpoint.timestampMs },
-                sequenceNumber: { type: TableCellType.Text, label: checkpoint.sequenceNumber },
+                sequenceNumber: {
+                    type: TableCellType.Link,
+                    label: checkpoint.sequenceNumber,
+                    to: checkpointSequenceToLink({ sequence: checkpoint.sequenceNumber }),
+                },
                 transactionBlockCount: {
                     type: TableCellType.Text,
                     label: checkpoint.transactions.length.toString(),
