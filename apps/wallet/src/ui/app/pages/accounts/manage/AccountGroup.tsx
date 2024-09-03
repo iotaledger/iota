@@ -83,6 +83,13 @@ export function AccountGroup({
         navigate(`../export/seed/${accountSource!.id}`);
     }
 
+    const dropdownVisibility = {
+        showBalanceFinder: ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type),
+        showExportMnemonic: isMnemonicDerivedGroup && accountSource,
+        showExportSeed: isSeedDerivedGroup && accountSource,
+    };
+    const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
+
     return (
         <div className="relative overflow-visible">
             <Collapsible
@@ -106,17 +113,19 @@ export function AccountGroup({
                                     icon={<Add className="h-5 w-5 text-neutral-10" />}
                                 />
                             ) : null}
-                            <div className="relative">
-                                <Button
-                                    size={ButtonSize.Small}
-                                    type={ButtonType.Ghost}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDropdownOpen(true);
-                                    }}
-                                    icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
-                                />
-                            </div>
+                            {showMoreButton && (
+                                <div className="relative">
+                                    <Button
+                                        size={ButtonSize.Small}
+                                        type={ButtonType.Ghost}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDropdownOpen(true);
+                                        }}
+                                        icon={<MoreHoriz className="h-5 w-5 text-neutral-10" />}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -130,18 +139,18 @@ export function AccountGroup({
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
-                        {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && (
+                        {dropdownVisibility.showBalanceFinder && (
                             <ListItem hideBottomBorder onClick={handleBalanceFinder}>
                                 Balance finder
                             </ListItem>
                         )}
 
-                        {isMnemonicDerivedGroup && accountSource && (
+                        {dropdownVisibility.showExportMnemonic && (
                             <ListItem hideBottomBorder onClick={handleExportMnemonic}>
                                 Export Mnemonic
                             </ListItem>
                         )}
-                        {isSeedDerivedGroup && accountSource && (
+                        {dropdownVisibility.showExportSeed && (
                             <ListItem hideBottomBorder onClick={handleExportSeed}>
                                 Export Seed
                             </ListItem>
