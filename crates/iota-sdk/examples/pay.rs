@@ -14,7 +14,7 @@ use utils::{setup_for_write, sign_and_execute_transaction};
 async fn main() -> Result<(), anyhow::Error> {
     let (client, sender, recipient) = setup_for_write().await?;
 
-    // 2) Get the coins we will use for the payment and gas
+    // Get the coins we will use for the payment and gas
     let coins = client
         .coin_read_api()
         .get_coins(sender, None, None, None)
@@ -24,8 +24,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let gas_budget = 5_000_000;
 
-    // 3) Build the transaction data, to transfer 1_000 from the provided coin to
-    //    the recipient address
+    // Build the transaction data, to transfer 1_000 from the provided coin to the
+    // recipient address
     let tx_data = client
         .transaction_builder()
         .pay(
