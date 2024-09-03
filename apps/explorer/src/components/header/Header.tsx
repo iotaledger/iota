@@ -29,7 +29,7 @@ function Header(): JSX.Element {
                 isScrolled && 'shadow-effect-ui-regular',
             )}
         >
-            <div className="2xl:p-0 flex h-full max-w-[1440px] flex-1 items-center gap-5 px-4 py-8 lg:px-6 xl:px-10 xl:py-12">
+            <div className="2xl:p-0 flex h-full max-w-[1440px] flex-1 items-center gap-5 px-4 py-8 lg:px-6 xl:px-10">
                 <LinkWithQuery
                     data-testid="nav-logo-button"
                     to="/"
