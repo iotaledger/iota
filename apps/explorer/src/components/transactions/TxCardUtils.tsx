@@ -50,7 +50,11 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
                         ? getTotalGasUsed(transaction.effects)?.toString()
                         : '0',
                 },
-                sender: { type: TableCellType.TextToCopy, label: sender, textToCopy: sender },
+                sender: {
+                    type: TableCellType.TextToCopy,
+                    label: sender ?? '--',
+                    textToCopy: sender ?? '--',
+                },
             };
         }),
         columns: [
