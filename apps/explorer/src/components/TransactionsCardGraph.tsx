@@ -131,11 +131,11 @@ export function TransactionsCardGraph() {
                             </ErrorBoundary>
                         </div>
                     ) : (
-                    <div className="flex flex-col items-center gap-1">
-                        <LoadingIndicator />
-                        <Text color="steel" variant="body/medium">
-                            No historical data available
-                        </Text>
+                        <div className="flex flex-col items-center gap-1">
+                            <LoadingIndicator />
+                            <Text color="steel" variant="body/medium">
+                                No historical data available
+                            </Text>
                         </div>
                     )}
                 </div>

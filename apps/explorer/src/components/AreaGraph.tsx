@@ -25,12 +25,7 @@ const bisectX = bisector((x: number) => x).center;
 
 function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
-        <text
-            x={x}
-            y={y}
-            textAnchor="middle"
-            className="fill-steel font-sans text-sm font-medium"
-        >
+        <text x={x} y={y} textAnchor="middle" className="fill-steel font-sans text-sm font-medium">
             {formattedValue}
         </text>
     );
@@ -200,7 +195,7 @@ export function AreaGraph<D>({
                             transform={tooltipLeft ? `translate(${tooltipLeft})` : ''}
                         />
                         <line
-                            x1={graphLeft- 20}
+                            x1={graphLeft - 20}
                             y1={0}
                             x2={graphRight}
                             y2={0}
