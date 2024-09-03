@@ -9,21 +9,9 @@ export interface SummaryCardProps {
     header?: string;
     body: ReactNode;
     footer?: ReactNode;
-    minimalPadding?: boolean;
-    showDivider?: boolean;
-    noBorder?: boolean;
-    boxShadow?: boolean;
 }
 
-export function SummaryCard({
-    body,
-    header,
-    footer,
-    minimalPadding,
-    showDivider = false,
-    noBorder = false,
-    boxShadow = false,
-}: SummaryCardProps) {
+export function SummaryCard({ body, header, footer }: SummaryCardProps) {
     return (
         <div className="flex w-full flex-col flex-nowrap gap-xs rounded-xl bg-neutral-96 pb-md">
             {header ? (

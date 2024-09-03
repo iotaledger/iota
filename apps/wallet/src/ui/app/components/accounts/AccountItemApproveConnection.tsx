@@ -10,16 +10,12 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface AccountItemApproveConnectionProps {
     account: SerializedUIAccount;
-    disabled: boolean;
     selected?: boolean;
-    showLock?: boolean;
 }
 
 export function AccountItemApproveConnection({
     account,
     selected,
-    disabled,
-    showLock,
 }: AccountItemApproveConnectionProps) {
     const { data: domainName } = useResolveIotaNSName(account?.address);
     const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');

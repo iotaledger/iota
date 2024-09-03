@@ -105,52 +105,55 @@ export function Account({
                     />
                 </div>
             </div>
-            <div className={cx('z-10 ml-auto flex items-center space-x-2 ')}>
-                <div
-                    className={cx(
-                        'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
-                        isLocked && '[&_button:last-child]:flex',
-                    )}
-                >
-                    {onOptionsClick && (
-                        <Button
-                            size={ButtonSize.Small}
-                            type={ButtonType.Ghost}
-                            onClick={onOptionsClick}
-                            icon={<MoreHoriz className="h-5 w-5" />}
-                        />
-                    )}
-                    {onLockAccountClick &&
-                        onUnlockAccountClick &&
-                        (isLocked ? (
+            <div
+                className={cx(
+                    'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden [&_button]:h-5 [&_button]:w-5 group-hover:[&_button]:flex',
+                    '[&_div.checkmark_button]:flex', // make checkmark visible always
+                    isLocked && '[&_div.unlock_button]:flex', // make unlock visible when is locked
+                )}
+            >
+                {onOptionsClick && (
+                    <Button
+                        size={ButtonSize.Small}
+                        type={ButtonType.Ghost}
+                        onClick={onOptionsClick}
+                        icon={<MoreHoriz />}
+                    />
+                )}
+                {onLockAccountClick &&
+                    onUnlockAccountClick &&
+                    (isLocked ? (
+                        <div className="unlock">
                             <Button
                                 size={ButtonSize.Small}
                                 type={ButtonType.Ghost}
                                 onClick={onUnlockAccountClick}
-                                icon={<LockLocked className="h-5 w-5" />}
+                                icon={<LockLocked />}
                             />
-                        ) : (
-                            <Button
-                                size={ButtonSize.Small}
-                                type={ButtonType.Ghost}
-                                onClick={onLockAccountClick}
-                                icon={<LockUnlocked className="h-5 w-5" />}
-                            />
-                        ))}
-                </div>
+                        </div>
+                    ) : (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onLockAccountClick}
+                            icon={<LockUnlocked />}
+                        />
+                    ))}
                 {isSelected !== undefined ? (
-                    <Button
-                        size={ButtonSize.Small}
-                        type={ButtonType.Ghost}
-                        icon={
-                            <CheckmarkFilled
-                                className={cx('h-5 w-5', {
-                                    'text-neutral-10': !isSelected,
-                                    'text-primary-30': isSelected,
-                                })}
-                            />
-                        }
-                    />
+                    <div className="checkmark">
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            icon={
+                                <CheckmarkFilled
+                                    className={cx({
+                                        'text-neutral-10': !isSelected,
+                                        'text-primary-30': isSelected,
+                                    })}
+                                />
+                            }
+                        />
+                    </div>
                 ) : null}
             </div>
         </div>
