@@ -32,6 +32,10 @@ export interface ButtonProps {
      */
     icon?: React.ReactNode;
     /**
+     * Should the icon be after the text.
+     */
+    iconAfterText?: boolean;
+    /**
      * The button is disabled or not.
      */
     disabled?: boolean;
@@ -62,6 +66,7 @@ export function Button({
     htmlType = ButtonHtmlType.Button,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
+    iconAfterText = false,
     tabIndex = 0,
 }: ButtonProps): React.JSX.Element {
     const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
@@ -73,10 +78,11 @@ export function Button({
             onClick={onClick}
             type={htmlType}
             className={cx(
-                'state-layer relative flex flex-row items-center justify-center gap-2 rounded-full disabled:cursor-not-allowed disabled:opacity-40',
+                'state-layer relative flex items-center justify-center gap-2 rounded-full disabled:cursor-not-allowed disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
                 fullWidth && 'w-full',
+                !iconAfterText ? 'flex-row' : 'flex-row-reverse',
             )}
             disabled={disabled}
             tabIndex={tabIndex}
