@@ -343,7 +343,7 @@ impl StoredTransaction {
             let chunk = select(lo_get(oid, Some(offset), Some(length)))
                 .get_result::<Vec<u8>>(&mut conn)
                 .map_err(IndexerError::from)
-                .context("failed to insert large object chunk")?;
+                .context("failed to query large object chunk")?;
             let chunk_len = chunk.len();
             stored.raw_transaction.extend(chunk);
             if chunk_len < Self::LARGE_OBJECT_CHUNK {
