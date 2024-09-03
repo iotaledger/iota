@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Iota, IotaLogoTxt } from '@iota/icons';
+import { IotaLogoWeb } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 
@@ -25,21 +25,20 @@ function Header(): JSX.Element {
     return (
         <header
             className={clsx(
-                'flex h-header justify-center overflow-visible bg-white/40 backdrop-blur-xl transition-shadow',
+                'flex h-header justify-center overflow-visible backdrop-blur-xl transition-shadow',
                 isScrolled && 'shadow-effect-ui-regular',
             )}
         >
-            <div className="2xl:p-0 flex h-full max-w-[1440px] flex-1 items-center gap-5 px-5">
+            <div className="2xl:p-0 flex h-full max-w-[1440px] flex-1 items-center gap-5 px-4 py-8 lg:px-6 xl:px-10 xl:py-12">
                 <LinkWithQuery
                     data-testid="nav-logo-button"
                     to="/"
                     className="flex flex-nowrap items-center gap-1 text-hero-darkest"
                 >
-                    <Iota className="h-[26px] w-5" />
-                    <IotaLogoTxt className="h-[17px] w-[27px]" />
+                    <IotaLogoWeb width={130} height={32} />
                 </LinkWithQuery>
                 <div className="flex w-full gap-2">
-                    <div className="flex-1">
+                    <div className="flex flex-1 justify-center">
                         <Search />
                     </div>
                     <NetworkSelector />

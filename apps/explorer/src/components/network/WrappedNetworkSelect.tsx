@@ -2,34 +2,203 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import cx from 'clsx';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useContext } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
 
 import { NetworkContext } from '~/contexts';
-import { NetworkSelect, type NetworkOption } from '~/components/ui';
+import { type NetworkOption } from '~/components/ui';
 import { ampli } from '~/lib/utils';
-import { getAllNetworks } from '@iota/iota-sdk/client';
+import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
+import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { ArrowLeft, ArrowDown, CheckmarkFilled } from '@iota/ui-icons';
+import { Transition } from '@headlessui/react';
+import { useZodForm } from '@iota/core';
 
 export function NetworkSelector(): JSX.Element {
+    const elementRef = useRef<HTMLDivElement>(null);
     const [network, setNetwork] = useContext(NetworkContext);
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     const networks = Object.values(getAllNetworks()).map((network) => ({
         id: network.id,
         label: network.name,
     })) as NetworkOption[];
 
+    const handleNetworkSwitch = (networkId: NetworkId) => {
+        ampli.switchedNetwork({ toNetwork: networkId });
+        setNetwork(networkId);
+    };
+
+    const selectedNetwork = networks.find(({ id }) => id === network);
+    const isCustomNetwork = !networks.find(({ id }) => id === network);
+    const [customOpen, setCustomOpen] = useState(isCustomNetwork);
+
+    // Hide dropdown on click outside
+    useEffect(() => {
+        const listener = (event: MouseEvent | TouchEvent) => {
+            const el = elementRef?.current;
+
+            if (!el || el.contains(event?.target as Node)) {
+                return;
+            }
+
+            setIsDropdownOpen(false);
+            setCustomOpen(false);
+        };
+
+        document.addEventListener('click', listener, true);
+        document.addEventListener('touchstart', listener, true);
+
+        return () => {
+            document.removeEventListener('click', listener, true);
+            document.removeEventListener('touchstart', listener, true);
+        };
+    }, [elementRef]);
+
     return (
-        <NetworkSelect
-            value={network}
-            onChange={(networkId) => {
-                ampli.switchedNetwork({ toNetwork: networkId });
-                setNetwork(networkId);
-            }}
-            networks={networks}
-            version={data?.protocolVersion}
-            binaryVersion={binaryVersion}
-        />
+        <div ref={elementRef} className="relative self-center">
+            <Button
+                type={ButtonType.Outlined}
+                size={ButtonSize.Small}
+                text={selectedNetwork?.label ?? 'Custom'}
+                icon={
+                    isDropdownOpen ? (
+                        <ArrowDown className="-mr-xs" />
+                    ) : (
+                        <ArrowLeft className="-mr-xs" />
+                    )
+                }
+                iconAfterText
+                onClick={() => {
+                    setIsDropdownOpen(!isDropdownOpen);
+                    if (!isDropdownOpen) {
+                        setCustomOpen(false);
+                    }
+                }}
+            />
+            <Transition
+                show={isDropdownOpen}
+                enter="transition duration-300"
+                enterFrom="opacity-0 scale-75"
+                enterTo="opacity-100 scale-100"
+                leave="transition duration-150"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-75"
+            >
+                <div className="absolute right-0 mt-xs w-52">
+                    <Dropdown>
+                        {networks.map((network, idx) => (
+                            <ListItem
+                                key={idx}
+                                onClick={() => handleNetworkSwitch(network.id)}
+                                hideBottomBorder
+                            >
+                                <div className="flex items-center gap-2">
+                                    <CheckmarkFilled
+                                        className={cx('flex-shrink-0', {
+                                            'text-success': network === selectedNetwork,
+                                            'text-gray-45': network !== selectedNetwork,
+                                        })}
+                                    />
+                                    {network.label}
+                                </div>
+                            </ListItem>
+                        ))}
+                        <ListItem
+                            key="custom-rpc"
+                            onClick={() => setCustomOpen(true)}
+                            hideBottomBorder
+                        >
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                    <CheckmarkFilled
+                                        className={cx('flex-shrink-0', {
+                                            'text-success': isCustomNetwork,
+                                            'text-gray-45': !isCustomNetwork,
+                                        })}
+                                    />
+                                    Custom RPC URL
+                                </div>
+                                {customOpen && (
+                                    <div className="mt-3">
+                                        <CustomRPCInput
+                                            value={isCustomNetwork ? network : ''}
+                                            onChange={handleNetworkSwitch}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </ListItem>
+                        {!!network && data?.protocolVersion && binaryVersion ? (
+                            <div className="rounded-b-lg bg-hero-darkest/5">
+                                <div className="flex flex-col justify-between gap-1 px-4 py-3">
+                                    <div className="text-body-sm font-medium text-steel-dark">
+                                        Iota {selectedNetwork?.label ?? 'Custom RPC'}
+                                    </div>
+                                    <div className="text-body-sm font-medium text-steel-dark">
+                                        v{binaryVersion} (Protocol {data?.protocolVersion})
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+                    </Dropdown>
+                </div>
+            </Transition>
+        </div>
+    );
+}
+
+const CustomRPCSchema = z.object({
+    url: z.string().url(),
+});
+
+interface CustomRPCInputProps {
+    value: string;
+    onChange(networkUrl: string): void;
+}
+
+function CustomRPCInput({ value, onChange }: CustomRPCInputProps): JSX.Element {
+    const { register, handleSubmit, formState } = useZodForm({
+        schema: CustomRPCSchema,
+        mode: 'all',
+        defaultValues: {
+            url: value,
+        },
+    });
+
+    const { errors, isDirty, isValid } = formState;
+
+    return (
+        <form
+            onSubmit={handleSubmit((values) => {
+                onChange(values.url);
+            })}
+            className="relative flex items-center rounded-md"
+        >
+            <input
+                {...register('url')}
+                type="text"
+                className={cx(
+                    'w-full rounded-md border p-xs outline-none',
+                    errors.url
+                        ? 'border-issue-dark text-issue-dark'
+                        : 'border-gray-65 text-gray-90',
+                )}
+            />
+
+            <div className="absolute inset-y-0 right-0 flex flex-col justify-center px-xs">
+                <button
+                    disabled={!isDirty || !isValid}
+                    type="submit"
+                    className="flex items-center justify-center rounded-full bg-gray-90 px-2 py-1 text-captionSmall font-semibold uppercase text-white transition disabled:bg-gray-45 disabled:text-gray-65"
+                >
+                    Save
+                </button>
+            </div>
+        </form>
     );
 }
