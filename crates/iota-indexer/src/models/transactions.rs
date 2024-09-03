@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::prelude::*;
+use diesel::{prelude::*, select};
 use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
@@ -16,9 +16,11 @@ use iota_types::{
 use move_bytecode_utils::module_cache::GetModule;
 
 use crate::{
-    errors::IndexerError,
+    db::PgConnectionPool,
+    errors::{Context, IndexerError},
+    models::large_objects::{lo_create, lo_put},
     schema::transactions,
-    types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
+    types::{IndexedObjectChange, IndexedTransaction, IndexerResult, TransactionKind},
 };
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName)]
@@ -136,6 +138,8 @@ impl From<&IndexedTransaction> for StoredTransaction {
 }
 
 impl StoredTransaction {
+    const LARGE_OBJECT_CHUNK: usize = 100 * 1024 * 1024;
+
     pub fn try_into_iota_transaction_block_response(
         self,
         options: &IotaTransactionBlockResponseOptions,
@@ -277,5 +281,34 @@ impl StoredTransaction {
         })?;
         let effects = IotaTransactionBlockEffects::try_from(effects)?;
         Ok(effects)
+    }
+
+    /// Check if this is the genesis transaction.
+    pub fn is_genesis(&self) -> bool {
+        self.checkpoint_sequence_number == 0
+            && self.transaction_kind == TransactionKind::SystemTransaction as i16
+    }
+
+    pub fn try_into_large_object(mut self, pool: &PgConnectionPool) -> Result<Self, IndexerError> {
+        if self.is_genesis() {
+            let mut conn = crate::db::get_pg_pool_connection(pool)?;
+            let raw_tx = std::mem::take(&mut self.raw_transaction);
+            let oid: u32 = select(lo_create(0))
+                .get_result(&mut conn)
+                .map_err(IndexerError::from)
+                .context("failed to store large object")?;
+            for (i, chunk) in raw_tx.chunks(Self::LARGE_OBJECT_CHUNK).enumerate() {
+                let offset = i64::try_from(i * Self::LARGE_OBJECT_CHUNK)
+                    .map_err(|e| IndexerError::GenericError(e.to_string()))?;
+                tracing::trace!("storing large-object chunk at offset {}", offset);
+
+                select(lo_put(oid, offset, chunk))
+                    .execute(&mut conn)
+                    .map_err(IndexerError::from)
+                    .context("failed to insert large object chunk")?;
+            }
+            self.raw_transaction = oid.to_le_bytes().to_vec();
+        }
+        Ok(self)
     }
 }

@@ -81,5 +81,7 @@ pub async fn main() -> Result<(), IndexerError> {
     let pg_store = create_pg_store(Some(DEFAULT_DB_URL.to_owned()), None);
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
+    // TODO: read the transaction from the table
+    // and assert that the transaction data is the same
     Ok(())
 }

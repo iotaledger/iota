@@ -434,7 +434,8 @@ impl PgIndexerStore {
         let transactions = transactions
             .iter()
             .map(StoredTransaction::from)
-            .collect::<Vec<_>>();
+            .map(|stored| stored.try_into_large_object(&self.blocking_cp))
+            .collect::<Result<Vec<_>, _>>()?;
         drop(transformation_guard);
 
         transactional_blocking_with_retry!(
