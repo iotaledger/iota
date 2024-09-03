@@ -96,7 +96,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Return the coin metadata for the Coin<IOTA>
     let coin_metadata = client
         .coin_read_api()
-        .get_coin_metadata("0x2::iota::IOTA".to_string())
+        .get_coin_metadata("0x2::iota::IOTA")
         .await?;
 
     println!(" *** Coin Metadata *** ");
@@ -106,7 +106,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Total Supply
     let total_supply = client
         .coin_read_api()
-        .get_total_supply("0x2::iota::IOTA".to_string())
+        .get_total_supply("0x2::iota::IOTA")
         .await?;
     println!(" *** Total Supply *** ");
     println!("{:?}", total_supply);
