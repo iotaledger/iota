@@ -38,7 +38,7 @@ The most common use case for exchanges and custody providers regarding integrati
 
 - All `Coin` objects can be freely transferred by the owner of this object.
 - Only the owner of the `Coin` object can interact with it.
-- The only restriction that can be added to a `Coin` object is the optional blocking of transfers for addresses on a [`DenyList`](../iota-101/create-coin/regulated.mdx#deny-list). This only applies to `Coin` objects that have been instantiated as [Regulated Coins](../standards/coin.mdx#regulated-coins). 
+- The only restriction that can be added to a `Coin` object is the optional blocking of transfers for addresses on a [`DenyList`](../iota-101/create-coin/regulated.mdx#denylist). This only applies to `Coin` objects that have been instantiated as [Regulated Coins](../standards/coin.mdx#regulated-coins). 
 * It is not possible to add other limiting functionality to `Coin` objects directly, like vesting or time-locks; this can only be done by wrapping the unrestricted `Coin` object within another restricting object. It's safe to assume that if you receive a `Coin` object, you can use it without limitations.
 - A `Coin` is tied to a `CoinMetadata` object containing `name`, `symbol`, `decimals`, `description`, and an `icon_url`
 - The holder of the TreasuryCap handles administrative tasks of a Coin like minting new tokens or changing metadata; Without a `TreasuryCap` these actions can no longer be performed.
