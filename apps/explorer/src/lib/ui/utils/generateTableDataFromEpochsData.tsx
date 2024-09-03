@@ -30,7 +30,11 @@ interface EpochTableData {
 export function generateTableDataFromEpochsData(results: EpochMetricsPage): EpochTableData {
     return {
         data: results?.data.map((epoch) => ({
-            epoch: { type: TableCellType.Link, label: epoch.epoch, to: epochToLink({ epoch: epoch.epoch }) },
+            epoch: {
+                type: TableCellType.Link,
+                label: epoch.epoch,
+                to: epochToLink({ epoch: epoch.epoch }),
+            },
             transactions: { type: TableCellType.Text, label: epoch.epochTotalTransactions },
             stakeRewards: {
                 type: TableCellType.Text,
