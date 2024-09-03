@@ -130,7 +130,8 @@ validator1     0xba55e3ce221bb7edfbbef4d59b68893f5550b6302a9456b738ad8cf06919be0
 
 ### Add Token Allocation
 
-This command allocates tokens to a given address for the genesis transaction, and can be used to provide tokens to the faucet address.
+This command allocates tokens to a given address for the genesis transaction, 
+and can be used to provide tokens to the faucet address.
 
 ```shell
 iota genesis-ceremony add-token-allocation \
@@ -154,7 +155,8 @@ iota genesis-ceremony build-unsigned-checkpoint
 
 ### Examine the Genesis Checkpoint
 
-This command opens the Genesis Inspector, a responsive command-line tool which allows viewing various attributes of the current built checkpoint.
+This command opens the Genesis Inspector, a responsive command-line tool which allows viewing various 
+attributes of the current built checkpoint.
 
 ```shell
 iota genesis-ceremony examine-genesis-checkpoint
@@ -169,6 +171,9 @@ iota genesis-ceremony verify-and-sign --key-file validator.key
 ```
 
 ### Finalize the Genesis blob
+
+Executing this command will generate the `genesis.blob` file using the configuration that has been persisted by the
+previous commands.
 
 ```shell
 iota genesis-ceremony finalize
