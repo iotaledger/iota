@@ -90,15 +90,19 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let signature = keystore.sign_secure(&address, &tx_data, Intent::iota_transaction())?;
 
-    let tx = client
+    let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::new(),
+            IotaTransactionBlockResponseOptions::new().with_object_changes(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
-    println!("{tx:?}");
+    println!("Transaction sent {}", transaction_response.digest);
+    println!("Object changes:");
+    for object_change in transaction_response.object_changes.unwrap() {
+        println!("{:?}", object_change);
+    }
 
     // Wait for indexer to process the tx
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
