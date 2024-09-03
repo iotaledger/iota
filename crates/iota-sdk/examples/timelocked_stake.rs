@@ -103,11 +103,11 @@ async fn main() -> Result<(), anyhow::Error> {
     // Wait for indexer to process the tx
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
-    // // Check DelegatedTimelockedStake object
+    // Check DelegatedTimelockedStake object
     let staked_iota = client.http().get_timelocked_stakes(address).await?;
     println!("Staked: {staked_iota:?}\n\n");
 
-    // Unstake timelocked IOTA, if staking for longer than 1 day already
+    // Unstake timelocked IOTA, if staking for longer than 1 epoch already
 
     let current_epoch = client
         .read_api()
@@ -168,7 +168,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let staked_iota = client.http().get_timelocked_stakes(address).await?;
         println!("Staked: {staked_iota:?}");
     } else {
-        println!("No stake found that can be unlocked (must be staked >= 1 day)")
+        println!("No stake found that can be unlocked (must be staked >= 1 epoch)")
     };
 
     // Cleanup
