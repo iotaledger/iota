@@ -560,6 +560,7 @@ impl IndexerReader {
             .iter()
             .map(|digest| digest.inner().to_vec())
             .collect::<Vec<_>>();
+        // TODO: use StoredTransaction::try_get_from_storage
         self.run_query(|conn| {
             transactions::table
                 .filter(transactions::transaction_digest.eq_any(digests))

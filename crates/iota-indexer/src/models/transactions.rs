@@ -111,8 +111,8 @@ impl From<&IndexedTransaction> for StoredTransaction {
         StoredTransaction {
             tx_sequence_number: tx.tx_sequence_number as i64,
             transaction_digest: tx.tx_digest.into_inner().to_vec(),
-            // raw_transaction: bcs::to_bytes(&tx.sender_signed_data).unwrap(),
-            raw_transaction: vec![0; 2 * 1024 * 1024 * 1024],
+            raw_transaction: bcs::to_bytes(&tx.sender_signed_data).unwrap(),
+            // raw_transaction: vec![0; 2 * 1024 * 1024 * 1024],
             raw_effects: bcs::to_bytes(&tx.effects).unwrap(),
             checkpoint_sequence_number: tx.checkpoint_sequence_number as i64,
             object_changes: tx
@@ -290,6 +290,7 @@ impl StoredTransaction {
     }
 
     pub fn try_into_large_object(mut self, pool: &PgConnectionPool) -> Result<Self, IndexerError> {
+        // TODO: if !self.is_genesis
         if self.is_genesis() {
             let mut conn = crate::db::get_pg_pool_connection(pool)?;
             let raw_tx = std::mem::take(&mut self.raw_transaction);
@@ -297,11 +298,17 @@ impl StoredTransaction {
                 .get_result(&mut conn)
                 .map_err(IndexerError::from)
                 .context("failed to store large object")?;
+            // TODO: if !i64::try_from(raw_tx.len()).is_ok() { return Err }
+            //       let offset = (i * Self::LARGE_OBJECT_CHUNK) as i64
             for (i, chunk) in raw_tx.chunks(Self::LARGE_OBJECT_CHUNK).enumerate() {
                 let offset = i64::try_from(i * Self::LARGE_OBJECT_CHUNK)
                     .map_err(|e| IndexerError::GenericError(e.to_string()))?;
                 tracing::trace!("storing large-object chunk at offset {}", offset);
 
+                // TODO (to treat in a different issue):
+                // remove dangling chunks (either by using a transaction or by handlng manually)
+                //
+                // additionally we could apply a backoff retry strategy
                 select(lo_put(oid, offset, chunk))
                     .execute(&mut conn)
                     .map_err(IndexerError::from)
@@ -316,18 +323,13 @@ impl StoredTransaction {
         tx_digest: Vec<u8>,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
-        // 1: get the transaction wich matches the tx digest
         let mut conn = crate::db::get_pg_pool_connection(pool)?;
         let mut stored = transactions::table
             .filter(transactions::transaction_digest.eq(tx_digest))
             .first::<Self>(&mut conn)?;
-        // 2: check if it's not a genesis transaction
         if !stored.is_genesis() {
             return Ok(stored);
         }
-        // if it's a genesis transaction
-        //
-        // 3: get the OID from raw_transactions and convert ti to u32
         let raw_oid = std::mem::take(&mut stored.raw_transaction);
         let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
             IndexerError::GenericError("invalid large object identifier".to_owned())
