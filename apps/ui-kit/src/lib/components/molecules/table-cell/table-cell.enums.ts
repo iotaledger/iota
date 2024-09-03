@@ -8,4 +8,5 @@ export enum TableCellType {
     AvatarText = 'avatar-text',
     Checkbox = 'checkbox',
     Placeholder = 'placeholder',
+    Link = 'link',
 }

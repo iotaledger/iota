@@ -272,15 +272,12 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
             if (amountAvailableToUseAsRemainder >= remainderAmount) {
                 timelockedObject.splitAmount = timelockedObject.totalLockedAmount - remainderAmount;
                 foundSplit = true;
+                break;
             } else {
                 remainderAmount -= amountAvailableToUseAsRemainder;
                 timelockedObject.splitAmount =
                     timelockedObject.totalLockedAmount - amountAvailableToUseAsRemainder;
             }
-        }
-
-        if (foundSplit) {
-            break;
         }
     }
 
