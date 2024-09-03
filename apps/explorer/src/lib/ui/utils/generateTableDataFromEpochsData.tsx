@@ -5,6 +5,7 @@
 import { type EpochMetricsPage } from '@iota/iota-sdk/client';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
+import { epochToLink } from '~/components';
 
 interface EpochData {
     epoch: TableCellProps;
@@ -29,7 +30,7 @@ interface EpochTableData {
 export function generateTableDataFromEpochsData(results: EpochMetricsPage): EpochTableData {
     return {
         data: results?.data.map((epoch) => ({
-            epoch: { type: TableCellType.Text, label: epoch.epoch },
+            epoch: { type: TableCellType.Link, label: epoch.epoch, to: epochToLink({ epoch: epoch.epoch }) },
             transactions: { type: TableCellType.Text, label: epoch.epochTotalTransactions },
             stakeRewards: {
                 type: TableCellType.Text,
