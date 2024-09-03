@@ -47,9 +47,12 @@ export function generateTableDataFromEpochsData(results: EpochMetricsPage): Epoc
             },
             storageNetInflow: {
                 type: TableCellType.Text,
-                label: getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow?.toString(),
+                label: getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow?.toString() ?? '--',
             },
-            time: { type: TableCellType.Text, label: epoch.endOfEpochInfo?.epochEndTimestamp },
+            time: {
+                type: TableCellType.Text,
+                label: epoch.endOfEpochInfo?.epochEndTimestamp ?? '--',
+            },
         })),
         columns: [
             {
