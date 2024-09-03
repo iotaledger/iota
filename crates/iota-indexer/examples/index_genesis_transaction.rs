@@ -32,7 +32,10 @@ fn genesis_builder() -> GenesisBuilder {
         builder = builder.add_validator(validator_info.info, validator_info.proof_of_possession);
     }
 
-    builder = builder.add_migration_source(SnapshotSource::S3(SnapshotUrl::Iota));
+    // builder = builder.
+    // add_migration_source(SnapshotSource::S3(SnapshotUrl::Iota));
+    builder =
+        builder.add_migration_source(SnapshotSource::S3(SnapshotUrl::Test("https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz".parse().unwrap())));
 
     for key in &key_pairs {
         builder = builder.add_validator_signature(key);
