@@ -24,7 +24,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let gas_budget = 5_000_000;
 
-    // Build the transaction data, to transfer the gas coin to the recipient address
+    // Build the transaction data to transfer the gas coin to the recipient address
     let tx_data = client
         .transaction_builder()
         .transfer_iota(sender, gas_coin.coin_object_id, gas_budget, recipient, None)
@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_coin = coins.next().expect("missing gas coin");
     println!("{gas_coin:?}");
 
-    // Build the transaction data, to transfer the object to the recipient address
+    // Build the transaction data to transfer the object to the recipient address
     let tx_data = client
         .transaction_builder()
         .transfer_object(

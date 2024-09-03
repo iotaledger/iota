@@ -24,7 +24,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let gas_budget = 5_000_000;
 
-    // Build the transaction data, to transfer 1_000 from the provided coin to the
+    // Build the transaction data to transfer 1_000 from the provided coin to the
     // recipient address
     let tx_data = client
         .transaction_builder()
