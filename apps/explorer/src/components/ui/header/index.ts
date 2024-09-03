@@ -3,3 +3,4 @@
 
 export * from './NavItem';
 export * from './NetworkSelect';
+export * from './CustomRPCInput';
