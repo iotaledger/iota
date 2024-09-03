@@ -22,7 +22,7 @@ A Governor address can claim the `AliasOutput` assets at any time:
 
 The first step is to fetch the `AliasOutput` object that needs to be claimed.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L56-L81
@@ -40,7 +40,7 @@ Coming soon
 
 Next, check the native tokens that might be held by this output. A [`Bag`](../../../references/framework/iota-framework/bag.mdx) is used for holding these tokens. In this step, we are interested in obtaining the dynamic field keys that are bag indexes. For native tokens, the keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token declaration.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L83-L110
@@ -61,7 +61,7 @@ using the `alias_output_object_ref` as input along with the native token keys.
 An `AliasOutput` differs from an `NftOutput` or a `BasicOutput` because it contains the `Alias` object.
 The main purpose of claiming is to extract the `Alias` object from the `AliasOutput`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/alias-output-claim.rs#L112-L180
@@ -83,7 +83,7 @@ The following example outlines the process of converting a Stardust `Alias` into
 
 This example extends the one described in the [Conversion of an Nft Output into a Custom Nft](nft.mdx#converting-an-nft-output-into-a-custom-nft) documentation:
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="move" label="Move">
 
 The `collection.move` module extends the `custom_nft` package to enable working with NFT collections:
@@ -102,7 +102,7 @@ Also, the `nft.move` module was extended with the following function:
 
 Once the package is prepared, you can extract and use a Stardust `Alias` in a single transaction to create a `CollectionControllerCap`. This capability is then used in later transactions to manage new collections.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/alias-migration.rs#L119-L244

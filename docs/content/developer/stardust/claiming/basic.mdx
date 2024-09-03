@@ -20,7 +20,7 @@ As a user, you may own `BasicOutput` objects that need to be unlocked before you
 
 To begin, you need to determine if your `BasicOutput` can be unlocked. You can achieve this by performing specific off-chain queries that will check the unlock conditions for the `BasicOutput`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/check-basic-output-unlock-conditions.rs#L20-L56
@@ -42,7 +42,7 @@ Once you've confirmed that the `BasicOutput` can be unlocked, you can start the 
 
 The first step is to fetch the `BasicOutput` object that you intend to claim.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L56-L81
@@ -64,7 +64,7 @@ You'll need to obtain the dynamic field keys used as bag indexes to access the n
 For native tokens,
 these keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L83-L110
@@ -83,7 +83,7 @@ Coming soon
 Finally, you can create a Programmable Transaction Block (PTB) using the `basic_output` as an input,
 along with the `Bag` keys to iterate over the extracted native tokens.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L113-L177

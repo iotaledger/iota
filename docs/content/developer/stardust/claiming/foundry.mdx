@@ -16,7 +16,7 @@ Instead, claiming a Foundry Output involves extracting a [`CoinManagerTreasuryCa
 
 The first step is to retrieve the `AliasOutput` object that you intend to claim.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L60-L74
@@ -34,7 +34,7 @@ Coming soon
 
 Next, use the dynamic field function with the "alias" dynamic field key filter to obtain the `Alias` object itself.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L76-L89
@@ -52,7 +52,7 @@ Coming soon
 
 The `Alias` object may own various other objects (for more details, refer to the [Output Unlockable by an Alias/Nft Address](address-unlock-condition.mdx) page). In this step, you filter these objects by type, specifically looking for the `CoinManagerTreasuryCap` type.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L91-L131
@@ -70,7 +70,7 @@ Coming soon
 
 Since each native token is tied to its own package, a Foundry's native token has a specific [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx). Here, you will extract the `OTW` from the `CoinManagerTreasuryCap` object.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L133-L142
@@ -88,7 +88,7 @@ Coming soon
 
 Finally, you should create a Programmable Transaction Block (PTB) that claims the `CoinManagerTreasuryCap` associated with the Foundry Output from the `AliasOutput` using the `unlock_alias_address_owned_coinmanager_treasury` function.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/foundry-output-claim.rs#L144-L215

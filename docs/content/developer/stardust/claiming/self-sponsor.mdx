@@ -23,7 +23,7 @@ As a result, addresses holding these objects lack the IOTA coins necessary to pa
 Shimmer uses a different `coin_type` (4219) than IOTA (4218).
 To find the self-sponsoring address, use the IOTA `coin_type`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L44-L50
@@ -43,7 +43,7 @@ Next, create a P [Programmable Transaction Block (PTB)](../../iota-101/transacti
 to claim a `BasicOutput` owned by the derived Shimmer address.
 This process is similar to the one outlined in the [Basic Output](basic.mdx) guide.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L85-L135
@@ -61,7 +61,7 @@ Coming soon
 
 For this transaction, both the sender address (the object's owner) and the sponsor address must sign the transaction.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/shimmer-self-sponsor.rs#L151-L177

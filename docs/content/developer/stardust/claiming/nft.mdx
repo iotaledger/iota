@@ -23,7 +23,7 @@ similar to the process for [`Basic Outputs`](basic.mdx).
 
 The first step in claiming your NFT is to retrieve the `NftOutput` object that you intend to claim.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L56-L80
@@ -46,7 +46,7 @@ For native tokens, these keys are strings
 representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token 
 [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L82-L107
@@ -67,7 +67,7 @@ you can create a [Programmable Transaction Block (PTB)](../../iota-101/transacti
 along with the `Bag` keys to iterate over the extracted native tokens. 
 The primary goal of this process is to extract the `Nft` object from the `NftOutput`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-output-claim.rs#L109-L175
@@ -93,7 +93,7 @@ This package will represent the custom NFT.
 The following is an example of a simple module for representing, minting, burning,
 and converting the custom NFT from the Stardust `Nft`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="move" label="Move">
 
 ```move file=<rootDir>/docs/examples/move/custom_nft/sources/nft.move
@@ -107,7 +107,7 @@ and converting the custom NFT from the Stardust `Nft`.
 You can then create a PTB that extracts the Stardust `Nft` from an `NftOutput` and converts it into a custom NFT within your collection. 
 This method uses the metadata from the Stardust `Nft` to mint a new NFT.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/nft-migration.rs#L77-L137

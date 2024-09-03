@@ -21,7 +21,7 @@ For this example, we use an `AliasOutput` to extract an `Alias` object that owns
 
 1. The first step is to fetch the `AliasOutput` object that is needed to claim the `NftOutput`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L70-L88
@@ -35,7 +35,7 @@ For this example, we use an `AliasOutput` to extract an `Alias` object that owns
 
 2. Use the dynamic field function with the "alias" dynamic field key filter to gather the `Alias` object itself.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L90-L103
@@ -49,7 +49,7 @@ For this example, we use an `AliasOutput` to extract an `Alias` object that owns
 
 3. Some objects are owned by the `Alias` object. In this case, filter them by type using the `NftOutput` type tag. Apply the filter to get `NftOutput`s owned by the `Alias`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L105-L128
@@ -63,7 +63,7 @@ For this example, we use an `AliasOutput` to extract an `Alias` object that owns
 
 4. Create a PTB that first extracts the assets from the `AliasOutput`, and then uses the extracted `Alias` to "address unlock" the `NftOutput` using the function `unlock_alias_address_owned_nft`.
 
-<Tabs groupId="code-language">
+<Tabs groupId="language">
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L130-L239
