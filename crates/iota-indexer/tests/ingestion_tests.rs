@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//#[cfg(feature = "pg_integration")]
+#[cfg(feature = "pg_integration")]
 mod ingestion_tests {
     use std::{net::SocketAddr, sync::Arc, time::Duration};
 
