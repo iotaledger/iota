@@ -20,7 +20,7 @@ Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake
 
 task 4 'programmable'. lines 75-76:
 mutated: object(0,0), object(2,2), object(2,3), object(2,4)
-gas summary: computation_cost: 1000000, storage_cost: 4841200,  storage_rebate: 4792788, non_refundable_storage_fee: 48412
+gas summary: computation_cost: 1000000, storage_cost: 4841200,  storage_rebate: 4841200, non_refundable_storage_fee: 0
 
 task 5 'view-object'. lines 78-78:
 Owner: Account Address ( A )
@@ -30,7 +30,7 @@ Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake
 task 6 'programmable'. lines 80-81:
 mutated: object(0,0), object(2,4)
 deleted: object(2,1), object(2,3)
-gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 5951484, non_refundable_storage_fee: 60116
+gas summary: computation_cost: 1000000, storage_cost: 2272400,  storage_rebate: 6011600, non_refundable_storage_fee: 0
 
 task 7 'view-object'. lines 83-86:
 Owner: Account Address ( A )
@@ -39,15 +39,15 @@ Contents: test::m::Obj {id: iota::object::UID {id: iota::object::ID {bytes: fake
 
 task 8 'programmable'. lines 88-89:
 mutated: object(_), object(2,4)
-gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1271556, non_refundable_storage_fee: 12844
+gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1284400, non_refundable_storage_fee: 0
 
 task 9 'programmable'. lines 91-92:
 mutated: object(_), object(2,4)
-gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1271556, non_refundable_storage_fee: 12844
+gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1284400, non_refundable_storage_fee: 0
 
 task 10 'programmable'. lines 94-98:
 mutated: object(_), object(2,4)
-gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1271556, non_refundable_storage_fee: 12844
+gas summary: computation_cost: 500000, storage_cost: 2272400,  storage_rebate: 1284400, non_refundable_storage_fee: 0
 
 task 11 'programmable'. lines 100-101:
 Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 3, instruction: 10, function_name: Some("check") }, 0) in command 0

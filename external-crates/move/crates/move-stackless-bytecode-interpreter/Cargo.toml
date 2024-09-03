@@ -20,7 +20,3 @@ clap.workspace = true
 codespan-reporting.workspace = true
 itertools.workspace = true
 num.workspace = true
-
-[dev-dependencies]
-datatest-stable.workspace = true
-move-prover-test-utils.workspace = true

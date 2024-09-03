@@ -2,6 +2,10 @@ name: Docs spellcheck and linting
 
 on: workflow_call
 
+concurrency:
+  group: docs-lint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   spelling:
     name: Lint documentation

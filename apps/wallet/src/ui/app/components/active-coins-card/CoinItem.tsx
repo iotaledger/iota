@@ -21,9 +21,10 @@ interface CoinItemProps {
     balance: bigint;
     usd?: number;
     clickableAction?: ReactNode;
+    icon?: ReactNode;
 }
 
-export function CoinItem({ coinType, balance, usd, clickableAction }: CoinItemProps) {
+export function CoinItem({ coinType, balance, usd, clickableAction, icon }: CoinItemProps) {
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
     const isIota = coinType === IOTA_TYPE_ARG;
 
@@ -38,6 +39,7 @@ export function CoinItem({ coinType, balance, usd, clickableAction }: CoinItemPr
                 title={isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}
                 subtitle={symbol}
                 clickableAction={clickableAction}
+                icon={icon}
             />
             <CardAction
                 type={CardActionType.SupportingText}

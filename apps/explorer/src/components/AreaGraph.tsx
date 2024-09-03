@@ -29,7 +29,7 @@ function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Elemen
             x={x}
             y={y}
             textAnchor="middle"
-            className="fill-steel font-sans text-subtitleSmall font-medium"
+            className="fill-steel font-sans text-sm font-medium"
         >
             {formattedValue}
         </text>
@@ -57,10 +57,10 @@ export function AreaGraph<D>({
     formatY,
     tooltipContent,
 }: AreaGraphProps<D>): JSX.Element | null {
-    const graphTop = 15;
-    const graphBottom = Math.max(0, height - 30);
-    const graphLeft = 25;
-    const graphRight = Math.max(0, width - 25);
+    const graphTop = 0;
+    const graphBottom = Math.max(0, height - 0);
+    const graphLeft = 0;
+    const graphRight = Math.max(0, width - 0);
     const [fillGradientID] = useState(() => getID('areaGraph_fillGradient'));
     const [lineGradientID] = useState(() => getID('areaGraph_lineGradient'));
     const [patternID] = useState(() => getID('areaGraph_pattern'));
@@ -139,7 +139,8 @@ export function AreaGraph<D>({
             <svg width={width} height={height}>
                 <defs>
                     <linearGradient id={fillGradientID} gradientTransform="rotate(90)">
-                        <stop offset="40%" stopOpacity="5%" stopColor="#3131ff" />
+                        <stop offset="1%" stopColor="#d6d6ff" />
+                        <stop offset="99%" stopColor="white" />
                     </linearGradient>
                     <linearGradient id={lineGradientID}>
                         <stop stopColor="#3131ff" />
@@ -169,9 +170,10 @@ export function AreaGraph<D>({
                     x={(d) => xScale(getX(d))}
                     y={(d) => yScale(getY(d))}
                     stroke={`url(#${lineGradientID})`}
-                    width="2"
+                    stroke-width="2"
                 />
                 <AxisBottom
+                    left={5}
                     top={height - 24}
                     orientation="bottom"
                     scale={xScale}
@@ -198,7 +200,7 @@ export function AreaGraph<D>({
                             transform={tooltipLeft ? `translate(${tooltipLeft})` : ''}
                         />
                         <line
-                            x1={graphLeft - 5}
+                            x1={graphLeft- 20}
                             y1={0}
                             x2={graphRight}
                             y2={0}

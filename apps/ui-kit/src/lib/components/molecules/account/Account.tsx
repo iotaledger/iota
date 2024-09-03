@@ -24,15 +24,15 @@ interface AccountProps {
     /**
      * Handler for more options click.
      */
-    onOptionsClick: () => void;
+    onOptionsClick?: () => void;
     /**
      * Handler for the lock account icon click.
      */
-    onLockAccountClick: () => void;
+    onLockAccountClick?: () => void;
     /**
      * Handle for the unlock account icon click.
      */
-    onUnlockAccountClick: () => void;
+    onUnlockAccountClick?: () => void;
     /**
      * Function to render avatar content.
      */
@@ -93,7 +93,7 @@ export function Account({
                     </div>
                     <Address
                         text={subtitle}
-                        onCopy={onCopy}
+                        onCopySuccess={onCopy}
                         onOpen={onOpen}
                         isCopyable={isCopyable}
                         isExternal={isExternal}
@@ -106,27 +106,31 @@ export function Account({
                     isLocked && '[&_button:last-child]:flex',
                 )}
             >
-                <Button
-                    size={ButtonSize.Small}
-                    type={ButtonType.Ghost}
-                    onClick={onOptionsClick}
-                    icon={<MoreHoriz />}
-                />
-                {isLocked ? (
+                {onOptionsClick && (
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
-                        onClick={onUnlockAccountClick}
-                        icon={<LockLocked />}
-                    />
-                ) : (
-                    <Button
-                        size={ButtonSize.Small}
-                        type={ButtonType.Ghost}
-                        onClick={onLockAccountClick}
-                        icon={<LockUnlocked />}
+                        onClick={onOptionsClick}
+                        icon={<MoreHoriz />}
                     />
                 )}
+                {onLockAccountClick &&
+                    onUnlockAccountClick &&
+                    (isLocked ? (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onUnlockAccountClick}
+                            icon={<LockLocked />}
+                        />
+                    ) : (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onLockAccountClick}
+                            icon={<LockUnlocked />}
+                        />
+                    ))}
             </div>
         </div>
     );

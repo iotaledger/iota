@@ -11,7 +11,7 @@ gas summary: computation_cost: 1000000, storage_cost: 6034400,  storage_rebate: 
 task 2 'run'. lines 32-32:
 created: object(2,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'view-object'. lines 34-34:
 Owner: Shared
@@ -21,4 +21,4 @@ Contents: t2::o2::Obj2 {id: iota::object::UID {id: iota::object::ID {bytes: fake
 task 4 'programmable'. lines 36-38:
 mutated: object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 1226412, non_refundable_storage_fee: 12388
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 1238800, non_refundable_storage_fee: 0

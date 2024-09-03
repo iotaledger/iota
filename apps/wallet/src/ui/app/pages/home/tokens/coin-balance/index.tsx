@@ -1,10 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { useAppSelector } from '_hooks';
-import { Heading } from '_src/ui/app/shared/heading';
-import { Text } from '_src/ui/app/shared/text';
 import { useBalanceInUSD, useFormatCoin } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -20,7 +17,6 @@ interface WalletBalanceUsdProps {
 }
 
 function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
-    const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance);
 
     const walletBalanceInUsd = useMemo(() => {
@@ -36,15 +32,7 @@ function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
         return null;
     }
 
-    return (
-        <Text
-            variant="caption"
-            weight="medium"
-            color={isDefiWalletEnabled ? 'hero-darkest' : 'steel'}
-        >
-            {walletBalanceInUsd}
-        </Text>
-    );
+    return <div className="text-label-md text-neutral-40">{walletBalanceInUsd}</div>;
 }
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
@@ -52,19 +40,12 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
     const [formatted, symbol] = useFormatCoin(walletBalance, type);
 
     return (
-        <div className="flex flex-col items-center justify-center gap-1">
-            <div className="flex items-center justify-center gap-2">
-                <Heading leading="none" variant="heading1" weight="bold" color="gray-90">
-                    {formatted}
-                </Heading>
-
-                <Heading variant="heading6" weight="medium" color="steel">
-                    {symbol}
-                </Heading>
+        <>
+            <div className="flex items-baseline gap-0.5">
+                <div className="text-headline-lg text-neutral-10">{formatted}</div>
+                <div className="text-label-md text-neutral-40">{symbol}</div>
             </div>
-            <div>
-                {network === Network.Mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}
-            </div>
-        </div>
+            {network === Network.Mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}
+        </>
     );
 }
