@@ -181,9 +181,6 @@ impl ValidatorConfigBuilder {
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
-            name_service_package_address: None,
-            name_service_registry_id: None,
-            name_service_reverse_registry_id: None,
             transaction_deny_config: Default::default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
@@ -443,9 +440,6 @@ impl FullnodeConfigBuilder {
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),
-            name_service_package_address: None,
-            name_service_registry_id: None,
-            name_service_reverse_registry_id: None,
             transaction_deny_config: Default::default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),

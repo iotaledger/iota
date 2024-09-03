@@ -2,22 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
 import { type CheckpointPage } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
-
-import { type ReactNode } from 'react';
-import { HighlightedTableCol, TxTimeType } from '~/components';
-import { CheckpointLink, CheckpointSequenceLink } from '~/components/ui';
+import { checkpointSequenceToLink, checkpointToLink } from '~/components';
 
 interface CheckpointData {
-    digest: ReactNode;
-    time: ReactNode;
-    sequenceNumber: ReactNode;
-    transactionBlockCount: ReactNode;
+    digest: TableCellProps;
+    time: TableCellProps;
+    sequenceNumber: TableCellProps;
+    transactionBlockCount: TableCellProps;
 }
 
 interface TableColumn {
-    header: () => string;
+    header: string;
     accessorKey: keyof CheckpointData;
 }
 
@@ -27,38 +24,41 @@ interface CheckpointTableData {
 }
 
 // Generate table data from the checkpoints data
-export function generateTableDataFromCheckpointsData(data: CheckpointPage): CheckpointTableData {
+export function generateTableDataFromCheckpointsData(results: CheckpointPage): CheckpointTableData {
     return {
         data:
-            data?.data.map((checkpoint) => ({
-                digest: (
-                    <HighlightedTableCol first>
-                        <CheckpointLink digest={checkpoint.digest} />
-                    </HighlightedTableCol>
-                ),
-                time: <TxTimeType timestamp={Number(checkpoint.timestampMs)} />,
-                sequenceNumber: <CheckpointSequenceLink sequence={checkpoint.sequenceNumber} />,
-                transactionBlockCount: (
-                    <Text variant="bodySmall/medium" color="steel-darker">
-                        {checkpoint.transactions.length}
-                    </Text>
-                ),
+            results.data.map((checkpoint) => ({
+                digest: {
+                    type: TableCellType.Link,
+                    label: checkpoint.digest,
+                    to: checkpointToLink({ digest: checkpoint.digest }),
+                },
+                time: { type: TableCellType.Text, label: checkpoint.timestampMs },
+                sequenceNumber: {
+                    type: TableCellType.Link,
+                    label: checkpoint.sequenceNumber,
+                    to: checkpointSequenceToLink({ sequence: checkpoint.sequenceNumber }),
+                },
+                transactionBlockCount: {
+                    type: TableCellType.Text,
+                    label: checkpoint.transactions.length.toString(),
+                },
             })) ?? [],
         columns: [
             {
-                header: () => 'Digest',
+                header: 'Digest',
                 accessorKey: 'digest',
             },
             {
-                header: () => 'Sequence Number',
+                header: 'Sequence Number',
                 accessorKey: 'sequenceNumber',
             },
             {
-                header: () => 'Time',
+                header: 'Time',
                 accessorKey: 'time',
             },
             {
-                header: () => 'Transaction Block Count',
+                header: 'Transaction Block Count',
                 accessorKey: 'transactionBlockCount',
             },
         ],

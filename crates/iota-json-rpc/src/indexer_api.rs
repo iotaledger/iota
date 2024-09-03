@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
-use futures::{future, Stream, StreamExt};
+use futures::{Stream, StreamExt};
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
@@ -24,7 +24,7 @@ use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldName, Field},
+    dynamic_field::DynamicFieldName,
     error::IotaObjectResponseError,
     event::EventID,
 };
@@ -38,10 +38,9 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};
 
 use crate::{
-    authority_state::{StateRead, StateReadResult},
+    authority_state::StateRead,
     error::{Error, IotaRpcInputError},
-    logger::with_tracing,
-    name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
+    logger::FutureWithTracing as _,
     IotaRpcModule,
 };
 
@@ -102,7 +101,6 @@ pub struct IndexerApi<R> {
     state: Arc<dyn StateRead>,
     read_api: R,
     transaction_kv_store: Arc<TransactionKeyValueStore>,
-    name_service_config: NameServiceConfig,
     pub metrics: Arc<JsonRpcMetrics>,
     subscription_semaphore: Arc<Semaphore>,
 }
@@ -112,7 +110,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
         state: Arc<AuthorityState>,
         read_api: R,
         transaction_kv_store: Arc<TransactionKeyValueStore>,
-        name_service_config: NameServiceConfig,
         metrics: Arc<JsonRpcMetrics>,
         max_subscriptions: Option<usize>,
     ) -> Self {
@@ -121,7 +118,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
             state,
             transaction_kv_store,
             read_api,
-            name_service_config,
             metrics,
             subscription_semaphore: Arc::new(Semaphore::new(max_subscriptions)),
         }
@@ -148,16 +144,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
             Err(_) => bail!("Resources exhausted"),
         }
     }
-
-    fn get_latest_checkpoint_timestamp_ms(&self) -> StateReadResult<u64> {
-        let latest_checkpoint = self.state.get_latest_checkpoint_sequence_number()?;
-
-        let checkpoint = self
-            .state
-            .get_verified_checkpoint_by_sequence_number(latest_checkpoint)?;
-
-        Ok(checkpoint.timestamp_ms)
-    }
 }
 
 #[async_trait]
@@ -170,54 +156,52 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
-        with_tracing(
-            async move {
-                let limit = validate_limit(limit, *QUERY_MAX_RESULT_LIMIT)
-                    .map_err(IotaRpcInputError::from)?;
-                self.metrics.get_owned_objects_limit.report(limit as u64);
-                let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
-                let options = options.unwrap_or_default();
-                let mut objects =
-                    self.state
-                        .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
+        async move {
+            let limit =
+                validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(IotaRpcInputError::from)?;
+            self.metrics.get_owned_objects_limit.report(limit as u64);
+            let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+            let options = options.unwrap_or_default();
+            let mut objects =
+                self.state
+                    .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
 
-                // objects here are of size (limit + 1), where the last one is the cursor for
-                // the next page
-                let has_next_page = objects.len() > limit;
-                objects.truncate(limit);
-                let next_cursor = objects
-                    .last()
-                    .cloned()
-                    .map_or(cursor, |o_info| Some(o_info.object_id));
+            // objects here are of size (limit + 1), where the last one is the cursor for
+            // the next page
+            let has_next_page = objects.len() > limit;
+            objects.truncate(limit);
+            let next_cursor = objects
+                .last()
+                .cloned()
+                .map_or(cursor, |o_info| Some(o_info.object_id));
 
-                let data = match options.is_not_in_object_info() {
-                    true => {
-                        let object_ids = objects.iter().map(|obj| obj.object_id).collect();
-                        self.read_api
-                            .multi_get_objects(object_ids, Some(options))
-                            .await
-                            .map_err(|e| Error::InternalError(anyhow!(e)))?
-                    }
-                    false => objects
-                        .into_iter()
-                        .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
-                        .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
-                };
+            let data = match options.is_not_in_object_info() {
+                true => {
+                    let object_ids = objects.iter().map(|obj| obj.object_id).collect();
+                    self.read_api
+                        .multi_get_objects(object_ids, Some(options))
+                        .await
+                        .map_err(|e| Error::InternalError(anyhow!(e)))?
+                }
+                false => objects
+                    .into_iter()
+                    .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
+                    .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
+            };
 
-                self.metrics
-                    .get_owned_objects_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .get_owned_objects_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(Page {
-                    data,
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+            self.metrics
+                .get_owned_objects_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .get_owned_objects_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(Page {
+                data,
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
 
@@ -230,57 +214,55 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<TransactionBlocksPage> {
-        with_tracing(
-            async move {
-                let limit = cap_page_limit(limit);
-                self.metrics.query_tx_blocks_limit.report(limit as u64);
-                let descending = descending_order.unwrap_or_default();
-                let opts = query.options.unwrap_or_default();
+        async move {
+            let limit = cap_page_limit(limit);
+            self.metrics.query_tx_blocks_limit.report(limit as u64);
+            let descending = descending_order.unwrap_or_default();
+            let opts = query.options.unwrap_or_default();
 
-                // Retrieve 1 extra item for next cursor
-                let mut digests = self
-                    .state
-                    .get_transactions(
-                        &self.transaction_kv_store,
-                        query.filter,
-                        cursor,
-                        Some(limit + 1),
-                        descending,
-                    )
+            // Retrieve 1 extra item for next cursor
+            let mut digests = self
+                .state
+                .get_transactions(
+                    &self.transaction_kv_store,
+                    query.filter,
+                    cursor,
+                    Some(limit + 1),
+                    descending,
+                )
+                .await
+                .map_err(Error::from)?;
+
+            // extract next cursor
+            let has_next_page = digests.len() > limit;
+            digests.truncate(limit);
+            let next_cursor = digests.last().cloned().map_or(cursor, Some);
+
+            let data: Vec<IotaTransactionBlockResponse> = if opts.only_digest() {
+                digests
+                    .into_iter()
+                    .map(IotaTransactionBlockResponse::new)
+                    .collect()
+            } else {
+                self.read_api
+                    .multi_get_transaction_blocks(digests, Some(opts))
                     .await
-                    .map_err(Error::from)?;
+                    .map_err(|e| Error::InternalError(anyhow!(e)))?
+            };
 
-                // extract next cursor
-                let has_next_page = digests.len() > limit;
-                digests.truncate(limit);
-                let next_cursor = digests.last().cloned().map_or(cursor, Some);
-
-                let data: Vec<IotaTransactionBlockResponse> = if opts.only_digest() {
-                    digests
-                        .into_iter()
-                        .map(IotaTransactionBlockResponse::new)
-                        .collect()
-                } else {
-                    self.read_api
-                        .multi_get_transaction_blocks(digests, Some(opts))
-                        .await
-                        .map_err(|e| Error::InternalError(anyhow!(e)))?
-                };
-
-                self.metrics
-                    .query_tx_blocks_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .query_tx_blocks_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(Page {
-                    data,
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+            self.metrics
+                .query_tx_blocks_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .query_tx_blocks_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(Page {
+                data,
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
     #[instrument(skip(self))]
@@ -292,40 +274,38 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage> {
-        with_tracing(
-            async move {
-                let descending = descending_order.unwrap_or_default();
-                let limit = cap_page_limit(limit);
-                self.metrics.query_events_limit.report(limit as u64);
-                // Retrieve 1 extra item for next cursor
-                let mut data = self
-                    .state
-                    .query_events(
-                        &self.transaction_kv_store,
-                        query,
-                        cursor,
-                        limit + 1,
-                        descending,
-                    )
-                    .await
-                    .map_err(Error::from)?;
-                let has_next_page = data.len() > limit;
-                data.truncate(limit);
-                let next_cursor = data.last().map_or(cursor, |e| Some(e.id));
-                self.metrics
-                    .query_events_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .query_events_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(EventPage {
-                    data,
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+        async move {
+            let descending = descending_order.unwrap_or_default();
+            let limit = cap_page_limit(limit);
+            self.metrics.query_events_limit.report(limit as u64);
+            // Retrieve 1 extra item for next cursor
+            let mut data = self
+                .state
+                .query_events(
+                    &self.transaction_kv_store,
+                    query,
+                    cursor,
+                    limit + 1,
+                    descending,
+                )
+                .await
+                .map_err(Error::from)?;
+            let has_next_page = data.len() > limit;
+            data.truncate(limit);
+            let next_cursor = data.last().map_or(cursor, |e| Some(e.id));
+            self.metrics
+                .query_events_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .query_events_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(EventPage {
+                data,
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
 
@@ -364,31 +344,29 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage> {
-        with_tracing(
-            async move {
-                let limit = cap_page_limit(limit);
-                self.metrics.get_dynamic_fields_limit.report(limit as u64);
-                let mut data = self
-                    .state
-                    .get_dynamic_fields(parent_object_id, cursor, limit + 1)
-                    .map_err(Error::from)?;
-                let has_next_page = data.len() > limit;
-                data.truncate(limit);
-                let next_cursor = data.last().cloned().map_or(cursor, |c| Some(c.0));
-                self.metrics
-                    .get_dynamic_fields_result_size
-                    .report(data.len() as u64);
-                self.metrics
-                    .get_dynamic_fields_result_size_total
-                    .inc_by(data.len() as u64);
-                Ok(DynamicFieldPage {
-                    data: data.into_iter().map(|(_, w)| w).collect(),
-                    next_cursor,
-                    has_next_page,
-                })
-            },
-            None,
-        )
+        async move {
+            let limit = cap_page_limit(limit);
+            self.metrics.get_dynamic_fields_limit.report(limit as u64);
+            let mut data = self
+                .state
+                .get_dynamic_fields(parent_object_id, cursor, limit + 1)
+                .map_err(Error::from)?;
+            let has_next_page = data.len() > limit;
+            data.truncate(limit);
+            let next_cursor = data.last().cloned().map_or(cursor, |c| Some(c.0));
+            self.metrics
+                .get_dynamic_fields_result_size
+                .report(data.len() as u64);
+            self.metrics
+                .get_dynamic_fields_result_size_total
+                .inc_by(data.len() as u64);
+            Ok(DynamicFieldPage {
+                data: data.into_iter().map(|(_, w)| w).collect(),
+                next_cursor,
+                has_next_page,
+            })
+        }
+        .trace()
         .await
     }
 
@@ -398,157 +376,26 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        with_tracing(
-            async move {
-                let (name_type, name_bcs_value) =
-                    self.extract_values_from_dynamic_field_name(name)?;
+        async move {
+            let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
 
-                let id = self
-                    .state
-                    .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
-                    .map_err(Error::from)?;
-                // TODO(chris): add options to `get_dynamic_field_object` API as well
-                if let Some(id) = id {
-                    self.read_api
-                        .get_object(id, Some(IotaObjectDataOptions::full_content()))
-                        .await
-                        .map_err(|e| Error::InternalError(anyhow!(e)))
-                } else {
-                    Ok(IotaObjectResponse::new_with_error(
-                        IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
-                    ))
-                }
-            },
-            None,
-        )
-        .await
-    }
-
-    #[instrument(skip(self))]
-    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
-        with_tracing(
-            async move {
-                // prepare the requested domain's field id.
-                let domain = name.parse::<Domain>().map_err(Error::from)?;
-                let record_id = self.name_service_config.record_field_id(&domain);
-
-                // prepare the parent's field id.
-                let parent_domain = domain.parent();
-                let parent_record_id = self.name_service_config.record_field_id(&parent_domain);
-
-                let current_timestamp_ms = self.get_latest_checkpoint_timestamp_ms()?;
-
-                // Do these two reads in parallel.
-                let mut requests = vec![self.state.get_object(&record_id)];
-
-                // Also add the parent in the DB reads if the requested domain is a subdomain.
-                if domain.is_subdomain() {
-                    requests.push(self.state.get_object(&parent_record_id));
-                }
-
-                // Couldn't find a `multi_get_object` for this crate (looks like it uses a k,v
-                // db) Always fetching both parent + child at the same time (even
-                // for node subdomains), to avoid sequential db reads. We do this
-                // because we do not know if the requested domain is a node
-                // subdomain or a leaf subdomain, and we can save a trip to the db.
-                let mut results = future::try_join_all(requests).await?;
-
-                // Removing without checking vector len, since it is known (== 1 or 2 depending
-                // on whether it is a subdomain or not).
-                let Some(object) = results.remove(0) else {
-                    return Ok(None);
-                };
-
-                let name_record = NameRecord::try_from(object)?;
-
-                // Handling SLD names & node subdomains is the same (we handle them as `node`
-                // records) We check their expiration, and and if not expired,
-                // return the target address.
-                if !name_record.is_leaf_record() {
-                    return if !name_record.is_node_expired(current_timestamp_ms) {
-                        Ok(name_record.target_address)
-                    } else {
-                        Err(Error::from(NameServiceError::NameExpired))
-                    };
-                }
-
-                // == Handle leaf subdomains case ==
-                // We can remove since we know that if we're here, we have a parent
-                // (which also means we queried it in the future above).
-                let Some(parent_object) = results.remove(0) else {
-                    return Err(Error::from(NameServiceError::NameExpired));
-                };
-
-                let parent_name_record = NameRecord::try_from(parent_object)?;
-
-                // For a leaf record, we check that:
-                // 1. The parent is a valid parent for that leaf record
-                // 2. The parent is not expired
-                if parent_name_record.is_valid_leaf_parent(&name_record)
-                    && !parent_name_record.is_node_expired(current_timestamp_ms)
-                {
-                    Ok(name_record.target_address)
-                } else {
-                    Err(Error::from(NameServiceError::NameExpired))
-                }
-            },
-            None,
-        )
-        .await
-    }
-
-    #[instrument(skip(self))]
-    async fn resolve_name_service_names(
-        &self,
-        address: IotaAddress,
-        _cursor: Option<ObjectID>,
-        _limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>> {
-        with_tracing(
-            async move {
-                let reverse_record_id = self
-                    .name_service_config
-                    .reverse_record_field_id(address.as_ref());
-
-                let mut result = Page {
-                    data: vec![],
-                    next_cursor: None,
-                    has_next_page: false,
-                };
-
-                let Some(field_reverse_record_object) =
-                    self.state.get_object(&reverse_record_id).await?
-                else {
-                    return Ok(result);
-                };
-
-                let domain = field_reverse_record_object
-                    .to_rust::<Field<IotaAddress, Domain>>()
-                    .ok_or_else(|| {
-                        Error::UnexpectedError(format!("Malformed Object {reverse_record_id}"))
-                    })?
-                    .value;
-
-                let domain_name = domain.to_string();
-
-                let resolved_address = self
-                    .resolve_name_service_address(domain_name.clone())
+            let id = self
+                .state
+                .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
+                .map_err(Error::from)?;
+            // TODO(chris): add options to `get_dynamic_field_object` API as well
+            if let Some(id) = id {
+                self.read_api
+                    .get_object(id, Some(IotaObjectDataOptions::full_content()))
                     .await
-                    .map_err(|e| Error::InternalError(anyhow!(e)))?;
-
-                // If looking up the domain returns an empty result, we return an empty result.
-                if resolved_address.is_none() {
-                    return Ok(result);
-                }
-
-                // TODO(manos): Discuss why is this even a paginated response.
-                // This API is always going to return a single domain name.
-                result.data.push(domain_name);
-
-                Ok(result)
-            },
-            None,
-        )
+                    .map_err(|e| Error::InternalError(anyhow!(e)))
+            } else {
+                Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
+                ))
+            }
+        }
+        .trace()
         .await
     }
 }

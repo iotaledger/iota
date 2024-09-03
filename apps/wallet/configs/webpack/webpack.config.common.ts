@@ -228,7 +228,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 Buffer: ['buffer', 'Buffer'],
             }),
             new SentryWebpackPlugin({
-                org: 'mysten-labs',
+                org: 'iota-foundation',
                 project: 'wallet',
                 include: OUTPUT_ROOT,
                 dryRun: !IS_PROD || !sentryAuthToken,

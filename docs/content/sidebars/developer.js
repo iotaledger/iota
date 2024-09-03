@@ -20,22 +20,12 @@ const developer = [
             'developer/getting-started/get-address',
             'developer/getting-started/get-coins',
             //'developer/getting-started/graphql-rpc',
-            {
-                type: 'category',
-                label: 'Your First IOTA dApp',
-                collapsed: false,
-                link: {
-                    type: 'doc',
-                    id: 'developer/getting-started/first-app/first-app',
-                },
-                items: [
-                    'developer/getting-started/first-app/write-package',
-                    'developer/getting-started/first-app/build-test',
-                    'developer/getting-started/first-app/publish',
-                    'developer/getting-started/first-app/debug',
-                    'developer/getting-started/first-app/client-tssdk',
-                ],
-            },
+            'developer/getting-started/create-a-package',
+            'developer/getting-started/create-a-module',
+            'developer/getting-started/build-test',
+            'developer/getting-started/publish',
+            'developer/getting-started/debug',
+            'developer/getting-started/client-tssdk',
         ],
     },
     {
@@ -283,7 +273,72 @@ const developer = [
             'developer/advanced/asset-tokenization',
         ],
     },
-
+    {
+        type: 'category',
+        label: 'Migrating from IOTA/Shimmer Stardust',
+        link: {
+            type: 'doc',
+            id: 'developer/stardust/stardust-migration',
+        },
+        items: [
+            'developer/stardust/exchanges',
+            'developer/stardust/move-models',
+            'developer/stardust/addresses',
+            'developer/stardust/units',
+            'developer/stardust/migration-process',
+            {
+                type: 'category',
+                label: 'Claiming Stardust Assets',
+                link: {
+                    type: 'doc',
+                    id: 'developer/stardust/claiming',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Basic Outputs',
+                        id: 'developer/stardust/claiming/basic',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Nft Outputs',
+                        id: 'developer/stardust/claiming/nft',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Alias Outputs',
+                        id: 'developer/stardust/claiming/alias',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Foundry Outputs',
+                        id: 'developer/stardust/claiming/foundry',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Output unlockable by an Alias/Nft Address',
+                        id: 'developer/stardust/claiming/address-unlock-condition',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Self-sponsor Shimmer Claiming',
+                        id: 'developer/stardust/claiming/self-sponsor',
+                    },
+                ],
+            },
+            'developer/stardust/vested',
+            'developer/stardust/testing',
+            'developer/stardust/if-tools',
+            'developer/stardust/faq',
+            'developer/stardust/advanced',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Exchange integration',
+        items: ['developer/exchange-integration/exchange-integration'],
+    },
+    'developer/dev-cheat-sheet',
     {
         type: 'category',
         label: 'Solidity/EVM Smart Contracts',
@@ -704,73 +759,6 @@ const developer = [
             },
         ],
     },
-
-    {
-        type: 'category',
-        label: 'Migrating from IOTA/Shimmer Stardust',
-        link: {
-            type: 'doc',
-            id: 'developer/stardust/stardust-migration',
-        },
-        items: [
-            'developer/stardust/exchanges',
-            'developer/stardust/move-models',
-            'developer/stardust/addresses',
-            'developer/stardust/units',
-            'developer/stardust/migration-process',
-            {
-                type: 'category',
-                label: 'Claiming Stardust Assets',
-                link: {
-                    type: 'doc',
-                    id: 'developer/stardust/claiming',
-                },
-                items: [
-                    {
-                        type: 'doc',
-                        label: 'Basic Outputs',
-                        id: 'developer/stardust/claiming/basic',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Nft Outputs',
-                        id: 'developer/stardust/claiming/nft',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Alias Outputs',
-                        id: 'developer/stardust/claiming/alias',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Foundry Outputs',
-                        id: 'developer/stardust/claiming/foundry',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Output unlockable by an Alias/Nft Address',
-                        id: 'developer/stardust/claiming/address-unlock-condition',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Self-sponsor Shimmer Claiming',
-                        id: 'developer/stardust/claiming/self-sponsor',
-                    },
-                ],
-            },
-            'developer/stardust/vested',
-            'developer/stardust/testing',
-            'developer/stardust/if-tools',
-            'developer/stardust/faq',
-            'developer/stardust/advanced',
-        ],
-    },
-
-    {
-        type: 'category',
-        label: 'Exchange integration',
-        items: ['developer/exchange-integration/exchange-integration'],
-    },
     {
         type: 'category',
         label: 'Decentralized Identity',
@@ -849,6 +837,5 @@ const developer = [
             'developer/iota-identity/faq',
         ],
     },
-    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

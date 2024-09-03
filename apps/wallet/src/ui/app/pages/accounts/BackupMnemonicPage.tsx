@@ -9,19 +9,16 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
-    TextArea,
 } from '@iota/apps-ui-kit';
 import { Exclamation, Info } from '@iota/ui-icons';
-import { Loading, PageTemplate } from '_components';
+import { HideShowDisplayBox, Loading, PageTemplate } from '_components';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import { useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
 
 export function BackupMnemonicPage() {
-    const [mnemonicCopied, setMnemonicCopied] = useState(false);
     const [mnemonicBackedUp, setMnemonicBackedUp] = useState(false);
 
     const { accountSourceID } = useParams();
@@ -46,21 +43,6 @@ export function BackupMnemonicPage() {
         })();
     }, [accountSourceID, passphraseMutation]);
 
-    async function handleCopy() {
-        if (!passphraseMutation?.data) {
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(passphraseMutation.data.join(' '));
-            setMnemonicCopied(true);
-            setTimeout(() => {
-                setMnemonicCopied(false);
-            }, 1000);
-        } catch {
-            toast.error('Failed to copy');
-        }
-    }
-
     return (
         <PageTemplate title="Export Mnemonic" isTitleCentered>
             <Loading loading={isPending}>
@@ -81,13 +63,10 @@ export function BackupMnemonicPage() {
                         <div className="flex flex-grow flex-col flex-nowrap">
                             <Loading loading={passphraseMutation.isPending}>
                                 {passphraseMutation.data ? (
-                                    <>
-                                        <TextArea
-                                            value={passphraseMutation.data.join(' ')}
-                                            isVisibilityToggleEnabled
-                                            rows={5}
-                                        />
-                                    </>
+                                    <HideShowDisplayBox
+                                        value={passphraseMutation.data.join(' ')}
+                                        copiedMessage="Mnemonic copied"
+                                    />
                                 ) : (
                                     <InfoBox
                                         type={InfoBoxType.Default}
@@ -101,15 +80,6 @@ export function BackupMnemonicPage() {
                                 )}
                             </Loading>
                         </div>
-                        {passphraseMutation.data && (
-                            <div className="flex justify-end">
-                                <Button
-                                    onClick={handleCopy}
-                                    type={ButtonType.Secondary}
-                                    text={mnemonicCopied ? 'Copied' : 'Copy'}
-                                />
-                            </div>
-                        )}
                     </div>
                     <div className="flex w-full flex-col">
                         <div className="flex w-full py-sm--rs">

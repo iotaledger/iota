@@ -138,38 +138,28 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid"],
+  themes: ["@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      algolia: {
-        // The application ID provided by Algolia
-        appId: "ZF283DJAYX",
-
-        // Public API key: it is safe to commit it
-        apiKey: "7f24db6c4ec06d6905592deb228f4460",
-
-        indexName: "iota",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-
-        // Optional: Specify domains where the navigation should occur through window.location instead on history.push. Useful when our Algolia config crawls multiple documentation sites and we want to navigate with window.location.href to them.
-        // externalUrlRegex: "external\\.com|domain\\.com",
-
-        // Optional: Replace parts of the item URLs from Algolia. Useful when using the same search index for multiple deployments using a different baseUrl. You can use regexp or string in the `from` param. For example: localhost:3000 vs myCompany.com/docs
-        //replaceSearchResultPathname: {
-        //from: "/docs/", // or as RegExp: /\/docs\//
-        //to: "/",
-        //},
-
-        // Optional: Algolia search parameters
-        //searchParameters: {},
-
-        // Optional: path for search page that enabled by default (`false` to disable it)
-        searchPagePath: "search",
-
-        //... other Algolia params
+      typesense: {
+        // Replace this with the name of your index/collection.
+        // It should match the "index_name" entry in the scraper's "config.json" file.
+        typesenseCollectionName: 'IOTADocs_1724878003',
+        typesenseServerConfig: {
+          nodes: [
+            {
+              host: 'docs-search.iota.org',
+              port: '',
+              protocol: 'https',
+            },
+          ],
+          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
+        },
+        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
+        typesenseSearchParameters: {},
+        // Optional
+        contextualSearch: true,
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -212,10 +202,6 @@ const config = {
             to: "references",
           },
         ],
-      },
-      colorMode: {
-        defaultMode: "dark",
-        disableSwitch: false,
       },
       footer: {
         logo: {

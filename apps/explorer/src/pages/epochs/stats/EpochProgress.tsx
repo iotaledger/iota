@@ -59,7 +59,7 @@ export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressPr
                         <Heading variant="heading6/medium" color="steel-darker">
                             {label}
                         </Heading>
-                        <ProgressBar animate progress={progress || 0} />
+                        <ProgressBar progress={progress || 0} />
                     </div>
                 ) : null}
             </div>

@@ -19,9 +19,10 @@
 
 # dev-tools team
 /crates/iota/ @iotaledger/dev-tools
-/crates/iota-sdk/ @iotaledger/dev-tools
 /crates/iota-open-rpc/ @iotaledger/dev-tools
 /crates/iota-open-rpc-macros/ @iotaledger/dev-tools
+/crates/iota-sdk/ @iotaledger/dev-tools
+/crates/iota-transaction-builder/ @iotaledger/dev-tools
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
 /apps/ @iotaledger/boxfish @iotaledger/tooling

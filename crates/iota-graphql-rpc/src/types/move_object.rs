@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_json_rpc::name_service::NameServiceConfig;
 use iota_types::{
     object::{Data, MoveObject as NativeMoveObject},
     TypeTag,
@@ -19,7 +18,6 @@ use super::{
     display::DisplayEntry,
     dynamic_field::{DynamicField, DynamicFieldName},
     iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotansRegistration, IotansRegistrationDowncastError},
     move_type::MoveType,
     move_value::MoveValue,
     object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookupKey, ObjectOwner, ObjectStatus},
@@ -114,7 +112,6 @@ pub(crate) enum IMoveObject {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotansRegistration(IotansRegistration),
 }
 
 /// The representation of an object as a Move Object, which exposes additional
@@ -194,33 +191,6 @@ impl MoveObject {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_)
             .staked_iotas(ctx, first, after, last, before)
-            .await
-    }
-
-    /// The domain explicitly configured as the default domain pointing to this
-    /// object.
-    pub(crate) async fn default_iotans_name(
-        &self,
-        ctx: &Context<'_>,
-        format: Option<DomainFormat>,
-    ) -> Result<Option<String>> {
-        OwnerImpl::from(&self.super_)
-            .default_iotans_name(ctx, format)
-            .await
-    }
-
-    /// The IotansRegistration NFTs owned by this object. These grant the owner
-    /// the capability to manage the associated domain.
-    pub(crate) async fn iotans_registrations(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<object::Cursor>,
-        last: Option<u64>,
-        before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotansRegistration>> {
-        OwnerImpl::from(&self.super_)
-            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -400,24 +370,6 @@ impl MoveObject {
             Err(CoinMetadataDowncastError::NotCoinMetadata) => Ok(None),
             Err(CoinMetadataDowncastError::Bcs(e)) => Err(Error::Internal(format!(
                 "Failed to deserialize CoinMetadata: {e}"
-            )))
-            .extend(),
-        }
-    }
-
-    /// Attempts to convert the Move object into a `IotansRegistration` object.
-    async fn as_iotans_registration(
-        &self,
-        ctx: &Context<'_>,
-    ) -> Result<Option<IotansRegistration>> {
-        let cfg: &NameServiceConfig = ctx.data_unchecked();
-        let tag = IotansRegistration::type_(cfg.package_address.into());
-
-        match IotansRegistration::try_from(self, &tag) {
-            Ok(registration) => Ok(Some(registration)),
-            Err(IotansRegistrationDowncastError::NotAIotansRegistration) => Ok(None),
-            Err(IotansRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
-                "Failed to deserialize IotansRegistration: {e}",
             )))
             .extend(),
         }
