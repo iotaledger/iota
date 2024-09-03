@@ -73,7 +73,6 @@ export function DAppInfoCard({
                 <SummaryCard
                     header="Permissions requested"
                     body={<DAppPermissionList permissions={permissions} />}
-                    boxShadow
                 />
             ) : null}
         </div>

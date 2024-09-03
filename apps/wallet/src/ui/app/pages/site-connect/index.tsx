@@ -166,9 +166,7 @@ function SiteConnectPage() {
                                     {lockedAccounts?.map((account) => (
                                         <AccountItemApproveConnection
                                             key={account.id}
-                                            showLock
                                             account={account}
-                                            disabled={account.isLocked}
                                         />
                                     ))}
                                 </div>
