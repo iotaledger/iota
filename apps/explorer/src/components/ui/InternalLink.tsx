@@ -67,3 +67,4 @@ export function createLinkTo<T extends string>(
 export const transactionToLink = createLinkTo('txblock', 'digest');
 export const checkpointToLink = createLinkTo('checkpoint', 'digest');
 export const epochToLink = createLinkTo('epoch', 'epoch');
+export const addressToLink = createLinkTo('address', 'address');

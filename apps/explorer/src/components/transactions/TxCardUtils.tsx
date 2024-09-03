@@ -6,7 +6,7 @@ import { getTotalGasUsed } from '@iota/core';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
-import { transactionToLink } from '../ui';
+import { addressToLink, transactionToLink } from '../ui';
 
 interface TransactionData {
     date: TableCellProps;
@@ -51,11 +51,16 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
                         ? getTotalGasUsed(transaction.effects)?.toString()
                         : '0',
                 },
-                sender: {
-                    type: TableCellType.TextToCopy,
-                    label: sender ?? '--',
-                    textToCopy: sender ?? '--',
-                },
+                sender: sender
+                    ? {
+                          type: TableCellType.Link,
+                          label: sender,
+                          to: addressToLink({ address: sender }),
+                      }
+                    : {
+                          type: TableCellType.Text,
+                          label: '--',
+                      },
             };
         }),
         columns: [
