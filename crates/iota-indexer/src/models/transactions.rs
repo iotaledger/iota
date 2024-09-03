@@ -26,14 +26,50 @@ use crate::{
 pub struct StoredTransaction {
     pub tx_sequence_number: i64,
     pub transaction_digest: Vec<u8>,
-    pub raw_transaction: Vec<u8>,
+    // ==> these are the values that we need to handle
+    pub raw_transaction: Vec<u8>, // oid or it can remain a bytea and we handle the conversion
+    // between oid and bytea on the client side based on conditions,
+    //
+    // 1. is there an easy way to switch from oid to bytea and vice versa? Either on the client
+    //    side, or on the server side.
+    //
+    //    it is probably feasible on the client.
+    // 2. how do we recognize the genesis transaction?
+    //
+    //    if `checkpoint_sequence_number == 0 && transaction_kind == SystemTransaction`
+    // 3. Writing
+    //
+    //    ```
+    //    let mut stored = StoredTransaction::from(IndexedTransaction);
+    //    if stored.is_genesis_transaction() {
+    //      let raw_tx = std::mem::take(&mut stored.raw_transaction);
+    //      let oid = lo_from_bytea();
+    //      stored.raw_transaction = oid_to_bytea(oid);
+    //    }
+    //
+    //    insert stored; run query with diesel
+    //
+    // 4. Read
+    //
+    //    ```
+    //    let mut stored = StoredTransaction::read();
+    //    if stored.is_genesis_transaction() {
+    //      let oid_bytes = std::mem::take(&mut stored.raw_transaction);
+    //      let oid = bytea_to_oid(oid_bytes);
+    //      let raw_tx = lo_get(oid);
+    //      stored.raw_transaction = raw_tx;
+    //    }
+    //
+    //    * We need to implement the server-side functions.
+    //    * We need to implement the client-side conversion function between oid and bytea.
     pub raw_effects: Vec<u8>,
-    pub checkpoint_sequence_number: i64,
+    // <==
+    pub checkpoint_sequence_number: i64, // this is zero for genesis
     pub timestamp_ms: i64,
     pub object_changes: Vec<Option<Vec<u8>>>,
     pub balance_changes: Vec<Option<Vec<u8>>>,
     pub events: Vec<Option<Vec<u8>>>,
-    pub transaction_kind: i16,
+    pub transaction_kind: i16, // system transaction
     pub success_command_count: i16,
 }
 
