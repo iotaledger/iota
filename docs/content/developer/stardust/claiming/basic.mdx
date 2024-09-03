@@ -57,12 +57,13 @@ Coming soon
 </Tabs>
 
 ### 2. Check the Native Token Balance
-
+  
 After fetching the `BasicOutput`, you need to check for any native tokens that might be stored within it. 
 These tokens are typically stored in a [`Bag`](../../../references/framework/iota-framework/bag.mdx). 
 You'll need to obtain the dynamic field keys used as bag indexes to access the native tokens.
 For native tokens,
 these keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
+
 
 <Tabs groupId="language">
 <TabItem value="rust" label="Rust">

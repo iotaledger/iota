@@ -3,28 +3,37 @@ title: Transfer to Object
 description: On IOTA, you can transfer objects to objects in the same way you can transfer objects to addresses.
 ---
 
-You can transfer objects to an object ID in the same way you transfer objects to an address, using the same functions. This is because IOTA does not distinguish between the 32-byte ID of an address and the 32-byte ID of an object (which are guaranteed not to overlap). The transfer to object operation takes advantage of this feature, allowing you to provide an object ID as the address input of a transfer operation.
+In IOTA, you have the flexibility to transfer objects not only to addresses but also directly to other objects.
+This feature is possible because the IOTA system does not differentiate between the 32-byte ID of an address
+and the 32-byte ID of an object—ensuring that they do not overlap.
+This allows you to treat an object ID as an address during a transfer operation,
+establishing a parent-child relationship between the objects.
 
-Because of the identical ID structure, you can use an object ID for the address field when transferring an object. In fact, all functionality around address-owned objects works the same for objects owned by other objects, you just replace the address with the object ID.
+When you transfer an object to another object,
+the recipient object (the parent) gains control over the transferred object (the child),
+subject to access controls defined by the module that governs the parent object.
+This operation provides versatility in managing object ownership and access within smart contracts.
 
-When you transfer an object to another object, you're basically establishing a form of parent-child authentication relationship. Objects that you have transferred to another object can be received by the (possibly transitive) owner of the parent object. The module that defines the type of the parent (receiving) object also defines the access control for receiving a child object.
+## Transferring to an Object
 
-These restrictions for accessing sent child objects are enforced dynamically by providing mutable access to the parent object's `UID` during the execution of the transaction. Because of this, you can transfer objects to and receive them from owned objects, dynamic field objects, wrapped objects, and shared objects.
+The process of transferring an object to another object is similar to transferring it to an address.
+However, there are a few considerations:
 
-One of the benefits of the transfer to object operation is the ability to have a stable ID for an on-chain wallet or account, for example. The transfer of the object doesn't affect its ID, regardless of the state of the object that you send it to. When you transfer an object, all of that object's child objects move with it, and the object's address remains the same whether you transfer it, wrap it, or hold it as a dynamic field.
+- Ensure that the object ID you are transferring to exists and is not immutable.
+- The recipient object (parent) may have specific rules or restrictions on receiving objects.
 
-## Transferring to object
+For objects with only the `key` ability, the module that defines the object must implement a custom receive function.
+This function is similar to custom transfer functions and is crucial for handling the transfer process correctly.
+After sending an object with the `key` ability, you can no longer access or use it unless specific conditions are met:
 
-Just like with normal object transfers, you must make sure that the object ID exists that you are transferring the object to. Additionally, make sure that the object that you are transferring to is not immutable. You can't access an object transferred to an immutable object.
+1. **Receiving Functions:** The module of the parent object (the object to which you're sending the `key` object) must define a function to receive objects.
+2. **Child Object Handling:** The module of the child object (the object being sent) must also define a function to receive the object.
+3. **Meeting Restrictions:** Both receiving functions (from the parent and child modules) must allow the transfer under their respective conditions.
+4. If any of the conditions or restrictions are not met, the transfer will fail, and you won’t be able to access or use the object after sending it.
 
-Be aware of both the type of the object you are transferring to and the object that is being transferred. The object that is transferred to (parent) can _always_:
-- Define predicates that can be dynamically checked to access the sent object.
-- Lack support for accessing objects that have been sent to it. Future versions of that package might support this functionality, but it's up to the package author to include it.
+## Example
 
-If the object being transferred has the `key` ability only, then:
-- The module that defines the object that is being transferred must implement a custom receive function for it, similar to custom transfer functions. Just as with custom transfer functions, a custom receivership function might have arbitrary restrictions they can enforce and that you should be aware of, or they may not exist.
-- After sending, you can't access or use the object unless the parent object's (object being sent to) module has defined a function to receive objects _and_ the child object's (object you're sending) module has defined a function to receive the object, and the restrictions that _both_ functions define are met. 
-
+Below is an example of how to transfer an object to both an address and an object ID:
 
 ```move
 // 0xADD is an address
@@ -38,7 +47,9 @@ iota::transfer::public_transfer(b, @0xADD);
 iota::transfer::public_transfer(c, @0x0B);
 ```
 
-Transferring an object to an object ID results in the same result as if you transferred the object to an address - the object's owner is the 32-byte address or object ID provided. Additionally, because there is no difference in the result of the object transfer, you can use existing RPC methods such as `getOwnedObjects` on the 32-byte ID. If the ID represents an address, then the method returns the objects owned by that address. If the ID is an object ID, then the method returns the objects the object ID owns (transferred objects).
+Both operations result in the transferred object having a new owner,
+identified by the provided 32-byte address or object ID.
+The process is seamless, and existing RPC methods, such as `getOwnedObjects`, work identically for both addresses and object IDs.
 
 ```json
 // Get the objects owned by the address 0xADD. Returns `b`.
@@ -62,11 +73,17 @@ Transferring an object to an object ID results in the same result as if you tran
 }
 ```
 
-## Receiving objects
+## Receiving Objects
 
-After an object `c` has been sent to another object `p`, `p` must then receive `c` to do anything with it. To receive the object `c`, a  `Receiving(o: ObjectRef)` argument type for programmable transaction blocks (PTBs) is used that takes an object reference containing the to-be-received object's `ObjectID`, `Version`, and `Digest` (just as owned object arguments for PTBs do). However, `Receiving` PTB arguments are not passed as an owned value or mutable reference within the transaction.
 
-To explain further, look at the core of the receiving interface in Move, which is defined in the `iota::transfer` module in the IOTA framework:
+When an object `c` is sent to another object `p`, `p` must receive `c` before it can interact with it.
+To receive `c`, the `Receiving(o: ObjectRef)` argument type is used in programmable transaction blocks (PTBs).
+This argument type includes the `ObjectID`, `Version`, and `Digest` of the object, similar to owned object arguments in PTBs. However, `Receiving` PTB arguments are not passed as an owned value or mutable reference within the transaction.
+
+### The Receiving Interface in Move
+
+The core of the receiving interface is defined in the [`iota::transfer`](../../../../references/framework/iota-framework/transfer.mdx) module in the IOTA framework:
+
 
 ```move
 module iota::transfer {
@@ -97,30 +114,38 @@ module iota::transfer {
 }
 ```
 
-Each Receiving argument referring to a sent object of type `T` in a PTB results in exactly one argument with a Move type of `iota::transfer::Receiving<T>`. You can then use this argument to receive the sent object of type `T` with the `iota::transfer::receive` function.
+### Key Concepts
 
-When you call the `iota::transfer::receive` function, you must pass a mutable reference to the parent object's `UID`. You can't get a mutable reference to the `UID` of an object, though, unless the defining module of the object exposes it. Consequently, the module that defines the type of the parent object that is receiving the child object defines access control policies and other restrictions on receiving objects that are sent to it. See the [authorization example](#receive-shared-example) for a demonstration of this pattern. The fact that the passed-in `UID` actually owns the object referenced by the `Receiving` parameter is dynamically checked and enforced. This allows access to objects that have been sent to, for example, dynamic fields where the ownership chain can only be established dynamically.
+- **Receiving Argument:** Each `Receiving` argument in a PTB refers to an object of type `T` and is represented by [`iota::transfer::Receiving<T>`](../../../../references/framework/iota-framework/transfer.mdx#struct-receiving).
+- **Receiving an Object:** To receive the object, call the [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive) function with a mutable reference to the parent object's `UID`. The module defining the parent object controls access and sets any restrictions on receiving the child object.
+- **Ownership Verification:** The system dynamically checks and enforces that the `UID` of the parent object actually owns the object referenced by the `Receiving` parameter.
 
-Because `iota::transfer::Receiving` has only the `drop` ability, the existence of a `Receiving<T>` argument represents the ability, but not the obligation to receive the object of type `T` specified by the object reference in the PTB `Receiving` argument during that transaction. You can use some, none, or all `Receiving` arguments in a PTB without issue. Any object that corresponds to a `Receiving` argument remains untouched (in particular, its object reference remain the same) unless it is received.
+Because [`iota::transfer::Receiving`](../../../../references/framework/iota-framework/transfer.mdx#struct-receiving) has only the `drop` ability,
+the existence of a `Receiving<T>` argument represents the ability, but not the obligation,
+to receive the object during the transaction.
+Any object associated with a `Receiving` argument remains untouched unless it is explicitly received.
 
-## Custom receiving rules
+## Custom Receiving Rules
 
-Just like with [custom transfer policies](custom-rules.mdx), IOTA allows for the definition of custom receivership rules for `key`-only objects. In particular, you can use the `iota::transfer::receive` function only on objects defined in the same module as the call to `iota::transfer::receive`--just like you can use the `iota::transfer::transfer` function only on objects defined in the module where it's being used.
+Similar to custom transfer policies, IOTA allows the definition of custom receivership rules for `key`-only objects.
 
-Similarly for objects that also have the `store` ability, anyone can use the `iota::transfer::public_receive` function to receive them--just like `iota::transfer::public_transfer` can transfer any objects that have the `store` ability on them.
+### Receiving Rules Based on Object Abilities
 
-This coupled with the fact that the parent object can always define custom rules around receivership means that you must consider the following matrix of permissions around receiving objects and the abilities of the object being sent based on the child object's abilities:
+- **Module-Specific Reception:** You can use the [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive)  function only on objects defined in the same module where the `receive` call is made, similar to the [`iota::transfer::transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-transfer)  function.
+- **Public Reception:** For objects that also have the `store` ability, anyone can use the [`iota::transfer::public_receive`](../../../../references/framework/iota-framework/transfer.mdx#function-public_receive)  function to receive them, akin to the [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function.
 
-| Child abilities  | Parent can restrict access | Child can restrict access |
-| ---------------  | ------ | ----- |
-| `key`            | Yes      | Yes     |
-| `key` + `store`  | Yes      | No     |
+This leads to the following matrix of permissions for receiving objects:
 
-Just like with custom transfer policies, you can use and couple these restrictions to create powerful expressions. For example, you can implement [soul-bound objects](#soul-bound-example) using both custom transfer and receivership rules.
+| Child Abilities  | Parent Can Restrict Access | Child Can Restrict Access |
+| ---------------- | -------------------------- | ------------------------ |
+| `key`            | Yes                        | Yes                      |
+| `key` + `store`  | Yes                        | No                       |
+
+You can combine these restrictions to create complex rules, such as implementing [soul-bound objects](#soul-bound-example).
 
 ## Using SDKs
 
-When creating transactions, you interact with `Receiving` transaction inputs almost exactly as you would with other object arguments in the IOTA TypeScript SDK. For example, if in the [Simple Account](#simple-account) example that follows you want to send a transaction that receives a coin object with ID `0xc0ffee` that was sent to your account at `0xcafe`, you can do the following using either the IOTA TypeScript SDK or IOTA Rust SDK:
+When creating transactions, you interact with `Receiving` transaction inputs in a similar way to other object arguments in the IOTA TypeScript SDK. For example, if you want to receive a coin object with ID `0xc0ffee` that was sent to your account at `0xcafe`, you can do the following:
 
 <Tabs groupId="language">
 
@@ -164,23 +189,28 @@ client
 
 </Tabs>
 
-Additionally, just as with object arguments that also have an `ObjectRef` constructor where you can provide an explicit object ID, version, and digest, there is also a `ReceivingRef` constructor that takes the same arguments corresponding to a receiving argument.
+Additionally, similar to object arguments with an `ObjectRef` constructor where you can provide an explicit object ID, version, and digest, there is also a `ReceivingRef` constructor that takes the same arguments corresponding to a receiving argument.
 
 ## Examples
 
-The following examples demonstrate receiving previously sent objects.
+### Receiving Objects from Shared Objects
 
-### Receiving objects from shared objects {#receive-shared-example}
+If you want to allow receiving sent objects from shared objects defined in a module, you should add dynamic authorization checks.
+Otherwise, anyone could receive sent objects.
 
-Generally, if you want to allow receiving sent objects from shared objects that are defined in the module, add dynamic authorization checks; otherwise, anyone could receive sent objects. In this example, a shared object (`SharedObject`) holds a counter that anyone can increment, but only the address `0xB0B` can receive objects from the shared object. 
+Because the `receive_object` function is generic over the object being received, it can only receive objects that have both `key` and `store` abilities.
+`receive_object` must also use the [`iota::transfer::public_receive`](../../../../references/framework/iota-framework/transfer.mdx#function-public_receive)
+function to receive the object and not [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive)
+because you can only use `receive` on objects defined in the current module.
 
-Because the `receive_object` function is generic over the object being received, it can only receive objects that are both `key` and `store`. `receive_object` must also use the `iota::transfer::public_receive` function to receive the object and not `iota::transfer::receive` because you can only use `receive` on objects defined in the current module.
+In this example, a shared object (`SharedObject`) holds a counter that anyone can increment,
+but only the address `0xB0B` can receive objects from it:
 
 ```move
 module examples::shared_object_auth {
-    use iota::transfer::Receiving;
-    const EAccessDenied: u64 = 0;
-    const AuthorizedReceiverAddr: address = @0xB0B;
+use iota::transfer::Receiving;
+const EAccessDenied: u64 = 0;
+const AuthorizedReceiverAddr: address = @0xB0B;
 
     public struct SharedObject has key {
         id: object::UID,
@@ -201,7 +231,7 @@ module examples::shared_object_auth {
     }
 
     /// Objects can only be received from the `SharedObject` by the
-    /// `AuthorizedReceiverAddr` otherwise the transaction aborts.
+    /// `AuthorizedReceiverAddr`, otherwise the transaction aborts.
     public fun receive_object<T: key + store>(obj: &mut SharedObject, sent: Receiving<T>, ctx: &TxContext): T {
         assert!(tx_context::sender(ctx) == AuthorizedReceiverAddr, EAccessDenied);
         transfer::public_receive(&mut obj.id, sent)
@@ -209,11 +239,10 @@ module examples::shared_object_auth {
 }
 ```
 
-### Receiving objects and adding them as dynamic fields {#simple-account}
+### Receiving Objects and Adding Them as Dynamic Fields
 
-This example defines a basic account-type model where an `Account` object holds its coin balances in different dynamic fields. This `Account` is also transferable to a different address or object.
-
-Importantly, the address that coins are to be sent with this `Account` object remains the same regardless of whether the `Account` object is transferred, wrapped (for example, in an escrow account), or moved into a dynamic field. In particular, there is a stable ID for a given `Account` object across the object's lifecycle, regardless of any ownership changes.
+This example defines a basic account model where an `Account` object holds coin balances in dynamic fields.
+The address associated with the `Account` object remains consistent regardless of whether the `Account` object is transferred, wrapped, or moved into a dynamic field.
 
 ```move
 module examples::account {
@@ -274,11 +303,13 @@ module examples::account {
 }
 ```
 
-### Soul-bound objects {#soul-bound-example}
+### Soul-Bound Objects {#soul-bound-example}
 
-The ability to control the rules about how and when an object can be received, and how and when it can be transferred allows us to define a type of "soul-bound" object that can be used by value in a transaction, but it must always stay in the same place, or be returned to the same object.
+Soul-bound objects are bound to a specific address and must remain there or be returned to it.
+The following module implements this by creating a receipt that must be destroyed within the same transaction where the object is received.
+The object must then be transferred back to its original location using the `return_object` function.
 
-You can implement a simple version of this with the following module where the `get_object` function receives the soul-bound object and creates a receipt that must be destroyed in the transaction in order for it to execute successfully. However, in order to destroy the receipt, the object that was received must be transferred back to the object it was received from in the transaction using the `return_object` function. 
+
 
 ```move
 module examples::soul_bound {

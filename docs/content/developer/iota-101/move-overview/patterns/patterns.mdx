@@ -1,0 +1,31 @@
+---
+title: Patterns
+description: Move coding patterns and techniques to solve logic challenges when developing Move packages for the IOTA blockchain, including capabilities, witness and transferable witness, hot potato, and ID pointer.
+---
+
+# Move Coding Patterns
+
+This section introduces various Move coding patterns designed to address specific logic challenges
+you may encounter while developing packages for the IOTA blockchain.
+
+## Capabilities
+
+The [capability pattern](capabilities.mdx) allows for the authorization of actions on an object.
+
+## Witness and Transferable Witness
+
+A [witness](witness.mdx) and a [transferable witness](transferable-witness.mdx) are types with the `drop` ability 
+that proves its owner was present during a privileged operation.
+For example, having access to a one-time witness ([OTW](../one-time-witness.mdx))
+for a module demonstrates that the code is being executed at the time the module was first published.
+
+## Hot Potato
+
+The [hot potato pattern](hot-potato.mdx) refers to a struct that lacks capabilities,
+meaning it can only be packed and unpacked within its defining module.
+
+## ID Pointer
+
+Objects can reference each other by using their [IDs as pointers](id-pointer.mdx).
+For example, 
+a capability that controls access to another object might store that object's `ID` to perform authorization checks.

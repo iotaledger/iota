@@ -137,7 +137,7 @@ to hold balances of tokens, as well as the [`CoinManager`](../../references/fram
 to control the supply of the token through minting and burning.
 
 A native token and its foundry from the Stardust ledger therefore translate to the following in the move ledger:
- - A published move package that defines the currency type ([one-time witness](../iota-101/iota-move-concepts/one-time-witness.mdx))
+ - A published move package that defines the currency type ([one-time witness](../iota-101/move-overview/one-time-witness.mdx))
    for the native token. The template that is used for every native token package can be found in the [IOTA Genesis Builder](https://github.com/iotaledger/iota/blob/develop/crates/iota-genesis-builder/src/stardust/native_token/package_template/sources/native_token_template.move).
    The parameters of the template are filled with the [IRC-30 metadata](https://github.com/iotaledger/tips/blob/main/tips/TIP-0030/tip-0030.md) of the native token from Stardust.
  - The `CoinManager` shared object that gives access to the coin metadata and supply on-chain.

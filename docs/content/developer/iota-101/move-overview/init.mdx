@@ -1,0 +1,35 @@
+---
+description: Learn about the `init` function in Move modules, including its unique characteristics and proper usage.
+---
+# Module Initializers
+
+In Move, the `init` function plays a critical role during the module's lifecycle,
+executing only once at the moment of module publication.
+To ensure proper usage, the `init` function must conform to specific criteria:
+
+- **Function Name:** The function must be named `init`.
+- **Parameter List:** The last parameter must be of type `&mut TxContext` or `&TxContext`.
+- **Return Values:** The function must not return any values.
+- **Visibility:** The function should be private.
+- **Optional Parameter:** The parameter list may optionally begin by accepting the module's one-time witness by value.
+
+Here are some examples of valid `init` functions:
+
+- `fun init(ctx: &TxContext)`
+- `fun init(ctx: &mut TxContext)`
+- `fun init(otw: EXAMPLE, ctx: &TxContext)`
+- `fun init(otw: EXAMPLE, ctx: &mut TxContext)`
+
+:::warning 
+
+It's important to note that `init` functions are executed only once when the package is initially published.
+They do not run during subsequent package upgrades.
+If an `init` function is added during an upgrade (whether in a new or existing module), it will not be executed.
+:::
+
+
+Below is an example of a valid `init` function within a Move module:
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/init.move
+```
