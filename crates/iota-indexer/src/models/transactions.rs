@@ -18,7 +18,7 @@ use move_bytecode_utils::module_cache::GetModule;
 use crate::{
     db::PgConnectionPool,
     errors::{Context, IndexerError},
-    models::large_objects::{lo_create, lo_put},
+    models::large_objects::{lo_create, lo_get, lo_put},
     schema::transactions,
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult, TransactionKind},
 };
@@ -310,5 +310,47 @@ impl StoredTransaction {
             self.raw_transaction = oid.to_le_bytes().to_vec();
         }
         Ok(self)
+    }
+
+    pub fn try_get_from_storage(
+        tx_digest: Vec<u8>,
+        pool: &PgConnectionPool,
+    ) -> Result<Self, IndexerError> {
+        // 1: get the transaction wich matches the tx digest
+        let mut conn = crate::db::get_pg_pool_connection(pool)?;
+        let mut stored = transactions::table
+            .filter(transactions::transaction_digest.eq(tx_digest))
+            .first::<Self>(&mut conn)?;
+        // 2: check if it's not a genesis transaction
+        if !stored.is_genesis() {
+            return Ok(stored);
+        }
+        // if it's a genesis transaction
+        //
+        // 3: get the OID from raw_transactions and convert ti to u32
+        let raw_oid = std::mem::take(&mut stored.raw_transaction);
+        let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
+            IndexerError::GenericError("invalid large object identifier".to_owned())
+        })?;
+        let oid = u32::from_le_bytes(raw_oid);
+        // 4: fetch the chubks from large_obj_table
+        let mut chunk_num = 0;
+        loop {
+            let offset = i64::try_from(chunk_num * Self::LARGE_OBJECT_CHUNK)
+                .map_err(|e| IndexerError::GenericError(e.to_string()))?;
+            let length = i32::try_from(Self::LARGE_OBJECT_CHUNK)
+                .map_err(|e| IndexerError::GenericError(e.to_string()))?;
+            let chunk = select(lo_get(oid, Some(offset), Some(length)))
+                .get_result::<Vec<u8>>(&mut conn)
+                .map_err(IndexerError::from)
+                .context("failed to insert large object chunk")?;
+            let chunk_len = chunk.len();
+            stored.raw_transaction.extend(chunk);
+            if chunk_len < Self::LARGE_OBJECT_CHUNK {
+                break;
+            }
+            chunk_num += 1;
+        }
+        Ok(stored)
     }
 }

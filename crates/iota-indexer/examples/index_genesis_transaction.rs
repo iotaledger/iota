@@ -5,6 +5,7 @@
 use iota_genesis_builder::{Builder as GenesisBuilder, SnapshotSource, SnapshotUrl};
 use iota_indexer::{
     errors::IndexerError,
+    models::transactions::StoredTransaction,
     store::indexer_store::IndexerStore,
     test_utils::create_pg_store,
     types::{IndexedTransaction, TransactionKind},
@@ -78,10 +79,14 @@ pub async fn main() -> Result<(), IndexerError> {
         successful_tx_num: 1,
     };
 
+    let digest_to_bytes = db_txn.tx_digest.into_inner().to_vec();
+
     let pg_store = create_pg_store(Some(DEFAULT_DB_URL.to_owned()), None);
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
-    // TODO: read the transaction from the table
-    // and assert that the transaction data is the same
+    let stored =
+        StoredTransaction::try_get_from_storage(digest_to_bytes, &pg_store.blocking_cp()).unwrap();
+
+    assert_eq!(stored.raw_transaction, vec![0; 2 * 1024 * 1024 * 1024]);
     Ok(())
 }
