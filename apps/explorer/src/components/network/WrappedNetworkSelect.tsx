@@ -7,12 +7,17 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NetworkContext } from '~/contexts';
-import { CustomRPCInput, type NetworkOption } from '~/components/ui';
+import { CustomRPCInput } from '~/components/ui';
 import { ampli } from '~/lib/utils';
 import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { ArrowLeft, ArrowDown, CheckmarkFilled } from '@iota/ui-icons';
 import { Transition } from '@headlessui/react';
+
+interface NetworkOption {
+    id: string;
+    label: string;
+}
 
 export function NetworkSelector(): JSX.Element {
     const elementRef = useRef<HTMLDivElement>(null);
