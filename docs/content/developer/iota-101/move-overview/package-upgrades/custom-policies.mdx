@@ -1,46 +1,52 @@
 ---
-title: Custom Upgrade Policies
+description: A guide to understanding and implementing secure package upgrade policies in IOTA using Move.
 ---
-
 import UpgradeSingleKeyRisk from "../../../../_snippets/upgrade-single-key-risk.mdx";
 
-Protecting the ability to upgrade a package on chain using a single key can pose a security risk for several reasons:
+# Custom Policies
+
+Relying on a single key to manage on-chain package upgrades can introduce significant security vulnerabilities:
 
 <UpgradeSingleKeyRisk />
 
-To address the security risk of single-key upgrade ownership poses while still providing the opportunity to [upgrade live packages](./upgrade.mdx), IOTA offers _custom upgrade policies_. These policies protect `UpgradeCap` access and issue `UpgradeTicket` objects that authorize upgrades on a case-by-case basis.
+To mitigate these risks while still enabling [live package upgrades](./upgrade.mdx),
+IOTA offers _custom upgrade policies_.
+These policies secure access to the [`UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap) and issue [`UpgradeTicket`](../../../../references/framework/iota-framework/package.mdx#struct-upgradeticket) objects,
+authorizing upgrades on a per-case basis.
 
-## Compatibility {#compatibility}
+## Compatibility
 
-IOTA comes with a set of built-in package compatibility policies, listed here from most to least strict:
+IOTA provides several built-in package compatibility policies, ordered from most to least strict:
 
-| Policy          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Immutable       | No one can upgrade the package.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Dependency-only | You can modify the dependencies of the package only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Additive        | You can add new functionality to the package (e.g., new public functions or structs) but you can't change any of the existing functionality (e.g., the code in existing public functions cannot change).                                                                                                                                                                                                                                                                                                                                                                        |
-| Compatible      | The most relaxed policy. In addition to what the more restrictive policies allow, in an upgraded version of the package: <ul><li>You can change all function implementations.</li><li>You can remove the ability constraints on generic type parameters in function signatures.</li><li>You can change, remove, or make `public` any `private`, `public(friend)`, and `entry` function signatures.</li><li>You cannot change `public` function signatures (except in the case of ability constraints mentioned previously).</li><li>You cannot change existing types.</li></ul> |
+| Policy              | Description                                                                                                                                                                                                                                                                                                                         |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Immutable**       | Prevents any upgrades to the package.                                                                                                                                                                                                                                                                                               |
+| **Dependency-only** | Limits modifications to the package’s dependencies only.                                                                                                                                                                                                                                                                            |
+| **Additive**        | Allows adding new functionalities (e.g., new public functions or structs) but restricts changes to existing functionalities.                                                                                                                                                                                                        |
+| **Compatible**      | The least restrictive policy. Permits changes to all function implementations, the removal of ability constraints on generic type parameters in function signatures, and modifications to `private`, `public(friend)`, and `entry` function signatures. However, `public` function signatures and existing types cannot be changed. |
 
-Each of these policies, in the order listed, is a superset of the previous one in the type of changes allowed in the upgraded package.
+Each policy is a superset of the previous one, allowing progressively more flexibility in package upgrades.
 
-When you publish a package, by default it adopts the most relaxed, compatible policy. You can publish a package as part of a transaction block that can change the policy before the transaction block successfully completes, making the package available on chain for the first time at the desired policy level, rather than at the default one.
+When you publish a package, it defaults to the most relaxed, compatible policy.
+However, you can adjust the policy during the transaction block that publishes the package,
+setting the desired policy level before the package goes live on-chain.
 
-You can change the current policy by calling one of the functions in `iota::package` (`only_additive_upgrades`, `only_dep_upgrades`, `make_immutable`) on the package's `UpgradeCap` and a policy can become only more restrictive. For example, after you call `iota::package::only_dep_upgrades` to restrict the policy to become additive, calling `iota::package::only_additive_upgrades` on the `UpgradeCap` of the same package results in an error.
+You can restrict the current policy by invoking functions from the `iota::package` module
+(`only_additive_upgrades`, `only_dep_upgrades`, `make_immutable`) on the package's `UpgradeCap`.
+Note that a policy can only become more restrictive over time.
+For example, after applying the `only_dep_upgrades` policy,
+attempting to set a less restrictive policy like `only_additive_upgrades` will result in an error.
 
-## Upgrade overview {#upgrade-overview}
+## Upgrade Process Overview
 
-Package upgrades must occur end-to-end in a single transaction block and are composed of three commands:
+Package upgrades must be executed in a single transaction block, involving three key steps:
 
-1. **Authorization:** Get permission from the `UpgradeCap` to perform
-   the upgrade, creating an `UpgradeTicket`.
-1. **Execution:** Consume the `UpgradeTicket` and verify the package
-   bytecode and compatibility against the previous version, and create
-   the on-chain object representing the upgraded package. Return an
-   `UpgradeReceipt` as a result on success.
-1. **Commit:** Update the `UpgradeCap` with information about the
-   newly created package.
+1. **Authorization:** Obtain permission via the `UpgradeCap`, creating an `UpgradeTicket`.
+2. **Execution:** Use the `UpgradeTicket` to verify package bytecode and compatibility, and create the upgraded package on-chain. A successful upgrade returns an `UpgradeReceipt`.
+3. **Commit:** Update the `UpgradeCap` with the new package information.
 
-While step 2 is a built-in command, steps 1 and 3 are implemented as Move functions. The IOTA framework provides their most basic implementation:
+While step 2 is handled internally, steps 1 and 3 are implemented as Move functions.
+The IOTA framework provides basic implementations:
 
 ```move
 module iota::package {
@@ -57,42 +63,40 @@ module iota::package {
 }
 ```
 
-These are the functions that `iota client upgrade` calls for authorization and commit. Custom upgrade policies work by guarding
-access to a package `UpgradeCap` (and therefore to calls of these functions) behind extra conditions that are specific to that policy
-(such as voting, governance, permission lists, timelocks, and so on).
+These functions are invoked by the `iota client upgrade` command for authorization and commit.
+Custom upgrade policies can be created by adding additional conditions to these functions,
+such as voting mechanisms, governance models, permission lists, or timelocks.
 
-Any pair of functions that produces an `UpgradeTicket` from an `UpgradeCap` and consumes an `UpgradeReceipt` to update an
-`UpgradeCap` constitutes a custom upgrade policy.
+Any function pair that produces an `UpgradeTicket` from an `UpgradeCap` and consumes an `UpgradeReceipt` to update the `UpgradeCap` constitutes a custom upgrade policy.
 
-## UpgradeCap {#upgradecap}
+## UpgradeCap
 
-The `UpgradeCap` is the central type responsible for coordinating package upgrades.
+The [`UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap) type is crucial for managing package upgrades:
 
 ```move
 module iota::package {
-    public struct UpgradeCap has key, store {
-        id: UID,
-        package: ID,
-        version: u64,
-        policy: u8,
-    }
+public struct UpgradeCap has key, store {
+id: UID,
+package: ID,
+version: u64,
+policy: u8,
+}
 }
 ```
 
-Publishing a package creates the `UpgradeCap` object and upgrading the package updates that object. The owner of this object has permission to:
+Creating a package automatically generates the `UpgradeCap` object, and any upgrades modify this object. The owner of the `UpgradeCap` has the authority to:
 
-- Change the compatibility requirements for future upgrades.
-- Authorize future upgrades.
-- Make the package immutable (not upgradeable).
+- Modify compatibility requirements for future upgrades.
+- Approve future upgrades.
+- Make the package immutable.
 
-And its API guarantees the following properties:
+The `UpgradeCap` ensures the following:
 
-- Only the latest version of a package can be upgraded (a linear history is guaranteed).
-- Only one upgrade can be in-flight at any time (cannot authorize multiple concurrent upgrades).
-- An upgrade can only be authorized for the extent of a single transaction; no one can `store` the `UpgradeTicket` that proves authorization.
-- Compatibility requirements for a package can be made only more restrictive over time.
+- Only the latest package version can be upgraded, maintaining a linear upgrade history.
+- Only one upgrade can be in progress at any given time.
+- Upgrades must be authorized and completed within a single transaction.
 
-## UpgradeTicket {#upgradeticket}
+## UpgradeTicket
 
 ```move
 module iota::package {
@@ -105,29 +109,30 @@ module iota::package {
 }
 ```
 
-An `UpgradeTicket` is proof that an upgrade has been authorized. This authorization is specific to:
+An [`UpgradeTicket`](../../../../references/framework/iota-framework/package.mdx#struct-upgradeticket) is a proof of authorization for an upgrade,
+specific to:
 
-- A particular `package: ID` to upgrade from, which must be the latest package in the family identified by the `UpgradeCap` at `cap: ID`.
-- A particular `policy: u8` that attests to the kind of compatibility guarantees that the upgrade expects to adhere to.
-- A particular `digest: vector<u8>` that identifies the contents of the package after the upgrade.
+- The latest package version identified by `package: ID`.
+- The compatibility policy defined by `policy: u8`.
+- The package contents specified by `digest: vector<u8>`.
 
-When you attempt to run the upgrade, the validator checks that the upgrade it is about to perform matches the upgrade that was authorized along all those lines, and does not perform the upgrade if any of these criteria are not met.
+The upgrade process checks that these conditions match before proceeding.
+The `UpgradeTicket` must be used within the same transaction block it was created; otherwise, the transaction fails.
 
-After creating an `UpgradeTicket`, you must use it within that transaction block (you cannot store it for later, drop it, or burn it), or the transaction fails.
+### Package Digest
 
-### Package digest {#package-digest}
+The `digest` in the `UpgradeTicket` comes from the `digest` parameter passed to `authorize_upgrade`.
+While the function itself does not process the digest,
+custom policies can use it to verify upgrades against pre-approved bytecode or source code. 
+The digest is calculated by:
 
-The `UpgradeTicket` `digest` field comes from the `digest` parameter to `authorize_upgrade`, which the caller must supply. While
-`authorize_upgrade` does not process the `digest`, custom policies can use it to authorize only upgrades that it has seen the
-bytecode or source code for ahead of time. IOTA calculates the digest as follows:
+- Taking the bytecode of each module as an array of bytes.
+- Appending the list of the package's transitive dependencies, each represented as an array of bytes.
+- Sorting this list lexicographically.
+- Hashing each element in the sorted list using the `Blake2B` algorithm.
+- Computing the final digest from the hash state.
 
-- Take the bytecode for each module, represented as an array of bytes.
-- Append the list of the package's transitive dependencies, each represented as an array of bytes.
-- Sort this list of byte-arrays lexicographically.
-- Feed each element in the sorted list, in order, into a `Blake2B` hasher.
-- Compute the digest from this hash state.
-
-Refer to the [implementation for digest calculation](https://github.com/iotaledger/iota/blob/d8cb153d886d54752763fbdab631b062da7d894b/crates/iota-types/src/move_package.rs#L232-L251) for more information, but in most cases, you can rely on the Move toolchain to output the digest as part of the build, when passing the `--dump-bytecode-as-base64` flag:
+- Typically, the Move toolchain outputs the digest during the build process when using the `--dump-bytecode-as-base64` flag:
 
 ```bash
 iota move build --dump-bytecode-as-base64
@@ -138,10 +143,14 @@ BUILDING test
 {"modules":[<MODULE-BYTES-BASE64>],"dependencies":[<DEPENDENCY-IDS>],"digest":[59,43,173,195,216,88,176,182,18,8,24,200,200,192,196,197,248,35,118,184,207,205,33,59,228,109,184,230,50,31,235,201]}
 ```
 
-## UpgradeReceipt {#upgradereceipt}
+## UpgradeReceipt
 
 ```move
 module iota::package {
+public struct UpgradeReceipt {
+cap: ID,
+package: ID,
+}
     public struct UpgradeReceipt {
         cap: ID,
         package: ID,
@@ -149,42 +158,45 @@ module iota::package {
 }
 ```
 
-The `UpgradeReceipt` is proof that the `Upgrade` command ran successfully, and IOTA added the new package to the set of created
-objects for the transaction. It is used to update its `UpgradeCap` (identified by `cap: ID`) with the ID of the latest package in its
-family (`package: ID`).
+An [`UpgradeReceipt`](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt) confirms
+that the upgrade was successfully executed, and the new package was added to the transaction's created objects.
 
-After IOTA creates an `UpgradeReceipt`, you must use it to update its `UpgradeCap` within the same transaction block (you cannot store it for later, drop it, or burn it), or the transaction fails.
+The `UpgradeReceipt` must be used within the same transaction block to update the `UpgradeCap`
+, or the transaction will fail.
 
-## Isolating policies {#isolating-policies}
+## Best Practices for Custom Upgrade Policies
 
-When writing custom upgrade policies, prefer:
+When creating custom upgrade policies, it's advisable to:
 
-- separating them into their own package (not co-located with the code they govern the upgradeability of),
-- making that package immutable (not upgradeable), and
-- locking in the policy of the `UpgradeCap`, so that the policy cannot be made less restrictive later.
+- Implement them in a separate package from the code they govern.
+- Make the policy package immutable to prevent future changes.
+- Lock the `UpgradeCap` policy to prevent less restrictive changes later on.
 
-These best practices help uphold **informed user consent** and **bounded risk** by making it clear what a package's upgrade policy is
-at the moment a user locks value into it, and ensuring that the policy does not evolve to be more permissive with time, without the package user realizing and choosing to accept the new terms.
+These practices help ensure **informed user consent** and **bounded risk**,
+making it clear what the upgrade policy is when a user interacts with the package,
+and ensuring that the policy does not become more permissive over time without user knowledge and consent.
 
-## Example: "Day of the Week" upgrade policy {#example-upgrade}
+## Example: "Day of the Week" Upgrade Policy
 
-Time to put everything into practice by writing a toy upgrade policy that only authorizes upgrades on a particular day of the week (of the package creator's choosing).
+In this example, you'll create a simple upgrade policy that allows package upgrades only on a specific day of the week,
+as chosen by the package creator.
 
-### Creating an upgrade policy {#creating-upgrade-policy}
+### Creating the Upgrade Policy
 
-Start by creating a new Move package for the upgrade policy:
+Start by creating a new Move package to contain your upgrade policy:
 
 ```bash
 iota move new policy
 ```
 
-The command creates a `policy` directory with a `sources` folder and `Move.toml` manifest.
+This command creates a `policy` directory with a `sources` folder and a `Move.toml` manifest file.
 
-In the `sources` folder, create a source file named `day_of_week.move`. Copy and paste the following code into the file:
+Next, navigate to the `sources` folder and create a new file named `day_of_week.move`.
+Insert the following code into this file:
 
 ```move
 module policy::day_of_week {
-    use iota::package;
+use iota::package;
 
     public struct UpgradeCap has key, store {
         id: UID,
@@ -192,7 +204,7 @@ module policy::day_of_week {
         day: u8,
     }
 
-    /// Day is not a week day (number in range 0 <= day < 7).
+    /// Error code indicating that the provided day is not a valid weekday (must be between 0 and 6).
     const ENotWeekDay: u64 = 1;
 
     public fun new_policy(
@@ -206,18 +218,23 @@ module policy::day_of_week {
 }
 ```
 
-This code includes a constructor and defines the object type for the custom upgrade policy.
+This code defines a new struct, `UpgradeCap`,
+and a constructor function `new_policy`
+that initializes the custom upgrade policy based on the specified day of the week.
 
-You then need to add a function to authorize an upgrade, if on the correct day of the week. First, define a couple of constants, one for the error code that identifies an attempted upgrade on a day the policy doesn't allow, and another to define the number of milliseconds in a day (to be used shortly). Add these definitions directly under the current `ENotWeekDay` one.
+Next, add a function to authorize upgrades only on the correct day of the week.
+Start by defining two constants: one for the error code indicating an upgrade attempt on a disallowed day,
+and another for the number of milliseconds in a day:
 
 ```move
-// Request to authorize upgrade on the wrong day of the week.
+/// Error code for an attempted upgrade on the wrong day.
 const ENotAllowedDay: u64 = 2;
 
+/// Number of milliseconds in a day.
 const MS_IN_DAY: u64 = 24 * 60 * 60 * 1000;
 ```
 
-After the `new_policy` function, add a `week_day` function to get the current weekday. As promised, the function uses the `MS_IN_DAY` constant you defined earlier.
+After the `new_policy` function, add the `week_day` function, which calculates the current day of the week:
 
 ```move
 fun week_day(ctx: &TxContext): u8 {
@@ -227,12 +244,11 @@ fun week_day(ctx: &TxContext): u8 {
     // since the epoch by 3 so that 0 = Monday.
     ((days_since_unix_epoch + 3) % 7 as u8)
 }
-
 ```
 
-This function uses the epoch timestamp from `TxContext` rather than `Clock` because it needs only daily granularity, which means the upgrade transactions don't require consensus.
+This function uses the transaction context's epoch timestamp to determine the current weekday.
 
-Next, add an `authorize_upgrade` function that calls the previous function to get the current day of the week, then checks whether that value violates the policy, returning the `ENotAllowedDay` error value if it does.
+Next, add an `authorize_upgrade` function that checks whether today matches the allowed upgrade day and authorizes the upgrade if it does:
 
 ```move
 public fun authorize_upgrade(
@@ -248,7 +264,8 @@ public fun authorize_upgrade(
 
 The signature of a custom `authorize_upgrade` can be different from the signature of `iota::package::authorize_upgrade` as long as it returns an `UpgradeTicket`.
 
-Finally, provide implementations of `commit_upgrade` and `make_immutable` that delegate to their respective functions in `iota::package`:
+Finally, add implementations for the `commit_upgrade` and `make_immutable` functions,
+which delegate to the corresponding functions in the `iota::package` module:
 
 ```move
 public fun commit_upgrade(
@@ -265,7 +282,7 @@ public fun make_immutable(cap: UpgradeCap) {
 }
 ```
 
-The final code in your `day_of_week.move` file should resemble the following:
+The final version of your `day_of_week.move` file should look like this:
 
 ```move
 module policy::day_of_week {
@@ -324,9 +341,9 @@ module policy::day_of_week {
 }
 ```
 
-### Publishing an upgrade policy {#publishing-an-upgrade-policy}
+### Publishing an Upgrade Policy
 
-Use the `iota client publish` command to publish the policy.
+You can use the `iota client publish` command to publish the policy.
 
 ```bash
 iota client publish --gas-budget 100000000
@@ -337,7 +354,7 @@ iota client publish --gas-budget 100000000
   Toggle output
   </summary>
 
-A successful publish returns the following:
+A successful `publish` returns the following:
 
 ```bash
 INCLUDING DEPENDENCY Iota
@@ -421,7 +438,8 @@ Array [
 </details>
 
 
-Following best practices, use the IOTA Client CLI to call `iota::package::make_immutable` on the `UpgradeCap` to make the policy immutable.
+You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../../../../references/framework/iota-framework/package.mdx#function-make_immutable) on the
+`UpgradeCap` to make the policy immutable.
 
 ```bash
 iota client call --gas-budget 10000000 \
@@ -493,58 +511,77 @@ Array [
 
 </details>
 
+### Creating a Package for Testing
 
-### Creating a package for testing {#creating-testing-package}
+With your custom upgrade policy deployed on-chain, you’ll need a package to upgrade.
+This section will guide you through creating a basic package that you can reference in the following scenarios.
+If you already have a package, feel free to use it instead of creating a new one.
 
-With a policy now available on chain, you need a package to upgrade. This topic creates a basic package and references it in the following scenarios, but you can use any package you might have available instead of creating a new one.
-
-If you don't have a package available, use the `iota move new` command to create the template for a new package called `example`.
+If you don’t have a package available, use the following command to create a new Move package template named `example`:
 
 ```bash
 iota move new example
 ```
 
-In the `example/sources` directory, create an `example.move` file with the following code:
+In the `example/sources` directory, create a new file named `example.move` with the following code:
 
 ```move
 module example::example {
-    public struct Event has copy, drop { x: u64 }
+public struct Event has copy, drop { x: u64 }
+
     entry fun nudge() {
         iota::event::emit(Event { x: 41 })
     }
 }
 ```
 
-The instruction that follows publishes this example package and then upgrades it to change the value in the `Event` it emits. Because you are using a custom upgrade policy, you need to use the TypeScript SDK to build the package's publish and upgrade commands.
+This basic package contains an `Event` struct and a function `nudge` that emits the event with a value of `41`.
+In the instructions that follow,
+you'll publish this package and then upgrade it to change the value emitted in the `Event`.
 
-### Using TypeScript SDK {#using-typeccript-sdk}
+### Using the TypeScript SDK
 
-Create a new directory to store a Node.js project. You can use the `npm init` function to create the `package.json`, or manually create the file. Depending on your approach to creating `package.json`, populate or add the following JSON to it:
+To publish and upgrade the package using your custom policy,
+you'll need to use the [IOTA TypeScript SDK](../../../../references/ts-sdk/typescript/index.mdx).
+
+#### 1. Set Up a Node.js Project
+
+Create a new directory for your Node.js project. Inside this directory, initialize the project with `npm init` to create a `package.json` file.
+Alternatively, you can create the file manually.
+Ensure the `package.json` includes the following JSON:
 
 ```JSON
 { "type": "module" }
-
 ```
 
-Open a terminal or console to the root of your Node.js project. Run the following command to add the IOTA TypeScript SDK as a dependency:
+#### 2. Install the IOTA TypeScript SDK
+
+Open a terminal in your project directory and run the following command
+to install the IOTA TypeScript SDK as a dependency:
 
 ```bash
 npm install @iota/iota-sdk
 ```
 
-### Publishing a package with custom policy {#publishing-custom-policy}
+### Publishing a Package with a Custom Policy
 
-In the root of your Node.js project, create a script file named `publish.js`. Open the file for editing and define some constants:
+Next, you’ll publish your package, wrapping its `UpgradeCap` with the "Day of the Week" policy you created earlier.
+Follow these steps:
 
-- `IOTA`: the location of the `iota` CLI binary.
-- `POLICY_PACKAGE_ID`: the ID of our published `day_of_week` package.
+#### 1. Create a Script to Publish the Package
+
+In the root of your Node.js project, create a script file named `publish.js`.
+Open the file and start by defining constants for the IOTA CLI binary location and the `POLICY_PACKAGE_ID` of your published `day_of_week` package:
 
 ```js
 const IOTA = 'iota';
 const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
 ```
 
-Next, add boilerplate code to get the signer key pair for the currently active address in the IOTA Client CLI:
+#### 2. Get the Signer Key Pair
+
+Add boilerplate code to retrieve the signer key pair for the currently active address in the IOTA Client CLI:
+
 
 ```js
 import { execSync } from 'child_process';
@@ -580,8 +617,10 @@ const signer = (() => {
 })();
 ```
 
-Next, define the path of the package you are publishing. The following snippet assumes that the package is in a sibling directory to
-`publish.js`, called `example`:
+#### 3. Define the Package Path
+
+Define the path to the package you want to publish. 
+The following snippet assumes that the package is in a sibling directory to `publish.js`, named `example`:
 
 ```js
 import { fileURLToPath } from 'url';
@@ -591,7 +630,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packagePath = path.join(__dirname, 'example');
 ```
 
-Next, build the package:
+#### 4. Build the Package
+
+Build the package using the following code:
 
 ```js
 const { modules, dependencies } = JSON.parse(
@@ -602,7 +643,11 @@ const { modules, dependencies } = JSON.parse(
 );
 ```
 
-Next, construct the transaction to publish the package. Wrap its `UpgradeCap` in a "day of the week" policy, which permits upgrades on Tuesdays, and send the new policy back:
+#### 5. Construct and Execute the Transaction
+
+Construct the transaction to publish the package,
+wrap its `UpgradeCap` in the "Day of the Week" policy (allowing upgrades only on Tuesdays),
+and send the new policy back:
 
 ```js
 import { TransactionBlock } from '@iota/iota-sdk/transactions';
@@ -620,7 +665,10 @@ const tuesdayUpgradeCap = tx.moveCall({
 tx.transferObjects([tuesdayUpgradeCap], tx.pure(sender));
 ```
 
-And finally, execute that transaction and display its effects to the console. The following snippet assumes that you're running your examples against a local network. Pass `devnet`, `testnet`, or `mainnet` to the `getFullnodeUrl()` function to run on Devnet, Testnet, or Mainnet respectively:
+Finally, execute the transaction and display its effects in the console.
+The following snippet assumes you’re running your examples against a local network.
+Pass `devnet`, `testnet`, or `mainnet` to the `getFullnodeUrl()` function to run on Devnet,
+Testnet, or Mainnet, respectively:
 
 ```js
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -721,7 +769,6 @@ console.log(result)
 
 </details>
 
-
 Save your `publish.js` file, and then use Node.js to run the script:
 
 ```bash
@@ -797,13 +844,13 @@ BUILDING example
 </details>
 
 
-:::tip
+:::tip Node.js Version
 
 If you receive a `ReferenceError: fetch is not defined` error, use Node.js version 18 or greater.
 
 :::
 
-Use the CLI to test that your newly published package works:
+You can use the CLI to test that your newly published package works:
 
 ```bash
 iota client call --gas-budget 10000000 \
@@ -889,12 +936,18 @@ Array [
 
 </details>
 
+If you followed the example package provided,
+you should see an `Events` section containing a field `x` with the value `41`.
 
-If you used the example package provided, notice you have an `Events` section that contains a field `x` with value `41`.
+### Upgrading a Package with Custom Policy
 
-### Upgrading a package with custom policy {#upgrading-custom-policy}
-
-With your package published, you can prepare an `upgrade.js` script to perform an upgrade using the new policy. It behaves identically to `publish.js` up until building the package. When building the package, the script also captures its `digest`, and the transaction now performs the three upgrade commands (authorize, execute, commit). The full script for `upgrade.js` follows:
+With your package published,
+you can prepare an `upgrade.js` script to perform an upgrade using the custom "Day of the Week" policy.
+The script behaves similarly to `publish.js`,
+but also captures the package's `digest` during the build process.
+The transaction then performs the three upgrade commands:
+authorize, execute, and commit.
+Below is the full script for `upgrade.js`:
 
 ```js
 import { execSync } from 'child_process';
@@ -982,7 +1035,10 @@ const result = await client.signAndExecuteTransactionBlock({
 console.log(result);
 ```
 
-If today is not Tuesday, wait until next Tuesday to run the script, when your policy allows you to perform upgrades. At that point, update your `example.move` so the event is emitted with a different constant and use Node.js to run the upgrade script:
+If today isn't Tuesday, you'll need to wait until the next Tuesday to run the script,
+as your policy only allows upgrades on that day.
+Once it's Tuesday, update your `example.move` file so that the event emits a different constant,
+then use Node.js to run the upgrade script:
 
 ```bash
 node upgrade.js
@@ -1058,8 +1114,8 @@ BUILDING example
 
 </details>
 
-
-Use the IOTA Client CLI to test the upgraded package (the package ID is **different** from the original version of your example package):
+Use the IOTA Client CLI to test the upgraded package.
+Note that the package ID will be different from the original version of your example package:
 
 ```bash
 iota client call --gas-budget 10000000 \
@@ -1143,9 +1199,10 @@ Array [
 
 </details>
 
-Now, the `Events` section emitted for the `x` field has a value of `42` (changed from the original `41`).
+Now, the `Events` section shows that the `x` field has a value of `42`, updated from the original `41`.
 
-If you attempt the first upgrade before Tuesday or you change the constant again and try the upgrade the following day, the script receives a response that includes an error similar to the following, which indicates that the upgrade aborted with code `2` (`ENotAllowedDay`):
+If you try to perform the first upgrade before Tuesday or modify the constant and attempt the upgrade on a different day,
+the script will return an error message indicating that the upgrade failed with code `2` (`ENotAllowedDay`):
 
 ```bash
 ...

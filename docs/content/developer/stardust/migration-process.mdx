@@ -2,29 +2,25 @@
 title: Migration Process
 description: Explains how IOTA and Shimmer assets are handled during migration
 ---
+import MigrationWarning from '../../_snippets/migration-warning.mdx';
+
+<MigrationWarning/ >
 
 :::note Edge Cases
 
-This guide doesn't describe every possible edge case. For that, please check out the code, which
-is part of a subdirectory in the
-[`iota-genesis-builder`](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust)
-crate. This document will give a high to mid-level overview of the migration process.
+This guide doesn't describe every possible edge case. 
+For that, please check out the code,
+which is part of a subdirectory in the [`iota-genesis-builder`](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust) crate. 
+This document will give a high to mid-level overview of the migration process.
 
 :::
 
 ## Design Principles
 
-- The migration aims to move away from the Stardust-based ledger concepts and transform assets into their pure
-object-based Move representation. After completing the migration flow, users should see move assets that semantically
-resemble the former Stardust assets in their wallet.
-- Stardust Assets on the legacy ledger level are encapsulated in Outputs. An asset is semantically a valuable resource,
-while an output is a container with spending rules that holds the valuable resource.
-- We aim to mimic this hierarchy between assets and their containers in the genesis move ledger state, that is, to
-ensure that spending conditions still hold. Once the containers are unlocked and destroyed during a user-initiated
-claiming/migration transaction, the encapsulated assets will be extracted and sent to the user address and the move
-containers will be destroyed.
-- We intentionally do not include constructors in move for such containers, as we want to discourage their use after the
-migration. They will only be created in the genesis ledger state via the migration script.
+- The migration aims to move away from the Stardust-based ledger concepts and transform assets into their pure object-based Move representation. After completing the migration flow, users should see Move assets that semantically resemble the former Stardust assets in their wallet.
+- Stardust Assets on the legacy ledger level are encapsulated in Outputs. An asset is semantically a valuable resource, while an output is a container with spending rules that holds the valuable resource.
+- We aim to mimic this hierarchy between assets and their containers in the genesis Move ledger state, ensuring that spending conditions still hold. Once the containers are unlocked and destroyed during a user-initiated claiming/migration transaction, the encapsulated assets will be extracted and sent to the user address, and the Move containers will be destroyed.
+- We intentionally do not include constructors in Move for such containers, as we want to discourage their use after the migration. They will only be created in the genesis ledger state via the migration script.
 
 ## Foundry Outputs & Native Tokens
 
@@ -33,7 +29,7 @@ are established ways for these operations, in particular using
 [`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin) and
 [`TreasuryCap`](../../references/framework/iota-framework/coin.mdx#resource-treasurycap). The two main goals of the
 foundry migration are to convert it to a [`CoinManager`](../../references/framework/iota-framework/coin_manager.mdx),
-a type introduced in the Move IOTA framework in order to simplify working with the `TreasuryCap`, and to a `Coin<IOTA>`
+a type introduced in the Move IOTA framework simplify working with the `TreasuryCap`, and to a `Coin<IOTA>`
 to hold the IOTA tokens of the foundry itself.
 
 A unique coin type, `Coin<XYZ>,` is represented by the one-time witness `XYZ` defined in its own package. Therefore, a
@@ -43,15 +39,15 @@ operations. To that end, a
 is populated with the native token's metadata, e.g., its symbol, circulating supply, and description, as well as any other
 metadata.
 
-To collect this metadata, the foundry output's IRC-30 Metadata is extracted. In the majority of cases, this is possible.
-However, for example, if the metadata does not follow the IRC-30 standard or the symbol of the token is not a valid move
+To collect this metadata, the foundry output's IRC-30 Metadata is extracted. In most cases, this is possible.
+However, for example, if the metadata does not follow the IRC-30 standard or the symbol of the token is not a valid Move
 identifier (e.g., containing UTF-8 characters), a random identifier for the token package is generated, and the metadata
-uses generic defaults. As much as possible, though, the migration attempts to do as little modifications to the UTXO as
+uses generic defaults. As much as possible, though, the migration attempts to do as little modification to the UTXO as
 possible. The package template is filled with the extracted data, compiled, and published.
 
 The result of the foundry migration is the following:
 
-- A package representing the native token, in particular containing a one-time witness representing the unique type of
+- A package representing the native token, particularly containing a one-time witness representing the unique type of
 the native token (to be used as `Coin<package_id::token_name::NativeTokenOneTimeWitness>`; abbreviated in the rest of
 this document).
 - A `CoinManager` and [`CoinManagerTreasuryCap`](../../references/framework/iota-framework/coin_manager.mdx#resource-coinmanagertreasurycap) object, the latter of which is owned by the address of the alias that
@@ -62,7 +58,7 @@ by the `0x0` address.
 owned the original foundry.
 
 After this process, the minted coin sits on the `0x0` address with the entire minted supply. When other output types are
-migrated that contain a balance of _this_ native token, then that balance is split off of the minted coin into a new
+migrated that contain a balance of _this_ native token, that balance is split off of the minted coin into a new
 `Coin` object, which is then owned by the migrated output. If, by the end of this process, a non-zero balance remains on
 the minted coin, it is left at the zero address. This means they were burned in Stardust and, therefore, are effectively
 also burned on the Move ledger, as no one controls the `0x0` address.
@@ -160,8 +156,7 @@ Other noteworthy points:
 - The `NftOutput` object has a freshly generated `UID` while the `Nft` has its `UID` set to the `Nft ID` of the Stardust
 output. If the `Nft ID` was zeroed in the Stardust output, it is computed according to the protocol rules from
 [TIP-18](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
-- The `Nft` move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the Stardust
+- The `Nft` Move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the Stardust
 NFT, if possible. If the Stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis.
 
-You can examine the `convert_immutable_metadata` function in the migration code for more
-details.
+You can examine the `convert_immutable_metadata` function in the migration code for more details.
