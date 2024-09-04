@@ -8,6 +8,8 @@
 mod utils;
 
 use iota_json_rpc_types::ObjectChange;
+use iota_move_build::BuildConfig;
+use iota_types::move_package::MovePackage;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -22,24 +24,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let gas_budget = 10_000_000;
 
-    // Bytes below are for this example module
-    // module example::example {
-    //    entry fun example_num(): u64 {
-    //        1337
-    //     }
-    // }
+    let module = BuildConfig::default().build("../../examples/move/first_package".into())?;
+
     let tx_data = client
         .transaction_builder()
         .publish(
             sender,
-            vec![vec![
-                161, 28, 235, 11, 6, 0, 0, 0, 6, 1, 0, 2, 3, 2, 5, 5, 7, 3, 7, 10, 20, 8, 30, 32,
-                12, 62, 16, 0, 0, 0, 1, 0, 1, 0, 0, 1, 3, 7, 101, 120, 97, 109, 112, 108, 101, 11,
-                101, 120, 97, 109, 112, 108, 101, 95, 110, 117, 109, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 2,
-                6, 57, 5, 0, 0, 0, 0, 0, 0, 2, 0,
-            ]],
-            vec!["0x1".parse()?, "0x2".parse()?],
+            module.get_package_bytes(false),
+            module.published_dependency_ids(),
             Some(gas_coin_object_id),
             gas_budget,
         )
@@ -80,27 +72,19 @@ async fn main() -> Result<(), anyhow::Error> {
         })
         .expect("missing upgrade cap");
 
-    // Same as above, just returns 1338 now
-    let compiled_modules = vec![vec![
-        161, 28, 235, 11, 6, 0, 0, 0, 6, 1, 0, 2, 3, 2, 5, 5, 7, 3, 7, 10, 20, 8, 30, 32, 12, 62,
-        16, 0, 0, 0, 1, 0, 1, 0, 0, 1, 3, 7, 101, 120, 97, 109, 112, 108, 101, 11, 101, 120, 97,
-        109, 112, 108, 101, 95, 110, 117, 109, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 2, 6, 58, 5, 0, 0, 0, 0, 0, 0,
-        2, 0,
-    ]];
-    let deps = vec!["0x1".parse()?, "0x2".parse()?];
+    // In reality you would like to do some changes to the package before upgrading
+    let module = BuildConfig::default().build("../../examples/move/first_package".into())?;
+    let deps = module.published_dependency_ids();
+    let package_bytes = module.get_package_bytes(false);
 
-    let package_digest = iota_types::move_package::MovePackage::compute_digest_for_modules_and_deps(
-        &compiled_modules,
-        &deps,
-        true,
-    );
+    let package_digest =
+        MovePackage::compute_digest_for_modules_and_deps(&package_bytes, &deps, true);
     let tx_data = client
         .transaction_builder()
         .upgrade(
             sender,
             package_id,
-            compiled_modules,
+            package_bytes,
             deps,
             upgrade_capability,
             0,
