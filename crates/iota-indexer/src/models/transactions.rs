@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::{prelude::*, select};
+use diesel::prelude::*;
 use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
@@ -17,61 +17,27 @@ use move_bytecode_utils::module_cache::GetModule;
 
 use crate::{
     db::PgConnectionPool,
-    errors::{Context, IndexerError},
-    models::large_objects::{lo_create, lo_get, lo_put},
+    errors::IndexerError,
+    models::large_objects::{get_large_object, put_large_object},
     schema::transactions,
-    types::{IndexedObjectChange, IndexedTransaction, IndexerResult, TransactionKind},
+    types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName)]
 #[diesel(table_name = transactions)]
 pub struct StoredTransaction {
+    /// The index of the transaction in the global ordering that starts
+    /// from genesis.
     pub tx_sequence_number: i64,
     pub transaction_digest: Vec<u8>,
-    // ==> these are the values that we need to handle
-    pub raw_transaction: Vec<u8>, // oid or it can remain a bytea and we handle the conversion
-    // between oid and bytea on the client side based on conditions,
-    //
-    // 1. is there an easy way to switch from oid to bytea and vice versa? Either on the client
-    //    side, or on the server side.
-    //
-    //    it is probably feasible on the client.
-    // 2. how do we recognize the genesis transaction?
-    //
-    //    if `checkpoint_sequence_number == 0 && transaction_kind == SystemTransaction`
-    // 3. Writing
-    //
-    //    ```
-    //    let mut stored = StoredTransaction::from(IndexedTransaction);
-    //    if stored.is_genesis_transaction() {
-    //      let raw_tx = std::mem::take(&mut stored.raw_transaction);
-    //      let oid = lo_from_bytea();
-    //      stored.raw_transaction = oid_to_bytea(oid);
-    //    }
-    //
-    //    insert stored; run query with diesel
-    //
-    // 4. Read
-    //
-    //    ```
-    //    let mut stored = StoredTransaction::read();
-    //    if stored.is_genesis_transaction() {
-    //      let oid_bytes = std::mem::take(&mut stored.raw_transaction);
-    //      let oid = bytea_to_oid(oid_bytes);
-    //      let raw_tx = lo_get(oid);
-    //      stored.raw_transaction = raw_tx;
-    //    }
-    //
-    //    * We need to implement the server-side functions.
-    //    * We need to implement the client-side conversion function between oid and bytea.
+    pub raw_transaction: Vec<u8>,
     pub raw_effects: Vec<u8>,
-    // <==
-    pub checkpoint_sequence_number: i64, // this is zero for genesis
+    pub checkpoint_sequence_number: i64,
     pub timestamp_ms: i64,
     pub object_changes: Vec<Option<Vec<u8>>>,
     pub balance_changes: Vec<Option<Vec<u8>>>,
     pub events: Vec<Option<Vec<u8>>>,
-    pub transaction_kind: i16, // system transaction
+    pub transaction_kind: i16,
     pub success_command_count: i16,
 }
 
@@ -112,7 +78,6 @@ impl From<&IndexedTransaction> for StoredTransaction {
             tx_sequence_number: tx.tx_sequence_number as i64,
             transaction_digest: tx.tx_digest.into_inner().to_vec(),
             raw_transaction: bcs::to_bytes(&tx.sender_signed_data).unwrap(),
-            // raw_transaction: vec![0; 2 * 1024 * 1024 * 1024],
             raw_effects: bcs::to_bytes(&tx.effects).unwrap(),
             checkpoint_sequence_number: tx.checkpoint_sequence_number as i64,
             object_changes: tx
@@ -283,86 +248,63 @@ impl StoredTransaction {
         Ok(effects)
     }
 
-    /// Check if this is the genesis transaction.
+    /// Check if this is the genesis transaction relying on the global ordering.
     pub fn is_genesis(&self) -> bool {
-        self.checkpoint_sequence_number == 0
-            && self.transaction_kind == TransactionKind::SystemTransaction as i16
+        self.tx_sequence_number == 0
     }
 
-    pub fn try_store_genesis_as_large_object(
+    /// Store the raw transaction data as a large object in postgres
+    /// and replace `self.raw_transaction` with a pointer to the large object.
+    fn store_inner_data_as_large_object(
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
-        if !self.is_genesis() {
-            return Ok(self);
-        }
-        let mut conn = crate::db::get_pg_pool_connection(pool)?;
         let raw_tx = std::mem::take(&mut self.raw_transaction);
-        let oid: u32 = select(lo_create(0))
-            .get_result(&mut conn)
-            .map_err(IndexerError::from)
-            .context("failed to store large object")?;
-
-        if let Err(err) = i64::try_from(raw_tx.len()) {
-            return Err(IndexerError::GenericError(err.to_string()));
-        }
-
-        for (chunk_num, chunk) in raw_tx.chunks(Self::LARGE_OBJECT_CHUNK).enumerate() {
-            let offset = (chunk_num * Self::LARGE_OBJECT_CHUNK) as i64;
-            tracing::trace!("storing large-object chunk at offset {}", offset);
-            // TODO: (to treat in a different issue):
-            // remove dangling chunks (either by using a transaction or by handlng manually)
-            //
-            // additionally we could apply a backoff retry strategy
-            select(lo_put(oid, offset, chunk))
-                .execute(&mut conn)
-                .map_err(IndexerError::from)
-                .context("failed to insert large object chunk")?;
-        }
+        let oid = put_large_object(raw_tx, Self::LARGE_OBJECT_CHUNK, pool)?;
         self.raw_transaction = oid.to_le_bytes().to_vec();
-
         Ok(self)
     }
 
-    pub fn try_get_genesis_from_storage(
+    /// This method checks if this is the genesis transaction,
+    /// and if true it stores the raw data as a large object
+    /// in postgres, replacing `self.raw_transaction` with
+    /// a pointer to the large object data.
+    pub fn store_inner_genesis_data_as_large_object(
         self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
         if !self.is_genesis() {
             return Ok(self);
         }
+        self.store_inner_data_as_large_object(pool)
+    }
 
-        let mut conn = crate::db::get_pg_pool_connection(pool)?;
-        let mut stored = self;
-
-        let raw_oid = std::mem::take(&mut stored.raw_transaction);
+    fn set_large_object_as_inner_data(
+        mut self,
+        pool: &PgConnectionPool,
+    ) -> Result<Self, IndexerError> {
+        let raw_oid = std::mem::take(&mut self.raw_transaction);
         let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
             IndexerError::GenericError("invalid large object identifier".to_owned())
         })?;
         let oid = u32::from_le_bytes(raw_oid);
 
-        let mut chunk_num = 0;
-        loop {
-            let offset = i64::try_from(chunk_num * Self::LARGE_OBJECT_CHUNK)
-                .map_err(|e| IndexerError::GenericError(e.to_string()))?;
+        self.raw_transaction = get_large_object(oid, Self::LARGE_OBJECT_CHUNK, pool)?;
 
-            tracing::trace!("fetching large-object chunk at offset {}", offset);
+        Ok(self)
+    }
 
-            let length = i32::try_from(Self::LARGE_OBJECT_CHUNK)
-                .map_err(|e| IndexerError::GenericError(e.to_string()))?;
-            let chunk = select(lo_get(oid, Some(offset), Some(length)))
-                .get_result::<Vec<u8>>(&mut conn)
-                .map_err(IndexerError::from)
-                .context("failed to query large object chunk")?;
-            let chunk_len = chunk.len();
-
-            stored.raw_transaction.extend(chunk);
-
-            if chunk_len < Self::LARGE_OBJECT_CHUNK {
-                break;
-            }
-            chunk_num += 1;
+    /// The genesis transactions uses a pointer to the large object
+    /// as inner data.
+    ///
+    /// This replaces the pointer with the actual large object data.
+    pub fn set_genesis_large_object_as_inner_data(
+        self,
+        pool: &PgConnectionPool,
+    ) -> Result<Self, IndexerError> {
+        if !self.is_genesis() {
+            return Ok(self);
         }
-        Ok(stored)
+        self.set_large_object_as_inner_data(pool)
     }
 }

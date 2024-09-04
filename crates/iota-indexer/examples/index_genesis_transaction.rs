@@ -5,7 +5,7 @@
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_genesis_builder::{Builder as GenesisBuilder, SnapshotSource, SnapshotUrl};
 use iota_indexer::{
-    db,
+    db::{self, reset_database},
     errors::IndexerError,
     models::transactions::StoredTransaction,
     schema::transactions,
@@ -69,7 +69,7 @@ pub async fn main() -> Result<(), IndexerError> {
         .unwrap()
     };
     let db_txn = IndexedTransaction {
-        tx_sequence_number: 1,
+        tx_sequence_number: 0,
         tx_digest,
         sender_signed_data,
         effects,
@@ -85,7 +85,8 @@ pub async fn main() -> Result<(), IndexerError> {
     let digest_to_bytes = db_txn.tx_digest.into_inner().to_vec();
     let expected = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
 
-    let pg_store = create_pg_store(Some(DEFAULT_DB_URL.to_owned()), None);
+    let pg_store = create_pg_store(DEFAULT_DB_URL.to_owned(), None);
+    reset_database(&mut pg_store.blocking_cp().get().unwrap(), true).unwrap();
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
     let mut conn = db::get_pg_pool_connection(&pg_store.blocking_cp())?;
@@ -95,9 +96,9 @@ pub async fn main() -> Result<(), IndexerError> {
         .unwrap();
 
     let stored = stored
-        .try_get_genesis_from_storage(&pg_store.blocking_cp())
+        .set_genesis_large_object_as_inner_data(&pg_store.blocking_cp())
         .unwrap();
 
-    assert_eq!(expected, stored.raw_transaction);
+    assert!(expected == stored.raw_transaction);
     Ok(())
 }

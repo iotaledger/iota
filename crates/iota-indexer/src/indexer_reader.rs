@@ -537,7 +537,7 @@ impl IndexerReader {
         })?;
 
         stored_txn
-            .try_get_genesis_from_storage(&self.pool)?
+            .set_genesis_large_object_as_inner_data(&self.pool)?
             .try_into_iota_transaction_effects()
     }
 
@@ -552,7 +552,7 @@ impl IndexerReader {
         })?;
 
         stored_txn
-            .try_get_genesis_from_storage(&self.pool)?
+            .set_genesis_large_object_as_inner_data(&self.pool)?
             .try_into_iota_transaction_effects()
     }
 
@@ -570,13 +570,16 @@ impl IndexerReader {
                 .filter(transactions::transaction_digest.eq_any(digests))
                 .load::<StoredTransaction>(conn)
         })
-        .and_then(|coll| {
-            coll.into_iter()
-                .map(|store| store.try_get_genesis_from_storage(&self.pool))
-                .collect::<Result<Vec<StoredTransaction>, _>>()
+        .and_then(|transactions| {
+            transactions
+                .into_iter()
+                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                .collect()
         })
     }
 
+    /// This method tries to transfroms [`StoredTransaction`] values
+    /// into transaction blocks, without any other modification.
     fn stored_transaction_to_transaction_block(
         &self,
         stored_txes: Vec<StoredTransaction>,
@@ -585,7 +588,7 @@ impl IndexerReader {
         stored_txes
             .into_iter()
             .map(|stored_tx| stored_tx.try_into_iota_transaction_block_response(&options, self))
-            .collect::<IndexerResult<Vec<_>>>()
+            .collect()
     }
 
     fn multi_get_transactions_with_sequence_numbers(
@@ -607,10 +610,11 @@ impl IndexerReader {
             None => (),
         }
         self.run_query(|conn| query.load::<StoredTransaction>(conn))
-            .and_then(|coll| {
-                coll.into_iter()
-                    .map(|store| store.try_get_genesis_from_storage(&self.pool))
-                    .collect::<Result<Vec<StoredTransaction>, _>>()
+            .and_then(|transactions| {
+                transactions
+                    .into_iter()
+                    .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                    .collect()
             })
     }
 
@@ -780,10 +784,11 @@ impl IndexerReader {
 
         let stored_txes = self
             .run_query(|conn| query.limit((limit) as i64).load::<StoredTransaction>(conn))
-            .and_then(|coll| {
-                coll.into_iter()
-                    .map(|store| store.try_get_genesis_from_storage(&self.pool))
-                    .collect::<Result<Vec<StoredTransaction>, _>>()
+            .and_then(|transactions| {
+                transactions
+                    .into_iter()
+                    .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+                    .collect()
             })?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
