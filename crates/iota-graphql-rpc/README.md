@@ -9,22 +9,23 @@ Its architecture can thus be visualized as follows:
 
 ![GraphQL server architecture](./graphql-rpc-arch.png)
 
+The GraphQL server is built using the `async-graphql` library.
+You can explore the schema [here](schema).
+
+`Query`, `Mutation`, and `EmptySubscription` correspond to the main operations that the server supports.
+
+`Query` handles data fetching, `Mutation` manages data modification, and `EmptySubscription` acts currently as a placeholder for real-time subscriptions as they are not supported.
+
+The `async-graphql` types that are included in the schema are defined in the [src/types](src/types) directory.
+
 ## Dev setup
 
-Note that we use compilation flags to determine the backend for Diesel. If you're using VS Code, make sure to update `settings.json` with the appropriate features - there should at least be a `pg_backend` (or other backend.)
+Note that we use compilation flags to determine the backend for Diesel.
+If you're using VS Code, make sure to update `settings.json` with the appropriate `pg_backend` feature flag:
 
 ```
 "rust-analyzer.cargo.features": ["pg_backend"]
 ```
-
-Consequently, you'll also need to specify the backend when running cargo commands:
-`cargo run --features "pg_backend" --bin iota-graphql-rpc start-server --db-url <DB_URL>`
-
-The order is important:
-
-1. `--features "pg_backend"`: This part tells Cargo to enable the `pg_backend` feature.
-2. `--bin iota-graphql-rpc`: This specifies which binary to run.
-3. `start-server --db-url`: These are arguments to the binary.
 
 ## Steps to run a local GraphQL server
 
@@ -92,16 +93,14 @@ Try out the following sample query to see if the server is running successfully:
 }
 ```
 
-### Launching the with Indexer
+Find more example queries in the [examples](examples) directory.
+
+### Launching with an Indexer
 
 For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance for the Indexer) which writes data to the database, so you can query it with the GraphQL server.
 You can run it as part of [iota-test-validator](../../crates/iota-test-validator/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
 
 `cargo run --bin iota-test-validator -- --with-indexer --pg-port 5432 --pg-db-name iota_indexer --graphql-host 127.0.0.1 --graphql-port 8000`
-
-### To check for compatibility with json-rpc
-
-`pnpm --filter @iota/graphql-transport test:e2e`
 
 ## Running tests
 
@@ -113,3 +112,6 @@ Then, run the following command:
 ```sh
 cargo nextest run -p iota-graphql-rpc --features pg_integration --no-fail-fast --test-threads 1
 ```
+
+To check for compatibility with json-rpc
+`pnpm --filter @iota/graphql-transport test:e2e`
