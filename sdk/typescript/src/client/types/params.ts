@@ -197,6 +197,9 @@ export interface GetAllCoinsParams {
     /** maximum number of items per page */
     limit?: number | null | undefined;
 }
+export interface GetAllEpochAddressMetricsParams {
+    descendingOrder?: boolean | null | undefined;
+}
 /** Return the total coin balance for one coin type, owned by the address owner. */
 export interface GetBalanceParams {
     /** the owner's Iota address */
@@ -207,7 +210,10 @@ export interface GetBalanceParams {
      */
     coinType?: string | null | undefined;
 }
-/** Return metadata(e.g., symbol, decimals) for a coin */
+export interface GetCheckpointAddressMetricsParams {
+    checkpoint: string;
+}
+/** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
@@ -231,6 +237,8 @@ export interface GetCommitteeInfoParams {
     /** The epoch of interest. If None, default to the latest epoch */
     epoch?: string | null | undefined;
 }
+/** Return current epoch info */
+export interface GetCurrentEpochParams {}
 /** Return the dynamic field object information for a specified object */
 export interface GetDynamicFieldObjectParams {
     /** The ID of the queried parent object */
@@ -250,8 +258,32 @@ export interface GetDynamicFieldsParams {
     /** Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
 }
+/** Return a list of epoch metrics, which is a subset of epoch info */
+export interface GetEpochMetricsParams {
+    /** Optional paging cursor */
+    cursor?: string | null | undefined;
+    /** Maximum number of items per page */
+    limit?: number | null | undefined;
+    /** Flag to return results in descending order */
+    descendingOrder?: boolean | null | undefined;
+}
+/** Return a list of epoch info */
+export interface GetEpochsParams {
+    /** Optional paging cursor */
+    cursor?: string | null | undefined;
+    /** Maximum number of items per page */
+    limit?: number | null | undefined;
+    /** Flag to return results in descending order */
+    descendingOrder?: boolean | null | undefined;
+}
+/** Address related metrics */
+export interface GetLatestAddressMetricsParams {}
 /** Return the latest IOTA system state object on-chain. */
 export interface GetLatestIotaSystemStateParams {}
+/** Return move call metrics */
+export interface GetMoveCallMetricsParams {}
+/** Return Network metrics */
+export interface GetNetworkMetricsParams {}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
  * `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have
@@ -286,11 +318,12 @@ export interface GetTimelockedStakesParams {
 export interface GetTimelockedStakesByIdsParams {
     timelockedStakedIotaIds: string[];
 }
-/** Return total supply for a coin */
+/** Return total supply for a coin. */
 export interface GetTotalSupplyParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
 }
+export interface GetTotalTransactionsParams {}
 /** Return the validator APY */
 export interface GetValidatorsApyParams {}
 /** Return list of events for a specified query criteria. */
@@ -306,6 +339,18 @@ export interface QueryEventsParams {
     limit?: number | null | undefined;
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
+}
+/** Return the list of queried objects. Note that this is an enhanced full node only api. */
+export interface QueryObjectsParams {
+    /** The objects query criteria. */
+    query: RpcTypes.IotaObjectResponseQuery;
+    /**
+     * An optional paging cursor. If provided, the query will start from the next item after the specified
+     * cursor. Default to start from the first item if not specified.
+     */
+    cursor?: RpcTypes.CheckpointedObjectID | null | undefined;
+    /** Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
+    limit?: number | null | undefined;
 }
 /** Return list of transactions for a specified query criteria. */
 export type QueryTransactionBlocksParams = {
