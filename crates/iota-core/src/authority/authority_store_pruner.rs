@@ -54,10 +54,16 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     .collect()
 });
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
+
+/// The `AuthorityStorePruner` manages the pruning process for object stores
+/// within the `AuthorityStore`. It includes a cancellation handle that can be
+/// used to stop the pruning task for objects.
 pub struct AuthorityStorePruner {
     _objects_pruner_cancel_handle: oneshot::Sender<()>,
 }
 
+/// The `AuthorityStorePruningMetrics` tracks various metrics related to the
+/// pruning process of the `AuthorityStore`.
 pub struct AuthorityStorePruningMetrics {
     pub last_pruned_checkpoint: IntGauge,
     pub num_pruned_objects: IntCounter,
@@ -67,6 +73,9 @@ pub struct AuthorityStorePruningMetrics {
     pub num_epochs_to_retain_for_checkpoints: IntGauge,
 }
 
+/// Initializes a new instance of `AuthorityStorePruningMetrics` with the
+/// provided registry, registering various metrics that track the pruning
+/// operations in the `AuthorityStore`.
 impl AuthorityStorePruningMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         let this = Self {
@@ -110,11 +119,14 @@ impl AuthorityStorePruningMetrics {
         Arc::new(this)
     }
 
+    /// Creates a new instance of `AuthorityStorePruningMetrics` for testing
+    /// purposes.
     pub fn new_for_test() -> Arc<Self> {
         Self::new(&Registry::new())
     }
 }
 
+/// Pruning modes for the `AuthorityStore`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PruningMode {
     Objects,
@@ -232,6 +244,11 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
+    /// Prunes checkpoint-related data from the `AuthorityStore`, including
+    /// transaction effects, executed transactions, and checkpoint contents,
+    /// based on the specified checkpoint number and list of checkpoints to
+    /// prune. This function removes outdated data, updates pruning metrics,
+    /// and maintains database consistency by updating watermarks.
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
@@ -344,6 +361,13 @@ impl AuthorityStorePruner {
         .await
     }
 
+    /// Asynchronously prunes checkpoint data for eligible epochs based on the
+    /// configuration and current state of the `AuthorityStore`. This
+    /// function determines the range of checkpoints that can be pruned,
+    /// taking into account retention policies, archival watermarks, and
+    /// smoothing options. It then delegates the pruning to the appropriate
+    /// internal method. The function also updates pruning metrics and
+    /// ensures proper handling of indirect objects.
     pub async fn prune_checkpoints_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -514,6 +538,12 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
+    /// Identifies and compacts the next eligible SST file in the
+    /// `AuthorityStore` that meets the specified conditions for manual
+    /// compaction. This function checks each SST file's metadata, including
+    /// modification time and size, against a delay threshold to determine if it
+    /// should be compacted. If a suitable file is found, it triggers a
+    /// manual compaction and updates the last processed timestamp.
     fn compact_next_sst_file(
         perpetual_db: Arc<AuthorityPerpetualTables>,
         delay_days: usize,
@@ -561,10 +591,15 @@ impl AuthorityStorePruner {
         Ok(Some(sst_file))
     }
 
+    /// Calculates the duration in milliseconds for a pruning tick based on the
+    /// provided epoch duration. The function returns the lesser of half the
+    /// epoch duration or 60 seconds.
     fn pruning_tick_duration_ms(epoch_duration_ms: u64) -> u64 {
         min(epoch_duration_ms / 2, 60 * 1000)
     }
 
+    /// Calculates a smoothed maximum eligible checkpoint number for pruning,
+    /// balancing the pruning operation over the epoch's duration.
     fn smoothed_max_eligible_checkpoint_number(
         pruned_checkpoint: CheckpointSequenceNumber,
         max_eligible_checkpoint: CheckpointSequenceNumber,
@@ -668,6 +703,8 @@ impl AuthorityStorePruner {
         sender
     }
 
+    /// Initializes a new instance of `AuthorityStorePruner` with the provided
+    /// configuration, database connections, and metrics registry.
     pub fn new(
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
@@ -706,6 +743,8 @@ impl AuthorityStorePruner {
         }
     }
 
+    /// Compacts the entire range of objects stored in the `AuthorityStore` by
+    /// invoking a range compaction on the database.
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
             &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN),

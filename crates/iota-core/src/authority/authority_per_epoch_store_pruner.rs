@@ -12,11 +12,19 @@ use typed_store::rocks::safe_drop_db;
 
 use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
 
+/// The `AuthorityPerEpochStorePruner` manages the pruning process for Authority
+/// Store databases on a per-epoch basis. It contains a cancellation handle that
+/// can be used to stop the pruning task.
 pub struct AuthorityPerEpochStorePruner {
     _cancel_handle: oneshot::Sender<()>,
 }
 
 impl AuthorityPerEpochStorePruner {
+    /// Creates a new pruning task for the `AuthorityStore` with the specified
+    /// configuration. The task runs periodically based on the
+    /// `epoch_db_pruning_period_secs` value from the config, pruning old
+    /// epoch databases unless all versions are to be retained. The function
+    /// returns a struct containing a cancellation handle for the pruning task.
     pub fn new(parent_path: PathBuf, config: &AuthorityStorePruningConfig) -> Self {
         let (_cancel_handle, mut recv) = tokio::sync::oneshot::channel();
         let num_latest_epoch_dbs_to_retain = config.num_latest_epoch_dbs_to_retain;
@@ -43,6 +51,11 @@ impl AuthorityPerEpochStorePruner {
         Self { _cancel_handle }
     }
 
+    /// Prunes old epoch directories from the specified parent path, retaining
+    /// only the latest specified number of epoch databases. This function
+    /// identifies epoch directories, sorts them, and deletes the older
+    /// ones. Returns the number of directories pruned or an error if the
+    /// pruning process encounters an issue.
     fn prune_old_directories(
         parent_path: &PathBuf,
         num_latest_epoch_dbs_to_retain: usize,
