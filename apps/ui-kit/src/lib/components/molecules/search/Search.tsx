@@ -119,7 +119,7 @@ export function Search({
     const showSuggestions = isSuggestionsVisible && suggestions && suggestions.length > 0;
 
     const roundedStyleWithSuggestions = showSuggestions
-        ? 'rounded-t-3xl border-b-0'
+        ? 'rounded-t-3xl border-b border-b-transparent'
         : type === SearchBarType.Outlined
           ? 'rounded-3xl border-b'
           : 'rounded-full';
