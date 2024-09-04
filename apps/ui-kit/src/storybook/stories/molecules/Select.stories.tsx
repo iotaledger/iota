@@ -33,19 +33,26 @@ export const Default: Story = {
         },
     },
     render: (args) => {
+        const [selected, setSelected] = useState('iota');
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
         const onChange = (id: string) => {
             if (id === 'Invalid Option') {
                 setErrorMessage('Invalid Option Selected');
             } else {
+                setSelected(id);
                 setErrorMessage(undefined);
             }
         };
 
         return (
             <div className="h-60">
-                <Select {...args} onValueChange={onChange} errorMessage={errorMessage} />
+                <Select
+                    {...args}
+                    value={selected}
+                    onValueChange={onChange}
+                    errorMessage={errorMessage}
+                />
             </div>
         );
     },
