@@ -3,7 +3,7 @@
 
 //! This example gets a transaction with options.
 //!
-//! cargo run --example read_tx
+//! cargo run --example read_api_tx
 
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
