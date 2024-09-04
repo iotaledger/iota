@@ -9,17 +9,21 @@ import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import {
+    ButtonSegment,
+    ButtonSegmentType,
+    SegmentedButton,
+    SegmentedButtonType,
+} from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
+import { Tabs, TabsHeader, TabsTrigger, TabsContent } from './Tabs';
 import {
     Banner,
     Stats,
-    TableCard,
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
     type StatsProps,
+    TableCard,
+    // Tabs, TabsTrigger, TabsList, TabsContent
 } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
@@ -48,6 +52,11 @@ function IotaStats({
             {formattedAmount || '--'}
         </Stats>
     );
+}
+
+enum EpochTabs {
+    Checkpoints = 'checkpoints',
+    Validators = 'validators',
 }
 
 export default function EpochDetail() {
@@ -155,28 +164,52 @@ export default function EpochDetail() {
                         {isCurrentEpoch ? <ValidatorStatus /> : null}
                     </div>
 
-                    <Tabs size="lg" defaultValue="checkpoints">
-                        <TabsList>
-                            <TabsTrigger value="checkpoints">Checkpoints</TabsTrigger>
-                            <TabsTrigger value="validators">Participating Validators</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="checkpoints">
-                            <CheckpointsTable
-                                initialCursor={initialCursorPlusOne}
-                                maxCursor={epochData.firstCheckpointId}
-                                initialLimit={20}
+                    <div className="rounded-xl bg-white">
+                        <Tabs defaultTabId={EpochTabs.Checkpoints}>
+                            <TabsHeader
+                                render={(activeTabId) => (
+                                    <div className="relative">
+                                        <SegmentedButton
+                                            type={SegmentedButtonType.Transparent}
+                                            shape={ButtonSegmentType.Underlined}
+                                        >
+                                            <TabsTrigger tabId={EpochTabs.Checkpoints}>
+                                                <ButtonSegment
+                                                    type={ButtonSegmentType.Underlined}
+                                                    label="Checkpoints"
+                                                    selected={activeTabId === EpochTabs.Checkpoints}
+                                                />
+                                            </TabsTrigger>
+                                            <TabsTrigger tabId={EpochTabs.Validators}>
+                                                <ButtonSegment
+                                                    type={ButtonSegmentType.Underlined}
+                                                    label="Participating Validators"
+                                                    selected={activeTabId === EpochTabs.Validators}
+                                                />
+                                            </TabsTrigger>
+                                        </SegmentedButton>
+                                        <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-[1] h-[1px] w-full border-b" />
+                                    </div>
+                                )}
                             />
-                        </TabsContent>
-                        <TabsContent value="validators">
-                            {validatorsTable ? (
-                                <TableCard
-                                    data={validatorsTable.data}
-                                    columns={validatorsTable.columns}
-                                    sortTable
+                            <TabsContent tabId={EpochTabs.Checkpoints}>
+                                <CheckpointsTable
+                                    initialCursor={initialCursorPlusOne}
+                                    maxCursor={epochData.firstCheckpointId}
+                                    initialLimit={20}
                                 />
-                            ) : null}
-                        </TabsContent>
-                    </Tabs>
+                            </TabsContent>
+                            <TabsContent tabId={EpochTabs.Validators}>
+                                {validatorsTable ? (
+                                    <TableCard
+                                        data={validatorsTable.data}
+                                        columns={validatorsTable.columns}
+                                        sortTable
+                                    />
+                                ) : null}
+                            </TabsContent>
+                        </Tabs>
+                    </div>
                 </div>
             }
         />
