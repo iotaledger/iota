@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AxisBottom, AxisLeft, type TickRendererProps } from '@visx/axis';
+import { AxisBottom, type TickRendererProps } from '@visx/axis';
 import { curveCatmullRom as curve } from '@visx/curve';
 import { localPoint } from '@visx/event';
-import { PatternCircles } from '@visx/pattern';
 import { scaleLinear } from '@visx/scale';
 import { AreaClosed, LinePath } from '@visx/shape';
 import { useTooltipInPortal, useTooltip } from '@visx/tooltip';
@@ -24,28 +23,9 @@ function getID(prefix: string) {
 
 const bisectX = bisector((x: number) => x).center;
 
-function AxisLeftTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
-    return (
-        <text
-            x={x}
-            y={y}
-            textAnchor="start"
-            alignmentBaseline="middle"
-            className="fill-steel font-sans text-subtitleSmall font-medium"
-        >
-            {formattedValue}
-        </text>
-    );
-}
-
 function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
-        <text
-            x={x}
-            y={y}
-            textAnchor="middle"
-            className="fill-steel font-sans text-subtitleSmall font-medium"
-        >
+        <text x={x} y={y} textAnchor="middle" className="fill-steel font-sans text-sm font-medium">
             {formattedValue}
         </text>
     );
@@ -59,7 +39,6 @@ type AreaGraphProps<D> = {
     getY: (element: D) => number;
     formatX?: (x: number) => string;
     formatY?: (y: number) => string;
-    color: 'blue' | 'yellow';
     tooltipContent?: (props: { data: D }) => ReactNode;
 };
 
@@ -71,13 +50,12 @@ export function AreaGraph<D>({
     getY,
     formatX,
     formatY,
-    color,
     tooltipContent,
 }: AreaGraphProps<D>): JSX.Element | null {
-    const graphTop = 15;
-    const graphBottom = Math.max(0, height - 30);
-    const graphLeft = 45;
-    const graphRight = Math.max(0, width - 15);
+    const graphTop = 0;
+    const graphBottom = Math.max(0, height - 0);
+    const graphLeft = 0;
+    const graphRight = Math.max(0, width - 0);
     const [fillGradientID] = useState(() => getID('areaGraph_fillGradient'));
     const [lineGradientID] = useState(() => getID('areaGraph_lineGradient'));
     const [patternID] = useState(() => getID('areaGraph_pattern'));
@@ -156,42 +134,13 @@ export function AreaGraph<D>({
             <svg width={width} height={height}>
                 <defs>
                     <linearGradient id={fillGradientID} gradientTransform="rotate(90)">
-                        {color === 'yellow' ? (
-                            <>
-                                <stop stopColor="#F2BD24" />
-                                <stop offset="40%" stopColor="#F2BD24" stopOpacity="40%" />
-                                <stop offset="100%" stopColor="#FFF8E2" stopOpacity="0%" />
-                            </>
-                        ) : (
-                            <>
-                                <stop stopColor="#00F9FB" />
-                                <stop offset="40%" stopColor="#7CE7FF" stopOpacity="28%" />
-                                <stop offset="100%" stopColor="#FBF1FD" stopOpacity="0%" />
-                            </>
-                        )}
+                        <stop offset="1%" stopColor="#d6d6ff" />
+                        <stop offset="99%" stopColor="white" />
                     </linearGradient>
                     <linearGradient id={lineGradientID}>
-                        {color === 'yellow' ? (
-                            <>
-                                <stop stopColor="#8D6E15" />
-                                <stop offset="100%" stopColor="#F2BD24" />
-                            </>
-                        ) : (
-                            <>
-                                <stop stopColor="#008BE9" />
-                                <stop offset="100%" stopColor="#00EEAC" />
-                            </>
-                        )}
+                        <stop stopColor="#3131ff" />
                     </linearGradient>
                 </defs>
-                <PatternCircles
-                    id={patternID}
-                    height={5}
-                    width={5}
-                    radius={1}
-                    fill="#000"
-                    className="opacity-5"
-                />
                 <AreaClosed<D>
                     curve={curve}
                     data={data}
@@ -216,9 +165,10 @@ export function AreaGraph<D>({
                     x={(d) => xScale(getX(d))}
                     y={(d) => yScale(getY(d))}
                     stroke={`url(#${lineGradientID})`}
-                    width="1"
+                    stroke-width="2"
                 />
                 <AxisBottom
+                    left={5}
                     top={height - 24}
                     orientation="bottom"
                     scale={xScale}
@@ -229,16 +179,6 @@ export function AreaGraph<D>({
                         .ticks(Math.min(data.length, Math.floor((width - 50) / 40)))
                         .filter(Number.isInteger)}
                     tickComponent={AxisBottomTick}
-                />
-                <AxisLeft
-                    left={10}
-                    orientation="left"
-                    scale={yScale}
-                    tickFormat={formatY ? (y) => formatY(y.valueOf()) : String}
-                    hideTicks
-                    hideAxisLine
-                    tickValues={yScale.ticks(4).filter(Number.isInteger)}
-                    tickComponent={AxisLeftTick}
                 />
                 {tooltipContent ? (
                     <>
@@ -255,7 +195,7 @@ export function AreaGraph<D>({
                             transform={tooltipLeft ? `translate(${tooltipLeft})` : ''}
                         />
                         <line
-                            x1={graphLeft - 5}
+                            x1={graphLeft - 20}
                             y1={0}
                             x2={graphRight}
                             y2={0}
