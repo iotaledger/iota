@@ -2,10 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight12 } from '@iota/icons';
+import {
+    Table,
+    TableBody,
+    TableBodyRow,
+    TableCell,
+    type TableCellProps,
+    TableHeader,
+    TableHeaderCell,
+    TableHeaderRow,
+} from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
-    flexRender,
     getCoreRowModel,
     getSortedRowModel,
     type SortingState,
@@ -20,15 +28,6 @@ export interface TableCardProps<DataType extends object> {
     columns: ColumnDef<DataType>[];
     sortTable?: boolean;
     defaultSorting?: SortingState;
-}
-
-function AscDescIcon({ sorting }: { sorting: 'asc' | 'desc' }): JSX.Element {
-    return (
-        <ArrowRight12
-            fill="currentColor"
-            className={clsx(sorting === 'asc' ? '-rotate-90' : 'rotate-90', ' text-steel-darker')}
-        />
-    );
 }
 
 export function TableCard<DataType extends object>({
@@ -76,61 +75,36 @@ export function TableCard<DataType extends object>({
                 refetching && 'opacity-50',
             )}
         >
-            <table className="w-full min-w-max border-collapse text-left">
-                <thead>
+            <Table rowIndexes={table.getRowModel().rows.map((row) => row.index)}>
+                <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={headerGroup.id}>
-                            {headerGroup.headers.map(
-                                ({ id, colSpan, column, isPlaceholder, getContext }) => (
-                                    <th
-                                        key={id}
-                                        colSpan={colSpan}
-                                        scope="col"
-                                        className="h-7.5 text-left text-subtitle font-semibold uppercase text-steel-dark"
-                                        onClick={
-                                            column.columnDef.enableSorting
-                                                ? column.getToggleSortingHandler()
-                                                : undefined
-                                        }
-                                    >
-                                        <div
-                                            className={clsx(
-                                                'flex items-center gap-1',
-                                                column.columnDef.enableSorting &&
-                                                    'cursor-pointer text-steel-darker',
-                                            )}
-                                        >
-                                            {isPlaceholder
-                                                ? null
-                                                : flexRender(column.columnDef.header, getContext())}
-
-                                            {column.getIsSorted() && (
-                                                <AscDescIcon
-                                                    sorting={column.getIsSorted() as 'asc' | 'desc'}
-                                                />
-                                            )}
-                                        </div>
-                                    </th>
-                                ),
-                            )}
-                        </tr>
-                    ))}
-                </thead>
-                <tbody>
-                    {table.getRowModel().rows.map((row) => (
-                        <tr key={row.id} className="group">
-                            {row.getVisibleCells().map(({ column, id, getContext }) => (
-                                <td
+                        <TableHeaderRow key={headerGroup.id}>
+                            {headerGroup.headers.map(({ id, column }) => (
+                                <TableHeaderCell
                                     key={id}
-                                    className="h-7.5 text-body text-gray-75 group-hover:bg-gray-40 group-hover:text-gray-90 group-hover:first:rounded-l group-hover:last:rounded-r"
-                                >
-                                    {flexRender(column.columnDef.cell, getContext())}
-                                </td>
+                                    columnKey={id}
+                                    label={column.columnDef.header?.toString()}
+                                    hasSort={column.columnDef.enableSorting}
+                                    onSortClick={
+                                        column.columnDef.enableSorting
+                                            ? column.getToggleSortingHandler()
+                                            : undefined
+                                    }
+                                />
                             ))}
-                        </tr>
+                        </TableHeaderRow>
                     ))}
-                </tbody>
-            </table>
+                </TableHeader>
+                <TableBody>
+                    {table.getRowModel().rows.map((row) => (
+                        <TableBodyRow key={row.id} rowIndex={row.index}>
+                            {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
+                            ))}
+                        </TableBodyRow>
+                    ))}
+                </TableBody>
+            </Table>
         </div>
     );
 }

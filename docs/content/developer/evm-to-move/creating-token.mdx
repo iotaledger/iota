@@ -74,7 +74,7 @@ After the aliases, we see an empty struct defined:
 struct EXAMPLETOKEN has drop {}
 ```
 
-This is the definition of the so-called [One-Time-Witness](../iota-101/iota-move-concepts/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
+This is the definition of the so-called [One-Time-Witness](../iota-101/move-overview/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
 
 The `init` function is called automatically when a package is published for every module. The One-Time-Witness and a `TxContext` object containing more information about the function call itself, like the address deploying the package (sender), are passed automatically.
 
