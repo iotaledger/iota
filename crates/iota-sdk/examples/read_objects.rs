@@ -1,10 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example uses the read api to showcase the available
-//! methods that aren't covered in the read_api.rs example.
+//! This example gets objects in various ways.
 //!
-//! cargo run --example read_api2
+//! cargo run --example read_objects
 
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_sdk::IotaClientBuilder;
@@ -37,12 +36,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .multi_get_object_with_options(vec![object_id], IotaObjectDataOptions::default().with_bcs())
         .await?;
     println!("Objects: {objects:?}");
-
-    let move_package = client
-        .read_api()
-        .get_normalized_move_modules_by_package("0x1".parse()?)
-        .await?;
-    println!("Move package: {move_package:?}");
 
     Ok(())
 }
