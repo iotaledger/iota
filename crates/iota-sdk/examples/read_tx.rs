@@ -1,10 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example uses the read api to showcase the available
-//! functions that aren't covered in the read_api.rs example.
+//! This example gets a transaction with options.
 //!
-//! cargo run --example read_api_tx
+//! cargo run --example read_tx
 
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
@@ -13,6 +12,7 @@ use iota_sdk::IotaClientBuilder;
 async fn main() -> Result<(), anyhow::Error> {
     let client = IotaClientBuilder::default().build_testnet().await?;
 
+    // Get a random tx that loaded child objects
     let object = client
         .read_api()
         .get_object_with_options(
@@ -20,11 +20,7 @@ async fn main() -> Result<(), anyhow::Error> {
             IotaObjectDataOptions::new().with_previous_transaction(),
         )
         .await?;
-    println!("{object:?}");
     let tx_id = object.data.unwrap().previous_transaction.unwrap();
-
-    let move_package = client.read_api().get_loaded_child_objects(tx_id).await?;
-    println!("Move package: {move_package:?}");
 
     let tx_response = client
         .read_api()

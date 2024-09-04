@@ -19,7 +19,7 @@ async fn main() -> Result<(), anyhow::Error> {
             IotaObjectDataOptions::new().with_previous_transaction(),
         )
         .await?;
-    println!("{object:?}");
+    println!("Object with previous transaction: {object:?}");
     let object_id = object.data.as_ref().unwrap().object_id;
 
     let object_bcs = client.read_api().get_move_object_bcs(object_id).await?;
