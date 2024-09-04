@@ -103,9 +103,9 @@ export function CheckpointsTable({
                         <Select
                             value={limit.toString()}
                             options={[
-                                { id: "20", label: "20" },
-                                { id: "40", label: "40" },
-                                { id: "60", label: "60" },
+                                { id: '20', label: '20' },
+                                { id: '40', label: '40' },
+                                { id: '60', label: '60' },
                             ]}
                             onValueChange={(e) => {
                                 setLimit(Number(e));

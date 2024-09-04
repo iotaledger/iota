@@ -31,8 +31,8 @@ export interface TableCardProps<DataType extends object> {
     sortTable?: boolean;
     defaultSorting?: SortingState;
     paginationOptions?: TablePaginationOptions;
-    totalLabel?: string
-    viewAll?: string
+    totalLabel?: string;
+    viewAll?: string;
 }
 
 export function TableCard<DataType extends object>({
@@ -43,7 +43,7 @@ export function TableCard<DataType extends object>({
     defaultSorting,
     paginationOptions,
     totalLabel,
-    viewAll
+    viewAll,
 }: TableCardProps<DataType>): JSX.Element {
     const navigate = useNavigate();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
@@ -89,9 +89,13 @@ export function TableCard<DataType extends object>({
                 paginationOptions={paginationOptions}
                 actionLabel={viewAll ? 'View All' : undefined}
                 supportingLabel={totalLabel}
-                onActionClick={viewAll ? () => {
-                    navigate(viewAll)
-                } : undefined}
+                onActionClick={
+                    viewAll
+                        ? () => {
+                              navigate(viewAll);
+                          }
+                        : undefined
+                }
             >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
