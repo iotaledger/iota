@@ -51,7 +51,11 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    timelock::{timelock, timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
+    stardust::output::Nft,
+    timelock::{
+        timelock::{self, TimeLock},
+        timelocked_staked_iota::TimelockedStakedIota,
+    },
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
@@ -192,6 +196,10 @@ impl MoveObjectType {
 
     pub fn timelocked_staked_iota() -> Self {
         Self(MoveObjectType_::Other(TimelockedStakedIota::type_()))
+    }
+
+    pub fn stardust_nft() -> Self {
+        Self(MoveObjectType_::Other(Nft::tag()))
     }
 
     pub fn address(&self) -> AccountAddress {
