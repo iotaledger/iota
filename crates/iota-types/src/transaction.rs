@@ -36,6 +36,7 @@ use crate::{
         Signature, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
+    event::Event,
     execution::SharedInput,
     message_envelope::{
         AuthenticatedMessage, Envelope, Message, TrustedEnvelope, VerifiedEnvelope,
@@ -189,6 +190,7 @@ pub struct ChangeEpoch {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
     pub objects: Vec<GenesisObject>,
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -2551,8 +2553,8 @@ impl VerifiedTransaction {
         .pipe(Self::new_system_transaction)
     }
 
-    pub fn new_genesis_transaction(objects: Vec<GenesisObject>) -> Self {
-        GenesisTransaction { objects }
+    pub fn new_genesis_transaction(objects: Vec<GenesisObject>, events: Vec<Event>) -> Self {
+        GenesisTransaction { objects, events }
             .pipe(TransactionKind::Genesis)
             .pipe(Self::new_system_transaction)
     }

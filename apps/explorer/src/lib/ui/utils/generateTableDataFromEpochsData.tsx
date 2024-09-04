@@ -3,20 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type EpochMetricsPage } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
-
-import { IotaAmount, TxTimeType, HighlightedTableCol } from '~/components';
-import { CheckpointSequenceLink, EpochLink } from '~/components/ui';
 import { getEpochStorageFundFlow } from '~/lib/utils';
-import { type ReactNode } from 'react';
+import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
+import { checkpointSequenceToLink, epochToLink } from '~/components';
 
 interface EpochData {
-    epoch: ReactNode;
-    transactions: ReactNode;
-    stakeRewards: ReactNode;
-    checkpointSet: ReactNode;
-    storageNetInflow: ReactNode;
-    time: ReactNode;
+    epoch: TableCellProps;
+    transactions: TableCellProps;
+    stakeRewards: TableCellProps;
+    checkpointSet: TableCellProps;
+    storageNetInflow: TableCellProps;
+    time: TableCellProps;
 }
 
 interface TableColumn {
@@ -33,30 +30,29 @@ interface EpochTableData {
 export function generateTableDataFromEpochsData(results: EpochMetricsPage): EpochTableData {
     return {
         data: results?.data.map((epoch) => ({
-            epoch: (
-                <HighlightedTableCol first>
-                    <EpochLink epoch={epoch.epoch.toString()} />
-                </HighlightedTableCol>
-            ),
-            transactions: <Text variant="bodySmall/medium">{epoch.epochTotalTransactions}</Text>,
-            stakeRewards: (
-                <IotaAmount amount={epoch.endOfEpochInfo?.totalStakeRewardsDistributed} />
-            ),
-            checkpointSet: (
-                <div>
-                    <CheckpointSequenceLink sequence={epoch.firstCheckpointId.toString()} />
-                    {` - `}
-                    <CheckpointSequenceLink
-                        sequence={epoch.endOfEpochInfo?.lastCheckpointId.toString() ?? ''}
-                    />
-                </div>
-            ),
-            storageNetInflow: (
-                <div className="pl-3">
-                    <IotaAmount amount={getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow} />
-                </div>
-            ),
-            time: <TxTimeType timestamp={Number(epoch.endOfEpochInfo?.epochEndTimestamp ?? 0)} />,
+            epoch: {
+                type: TableCellType.Link,
+                label: epoch.epoch,
+                to: epochToLink({ epoch: epoch.epoch }),
+            },
+            transactions: { type: TableCellType.Text, label: epoch.epochTotalTransactions },
+            stakeRewards: {
+                type: TableCellType.Text,
+                label: epoch.endOfEpochInfo?.totalStakeRewardsDistributed ?? '0',
+            },
+            checkpointSet: {
+                type: TableCellType.Link,
+                label: epoch.firstCheckpointId,
+                to: checkpointSequenceToLink({ sequence: epoch.firstCheckpointId }),
+            },
+            storageNetInflow: {
+                type: TableCellType.Text,
+                label: getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow?.toString() ?? '--',
+            },
+            time: {
+                type: TableCellType.Text,
+                label: epoch.endOfEpochInfo?.epochEndTimestamp ?? '--',
+            },
         })),
         columns: [
             {

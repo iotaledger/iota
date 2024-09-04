@@ -3,21 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTotalGasUsed } from '@iota/core';
-import { X12, Dot12 } from '@iota/icons';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { IotaAmount } from '../table/IotaAmount';
-import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components';
-import { AddressLink, TransactionLink } from '~/components/ui';
-import { type ReactNode } from 'react';
+import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
+import { addressToLink, transactionToLink } from '../ui';
 
 interface TransactionData {
-    date: ReactNode;
-    digest: ReactNode;
-    txns: ReactNode;
-    gas: ReactNode;
-    sender: ReactNode;
+    date: TableCellProps;
+    digest: TableCellProps;
+    txns: TableCellProps;
+    gas: TableCellProps;
+    sender: TableCellProps;
 }
 
 interface TableColumn {
@@ -33,47 +29,38 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
 } {
     return {
         data: results.map((transaction) => {
-            const status = transaction.effects?.status.status;
             const sender = transaction.transaction?.data.sender;
 
             return {
-                date: (
-                    <HighlightedTableCol>
-                        <TxTimeType timestamp={Number(transaction.timestampMs || 0)} />
-                    </HighlightedTableCol>
-                ),
-                digest: (
-                    <HighlightedTableCol first>
-                        <TransactionLink
-                            digest={transaction.digest}
-                            before={
-                                status === 'success' ? (
-                                    <Dot12 className="text-success" />
-                                ) : (
-                                    <X12 className="text-issue-dark" />
-                                )
-                            }
-                        />
-                    </HighlightedTableCol>
-                ),
-                txns: (
-                    <div>
-                        {transaction.transaction?.data.transaction.kind ===
-                        'ProgrammableTransaction'
-                            ? transaction.transaction.data.transaction.transactions.length
-                            : '--'}
-                    </div>
-                ),
-                gas: (
-                    <IotaAmount
-                        amount={transaction.effects ? getTotalGasUsed(transaction.effects) : 0}
-                    />
-                ),
-                sender: (
-                    <HighlightedTableCol>
-                        {sender ? <AddressLink address={sender} /> : '-'}
-                    </HighlightedTableCol>
-                ),
+                date: { type: TableCellType.Text, label: transaction.timestampMs?.toString() },
+                digest: {
+                    type: TableCellType.Link,
+                    label: transaction.digest,
+                    to: transactionToLink({ digest: transaction.digest }),
+                },
+                txns: {
+                    type: TableCellType.Text,
+                    label:
+                        transaction.transaction?.data.transaction.kind === 'ProgrammableTransaction'
+                            ? transaction.transaction.data.transaction.transactions.length.toString()
+                            : '--',
+                },
+                gas: {
+                    type: TableCellType.Text,
+                    label: transaction.effects
+                        ? getTotalGasUsed(transaction.effects)?.toString()
+                        : '0',
+                },
+                sender: sender
+                    ? {
+                          type: TableCellType.Link,
+                          label: sender,
+                          to: addressToLink({ address: sender }),
+                      }
+                    : {
+                          type: TableCellType.Text,
+                          label: '--',
+                      },
             };
         }),
         columns: [
