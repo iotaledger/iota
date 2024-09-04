@@ -3,7 +3,7 @@
 
 //! This example gets a move package by its object id.
 //!
-//! cargo run --example read_package
+//! cargo run --example read_api_package
 
 use iota_sdk::IotaClientBuilder;
 

@@ -3,7 +3,7 @@
 
 //! This example gets objects in various ways.
 //!
-//! cargo run --example read_objects
+//! cargo run --example read_api_objects
 
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_sdk::IotaClientBuilder;
