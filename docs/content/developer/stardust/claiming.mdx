@@ -1,21 +1,28 @@
 ---
-title: Claiming Stardust Assets
-description: Describes how to access the migrated assets and tokens
+description: How to access the migrated Stardust assets and tokens 
 ---
+import MigrationWarning from '../../_snippets/migration-warning.mdx';
 
-As detailed in the [Stardust Move Models](move-models.mdx), Stardust assets are represented as Move objects within the ledger. Claiming these assets involves enabling original owners to utilize a [Programmable Transaction Block](../iota-101/transactions/ptb/prog-txn-blocks.mdx) to "unlock" assets such as IOTA, Shimmer, custom [`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin)s, or even `Alias` and `Nft` objects. 
+# Claiming Stardust Assets
+
+<MigrationWarning/ >
+
+As detailed in the [Stardust Move Models](move-models.mdx), Stardust assets are represented as Move objects within the ledger. Claiming these assets involves enabling original owners to utilize a [Programmable Transaction Block](../iota-101/transactions/ptb/prog-txn-blocks.mdx) to "unlock" assets such as IOTA, Shimmer, custom [`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin)s, or even `Alias` and `Nft` objects.
 
 This process takes advantage of Move's unique features to ensure that assets are transferred and unlocked securely and efficiently to their rightful owners.
 
+## Output Types to Move Objects
 
-## Output types to Move Objects
+Stardust assets come in the form of Outputs, and each Output can be of a different type. 
+To understand how Outputs have been transformed into Move Objects based on their types,
+please refer to the [Stardust Move Models](move-models.mdx#summary) page.
+Below, you will find one or more examples of claiming each Output type.
 
-Stardust assets come in the form of Outputs and each Output can be of a different type. For understanding how Outputs have been transformed into Move Objects based on their types, please refer to the [Stardust Move Models](move-models.mdx#summary) page. In here, one or more claiming examples for each Output type will be shown.
+## Examples of Stardust Asset Claim Transactions
 
-
-## Examples of Stardust asset claim transactions
-
-In the following, some examples of transactions for claiming the Stardust assets will be presented. Different commands in a [PTB](../iota-101/transactions/ptb/prog-txn-blocks.mdx) are used depending on the claiming scenario, that varies depending on the Stardust Output type and composition.
+Here are some examples of transactions for claiming Stardust assets.
+Different commands in a [PTB](../iota-101/transactions/ptb/prog-txn-blocks.mdx) are used depending on the claiming scenario,
+which varies based on the Stardust Output type and composition.
 
 ### Basic Output
 
@@ -33,12 +40,14 @@ Go to [Alias Output](claiming/alias.mdx).
 
 Go to [Foundry Output](claiming/foundry.mdx).
 
-### Output unlockable by an Alias/Nft Address
+### Output Unlockable by an Alias/Nft Address
 
-Go to [Output unlockable by an Alias/Nft Address](claiming/address-unlock-condition.mdx).
+Go to [Output Unlockable by an Alias/Nft Address](claiming/address-unlock-condition.mdx).
 
-## Sponsoring your Shimmer claiming
+## Sponsoring Your Shimmer Claiming
 
-In the case in which some assets are owned by a Shimmer address that helds no IOTA tokens (needed to pay for gas), then a claiming can benefit by the process of self-sponsoring. This means that an address owning IOTA tokens can be used by the same user to sponsor a transaction claiming Shimmer assets. 
+If some assets are owned by a Shimmer address that holds no IOTA tokens (needed to pay for gas),
+the claiming process can benefit from self-sponsorship.
+This means that an address owning IOTA tokens can be used by the same user to sponsor a transaction claiming Shimmer assets.
 
-Go to [Self-sponsor Shimmer Claimings](claiming/self-sponsor.mdx).
+Go to [Self-sponsor Shimmer Claims](claiming/self-sponsor.mdx).
