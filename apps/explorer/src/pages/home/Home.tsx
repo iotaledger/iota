@@ -7,7 +7,7 @@ import { lazy, Suspense } from 'react';
 
 import { Network } from '@iota/iota-sdk/client';
 import {
-    AccountsCardGraph,
+    AddressesCardGraph,
     Activity,
     CurrentEpoch,
     ErrorBoundary,
@@ -39,10 +39,10 @@ function Home(): JSX.Element {
                             isIotaTokenCardEnabled && 'with-token',
                         )}
                     >
-                        <div style={{ gridArea: 'network' }} className="overflow-hidden">
+                        <div style={{ gridArea: 'network' }} className="flex grow overflow-hidden">
                             <OnTheNetwork />
                         </div>
-                        <div style={{ gridArea: 'epoch' }}>
+                        <div className="flex grow" style={{ gridArea: 'epoch' }}>
                             <CurrentEpoch />
                         </div>
                         {isIotaTokenCardEnabled ? (
@@ -50,11 +50,11 @@ function Home(): JSX.Element {
                                 <IotaTokenCard />
                             </div>
                         ) : null}
-                        <div style={{ gridArea: 'transactions' }}>
+                        <div className="flex grow" style={{ gridArea: 'transactions' }}>
                             <TransactionsCardGraph />
                         </div>
-                        <div style={{ gridArea: 'accounts' }}>
-                            <AccountsCardGraph />
+                        <div className="flex grow" style={{ gridArea: 'addresses' }}>
+                            <AddressesCardGraph />
                         </div>
                     </div>
                     <div>

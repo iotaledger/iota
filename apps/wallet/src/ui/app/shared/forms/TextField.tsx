@@ -13,12 +13,15 @@ type TextFieldProps = {
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     ({ label, ...props }, forwardedRef) => {
+        const value = props.value ? String(props.value) : '';
+        const defaultValue = props.defaultValue ? String(props.defaultValue) : '';
         return (
             <FormField name={props.name} label={label}>
                 <Input
                     {...props}
+                    defaultValue={defaultValue}
                     type={props.type === 'password' ? InputType.Password : InputType.Text}
-                    value={props.value ? String(props.value) : ''}
+                    value={value}
                     ref={forwardedRef}
                 />
             </FormField>

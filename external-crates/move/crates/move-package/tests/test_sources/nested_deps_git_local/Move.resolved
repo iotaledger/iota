@@ -32,7 +32,7 @@ ResolvedGraph {
                 kind: Git(
                     GitInfo {
                         git_url: "https://github.com/iotaledger/iota",
-                        git_rev: "72eee96",
+                        git_rev: "f7e5011",
                         subdir: "external-crates/move/crates/move-stdlib/nursery",
                     },
                 ),
@@ -43,7 +43,7 @@ ResolvedGraph {
                 kind: Git(
                     GitInfo {
                         git_url: "https://github.com/iotaledger/iota",
-                        git_rev: "72eee96",
+                        git_rev: "f7e5011",
                         subdir: "external-crates/move/crates/move-stdlib",
                     },
                 ),
@@ -56,7 +56,7 @@ ResolvedGraph {
             "MoveStdlib",
             "NestedDeps",
         },
-        manifest_digest: "905AEA182695B1EF7F0DB36D9357CC39FDE2BB6B9F96D05C677EB9C7B7EEF32A",
+        manifest_digest: "F45479F592B1338CBDD902E019A40FA7A1D802E49E9BE96FFECA91B3B5AA178D",
         deps_digest: "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082",
     },
     build_options: BuildConfig {
@@ -178,7 +178,7 @@ ResolvedGraph {
                             kind: Git(
                                 GitInfo {
                                     git_url: "https://github.com/iotaledger/iota",
-                                    git_rev: "72eee96",
+                                    git_rev: "f7e5011",
                                     subdir: "external-crates/move/crates/move-stdlib/nursery",
                                 },
                             ),

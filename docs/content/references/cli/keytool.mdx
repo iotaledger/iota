@@ -41,7 +41,7 @@ Commands:
   sign                           Create signature using the private key for for the given address (or its alias) in iota keystore. Any signature commits to a [struct IntentMessage] consisting
                                      of the Base64 encoded of the BCS serialized transaction bytes itself and its intent. If intent is absent, default will be used
   sign-kms                       Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage Amazon KMS to sign a message and the base64 pubkey. Generate PubKey from pem using
-                                     MystenLabs/base64pemkey Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded of the BCS serialized transaction bytes itself and
+                                     iotaledger/base64pemkey Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded of the BCS serialized transaction bytes itself and
                                      its intent. If intent is absent, default will be used
   unpack                         This takes [enum IotaKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It outputs the keypair into a file at the current directory where the address is
                                      the filename, and prints out its Iota address, Base64 encoded public key, the key scheme, and the key scheme flag

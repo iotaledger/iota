@@ -66,7 +66,7 @@ module examples::exampletoken {
 
 There's a lot to unpack here; let's look at it piece by piece. In IOTA Move, there is no 'compiler version' defined within the module itself, like in Solidity.
 
-A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `iota` package. The `std` and `iota` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](../getting-started/first-app/write-package.mdx).
+A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `iota` package. The `std` and `iota` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](../getting-started/create-a-package.mdx).
 
 After the aliases, we see an empty struct defined:
 
@@ -74,7 +74,7 @@ After the aliases, we see an empty struct defined:
 struct EXAMPLETOKEN has drop {}
 ```
 
-This is the definition of the so-called [One-Time-Witness](../iota-101/iota-move-concepts/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
+This is the definition of the so-called [One-Time-Witness](../iota-101/move-overview/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
 
 The `init` function is called automatically when a package is published for every module. The One-Time-Witness and a `TxContext` object containing more information about the function call itself, like the address deploying the package (sender), are passed automatically.
 

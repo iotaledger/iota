@@ -19,7 +19,7 @@ use utils::setup_for_read;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (iota, active_address) = setup_for_read().await?;
+    let (client, active_address) = setup_for_read().await?;
 
     // ************ COIN READ API ************ //
 
@@ -28,7 +28,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // use `None` for the default `Coin<IOTA>` which is represented as
     // "0x2::iota::IOTA"
     let coin_type = Some("0x2::iota::IOTA".to_string());
-    let coins = iota
+    let coins = client
         .coin_read_api()
         .get_coins(active_address, coin_type.clone(), None, Some(5)) // get the first five coins
         .await?;
@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // This function works very similar to the get_coins function, except it does
     // not take a coin_type filter argument and it returns all coin types
     // associated with this address
-    let all_coins = iota
+    let all_coins = client
         .coin_read_api()
         .get_all_coins(active_address, None, Some(5)) // get the first five coins
         .await?;
@@ -50,7 +50,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get coins as a stream
     // Similar to the previous functions, except it returns the coins as a stream.
-    let coins_stream = iota.coin_read_api().get_coins_stream(active_address, None);
+    let coins_stream = client
+        .coin_read_api()
+        .get_coins_stream(active_address, None);
 
     println!(" *** Coins Stream ***");
     coins_stream
@@ -63,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Select coins based on the provided coin type (IOTA in this example). Use
     // `None` for the default Iota coin
-    let select_coins = iota
+    let select_coins = client
         .coin_read_api()
         .select_coins(active_address, coin_type, 1, vec![])
         .await?;
@@ -75,14 +77,14 @@ async fn main() -> Result<(), anyhow::Error> {
     // Balance
     // Returns the balance for the specified coin type for this address,
     // or if None is passed, it will use Coin<IOTA> as the coin type
-    let balance = iota
+    let balance = client
         .coin_read_api()
         .get_balance(active_address, None)
         .await?;
 
     // Total balance
     // Returns the balance for each coin owned by this address
-    let total_balance = iota
+    let total_balance = client
         .coin_read_api()
         .get_all_balances(active_address)
         .await?;
@@ -92,9 +94,9 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Balance + Total Balance ***\n ");
 
     // Return the coin metadata for the Coin<IOTA>
-    let coin_metadata = iota
+    let coin_metadata = client
         .coin_read_api()
-        .get_coin_metadata("0x2::iota::IOTA".to_string())
+        .get_coin_metadata("0x2::iota::IOTA")
         .await?;
 
     println!(" *** Coin Metadata *** ");
@@ -102,9 +104,9 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Coin Metadata ***\n ");
 
     // Total Supply
-    let total_supply = iota
+    let total_supply = client
         .coin_read_api()
-        .get_total_supply("0x2::iota::IOTA".to_string())
+        .get_total_supply("0x2::iota::IOTA")
         .await?;
     println!(" *** Total Supply *** ");
     println!("{:?}", total_supply);

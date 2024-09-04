@@ -5,7 +5,7 @@ import React from 'react';
 import cx from 'classnames';
 import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
-import { LockLocked, LockUnlocked, MoreHoriz } from '@iota/ui-icons';
+import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled } from '@iota/ui-icons';
 import { Address } from '../address';
 
 interface AccountProps {
@@ -24,15 +24,15 @@ interface AccountProps {
     /**
      * Handler for more options click.
      */
-    onOptionsClick: () => void;
+    onOptionsClick?: () => void;
     /**
      * Handler for the lock account icon click.
      */
-    onLockAccountClick: () => void;
+    onLockAccountClick?: () => void;
     /**
      * Handle for the unlock account icon click.
      */
-    onUnlockAccountClick: () => void;
+    onUnlockAccountClick?: () => void;
     /**
      * Function to render avatar content.
      */
@@ -53,6 +53,10 @@ interface AccountProps {
      * Has open icon  (optional).
      */
     isExternal?: boolean;
+    /**
+     * Show checkmark selected or unselected if not undefined (optional).
+     */
+    isSelected?: boolean;
     /**
      * The type of the badge.
      */
@@ -77,6 +81,7 @@ export function Account({
     onOpen,
     isCopyable,
     isExternal,
+    isSelected,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
 
@@ -93,7 +98,7 @@ export function Account({
                     </div>
                     <Address
                         text={subtitle}
-                        onCopy={onCopy}
+                        onCopySuccess={onCopy}
                         onOpen={onOpen}
                         isCopyable={isCopyable}
                         isExternal={isExternal}
@@ -102,31 +107,54 @@ export function Account({
             </div>
             <div
                 className={cx(
-                    'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden group-hover:[&_button]:flex',
-                    isLocked && '[&_button:last-child]:flex',
+                    'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden [&_button]:h-5 [&_button]:w-5 group-hover:[&_button]:flex',
+                    '[&_div.checkmark_button]:flex', // make checkmark visible always
+                    isLocked && '[&_div.unlock_button]:flex', // make unlock visible when is locked
                 )}
             >
-                <Button
-                    size={ButtonSize.Small}
-                    type={ButtonType.Ghost}
-                    onClick={onOptionsClick}
-                    icon={<MoreHoriz />}
-                />
-                {isLocked ? (
+                {onOptionsClick && (
                     <Button
                         size={ButtonSize.Small}
                         type={ButtonType.Ghost}
-                        onClick={onUnlockAccountClick}
-                        icon={<LockLocked />}
-                    />
-                ) : (
-                    <Button
-                        size={ButtonSize.Small}
-                        type={ButtonType.Ghost}
-                        onClick={onLockAccountClick}
-                        icon={<LockUnlocked />}
+                        onClick={onOptionsClick}
+                        icon={<MoreHoriz />}
                     />
                 )}
+                {onLockAccountClick &&
+                    onUnlockAccountClick &&
+                    (isLocked ? (
+                        <div className="unlock">
+                            <Button
+                                size={ButtonSize.Small}
+                                type={ButtonType.Ghost}
+                                onClick={onUnlockAccountClick}
+                                icon={<LockLocked />}
+                            />
+                        </div>
+                    ) : (
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            onClick={onLockAccountClick}
+                            icon={<LockUnlocked />}
+                        />
+                    ))}
+                {isSelected !== undefined ? (
+                    <div className="checkmark">
+                        <Button
+                            size={ButtonSize.Small}
+                            type={ButtonType.Ghost}
+                            icon={
+                                <CheckmarkFilled
+                                    className={cx({
+                                        'text-neutral-10': !isSelected,
+                                        'text-primary-30': isSelected,
+                                    })}
+                                />
+                            }
+                        />
+                    </div>
+                ) : null}
             </div>
         </div>
     );

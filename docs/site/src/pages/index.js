@@ -99,7 +99,7 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./developer/iota-101/iota-move-concepts"
+              to="./developer/iota-101/move-overview"
             >
               Move
             </Link>
@@ -165,7 +165,7 @@ export default function Home() {
           <HomeCardCTA>
             <Link
               className={styles.cardCTALink}
-              to="/developer/getting-started/first-app"
+              to="/developer/getting-started/create-a-package"
             >
               <span>Build your dApp on IOTA</span>
               <svg

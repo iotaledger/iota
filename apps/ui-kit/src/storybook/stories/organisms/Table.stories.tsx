@@ -34,7 +34,7 @@ const rowsData: TableCellProps[][] = [
         },
         { type: TableCellType.Badge, badgeType: BadgeType.PrimarySolid, label: '30' },
         { type: TableCellType.Text, label: 'Software Engineer' },
-        { type: TableCellType.TextToCopy, label: 'test@acme.com' },
+        { type: TableCellType.TextToCopy, label: 'test@acme.com', textToCopy: 'test@acme.com' },
         { type: TableCellType.Text, label: '10.04.2016' },
         { type: TableCellType.Text, label: '12.03.2019' },
     ],
@@ -42,15 +42,23 @@ const rowsData: TableCellProps[][] = [
         { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Jane Smith' },
         { type: TableCellType.Badge, badgeType: BadgeType.Neutral, label: '25' },
         { type: TableCellType.Text, label: 'Graphic Designer' },
-        { type: TableCellType.TextToCopy, label: 'test@acme.com' },
+        { type: TableCellType.TextToCopy, label: 'test@acme.com', textToCopy: 'test@acme.com' },
         { type: TableCellType.Text, label: '10.04.2016' },
         { type: TableCellType.Text, label: '12.03.2019' },
+    ],
+    [
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
+        { type: TableCellType.Placeholder },
     ],
     [
         { type: TableCellType.AvatarText, leadingElement: <Globe />, label: 'Sam Johnson' },
         { type: TableCellType.Badge, badgeType: BadgeType.PrimarySoft, label: '40' },
         { type: TableCellType.Text, label: 'Project Manager' },
-        { type: TableCellType.TextToCopy, label: 'test@acme.com' },
+        { type: TableCellType.TextToCopy, label: 'test@acme.com', textToCopy: 'test@acme.com' },
         { type: TableCellType.Text, label: '10.04.2016' },
         { type: TableCellType.Text, label: '12.03.2019' },
     ],
@@ -105,8 +113,12 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         supportingLabel: '10.7k records',
-        hasPagination: true,
+        paginationOptions: {
+            onFirstPageClick: () => console.log('First'),
+            onNextPageClick: () => console.log('Next'),
+        },
         actionLabel: 'Action',
         hasCheckboxColumn: true,
+        rowIndexes: [0, 1, 2],
     },
 };
