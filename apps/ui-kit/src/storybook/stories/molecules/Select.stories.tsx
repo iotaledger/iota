@@ -33,7 +33,7 @@ export const Default: Story = {
         },
     },
     render: (args) => {
-        const [selected, setSelected] = useState('iota');
+        const [selected, setSelected] = useState('Option 1');
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
         const onChange = (id: string) => {
