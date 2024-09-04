@@ -22,6 +22,7 @@ import {
 } from '@tanstack/react-table';
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export interface TableCardProps<DataType extends object> {
     refetching?: boolean;
@@ -30,6 +31,8 @@ export interface TableCardProps<DataType extends object> {
     sortTable?: boolean;
     defaultSorting?: SortingState;
     paginationOptions?: TablePaginationOptions;
+    totalLabel?: string
+    viewAll?: string
 }
 
 export function TableCard<DataType extends object>({
@@ -39,7 +42,10 @@ export function TableCard<DataType extends object>({
     sortTable,
     defaultSorting,
     paginationOptions,
+    totalLabel,
+    viewAll
 }: TableCardProps<DataType>): JSX.Element {
+    const navigate = useNavigate();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
     // Use Columns to create a table
@@ -81,6 +87,11 @@ export function TableCard<DataType extends object>({
             <Table
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
+                actionLabel={viewAll ? 'View All' : undefined}
+                supportingLabel={totalLabel}
+                onActionClick={viewAll ? () => {
+                    navigate(viewAll)
+                } : undefined}
             >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (

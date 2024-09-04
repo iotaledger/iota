@@ -21,6 +21,7 @@ import {
 } from '~/hooks/useGetTransactionBlocks';
 import { numberSuffix } from '~/lib/utils';
 import { genTableDataFromTxData } from '../transactions/TxCardUtils';
+import { Select } from '@iota/apps-ui-kit';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -76,6 +77,8 @@ export function TransactionsActivityTable({
                     <TableCard
                         data={cardData.data}
                         columns={cardData.columns}
+                        totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
+                        viewAll={true ? '/recent' : undefined}
                         paginationOptions={
                             !disablePagination
                                 ? {
@@ -95,29 +98,20 @@ export function TransactionsActivityTable({
                 )}
 
                 <div className="flex justify-between">
-                    {disablePagination ? (
-                        <Link to="/recent" after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}>
-                            View all
-                        </Link>
-                    ) : undefined}
                     <div className="flex items-center space-x-3">
-                        <Text variant="body/medium" color="steel-dark">
-                            {count ? numberSuffix(Number(count)) : '-'}
-                            {` Total`}
-                        </Text>
                         {!disablePagination && (
-                            <select
-                                className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                value={limit}
-                                onChange={(e) => {
-                                    setLimit(Number(e.target.value));
+                            <Select
+                                value={limit.toString()}
+                                options={[
+                                    { id: "20", label: "20" },
+                                    { id: "40", label: "40" },
+                                    { id: "60", label: "60" },
+                                ]}
+                                onValueChange={(e) => {
+                                    setLimit(Number(e));
                                     pagination.onFirst();
                                 }}
-                            >
-                                <option value={20}>20 Per Page</option>
-                                <option value={40}>40 Per Page</option>
-                                <option value={60}>60 Per Page</option>
-                            </select>
+                            />
                         )}
                     </div>
                 </div>
