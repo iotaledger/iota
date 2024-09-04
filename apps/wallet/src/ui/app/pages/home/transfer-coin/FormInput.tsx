@@ -1,12 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Input, InputType, type InputProps, type NumberInputProps } from '@iota/apps-ui-kit';
+import { Input, InputType, type InputProps, type NumericFormatInputProps } from '@iota/apps-ui-kit';
 import { useField, useFormikContext } from 'formik';
 
 interface FormInputWithFormixProps {
     name: string;
-    renderAction?: (isDisabled: boolean | undefined) => React.JSX.Element;
+    renderAction?: (isDisabled?: boolean) => React.JSX.Element;
     decimals?: boolean;
 }
 
@@ -21,7 +21,8 @@ export function FormInput({ renderAction, ...props }: InputProps & FormInputWith
         isInputDisabled || meta?.initialValue === meta?.value || !!meta?.error;
     const errorMessage = meta?.error && meta.touched ? meta.error : undefined;
 
-    const numericPropsOnly: Partial<NumberInputProps> = {
+    const isNumericFormat = props.type === InputType.NumericFormat;
+    const numericPropsOnly: Partial<NumericFormatInputProps> = {
         decimalScale: props.decimals ? undefined : 0,
         thousandSeparator: true,
         onValueChange: (values) => form.setFieldValue(props.name, values.value),
@@ -36,7 +37,7 @@ export function FormInput({ renderAction, ...props }: InputProps & FormInputWith
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? props.amountCounter : undefined}
             trailingElement={renderAction?.(isActionButtonDisabled)}
-            {...(props.type === InputType.Number ? numericPropsOnly : {})}
+            {...(isNumericFormat ? { ...numericPropsOnly, onChange: undefined } : {})}
         />
     );
 }

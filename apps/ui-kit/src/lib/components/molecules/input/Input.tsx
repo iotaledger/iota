@@ -15,7 +15,7 @@ import { InputType } from './input.enums';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/ui-icons';
 import { ButtonUnstyled } from '../../atoms/button';
-import { InputPropsByType, NumberInputProps } from './input.types';
+import { InputPropsByType, NumericFormatInputProps } from './input.types';
 import { NumericFormat } from 'react-number-format';
 
 export interface BaseInputProps extends InputWrapperProps {
@@ -151,25 +151,24 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
 function InputElement({
     type,
     inputRef,
-    value,
     ...inputProps
 }: InputProps & {
     inputRef: React.ForwardedRef<HTMLInputElement>;
     className: string;
 }) {
-    return type !== InputType.Number ? (
-        <input {...inputProps} value={value} type={type} ref={inputRef} />
+    return type === InputType.NumericFormat ? (
+        <NumericFormatInput inputRef={inputRef} {...inputProps} type={type} />
     ) : (
-        <NumericInput inputRef={inputRef} value={value} {...inputProps} type={type} />
+        <input ref={inputRef} {...inputProps} type={type} />
     );
 }
 
-function NumericInput({
+function NumericFormatInput({
     inputRef,
     className,
     type,
     ...inputProps
-}: NumberInputProps &
+}: NumericFormatInputProps &
     InputProps & {
         inputRef: React.ForwardedRef<HTMLInputElement>;
         className: string;

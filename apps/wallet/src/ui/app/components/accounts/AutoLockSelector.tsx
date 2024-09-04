@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect } from 'react';
-import { Controller, useFormContext } from 'react-hook-form';
+import { useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 
 import { CheckboxField } from '../../shared/forms/CheckboxField';
@@ -40,7 +40,7 @@ interface AutoLockSelectorProps {
 }
 
 export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
-    const { watch, trigger, control } = useFormContext();
+    const { watch, trigger, register } = useFormContext();
     const timer = watch('autoLock.timer');
     const timerEnabled = watch('autoLock.enabled');
     useEffect(() => {
@@ -62,16 +62,10 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
             <FormField name="autoLock.timer">
                 <div className="flex items-start justify-between gap-xs">
                     <div className="w-2/3">
-                        <Controller
-                            name="autoLock.timer"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    disabled={disabled || !timerEnabled}
-                                    type={InputType.Number}
-                                    {...field}
-                                />
-                            )}
+                        <Input
+                            disabled={disabled || !timerEnabled}
+                            type={InputType.Number}
+                            {...register('autoLock.timer')}
                         />
                     </div>
                     <div className="w-1/3">

@@ -229,7 +229,17 @@ export function SendTokenForm({
                 validateOnChange
                 onSubmit={handleFormSubmit}
             >
-                {({ isValid, isSubmitting, setFieldValue, values, submitForm, validateField }) => {
+                {({ isValid, isSubmitting, setFieldValue, values, submitForm, resetForm }) => {
+                    useEffect(() => {
+                        resetForm({
+                            values: {
+                                ...INITIAL_VALUES,
+                                amount: '',
+                                to: '',
+                            },
+                        });
+                    }, [resetForm, coinType]);
+
                     const newPayIotaAll =
                         parseAmount(values.amount, coinDecimals) === coinBalance &&
                         coinType === IOTA_TYPE_ARG;
@@ -247,8 +257,7 @@ export function SendTokenForm({
                                 );
 
                     async function onMaxTokenButtonClick() {
-                        await setFieldValue('amount', formattedTokenBalance);
-                        validateField('amount');
+                        await setFieldValue('amount', formattedTokenBalance, true);
                     }
 
                     const isMaxActionDisabled =
@@ -337,7 +346,7 @@ function SendTokenFormInput({
 
     return (
         <FormInput
-            type={InputType.Number}
+            type={InputType.NumericFormat}
             name="amount"
             label="Send Amount"
             placeholder="0.00"

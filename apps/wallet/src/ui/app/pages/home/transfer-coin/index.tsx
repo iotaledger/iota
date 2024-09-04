@@ -19,7 +19,7 @@ import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm, type SubmitProps } from './SendTokenForm';
@@ -158,6 +158,7 @@ function TransferCoinPage() {
 
 function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: string }) {
     const selectedAddress = useActiveAddress();
+    const navigate = useNavigate();
 
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const { data: coins, isPending } = useIotaClientQuery(
@@ -180,21 +181,19 @@ function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: stri
     const coinsOptions: SelectOption[] =
         coins?.map((coin) => ({
             id: coin.coinType,
-            renderValue: (
-                <Link
-                    to={`/send?${new URLSearchParams({
-                        type: coin.coinType,
-                    }).toString()}`}
-                    className="w-full"
-                >
-                    <CoinSelectOption coin={coin} />
-                </Link>
-            ),
+            renderValue: <CoinSelectOption coin={coin} />,
         })) || [];
 
     return (
         <Loading loading={isPending}>
-            <Select label="Select Coins" value={initialValue} options={coinsOptions} />
+            <Select
+                label="Select Coins"
+                value={initialValue}
+                options={coinsOptions}
+                onValueChange={(coinType) => {
+                    navigate(`/send?${new URLSearchParams({ type: coinType }).toString()}`);
+                }}
+            />
         </Loading>
     );
 }

@@ -10,47 +10,20 @@ type InputElementProps = Omit<
     'type' | 'className' | 'ref' | 'value' | 'defaultValue'
 >;
 
-export type PasswordInputProps = {
-    type: InputType.Password;
-};
-
-export type TextInputProps = {
-    type: InputType.Text;
+type GenericInputProps = {
+    type: InputType.Text | InputType.Password | InputType.Number;
 };
 
 type NumericFormatProps = ComponentProps<typeof NumericFormat>;
 
-export type NumberInputProps = {
-    type: InputType.Number;
-    /**
-     * The pattern attribute specifies a regular expression that the input element's value is checked against.
-     */
-    pattern?: string;
-    /**
-     * onValueChange callback
-     */
-    onValueChange?: NumericFormatProps['onValueChange'];
-    /**
-     * The decimal scale
-     */
-    decimalScale?: NumericFormatProps['decimalScale'];
-    /**
-     * The thousand separator
-     */
-    thousandSeparator?: NumericFormatProps['thousandSeparator'];
-    /**
-     * Allow negative numbers
-     */
-    allowNegative?: NumericFormatProps['allowNegative'];
-    /**
-     * The suffix
-     */
+export type NumericFormatInputProps = {
+    type: InputType.NumericFormat;
     suffix?: NumericFormatProps['suffix'];
-    /**
-     * The prefix
-     */
     prefix?: NumericFormatProps['prefix'];
+    decimalScale?: NumericFormatProps['decimalScale'];
+    allowNegative?: NumericFormatProps['allowNegative'];
+    thousandSeparator?: NumericFormatProps['thousandSeparator'];
+    onValueChange?: NumericFormatProps['onValueChange'];
 };
 
-export type InputPropsByType = InputElementProps &
-    (TextInputProps | NumberInputProps | PasswordInputProps);
+export type InputPropsByType = InputElementProps & (NumericFormatInputProps | GenericInputProps);

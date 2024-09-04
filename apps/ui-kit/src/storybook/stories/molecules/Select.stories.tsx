@@ -52,8 +52,8 @@ export const Default: Story = {
     render: ({ value, ...args }) => {
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
-        function onChange(option: SelectOption) {
-            if (option.id === INVALID_OPTION.id) {
+        function onChange(option: SelectOption['id']) {
+            if (option === INVALID_OPTION.id) {
                 setErrorMessage('Invalid Option Selected');
             } else {
                 setErrorMessage(undefined);
