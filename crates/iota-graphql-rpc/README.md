@@ -18,6 +18,7 @@ You can explore the schema [here](schema).
 The `async-graphql` types and handlers are implemented in the [src/types](src/types) directory.
 
 Comparing the GraphQL schema with specific JSON-RPC methods it appeared:
+
 - the `CoinApi` is covered by [coin](src/types/coin.rs) and [coin_metadata](src/types/coin_metadata.rs) types.
 - the `GovernanceApi` is mostly covered by [validators](src/types/validator.rs) and [gas](src/types/gas.rs) types. However, it seems timelocked stakes and committee info are not supported by the GraphQL schema.
 - the `MoveUtilsApi` is covered by [move_function](src/types/move_function.rs), [move_module](src/types/move_module.rs), [move_object](src/types/move_object.rs), [move_package](src/types/move_package.rs), [move_struct](src/types/move_struct.rs), [move_type](src/types/move_type.rs) and [move_value](src/types/move_value.rs) types.
