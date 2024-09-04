@@ -112,7 +112,7 @@ jobs:
         with:
           host: github.com
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
-          private-key-name: github-ppk
+          private-key-name: git
 
       - name: Build and push Docker image for iota-indexer
         uses: docker/build-push-action@v5
