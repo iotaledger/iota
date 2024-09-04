@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
-import { Text } from '@iota/ui';
+import { Select } from '@iota/apps-ui-kit';
+import { ArrowRight } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
-
 import {
     Link,
     Pagination,
@@ -54,9 +53,9 @@ export function CheckpointsTable({
     }, [countQuery.data, initialCursor, maxCursor, checkpoints, isError]);
 
     const cardData = data ? generateTableDataFromCheckpointsData(data) : undefined;
-
+    console.log('--- limit', limit);
     return (
-        <div className="flex flex-col space-y-3 text-left xl:pr-10">
+        <div className="flex flex-col gap-md text-left xl:pr-10">
             {isError && (
                 <div className="pt-2 font-sans font-semibold text-issue-dark">
                     Failed to load Checkpoints
@@ -88,30 +87,41 @@ export function CheckpointsTable({
                 ) : (
                     <Link
                         to="/recent?tab=checkpoints"
-                        after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}
+                        after={<ArrowRight className="h-3 w-3 -rotate-45" />}
                     >
                         View all
                     </Link>
                 )}
 
-                <div className="flex items-center space-x-3">
-                    <Text variant="body/medium" color="steel-dark">
+                <div className="flex items-center gap-md">
+                    <div className="whitespace-nowrap text-label-md text-neutral-40">
                         {count ? numberSuffix(Number(count)) : '-'}
                         {` Total`}
-                    </Text>
+                    </div>
                     {!disablePagination && (
-                        <select
-                            className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                            value={limit}
-                            onChange={(e) => {
-                                setLimit(Number(e.target.value));
-                                pagination.onFirst();
-                            }}
-                        >
-                            <option value={20}>20 Per Page</option>
-                            <option value={40}>40 Per Page</option>
-                            <option value={60}>60 Per Page</option>
-                        </select>
+                        <div className="[&_button]:px-2 [&_button]:py-1">
+                            <Select
+                                options={[
+                                    {
+                                        id: '20',
+                                        label: '20 Per Page',
+                                    },
+                                    {
+                                        id: '40',
+                                        label: '40 Per Page',
+                                    },
+                                    {
+                                        id: '60',
+                                        label: '60 Per Page',
+                                    },
+                                ]}
+                                value={String(limit)}
+                                onValueChange={(e) => {
+                                    setLimit(Number(e));
+                                    pagination.onFirst();
+                                }}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
