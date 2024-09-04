@@ -35,7 +35,7 @@ define_sql_function! {
 
 define_sql_function! {
     /// Gets the large object with OID `loid`.
-    /// Returns an erorr if the object doesn't exist.
+    /// Returns an error if the object doesn't exist.
     fn lo_get(loid: Oid, offset: Nullable<BigInt>, length: Nullable<Integer> ) -> Binary
 }
 
