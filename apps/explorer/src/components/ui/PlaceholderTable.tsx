@@ -25,7 +25,7 @@ export function PlaceholderTable({
                 colHeadings.map((header, index) => [
                     `a${index}`,
                     {
-                        type: TableCellType.Placeholder
+                        type: TableCellType.Placeholder,
                     },
                 ]),
             ),
