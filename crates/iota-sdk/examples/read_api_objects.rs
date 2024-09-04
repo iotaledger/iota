@@ -23,7 +23,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let object_id = object.data.as_ref().unwrap().object_id;
 
     let object_bcs = client.read_api().get_move_object_bcs(object_id).await?;
-    println!("Objects: {object_bcs:?}");
+    println!("Object bcs: {object_bcs:?}");
 
     let loaded_child_objects = client
         .read_api()
