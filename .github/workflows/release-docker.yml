@@ -107,9 +107,17 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-indexer
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-indexer/Dockerfile
           platforms: linux/amd64

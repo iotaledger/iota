@@ -11,6 +11,22 @@ WORKDIR "$WORKDIR/iota"
 # iota-indexer needs postgres libpq5 and ca-certificates
 RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql
 
+# TODO: Remove when iota-sim is public
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh <<EOT
+  set -e
+  echo "Setting Git SSH protocol"
+  git config --global url."git@github.com:".insteadOf "https://github.com/"
+  (
+    set +e
+    ssh -T git@github.com
+    if [ ! "$?" = "1" ]; then
+      echo "No GitHub SSH key loaded, exiting..."
+      exit 1
+    fi
+  )
+EOT
+
 RUN apt-get update && apt-get install -y cmake clang
 
 COPY Cargo.toml Cargo.lock ./
