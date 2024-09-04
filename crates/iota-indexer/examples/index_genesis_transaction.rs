@@ -7,6 +7,7 @@ use iota_genesis_builder::{Builder as GenesisBuilder, SnapshotSource, SnapshotUr
 use iota_indexer::{
     db::{self, reset_database},
     errors::IndexerError,
+    indexer_reader::IndexerReader,
     models::transactions::StoredTransaction,
     schema::transactions,
     store::indexer_store::IndexerStore,
@@ -36,10 +37,9 @@ fn genesis_builder() -> GenesisBuilder {
         builder = builder.add_validator(validator_info.info, validator_info.proof_of_possession);
     }
 
-    // builder = builder.
-    // add_migration_source(SnapshotSource::S3(SnapshotUrl::Iota));
-    builder =
-        builder.add_migration_source(SnapshotSource::S3(SnapshotUrl::Test("https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz".parse().unwrap())));
+    builder = builder
+        .add_migration_source(SnapshotSource::S3(SnapshotUrl::Iota))
+        .add_migration_source(SnapshotSource::S3(SnapshotUrl::Shimmer));
 
     for key in &key_pairs {
         builder = builder.add_validator_signature(key);
@@ -98,6 +98,12 @@ pub async fn main() -> Result<(), IndexerError> {
     let stored = stored
         .set_genesis_large_object_as_inner_data(&pg_store.blocking_cp())
         .unwrap();
+
+    let reader = IndexerReader::new(DEFAULT_DB_URL.to_owned())?;
+    // We just want to verify that the call succeeds.
+    let _coin_metadata = reader
+        .get_coin_metadata_in_blocking_task("0x2::iota::IOTA".parse().unwrap())
+        .await?;
 
     assert!(expected == stored.raw_transaction);
     Ok(())
