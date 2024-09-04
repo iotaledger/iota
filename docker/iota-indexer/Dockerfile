@@ -25,6 +25,7 @@ RUN --mount=type=ssh <<EOT
     fi
   )
 EOT
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 RUN apt-get update && apt-get install -y cmake clang
 
