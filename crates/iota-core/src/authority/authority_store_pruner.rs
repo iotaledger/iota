@@ -73,10 +73,10 @@ pub struct AuthorityStorePruningMetrics {
     pub num_epochs_to_retain_for_checkpoints: IntGauge,
 }
 
-/// Initializes a new instance of `AuthorityStorePruningMetrics` with the
-/// provided registry, registering various metrics that track the pruning
-/// operations in the `AuthorityStore`.
 impl AuthorityStorePruningMetrics {
+    /// Initializes a new instance of `AuthorityStorePruningMetrics` with the
+    /// provided registry, registering various metrics that track the pruning
+    /// operations in the `AuthorityStore`.
     pub fn new(registry: &Registry) -> Arc<Self> {
         let this = Self {
             last_pruned_checkpoint: register_int_gauge_with_registry!(
@@ -365,9 +365,10 @@ impl AuthorityStorePruner {
     /// configuration and current state of the `AuthorityStore`. This
     /// function determines the range of checkpoints that can be pruned,
     /// taking into account retention policies, archival watermarks, and
-    /// smoothing options. It then delegates the pruning to the appropriate
-    /// internal method. The function also updates pruning metrics and
-    /// ensures proper handling of indirect objects.
+    /// smoothing options. It then delegates the pruning to the
+    /// `prune_for_eligible_epochs` method.
+    /// The function also updates pruning metrics and ensures proper handling of
+    /// indirect objects.
     pub async fn prune_checkpoints_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
