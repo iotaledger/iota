@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #![recursion_limit = "256"]
 
-// TODO: Everything that deals with reading `StoredTransactions` should handle
-// large objects.
-
 use std::net::SocketAddr;
 
 use anyhow::{anyhow, Result};

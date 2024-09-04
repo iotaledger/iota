@@ -2,10 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_genesis_builder::{Builder as GenesisBuilder, SnapshotSource, SnapshotUrl};
 use iota_indexer::{
+    db,
     errors::IndexerError,
     models::transactions::StoredTransaction,
+    schema::transactions,
     store::indexer_store::IndexerStore,
     test_utils::create_pg_store,
     types::{IndexedTransaction, TransactionKind},
@@ -80,13 +83,21 @@ pub async fn main() -> Result<(), IndexerError> {
     };
 
     let digest_to_bytes = db_txn.tx_digest.into_inner().to_vec();
+    let expected = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
 
     let pg_store = create_pg_store(Some(DEFAULT_DB_URL.to_owned()), None);
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
-    let stored =
-        StoredTransaction::try_get_from_storage(digest_to_bytes, &pg_store.blocking_cp()).unwrap();
+    let mut conn = db::get_pg_pool_connection(&pg_store.blocking_cp())?;
+    let stored = transactions::table
+        .filter(transactions::transaction_digest.eq(digest_to_bytes))
+        .first::<StoredTransaction>(&mut conn)
+        .unwrap();
 
-    assert_eq!(stored.raw_transaction, vec![0; 2 * 1024 * 1024 * 1024]);
+    let stored = stored
+        .try_get_genesis_from_storage(&pg_store.blocking_cp())
+        .unwrap();
+
+    assert_eq!(expected, stored.raw_transaction);
     Ok(())
 }

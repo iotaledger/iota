@@ -289,57 +289,65 @@ impl StoredTransaction {
             && self.transaction_kind == TransactionKind::SystemTransaction as i16
     }
 
-    pub fn try_into_large_object(mut self, pool: &PgConnectionPool) -> Result<Self, IndexerError> {
-        // TODO: if !self.is_genesis
-        if self.is_genesis() {
-            let mut conn = crate::db::get_pg_pool_connection(pool)?;
-            let raw_tx = std::mem::take(&mut self.raw_transaction);
-            let oid: u32 = select(lo_create(0))
-                .get_result(&mut conn)
-                .map_err(IndexerError::from)
-                .context("failed to store large object")?;
-            // TODO: if !i64::try_from(raw_tx.len()).is_ok() { return Err }
-            //       let offset = (i * Self::LARGE_OBJECT_CHUNK) as i64
-            for (i, chunk) in raw_tx.chunks(Self::LARGE_OBJECT_CHUNK).enumerate() {
-                let offset = i64::try_from(i * Self::LARGE_OBJECT_CHUNK)
-                    .map_err(|e| IndexerError::GenericError(e.to_string()))?;
-                tracing::trace!("storing large-object chunk at offset {}", offset);
-
-                // TODO (to treat in a different issue):
-                // remove dangling chunks (either by using a transaction or by handlng manually)
-                //
-                // additionally we could apply a backoff retry strategy
-                select(lo_put(oid, offset, chunk))
-                    .execute(&mut conn)
-                    .map_err(IndexerError::from)
-                    .context("failed to insert large object chunk")?;
-            }
-            self.raw_transaction = oid.to_le_bytes().to_vec();
+    pub fn try_store_genesis_as_large_object(
+        mut self,
+        pool: &PgConnectionPool,
+    ) -> Result<Self, IndexerError> {
+        if !self.is_genesis() {
+            return Ok(self);
         }
+        let mut conn = crate::db::get_pg_pool_connection(pool)?;
+        let raw_tx = std::mem::take(&mut self.raw_transaction);
+        let oid: u32 = select(lo_create(0))
+            .get_result(&mut conn)
+            .map_err(IndexerError::from)
+            .context("failed to store large object")?;
+
+        if let Err(err) = i64::try_from(raw_tx.len()) {
+            return Err(IndexerError::GenericError(err.to_string()));
+        }
+
+        for (chunk_num, chunk) in raw_tx.chunks(Self::LARGE_OBJECT_CHUNK).enumerate() {
+            let offset = (chunk_num * Self::LARGE_OBJECT_CHUNK) as i64;
+            tracing::trace!("storing large-object chunk at offset {}", offset);
+            // TODO: (to treat in a different issue):
+            // remove dangling chunks (either by using a transaction or by handlng manually)
+            //
+            // additionally we could apply a backoff retry strategy
+            select(lo_put(oid, offset, chunk))
+                .execute(&mut conn)
+                .map_err(IndexerError::from)
+                .context("failed to insert large object chunk")?;
+        }
+        self.raw_transaction = oid.to_le_bytes().to_vec();
+
         Ok(self)
     }
 
-    pub fn try_get_from_storage(
-        tx_digest: Vec<u8>,
+    pub fn try_get_genesis_from_storage(
+        self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
-        let mut conn = crate::db::get_pg_pool_connection(pool)?;
-        let mut stored = transactions::table
-            .filter(transactions::transaction_digest.eq(tx_digest))
-            .first::<Self>(&mut conn)?;
-        if !stored.is_genesis() {
-            return Ok(stored);
+        if !self.is_genesis() {
+            return Ok(self);
         }
+
+        let mut conn = crate::db::get_pg_pool_connection(pool)?;
+        let mut stored = self;
+
         let raw_oid = std::mem::take(&mut stored.raw_transaction);
         let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
             IndexerError::GenericError("invalid large object identifier".to_owned())
         })?;
         let oid = u32::from_le_bytes(raw_oid);
-        // 4: fetch the chubks from large_obj_table
+
         let mut chunk_num = 0;
         loop {
             let offset = i64::try_from(chunk_num * Self::LARGE_OBJECT_CHUNK)
                 .map_err(|e| IndexerError::GenericError(e.to_string()))?;
+
+            tracing::trace!("fetching large-object chunk at offset {}", offset);
+
             let length = i32::try_from(Self::LARGE_OBJECT_CHUNK)
                 .map_err(|e| IndexerError::GenericError(e.to_string()))?;
             let chunk = select(lo_get(oid, Some(offset), Some(length)))
@@ -347,7 +355,9 @@ impl StoredTransaction {
                 .map_err(IndexerError::from)
                 .context("failed to query large object chunk")?;
             let chunk_len = chunk.len();
+
             stored.raw_transaction.extend(chunk);
+
             if chunk_len < Self::LARGE_OBJECT_CHUNK {
                 break;
             }

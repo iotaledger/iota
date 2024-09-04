@@ -536,7 +536,9 @@ impl IndexerReader {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        stored_txn.try_into_iota_transaction_effects()
+        stored_txn
+            .try_get_genesis_from_storage(&self.pool)?
+            .try_into_iota_transaction_effects()
     }
 
     fn get_transaction_effects_with_sequence_number(
@@ -549,7 +551,9 @@ impl IndexerReader {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        stored_txn.try_into_iota_transaction_effects()
+        stored_txn
+            .try_get_genesis_from_storage(&self.pool)?
+            .try_into_iota_transaction_effects()
     }
 
     fn multi_get_transactions(
@@ -565,6 +569,11 @@ impl IndexerReader {
             transactions::table
                 .filter(transactions::transaction_digest.eq_any(digests))
                 .load::<StoredTransaction>(conn)
+        })
+        .and_then(|coll| {
+            coll.into_iter()
+                .map(|store| store.try_get_genesis_from_storage(&self.pool))
+                .collect::<Result<Vec<StoredTransaction>, _>>()
         })
     }
 
@@ -598,6 +607,11 @@ impl IndexerReader {
             None => (),
         }
         self.run_query(|conn| query.load::<StoredTransaction>(conn))
+            .and_then(|coll| {
+                coll.into_iter()
+                    .map(|store| store.try_get_genesis_from_storage(&self.pool))
+                    .collect::<Result<Vec<StoredTransaction>, _>>()
+            })
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -764,8 +778,13 @@ impl IndexerReader {
             query = query.order(transactions::dsl::tx_sequence_number.asc());
         }
 
-        let stored_txes =
-            self.run_query(|conn| query.limit((limit) as i64).load::<StoredTransaction>(conn))?;
+        let stored_txes = self
+            .run_query(|conn| query.limit((limit) as i64).load::<StoredTransaction>(conn))
+            .and_then(|coll| {
+                coll.into_iter()
+                    .map(|store| store.try_get_genesis_from_storage(&self.pool))
+                    .collect::<Result<Vec<StoredTransaction>, _>>()
+            })?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
     }
