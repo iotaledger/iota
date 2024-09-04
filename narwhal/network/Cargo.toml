@@ -18,9 +18,9 @@ bytes.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 dashmap.workspace = true
 futures.workspace = true
+iota-common.workspace = true
 iota-macros.workspace = true
-mysten-common.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 quinn-proto.workspace = true

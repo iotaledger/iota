@@ -1113,13 +1113,17 @@ impl IndexerReader {
                 event_seq,
             )
         } else if descending_order {
-            let max_tx_seq: i64 = self.run_query(|conn| {
-                events::dsl::events
-                    .select(events::tx_sequence_number)
-                    .order(events::dsl::tx_sequence_number.desc())
-                    .first::<i64>(conn)
-            })?;
-            (max_tx_seq + 1, 0)
+            let max_tx_seq = self
+                .run_query(|conn| {
+                    events::dsl::events
+                        .select(events::tx_sequence_number)
+                        .order(events::dsl::tx_sequence_number.desc())
+                        .first::<i64>(conn)
+                        .optional()
+                })?
+                .map_or(-1, |max_tx_seq| max_tx_seq + 1);
+
+            (max_tx_seq, 0)
         } else {
             (-1, 0)
         };

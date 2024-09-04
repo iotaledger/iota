@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::histogram::Histogram as MystenHistogram;
+use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
     default_registry, register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
@@ -29,7 +29,7 @@ pub struct ConsensusMetrics {
     /// The latency between two successful commit rounds
     pub commit_rounds_latency: Histogram,
     /// The number of certificates committed per commit round
-    pub committed_certificates: MystenHistogram,
+    pub committed_certificates: IotaHistogram,
     /// The time it takes for a certificate from the moment it gets created
     /// up to the moment it gets committed.
     pub certificate_commit_latency: Histogram,
@@ -93,7 +93,7 @@ impl ConsensusMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             ).unwrap(),
-            committed_certificates: MystenHistogram::new_in_registry(
+            committed_certificates: IotaHistogram::new_in_registry(
                 "committed_certificates",
                 "The number of certificates committed on a commit round",
                 registry

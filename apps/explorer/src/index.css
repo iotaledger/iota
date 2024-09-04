@@ -1,3 +1,5 @@
+@import '@iota/apps-ui-kit/styles';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,7 +38,7 @@ body,
             'network'
             'epoch'
             'transactions'
-            'accounts';
+            'addresses';
     }
     .home-page-grid-container-top.with-token {
         grid-template-areas:
@@ -44,7 +46,7 @@ body,
             'epoch'
             'token'
             'transactions'
-            'accounts';
+            'addresses';
     }
 
     @screen sm {
@@ -53,7 +55,7 @@ body,
             grid-template-areas:
                 'network epoch'
                 'transactions transactions'
-                'accounts accounts';
+                'addresses addresses';
         }
 
         .home-page-grid-container-top.with-token {
@@ -61,7 +63,7 @@ body,
                 'network epoch'
                 'network token'
                 'transactions transactions'
-                'accounts accounts';
+                'addresses addresses';
         }
     }
 
@@ -70,14 +72,14 @@ body,
             @apply grid-cols-2;
             grid-template-areas:
                 'network epoch'
-                'transactions accounts';
+                'transactions addresses';
         }
 
         .home-page-grid-container-top.with-token {
             grid-template-areas:
                 'network epoch'
                 'network token'
-                'transactions accounts';
+                'transactions addresses';
         }
     }
 
@@ -85,15 +87,15 @@ body,
         .home-page-grid-container-top {
             @apply grid-cols-[315px,1fr,1fr];
             grid-template-areas:
-                'network transactions accounts'
-                'epoch transactions accounts';
+                'network transactions addresses'
+                'epoch transactions addresses';
         }
 
         .home-page-grid-container-top.with-token {
             grid-template-areas:
-                'network transactions accounts'
-                'epoch   transactions accounts'
-                'token   transactions accounts';
+                'network transactions addresses'
+                'epoch   transactions addresses'
+                'token   transactions addresses';
         }
     }
 

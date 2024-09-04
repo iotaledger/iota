@@ -8,30 +8,17 @@ import {
     AccountItem,
     AccountsFormType,
     useAccountsFormContext,
-    NicknameDialog,
     VerifyPasswordModal,
 } from '_components';
-import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '_src/ui/app/shared/Dialog';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
-import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
+import { ButtonOrLink } from '_src/ui/app/shared/utils/ButtonOrLink';
 import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
-import { useMutation } from '@tanstack/react-query';
-import { forwardRef, useState } from 'react';
-import toast from 'react-hot-toast';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
@@ -48,105 +35,6 @@ const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
-}
-
-// todo: we probably have some duplication here with the various FooterLink / ButtonOrLink
-// components - we should look to add these to base components somewhere
-const FooterLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLinkProps>(
-    ({ children, to, ...props }, ref) => {
-        return (
-            <ButtonOrLink
-                ref={ref}
-                className="text-hero-darkest/40 hover:text-hero-darkest/50 cursor-pointer border-none bg-transparent uppercase no-underline outline-none transition"
-                to={to}
-                {...props}
-            >
-                <Text variant="captionSmallExtra" weight="medium">
-                    {children}
-                </Text>
-            </ButtonOrLink>
-        );
-    },
-);
-
-// todo: this is slightly different than the account footer in the AccountsList - look to consolidate :(
-function AccountFooter({ accountID, showExport }: { accountID: string; showExport?: boolean }) {
-    const allAccounts = useAccounts();
-    const totalAccounts = allAccounts?.data?.length || 0;
-    const backgroundClient = useBackgroundClient();
-    const [isConfirmationVisible, setIsConfirmationVisible] = useState(false);
-    const removeAccountMutation = useMutation({
-        mutationKey: ['remove account mutation', accountID],
-        mutationFn: async () => {
-            await backgroundClient.removeAccount({ accountID });
-            setIsConfirmationVisible(false);
-        },
-    });
-    return (
-        <>
-            <div className="flex w-full flex-shrink-0">
-                <div className="flex items-center gap-0.5 whitespace-nowrap">
-                    <NicknameDialog
-                        accountID={accountID}
-                        trigger={<FooterLink>Edit Nickname</FooterLink>}
-                    />
-                    {showExport ? (
-                        <FooterLink to={`/accounts/export/${accountID}`}>
-                            Export Private Key
-                        </FooterLink>
-                    ) : null}
-                    {allAccounts.isPending ? null : (
-                        <FooterLink
-                            onClick={() => setIsConfirmationVisible(true)}
-                            disabled={isConfirmationVisible}
-                        >
-                            Remove
-                        </FooterLink>
-                    )}
-                </div>
-            </div>
-            <Dialog open={isConfirmationVisible}>
-                <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
-                    <DialogHeader>
-                        <DialogTitle>Are you sure you want to remove this account?</DialogTitle>
-                    </DialogHeader>
-                    {totalAccounts === 1 ? (
-                        <div className="text-center">
-                            <DialogDescription>
-                                Removing this account will require you to set up your Iota wallet
-                                again.
-                            </DialogDescription>
-                        </div>
-                    ) : null}
-                    <DialogFooter>
-                        <div className="flex gap-2.5">
-                            <Button
-                                variant="outline"
-                                size="tall"
-                                text="Cancel"
-                                onClick={() => setIsConfirmationVisible(false)}
-                            />
-                            <Button
-                                variant="warning"
-                                size="tall"
-                                text="Remove"
-                                loading={removeAccountMutation.isPending}
-                                onClick={() => {
-                                    removeAccountMutation.mutate(undefined, {
-                                        onSuccess: () => toast.success('Account removed'),
-                                        onError: (e) =>
-                                            toast.error(
-                                                (e as Error)?.message || 'Something went wrong',
-                                            ),
-                                    });
-                                }}
-                            />
-                        </div>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
-    );
 }
 
 export function AccountGroup({
@@ -228,15 +116,8 @@ export function AccountGroup({
                                 return (
                                     <AccountItem
                                         key={account.id}
-                                        background="gradient"
                                         accountID={account.id}
                                         icon={<AccountIcon account={account} />}
-                                        footer={
-                                            <AccountFooter
-                                                accountID={account.id}
-                                                showExport={account.isKeyPairExportable}
-                                            />
-                                        }
                                     />
                                 );
                             })}

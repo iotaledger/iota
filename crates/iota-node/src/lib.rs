@@ -78,9 +78,11 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
+use iota_metrics::{spawn_monitored_task, RegistryService};
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
+use iota_network_stack::server::ServerBuilder;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -103,8 +105,6 @@ use iota_types::{
     messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
     quorum_driver_types::QuorumDriverEffectsQueueResult,
 };
-use mysten_metrics::{spawn_monitored_task, RegistryService};
-use mysten_network::server::ServerBuilder;
 use narwhal_network::metrics::{
     MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };
@@ -422,7 +422,7 @@ impl IotaNode {
 
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
-        mysten_metrics::init_metrics(&prometheus_registry);
+        iota_metrics::init_metrics(&prometheus_registry);
 
         let genesis = config.genesis()?;
 
@@ -1411,7 +1411,7 @@ impl IotaNode {
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
         );
 
-        let mut server_conf = mysten_network::config::Config::new();
+        let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
         server_conf.load_shed = config.grpc_load_shed;
         let mut server_builder =
@@ -1967,26 +1967,10 @@ pub async fn build_http_server(
             ))?;
         }
 
-        let name_service_config =
-            if let (Some(package_address), Some(registry_id), Some(reverse_registry_id)) = (
-                config.name_service_package_address,
-                config.name_service_registry_id,
-                config.name_service_reverse_registry_id,
-            ) {
-                iota_json_rpc::name_service::NameServiceConfig::new(
-                    package_address,
-                    registry_id,
-                    reverse_registry_id,
-                )
-            } else {
-                iota_json_rpc::name_service::NameServiceConfig::default()
-            };
-
         server.register_module(IndexerApi::new(
             state.clone(),
             ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
             kv_store,
-            name_service_config,
             metrics,
             config.indexer_max_subscriptions,
         ))?;

@@ -330,8 +330,8 @@ impl EpochStartValidatorInfoV1 {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
+    use iota_network_stack::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
-    use mysten_network::Multiaddr;
     use narwhal_crypto::NetworkKeyPair;
     use rand::thread_rng;
 
@@ -403,12 +403,12 @@ mod test {
             assert_eq!(
                 mysticeti_authority.authority_key.to_bytes(),
                 iota_authority_name.0,
-                "Mysten & IOTA committee member of same index correspond to different public key"
+                "IOTA Foundation & IOTA committee member of same index correspond to different public key"
             );
             assert_eq!(
                 mysticeti_authority.stake,
                 iota_committee.weight(iota_authority_name),
-                "Mysten & IOTA committee member stake differs"
+                "IOTA Foundation & IOTA committee member stake differs"
             );
         }
     }

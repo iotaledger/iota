@@ -20,22 +20,12 @@ const developer = [
             'developer/getting-started/get-address',
             'developer/getting-started/get-coins',
             //'developer/getting-started/graphql-rpc',
-            {
-                type: 'category',
-                label: 'Your First IOTA dApp',
-                collapsed: false,
-                link: {
-                    type: 'doc',
-                    id: 'developer/getting-started/first-app/first-app',
-                },
-                items: [
-                    'developer/getting-started/first-app/write-package',
-                    'developer/getting-started/first-app/build-test',
-                    'developer/getting-started/first-app/publish',
-                    'developer/getting-started/first-app/debug',
-                    'developer/getting-started/first-app/client-tssdk',
-                ],
-            },
+            'developer/getting-started/create-a-package',
+            'developer/getting-started/create-a-module',
+            'developer/getting-started/build-test',
+            'developer/getting-started/publish',
+            'developer/getting-started/debug',
+            'developer/getting-started/client-tssdk',
         ],
     },
     {
@@ -49,44 +39,35 @@ const developer = [
             {
                 type: 'category',
                 label: 'Move Overview',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/iota-move-concepts/iota-move-concepts',
-                },
                 items: [
-                    'developer/iota-101/iota-move-concepts/strings',
-                    'developer/iota-101/iota-move-concepts/collections',
-                    'developer/iota-101/iota-move-concepts/init',
-                    'developer/iota-101/iota-move-concepts/entry-functions',
-                    'developer/iota-101/iota-move-concepts/one-time-witness',
+                    'developer/iota-101/move-overview/move-overview',
+                    'developer/iota-101/move-overview/strings',
+                    'developer/iota-101/move-overview/collections',
+                    'developer/iota-101/move-overview/init',
+                    'developer/iota-101/move-overview/entry-functions',
+                    'developer/iota-101/move-overview/one-time-witness',
                     {
                         type: 'category',
                         label: 'Package Upgrades',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/iota-101/iota-move-concepts/packages/packages',
-                        },
                         items: [
-                            'developer/iota-101/iota-move-concepts/packages/upgrade',
-                            'developer/iota-101/iota-move-concepts/packages/custom-policies',
+                            'developer/iota-101/move-overview/package-upgrades/introduction',
+                            'developer/iota-101/move-overview/package-upgrades/upgrade',
+                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
                         ],
                     },
                     {
                         type: 'category',
                         label: 'Patterns',
-                        link: {
-                            type: 'doc',
-                            id: 'developer/iota-101/iota-move-concepts/patterns',
-                        },
                         items: [
-                            'developer/iota-101/iota-move-concepts/patterns/capabilities',
-                            'developer/iota-101/iota-move-concepts/patterns/witness',
-                            'developer/iota-101/iota-move-concepts/patterns/transferrable-witness',
-                            'developer/iota-101/iota-move-concepts/patterns/hot-potato',
-                            'developer/iota-101/iota-move-concepts/patterns/id-pointer',
+                            'developer/iota-101/move-overview/patterns/patterns',
+                            'developer/iota-101/move-overview/patterns/capabilities',
+                            'developer/iota-101/move-overview/patterns/witness',
+                            'developer/iota-101/move-overview/patterns/transferable-witness',
+                            'developer/iota-101/move-overview/patterns/hot-potato',
+                            'developer/iota-101/move-overview/patterns/id-pointer',
                         ],
                     },
-                    'developer/iota-101/iota-move-concepts/conventions',
+                    'developer/iota-101/move-overview/conventions',
                 ],
             },
             //'developer/graphql-rpc',
@@ -283,7 +264,67 @@ const developer = [
             'developer/advanced/asset-tokenization',
         ],
     },
-
+    {
+        type: 'category',
+        label: 'Migrating from IOTA/Shimmer Stardust',
+        link: {
+            type: 'doc',
+            id: 'developer/stardust/stardust-migration',
+        },
+        items: [
+            'developer/stardust/exchanges',
+            'developer/stardust/move-models',
+            'developer/stardust/addresses',
+            'developer/stardust/units',
+            'developer/stardust/migration-process',
+            {
+                type: 'category',
+                label: 'Claiming Stardust Assets',
+                link: {
+                    type: 'doc',
+                    id: 'developer/stardust/claiming',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Basic Outputs',
+                        id: 'developer/stardust/claiming/basic',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Nft Outputs',
+                        id: 'developer/stardust/claiming/nft',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Alias Outputs',
+                        id: 'developer/stardust/claiming/alias',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Foundry Outputs',
+                        id: 'developer/stardust/claiming/foundry',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Output unlockable by an Alias/Nft Address',
+                        id: 'developer/stardust/claiming/address-unlock-condition',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Self-sponsor Shimmer Claiming',
+                        id: 'developer/stardust/claiming/self-sponsor',
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Exchange integration',
+        items: ['developer/exchange-integration/exchange-integration'],
+    },
+    'developer/dev-cheat-sheet',
     {
         type: 'category',
         label: 'Solidity/EVM Smart Contracts',
@@ -704,34 +745,6 @@ const developer = [
             },
         ],
     },
-
-    {
-        type: 'category',
-        label: 'Migrating from IOTA/Shimmer Stardust',
-        link: {
-            type: 'doc',
-            id: 'developer/stardust/stardust-migration',
-        },
-        items: [
-            'developer/stardust/exchanges',
-            'developer/stardust/move-models',
-            'developer/stardust/addresses',
-            'developer/stardust/units',
-            'developer/stardust/migration-process',
-            'developer/stardust/claiming',
-            'developer/stardust/vested',
-            'developer/stardust/testing',
-            'developer/stardust/if-tools',
-            'developer/stardust/faq',
-            'developer/stardust/advanced',
-        ],
-    },
-
-    {
-        type: 'category',
-        label: 'Exchange integration',
-        items: ['developer/exchange-integration/exchange-integration'],
-    },
     {
         type: 'category',
         label: 'Decentralized Identity',
@@ -810,6 +823,5 @@ const developer = [
             'developer/iota-identity/faq',
         ],
     },
-    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

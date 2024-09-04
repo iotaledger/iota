@@ -1,7 +1,7 @@
 {
     "name": "iota-wallet",
     "private": true,
-    "description": "A wallet for Iota",
+    "description": "A wallet for IOTA",
     "main": "./dist/ui.js",
     "scripts": {
         "build": "pnpm build:prod",
@@ -40,7 +40,7 @@
     "devDependencies": {
         "@amplitude/ampli": "^1.31.5",
         "@amplitude/analytics-types": "^0.20.0",
-        "@playwright/test": "^1.36.1",
+        "@playwright/test": "^1.46.1",
         "@sentry/react": "^7.59.2",
         "@sentry/webpack-plugin": "^1.20.0",
         "@svgr/webpack": "^7.0.0",
@@ -134,6 +134,7 @@
         "jose": "^5.2.3",
         "mitt": "^3.0.1",
         "poseidon-lite": "^0.2.0",
+        "qrcode.react": "^4.0.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "react-error-boundary": "^4.0.10",

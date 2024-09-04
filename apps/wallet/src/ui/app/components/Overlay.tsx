@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { Header } from '@iota/apps-ui-kit';
 import { Portal } from '../shared/Portal';
+import { useNavigate } from 'react-router-dom';
 
 interface OverlayProps {
     title?: string;
@@ -15,9 +16,19 @@ interface OverlayProps {
     closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-lightest';
+    titleCentered?: boolean;
+    showBackButton?: boolean;
 }
 
-export function Overlay({ title, children, showModal, closeOverlay, setShowModal }: OverlayProps) {
+export function Overlay({
+    title,
+    children,
+    showModal,
+    closeOverlay,
+    setShowModal,
+    titleCentered = true,
+    showBackButton,
+}: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
             closeOverlay && closeOverlay();
@@ -25,12 +36,22 @@ export function Overlay({ title, children, showModal, closeOverlay, setShowModal
         },
         [closeOverlay, setShowModal],
     );
-
+    const navigate = useNavigate();
+    const handleBack = useCallback(() => navigate(-1), [navigate]);
     return showModal ? (
         <Portal containerId="overlay-portal-container">
             <div className="absolute inset-0 z-[9999] flex flex-col flex-nowrap items-center backdrop-blur-[20px]">
-                {title && <Header titleCentered title={title} onClose={closeModal} />}
-                <div className="w-full flex-1 overflow-hidden bg-neutral-100 p-md">{children}</div>
+                {title && (
+                    <Header
+                        onBack={showBackButton ? handleBack : undefined}
+                        title={title}
+                        onClose={closeModal}
+                        titleCentered={titleCentered}
+                    />
+                )}
+                <div className="flex w-full flex-1 overflow-hidden bg-neutral-100 p-md">
+                    {children}
+                </div>
             </div>
         </Portal>
     ) : null;

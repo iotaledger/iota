@@ -20,7 +20,7 @@ use std::{
 
 use crypto::{NetworkPublicKey, PublicKey};
 use fastcrypto::traits::EncodeDecodeBase64;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;

@@ -6,8 +6,16 @@ import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { LargeButton } from '_app/shared/LargeButton';
 import { Text } from '_app/shared/text';
 import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
-import { AccountsList, Alert, CoinIcon, Loading, UnlockAccountButton } from '_components';
-import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
+import {
+    AccountsList,
+    Alert,
+    CoinIcon,
+    ExplorerLinkType,
+    Loading,
+    UnlockAccountButton,
+    QR,
+} from '_components';
+import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
@@ -15,6 +23,7 @@ import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
+import { toast } from 'react-hot-toast';
 import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -28,6 +37,21 @@ import {
     useResolveIotaNSName,
     useSortedCoinsByCategories,
 } from '@iota/core';
+import {
+    Button,
+    ButtonSize,
+    ButtonType,
+    Address,
+    Dialog,
+    DialogContent,
+    DialogBody,
+    Header,
+    SegmentedButton,
+    SegmentedButtonType,
+    Title,
+    TitleSize,
+    ButtonSegment,
+} from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12 } from '@iota/icons';
 import { type CoinBalance as CoinBalanceType, Network } from '@iota/iota-sdk/client';
@@ -35,20 +59,14 @@ import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/uti
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pined, Unpined } from '@iota/ui-icons';
+import { ArrowBottomLeft, Send, Pined, Unpined, RecognizedBadge } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { TokenLink } from './TokenLink';
-import {
-    ButtonUnstyled,
-    Chip,
-    SegmentedButton,
-    SegmentedButtonType,
-    Title,
-    TitleSize,
-} from '@iota/apps-ui-kit';
+import { useNavigate } from 'react-router-dom';
+import { useExplorerLink } from '_app/hooks/useExplorerLink';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -245,13 +263,25 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                 <div className="flex h-[56px] items-center">
                     <Title title="My coins" size={TitleSize.Medium} />
                 </div>
-                <SegmentedButton type={SegmentedButtonType.Transparent}>
-                    {TOKEN_CATEGORIES.map(({ label, value }) => (
-                        <ButtonUnstyled onClick={() => setSelectedTokenCategory(value)}>
-                            <Chip label={label} selected={selectedTokenCategory === value} />
-                        </ButtonUnstyled>
-                    ))}
-                </SegmentedButton>
+                <div className="inline-flex">
+                    <SegmentedButton type={SegmentedButtonType.Filled}>
+                        {TOKEN_CATEGORIES.map(({ label, value }) => (
+                            <ButtonSegment
+                                key={value}
+                                onClick={() => setSelectedTokenCategory(value)}
+                                label={label}
+                                selected={selectedTokenCategory === value}
+                                disabled={
+                                    TokenCategory.Recognized === value
+                                        ? !recognized.length
+                                        : TokenCategory.Unrecognized === value
+                                          ? !pinned?.length && !unrecognized?.length
+                                          : false
+                                }
+                            />
+                        ))}
+                    </SegmentedButton>
+                </div>
                 <div className="pb-md pt-sm">
                     {[TokenCategory.All, TokenCategory.Recognized].includes(
                         selectedTokenCategory,
@@ -264,7 +294,11 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                                     coinBalance={coinBalance}
                                 />
                             ) : (
-                                <TokenLink key={coinBalance.coinType} coinBalance={coinBalance} />
+                                <TokenLink
+                                    key={coinBalance.coinType}
+                                    coinBalance={coinBalance}
+                                    icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
+                                />
                             ),
                         )}
 
@@ -320,6 +354,8 @@ function getFallbackSymbol(coinType: string) {
 }
 
 function TokenDetails({ coinType }: TokenDetailsProps) {
+    const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
+    const navigate = useNavigate();
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
     const activeCoinType = coinType || IOTA_TYPE_ARG;
@@ -346,6 +382,10 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         staleTime: 2 * 60 * 1000,
         retry: false,
         enabled: isMainnet,
+    });
+    const explorerHref = useExplorerLink({
+        type: ExplorerLinkType.Address,
+        address: activeAccountAddress,
     });
 
     const {
@@ -380,6 +420,16 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
     const isFirstTimeLoading = isPending && !isFetched;
+
+    const onSendClick = () => {
+        if (!activeAccount?.isLocked) {
+            const destination = coinBalance?.coinType
+                ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
+                : '/send';
+
+            navigate(destination);
+        }
+    };
 
     useEffect(() => {
         const dismissed =
@@ -428,6 +478,40 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     className="flex h-full flex-1 flex-grow flex-col items-center gap-8"
                     data-testid="coin-page"
                 >
+                    <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
+                        <div className="flex flex-col gap-xs">
+                            <div>
+                                <Address
+                                    isExternal={!!explorerHref}
+                                    externalLink={explorerHref!}
+                                    text={
+                                        activeAccount.nickname ??
+                                        domainName ??
+                                        formatAddress(activeAccountAddress)
+                                    }
+                                    isCopyable
+                                    copyText={activeAccountAddress}
+                                    onCopySuccess={() => toast.success('Address copied')}
+                                />
+                            </div>
+                            <CoinBalance amount={tokenBalance} type={activeCoinType} />
+                        </div>
+                        <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
+                            <Button
+                                onClick={() => setDialogReceiveOpen(true)}
+                                type={ButtonType.Secondary}
+                                icon={<ArrowBottomLeft />}
+                                size={ButtonSize.Small}
+                                disabled={activeAccount?.isLocked}
+                            />
+                            <Button
+                                onClick={onSendClick}
+                                icon={<Send />}
+                                size={ButtonSize.Small}
+                                disabled={activeAccount?.isLocked}
+                            />
+                        </div>
+                    </div>
                     <AccountsList />
                     <div className="flex w-full flex-col">
                         <PortfolioName
@@ -462,7 +546,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                                 >
                                                     {isMainnet
                                                         ? 'Buy IOTA to get started'
-                                                        : 'To send transactions on the Iota network, you need IOTA in your wallet.'}
+                                                        : 'To send transactions on the IOTA network, you need IOTA in your wallet.'}
                                                 </Text>
                                             </div>
                                             <FaucetRequestButton />
@@ -513,9 +597,49 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                         />
                     )}
                 </div>
+                <DialogReceiveTokens
+                    address={activeAccountAddress}
+                    open={dialogReceiveOpen}
+                    setOpen={(isOpen) => setDialogReceiveOpen(isOpen)}
+                />
             </Loading>
         </>
     );
 }
 
 export default TokenDetails;
+
+function DialogReceiveTokens({
+    address,
+    open,
+    setOpen,
+}: {
+    address: string;
+    open: boolean;
+    setOpen: (isOpen: boolean) => void;
+}) {
+    const onCopy = useCopyToClipboard(address, {
+        copySuccessMessage: 'Address copied',
+    });
+
+    return (
+        <div className="relative">
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent containerId="overlay-portal-container">
+                    <Header title="Receive" onClose={() => setOpen(false)} />
+                    <DialogBody>
+                        <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
+                            <div className="self-center">
+                                <QR value={address} size={130} />
+                            </div>
+                            <Address text={address} />
+                        </div>
+                    </DialogBody>
+                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
+                        <Button onClick={onCopy} fullWidth text="Copy Address" />
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}

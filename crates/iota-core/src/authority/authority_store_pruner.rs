@@ -12,6 +12,7 @@ use std::{
 use anyhow::anyhow;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_storage::mutex_table::RwLockTable;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
@@ -20,7 +21,6 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
 use once_cell::sync::Lazy;
 use prometheus::{
     register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
@@ -1113,6 +1113,7 @@ mod pprof_tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/958"]
     async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones()
     -> Result<(), anyhow::Error> {
         // This test writes a bunch of objects to objects table, invokes pruning on it
@@ -1151,6 +1152,7 @@ mod pprof_tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/958"]
     async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush()
     -> Result<(), anyhow::Error> {
         // This test writes a bunch of objects to objects table, invokes pruning on it

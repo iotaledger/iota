@@ -7,6 +7,7 @@ use std::{io, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_metrics::{histogram::Histogram as IotaHistogram, spawn_monitored_task};
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
@@ -29,7 +30,6 @@ use iota_types::{
     multiaddr::Multiaddr,
     transaction::*,
 };
-use mysten_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
 use narwhal_worker::LazyNarwhalClient;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,
@@ -124,7 +124,7 @@ impl AuthorityServer {
         self,
         address: Multiaddr,
     ) -> Result<AuthorityServerHandle, io::Error> {
-        let mut server = mysten_network::config::Config::new()
+        let mut server = iota_network_stack::config::Config::new()
             .server_builder()
             .add_service(ValidatorServer::new(ValidatorService {
                 state: self.state,
@@ -147,13 +147,13 @@ impl AuthorityServer {
 
 pub struct ValidatorServiceMetrics {
     pub signature_errors: IntCounter,
-    pub tx_verification_latency: MystenHistogram,
-    pub cert_verification_latency: MystenHistogram,
-    pub consensus_latency: MystenHistogram,
-    pub handle_transaction_latency: MystenHistogram,
-    pub submit_certificate_consensus_latency: MystenHistogram,
-    pub handle_certificate_consensus_latency: MystenHistogram,
-    pub handle_certificate_non_consensus_latency: MystenHistogram,
+    pub tx_verification_latency: IotaHistogram,
+    pub cert_verification_latency: IotaHistogram,
+    pub consensus_latency: IotaHistogram,
+    pub handle_transaction_latency: IotaHistogram,
+    pub submit_certificate_consensus_latency: IotaHistogram,
+    pub handle_certificate_consensus_latency: IotaHistogram,
+    pub handle_certificate_non_consensus_latency: IotaHistogram,
 
     num_rejected_tx_in_epoch_boundary: IntCounter,
     num_rejected_cert_in_epoch_boundary: IntCounter,
@@ -170,37 +170,37 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
-            tx_verification_latency: MystenHistogram::new_in_registry(
+            tx_verification_latency: IotaHistogram::new_in_registry(
                 "validator_service_tx_verification_latency",
                 "Latency of verifying a transaction",
                 registry,
             ),
-            cert_verification_latency: MystenHistogram::new_in_registry(
+            cert_verification_latency: IotaHistogram::new_in_registry(
                 "validator_service_cert_verification_latency",
                 "Latency of verifying a certificate",
                 registry,
             ),
-            consensus_latency: MystenHistogram::new_in_registry(
+            consensus_latency: IotaHistogram::new_in_registry(
                 "validator_service_consensus_latency",
                 "Time spent between submitting a shared obj txn to consensus and getting result",
                 registry,
             ),
-            handle_transaction_latency: MystenHistogram::new_in_registry(
+            handle_transaction_latency: IotaHistogram::new_in_registry(
                 "validator_service_handle_transaction_latency",
                 "Latency of handling a transaction",
                 registry,
             ),
-            handle_certificate_consensus_latency: MystenHistogram::new_in_registry(
+            handle_certificate_consensus_latency: IotaHistogram::new_in_registry(
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
                 registry,
             ),
-            submit_certificate_consensus_latency: MystenHistogram::new_in_registry(
+            submit_certificate_consensus_latency: IotaHistogram::new_in_registry(
                 "validator_service_submit_certificate_consensus_latency",
                 "Latency of submit_certificate RPC handler",
                 registry,
             ),
-            handle_certificate_non_consensus_latency: MystenHistogram::new_in_registry(
+            handle_certificate_non_consensus_latency: IotaHistogram::new_in_registry(
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
                 registry,

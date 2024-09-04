@@ -29,9 +29,9 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 iota-config = { path = "../iota-config" }
+iota-metrics.workspace = true
 iota-swarm-config = { path = "../iota-swarm-config" }
 iota-types = { path = "../iota-types" }
-mysten-metrics.workspace = true
 narwhal-config.workspace = true
 
 [dev-dependencies]
