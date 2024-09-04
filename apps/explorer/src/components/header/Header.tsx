@@ -35,7 +35,7 @@ function Header(): JSX.Element {
                     to="/"
                     className="flex flex-nowrap items-center gap-1 text-hero-darkest"
                 >
-                    <IotaLogoWeb width={130} height={32} />
+                    <IotaLogoWeb width={137} height={36} />
                 </LinkWithQuery>
                 <div className="flex w-full gap-2">
                     <div className="flex flex-1 justify-center">
