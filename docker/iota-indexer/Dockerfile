@@ -16,7 +16,6 @@ RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh <<EOT
   set -e
   echo "Setting Git SSH protocol"
-  git config --global url."git@github.com:".insteadOf "https://github.com/"
   (
     set +e
     ssh -T git@github.com
