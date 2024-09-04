@@ -21,8 +21,6 @@ use utils::setup_for_read;
 async fn main() -> Result<(), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
 
-    // ************ COIN READ API ************ //
-
     // Get coins for this address. Coins can be filtered by `coin_type`
     // (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) or
     // use `None` for the default `Coin<IOTA>` which is represented as
@@ -112,6 +110,5 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", total_supply);
     println!(" *** Total Supply ***\n ");
 
-    // ************ END OF COIN READ API ************ //
     Ok(())
 }
