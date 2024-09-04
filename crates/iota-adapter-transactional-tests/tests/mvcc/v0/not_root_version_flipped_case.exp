@@ -30,7 +30,7 @@ Contents: iota::dynamic_field::Field<u64, u64> {id: iota::object::UID {id: iota:
 
 task 6 'programmable'. lines 72-73:
 mutated: object(0,1), object(4,0), object(4,1)
-gas summary: computation_cost: 1000000, storage_cost: 3663200,  storage_rebate: 3626568, non_refundable_storage_fee: 36632
+gas summary: computation_cost: 1000000, storage_cost: 3663200,  storage_rebate: 3663200, non_refundable_storage_fee: 0
 
 task 7 'view-object'. lines 75-78:
 Owner: Object ID: ( fake(4,1) )
@@ -41,13 +41,13 @@ task 8 'programmable'. lines 80-85:
 created: object(8,0)
 mutated: object(_), object(2,0)
 wrapped: object(4,1)
-gas summary: computation_cost: 500000, storage_cost: 4126800,  storage_rebate: 2392632, non_refundable_storage_fee: 24168
+gas summary: computation_cost: 500000, storage_cost: 4126800,  storage_rebate: 2416800, non_refundable_storage_fee: 0
 
 task 9 'programmable'. lines 87-91:
 created: object(8,0)
 mutated: object(_), object(2,0)
 wrapped: object(4,1)
-gas summary: computation_cost: 500000, storage_cost: 4126800,  storage_rebate: 2392632, non_refundable_storage_fee: 24168
+gas summary: computation_cost: 500000, storage_cost: 4126800,  storage_rebate: 2416800, non_refundable_storage_fee: 0
 
 task 10 'programmable'. lines 93-97:
 Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 4, instruction: 13, function_name: Some("check") }, 0) in command 1

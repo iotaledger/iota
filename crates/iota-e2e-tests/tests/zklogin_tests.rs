@@ -39,6 +39,7 @@ async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_feature_deny() {
     use iota_protocol_config::ProtocolConfig;
 
@@ -55,6 +56,7 @@ async fn test_zklogin_feature_deny() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_feature_legacy_address_deny() {
     use iota_protocol_config::ProtocolConfig;
 
@@ -70,6 +72,7 @@ async fn test_zklogin_feature_legacy_address_deny() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_legacy_zklogin_address_accept() {
     use iota_protocol_config::ProtocolConfig;
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -85,6 +88,7 @@ async fn test_legacy_zklogin_address_accept() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn zklogin_end_to_end_test() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
@@ -139,6 +143,7 @@ async fn zklogin_end_to_end_test() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_expired_zklogin_sig() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
@@ -189,6 +194,7 @@ async fn test_expired_zklogin_sig() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_auth_state_creation() {
     // Create test cluster without auth state object in genesis
     let test_cluster = TestClusterBuilder::new()
@@ -206,6 +212,7 @@ async fn test_auth_state_creation() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_create_authenticator_state_object() {
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(23.into())
@@ -247,8 +254,8 @@ async fn test_create_authenticator_state_object() {
 
 // This test is intended to look for forks caused by conflicting / repeated JWK
 // votes from validators.
-#[cfg(msim)]
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_conflicting_jwks() {
     use std::{
         collections::HashSet,

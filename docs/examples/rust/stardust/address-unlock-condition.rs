@@ -50,8 +50,12 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{derivation_path:?}");
 
     // Derive the address of the first account and set it as default
-    let sender =
-        keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, Some(derivation_path))?;
+    let sender = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        ED25519,
+        None,
+        Some(derivation_path),
+    )?;
 
     println!("Sender address - {sender:?}");
 

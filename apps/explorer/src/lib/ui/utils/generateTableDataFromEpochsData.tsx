@@ -5,6 +5,7 @@
 import { type EpochMetricsPage } from '@iota/iota-sdk/client';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
+import { checkpointSequenceToLink, epochToLink } from '~/components';
 
 interface EpochData {
     epoch: TableCellProps;
@@ -29,18 +30,29 @@ interface EpochTableData {
 export function generateTableDataFromEpochsData(results: EpochMetricsPage): EpochTableData {
     return {
         data: results?.data.map((epoch) => ({
-            epoch: { type: TableCellType.Text, label: epoch.epoch },
+            epoch: {
+                type: TableCellType.Link,
+                label: epoch.epoch,
+                to: epochToLink({ epoch: epoch.epoch }),
+            },
             transactions: { type: TableCellType.Text, label: epoch.epochTotalTransactions },
             stakeRewards: {
                 type: TableCellType.Text,
                 label: epoch.endOfEpochInfo?.totalStakeRewardsDistributed ?? '0',
             },
-            checkpointSet: { type: TableCellType.Text, label: 'TODO' },
+            checkpointSet: {
+                type: TableCellType.Link,
+                label: epoch.firstCheckpointId,
+                to: checkpointSequenceToLink({ sequence: epoch.firstCheckpointId }),
+            },
             storageNetInflow: {
                 type: TableCellType.Text,
-                label: getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow?.toString(),
+                label: getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow?.toString() ?? '--',
             },
-            time: { type: TableCellType.Text, label: epoch.endOfEpochInfo?.epochEndTimestamp },
+            time: {
+                type: TableCellType.Text,
+                label: epoch.endOfEpochInfo?.epochEndTimestamp ?? '--',
+            },
         })),
         columns: [
             {

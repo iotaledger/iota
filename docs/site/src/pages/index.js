@@ -99,7 +99,7 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./developer/iota-101/iota-move-concepts"
+              to="./developer/iota-101/move-overview"
             >
               Move
             </Link>

@@ -3,20 +3,31 @@ title: Custom Transfer Rules
 description: Custom transfer rules enable you to define a set of rules that must be met before IOTA considers a transfer operation valid.
 ---
 
-Every IOTA object must have the `key` ability. The `store` ability, on the other hand, is an optional ability you can add to IOTA objects. Objects with the `store` ability:
+Every IOTA object must have the `key` ability. 
+The `store` ability, on the other hand, is optional and provides more flexibility for how objects are managed and transferred.
+Objects with the `store` ability:
 
-- are transferable by anyone using the `iota::transfer::public_transfer` function; and
-- are able to be wrapped in other objects.
+- Can be transferred by anyone using the[ `iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function.
+- Can be wrapped in other objects.
 
-Importantly for custom transfer rules, if the IOTA object `O` does not have the `store` ability, you cannot call the `iota::transfer::public_transfer` function to transfer it. The Move module that defines `O` is the only entity that can transfer objects of that type using the `iota::transfer::transfer` function. Consequently, the module that defines the object `O` can define a custom transfer function for `O` that can take any number of arguments, and enforce any restrictions desired for performing a transfer operation (for example, a fee must be paid in order to transfer the object).
+However, when creating custom transfer rules,
+it's crucial to note that if an IOTA object `O` does not have the `store` ability,
+the `iota::transfer::public_transfer` function cannot be used to transfer it.
+Instead, the Move module defining `O` exclusively controls how such objects are transferred,
+typically using the [`iota::transfer::transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-transfer) function.
+This allows the module to implement custom transfer functions for `O`,
+which can enforce specific conditions (such as requiring a fee) before a transfer is allowed.
 
-## The store ability and transfer rules
+## The Store Ability and Transfer Rules
 
-Custom transfer rules for objects enable you to define the transfer conditions that must be met for a valid transfer operation. You should be intentional about adding the `store` ability to an object because you are providing unrestricted access to that object without having to go through the module that defines it. After you enable public transfers on an object, there is no way of re-enabling custom transfer rules or any type of restrictions regarding the transfer of the object.
+Custom transfer rules provide a mechanism to define the conditions under which an object can be transferred.
+If you add the `store` ability to an object,
+you are effectively enabling unrestricted transfers of that object without the involvement of its defining module.
+Once public transfers are allowed, custom transfer rules cannot be reinstated or enforced on that object.
 
 ## Example
 
-This example creates an object type `O` that is transferable only if the `unlocked` flag inside of it is set to `true`:
+Consider an example where you want to create an object type `O` that can only be transferred if a specific `unlocked` flag within it is set to `true`:
 
 ```move
 public struct O has key {
@@ -26,7 +37,8 @@ public struct O has key {
 }
 ```
 
-Within the same module that defines the object `O`, you can then define a custom transfer rule `transfer_unlocked` for `O` that takes the object to transfer and the address to transfer it to, and verifies that the object is unlocked before transferring it to the specified address.
+In the same module that defines the object `O`, you can create a custom transfer function `transfer_unlocked`,
+which checks the `unlocked` flag before allowing the transfer:
 
 ```move
 module examples::custom_transfer {
@@ -47,7 +59,9 @@ module examples::custom_transfer {
 }
 ```
 
-With custom transfer rules, you can define multiple different transfer rules for the same object. Each of these rules might have different restrictions that execution of the transaction can dynamically enforce. So, if you wanted to allow only locked objects to be transferred to a specific address you could add the following function to the previous module:
+With this setup, you can enforce that an object of type `O` is only transferable when it's unlocked.
+Additionally, you can define multiple transfer rules for the same object, each enforcing different conditions.
+For instance, you could create a rule that only allows locked objects to be transferred to a specific address:
 
 ```move
 const EObjectNotLocked: u64 = 1;
@@ -60,4 +74,12 @@ public fun transfer_locked(object: O) {
 }
 ```
 
-With these rules in place, there are two different custom transfer rules for any object `O`: either it's unlocked and anyone can transfer it, or it's locked, and it can only be transferred to `0xCAFE`. Importantly, these two ways of transferring `O` are the only ways of transferring any object of type `O`. In particular, because `O` does not have the `store` ability, you cannot transfer it using the `iota::transfer::public_transfer` function. In fact, the only ways of transferring `O` are using `examples::custom_transfer::transfer_unlocked` and `examples::custom_transfer::transfer_locked`.
+Now, the module provides two custom transfer rules for any object `O`:
+* One that allows transfer if the object is unlocked
+* One that allows transfer of locked objects only to the address `0xCAFE`.
+ 
+Because `O` lacks the `store` ability,
+these custom rules are the only ways to transfer `O`—the [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function cannot be used.
+
+By defining custom transfer rules, you maintain precise control over how and when your objects can be transferred,
+ensuring that your specific business logic is enforced during these operations.

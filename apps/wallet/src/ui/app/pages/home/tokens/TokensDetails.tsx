@@ -13,6 +13,7 @@ import {
     ExplorerLinkType,
     Loading,
     UnlockAccountButton,
+    QR,
 } from '_components';
 import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -45,12 +46,11 @@ import {
     DialogContent,
     DialogBody,
     Header,
-    ButtonUnstyled,
-    Chip,
     SegmentedButton,
     SegmentedButtonType,
     Title,
     TitleSize,
+    ButtonSegment,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12 } from '@iota/icons';
@@ -59,7 +59,7 @@ import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/uti
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useEffect, useState } from 'react';
-import { ArrowBottomLeft, Send, Pined, Unpined } from '@iota/ui-icons';
+import { ArrowBottomLeft, Send, Pined, Unpined, RecognizedBadge } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
@@ -263,13 +263,25 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                 <div className="flex h-[56px] items-center">
                     <Title title="My coins" size={TitleSize.Medium} />
                 </div>
-                <SegmentedButton type={SegmentedButtonType.Transparent}>
-                    {TOKEN_CATEGORIES.map(({ label, value }) => (
-                        <ButtonUnstyled onClick={() => setSelectedTokenCategory(value)}>
-                            <Chip label={label} selected={selectedTokenCategory === value} />
-                        </ButtonUnstyled>
-                    ))}
-                </SegmentedButton>
+                <div className="inline-flex">
+                    <SegmentedButton type={SegmentedButtonType.Filled}>
+                        {TOKEN_CATEGORIES.map(({ label, value }) => (
+                            <ButtonSegment
+                                key={value}
+                                onClick={() => setSelectedTokenCategory(value)}
+                                label={label}
+                                selected={selectedTokenCategory === value}
+                                disabled={
+                                    TokenCategory.Recognized === value
+                                        ? !recognized.length
+                                        : TokenCategory.Unrecognized === value
+                                          ? !pinned?.length && !unrecognized?.length
+                                          : false
+                                }
+                            />
+                        ))}
+                    </SegmentedButton>
+                </div>
                 <div className="pb-md pt-sm">
                     {[TokenCategory.All, TokenCategory.Recognized].includes(
                         selectedTokenCategory,
@@ -282,7 +294,11 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                                     coinBalance={coinBalance}
                                 />
                             ) : (
-                                <TokenLink key={coinBalance.coinType} coinBalance={coinBalance} />
+                                <TokenLink
+                                    key={coinBalance.coinType}
+                                    coinBalance={coinBalance}
+                                    icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
+                                />
                             ),
                         )}
 
@@ -612,7 +628,10 @@ function DialogReceiveTokens({
                 <DialogContent containerId="overlay-portal-container">
                     <Header title="Receive" onClose={() => setOpen(false)} />
                     <DialogBody>
-                        <div className="[&_span]:w-full [&_span]:break-words">
+                        <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
+                            <div className="self-center">
+                                <QR value={address} size={130} />
+                            </div>
                             <Address text={address} />
                         </div>
                     </DialogBody>

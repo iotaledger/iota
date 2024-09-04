@@ -8,11 +8,11 @@ gas summary: computation_cost: 1000000, storage_cost: 6756400,  storage_rebate: 
 task 2 'run'. lines 34-34:
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 3 'programmable'. lines 36-39:
 mutated: object(0,0), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3385800, non_refundable_storage_fee: 34200
+gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
 
 task 4 'programmable'. lines 40-43:
 Error: Error checking transaction input objects: DuplicateObjectRefInput

@@ -1,0 +1,52 @@
+---
+title: Package Upgrades
+sidebar_label: Introduction
+description: Learn how to upgrade Move packages on IOTA without affecting existing dependencies.
+---
+import UpgradeSingleKeyRisk from "../../../../_snippets/upgrade-single-key-risk.mdx";
+
+# Package Upgrades
+
+A Move package consists of one or more modules that define how the package interacts with on-chain objects. 
+These modules are written in Move, compiled into a package object, and then published on-chain.
+Once a package is on the IOTA network,
+its content and logic are transparent and accessible to anyone through an [IOTA network explorer](https://explorer.iota.cafe/).
+
+## Packages Are Immutable
+
+Once a package object is published on-chain, it becomes immutable—it cannot be directly altered.
+This immutability is crucial because other packages may rely on the modules provided by the original package.
+If a developer could alter the logic of their on-chain package post-publication,
+it could lead to unintended consequences for all dependent packages, potentially introducing bugs or vulnerabilities.
+
+## Upgrading Packages
+
+Although you can't modify an existing on-chain package, you can [upgrade](upgrade.mdx) it.
+Upgrading a package involves creating a new package object on-chain, which includes the improved or additional code.
+This approach ensures that the original package remains unchanged,
+safeguarding the integrity of packages that depend on it. 
+
+## Upgrading Packages with IOTA Client CLI
+
+The [IOTA Client CLI](../../../../references/cli/client.mdx) provides an [`upgrade` command](../../../../references/cli/client.mdx#commands),
+which is a straightforward way to upgrade packages.
+To use this command, the CLI's active address must own the [`UpgradeCap`](../../../../references/framework/iota-framework/package.mdx) object
+associated with the package you wish to upgrade.
+
+While the IOTA CLI is convenient for initiating upgrades, especially during the early stages of development,
+relying on a single key to manage upgrades can introduce significant security risks:
+
+<UpgradeSingleKeyRisk />
+
+## Making Packages Truly Immutable
+
+To eliminate the risks associated with single-key control, you can make your package _immutable_ after it is published.
+You can do this with the [`iota::package::make_immutable`](../../../../references/framework/iota-framework/package.mdx#function-make_immutable) function,
+which destroys the `UpgradeCap` associated with the package, preventing any future upgrades.
+However, making a package immutable also means that you lose the ability to fix bugs or introduce new features,
+so it should be done with caution.
+
+For more secure and flexible upgrade management,
+consider implementing [Custom Upgrade Policies](custom-policies.mdx) that reduce the risks
+without completely sacrificing the ability to upgrade.
+

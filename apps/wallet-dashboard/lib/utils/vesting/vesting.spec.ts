@@ -108,9 +108,10 @@ describe('vesting overview', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
         const lastPayout = timelockedObjects[timelockedObjects.length - 1];
         const totalAmount =
-            SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
-            lastPayout.locked.value;
+            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
+                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
+                lastPayout.locked.value) /
+            0.9;
 
         const vestingOverview = getVestingOverview(timelockedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
@@ -158,9 +159,10 @@ describe('vesting overview', () => {
             extendedTimelockedStakedObjects[extendedTimelockedStakedObjects.length - 1];
         const lastPayoutValue = Number(lastPayout.principal);
         const totalAmount =
-            SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
-            lastPayoutValue;
+            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
+                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
+                lastPayoutValue) /
+            0.9;
         const vestingOverview = getVestingOverview(extendedTimelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
@@ -206,9 +208,10 @@ describe('vesting overview', () => {
 
         const lastPayout = getLastSupplyIncreaseVestingPayout(mixedObjects)!;
         const totalAmount =
-            SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
-            lastPayout.amount;
+            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
+                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
+                lastPayout.amount) /
+            0.9;
 
         const vestingOverview = getVestingOverview(mixedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);

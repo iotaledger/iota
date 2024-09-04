@@ -41,7 +41,7 @@
 //! the Iota devnet, and the Iota testnet is shown below.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
-//! (see [here](https://github.com/stefan-mysten/iota/tree/rust_sdk_api_examples/crates/iota-sdk/examples#preqrequisites) for more information).
+//! (see [here](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/README.md#prerequisites) for more information).
 //!
 //! ```rust,no_run
 //! use iota_sdk::IotaClientBuilder;
@@ -72,6 +72,12 @@
 //!
 //! For detailed examples, please check the APIs docs and the examples folder
 //! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
+
+pub mod apis;
+pub mod error;
+pub mod iota_client_config;
+pub mod json_rpc_error;
+pub mod wallet_context;
 
 use std::{
     fmt::{Debug, Formatter},
@@ -106,12 +112,6 @@ use crate::{
     apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi},
     error::{Error, IotaRpcResult},
 };
-
-pub mod apis;
-pub mod error;
-pub mod iota_client_config;
-pub mod json_rpc_error;
-pub mod wallet_context;
 
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";

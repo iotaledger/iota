@@ -1,0 +1,158 @@
+---
+description: Recommended Move 2024 best practices for the IOTA blockchain.
+---
+
+# Conventions
+
+The following recommendations are based on 2024 Move.
+
+## Add Section Titles
+
+Use section titles in code comments to organize your Move code files. Structure your titles using `===` on either side of the title.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/comments.move
+```
+
+## CRUD Function Names
+
+The following are recommended names for CRUD functions:
+
+- `add`: Adds a value.
+- `new`: Creates an object.
+- `drop`: Drops a struct.
+- `empty`: Creates a struct.
+- `remove`: Removes a value.
+- `exists_`: Checks if a key exists.
+- `contains`: Checks if a collection contains a value.
+- `destroy_empty`: Destroys an object or data structure that contains values with the **drop** ability.
+- `to_object_name`: Transforms Object X to Object Y.
+- `from_object_name`: Transforms Object Y to Object X.
+- `property_name`: Returns an immutable reference or a copy.
+- `property_name_mut`: Returns a mutable reference.
+
+## Potato Structs
+
+Avoid using 'potato' in the names of structs. The absence of abilities defines a potato pattern.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/potato.move
+```
+
+## Read Functions
+
+When naming functions, be mindful of the dot syntax. Avoid using the object name in function names.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/read.move
+```
+
+## Empty Function
+
+Name functions that create data structures as `empty`.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/empty.move
+```
+
+## New Function
+
+Name functions that create objects as `new`.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/new.move
+```
+
+## Shared Objects
+
+Library modules that share objects should provide two functions:
+one to create the object and another to share it.
+This allows the caller to access its UID and execute custom functionality before sharing it.
+
+`
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/shared.move
+```
+
+## Reference Functions
+
+Name functions that return a reference as `<PROPERTY-NAME>_mut` or `<PROPERTY-NAME>`,
+replacing `<PROPERTY-NAME>` with the actual name of the property.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/reference.move
+```
+
+## Separation of Concerns
+
+Design your modules around a single object or data structure.
+A variant structure should have its own module to minimize complexity and reduce the likelihood of bugs.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/separation.move
+```
+
+## Errors
+
+Use PascalCase for errors, starting with an `E` and ensuring they are descriptive.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/errors.move
+```
+
+## Struct Property Comments
+
+Document the properties of your structs with comments.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/struct-comments.move
+```
+
+## Destroy Functions
+
+Provide functions to delete objects. Use the `destroy_empty` function to destroy empty objects, and the `drop` function for objects containing types that can be dropped.
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/destroy.move
+```
+
+## Pure Functions
+
+Keep your functions pure to maintain composability.
+Avoid using `transfer::transfer` or `transfer::public_transfer` within core functions.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/pure.move
+```
+
+## Coin Argument
+
+Pass the `Coin` object by value with the correct amount directly,
+as this improves transaction readability from the frontend.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/coin-arg.move
+```
+
+## Access Control
+
+To maintain composability, use capabilities instead of addresses for access control.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/access-control.move
+```
+
+## Data Storage in Owned vs. Shared Objects
+
+For data with a one-to-one relationship, it's best to use owned objects.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/data-storage.move
+```
+## Admin Capability
+
+In admin-gated functions, the first parameter should be the capability.
+This helps with autocomplete for user types.
+
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/conventions/admin-cap.move
+```
