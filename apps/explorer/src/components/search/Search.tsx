@@ -38,7 +38,7 @@ function Search(): JSX.Element {
     }, [debouncedQuery]);
 
     return (
-        <div className="flex w-8/12 text-body-md">
+        <div className="flex w-full text-body-md sm:w-8/12 lg:w-4/12">
             <SearchBox
                 searchValue={query}
                 onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
