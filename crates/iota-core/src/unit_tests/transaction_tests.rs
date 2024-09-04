@@ -273,7 +273,10 @@ async fn test_user_sends_system_transaction() {
     do_transaction_test_skip_cert_checks(
         0,
         |tx| {
-            *tx.kind_mut() = TransactionKind::Genesis(GenesisTransaction { objects: vec![] });
+            *tx.kind_mut() = TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![],
+                events: vec![],
+            });
         },
         |_| {},
         |err| {
