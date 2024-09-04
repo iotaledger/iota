@@ -58,6 +58,8 @@ export const CustomOptions: Story = {
         options: [],
     },
     render: ({ options, ...args }) => {
+        const [selected, setSelected] = useState('iota');
+
         const customOptions: SelectOption[] = [
             {
                 id: 'iota',
@@ -81,7 +83,12 @@ export const CustomOptions: Story = {
 
         return (
             <div className="h-60">
-                <Select {...args} options={customOptions} />
+                <Select
+                    {...args}
+                    value={selected}
+                    onValueChange={setSelected}
+                    options={customOptions}
+                />
             </div>
         );
     },
