@@ -117,7 +117,7 @@ jobs:
       - name: Build and push Docker image for iota-indexer
         uses: docker/build-push-action@v5
         with:
-          ssh: default
+          ssh: default=${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
           context: .
           file: docker/iota-indexer/Dockerfile
           platforms: linux/amd64
