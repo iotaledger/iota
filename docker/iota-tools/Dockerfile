@@ -9,7 +9,7 @@ ENV GIT_REVISION=$GIT_REVISION
 WORKDIR "$WORKDIR/iota"
 RUN apt-get update && apt-get install -y cmake clang libpq5 libpq-dev
 
-# TODO: Remove when iota-sim is public
+# TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh <<EOT
   set -e

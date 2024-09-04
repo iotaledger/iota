@@ -62,6 +62,7 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
       - name: Set up SSH
         uses: MrSquaare/ssh-setup-action@v3
         with:
@@ -115,6 +116,7 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
       - name: Set up SSH
         uses: MrSquaare/ssh-setup-action@v3
         with:
@@ -168,6 +170,7 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
       - name: Set up SSH
         uses: MrSquaare/ssh-setup-action@v3
         with:
@@ -221,6 +224,7 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
       - name: Set up SSH
         uses: MrSquaare/ssh-setup-action@v3
         with:

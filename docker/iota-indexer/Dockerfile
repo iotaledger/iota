@@ -11,7 +11,7 @@ WORKDIR "$WORKDIR/iota"
 # iota-indexer needs postgres libpq5 and ca-certificates
 RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql
 
-# TODO: Remove when iota-sim is public
+# TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh <<EOT
   set -e
