@@ -227,7 +227,8 @@ pub struct IotaNode {
     /// Broadcast channel to send the starting system state for the next epoch.
     end_of_epoch_channel: broadcast::Sender<IotaSystemState>,
 
-    /// Broadcast channel to notify state-sync for new validator peers.
+    /// Broadcast channel to notify [`DiscoveryEventLoop`] for new validator
+    /// peers.
     trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
 
     _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
@@ -1903,7 +1904,8 @@ impl IotaNode {
     }
 }
 
-/// Notify state-sync that a new list of trusted peers are now available.
+/// Notify [`DiscoveryEventLoop`] that a new list of trusted peers are now
+/// available.
 fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
