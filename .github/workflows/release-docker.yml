@@ -110,7 +110,7 @@ jobs:
       - name: Set up SSH
         uses: MrSquaare/ssh-setup-action@v3
         with:
-          host: ${{ secrets.SSH_GITHUB_KNOWN_HOSTS }}
+          host: github.com
           private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
           private-key-name: github-ppk
 
