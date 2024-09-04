@@ -34,25 +34,27 @@ See [pg-services-local](../../docker/pg-services-local/README.md), which automat
 
 ### Using manual setup
 
-Before you can run the GraphQL server, you need to have a running postgres instance for the Indexer.
+Before you can run the GraphQL server, you need to have a running Indexer postgres instance.
 Follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up the database.
 You should end up with a running postgres instance on port `5432` with the database `iota_indexer` accessible by user `postgres` with password `postgrespw`.
 
 ## Launching the graphql-rpc server
 
-You can run the server with the following command with default configuration like:
+You can run the server with the following command with default configuration with:
 
 ```
 cargo run --bin iota-graphql-rpc start-server
 ```
 
-You can also specify the RPC URL, the DB URL, the GraphQL server host and port to be served as well as specific server configurations with following command:
+Per default, the GraphQL server will be served on `127.0.0.1:8000`.
+
+To configure the DB URL, node RPC URL for transaction execution, the GraphQL server host and port or any specific any server options, you can pass the following arguments:
 
 ```
-cargo run --bin iota-graphql-rpc start-server [--rpc-url] [--db-url] [--port] [--host] [--config]
+cargo run --bin iota-graphql-rpc start-server [--db-url] [--node-rpc-url] [--host] [--port] [--config]
 ```
 
-`--config` expects a path to a TOML file with the server configuration.
+`--config` expects a path to a TOML server configuration file.
 
 Example `.toml` config:
 
@@ -75,16 +77,29 @@ max-move-value-depth = 128
 watermark-update-ms = 500
 ```
 
-See [src/config.rs](src/co.rs) for all GraphQL server options.
+See [ServiceConfig](src/config.rs) for more available service options.
 
+### Starting the GraphQL IDE
 
-### Launching the server w/ indexer
+When running the GraphQL server, you can access the `GraphiQL` IDE at `http://127.0.0.1:8000` to more easily interact with the server.
 
-For local dev, it might be useful to spin up an indexer as well. You can run it as a single service via [pg-services-local](../../docker/pg-services-local/README.md), part of [iota-test-validator](../../crates/iota-test-validator/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
+Try out the following sample query to see if the server is running successfully:
 
-## Compatibility with json-rpc
+```graphql
+# Returns the chain identifier for the chain that the server is tracking
+{
+  chainIdentifier
+}
+```
 
-`cargo run --bin iota-test-validator -- --with-indexer --pg-port 5432 --pg-db-name iota_indexer --graphql-host 127.0.0.1 --graphql-port 9125`
+### Launching the with Indexer
+
+For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance for the Indexer) which writes data to the database, so you can query it with the GraphQL server.
+You can run it as part of [iota-test-validator](../../crates/iota-test-validator/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup)
+
+`cargo run --bin iota-test-validator -- --with-indexer --pg-port 5432 --pg-db-name iota_indexer --graphql-host 127.0.0.1 --graphql-port 8000`
+
+### To check for compatibility with json-rpc
 
 `pnpm --filter @iota/graphql-transport test:e2e`
 
