@@ -17,3 +17,4 @@ export * from './tooltip';
 export * from './info-box';
 export * from './snackbar';
 export * from './visual-asset-card';
+export * from './tabs';

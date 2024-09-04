@@ -14,17 +14,14 @@ import {
     ButtonSegmentType,
     SegmentedButton,
     SegmentedButtonType,
+    Tabs,
+    TabsHeader,
+    TabsTrigger,
+    TabsContent,
 } from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
-import { Tabs, TabsHeader, TabsTrigger, TabsContent } from './Tabs';
-import {
-    Banner,
-    Stats,
-    type StatsProps,
-    TableCard,
-    // Tabs, TabsTrigger, TabsList, TabsContent
-} from '~/components/ui';
+import { Banner, Stats, type StatsProps, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { getEpochStorageFundFlow, getSupplyChangeAfterEpochEnd } from '~/lib/utils';
 import { validatorsTableData } from '../validators/Validators';
@@ -169,6 +166,7 @@ export default function EpochDetail() {
                             <TabsHeader
                                 render={(activeTabId) => (
                                     <div className="relative">
+                                        <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-0 h-[1px] w-full border-b" />
                                         <SegmentedButton
                                             type={SegmentedButtonType.Transparent}
                                             shape={ButtonSegmentType.Underlined}
@@ -188,7 +186,6 @@ export default function EpochDetail() {
                                                 />
                                             </TabsTrigger>
                                         </SegmentedButton>
-                                        <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-[1] h-[1px] w-full border-b" />
                                     </div>
                                 )}
                             />
