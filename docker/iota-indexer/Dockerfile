@@ -12,7 +12,6 @@ WORKDIR "$WORKDIR/iota"
 RUN apt update && apt install -y libpq5 ca-certificates libpq-dev postgresql
 
 # TODO: Remove when iota-sim is public
-RUN apk add --no-cache file git rsync openssh-client
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh <<EOT
   set -e
