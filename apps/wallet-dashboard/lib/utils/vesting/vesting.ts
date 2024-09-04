@@ -231,7 +231,7 @@ export function groupTimelockedObjects(
         expirationMap,
         ([expirationTime, objects]) => {
             const totalLockedAmount = objects.reduce((sum, obj) => {
-                return BigInt(sum) + BigInt(obj.locked.value);
+                return sum + BigInt(obj.locked.value);
             }, 0n);
 
             const label = objects[0].label; // Assuming all objects in the group have the same label
@@ -287,21 +287,21 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
  */
 export function prepareObjectsForTimelockedStakingTransaction(
     timelockedObjects: IotaObjectData[],
-    amount: bigint,
+    targetAmount: bigint,
     currentEpochMs: string,
 ): GroupedTimelockObject[] {
-    if (Number(amount) === 0) {
+    if (Number(targetAmount) === 0) {
         return [];
     }
     const timelockedMapped = mapTimelockObjects(timelockedObjects);
-    const filterTimelockedVestingObjects = timelockedMapped
+    const stakingEligibleTimelockedObjects = timelockedMapped
         ?.filter(isSupplyIncreaseVestingObject)
         .filter((obj: TimelockedObject) => {
             return Number(obj.expirationTimestampMs) > Number(currentEpochMs);
         });
 
     const groupedTimelockObjects: GroupedTimelockObject[] = groupTimelockedObjects(
-        filterTimelockedVestingObjects,
+        stakingEligibleTimelockedObjects,
     )
         .filter((obj) => obj.totalLockedAmount >= MIN_STAKING_THRESHOLD)
         .sort((a: GroupedTimelockObject, b: GroupedTimelockObject) => {
@@ -313,31 +313,31 @@ export function prepareObjectsForTimelockedStakingTransaction(
 
     // Create a subset of objects that meet the stake amount (where total combined locked amount >= STAKE_AMOUNT)
     let totalLocked: bigint = BigInt(0);
-    let subsetGroupedTimelockObjects: GroupedTimelockObject[] = [];
+    let selectedGroupedTimelockObjects: GroupedTimelockObject[] = [];
 
     for (const groupedObject of groupedTimelockObjects) {
         totalLocked += groupedObject.totalLockedAmount;
-        subsetGroupedTimelockObjects.push(groupedObject);
-        if (totalLocked >= amount) {
+        selectedGroupedTimelockObjects.push(groupedObject);
+        if (totalLocked >= targetAmount) {
             break;
         }
     }
 
     // If the total locked amount is less than the stake amount, return not enough locked amount
-    if (totalLocked < amount) {
+    if (totalLocked < targetAmount) {
         return [];
     }
 
     // Calculate the remaining amount after staking
-    const remainingAmount = totalLocked - amount;
+    const remainingAmount = totalLocked - targetAmount;
 
     // Add splitAmount property to the vesting objects that need to be split
     if (remainingAmount > 0) {
-        subsetGroupedTimelockObjects = adjustSplitAmountsInGroupedTimelockObjects(
-            subsetGroupedTimelockObjects,
+        selectedGroupedTimelockObjects = adjustSplitAmountsInGroupedTimelockObjects(
+            selectedGroupedTimelockObjects,
             remainingAmount,
         );
     }
 
-    return subsetGroupedTimelockObjects;
+    return selectedGroupedTimelockObjects;
 }

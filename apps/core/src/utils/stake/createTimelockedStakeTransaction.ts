@@ -42,9 +42,11 @@ export function createTimelockedStakeTransaction(
     const tx = new TransactionBlock();
 
     // Create the transactions to merge the timelocked objects that need merging
-    const mergeObjects = timelockedObjects.filter((obj) => obj.mergeObjectIds.length > 0);
+    const timelockedObjectsForMerge = timelockedObjects.filter(
+        (obj) => obj.mergeObjectIds.length > 0,
+    );
 
-    for (const mergeObject of mergeObjects) {
+    for (const mergeObject of timelockedObjectsForMerge) {
         // create an array of objectIds to be merged without the first element because first element is the principal object and its id is contained in mergeObject.objectId
         const mergeObjectIds = mergeObject.mergeObjectIds.map((objectId) => tx.object(objectId));
         tx.moveCall({
@@ -58,10 +60,10 @@ export function createTimelockedStakeTransaction(
     }
 
     // Create the transactions to split the timelocked objects that need splitting.
-    const splitTimelockedObjects: GroupedTimelockObject[] = timelockedObjects.filter(
+    const timelockedObjectsForSplit: GroupedTimelockObject[] = timelockedObjects.filter(
         (obj) => obj.splitAmount !== undefined && obj.splitAmount > 0,
     );
-    const splitTimelockedObjectTransactions = splitTimelockedObjects.map((obj) => {
+    const splitTimelockedObjectTransactions = timelockedObjectsForSplit.map((obj) => {
         const [splitTx] = tx.moveCall({
             target: `0x02::timelock::split`,
             typeArguments: [`${IOTA_TYPE_ARG}`],
