@@ -3,12 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { ExplorerLinkType, Loading, UnlockAccountButton, QR } from '_components';
-import { useAppSelector, useCoinsReFetchingConfig, useCopyToClipboard } from '_hooks';
-import { ampli } from '_src/shared/analytics/ampli';
+import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
+import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { Feature } from '_src/shared/experimentation/features';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -22,189 +20,33 @@ import {
     useCoinMetadata,
     useGetDelegatedStake,
     useResolveIotaNSName,
-    useSortedCoinsByCategories,
 } from '@iota/core';
 import {
     Button,
     ButtonSize,
     ButtonType,
     Address,
-    Dialog,
-    DialogContent,
-    DialogBody,
-    Header,
-    SegmentedButton,
-    SegmentedButtonType,
-    Title,
-    TitleSize,
-    ButtonSegment,
     InfoBox,
     InfoBoxType,
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12 } from '@iota/icons';
-import { type CoinBalance as CoinBalanceType, Network } from '@iota/iota-sdk/client';
+import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG, parseStructTag } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Send, Pined, Unpined, RecognizedBadge } from '@iota/ui-icons';
+import { ArrowBottomLeft, Send } from '@iota/ui-icons';
 import Interstitial, { type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
-import { TokenLink } from './TokenLink';
 import { useNavigate } from 'react-router-dom';
 import { useExplorerLink } from '_app/hooks/useExplorerLink';
+import { MyTokens } from './MyTokens';
+import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 
 interface TokenDetailsProps {
     coinType?: string;
-}
-
-interface PinButtonProps {
-    isPinned?: boolean;
-    onClick: () => void;
-}
-
-function PinButton({ isPinned, onClick }: PinButtonProps) {
-    return (
-        <button
-            type="button"
-            className="cursor-pointer border-none bg-transparent [&_svg]:h-4 [&_svg]:w-4"
-            aria-label={isPinned ? 'Unpin Coin' : 'Pin Coin'}
-            onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClick();
-            }}
-        >
-            {isPinned ? (
-                <Pined className="text-primary-40" />
-            ) : (
-                <Unpined className="text-neutral-60" />
-            )}
-        </button>
-    );
-}
-
-interface MyTokensProps {
-    coinBalances: CoinBalanceType[];
-    isLoading: boolean;
-    isFetched: boolean;
-}
-
-enum TokenCategory {
-    All = 'All',
-    Recognized = 'Recognized',
-    Unrecognized = 'Unrecognized',
-}
-
-const TOKEN_CATEGORIES = [
-    {
-        label: 'All',
-        value: TokenCategory.All,
-    },
-    {
-        label: 'Recognized',
-        value: TokenCategory.Recognized,
-    },
-    {
-        label: 'Unrecognized',
-        value: TokenCategory.Unrecognized,
-    },
-];
-
-export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) {
-    const [selectedTokenCategory, setSelectedTokenCategory] = useState(TokenCategory.All);
-
-    const [_pinned, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
-
-    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(coinBalances, _pinned);
-
-    // Avoid perpetual loading state when fetching and retry keeps failing; add isFetched check.
-    const isFirstTimeLoading = isLoading && !isFetched;
-
-    function handlePin(coinType: string) {
-        ampli.pinnedCoin({
-            coinType: coinType,
-        });
-        pinCoinType(coinType);
-    }
-
-    function handleUnpin(coinType: string) {
-        ampli.unpinnedCoin({
-            coinType: coinType,
-        });
-        unpinCoinType(coinType);
-    }
-
-    return (
-        <Loading loading={isFirstTimeLoading}>
-            <div className="w-full">
-                <div className="flex h-[56px] items-center">
-                    <Title title="My coins" size={TitleSize.Medium} />
-                </div>
-                <div className="inline-flex">
-                    <SegmentedButton type={SegmentedButtonType.Filled}>
-                        {TOKEN_CATEGORIES.map(({ label, value }) => (
-                            <ButtonSegment
-                                key={value}
-                                onClick={() => setSelectedTokenCategory(value)}
-                                label={label}
-                                selected={selectedTokenCategory === value}
-                                disabled={
-                                    TokenCategory.Recognized === value
-                                        ? !recognized.length
-                                        : TokenCategory.Unrecognized === value
-                                          ? !pinned?.length && !unrecognized?.length
-                                          : false
-                                }
-                            />
-                        ))}
-                    </SegmentedButton>
-                </div>
-                <div className="pb-md pt-sm">
-                    {[TokenCategory.All, TokenCategory.Recognized].includes(
-                        selectedTokenCategory,
-                    ) &&
-                        recognized.map((coinBalance) => (
-                            <TokenLink
-                                key={coinBalance.coinType}
-                                coinBalance={coinBalance}
-                                icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
-                            />
-                        ))}
-                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
-                        selectedTokenCategory,
-                    ) &&
-                        pinned.map((coinBalance) => (
-                            <TokenLink
-                                key={coinBalance.coinType}
-                                coinBalance={coinBalance}
-                                clickableAction={
-                                    <PinButton
-                                        isPinned
-                                        onClick={() => handleUnpin(coinBalance.coinType)}
-                                    />
-                                }
-                            />
-                        ))}
-
-                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
-                        selectedTokenCategory,
-                    ) &&
-                        unrecognized.map((coinBalance) => (
-                            <TokenLink
-                                key={coinBalance.coinType}
-                                coinBalance={coinBalance}
-                                clickableAction={
-                                    <PinButton onClick={() => handlePin(coinBalance.coinType)} />
-                                }
-                            />
-                        ))}
-                </div>
-            </div>
-        </Loading>
-    );
 }
 
 function getMostNestedName(parsed: ReturnType<typeof parseStructTag>) {
@@ -421,7 +263,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                         </div>
                     )}
                 </div>
-                <DialogReceiveTokens
+                <ReceiveTokensDialog
                     address={activeAccountAddress}
                     open={dialogReceiveOpen}
                     setOpen={(isOpen) => setDialogReceiveOpen(isOpen)}
@@ -432,38 +274,3 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 }
 
 export default TokenDetails;
-
-function DialogReceiveTokens({
-    address,
-    open,
-    setOpen,
-}: {
-    address: string;
-    open: boolean;
-    setOpen: (isOpen: boolean) => void;
-}) {
-    const onCopy = useCopyToClipboard(address, {
-        copySuccessMessage: 'Address copied',
-    });
-
-    return (
-        <div className="relative">
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent containerId="overlay-portal-container">
-                    <Header title="Receive" onClose={() => setOpen(false)} />
-                    <DialogBody>
-                        <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
-                            <div className="self-center">
-                                <QR value={address} size={130} />
-                            </div>
-                            <Address text={address} />
-                        </div>
-                    </DialogBody>
-                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                        <Button onClick={onCopy} fullWidth text="Copy Address" />
-                    </div>
-                </DialogContent>
-            </Dialog>
-        </div>
-    );
-}
