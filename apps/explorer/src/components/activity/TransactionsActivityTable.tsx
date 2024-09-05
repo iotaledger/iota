@@ -69,7 +69,7 @@ export function TransactionsActivityTable({
                         data={cardData.data}
                         columns={cardData.columns}
                         totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
-                        viewAll={true ? '/recent' : undefined}
+                        viewAll="/recent"
                         paginationOptions={!disablePagination ? pagination : undefined}
                     />
                 )}
