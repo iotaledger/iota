@@ -3,18 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
-import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
-import {
-    Link,
-    Pagination,
-    PlaceholderTable,
-    TableCard,
-    useCursorPagination,
-} from '~/components/ui';
+import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,

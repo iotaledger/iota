@@ -4,17 +4,9 @@
 
 import { Select } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
-import { Text } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
-import {
-    Link,
-    Pagination,
-    PlaceholderTable,
-    TableCard,
-    useCursorPagination,
-} from '~/components/ui';
+import { PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { generateTableDataFromCheckpointsData } from '~/lib/ui';
 import { numberSuffix } from '~/lib/utils';

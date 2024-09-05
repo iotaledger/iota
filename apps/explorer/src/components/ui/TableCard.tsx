@@ -11,7 +11,7 @@ import {
     TableHeader,
     TableHeaderCell,
     TableHeaderRow,
-    TablePaginationOptions,
+    type TablePaginationOptions,
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
@@ -23,6 +23,7 @@ import {
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNavigateWithQuery } from './LinkWithQuery';
 
 export interface TableCardProps<DataType extends object> {
     refetching?: boolean;
@@ -45,7 +46,7 @@ export function TableCard<DataType extends object>({
     totalLabel,
     viewAll,
 }: TableCardProps<DataType>): JSX.Element {
-    const navigate = useNavigate();
+    const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
     // Use Columns to create a table
@@ -92,7 +93,7 @@ export function TableCard<DataType extends object>({
                 onActionClick={
                     viewAll
                         ? () => {
-                              navigate(viewAll);
+                              navigate(viewAll, {});
                           }
                         : undefined
                 }
