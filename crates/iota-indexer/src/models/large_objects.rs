@@ -12,7 +12,7 @@ use diesel::{
     pg::sql_types::Oid,
     select,
     sql_types::{BigInt, Binary, Integer, Nullable},
-    RunQueryDsl,
+    PgConnection, RunQueryDsl,
 };
 
 use crate::{
@@ -39,19 +39,26 @@ define_sql_function! {
     fn lo_get(loid: Oid, offset: Nullable<BigInt>, length: Nullable<Integer> ) -> Binary
 }
 
+/// Create an empty large object
+///
+/// Returns the object identifier (`oid`) represented as `u32`.
+pub fn create_large_object(conn: &mut PgConnection) -> Result<u32, IndexerError> {
+    select(lo_create(0))
+        .get_result(conn)
+        .map_err(IndexerError::from)
+        .context("failed to store large object")
+}
+
 /// Store raw data as a large object in chunks.
 ///
 /// Returns the object identifier (`oid`) represented as `u32`.
-pub fn put_large_object(
+pub fn put_large_object_in_chunks(
     data: Vec<u8>,
     chunk_size: usize,
     pool: &PgConnectionPool,
 ) -> Result<u32, IndexerError> {
     let mut conn = crate::db::get_pg_pool_connection(pool)?;
-    let oid: u32 = select(lo_create(0))
-        .get_result(&mut conn)
-        .map_err(IndexerError::from)
-        .context("failed to store large object")?;
+    let oid = create_large_object(&mut conn)?;
 
     if let Err(err) = i64::try_from(data.len()) {
         return Err(IndexerError::GenericError(err.to_string()));
@@ -73,7 +80,7 @@ pub fn put_large_object(
 }
 
 /// Get a large object from the database in chunks.
-pub fn get_large_object(
+pub fn get_large_object_in_chunks(
     oid: u32,
     chunk_size: usize,
     pool: &PgConnectionPool,
