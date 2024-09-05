@@ -4556,48 +4556,6 @@
       ]
     },
     {
-      "name": "iotax_queryObjects",
-      "tags": [
-        {
-          "name": "Extended API"
-        }
-      ],
-      "description": "Return the list of queried objects. Note that this is an enhanced full node only api.",
-      "params": [
-        {
-          "name": "query",
-          "description": "The objects query criteria.",
-          "required": true,
-          "schema": {
-            "$ref": "#/components/schemas/ObjectResponseQuery"
-          }
-        },
-        {
-          "name": "cursor",
-          "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
-          "schema": {
-            "$ref": "#/components/schemas/CheckpointedObjectID"
-          }
-        },
-        {
-          "name": "limit",
-          "description": "Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.",
-          "schema": {
-            "type": "integer",
-            "format": "uint",
-            "minimum": 0.0
-          }
-        }
-      ],
-      "result": {
-        "name": "QueryObjectsPage",
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_CheckpointedObjectID"
-        }
-      }
-    },
-    {
       "name": "iotax_queryTransactionBlocks",
       "tags": [
         {
@@ -5965,27 +5923,6 @@
             "$ref": "#/components/schemas/CheckpointDigest"
           }
         ]
-      },
-      "CheckpointedObjectID": {
-        "type": "object",
-        "required": [
-          "objectId"
-        ],
-        "properties": {
-          "atCheckpoint": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
-          }
-        }
       },
       "Claim": {
         "description": "A claim consists of value and index_mod_4.",
@@ -10395,35 +10332,6 @@
           }
         }
       },
-      "Page_for_IotaObjectResponse_and_CheckpointedObjectID": {
-        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
-        "type": "object",
-        "required": [
-          "data",
-          "hasNextPage"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/IotaObjectResponse"
-            }
-          },
-          "hasNextPage": {
-            "type": "boolean"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CheckpointedObjectID"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
       "Page_for_IotaObjectResponse_and_ObjectID": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
@@ -10741,12 +10649,12 @@
         "$ref": "#/components/schemas/Base64"
       },
       "SequenceNumber": {
-        "$ref": "#/components/schemas/BigInt_for_uint64"
-      },
-      "SequenceNumber2": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
+      },
+      "SequenceNumber2": {
+        "$ref": "#/components/schemas/BigInt_for_uint64"
       },
       "Signature": {
         "oneOf": [
