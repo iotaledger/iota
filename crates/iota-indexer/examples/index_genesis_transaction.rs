@@ -82,7 +82,8 @@ pub async fn main() -> Result<(), IndexerError> {
     };
 
     let digest_to_bytes = db_txn.tx_digest.into_inner().to_vec();
-    let expected = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
+    let expected_transactions = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
+    let expected_effects = bcs::to_bytes(&db_txn.effects).unwrap();
 
     let pg_store = create_pg_store(DEFAULT_DB_URL.to_owned(), None);
     reset_database(&mut pg_store.blocking_cp().get().unwrap(), true).unwrap();
@@ -104,6 +105,7 @@ pub async fn main() -> Result<(), IndexerError> {
         .get_coin_metadata_in_blocking_task("0x2::iota::IOTA".parse().unwrap())
         .await?;
 
-    assert!(expected == stored.raw_transaction);
+    assert!(expected_transactions == stored.raw_transaction);
+    assert!(expected_effects == stored.raw_effects);
     Ok(())
 }

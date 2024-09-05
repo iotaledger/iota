@@ -255,7 +255,7 @@ impl StoredTransaction {
 
     /// Store the raw transaction data as a large object in postgres
     /// and replace `self.raw_transaction` with a pointer to the large object.
-    fn store_inner_data_as_large_object(
+    fn store_inner_transactions_data_as_large_object(
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
@@ -265,9 +265,21 @@ impl StoredTransaction {
         Ok(self)
     }
 
+    /// Store the raw effects data as a large object in postgres
+    /// and replace `self.raw_effects` with a pointer to the large object.
+    fn store_inner_effects_data_as_large_object(
+        mut self,
+        pool: &PgConnectionPool,
+    ) -> Result<Self, IndexerError> {
+        let raw_tx = std::mem::take(&mut self.raw_effects);
+        let oid = put_large_object(raw_tx, Self::LARGE_OBJECT_CHUNK, pool)?;
+        self.raw_effects = oid.to_le_bytes().to_vec();
+        Ok(self)
+    }
+
     /// This method checks if this is the genesis transaction,
     /// and if true it stores the raw data as a large object
-    /// in postgres, replacing `self.raw_transaction` with
+    /// in postgres, replacing `self.raw_transaction` & `self.raw_effects` with
     /// a pointer to the large object data.
     pub fn store_inner_genesis_data_as_large_object(
         self,
@@ -276,10 +288,12 @@ impl StoredTransaction {
         if !self.is_genesis() {
             return Ok(self);
         }
-        self.store_inner_data_as_large_object(pool)
+        self.store_inner_transactions_data_as_large_object(pool)
+            .and_then(|transaction| transaction.store_inner_effects_data_as_large_object(pool))
     }
 
-    fn set_large_object_as_inner_data(
+    /// This method replaces `self.raw_transaction` large object id with the actual large object data
+    fn set_large_object_as_transactions_inner_data(
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
@@ -290,6 +304,22 @@ impl StoredTransaction {
         let oid = u32::from_le_bytes(raw_oid);
 
         self.raw_transaction = get_large_object(oid, Self::LARGE_OBJECT_CHUNK, pool)?;
+
+        Ok(self)
+    }
+
+    /// This method replaces `self.raw_effects` large object id with the actual large object data
+    fn set_large_object_as_effects_inner_data(
+        mut self,
+        pool: &PgConnectionPool,
+    ) -> Result<Self, IndexerError> {
+        let raw_oid = std::mem::take(&mut self.raw_effects);
+        let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
+            IndexerError::GenericError("invalid large object identifier".to_owned())
+        })?;
+        let oid = u32::from_le_bytes(raw_oid);
+
+        self.raw_effects = get_large_object(oid, Self::LARGE_OBJECT_CHUNK, pool)?;
 
         Ok(self)
     }
@@ -305,6 +335,7 @@ impl StoredTransaction {
         if !self.is_genesis() {
             return Ok(self);
         }
-        self.set_large_object_as_inner_data(pool)
+        self.set_large_object_as_transactions_inner_data(pool)
+            .and_then(|transaction| transaction.set_large_object_as_effects_inner_data(pool))
     }
 }
