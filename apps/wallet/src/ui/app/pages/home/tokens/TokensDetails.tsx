@@ -218,7 +218,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                 onClick={onSendClick}
                                 icon={<Send />}
                                 size={ButtonSize.Small}
-                                disabled={activeAccount?.isLocked}
+                                disabled={activeAccount?.isLocked || !coinBalances?.length}
                             />
                         </div>
                     </div>

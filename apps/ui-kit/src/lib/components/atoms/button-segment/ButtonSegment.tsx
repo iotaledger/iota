@@ -12,7 +12,7 @@ import {
 } from './button-segment.classes';
 import cx from 'classnames';
 import { ButtonSegmentType } from './button-segment.enums';
-import { ButtonUnstyled } from '../button/ButtonUnstyled';
+import { ButtonUnstyled } from '../button';
 
 interface ButtonSegmentProps {
     /**
