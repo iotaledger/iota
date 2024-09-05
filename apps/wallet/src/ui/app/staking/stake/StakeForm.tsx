@@ -15,11 +15,11 @@ import {
     useGetTimeBeforeEpochNumber,
     useTimeAgo,
 } from '@iota/core';
-import { Field, Form, useFormikContext } from 'formik';
+import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { ButtonPill, Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -29,7 +29,7 @@ export interface StakeFromProps {
 }
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
-    const { values, setFieldValue, errors } = useFormikContext<FormValues>();
+    const { values } = useFormikContext<FormValues>();
 
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
@@ -44,11 +44,6 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
     const activeAddress = useActiveAddress();
     const { data: gasBudget } = useTransactionGasBudget(activeAddress, transaction);
-
-    const setMaxToken = useCallback(() => {
-        if (!maxToken) return;
-        setFieldValue('amount', maxToken);
-    }, [maxToken, setFieldValue]);
 
     // Reward will be available after 2 epochs
     const startEarningRewardsEpoch =
@@ -93,30 +88,41 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
             className="flex w-full flex-1 flex-col flex-nowrap items-center gap-md"
             autoComplete="off"
         >
-            <Field
-                name="amount"
-                render={({ field }: { field: FormValues }) => (
-                    <Input
-                        {...field}
-                        type={InputType.Number}
-                        name="amount"
-                        placeholder="0 IOTA"
-                        caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
-                        trailingElement={
-                            <button
-                                onClick={setMaxToken}
-                                type="button"
-                                disabled={queryResult.isPending}
-                                className="flex items-center justify-center rounded-xl border border-neutral-70 px-sm text-body-md text-neutral-40"
-                            >
-                                Max
-                            </button>
-                        }
-                        errorMessage={errors.amount}
-                        label="Amount"
-                    />
-                )}
-            />
+            <Field name="amount">
+                {({
+                    field: { onChange, ...field },
+                    form: { setFieldValue },
+                    meta,
+                }: FieldProps<FormValues>) => {
+                    const setMaxToken = useCallback(() => {
+                        if (!maxToken) return;
+                        setFieldValue('amount', maxToken);
+                    }, [maxToken, setFieldValue]);
+
+                    return (
+                        <Input
+                            {...field}
+                            onValueChange={(values) => setFieldValue('amount', values.value, true)}
+                            type={InputType.NumericFormat}
+                            name="amount"
+                            placeholder={`0 ${symbol}`}
+                            value={values.amount}
+                            caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
+                            suffix={' ' + symbol}
+                            trailingElement={
+                                <ButtonPill
+                                    onClick={setMaxToken}
+                                    disabled={queryResult.isPending || values.amount === maxToken}
+                                >
+                                    Max
+                                </ButtonPill>
+                            }
+                            errorMessage={values.amount && meta.error ? meta.error : undefined}
+                            label="Amount"
+                        />
+                    );
+                }}
+            </Field>
             <Panel hasBorder>
                 <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
