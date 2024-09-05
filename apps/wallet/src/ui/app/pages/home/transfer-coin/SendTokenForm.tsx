@@ -229,17 +229,7 @@ export function SendTokenForm({
                 validateOnChange
                 onSubmit={handleFormSubmit}
             >
-                {({ isValid, isSubmitting, setFieldValue, values, submitForm, resetForm }) => {
-                    useEffect(() => {
-                        resetForm({
-                            values: {
-                                ...INITIAL_VALUES,
-                                amount: '',
-                                to: '',
-                            },
-                        });
-                    }, [resetForm, coinType]);
-
+                {({ isValid, isSubmitting, setFieldValue, values, submitForm }) => {
                     const newPayIotaAll =
                         parseAmount(values.amount, coinDecimals) === coinBalance &&
                         coinType === IOTA_TYPE_ARG;

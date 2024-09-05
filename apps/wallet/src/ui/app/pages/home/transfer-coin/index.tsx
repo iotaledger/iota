@@ -137,13 +137,17 @@ function TransferCoinPage() {
                     </div>
                 ) : (
                     <>
-                        <CoinSelector activeCoinType={coinType} />
+                        <CoinSelector
+                            onActiveCoinChange={() => setFormData(undefined)}
+                            activeCoinType={coinType}
+                        />
 
                         <SendTokenForm
                             onSubmit={(formData) => {
                                 setFormData(formData);
                                 setShowTransactionPreview(true);
                             }}
+                            key={coinType}
                             coinType={coinType}
                             initialAmount={formData?.amount || ''}
                             initialTo={formData?.to || ''}
@@ -155,7 +159,13 @@ function TransferCoinPage() {
     );
 }
 
-function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: string }) {
+function CoinSelector({
+    activeCoinType = IOTA_TYPE_ARG,
+    onActiveCoinChange,
+}: {
+    activeCoinType: string;
+    onActiveCoinChange: () => void;
+}) {
     const selectedAddress = useActiveAddress();
     const navigate = useNavigate();
 
@@ -190,6 +200,7 @@ function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: stri
                 value={initialValue}
                 options={coinsOptions}
                 onValueChange={(coinType) => {
+                    onActiveCoinChange();
                     navigate(`/send?${new URLSearchParams({ type: coinType }).toString()}`);
                 }}
             />
