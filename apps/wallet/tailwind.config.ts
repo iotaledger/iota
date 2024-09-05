@@ -30,7 +30,7 @@ export default {
                 15: '3.75rem',
                 'popup-height': '680px',
                 'popup-width': '360px',
-                'nav-height': '80px',
+                'nav-height': '60px',
             },
             boxShadow: {
                 'wallet-content': '0px -5px 20px 5px rgba(160, 182, 195, 0.15)',
