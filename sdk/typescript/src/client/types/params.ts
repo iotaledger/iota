@@ -364,21 +364,6 @@ export type QueryTransactionBlocksParams = {
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
 } & RpcTypes.IotaTransactionBlockResponseQuery;
-/** Return the resolved address given resolver and name */
-export interface ResolveNameServiceAddressParams {
-    /** The name to resolve */
-    name: string;
-}
-/**
- * Return the resolved names given address, if multiple names are resolved, the first one is the
- * primary name.
- */
-export interface ResolveNameServiceNamesParams {
-    /** The address to resolve */
-    address: string;
-    cursor?: string | null | undefined;
-    limit?: number | null | undefined;
-}
 /** Subscribe to a stream of Iota event */
 export interface SubscribeEventParams {
     /**

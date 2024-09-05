@@ -1252,16 +1252,6 @@ export interface PaginatedObjectsResponse {
  * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
  * item.
  */
-export interface PaginatedStrings {
-    data: string[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
 export interface PaginatedTransactionResponse {
     data: IotaTransactionBlockResponse[];
     hasNextPage: boolean;
