@@ -190,7 +190,7 @@ function CoinSelector({
     const coinsOptions: SelectOption[] =
         coins?.map((coin) => ({
             id: coin.coinType,
-            renderValue: <CoinSelectOption coin={coin} />,
+            renderLabel: () => <CoinSelectOption coin={coin} />,
         })) || [];
 
     return (

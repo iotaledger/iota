@@ -6732,6 +6732,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-move-build",
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",

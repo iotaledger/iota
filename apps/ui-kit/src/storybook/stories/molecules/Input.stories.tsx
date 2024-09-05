@@ -64,6 +64,11 @@ export const Default: Story = {
                 options: Object.values(InputType),
             },
         },
+        onValueChange: {
+            control: {
+                type: 'none',
+            },
+        },
     },
     render: (props) => <InputStory {...props} />,
 };
@@ -129,14 +134,14 @@ export const WithMaxTrailingButton: Story = {
     },
 };
 
-export const WithPrefixAndSuffix: Story = {
+export const NumericFormatInput: Story = {
     args: {
-        type: InputType.Number,
+        type: InputType.NumericFormat,
         placeholder: 'Enter the IOTA Amount',
         amountCounter: '10',
         caption: 'Caption',
         suffix: ' IOTA',
-        prefix: '~',
+        prefix: '~ ',
     },
     render: (props) => {
         const [inputValue, setInputValue] = useState<string>('');

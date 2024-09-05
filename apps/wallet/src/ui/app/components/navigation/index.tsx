@@ -2,61 +2,54 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
 import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
 
+type NavbarItemWithPath = NavbarItemWithId & {
+    path: string;
+};
+
 export function Navigation() {
     const activeAccount = useActiveAccount();
     const navigate = useNavigate();
+    const location = useLocation();
 
-    function onHomeClick() {
-        navigate('/tokens');
-    }
-
-    function onAssetsClick() {
-        navigate('/nfts');
-    }
-
-    function onActivityClick() {
-        navigate('/transactions');
-    }
-
-    function onAppsClick() {
-        navigate('/apps');
-    }
-
-    const NAVBAR_ITEMS: NavbarItemWithId[] = [
-        { id: 'home', icon: <Home />, onClick: onHomeClick },
+    const NAVBAR_ITEMS: NavbarItemWithPath[] = [
+        { id: 'home', icon: <Home />, path: '/tokens' },
         {
             id: 'assets',
             icon: <Assets />,
-            onClick: onAssetsClick,
             isDisabled: activeAccount?.isLocked,
+            path: '/nfts',
         },
         {
             id: 'apps',
             icon: <Apps />,
-            onClick: onAppsClick,
             isDisabled: activeAccount?.isLocked,
+            path: '/apps',
         },
         {
             id: 'activity',
             icon: <Activity />,
-            onClick: onActivityClick,
             isDisabled: activeAccount?.isLocked,
+            path: '/transactions',
         },
     ];
-    const [activeRouteId, setActiveRouteId] = useState<string>(NAVBAR_ITEMS[0].id);
+
+    const activeId = NAVBAR_ITEMS.find((item) => location.pathname.startsWith(item.path))?.id || '';
+
+    function handleItemClick(id: string) {
+        const item = NAVBAR_ITEMS.find((item) => item.id === id);
+        if (item && !item.isDisabled) {
+            navigate(item.path);
+        }
+    }
+
     return (
         <div className="sticky bottom-0 w-full shrink-0 border-b-0 bg-white">
-            <Navbar
-                items={NAVBAR_ITEMS}
-                activeId={activeRouteId}
-                onClickItem={(id) => setActiveRouteId(id)}
-            />
+            <Navbar items={NAVBAR_ITEMS} activeId={activeId} onClickItem={handleItemClick} />
         </div>
     );
 }

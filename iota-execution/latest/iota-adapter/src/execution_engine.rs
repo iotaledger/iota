@@ -28,7 +28,7 @@ mod checked {
         deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::is_certificate_denied,
+        execution::{is_certificate_denied, ExecutionResults, ExecutionResultsV2},
         execution_config_utils::to_binary_config,
         execution_mode::{self, ExecutionMode},
         execution_status::ExecutionStatus,
@@ -47,7 +47,7 @@ mod checked {
             RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
             RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         },
-        storage::BackingStore,
+        storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
@@ -546,7 +546,7 @@ mod checked {
                 )?;
                 Ok(Mode::empty_results())
             }
-            TransactionKind::Genesis(GenesisTransaction { objects }) => {
+            TransactionKind::Genesis(GenesisTransaction { objects, events }) => {
                 if tx_ctx.epoch() != 0 {
                     panic!("BUG: Genesis Transactions can only be executed in epoch 0");
                 }
@@ -564,6 +564,14 @@ mod checked {
                         }
                     }
                 }
+
+                temporary_store.record_execution_results(ExecutionResults::V2(
+                    ExecutionResultsV2 {
+                        user_events: events,
+                        ..Default::default()
+                    },
+                ));
+
                 Ok(Mode::empty_results())
             }
             TransactionKind::ConsensusCommitPrologue(prologue) => {

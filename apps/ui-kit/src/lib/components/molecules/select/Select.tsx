@@ -10,22 +10,16 @@ import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
 import { ButtonUnstyled } from '../../atoms/button';
 import { ListItem } from '../../atoms';
 
-export interface SelectOption {
+export type SelectOption =
+    | string
+    | { id: string; renderLabel: () => React.JSX.Element }
+    | { id: string; label: React.ReactNode };
+
+interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled'> {
     /**
-     * The id of the option.
-     */
-    id: string;
-    /**
-     * The value of the option.
+     * The selected option value.
      */
     value?: string;
-    /**
-     * The element to render in the selector option.
-     */
-    renderValue?: React.ReactNode;
-}
-
-interface SelectProps {
     /**
      * The field label.
      */
@@ -37,7 +31,7 @@ interface SelectProps {
     /**
      * The dropdown elements to render.
      */
-    options?: SelectOption[];
+    options: SelectOption[];
     /**
      * The icon to show on the left of the field.
      */
@@ -51,21 +45,17 @@ interface SelectProps {
      */
     errorMessage?: string;
     /**
+     * Placeholder for the selector
+     */
+    placeholder?: SelectOption;
+    /**
      * The callback to call when the value changes.
      */
-    onValueChange?: (id: SelectOption['id']) => void;
+    onValueChange?: (id: string) => void;
     /**
-     * Whether the field is disabled.
+     * The callback to call when the option is clicked.
      */
-    disabled?: boolean;
-    /**
-     * The initial value of the select. This should be the id of the option.
-     */
-    value?: string;
-    /**
-     * Render a different value in the selector.
-     */
-    renderValue?: React.ReactNode;
+    onOptionClick?: (id: string) => void;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -78,18 +68,17 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             errorMessage,
             caption,
             options,
+            placeholder,
             onValueChange,
+            onOptionClick,
             value,
-            renderValue,
         },
         ref,
     ) => {
-        const initialOption: SelectOption | undefined =
-            options?.find((opt) => opt.id === value) ?? options?.[0];
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [selectedOption, setSelectedOption] = useState<SelectOption | undefined>(
-            initialOption,
-        );
+        const selectedValue = findValueByProps(value, options);
+
+        const selectorText = selectedValue || placeholder;
 
         useEffect(() => {
             if (disabled && isOpen) {
@@ -97,22 +86,31 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             }
         }, [disabled, isOpen]);
 
+        function findValueByProps(value: SelectProps['value'], options: SelectOption[] = []) {
+            return (
+                options.find((option) =>
+                    typeof option === 'string' ? option === value : option.id === value,
+                ) ?? options[0]
+            );
+        }
+
         function onSelectorClick() {
             setIsOpen((prev) => !prev);
         }
 
-        function handleOptionClick(clickedOption: SelectOption) {
-            onValueChange?.(clickedOption.id);
-            setSelectedOption(clickedOption);
+        function handleOptionClick(option: SelectOption) {
             closeDropdown();
+            const clickedOption = typeof option === 'string' ? option : option.id;
+            onOptionClick?.(clickedOption);
+
+            if (option !== selectedValue) {
+                onValueChange?.(clickedOption);
+            }
         }
 
         function closeDropdown() {
             setIsOpen(false);
         }
-
-        const currentOption = selectedOption ?? initialOption;
-        const displayValue = renderValue ?? currentOption?.renderValue ?? currentOption?.value;
 
         return (
             <InputWrapper
@@ -136,7 +134,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         )}
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
-                            {renderValue ?? displayValue}
+                            {selectorText && (
+                                <div className="block w-full text-start text-body-lg text-neutral-10 dark:text-neutral-92">
+                                    <OptionLabel option={selectorText} />
+                                </div>
+                            )}
 
                             {supportingText && (
                                 <div className="ml-auto">
@@ -167,15 +169,18 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         })}
                     >
                         <Dropdown>
-                            {options?.map((option) => (
-                                <ListItem
-                                    onClick={() => handleOptionClick(option)}
-                                    hideBottomBorder
-                                    key={option.id}
-                                >
-                                    {option.renderValue ?? option.value}
-                                </ListItem>
-                            ))}
+                            {options.map((option) => {
+                                const optionIsString = typeof option === 'string';
+                                return (
+                                    <ListItem
+                                        onClick={() => handleOptionClick(option)}
+                                        hideBottomBorder
+                                        key={optionIsString ? option : option.id}
+                                    >
+                                        <OptionLabel option={option} />
+                                    </ListItem>
+                                );
+                            })}
                         </Dropdown>
                     </div>
                 </div>
@@ -183,3 +188,13 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         );
     },
 );
+
+function OptionLabel({ option }: { option: SelectOption }) {
+    if (typeof option === 'string') {
+        return option;
+    } else if ('renderLabel' in option) {
+        return option.renderLabel();
+    } else {
+        return option.label;
+    }
+}

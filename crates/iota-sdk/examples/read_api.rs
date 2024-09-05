@@ -23,8 +23,6 @@ use utils::setup_for_write;
 async fn main() -> Result<(), anyhow::Error> {
     let (client, active_address, _) = setup_for_write().await?;
 
-    // ************ READ API ************ //
-    println!("// ************ READ API ************ //\n");
     // Owned Objects
     let owned_objects = client
         .read_api()
@@ -117,7 +115,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let tx_blocks = client.read_api().get_total_transaction_blocks().await?;
     println!("Total transaction blocks {tx_blocks}");
-    // ************ END OF READ API ************ //
 
     Ok(())
 }

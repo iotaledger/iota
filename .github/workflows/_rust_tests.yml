@@ -139,7 +139,7 @@ jobs:
           echo "filters=$result" >> "$GITHUB_ENV"
       - name: cargo simtest
         run: |
-          command="scripts/simtest/cargo-simtest simtest $filters"
+          command="scripts/simtest/cargo-simtest simtest --profile ci $filters"
 
           echo "$command"
 

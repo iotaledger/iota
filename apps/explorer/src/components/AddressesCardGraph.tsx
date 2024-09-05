@@ -101,7 +101,6 @@ export function AddressesCardGraph(): JSX.Element {
                                             width={width}
                                             getX={({ epoch }) => epoch}
                                             getY={(data) => data[GRAPH_DATA_FIELD]}
-                                            color="blue"
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}
                                         />

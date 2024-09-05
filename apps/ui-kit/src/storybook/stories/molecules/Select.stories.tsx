@@ -15,54 +15,44 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const INVALID_OPTION = {
-    id: 'Invalid Option',
-    value: 'Invalid Option',
-};
-
-const options = new Array(4).fill(0).map((_, index, arr) => {
-    const isLastItem = index === arr.length - 1;
-
-    return isLastItem
-        ? INVALID_OPTION
-        : { id: `Option ${index + 1}`, value: `Option ${index + 1}` };
-});
+const dropdownOptions: SelectOption[] = ['Option 1', 'Option 2', 'Option 3', 'Invalid Option'];
 
 export const Default: Story = {
     args: {
         label: 'Select Input',
         supportingText: 'Info',
         caption: 'Caption',
-        value: options[0].value,
-        options: new Array(4).fill(0).map((_, index, arr) => {
-            const isLastItem = index === arr.length - 1;
-
-            return isLastItem
-                ? INVALID_OPTION
-                : { id: `Option ${index + 1}`, value: `Option ${index + 1}` };
-        }),
+        placeholder: 'Placeholder',
+        options: dropdownOptions,
     },
     argTypes: {
-        value: {
+        placeholder: {
             control: {
                 type: 'text',
             },
         },
     },
-    render: ({ value, ...args }) => {
+    render: (args) => {
+        const [selected, setSelected] = useState('Option 1');
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
-        function onChange(option: SelectOption['id']) {
-            if (option === INVALID_OPTION.id) {
+        const onChange = (id: string) => {
+            if (id === 'Invalid Option') {
                 setErrorMessage('Invalid Option Selected');
             } else {
+                setSelected(id);
                 setErrorMessage(undefined);
             }
-        }
+        };
 
         return (
             <div className="h-60">
-                <Select {...args} onValueChange={onChange} errorMessage={errorMessage} />
+                <Select
+                    {...args}
+                    value={selected}
+                    onValueChange={onChange}
+                    errorMessage={errorMessage}
+                />
             </div>
         );
     },
@@ -71,11 +61,16 @@ export const Default: Story = {
 export const CustomOptions: Story = {
     args: {
         label: 'Send Coins',
-        value: 'Select a coin',
-        options: [
+        placeholder: 'Select a coin',
+        options: [],
+    },
+    render: ({ options, ...args }) => {
+        const [selected, setSelected] = useState('iota');
+
+        const customOptions: SelectOption[] = [
             {
                 id: 'iota',
-                renderValue: (
+                renderLabel: () => (
                     <div className="flex items-center gap-2">
                         <IotaLogoMark />
                         IOTA
@@ -84,19 +79,23 @@ export const CustomOptions: Story = {
             },
             {
                 id: 'smr',
-                renderValue: (
+                renderLabel: () => (
                     <div className="flex items-center gap-2">
                         <PlaceholderReplace />
                         SMR
                     </div>
                 ),
             },
-        ],
-    },
-    render: (args) => {
+        ];
+
         return (
             <div className="h-60">
-                <Select {...args} />
+                <Select
+                    {...args}
+                    value={selected}
+                    onValueChange={setSelected}
+                    options={customOptions}
+                />
             </div>
         );
     },

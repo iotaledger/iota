@@ -377,7 +377,6 @@ function ValidatorPageResult(): JSX.Element {
                                         rowCount={20}
                                         rowHeight="13px"
                                         colHeadings={['Name', 'Address', 'Stake']}
-                                        colWidths={['220px', '220px', '220px']}
                                     />
                                 )}
 
