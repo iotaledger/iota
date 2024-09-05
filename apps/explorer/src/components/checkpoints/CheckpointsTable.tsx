@@ -53,7 +53,7 @@ export function CheckpointsTable({
     }, [countQuery.data, initialCursor, maxCursor, checkpoints, isError]);
 
     const cardData = data ? generateTableDataFromCheckpointsData(data) : undefined;
-    console.log('--- limit', limit);
+
     return (
         <div className="flex flex-col gap-md text-left xl:pr-10">
             {isError && (

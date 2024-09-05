@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
-import { DoubleArrowLeft, ArrowLeft, ArrowRight } from '@iota/ui-icons';
+import { PaginationFirst24, PaginationNext24, PaginationPrev24 } from '@iota/icons';
 import { type InfiniteData, type UseInfiniteQueryResult } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -87,7 +86,7 @@ export function usePaginationStack<Cursor = string>() {
 
 interface PaginationButtonProps {
     label: string;
-    icon: typeof DoubleArrowLeft;
+    icon: typeof PaginationFirst24;
     disabled: boolean;
     onClick(): void;
 }
@@ -99,14 +98,15 @@ function PaginationButton({
     onClick,
 }: PaginationButtonProps): JSX.Element {
     return (
-        <Button
-            size={ButtonSize.Small}
-            type={ButtonType.Secondary}
+        <button
+            className="rounded-md border border-steel px-2 py-1 text-steel shadow-xs disabled:border-gray-45 disabled:text-gray-45"
             aria-label={label}
+            type="button"
             disabled={disabled}
             onClick={onClick}
-            icon={<Icon />}
-        />
+        >
+            <Icon className="text-[24px]" />
+        </button>
     );
 }
 
@@ -121,17 +121,22 @@ export function Pagination({
         <div className="flex gap-2">
             <PaginationButton
                 label="Go to First"
-                icon={DoubleArrowLeft}
+                icon={PaginationFirst24}
                 disabled={!hasPrev}
                 onClick={onFirst}
             />
             <PaginationButton
                 label="Previous"
-                icon={ArrowLeft}
+                icon={PaginationPrev24}
                 disabled={!hasPrev}
                 onClick={onPrev}
             />
-            <PaginationButton label="Next" icon={ArrowRight} disabled={!hasNext} onClick={onNext} />
+            <PaginationButton
+                label="Next"
+                icon={PaginationNext24}
+                disabled={!hasNext}
+                onClick={onNext}
+            />
         </div>
     );
 }

@@ -7,17 +7,13 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     ButtonSegment,
     ButtonSegmentType,
     SegmentedButton,
     SegmentedButtonType,
-    Tabs,
-    TabsHeader,
-    TabsTrigger,
-    TabsContent,
 } from '@iota/apps-ui-kit';
 
 import { CheckpointsTable, PageLayout } from '~/components';
@@ -57,6 +53,7 @@ enum EpochTabs {
 }
 
 export default function EpochDetail() {
+    const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
@@ -162,50 +159,42 @@ export default function EpochDetail() {
                     </div>
 
                     <div className="rounded-xl bg-white">
-                        <Tabs defaultTabId={EpochTabs.Checkpoints}>
-                            <TabsHeader
-                                render={(activeTabId) => (
-                                    <div className="relative">
-                                        <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-0 h-[1px] w-full border-b" />
-                                        <SegmentedButton
-                                            type={SegmentedButtonType.Transparent}
-                                            shape={ButtonSegmentType.Underlined}
-                                        >
-                                            <TabsTrigger tabId={EpochTabs.Checkpoints}>
-                                                <ButtonSegment
-                                                    type={ButtonSegmentType.Underlined}
-                                                    label="Checkpoints"
-                                                    selected={activeTabId === EpochTabs.Checkpoints}
-                                                />
-                                            </TabsTrigger>
-                                            <TabsTrigger tabId={EpochTabs.Validators}>
-                                                <ButtonSegment
-                                                    type={ButtonSegmentType.Underlined}
-                                                    label="Participating Validators"
-                                                    selected={activeTabId === EpochTabs.Validators}
-                                                />
-                                            </TabsTrigger>
-                                        </SegmentedButton>
-                                    </div>
-                                )}
-                            />
-                            <TabsContent tabId={EpochTabs.Checkpoints}>
+                        <div className="relative">
+                            <div className="border-shader-inverte-dark-8 absolute bottom-0 left-0 z-0 h-[1px] w-full border-b" />
+                            <SegmentedButton
+                                type={SegmentedButtonType.Transparent}
+                                shape={ButtonSegmentType.Underlined}
+                            >
+                                <ButtonSegment
+                                    type={ButtonSegmentType.Underlined}
+                                    label="Checkpoints"
+                                    selected={activeTabId === EpochTabs.Checkpoints}
+                                    onClick={() => setActiveTabId(EpochTabs.Checkpoints)}
+                                />
+                                <ButtonSegment
+                                    type={ButtonSegmentType.Underlined}
+                                    label="Participating Validators"
+                                    selected={activeTabId === EpochTabs.Validators}
+                                    onClick={() => setActiveTabId(EpochTabs.Validators)}
+                                />
+                            </SegmentedButton>
+                        </div>
+                        <div className="px-lg py-md">
+                            {activeTabId === EpochTabs.Checkpoints ? (
                                 <CheckpointsTable
                                     initialCursor={initialCursorPlusOne}
                                     maxCursor={epochData.firstCheckpointId}
                                     initialLimit={20}
                                 />
-                            </TabsContent>
-                            <TabsContent tabId={EpochTabs.Validators}>
-                                {validatorsTable ? (
-                                    <TableCard
-                                        data={validatorsTable.data}
-                                        columns={validatorsTable.columns}
-                                        sortTable
-                                    />
-                                ) : null}
-                            </TabsContent>
-                        </Tabs>
+                            ) : null}
+                            {activeTabId === EpochTabs.Validators && validatorsTable ? (
+                                <TableCard
+                                    data={validatorsTable.data}
+                                    columns={validatorsTable.columns}
+                                    sortTable
+                                />
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             }
