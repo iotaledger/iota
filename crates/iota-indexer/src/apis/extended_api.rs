@@ -7,8 +7,8 @@ use iota_json_rpc_api::{
     internal_error, validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
 };
 use iota_json_rpc_types::{
-    AddressMetrics, CheckpointedObjectID, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage,
-    IotaObjectResponseQuery, MoveCallMetrics, NetworkMetrics, Page, QueryObjectsPage,
+    AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
+    NetworkMetrics, Page,
 };
 use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
@@ -146,15 +146,6 @@ impl ExtendedApiServer for ExtendedApi {
             .spawn_blocking(move |this| this.get_all_epoch_address_metrics(descending_order))
             .await?;
         Ok(all_epoch_address_metrics)
-    }
-
-    async fn query_objects(
-        &self,
-        _query: IotaObjectResponseQuery,
-        _cursor: Option<CheckpointedObjectID>,
-        _limit: Option<usize>,
-    ) -> RpcResult<QueryObjectsPage> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>> {
