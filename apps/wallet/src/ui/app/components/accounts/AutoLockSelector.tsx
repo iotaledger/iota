@@ -12,14 +12,14 @@ import { SelectField } from '../../shared/forms/SelectField';
 import { Input, InputType, type SelectOption } from '@iota/apps-ui-kit';
 
 const LOCK_INTERVALS: SelectOption[] = [
-    { id: 'day', value: 'Day' },
-    { id: 'hour', value: 'Hour' },
-    { id: 'minute', value: 'Minute' },
+    { id: 'day', label: 'Day' },
+    { id: 'hour', label: 'Hour' },
+    { id: 'minute', label: 'Minute' },
 ];
 const LOCK_INTERVALS_PLURAL: SelectOption[] = [
-    { id: 'day', value: 'Days' },
-    { id: 'hour', value: 'Hours' },
-    { id: 'minute', value: 'Minutes' },
+    { id: 'day', label: 'Days' },
+    { id: 'hour', label: 'Hours' },
+    { id: 'minute', label: 'Minutes' },
 ];
 
 export const zodSchema = z.object({
