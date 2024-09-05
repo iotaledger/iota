@@ -11,6 +11,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+
 jobs:
   diff:
     runs-on: [self-hosted]
