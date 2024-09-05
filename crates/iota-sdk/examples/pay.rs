@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
             vec![coin_object_id],
             vec![recipient],
             vec![1_000],
-            Some(gas_coin_object_id),
+            gas_coin_object_id,
             gas_budget,
         )
         .await?;

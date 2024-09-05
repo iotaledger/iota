@@ -42,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
             sender,
             vec![coin.coin_object_id],
             // Min delegation amount is 1 IOTA
-            Some(1_000_000_000),
+            1_000_000_000,
             validator,
             None,
             gas_budget,

@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     object_id: coin_object_id_2,
                 }),
             ],
-            Some(gas_coin_object_id),
+            gas_coin_object_id,
             gas_budget,
         )
         .await?;

@@ -71,7 +71,7 @@ impl TransactionBuilder {
     async fn select_gas(
         &self,
         signer: IotaAddress,
-        input_gas: Option<ObjectID>,
+        input_gas: impl Into<Option<ObjectID>>,
         budget: u64,
         input_objects: Vec<ObjectID>,
         gas_price: u64,
@@ -81,7 +81,7 @@ impl TransactionBuilder {
                 "Gas budget {budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}."
             )
         }
-        if let Some(gas) = input_gas {
+        if let Some(gas) = input_gas.into() {
             self.get_object_ref(gas).await
         } else {
             let gas_objs = self.0.get_owned_objects(signer, GasCoin::type_()).await?;
@@ -114,7 +114,7 @@ impl TransactionBuilder {
         &self,
         signer: IotaAddress,
         object_id: ObjectID,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
         recipient: IotaAddress,
     ) -> anyhow::Result<TransactionData> {
@@ -151,12 +151,17 @@ impl TransactionBuilder {
         iota_object_id: ObjectID,
         gas_budget: u64,
         recipient: IotaAddress,
-        amount: Option<u64>,
+        amount: impl Into<Option<u64>>,
     ) -> anyhow::Result<TransactionData> {
         let object = self.get_object_ref(iota_object_id).await?;
         let gas_price = self.0.get_reference_gas_price().await?;
         Ok(TransactionData::new_transfer_iota(
-            recipient, signer, amount, object, gas_budget, gas_price,
+            recipient,
+            signer,
+            amount.into(),
+            object,
+            gas_budget,
+            gas_price,
         ))
     }
 
@@ -166,9 +171,11 @@ impl TransactionBuilder {
         input_coins: Vec<ObjectID>,
         recipients: Vec<IotaAddress>,
         amounts: Vec<u64>,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
+        let gas = gas.into();
+
         if let Some(gas) = gas {
             if input_coins.contains(&gas) {
                 return Err(anyhow!(
@@ -274,10 +281,12 @@ impl TransactionBuilder {
         function: &str,
         type_args: Vec<IotaTypeTag>,
         call_args: Vec<IotaJsonValue>,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
-        gas_price: Option<u64>,
+        gas_price: impl Into<Option<u64>>,
     ) -> anyhow::Result<TransactionData> {
+        let gas_price = gas_price.into();
+
         let mut builder = ProgrammableTransactionBuilder::new();
         self.single_move_call(
             &mut builder,
@@ -464,7 +473,7 @@ impl TransactionBuilder {
         sender: IotaAddress,
         compiled_modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectID>,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -490,7 +499,7 @@ impl TransactionBuilder {
         upgrade_capability: ObjectID,
         upgrade_policy: u8,
         digest: Vec<u8>,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -528,7 +537,7 @@ impl TransactionBuilder {
         signer: IotaAddress,
         coin_object_id: ObjectID,
         split_amounts: Vec<u64>,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let coin = self
@@ -566,7 +575,7 @@ impl TransactionBuilder {
         signer: IotaAddress,
         coin_object_id: ObjectID,
         split_count: u64,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let coin = self
@@ -604,7 +613,7 @@ impl TransactionBuilder {
         signer: IotaAddress,
         primary_coin: ObjectID,
         coin_to_merge: ObjectID,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let coin = self
@@ -647,7 +656,7 @@ impl TransactionBuilder {
         &self,
         signer: IotaAddress,
         single_transaction_params: Vec<RPCTransactionRequestParams>,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         fp_ensure!(
@@ -704,9 +713,9 @@ impl TransactionBuilder {
         &self,
         signer: IotaAddress,
         mut coins: Vec<ObjectID>,
-        amount: Option<u64>,
+        amount: impl Into<Option<u64>>,
         validator: IotaAddress,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -744,7 +753,7 @@ impl TransactionBuilder {
                 builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap(),
                 builder.make_obj_vec(obj_vec)?,
                 builder
-                    .input(CallArg::Pure(bcs::to_bytes(&amount)?))
+                    .input(CallArg::Pure(bcs::to_bytes(&amount.into())?))
                     .unwrap(),
                 builder
                     .input(CallArg::Pure(bcs::to_bytes(&validator)?))
@@ -772,7 +781,7 @@ impl TransactionBuilder {
         &self,
         signer: IotaAddress,
         staked_iota: ObjectID,
-        gas: Option<ObjectID>,
+        gas: impl Into<Option<ObjectID>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let staked_iota = self.get_object_ref(staked_iota).await?;
