@@ -47,7 +47,7 @@ export function useCursorPagination<T>(query: UseInfiniteQueryResult<InfiniteDat
             onPrev: () => {
                 setCurrentPage(Math.max(currentPage - 1, 0));
             },
-            hasFirst: currentPage != 0,
+            hasFirst: currentPage !== 0,
             hasNext:
                 !query.isFetchingNextPage &&
                 (currentPage < (query.data?.pages.length ?? 0) - 1 || !!query.hasNextPage),
@@ -68,6 +68,7 @@ export function usePaginationStack<Cursor = string>() {
             nextCursor = null,
         }: Partial<PaginationResponse<Cursor>> = {}): PaginationProps {
             return {
+                hasFirst: stack.length > 0,
                 hasPrev: stack.length > 0,
                 hasNext: hasNextPage,
                 onFirst() {
