@@ -8,6 +8,7 @@ import {
     TableBodyRow,
     TableCell,
     type TableCellProps,
+    TableCellType,
     TableHeader,
     TableHeaderCell,
     TableHeaderRow,
@@ -15,16 +16,22 @@ import {
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
+    flexRender,
     getCoreRowModel,
     getSortedRowModel,
+    type RowData,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigateWithQuery } from './LinkWithQuery';
 
-export interface TableCardProps<DataType extends object> {
+interface ColumnDefMeta {
+    isRenderCell?: boolean;
+}
+
+export interface TableCardProps<DataType extends RowData> {
     refetching?: boolean;
     data: DataType[];
     columns: ColumnDef<DataType>[];
@@ -48,22 +55,9 @@ export function TableCard<DataType extends object>({
     const navigate = useNavigateWithQuery();
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
-    // Use Columns to create a table
-    const processedcol = useMemo<ColumnDef<DataType>[]>(
-        () =>
-            columns.map((column) => ({
-                ...column,
-                // cell renderer for each column from react-table
-                // cell should be in the column definition
-                //TODO: move cell to column definition
-                ...(!sortTable && { cell: ({ getValue }) => getValue() }),
-            })),
-        [columns, sortTable],
-    );
-
     const table = useReactTable({
         data,
-        columns: processedcol,
+        columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
@@ -114,9 +108,22 @@ export function TableCard<DataType extends object>({
                 <TableBody>
                     {table.getRowModel().rows.map((row) => (
                         <TableBodyRow key={row.id} rowIndex={row.index}>
-                            {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
-                            ))}
+                            {row.getVisibleCells().map((cell) => {
+                                // If the column has a custom cell renderer, use it
+                                if ((cell.column.columnDef.meta as ColumnDefMeta)?.isRenderCell) {
+                                    return (
+                                        <TableCell key={cell.id} type={TableCellType.Children}>
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext(),
+                                            )}
+                                        </TableCell>
+                                    );
+                                }
+                                return (
+                                    <TableCell key={cell.id} {...cell.getValue<TableCellProps>()} />
+                                );
+                            })}
                         </TableBodyRow>
                     ))}
                 </TableBody>

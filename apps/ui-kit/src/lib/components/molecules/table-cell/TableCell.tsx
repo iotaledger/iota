@@ -113,6 +113,17 @@ type TableCellLink = {
     isExternal?: boolean;
 };
 
+type TableCellChildren = {
+    /**
+     * The type of the cell.
+     */
+    type: TableCellType.Children;
+    /**
+     * The children of the cell.
+     */
+    children?: React.ReactNode;
+};
+
 export type TableCellProps = TableCellBaseProps &
     (
         | TableCellText
@@ -122,6 +133,7 @@ export type TableCellProps = TableCellBaseProps &
         | TableCellCheckbox
         | TableCellPlaceholder
         | TableCellLink
+        | TableCellChildren
     );
 
 export function TableCell(props: TableCellProps): JSX.Element {
@@ -176,6 +188,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
                 return <Badge type={badgeType} label={label} />;
             case TableCellType.AvatarText:
                 const { leadingElement } = props;
+
                 return (
                     <div className={cx('flex items-center gap-x-2.5', textColorClass)}>
                         {leadingElement}
@@ -208,6 +221,9 @@ export function TableCell(props: TableCellProps): JSX.Element {
                         {label}
                     </a>
                 );
+            case TableCellType.Children:
+                const { children } = props;
+                return children;
             default:
                 return null;
         }

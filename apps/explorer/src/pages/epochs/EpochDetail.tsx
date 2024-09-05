@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import { CoinFormat, useCoinMetadata, useFormatCoin } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LoadingIndicator } from '@iota/ui';
@@ -24,6 +24,7 @@ import { validatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
+import { validatorColumns } from './epochValidatorsSchema';
 
 function IotaStats({
     amount,
@@ -53,7 +54,7 @@ enum EpochTabs {
 }
 
 export default function EpochDetail() {
-    const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
+    const [activeTabId, setActiveTabId] = useState(EpochTabs.Validators);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
@@ -66,6 +67,7 @@ export default function EpochDetail() {
                 limit: 1,
             }),
     });
+    const { data: coinMetaData } = useCoinMetadata(IOTA_TYPE_ARG);
 
     const [epochData] = data?.data ?? [];
     const isCurrentEpoch = useMemo(
@@ -77,12 +79,14 @@ export default function EpochDetail() {
         if (!epochData?.validators) return null;
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
-        return validatorsTableData(
-            [...epochData.validators].sort(() => 0.5 - Math.random()),
-            [],
-            [],
-            null,
-        );
+        return validatorsTableData({
+            validators: epochData.validators,
+            atRiskValidators: [],
+            validatorEvents: [],
+            rollingAverageApys: null,
+            columns: validatorColumns,
+            symbol: coinMetaData?.symbol,
+        });
     }, [epochData]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
@@ -191,7 +195,6 @@ export default function EpochDetail() {
                                 <TableCard
                                     data={validatorsTable.data}
                                     columns={validatorsTable.columns}
-                                    sortTable
                                 />
                             ) : null}
                         </div>

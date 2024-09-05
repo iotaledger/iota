@@ -11,37 +11,110 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import {
+    type ApyByValidator,
+    formatAmount,
     formatPercentageDisplay,
     roundFloat,
     useFormatCoin,
     useGetValidatorsApy,
     useGetValidatorsEvents,
-    type ApyByValidator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Text } from '@iota/ui';
-import { useMemo } from 'react';
-import { ErrorBoundary, PageLayout, StakeColumn } from '~/components';
-import {
-    Banner,
-    ImageIcon,
-    Link,
-    PlaceholderTable,
-    TableCard,
-    TableHeader,
-    Tooltip,
-} from '~/components/ui';
-import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
-import { ampli, getValidatorMoveEvent } from '~/lib/utils';
+import React, { type JSX, useMemo } from 'react';
 
-export function validatorsTableData(
-    validators: IotaValidatorSummary[],
-    atRiskValidators: [string, string][],
-    validatorEvents: IotaEvent[],
-    rollingAverageApys: ApyByValidator | null,
-) {
+import { ErrorBoundary, PageLayout, StakeColumn } from '~/components';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { Banner, Link, PlaceholderTable, TableCard, TableHeader, Tooltip } from '~/components/ui';
+import { ampli, getValidatorMoveEvent } from '~/lib/utils';
+import { type ColumnDef } from '@tanstack/react-table';
+import { Badge, BadgeType, type TableCellProps, TableCellType } from '@iota/apps-ui-kit';
+import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
+
+export interface ValidatorTableRow {
+    name: TableCellProps;
+    stake: TableCellProps;
+    apy:
+        | TableCellProps
+        | {
+              apy: number | null;
+              isApyApproxZero?: boolean;
+          };
+    nextEpochGasPrice: TableCellProps;
+    commission: TableCellProps;
+    img: string | null;
+    address: string;
+    lastReward:
+        | TableCellProps
+        | {
+              lastReward: number | null;
+          };
+    votingPower: TableCellProps;
+    atRisk: TableCellProps;
+    symbol?: string;
+}
+
+interface ValidatorsTableDataArgs {
+    validators: IotaValidatorSummary[];
+    atRiskValidators: [string, string][];
+    validatorEvents: IotaEvent[];
+    rollingAverageApys: ApyByValidator | null;
+    columns?: ColumnDef<object, unknown>[];
+    symbol?: string;
+}
+
+function generateValidatorName(address: string, name: string, imageUrl: string) {
+    return (
+        <Link
+            to={`/validator/${encodeURIComponent(address)}`}
+            onClick={() =>
+                ampli.clickedValidatorRow({
+                    sourceFlow: 'Epoch details',
+                    validatorAddress: address,
+                    validatorName: name,
+                })
+            }
+        >
+            <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+                <span className="text-label-lg">{name}</span>
+            </div>
+        </Link>
+    );
+}
+
+function generateAtRiskValidator(atRisk: number | null) {
+    const label = 'At Risk';
+    return typeof atRisk === 'number' ? (
+        <Tooltip
+            tip="Staked IOTA is below the minimum IOTA stake threshold to remain a validator."
+            onOpen={() =>
+                ampli.activatedTooltip({
+                    tooltipLabel: label,
+                })
+            }
+        >
+            <div className="flex cursor-pointer flex-nowrap items-center">
+                <div className="text-body-md uppercase text-neutral-40">{label}</div>
+                &nbsp;
+                <div className="text-body-md uppercase text-neutral-40">
+                    {atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch'}
+                </div>
+            </div>
+        </Tooltip>
+    ) : (
+        <Badge type={BadgeType.Neutral} label="Active" />
+    );
+}
+
+export function validatorsTableData({
+    validators,
+    atRiskValidators,
+    validatorEvents,
+    rollingAverageApys,
+    columns,
+    symbol,
+}: ValidatorsTableDataArgs): { data: ValidatorTableRow[]; columns: ColumnDef<object, unknown>[] } {
     return {
         data: [...validators]
             .sort(() => 0.5 - Math.random())
@@ -65,33 +138,71 @@ export function validatorsTableData(
 
                 return {
                     name: {
-                        name: validatorName,
-                        logo: validator.imageUrl,
+                        type: TableCellType.Children,
+                        children: generateValidatorName(
+                            validator.iotaAddress,
+                            validatorName,
+                            validator.imageUrl,
+                        ),
                     },
-                    stake: totalStake,
+                    stake: {
+                        type: TableCellType.Text,
+                        label: formatAmount(totalStake),
+                        supportingLabel: symbol,
+                        stake: totalStake,
+                    },
                     apy: {
+                        type: TableCellType.AvatarText,
+                        label: formatPercentageDisplay(apy, '--', isApyApproxZero),
                         apy,
                         isApyApproxZero,
                     },
-                    nextEpochGasPrice: validator.nextEpochGasPrice,
-                    commission: Number(validator.commissionRate) / 100,
+                    nextEpochGasPrice: {
+                        type: TableCellType.Text,
+                        label: formatAmount(validator.nextEpochGasPrice),
+                        supportingLabel: symbol,
+                        nextEpochGasPrice: validator.nextEpochGasPrice,
+                    },
+                    commission: {
+                        type: TableCellType.Text,
+                        label: `${Number(validator.commissionRate) / 100}%`,
+                    },
                     img: img,
                     address: validator.iotaAddress,
-                    lastReward: lastReward ?? null,
-                    votingPower: Number(validator.votingPower) / 100,
-                    atRisk: isAtRisk
-                        ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
-                        : null,
+                    lastReward: {
+                        type: TableCellType.Text,
+                        label: lastReward ? formatAmount(Number(lastReward)) : '--',
+                        supportingLabel: lastReward ? symbol : undefined,
+                        lastReward: lastReward ?? null,
+                    },
+                    votingPower: {
+                        type: TableCellType.Text,
+                        label: validator.votingPower
+                            ? Number(validator.votingPower) / 100 + '%'
+                            : '--',
+                    },
+                    atRisk: {
+                        type: TableCellType.Children,
+                        children: generateAtRiskValidator(
+                            isAtRisk
+                                ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
+                                : null,
+                        ),
+                    },
+                    symbol: symbol,
                 };
             }),
-        columns: [
+        columns: columns || [
             {
                 header: '#',
                 accessorKey: 'number',
+                meta: {
+                    isRenderCell: true,
+                },
                 cell: (props: any) => (
-                    <Text variant="bodySmall/medium" color="steel-dark">
+                    <div className="text-body-md text-neutral-40">
                         {props.table.getSortedRowModel().flatRows.indexOf(props.row) + 1}
-                    </Text>
+                    </div>
                 ),
             },
             {
@@ -103,59 +214,42 @@ export function validatorsTableData(
                         sensitivity: 'base',
                         numeric: true,
                     }),
-                cell: (props: any) => {
-                    const { name, logo } = props.getValue();
-                    return (
-                        <Link
-                            to={`/validator/${encodeURIComponent(props.row.original.address)}`}
-                            onClick={() =>
-                                ampli.clickedValidatorRow({
-                                    sourceFlow: 'Epoch details',
-                                    validatorAddress: props.row.original.address,
-                                    validatorName: name,
-                                })
-                            }
-                        >
-                            <div className="flex items-center gap-2.5">
-                                <ImageIcon
-                                    src={logo}
-                                    size="sm"
-                                    label={name}
-                                    fallback={name}
-                                    circle
-                                />
-                                <Text variant="bodySmall/medium" color="steel-darker">
-                                    {name}
-                                </Text>
-                            </div>
-                        </Link>
-                    );
-                },
             },
             {
                 header: 'Stake',
                 accessorKey: 'stake',
                 enableSorting: true,
-                cell: (props: any) => <StakeColumn stake={props.getValue()} />,
+                meta: {
+                    isRenderCell: true,
+                },
+                cell: (props: any) => <StakeColumn stake={props.getValue().stake} />,
             },
             {
                 header: 'Proposed Next Epoch Gas Price',
                 accessorKey: 'nextEpochGasPrice',
                 enableSorting: true,
-                cell: (props: any) => <StakeColumn stake={props.getValue()} inNano />,
+                meta: {
+                    isRenderCell: true,
+                },
+                cell: (props: any) => (
+                    <StakeColumn stake={props.getValue().nextEpochGasPrice} inNano />
+                ),
             },
             {
                 header: 'APY',
                 accessorKey: 'apy',
                 enableSorting: true,
+                meta: {
+                    isRenderCell: true,
+                },
                 sortingFn: (a: any, b: any, colId: string) =>
                     a.getValue(colId)?.apy < b.getValue(colId)?.apy ? -1 : 1,
                 cell: (props: any) => {
                     const { apy, isApyApproxZero } = props.getValue();
                     return (
-                        <Text variant="bodySmall/medium" color="steel-darker">
+                        <div className="text-body-md text-neutral-40">
                             {formatPercentageDisplay(apy, '--', isApyApproxZero)}
-                        </Text>
+                        </div>
                     );
                 },
             },
@@ -163,21 +257,13 @@ export function validatorsTableData(
                 header: 'Commission',
                 accessorKey: 'commission',
                 enableSorting: true,
-                cell: (props: any) => {
-                    const commissionRate = props.getValue();
-                    return (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            {commissionRate}%
-                        </Text>
-                    );
-                },
             },
             {
                 header: 'Last Epoch Rewards',
                 accessorKey: 'lastReward',
                 enableSorting: true,
                 cell: (props: any) => {
-                    const lastReward = props.getValue();
+                    const lastReward = props.getValue().lastReward;
                     return lastReward !== null ? (
                         <StakeColumn stake={Number(lastReward)} />
                     ) : (
@@ -191,46 +277,10 @@ export function validatorsTableData(
                 header: 'Voting Power',
                 accessorKey: 'votingPower',
                 enableSorting: true,
-                cell: (props: any) => {
-                    const votingPower = props.getValue();
-                    return (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            {votingPower}%
-                        </Text>
-                    );
-                },
             },
             {
                 header: 'Status',
                 accessorKey: 'atRisk',
-                cell: (props: any) => {
-                    const atRisk = props.getValue();
-                    const label = 'At Risk';
-                    return atRisk !== null ? (
-                        <Tooltip
-                            tip="Staked IOTA is below the minimum IOTA stake threshold to remain a validator."
-                            onOpen={() =>
-                                ampli.activatedTooltip({
-                                    tooltipLabel: label,
-                                })
-                            }
-                        >
-                            <div className="flex cursor-pointer flex-nowrap items-center">
-                                <Text color="issue" variant="bodySmall/medium">
-                                    {label}
-                                </Text>
-                                &nbsp;
-                                <Text uppercase variant="bodySmall/medium" color="steel-dark">
-                                    {atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch'}
-                                </Text>
-                            </div>
-                        </Tooltip>
-                    ) : (
-                        <Text variant="bodySmall/medium" color="steel-darker">
-                            Active
-                        </Text>
-                    );
-                },
             },
         ],
     };
@@ -238,7 +288,6 @@ export function validatorsTableData(
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-
     const numberOfValidators = data?.activeValidators.length || 0;
 
     const {
@@ -289,12 +338,12 @@ function ValidatorPageResult(): JSX.Element {
 
     const validatorsTable = useMemo(() => {
         if (!data || !validatorEvents) return null;
-        return validatorsTableData(
-            data.activeValidators,
-            data.atRiskValidators,
+        return validatorsTableData({
+            validators: data.activeValidators,
+            atRiskValidators: data.atRiskValidators,
             validatorEvents,
-            validatorsApy || null,
-        );
+            rollingAverageApys: validatorsApy || null,
+        });
     }, [data, validatorEvents, validatorsApy]);
 
     const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin(

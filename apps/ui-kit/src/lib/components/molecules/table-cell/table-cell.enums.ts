@@ -9,4 +9,5 @@ export enum TableCellType {
     Checkbox = 'checkbox',
     Placeholder = 'placeholder',
     Link = 'link',
+    Children = 'children',
 }
