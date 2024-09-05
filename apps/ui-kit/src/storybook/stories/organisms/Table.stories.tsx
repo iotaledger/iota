@@ -117,7 +117,7 @@ export const Default: Story = {
             onFirst: () => console.log('First'),
             onNext: () => console.log('Next'),
             hasFirst: true,
-            hasNext: false
+            hasNext: false,
         },
         actionLabel: 'Action',
         hasCheckboxColumn: true,

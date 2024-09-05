@@ -27,19 +27,19 @@ export interface TablePaginationOptions {
     /**
      * Has Next button.
      */
-    hasNext?: boolean,
+    hasNext?: boolean;
     /**
      * Has Previous button.
      */
-    hasPrev?: boolean,
+    hasPrev?: boolean;
     /**
      * Has First button.
      */
-    hasFirst?: boolean,
+    hasFirst?: boolean;
     /**
      * Has Last button.
      */
-    hasLast?: boolean
+    hasLast?: boolean;
 }
 
 export type TableProps = {
