@@ -70,8 +70,6 @@ import type {
     QueryEventsParams,
     QueryTransactionBlocksParams,
     ResolvedNameServiceNames,
-    ResolveNameServiceAddressParams,
-    ResolveNameServiceNamesParams,
     SubscribeEventParams,
     SubscribeTransactionParams,
     IotaEvent,
@@ -776,22 +774,18 @@ export class IotaClient {
         return toHEX(bytes.slice(0, 4));
     }
 
-    async resolveNameServiceAddress(
-        input: ResolveNameServiceAddressParams,
-    ): Promise<string | null> {
-        return await this.transport.request({
-            method: 'iotax_resolveNameServiceAddress',
-            params: [input.name],
-        });
+    // @ts-expect-error to be remove soon
+    async resolveNameServiceAddress(input: any): Promise<string | null> {
+        return 'remove_me';
     }
 
-    async resolveNameServiceNames(
-        input: ResolveNameServiceNamesParams,
-    ): Promise<ResolvedNameServiceNames> {
-        return await this.transport.request({
-            method: 'iotax_resolveNameServiceNames',
-            params: [input.address, input.cursor, input.limit],
-        });
+    // @ts-expect-error to be remove soon
+    async resolveNameServiceNames(input: any): Promise<ResolvedNameServiceNames> {
+        return {
+            data: [],
+            hasNextPage: false,
+            nextCursor: null,
+        };
     }
 
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {
