@@ -66,7 +66,7 @@ pub fn put_large_object_in_chunks(
 
     for (chunk_num, chunk) in data.chunks(chunk_size).enumerate() {
         let offset = (chunk_num * chunk_size) as i64;
-        tracing::trace!("storing large-object chunk at offset {}", offset);
+        tracing::trace!("Storing large-object chunk at offset {}", offset);
         // TODO: (to treat in a different issue):
         // remove dangling chunks (either by using a transaction or by handlng manually)
         //
@@ -93,7 +93,7 @@ pub fn get_large_object_in_chunks(
             i32::try_from(chunk_size).map_err(|e| IndexerError::GenericError(e.to_string()))?;
         let offset = (chunk_num * chunk_size) as i64;
 
-        tracing::trace!("fetching large-object chunk at offset {}", offset);
+        tracing::trace!("Fetching large-object chunk at offset {}", offset);
 
         let chunk = select(lo_get(oid, Some(offset), Some(length)))
             .get_result::<Vec<u8>>(&mut conn)

@@ -259,6 +259,7 @@ impl StoredTransaction {
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
+        tracing::debug!("Storing raw transaction as large object data");
         let raw_tx = std::mem::take(&mut self.raw_transaction);
         let oid = put_large_object_in_chunks(raw_tx, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
         self.raw_transaction = oid.to_le_bytes().to_vec();
@@ -271,6 +272,7 @@ impl StoredTransaction {
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
+        tracing::debug!("Storing object changes as large object data");
         let object_changes = std::mem::take(&mut self.object_changes);
         let data = bcs::to_bytes(&object_changes)
             .map_err(IndexerError::from)
@@ -287,6 +289,7 @@ impl StoredTransaction {
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
+        tracing::debug!("Storing raw effects as large object data");
         let raw_tx = std::mem::take(&mut self.raw_effects);
         let oid = put_large_object_in_chunks(raw_tx, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
         self.raw_effects = oid.to_le_bytes().to_vec();
@@ -315,6 +318,7 @@ impl StoredTransaction {
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
+        tracing::debug!("Setting large object data as raw transaction");
         let raw_oid = std::mem::take(&mut self.raw_transaction);
         let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
             IndexerError::GenericError("invalid large object identifier".to_owned())
@@ -333,6 +337,7 @@ impl StoredTransaction {
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
+        tracing::debug!("Setting large object data as raw effects");
         let raw_oid = std::mem::take(&mut self.raw_effects);
         let raw_oid: [u8; 4] = raw_oid.try_into().map_err(|_| {
             IndexerError::GenericError("invalid large object identifier".to_owned())
@@ -350,6 +355,7 @@ impl StoredTransaction {
         mut self,
         pool: &PgConnectionPool,
     ) -> Result<Self, IndexerError> {
+        tracing::debug!("Setting large object data as object changes");
         let raw_oid = std::mem::take(&mut self.object_changes)
             .pop()
             .flatten()
