@@ -13,7 +13,7 @@ interface CollapsibleProps {
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     titleSize?: TitleSize;
-    renderHeader?: ({ isOpen }: { isOpen: boolean }) => ReactNode;
+    render?: ({ isOpen }: { isOpen: boolean }) => ReactNode;
     hideArrow?: boolean;
     hideBorder?: boolean;
 }
@@ -26,16 +26,16 @@ export function Collapsible({
     onOpenChange,
     shade = 'lighter',
     titleSize = TitleSize.Small,
-    renderHeader,
+    render,
     hideArrow,
     hideBorder,
 }: CollapsibleProps) {
     const [open, setOpen] = useState(isOpen ?? defaultOpen ?? false);
 
-    const handleOpenChange = (isOpen: boolean) => {
+    function handleOpenChange(isOpen: boolean) {
         setOpen(isOpen);
         onOpenChange?.(isOpen);
-    };
+    }
 
     return (
         <Accordion hideBorder={hideBorder}>
@@ -45,11 +45,7 @@ export function Collapsible({
                 isExpanded={isOpen ?? open}
                 onToggle={() => handleOpenChange(!open)}
             >
-                {renderHeader ? (
-                    renderHeader({ isOpen: open })
-                ) : (
-                    <Title size={titleSize} title={title} />
-                )}
+                {render ? render({ isOpen: open }) : <Title size={titleSize} title={title} />}
             </AccordionHeader>
             <AccordionContent isExpanded={isOpen ?? open}>{children}</AccordionContent>
         </Accordion>

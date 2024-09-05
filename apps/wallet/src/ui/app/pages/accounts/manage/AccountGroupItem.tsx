@@ -15,13 +15,12 @@ import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 
-export function AccountGroupItem({
-    account,
-    isLast,
-}: {
+interface AccountGroupItemProps {
     account: SerializedUIAccount;
     isLast: boolean;
-}) {
+}
+
+export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);

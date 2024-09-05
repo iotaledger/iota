@@ -27,7 +27,7 @@ const formSchema = z.object({
 interface NicknameDialogProps {
     accountID: string;
     isOpen: boolean;
-    setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    setOpen: (isOpen: boolean) => void;
 }
 
 export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogProps) {

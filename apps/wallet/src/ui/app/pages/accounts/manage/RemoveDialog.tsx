@@ -7,17 +7,14 @@ import { useMutation } from '@tanstack/react-query';
 import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import toast from 'react-hot-toast';
 
-export function RemoveDialog({
-    isOpen,
-    setOpen,
-    accountID,
-}: {
+interface RemoveDialogProps {
     accountID: string;
     isOpen: boolean;
-    setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}) {
+    setOpen: (isOpen: boolean) => void;
+}
+
+export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) {
     const allAccounts = useAccounts();
-    const totalAccounts = allAccounts?.data?.length || 0;
     const backgroundClient = useBackgroundClient();
     const removeAccountMutation = useMutation({
         mutationKey: ['remove account mutation', accountID],
@@ -26,6 +23,20 @@ export function RemoveDialog({
             setOpen(false);
         },
     });
+
+    const totalAccounts = allAccounts?.data?.length || 0;
+
+    function handleCancel() {
+        setOpen(false);
+    }
+
+    function handleRemove() {
+        removeAccountMutation.mutate(undefined, {
+            onSuccess: () => toast.success('Account removed'),
+            onError: (e) => toast.error((e as Error)?.message || 'Something went wrong'),
+        });
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
@@ -44,21 +55,13 @@ export function RemoveDialog({
                             fullWidth
                             type={ButtonType.Secondary}
                             text="Cancel"
-                            onClick={() => setOpen(false)}
+                            onClick={handleCancel}
                         />
                         <Button
                             fullWidth
                             type={ButtonType.Primary}
                             text="Remove"
-                            onClick={() => {
-                                removeAccountMutation.mutate(undefined, {
-                                    onSuccess: () => toast.success('Account removed'),
-                                    onError: (e) =>
-                                        toast.error(
-                                            (e as Error)?.message || 'Something went wrong',
-                                        ),
-                                });
-                            }}
+                            onClick={handleRemove}
                         />
                     </div>
                 </DialogBody>

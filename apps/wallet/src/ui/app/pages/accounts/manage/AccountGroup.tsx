@@ -96,7 +96,7 @@ export function AccountGroup({
                 defaultOpen
                 hideArrow
                 hideBorder
-                renderHeader={({ isOpen }) => (
+                render={({ isOpen }) => (
                     <div className="relative flex w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
                         <div className="flex items-center gap-1">
                             <TriangleDown
@@ -131,7 +131,11 @@ export function AccountGroup({
                 )}
             >
                 {accounts.map((account, index) => (
-                    <AccountGroupItem account={account} isLast={index === accounts.length - 1} />
+                    <AccountGroupItem
+                        key={account.id}
+                        account={account}
+                        isLast={index === accounts.length - 1}
+                    />
                 ))}
             </Collapsible>
             <div
