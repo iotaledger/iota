@@ -55,10 +55,6 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
     if (stakedTxn || unstakeTxn)
         return (
             <div className="relative block h-full w-full">
-                <TransactionStatus
-                    success={summary?.status === 'success'}
-                    timestamp={txn.timestampMs ?? undefined}
-                />
                 <section className="bg-iota/10 -mx-5 min-h-full">
                     <div className="px-5 py-10">
                         <div className="flex flex-col gap-4">

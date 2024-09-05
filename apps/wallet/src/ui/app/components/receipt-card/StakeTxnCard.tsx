@@ -3,24 +3,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
-import { TxnAmount } from '_components';
+import { CoinIcon } from '_components';
 import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
 } from '_src/shared/constants';
-import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
-import { Text } from '_src/ui/app/shared/text';
-import { IconTooltip } from '_src/ui/app/shared/tooltip';
+
 import {
     formatPercentageDisplay,
+    TimeUnit,
+    useFormatCoin,
     useGetTimeBeforeEpochNumber,
     useGetValidatorsApy,
+    useTimeAgo,
 } from '@iota/core';
 import type { IotaEvent } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-import { Card } from '../../shared/transaction-summary/Card';
-import { CardType } from '@iota/apps-ui-kit';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    CardType,
+    ImageType,
+    KeyValueInfo,
+    Panel,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 
 interface StakeTxnCardProps {
     event: IotaEvent;
@@ -28,11 +39,18 @@ interface StakeTxnCardProps {
 
 // For Staked Transaction use moveEvent Field to get the validator address, delegation amount, epoch
 export function StakeTxnCard({ event }: StakeTxnCardProps) {
-    const json = event.parsedJson as { amount: string; validator_address: string; epoch: string };
+    const json = event.parsedJson as {
+        amount: string;
+        validator_address: string;
+        epoch: string;
+    };
     const validatorAddress = json?.validator_address;
     const stakedAmount = json?.amount;
     const stakedEpoch = Number(json?.epoch || '0');
-
+    const [formatted, symbol] = useFormatCoin(
+        Math.abs(Number(stakedAmount.toString())),
+        IOTA_TYPE_ARG,
+    );
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
@@ -50,88 +68,73 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
     const { data: timeBeforeStakeRewardsStarts } =
         useGetTimeBeforeEpochNumber(startEarningRewardsEpoch);
 
+    const timeBeforeStakeRewardsStartsAgo = useTimeAgo({
+        timeFrom: timeBeforeStakeRewardsStarts,
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_HOUR,
+    });
+    const stakedRewardsStartEpoch =
+        timeBeforeStakeRewardsStarts > 0
+            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
+            : stakedEpoch
+              ? `Epoch #${Number(startEarningRewardsEpoch)}`
+              : '--';
+
     const { data: timeBeforeStakeRewardsRedeemable } =
         useGetTimeBeforeEpochNumber(redeemableRewardsEpoch);
 
+    const timeBeforeStakeRewardsRedeemableAgo = useTimeAgo({
+        timeFrom: timeBeforeStakeRewardsRedeemable,
+        shortedTimeLabel: false,
+        shouldEnd: true,
+        maxTimeUnit: TimeUnit.ONE_HOUR,
+    });
+    const timeBeforeStakeRewardsRedeemableAgoDisplay =
+        timeBeforeStakeRewardsRedeemable > 0
+            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
+            : stakedEpoch
+              ? `Epoch #${Number(redeemableRewardsEpoch)}`
+              : '--';
     return (
-        <Card>
-            <div className="divide-gray-40 flex flex-col divide-x-0 divide-y divide-solid">
-                {validatorAddress && (
-                    <div className="divide-gray-40 mb-3.5 w-full divide-y divide-solid">
-                        <ValidatorLogo
-                            validatorAddress={validatorAddress}
-                            type={CardType.Filled}
-                            showActiveStatus
-                            activeEpoch={json?.epoch}
-                        />
-                    </div>
-                )}
-                {stakedAmount && (
-                    <TxnAmount amount={stakedAmount} coinType={IOTA_TYPE_ARG} label="Stake" />
-                )}
-                <div className="flex flex-col">
-                    <div className="flex w-full justify-between py-3.5">
-                        <div className="text-steel flex items-baseline justify-center gap-1">
-                            <Text variant="body" weight="medium" color="steel-darker">
-                                APY
-                            </Text>
-                            <IconTooltip tip="This is the Annualized Percentage Yield of the a specific validator’s past operations. Note there is no guarantee this APY will be true in the future." />
+        <div className="flex flex-col gap-2">
+            {validatorAddress && (
+                <ValidatorLogo
+                    validatorAddress={validatorAddress}
+                    type={CardType.Filled}
+                    showActiveStatus
+                    activeEpoch={json?.epoch}
+                />
+            )}
+            {stakedAmount && (
+                <Card type={CardType.Outlined}>
+                    <CardImage type={ImageType.BgSolid}>
+                        <div className="h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
+                            <CoinIcon coinType={IOTA_TYPE_ARG} />
                         </div>
-                        <Text variant="body" weight="medium" color="steel-darker">
-                            {formatPercentageDisplay(apy, '--', isApyApproxZero)}
-                        </Text>
-                    </div>
+                    </CardImage>
+                    <CardBody title={`${formatted} ${symbol}`} subtitle="Stake" />
+                    <CardAction type={CardActionType.SupportingText} />
+                </Card>
+            )}
+            <Panel hasBorder>
+                <div className="flex flex-col gap-y-sm p-md">
+                    <KeyValueInfo
+                        keyText="APY"
+                        valueText={formatPercentageDisplay(apy, '--', isApyApproxZero)}
+                        tooltipText="This is the Annualized Percentage Yield of the a specific validator’s past operations. Note there is no guarantee this APY will be true in the future."
+                        tooltipPosition={TooltipPosition.Right}
+                    />
+                    <KeyValueInfo
+                        keyText="Staking Rewards Start"
+                        valueText={stakedRewardsStartEpoch}
+                    />
+                    <KeyValueInfo
+                        keyText="Redeem Rewards"
+                        valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
+                    />
                 </div>
-                <div className="flex flex-col">
-                    <div className="flex w-full justify-between py-3.5">
-                        <div className="text-steel flex items-baseline gap-1">
-                            <Text variant="body" weight="medium" color="steel-darker">
-                                {timeBeforeStakeRewardsStarts > 0
-                                    ? 'Staking Rewards Start'
-                                    : 'Staking Rewards Started'}
-                            </Text>
-                        </div>
-
-                        {timeBeforeStakeRewardsStarts > 0 ? (
-                            <CountDownTimer
-                                timestamp={timeBeforeStakeRewardsStarts}
-                                variant="body"
-                                color="steel-darker"
-                                weight="medium"
-                                label="in"
-                                endLabel="--"
-                            />
-                        ) : (
-                            <Text variant="body" weight="medium" color="steel-darker">
-                                Epoch #{startEarningRewardsEpoch}
-                            </Text>
-                        )}
-                    </div>
-                    <div className="flex w-full justify-between">
-                        <div className="text-steel flex flex-1 items-baseline gap-1">
-                            <Text variant="pBody" weight="medium" color="steel-darker">
-                                Staking Rewards Redeemable
-                            </Text>
-                        </div>
-                        <div className="flex flex-1 items-center justify-end gap-1">
-                            {timeBeforeStakeRewardsRedeemable > 0 ? (
-                                <CountDownTimer
-                                    timestamp={timeBeforeStakeRewardsRedeemable}
-                                    variant="body"
-                                    color="steel-darker"
-                                    weight="medium"
-                                    label="in"
-                                    endLabel="--"
-                                />
-                            ) : (
-                                <Text variant="body" weight="medium" color="steel-darker">
-                                    Epoch #{redeemableRewardsEpoch}
-                                </Text>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </Card>
+            </Panel>
+        </div>
     );
 }
