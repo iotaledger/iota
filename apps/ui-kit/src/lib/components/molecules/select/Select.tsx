@@ -15,7 +15,11 @@ export type SelectOption =
     | { id: string; renderLabel: () => React.JSX.Element }
     | { id: string; label: React.ReactNode };
 
-interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled' | 'value'> {
+interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled'> {
+    /**
+     * The selected option value.
+     */
+    value?: string;
     /**
      * The field label.
      */
@@ -67,16 +71,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         ref,
     ) => {
         const [isOpen, setIsOpen] = useState<boolean>(false);
-        const [selectedValue, setSelectedValue] = useState<SelectOption>(
-            findValueByProps(value, options),
-        );
+        const selectedValue = findValueByProps(value, options);
 
         const selectorText = selectedValue || placeholder;
-
-        useEffect(() => {
-            const newValue = findValueByProps(value, options);
-            setSelectedValue(newValue);
-        }, [value, options]);
 
         useEffect(() => {
             if (disabled && isOpen) {
@@ -97,7 +94,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         }
 
         function handleOptionClick(option: SelectOption) {
-            setSelectedValue(option);
             closeDropdown();
             onValueChange?.(typeof option === 'string' ? option : option.id);
         }
