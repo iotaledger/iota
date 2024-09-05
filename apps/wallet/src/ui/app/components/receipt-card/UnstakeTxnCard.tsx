@@ -10,6 +10,7 @@ import type { IotaEvent } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
+import { CardType } from '@iota/apps-ui-kit';
 
 interface UnStakeTxnCardProps {
     event: IotaEvent;
@@ -33,11 +34,7 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
             <div className="divide-gray-40 flex flex-col divide-x-0 divide-y divide-solid">
                 {validatorAddress && (
                     <div className="mb-3.5 w-full">
-                        <ValidatorLogo
-                            validatorAddress={validatorAddress}
-                            showAddress
-                            size="body"
-                        />
+                        <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
                     </div>
                 )}
                 {totalAmount && (
