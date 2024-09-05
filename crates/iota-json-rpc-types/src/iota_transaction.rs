@@ -52,7 +52,7 @@ use tabled::{
 
 use crate::{
     balance_changes::BalanceChange, iota_transaction::GenericSignature::Signature,
-    object_changes::ObjectChange, Filter, IotaEvent, IotaObjectRef, Page,
+    object_changes::ObjectChange, Filter, IotaEvent, IotaGenesisEvent, IotaObjectRef, Page,
 };
 
 // similar to EpochId of iota-types but BigInt
@@ -462,6 +462,7 @@ impl IotaTransactionBlockKind {
             TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
+                events: g.events.into_iter().map(IotaGenesisEvent::from).collect(),
             }),
             TransactionKind::ConsensusCommitPrologue(p) => {
                 Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
@@ -1406,6 +1407,7 @@ impl Display for IotaTransactionBlock {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaGenesisTransaction {
     pub objects: Vec<ObjectID>,
+    pub events: Vec<IotaGenesisEvent>,
 }
 
 #[serde_as]

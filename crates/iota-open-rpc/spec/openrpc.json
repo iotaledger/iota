@@ -6707,6 +6707,50 @@
           }
         ]
       },
+      "GenesisEvent": {
+        "type": "object",
+        "required": [
+          "bcs",
+          "packageId",
+          "sender",
+          "transactionModule",
+          "type"
+        ],
+        "properties": {
+          "bcs": {
+            "description": "Base 58 encoded bcs bytes of the move event",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              }
+            ]
+          },
+          "packageId": {
+            "description": "Move package where this event was emitted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "sender": {
+            "description": "Sender's Iota address.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IotaAddress"
+              }
+            ]
+          },
+          "transactionModule": {
+            "description": "Move module where this event was emitted.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Move event type.",
+            "type": "string"
+          }
+        }
+      },
       "GetPastObjectRequest": {
         "type": "object",
         "required": [
@@ -10466,10 +10510,17 @@
             "description": "A system transaction used for initializing the initial state of the chain.",
             "type": "object",
             "required": [
+              "events",
               "kind",
               "objects"
             ],
             "properties": {
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GenesisEvent"
+                }
+              },
               "kind": {
                 "type": "string",
                 "enum": [
