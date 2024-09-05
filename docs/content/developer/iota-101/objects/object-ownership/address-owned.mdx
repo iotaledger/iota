@@ -1,43 +1,55 @@
 ---
 title: Address-Owned Objects
-description: Address-owned objects are owned by a IOTA 32-byte address, which can either be an account address or an object ID. Learn how to create and access these objects.
+description: Address-owned objects are owned by a specific IOTA 32-byte address, either an account address or an object ID, and are accessible only to their owner.
 ---
 
-An address-owned object is owned by a specific 32-byte address that is either an account address (derived from a particular signature scheme) or an object ID. An address-owned object is accessible only to its owner and no others.
+Address-owned objects in IOTA are tied to a specific 32-byte address,
+which can be either an account address (derived from a signature scheme)
+or an object ID.
+These objects are exclusively accessible to their owner, ensuring that no other entity can interact with them.
 
-As the owner (of the address that owns) an address-owned objects, you can transfer it to different addresses. Because only a single owner can access these objects, you can execute transactions that use only owned objects in parallel with other transactions that don't have any objects in common without needing to go through consensus.
+As the owner, you have full control over the address-owned objects.
+You can transfer ownership to another address or execute transactions involving these objects in parallel with others,
+without requiring consensus, as long as they don’t share common objects.
 
-## Creating address-owned objects
+## Creating Address-Owned Objects
 
-You can use one of the following functions (defined in the [transfer module](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/transfer.move)) to create address-owned objects.
+To create an address-owned object,
+use one of the following functions from the [transfer module](../../../../references/framework/iota-framework/transfer.mdx):
 
 ```move
 public fun transfer<T: key>(obj: T, recipient: address)
 public fun public_transfer<T: key + store>(obj: T, recipient: address)
 ```
 
-You should use the `iota::transfer::transfer` function if you are defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object. Use the `iota::transfer::public_transfer` function to create an address-owned object if the object has the `store` capability.
+- Use [`iota::transfer::transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
+- Use [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) if the object has the `store` capability and you do not need a custom policy.
 
-After you declare an object as address-owned, its ownership can change over the life of that object - either by adding it as a dynamic object field, transferring it to a different address, or making it immutable. Importantly though, after you create an object and set its ownership, it cannot be shared.
+After creating an address-owned object, its ownership can change over time by transferring it,
+adding it as a dynamic object field, or making it immutable.
+\However, once created, an address-owned object cannot be shared with others.
 
-## Accessing address-owned objects
+## Accessing Address-Owned Objects
 
-You can access address-owned objects in two different ways, depending on whether the address owner of the object corresponds to an object ID.
+There are two ways to access address-owned objects, depending on whether the owner address corresponds to an object ID.
 
-If the address owner of the object corresponds to an object ID, then you must access and dynamically authenticate it during the execution of the transaction using the mechanisms defined in [Transfer to Object](../transfers/transfer-to-object.mdx).
+1. **If the owner address corresponds to an object ID**: You must dynamically authenticate and access the object during the transaction execution using the methods described in [Transfer to Object](../transfers/transfer-to-object.mdx).
 
-If the address owner of the object is a signature-derived address (an account address), then you can use and access it directly as an owned object during the execution of a transaction that address signs. Other addresses cannot access owned objects in any way in a transaction - even to just read the object.
+2. **If the owner address is a signature-derived address (an account address)**: You can access the object directly during the transaction that the owning address signs. No other address can interact with or even read the object in that transaction.
 
-## When to use address-owned objects
+## When to Use Address-Owned Objects
 
-Use address-owned objects in cases where you want or need only a single owner for the object at any point in time. When designing, you should generally prefer address-owned objects to shared objects as address-owned objects whenever it is reasonable or possible to do so. Owned objects do not need to be sequenced through consensus, and are therefore less prone to throughput bottlenecks if the object is being used extensively.
+Address-owned objects are ideal when you need exclusive ownership at any given time.
+They are generally preferred over shared objects when feasible, as they do not require sequencing through consensus,
+making them less susceptible to throughput bottlenecks in high-usage scenarios.
 
 ## Example
 
-An example of an object that is frequently address-owned is that of a [Coin object](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/coin.move). If address `0xA11CE` had a coin `C` with 100 IOTA and wanted to pay address `0xB0B` 100 IOTA, `0xA11CE` could do so by transferring `C` to `0xB0B`.
+A common example of an address-owned object is a [Coin object](../../../../references/framework/iota-framework/coin.mdx).
+Suppose address `0xA11CE` owns a coin `C` containing 100 IOTA and wants to transfer them to address `0xB0B`:
 
 ```move
 iota::transfer::public_transfer(C, @0xB0B);
 ```
 
-This results in `C` having a new address owner of `0xB0B`, and `0xB0B` can later use that 100 IOTA coin.
+After the transfer, `C` becomes owned by `0xB0B`, and `0xB0B` can use the 100 IOTA as needed.
