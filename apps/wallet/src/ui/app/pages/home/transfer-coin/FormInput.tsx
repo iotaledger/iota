@@ -10,7 +10,11 @@ interface FormInputWithFormixProps {
     decimals?: boolean;
 }
 
-export function FormInput({ renderAction, ...props }: InputProps & FormInputWithFormixProps) {
+export function FormInput({
+    renderAction,
+    decimals,
+    ...props
+}: InputProps & FormInputWithFormixProps) {
     const [field, meta] = useField(props.name);
     const form = useFormikContext();
 
@@ -23,7 +27,7 @@ export function FormInput({ renderAction, ...props }: InputProps & FormInputWith
 
     const isNumericFormat = props.type === InputType.NumericFormat;
     const numericPropsOnly: Partial<NumericFormatInputProps> = {
-        decimalScale: props.decimals ? undefined : 0,
+        decimalScale: decimals ? undefined : 0,
         thousandSeparator: true,
         onValueChange: (values) => form.setFieldValue(props.name, values.value),
     };

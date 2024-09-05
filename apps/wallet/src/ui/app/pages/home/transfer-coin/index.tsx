@@ -15,7 +15,6 @@ import {
     useFormatCoin,
 } from '@iota/core';
 // import * as Sentry from '@sentry/react';
-import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -28,6 +27,7 @@ import { Select, Button, type SelectOption, ButtonType } from '@iota/apps-ui-kit
 import { useActiveAddress, useCoinsReFetchingConfig } from '_src/ui/app/hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { CoinBalance } from '@iota/iota-sdk/client';
+import { ImageIconSize } from '_src/ui/app/shared/image-icon';
 
 function TransferCoinPage() {
     const [searchParams] = useSearchParams();
@@ -111,39 +111,38 @@ function TransferCoinPage() {
             title={showTransactionPreview ? 'Review & Send' : 'Send'}
             closeOverlay={() => navigate('/')}
             showBackButton
+            onBack={showTransactionPreview ? () => setShowTransactionPreview(false) : undefined}
         >
             <div className="flex h-full w-full flex-col gap-md">
                 {showTransactionPreview && formData ? (
-                    <>
-                        <PreviewTransfer
-                            coinType={coinType}
-                            amount={formData.amount}
-                            to={formData.to}
-                            approximation={formData.isPayAllIota}
-                            gasBudget={formData.gasBudgetEst}
-                        />
-                        <Button
-                            type={ButtonType.Secondary}
-                            onClick={() => setShowTransactionPreview(false)}
-                            text="Back"
-                            icon={<ArrowLeft16 />}
-                        />
+                    <div className="flex h-full flex-col">
+                        <div className="h-full flex-1">
+                            <PreviewTransfer
+                                coinType={coinType}
+                                amount={formData.amount}
+                                to={formData.to}
+                                approximation={formData.isPayAllIota}
+                                gasBudget={formData.gasBudgetEst}
+                            />
+                        </div>
                         <Button
                             type={ButtonType.Primary}
-                            onClick={() => executeTransfer.mutateAsync()}
+                            onClick={() => {
+                                setFormData(formData);
+                                executeTransfer.mutateAsync();
+                            }}
                             text="Send Now"
                             disabled={coinType === null || executeTransfer.isPending}
-                            icon={<ArrowRight16 />}
                         />
-                    </>
+                    </div>
                 ) : (
                     <>
                         <CoinSelector activeCoinType={coinType} />
 
                         <SendTokenForm
                             onSubmit={(formData) => {
-                                setShowTransactionPreview(true);
                                 setFormData(formData);
+                                setShowTransactionPreview(true);
                             }}
                             coinType={coinType}
                             initialAmount={formData?.amount || ''}
@@ -198,15 +197,21 @@ function CoinSelector({ activeCoinType = IOTA_TYPE_ARG }: { activeCoinType: stri
     );
 }
 
-function CoinSelectOption({ coin: { coinType, totalBalance } }: { coin: CoinBalance }) {
+function CoinSelectOption({
+    coin: { coinType, totalBalance },
+    size,
+}: {
+    coin: CoinBalance;
+    size?: ImageIconSize;
+}) {
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(totalBalance, coinType);
     const isIota = coinType === IOTA_TYPE_ARG;
 
     return (
         <div className="flex w-full flex-row items-center justify-between">
             <div className="flex flex-row items-center gap-x-md">
-                <div className="h-5 w-5">
-                    <CoinIcon coinType={coinType} />
+                <div className={size}>
+                    <CoinIcon size={ImageIconSize.Small} coinType={coinType} />
                 </div>
                 <span className="text-body-lg text-neutral-10">
                     {isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}
