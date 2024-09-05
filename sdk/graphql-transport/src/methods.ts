@@ -1272,7 +1272,7 @@ export const RPC_METHODS: {
             epochTotalTransactions: '0', // TODO
             firstCheckpointId: epoch.firstCheckpoint?.nodes[0]?.sequenceNumber.toString()!,
             endOfEpochInfo: null,
-            referenceGasPrice: Number.parseInt(epoch.referenceGasPrice, 10),
+            referenceGasPrice: epoch.referenceGasPrice,
             epochStartTimestamp: new Date(epoch.startTimestamp).getTime().toString(),
         };
     },
