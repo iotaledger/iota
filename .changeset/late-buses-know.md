@@ -4,5 +4,5 @@
 ---
 
 Sync API changes:
-    - restore extended api metrics endpoints
-    - remove nameservice endpoints
+- restore extended api metrics endpoints
+- remove nameservice endpoints
