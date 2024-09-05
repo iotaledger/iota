@@ -23,16 +23,18 @@ For example, it allows to query data about objects, owners, coins, events, trans
 Queries that can be mediated via the `Mutation` type can be found in [mutation.rs](src/mutation.rs).
 Currently, it only mediates a mutation for executing a transaction which submits a transaction block to the fullnode.
 
-Comparing the GraphQL schema with specific JSON-RPC methods it appeares:
+Comparing the GraphQL schema with specific JSON-RPC methods following relationships can be made:
 
-- the `CoinApi` is covered by [coin](src/types/coin.rs) and [coin_metadata](src/types/coin_metadata.rs) types.
-- the `GovernanceApi` is mostly covered by [validators](src/types/validator.rs) and [gas](src/types/gas.rs) types. However, it seems timelocked stakes and committee info are not supported by the GraphQL schema.
-- the `MoveUtilsApi` is covered by [move_function](src/types/move_function.rs), [move_module](src/types/move_module.rs), [move_object](src/types/move_object.rs), [move_package](src/types/move_package.rs), [move_struct](src/types/move_struct.rs), [move_type](src/types/move_type.rs) and [move_value](src/types/move_value.rs) types.
-- the `ReadApi` is covered by [transaction_block](src/types/transaction_block.rs), [transaction_block_effects](src/types/transaction_block_effects.rs), [transaction_metadata](src/types/transaction_metadata.rs), [object](src/types/object.rs), [checkpoint](src/types/checkpoint.rs), [event](src/types/event.rs), [coin](src/types/coin.rs) and [epoch](src/types/epoch.rs) types.
-- the `ExtendedApi` is covered by [object](src/types/object.rs), [epoch](src/types/epoch.rs) and [checkpoint](src/types/checkpoint.rs) types. However, it seems explorer metric queries are not supported by the schema.
-- the `IndexerApi` is mostly covered by [object](src/types/object.rs), [owner](src/types/transaction_block.rs), [owner](src/types/transaction_block.rs), [event](src/types/event.rs) and [transaction_block](src/types/transaction_block.rs). It seems subscription queries are not supported in GraphQL.
-- the `TransactionBuilderApi` is covered by the [types/transaction_block_kind](src/types/transaction_block_kind) type.
-- the `WriteApi` is covered by the [mutation](src/mutation.rs) type.
+- `CoinApi`: `Query::coins`, `Query::coin_metadata`
+- `GovernanceApi`: `Query::epoch`
+- `MoveUtilsApi`: `Query::type_`
+- `ReadApi`: `Query::transaction_block`, `Query::transaction_blocks`, `Query::object`, `Query::objects`, `Query::available_range`, `Object::events`, `Query::protocol_config`, `Query::chain_identifier`
+- `ExtendedApi`: `Query::epoch`, `Query::objects`, `Query::transaction_blocks`
+- `IndexerApi`: `Query::object`, `Object::events`, `Object::address`, `Object::transaction_block`, `Object::transaction_blocks`, `Query::objects`
+- `TransactionBuilderApi`: N/A
+- `WriteApi`: `Mutation::execute_transaction_block`, `Query::dry_run_transaction_block`
+
+To learn more about GraphQL queries, see the [official documentation](https://graphql.org/learn/queries/).
 
 ## Dev setup
 
