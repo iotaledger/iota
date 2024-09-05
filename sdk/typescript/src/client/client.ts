@@ -774,13 +774,11 @@ export class IotaClient {
         return toHEX(bytes.slice(0, 4));
     }
 
-    // @ts-expect-error to be remove soon
-    async resolveNameServiceAddress(input: any): Promise<string | null> {
+    async resolveNameServiceAddress(_input: any): Promise<string | null> {
         return 'remove_me';
     }
 
-    // @ts-expect-error to be remove soon
-    async resolveNameServiceNames(input: any): Promise<ResolvedNameServiceNames> {
+    async resolveNameServiceNames(_input: any): Promise<ResolvedNameServiceNames> {
         return {
             data: [],
             hasNextPage: false,
