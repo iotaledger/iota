@@ -732,6 +732,13 @@ export class IotaClient {
         });
     }
 
+    async getCheckpointAddressMetrics(input?: { checkpoint: string }): Promise<AddressMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getCheckpointAddressMetrics',
+            params: [input?.checkpoint],
+        });
+    }
+
     /**
      * Return the committee information for the asked epoch
      */
@@ -758,6 +765,14 @@ export class IotaClient {
      */
     async getCurrentEpoch(): Promise<EpochInfo> {
         return await this.transport.request({ method: 'iotax_getCurrentEpoch', params: [] });
+    }
+
+    async getTotalTransactions(): Promise<string> {
+        const resp = await this.transport.request({
+            method: 'iotax_getTotalTransactions',
+            params: [],
+        });
+        return String(resp);
     }
 
     /**
