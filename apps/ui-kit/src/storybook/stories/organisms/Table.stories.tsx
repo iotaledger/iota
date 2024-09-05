@@ -114,8 +114,10 @@ export const Default: Story = {
     args: {
         supportingLabel: '10.7k records',
         paginationOptions: {
-            onFirstPageClick: () => console.log('First'),
-            onNextPageClick: () => console.log('Next'),
+            onFirst: () => console.log('First'),
+            onNext: () => console.log('Next'),
+            hasFirst: true,
+            hasNext: false
         },
         actionLabel: 'Action',
         hasCheckboxColumn: true,

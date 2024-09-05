@@ -22,7 +22,6 @@ import {
 } from '@tanstack/react-table';
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useNavigateWithQuery } from './LinkWithQuery';
 
 export interface TableCardProps<DataType extends object> {

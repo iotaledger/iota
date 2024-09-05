@@ -71,21 +71,7 @@ export function TransactionsActivityTable({
                         columns={cardData.columns}
                         totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
                         viewAll={true ? '/recent' : undefined}
-                        paginationOptions={
-                            !disablePagination
-                                ? {
-                                      onFirstPageClick: pagination.hasPrev
-                                          ? pagination.onFirst
-                                          : undefined,
-                                      onNextPageClick: pagination.hasNext
-                                          ? pagination.onNext
-                                          : undefined,
-                                      onPreviousPageClick: pagination.hasPrev
-                                          ? pagination.onPrev
-                                          : undefined,
-                                  }
-                                : undefined
-                        }
+                        paginationOptions={!disablePagination ? pagination : undefined}
                     />
                 )}
 
@@ -95,9 +81,9 @@ export function TransactionsActivityTable({
                             <Select
                                 value={limit.toString()}
                                 options={[
-                                    { id: '20', label: '20' },
-                                    { id: '40', label: '40' },
-                                    { id: '60', label: '60' },
+                                    { id: '20', label: '20 Per Page' },
+                                    { id: '40', label: '40 Per Page' },
+                                    { id: '60', label: '60 Per Page' },
                                 ]}
                                 onValueChange={(e) => {
                                     setLimit(Number(e));

@@ -71,19 +71,10 @@ export function CheckpointsTable({
                     paginationOptions={
                         !disablePagination
                             ? {
-                                  onFirstPageClick: pagination.hasPrev
-                                      ? pagination.onFirst
-                                      : undefined,
-                                  onNextPageClick: (
-                                      maxCursor
-                                          ? Number(data && data.nextCursor) > Number(maxCursor)
-                                          : pagination.hasNext
-                                  )
-                                      ? pagination.onNext
-                                      : undefined,
-                                  onPreviousPageClick: pagination.hasPrev
-                                      ? pagination.onPrev
-                                      : undefined,
+                                  ...pagination,
+                                  hasNext: maxCursor
+                                      ? Number(data && data.nextCursor) > Number(maxCursor)
+                                      : pagination.hasNext,
                               }
                             : undefined
                     }
@@ -95,9 +86,9 @@ export function CheckpointsTable({
                         <Select
                             value={limit.toString()}
                             options={[
-                                { id: '20', label: '20' },
-                                { id: '40', label: '40' },
-                                { id: '60', label: '60' },
+                                { id: '20', label: '20 Per Page' },
+                                { id: '40', label: '40 Per Page' },
+                                { id: '60', label: '60 Per Page' },
                             ]}
                             onValueChange={(e) => {
                                 setLimit(Number(e));
