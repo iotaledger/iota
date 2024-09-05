@@ -9,15 +9,21 @@ Its architecture can thus be visualized as follows:
 
 ![GraphQL server architecture](./graphql-rpc-arch.png)
 
-The GraphQL server is built using the `async-graphql` library.
-You can explore the schema [here](schema).
+To learn more about the GraphQL and how it works, check out the [official documentation](https://graphql.org/learn).
 
-`Query` and `Mutation` correspond to the main operations that the server supports.
+The GraphQL server is built with the [async-graphql](https://async-graphql.github.io/async-graphql/docs/overview) library, which generates the GraphQL schema from Rust types, which you can find [here](schema).
+To learn more about how the schema and types in GraphQL, see the [official documentation](https://graphql.org/learn/schema/).
+
+`Query` and `Mutation` are types that provide the main entrypoints to the queries supported by the server.
 `Query` handles all data fetching while `Mutation` manages data modification.
 
-The `async-graphql` types and handlers are implemented in the [src/types](src/types) directory.
+Queries that can be mediated via the `Query` type can be found in [query.rs](src/types/query.rs).
+For example, it allows to query data about objects, owners, coins, events, transaction blocks, Move packages, checkpoints or protocol. It also allows to simulate (dry_run) a transaction block, which is a non-mutating operation.
 
-Comparing the GraphQL schema with specific JSON-RPC methods it appeared:
+Queries that can be mediated via the `Mutation` type can be found in [mutation.rs](src/mutation.rs).
+Currently, it only mediates a mutation for executing a transaction which submits a transaction block to the fullnode.
+
+Comparing the GraphQL schema with specific JSON-RPC methods it appeares:
 
 - the `CoinApi` is covered by [coin](src/types/coin.rs) and [coin_metadata](src/types/coin_metadata.rs) types.
 - the `GovernanceApi` is mostly covered by [validators](src/types/validator.rs) and [gas](src/types/gas.rs) types. However, it seems timelocked stakes and committee info are not supported by the GraphQL schema.
