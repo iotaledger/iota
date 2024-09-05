@@ -31,7 +31,6 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
                     rowCount={20}
                     rowHeight="16px"
                     colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                    colWidths={['30%', '30%', '10%', '20%', '10%']}
                 />
             ) : (
                 <div>

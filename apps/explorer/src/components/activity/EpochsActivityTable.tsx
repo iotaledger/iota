@@ -60,7 +60,6 @@ export function EpochsActivityTable({
                         'Storage Net Inflow',
                         'Epoch End',
                     ]}
-                    colWidths={['100px', '120px', '40px', '204px', '90px', '38px']}
                 />
             ) : (
                 <TableCard
