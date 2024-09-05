@@ -79,10 +79,6 @@ export type CheckpointCommitment = {
     ECMHLiveObjectSetDigest: ECMHLiveObjectSetDigest;
 };
 export type CheckpointId = string | string;
-export interface CheckpointedObjectID {
-    atCheckpoint?: string | null;
-    objectId: string;
-}
 /** A claim consists of value and index_mod_4. */
 export interface Claim {
     indexMod4: number;
@@ -1226,16 +1222,6 @@ export interface PaginatedEvents {
     data: IotaEvent[];
     hasNextPage: boolean;
     nextCursor?: EventId | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedObjectsResponse {
-    data: IotaObjectResponse[];
-    hasNextPage: boolean;
-    nextCursor?: CheckpointedObjectID | null;
 }
 /**
  * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the

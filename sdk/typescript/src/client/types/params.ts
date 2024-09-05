@@ -340,18 +340,6 @@ export interface QueryEventsParams {
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
 }
-/** Return the list of queried objects. Note that this is an enhanced full node only api. */
-export interface QueryObjectsParams {
-    /** The objects query criteria. */
-    query: RpcTypes.IotaObjectResponseQuery;
-    /**
-     * An optional paging cursor. If provided, the query will start from the next item after the specified
-     * cursor. Default to start from the first item if not specified.
-     */
-    cursor?: RpcTypes.CheckpointedObjectID | null | undefined;
-    /** Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
-    limit?: number | null | undefined;
-}
 /** Return list of transactions for a specified query criteria. */
 export type QueryTransactionBlocksParams = {
     /**
