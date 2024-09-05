@@ -71,21 +71,24 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                 </div>
                 <div className="inline-flex">
                     <SegmentedButton type={SegmentedButtonType.Filled}>
-                        {TOKEN_CATEGORIES.map(({ label, value }) => (
-                            <ButtonSegment
-                                key={value}
-                                onClick={() => setSelectedTokenCategory(value)}
-                                label={label}
-                                selected={selectedTokenCategory === value}
-                                disabled={
-                                    TokenCategory.Recognized === value
-                                        ? !recognized.length
-                                        : TokenCategory.Unrecognized === value
-                                          ? !pinned?.length && !unrecognized?.length
-                                          : false
-                                }
-                            />
-                        ))}
+                        {TOKEN_CATEGORIES.map(({ label, value }) => {
+                            const recognizedButEmpty =
+                                value === TokenCategory.Recognized ? !recognized.length : false;
+                            const notRecognizedButEmpty =
+                                value === TokenCategory.Unrecognized
+                                    ? !pinned?.length && !unrecognized?.length
+                                    : false;
+
+                            return (
+                                <ButtonSegment
+                                    key={value}
+                                    onClick={() => setSelectedTokenCategory(value)}
+                                    label={label}
+                                    selected={selectedTokenCategory === value}
+                                    disabled={recognizedButEmpty || notRecognizedButEmpty}
+                                />
+                            );
+                        })}
                     </SegmentedButton>
                 </div>
                 <div className="pb-md pt-sm">

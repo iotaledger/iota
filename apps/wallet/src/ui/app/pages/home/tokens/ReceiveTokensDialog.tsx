@@ -5,15 +5,13 @@ import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iot
 import { useCopyToClipboard } from '_hooks';
 import { QR } from '_src/ui/app/components';
 
-export function ReceiveTokensDialog({
-    address,
-    open,
-    setOpen,
-}: {
+interface ReceiveTokensDialogProps {
     address: string;
     open: boolean;
     setOpen: (isOpen: boolean) => void;
-}) {
+}
+
+export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDialogProps) {
     const onCopy = useCopyToClipboard(address, {
         copySuccessMessage: 'Address copied',
     });
