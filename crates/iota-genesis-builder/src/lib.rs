@@ -38,6 +38,7 @@ use iota_types::{
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
+    event::Event,
     gas::IotaGasStatus,
     gas_coin::{GasCoin, GAS},
     governance::StakedIota,
@@ -949,7 +950,7 @@ fn build_unsigned_genesis_data<'info>(
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
 
-    let objects = create_genesis_objects(
+    let (objects, events) = create_genesis_objects(
         &mut genesis_ctx,
         objects,
         &genesis_validators,
@@ -963,7 +964,7 @@ fn build_unsigned_genesis_data<'info>(
     let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
     let (genesis_transaction, genesis_effects, genesis_events, objects) =
-        create_genesis_transaction(objects, &protocol_config, metrics, &epoch_data);
+        create_genesis_transaction(objects, events, &protocol_config, metrics, &epoch_data);
     let (checkpoint, checkpoint_contents) =
         create_genesis_checkpoint(parameters, &genesis_transaction, &genesis_effects);
 
@@ -1006,6 +1007,7 @@ fn create_genesis_checkpoint(
 
 fn create_genesis_transaction(
     objects: Vec<Object>,
+    events: Vec<Event>,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
     epoch_data: &EpochData,
@@ -1038,8 +1040,11 @@ fn create_genesis_transaction(
             })
             .collect();
 
-        iota_types::transaction::VerifiedTransaction::new_genesis_transaction(genesis_objects)
-            .into_inner()
+        iota_types::transaction::VerifiedTransaction::new_genesis_transaction(
+            genesis_objects,
+            events,
+        )
+        .into_inner()
     };
 
     let genesis_digest = *genesis_transaction.digest();
@@ -1095,8 +1100,9 @@ fn create_genesis_objects(
     genesis_stake: &mut GenesisStake,
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
-) -> Vec<Object> {
+) -> (Vec<Object>, Vec<Event>) {
     let mut store = InMemoryStorage::new(Vec::new());
+    let mut events = Vec::new();
     // We don't know the chain ID here since we haven't yet created the genesis
     // checkpoint. However since we know there are no chain specific protool
     // config options in genesis, we use Chain::Unknown here.
@@ -1110,7 +1116,7 @@ fn create_genesis_objects(
         .expect("Creating an executor should not fail here");
 
     for system_package in system_packages.into_iter() {
-        process_package(
+        let tx_events = process_package(
             &mut store,
             executor.as_ref(),
             genesis_ctx,
@@ -1120,6 +1126,8 @@ fn create_genesis_objects(
             metrics.clone(),
         )
         .expect("Processing a package should not fail here");
+
+        events.extend(tx_events.data.into_iter());
     }
 
     for object in input_objects {
@@ -1154,7 +1162,7 @@ fn create_genesis_objects(
     for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
         intermediate_store.remove(&id);
     }
-    intermediate_store.into_values().collect()
+    (intermediate_store.into_values().collect(), events)
 }
 
 pub(crate) fn process_package(
@@ -1165,7 +1173,7 @@ pub(crate) fn process_package(
     dependencies: Vec<ObjectID>,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<TransactionEvents> {
     let dependency_objects = store.get_objects(&dependencies);
     // When publishing genesis packages, since the std framework packages all have
     // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
@@ -1213,7 +1221,9 @@ pub(crate) fn process_package(
         builder.command(Command::Publish(module_bytes, dependencies));
         builder.finish()
     };
-    let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
+    let InnerTemporaryStore {
+        written, events, ..
+    } = executor.update_genesis_state(
         &*store,
         protocol_config,
         metrics,
@@ -1224,7 +1234,7 @@ pub(crate) fn process_package(
 
     store.finish(written);
 
-    Ok(())
+    Ok(events)
 }
 
 pub fn generate_genesis_system_object(

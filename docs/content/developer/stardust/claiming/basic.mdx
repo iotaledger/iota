@@ -1,71 +1,99 @@
 ---
- title: Claiming Basic Outputs
+description: A guide on how to claim Basic Outputs in Move by assessing and unlocking owned objects.
 ---
 
-An address can own `BasicOutput` objects that needs to be unlocked. In this case, some off-chain queries can be used to check the unlock conditions of the `BasicOutput` and assess if it can be unlocked.    
+import MigrationWarning from '../../../_snippets/migration-warning.mdx';
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+# Claiming Basic Outputs
+
+<MigrationWarning/ >
+
+:::info Claiming might not be needed
+
+Most basic outputs have no special unlock conditions and don't need to be claimed. They will simply be available as normal `Coin<IOTA>` objects for your account with no further action required. Manual claiming is only needed if special unlock conditions like unexpired timelocks apply.
+
+:::
+
+As a user, you may own `BasicOutput` objects that need to be unlocked before you can claim them. This guide walks you through the process of evaluating the unlock conditions for a `BasicOutput` and the steps to claim the associated assets.
+
+## Assessing Unlock Conditions
+
+To begin, you need to determine if your `BasicOutput` can be unlocked. You can achieve this by performing specific off-chain queries that will check the unlock conditions for the `BasicOutput`.
+
+<Tabs groupId="language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/check-basic-output-unlock-conditions.rs#L20-L56
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
-TODO
+Coming soon
 
 </TabItem>
 </Tabs>
 
-## Claim of a Basic Output
-Once a Basic Output can be unlocked the claim of its assets can start
+## Claim a Basic Output
 
-1. The first step is to fetch the `BasicOutput` object that needs to be claimed.
+Once you've confirmed that the `BasicOutput` can be unlocked, you can start the process of claiming its assets.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+### 1. Retrieve the `BasicOutput`
+
+The first step is to fetch the `BasicOutput` object that you intend to claim.
+
+<Tabs groupId="language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L56-L81
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
-TODO
+Coming soon
 
 </TabItem>
 </Tabs>
 
+### 2. Check the Native Token Balance
+  
+After fetching the `BasicOutput`, you need to check for any native tokens that might be stored within it. 
+These tokens are typically stored in a [`Bag`](../../../references/framework/iota-framework/bag.mdx). 
+You'll need to obtain the dynamic field keys used as bag indexes to access the native tokens.
+For native tokens,
+these keys are strings representing the [`OTW`](../../iota-101/move-overview/one-time-witness.mdx) used for the native token [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
-2. Then we check the native tokens that were possibly held by this output. A [`Bag`](../../../references/framework/iota-framework/bag) is used for holding these tokens, so in this step we are interested in obtaining the dynamic field keys that are used as bag index. In the case of the native tokens `Bag` the keys are strings representing the [`OTW`](../../iota-101/iota-move-concepts/one-time-witness.mdx) used for the native token [`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+<Tabs groupId="language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L83-L110
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
-TODO
+Coming soon
 
 </TabItem>
 </Tabs>
 
-3. Finally, a PTB can be created using the `basic_output` as input and the `Bag` keys for iterating the native tokens extracted. 
+### 3. Construct the PTB
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+Finally, you can create a Programmable Transaction Block (PTB) using the `basic_output` as an input,
+along with the `Bag` keys to iterate over the extracted native tokens.
+
+<Tabs groupId="language">
+<TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L113-L177
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="typescript" label="TypeScript">
 
-TODO
+Coming soon
 
 </TabItem>
 </Tabs>
