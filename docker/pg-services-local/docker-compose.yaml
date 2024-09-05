@@ -47,7 +47,7 @@ services:
       - RUST_LOG=info
     command:
       - /usr/local/bin/iota-indexer
-      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer
       - --rpc-client-url=http://local-network:9000
       - --fullnode-sync-worker
       - --client-metric-port=9181
@@ -71,7 +71,7 @@ services:
       - RPC_WORKER_THREAD=12
     command:
       - /usr/local/bin/iota-indexer
-      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer
       - --rpc-client-url=http://local-network:9000
       - --rpc-server-worker
       - --client-metric-port=9181
@@ -104,7 +104,7 @@ services:
     command:
       - /opt/iota/bin/iota-graphql-rpc
       - start-server
-      - --db-url=postgres://iota_indexer:iota_indexer@postgres:5432/iota_indexer
+      - --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer
       - --host=0.0.0.0
       - --port=8000
       - --prom-host=0.0.0.0
@@ -132,8 +132,8 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-iota_indexer}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iota_indexer}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespw}
       POSTGRES_DB: ${POSTGRES_DB:-iota_indexer}
       POSTGRES_INITDB_ARGS:
     command: |
