@@ -10,6 +10,12 @@ concurrency:
   group: ext-rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+
 jobs:
   changes:
     if: inputs.isRust
