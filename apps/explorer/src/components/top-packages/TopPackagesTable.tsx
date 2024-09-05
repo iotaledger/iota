@@ -69,7 +69,6 @@ export function TopPackagesTable({ data, isLoading }: TopPackagesTableProps) {
                 colHeadings={['Module', 'Function', 'Package ID', 'Count']}
                 rowCount={10}
                 rowHeight="15px"
-                colWidths={['100px', '120px', '40px', '204px']}
             />
         );
     }

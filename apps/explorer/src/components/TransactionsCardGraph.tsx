@@ -123,7 +123,6 @@ export function TransactionsCardGraph() {
                                             getY={({ epochTotalTransactions }) =>
                                                 Number(epochTotalTransactions)
                                             }
-                                            color="yellow"
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}
                                         />
@@ -132,9 +131,12 @@ export function TransactionsCardGraph() {
                             </ErrorBoundary>
                         </div>
                     ) : (
-                        <Text color="steel" variant="body/medium">
-                            No historical data available
-                        </Text>
+                        <div className="flex flex-col items-center gap-1">
+                            <LoadingIndicator />
+                            <Text color="steel" variant="body/medium">
+                                No historical data available
+                            </Text>
+                        </div>
                     )}
                 </div>
             </div>
