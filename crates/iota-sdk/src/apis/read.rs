@@ -74,14 +74,14 @@ impl ReadApi {
     pub async fn get_owned_objects(
         &self,
         address: IotaAddress,
-        query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        query: impl Into<Option<IotaObjectResponseQuery>>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<ObjectsPage> {
         Ok(self
             .api
             .http
-            .get_owned_objects(address, query, cursor, limit)
+            .get_owned_objects(address, query.into(), cursor.into(), limit.into())
             .await?)
     }
 
@@ -132,13 +132,13 @@ impl ReadApi {
     pub async fn get_dynamic_fields(
         &self,
         object_id: ObjectID,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<ObjectID>>,
+        limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<DynamicFieldPage> {
         Ok(self
             .api
             .http
-            .get_dynamic_fields(object_id, cursor, limit)
+            .get_dynamic_fields(object_id, cursor.into(), limit.into())
             .await?)
     }
 
@@ -525,9 +525,9 @@ impl ReadApi {
     /// ```
     pub async fn get_committee_info(
         &self,
-        epoch: Option<BigInt<u64>>,
+        epoch: impl Into<Option<BigInt<u64>>>,
     ) -> IotaRpcResult<IotaCommittee> {
-        Ok(self.api.http.get_committee_info(epoch).await?)
+        Ok(self.api.http.get_committee_info(epoch.into()).await?)
     }
 
     /// Return a paginated response with all transaction blocks information, or
@@ -535,14 +535,14 @@ impl ReadApi {
     pub async fn query_transaction_blocks(
         &self,
         query: IotaTransactionBlockResponseQuery,
-        cursor: Option<TransactionDigest>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<TransactionDigest>>,
+        limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<TransactionBlocksPage> {
         Ok(self
             .api
             .http
-            .query_transaction_blocks(query, cursor, limit, Some(descending_order))
+            .query_transaction_blocks(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
@@ -563,14 +563,14 @@ impl ReadApi {
     /// Return a paginated list of checkpoints, or an error upon failure.
     pub async fn get_checkpoints(
         &self,
-        cursor: Option<BigInt<u64>>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<BigInt<u64>>>,
+        limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<CheckpointPage> {
         Ok(self
             .api
             .http
-            .get_checkpoints(cursor, limit, descending_order)
+            .get_checkpoints(cursor.into(), limit.into(), descending_order)
             .await?)
     }
 
@@ -591,9 +591,11 @@ impl ReadApi {
     pub fn get_transactions_stream(
         &self,
         query: IotaTransactionBlockResponseQuery,
-        cursor: Option<TransactionDigest>,
+        cursor: impl Into<Option<TransactionDigest>>,
         descending_order: bool,
     ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
+        let cursor = cursor.into();
+
         stream::unfold(
             (vec![], cursor, true, query),
             move |(mut data, cursor, first, query)| async move {
@@ -705,9 +707,9 @@ impl ReadApi {
         &self,
         sender_address: IotaAddress,
         tx: TransactionKind,
-        gas_price: Option<BigInt<u64>>,
-        epoch: Option<BigInt<u64>>,
-        additional_args: Option<DevInspectArgs>,
+        gas_price: impl Into<Option<BigInt<u64>>>,
+        epoch: impl Into<Option<BigInt<u64>>>,
+        additional_args: impl Into<Option<DevInspectArgs>>,
     ) -> IotaRpcResult<DevInspectResults> {
         Ok(self
             .api
@@ -715,9 +717,9 @@ impl ReadApi {
             .dev_inspect_transaction_block(
                 sender_address,
                 Base64::from_bytes(&bcs::to_bytes(&tx)?),
-                gas_price,
-                epoch,
-                additional_args,
+                gas_price.into(),
+                epoch.into(),
+                additional_args.into(),
             )
             .await?)
     }
@@ -739,8 +741,8 @@ impl ReadApi {
     /// Return the protocol config, or an error upon failure.
     pub async fn get_protocol_config(
         &self,
-        version: Option<BigInt<u64>>,
+        version: impl Into<Option<BigInt<u64>>>,
     ) -> IotaRpcResult<ProtocolConfigResponse> {
-        Ok(self.api.http.get_protocol_config(version).await?)
+        Ok(self.api.http.get_protocol_config(version.into()).await?)
     }
 }

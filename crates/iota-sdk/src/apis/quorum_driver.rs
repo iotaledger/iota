@@ -37,10 +37,12 @@ impl QuorumDriverApi {
         &self,
         tx: Transaction,
         options: IotaTransactionBlockResponseOptions,
-        request_type: Option<ExecuteTransactionRequestType>,
+        request_type: impl Into<Option<ExecuteTransactionRequestType>>,
     ) -> IotaRpcResult<IotaTransactionBlockResponse> {
         let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-        let request_type = request_type.unwrap_or_else(|| options.default_execution_request_type());
+        let request_type = request_type
+            .into()
+            .unwrap_or_else(|| options.default_execution_request_type());
         let mut retry_count = 0;
         let start = Instant::now();
         while retry_count < WAIT_FOR_LOCAL_EXECUTION_RETRY_COUNT {

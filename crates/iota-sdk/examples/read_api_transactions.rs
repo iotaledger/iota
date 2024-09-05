@@ -17,12 +17,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Get the latest 5 transaction blocks, so we can use a digest of it as cursor
     let transactions_block_page = client
         .read_api()
-        .query_transaction_blocks(
-            IotaTransactionBlockResponseQuery::default(),
-            None,
-            Some(5),
-            true,
-        )
+        .query_transaction_blocks(IotaTransactionBlockResponseQuery::default(), None, 5, true)
         .await?;
 
     // Get the last ~5 transaction blocks as stream (the tx for the digest in the
@@ -32,7 +27,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .read_api()
         .get_transactions_stream(
             IotaTransactionBlockResponseQuery::default(),
-            Some(transactions_block_page.data.last().unwrap().digest),
+            transactions_block_page.data.last().unwrap().digest,
             false,
         )
         .boxed();

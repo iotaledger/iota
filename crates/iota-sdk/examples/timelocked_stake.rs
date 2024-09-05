@@ -50,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .read_api()
         .get_owned_objects(
             address,
-            Some(IotaObjectResponseQuery::new(
+            IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(
                     "0x2::timelock::TimeLock<0x2::balance::Balance<0x2::iota::IOTA>>".parse()?,
                 )),
@@ -60,7 +60,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         .with_owner()
                         .with_previous_transaction(),
                 ),
-            )),
+            ),
             None,
             None,
         )
@@ -95,7 +95,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::new().with_object_changes(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
         )
         .await?;
     println!("Transaction sent {}", transaction_response.digest);
@@ -113,12 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Unstake timelocked IOTA, if staking for longer than 1 epoch already
 
-    let current_epoch = client
-        .read_api()
-        .get_checkpoints(None, Some(1), true)
-        .await?
-        .data[0]
-        .epoch;
+    let current_epoch = client.read_api().get_checkpoints(None, 1, true).await?.data[0].epoch;
 
     if let Some(timelocked_staked_iota_id) = staked_iota.into_iter().find_map(|d| {
         d.stakes.into_iter().find_map(|s| {
@@ -155,7 +150,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .execute_transaction_block(
                 Transaction::from_data(tx_data, vec![signature]),
                 IotaTransactionBlockResponseOptions::full_content(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?;
 

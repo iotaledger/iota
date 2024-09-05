@@ -55,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
         )
         .await?;
 

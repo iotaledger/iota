@@ -50,9 +50,9 @@ impl GovernanceApi {
     /// ```
     pub async fn get_committee_info(
         &self,
-        epoch: Option<BigInt<u64>>,
+        epoch: impl Into<Option<BigInt<u64>>>,
     ) -> IotaRpcResult<IotaCommittee> {
-        Ok(self.api.http.get_committee_info(epoch).await?)
+        Ok(self.api.http.get_committee_info(epoch.into()).await?)
     }
 
     /// Return the latest IOTA system state object on-chain, or an error upon

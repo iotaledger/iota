@@ -179,9 +179,7 @@ pub async fn fetch_coin(
     sender: &IotaAddress,
 ) -> Result<Option<Coin>, anyhow::Error> {
     let coin_type = "0x2::iota::IOTA".to_string();
-    let coins_stream = client
-        .coin_read_api()
-        .get_coins_stream(*sender, Some(coin_type));
+    let coins_stream = client.coin_read_api().get_coins_stream(*sender, coin_type);
 
     let mut coins = coins_stream
         .skip_while(|c| future::ready(c.balance < 5_000_000))
@@ -313,7 +311,7 @@ pub async fn sign_and_execute_transaction(
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
         )
         .await?;
 

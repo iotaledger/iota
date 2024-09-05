@@ -59,12 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Unstake IOTA, if staking for longer than 1 epoch already
 
-    let current_epoch = client
-        .read_api()
-        .get_checkpoints(None, Some(1), true)
-        .await?
-        .data[0]
-        .epoch;
+    let current_epoch = client.read_api().get_checkpoints(None, 1, true).await?.data[0].epoch;
     let staked_iota = client.governance_api().get_stakes(sender).await?;
 
     if let Some(staked_iota_id) = staked_iota.into_iter().find_map(|d| {

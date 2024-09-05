@@ -15,10 +15,10 @@ use utils::setup_for_read;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
-    let coin_type = Some("0x42".to_string());
+    let coin_type = "0x42".to_string();
     let coins = client
         .coin_read_api()
-        .get_coins(active_address, coin_type.clone(), None, Some(5))
+        .get_coins(active_address, coin_type.clone(), None, 5)
         .await;
     let error = coins.unwrap_err();
     if let Error::Rpc(rpc_error) = error {

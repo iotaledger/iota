@@ -112,7 +112,7 @@ impl TicTacToe {
             .execute_transaction_block(
                 Transaction::from_data(create_game_call, vec![signature]),
                 IotaTransactionBlockResponseOptions::full_content(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?;
 
@@ -213,7 +213,7 @@ impl TicTacToe {
                 .execute_transaction_block(
                     Transaction::from_data(place_mark_call, vec![signature]),
                     IotaTransactionBlockResponseOptions::new().with_effects(),
-                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                    ExecuteTransactionRequestType::WaitForLocalExecution,
                 )
                 .await?;
 
