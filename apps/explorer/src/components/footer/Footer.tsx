@@ -5,11 +5,9 @@
 import { Text } from '@iota/ui';
 
 import { LegalLinks, LegalText } from './Legal';
-import { FooterIcon } from './FooterIcon';
-import { ReactComponent as IotaFoundationRed } from '../../assets/mysten_labs_red.svg';
+import { IotaLogoWeb } from '@iota/ui-icons';
 import { Link } from '~/components/ui';
-import { FOOTER_LINKS, SOCIAL_LINKS } from '~/lib/constants';
-import Icon from '../Icon';
+import { FOOTER_LINKS } from '~/lib/constants';
 
 function FooterLinks(): JSX.Element {
     return (
@@ -25,20 +23,6 @@ function FooterLinks(): JSX.Element {
                     </li>
                 ))}
             </ul>
-
-            <ul className="flex justify-center gap-6">
-                {SOCIAL_LINKS.map(({ icon, href }) => (
-                    <li key={href}>
-                        <Link variant="text" color="steel-darker" href={href}>
-                            <div className="mt-2">
-                                <FooterIcon>
-                                    <Icon icon={icon} width="16" height="16" />
-                                </FooterIcon>
-                            </div>
-                        </Link>
-                    </li>
-                ))}
-            </ul>
         </div>
     );
 }
@@ -49,7 +33,7 @@ function Footer(): JSX.Element {
             <nav className="flex flex-col justify-center gap-4 divide-y divide-solid divide-gray-45 md:gap-7.5">
                 <div className="flex flex-col-reverse items-center gap-7.5 md:flex-row md:justify-between ">
                     <div className="hidden self-center text-hero-dark md:flex md:self-start">
-                        <IotaFoundationRed />
+                        <IotaLogoWeb width={137} height={36} />
                     </div>
                     <div>
                         <FooterLinks />
@@ -61,7 +45,7 @@ function Footer(): JSX.Element {
                 </div>
             </nav>
             <div className="mt-4 flex justify-center border-t border-solid border-gray-45 pt-5 text-hero-dark md:hidden md:self-start">
-                <IotaFoundationRed />
+                <IotaLogoWeb width={137} height={36} />
             </div>
         </footer>
     );
