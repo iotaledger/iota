@@ -197,7 +197,7 @@ jobs:
       POSTGRES_PORT: 5432
     services:
       postgres:
-        image: postgres
+        image: postgres:15
         env:
           POSTGRES_PASSWORD: postgrespw
         options: >-

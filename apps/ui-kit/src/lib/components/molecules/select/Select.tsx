@@ -7,7 +7,7 @@ import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
 import { SecondaryText } from '../../atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
+import { ButtonUnstyled } from '../../atoms/button';
 import { ListItem } from '../../atoms';
 
 export type SelectOption =
@@ -52,6 +52,10 @@ interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled
      * The callback to call when the value changes.
      */
     onValueChange?: (id: string) => void;
+    /**
+     * The callback to call when the option is clicked.
+     */
+    onOptionClick?: (id: string) => void;
 }
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(
@@ -66,6 +70,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             options,
             placeholder,
             onValueChange,
+            onOptionClick,
             value,
         },
         ref,
@@ -95,7 +100,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
         function handleOptionClick(option: SelectOption) {
             closeDropdown();
-            onValueChange?.(typeof option === 'string' ? option : option.id);
+            const clickedOption = typeof option === 'string' ? option : option.id;
+            onOptionClick?.(clickedOption);
+
+            if (option !== selectedValue) {
+                onValueChange?.(clickedOption);
+            }
         }
 
         function closeDropdown() {
@@ -114,7 +124,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     <ButtonUnstyled
                         ref={ref}
                         onClick={onSelectorClick}
-                        data-selected-value={value}
                         disabled={disabled}
                         className="flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 px-md py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5"
                     >
@@ -132,7 +141,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                             )}
 
                             {supportingText && (
-                                <div className={cx(!placeholder && !selectedValue && 'ml-auto')}>
+                                <div className="ml-auto">
                                     <SecondaryText>{supportingText}</SecondaryText>
                                 </div>
                             )}
