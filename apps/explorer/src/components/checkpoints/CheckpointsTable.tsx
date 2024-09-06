@@ -67,7 +67,6 @@ export function CheckpointsTable({
                     rowCount={Number(limit)}
                     rowHeight="16px"
                     colHeadings={['Digest', 'Sequence Number', 'Time', 'Transaction Count']}
-                    colWidths={['100px', '120px', '204px', '90px', '38px']}
                 />
             ) : (
                 <div>
