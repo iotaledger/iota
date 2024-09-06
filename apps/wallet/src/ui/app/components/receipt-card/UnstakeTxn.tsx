@@ -11,12 +11,12 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { CardType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
 
-interface UnStakeTxnCardProps {
+interface UnStakeTxnProps {
     event: IotaEvent;
     gasSummary?: GasSummaryType;
 }
 
-export function UnStakeTxnCard({ event, gasSummary }: UnStakeTxnCardProps) {
+export function UnStakeTxn({ event, gasSummary }: UnStakeTxnProps) {
     const json = event.parsedJson as {
         principal_amount?: number;
         reward_amount?: number;

@@ -12,13 +12,13 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { CardType } from '@iota/apps-ui-kit';
 import { StakeTxnInfo } from './StakeTxnInfo';
 
-interface StakeTxnCardProps {
+interface StakeTxnProps {
     event: IotaEvent;
     gasSummary?: GasSummaryType;
 }
 
 // For Staked Transaction use moveEvent Field to get the validator address, delegation amount, epoch
-export function StakeTxnCard({ event, gasSummary }: StakeTxnCardProps) {
+export function StakeTxn({ event, gasSummary }: StakeTxnProps) {
     const json = event.parsedJson as {
         amount: string;
         validator_address: string;

@@ -8,9 +8,9 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
-import { StakeTxnCard } from './StakeTxnCard';
+import { StakeTxn } from './StakeTxn';
 import { StatusIcon } from './StatusIcon';
-import { UnStakeTxnCard } from './UnstakeTxnCard';
+import { UnStakeTxn } from './UnstakeTxn';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 
@@ -60,10 +60,8 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
     if (stakedTxn || unstakeTxn)
         return (
             <div className="flex h-full flex-col justify-between">
-                {stakedTxn ? <StakeTxnCard event={stakedTxn} gasSummary={summary?.gas} /> : null}
-                {unstakeTxn ? (
-                    <UnStakeTxnCard event={unstakeTxn} gasSummary={summary?.gas} />
-                ) : null}
+                {stakedTxn ? <StakeTxn event={stakedTxn} gasSummary={summary?.gas} /> : null}
+                {unstakeTxn ? <UnStakeTxn event={unstakeTxn} gasSummary={summary?.gas} /> : null}
                 <Button type={ButtonType.Primary} text="Finish" onClick={handleCancel} fullWidth />
             </div>
         );
