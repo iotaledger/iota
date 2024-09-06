@@ -43,10 +43,9 @@ jobs:
 
   clippy:
     if: |
-      !cancelled() && success('rustfmt', 'cargo-deny') && inputs.isRust
+      !cancelled() && success('rustfmt') && inputs.isRust
     needs:
       - rustfmt
-      - cargo-deny
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
