@@ -11,6 +11,8 @@ import { TransactionSummary } from '../../shared/transaction-summary';
 import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { useNavigate } from 'react-router-dom';
 
 interface TransactionStatusProps {
     success: boolean;
@@ -42,8 +44,13 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         currentAddress: activeAddress,
         recognizedPackagesList,
     });
+    const navigate = useNavigate();
 
     if (!summary) return null;
+
+    function handleCancel() {
+        navigate('/');
+    }
 
     const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
 
@@ -52,17 +59,10 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)
         return (
-            <div className="relative block h-full w-full">
-                <section className="bg-iota/10 -mx-5 min-h-full">
-                    <div className="px-5 py-10">
-                        <div className="flex flex-col gap-4">
-                            {stakedTxn ? (
-                                <StakeTxnCard event={stakedTxn} gasSummary={summary?.gas} />
-                            ) : null}
-                            {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
-                        </div>
-                    </div>
-                </section>
+            <div className="flex h-full flex-col justify-between">
+                {stakedTxn ? <StakeTxnCard event={stakedTxn} gasSummary={summary?.gas} /> : null}
+                {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
+                <Button type={ButtonType.Primary} text="Finish" onClick={handleCancel} fullWidth />
             </div>
         );
 

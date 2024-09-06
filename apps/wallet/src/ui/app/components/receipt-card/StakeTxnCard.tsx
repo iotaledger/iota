@@ -35,7 +35,7 @@ export function StakeTxnCard({ event, gasSummary }: StakeTxnCardProps) {
     };
 
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-y-md">
             {validatorAddress && (
                 <ValidatorLogo
                     validatorAddress={validatorAddress}
