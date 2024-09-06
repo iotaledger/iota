@@ -61,7 +61,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             )}
             <main className="relative z-10 bg-neutral-98">
                 {!loading && (
-                    <section className="mx-auto max-w-[1440px] p-5 pb-20 sm:py-8 md:p-10 md:pb-20">
+                    <section className="container pb-20 pt-28">
                         {content}
                     </section>
                 )}

@@ -31,7 +31,7 @@ function Home(): JSX.Element {
     return (
         <PageLayout
             content={
-                <div className="m-16">
+                <>
                     <div
                         data-testid="home-page"
                         className={clsx(
@@ -90,7 +90,7 @@ function Home(): JSX.Element {
                             </div>
                         </div>
                     </div>
-                </div>
+                </>
             }
         />
     );
