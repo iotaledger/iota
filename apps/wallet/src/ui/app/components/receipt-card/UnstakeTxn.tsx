@@ -8,7 +8,7 @@ import { type GasSummaryType, useFormatCoin } from '@iota/core';
 import type { IotaEvent } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-import { CardType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
+import { CardType, Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
 
 interface UnStakeTxnProps {
@@ -32,17 +32,22 @@ export function UnStakeTxn({ event, gasSummary }: UnStakeTxnProps) {
     return (
         <div className="flex flex-col gap-y-md">
             {validatorAddress && (
-                <div className="mb-3.5 w-full">
-                    <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
-                </div>
+                <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
             )}
             {totalAmount && (
                 <TxnAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} subtitle="Total" />
             )}
-            <KeyValueInfo keyText="Your Stake" valueText={`${formatPrinciple} ${symbol}`} />
-            <KeyValueInfo keyText="Rewards Earned" valueText={`${formatRewards} ${symbol}`} />
-            <Divider />
-            <GasSummary gasSummary={gasSummary} />
+            <Panel hasBorder>
+                <div className="flex flex-col gap-y-sm p-md">
+                    <KeyValueInfo keyText="Your Stake" valueText={`${formatPrinciple} ${symbol}`} />
+                    <KeyValueInfo
+                        keyText="Rewards Earned"
+                        valueText={`${formatRewards} ${symbol}`}
+                    />
+                    <Divider />
+                    <GasSummary gasSummary={gasSummary} />
+                </div>
+            </Panel>
         </div>
     );
 }
