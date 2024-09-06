@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading } from '@iota/ui';
 import clsx from 'clsx';
 import { Fragment } from 'react';
 
@@ -20,7 +19,6 @@ type RingChartData = {
 
 interface RingChartLegendProps {
     data: RingChartData;
-    title: string;
 }
 
 function getColorFromGradient({ deg, values }: Gradient): string {
@@ -37,51 +35,48 @@ function getColorFromGradient({ deg, values }: Gradient): string {
     return `linear-gradient(${gradientResult.join(',')})`;
 }
 
-export function RingChartLegend({ data, title }: RingChartLegendProps): JSX.Element {
+export function RingChartLegend({ data }: RingChartLegendProps): JSX.Element {
     return (
-        <div className="flex flex-col gap-2">
-            <Heading variant="heading5/semibold" color="steel-darker">
-                {title}
-            </Heading>
+        <div className="flex flex-col items-start justify-center gap-2">
+            {data.map(({ color, gradient, label, value }) => {
+                const colorDisplay = gradient ? getColorFromGradient(gradient) : color;
 
-            <div className="flex flex-col items-start justify-center gap-2">
-                {data.map(({ color, gradient, label, value }) => {
-                    const colorDisplay = gradient ? getColorFromGradient(gradient) : color;
-
-                    return (
+                return (
+                    <div
+                        className={clsx('flex items-center gap-xxs', value === 0 && 'hidden')}
+                        key={label}
+                    >
                         <div
-                            className={clsx('flex items-center gap-1.5', value === 0 && 'hidden')}
-                            key={label}
-                        >
-                            <div
-                                style={{ background: colorDisplay }}
-                                className="h-3 w-3 rounded-sm"
-                            />
-                            <div
-                                style={{
-                                    backgroundImage: colorDisplay,
-                                    color: colorDisplay,
-                                }}
-                                className="bg-clip-text text-body font-medium text-transparent"
-                            >
-                                {value} {label}
-                            </div>
+                            style={{ background: colorDisplay }}
+                            className="h-1.5 w-1.5 rounded-full"
+                        />
+                        <div className="text-label-md text-neutral-10">
+                            {value} {label}
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }
 
-export interface RingChartProps {
-    data: RingChartData;
+interface RingChartProperties {
+    cx?: number;
+    cy?: number;
+    radius?: number;
+    width?: number;
 }
 
-export function RingChart({ data }: RingChartProps): JSX.Element {
-    const radius = 20;
-    const cx = 25;
-    const cy = 25;
+export interface RingChartProps extends RingChartProperties {
+    data: RingChartData;
+}
+export function RingChart({
+    data,
+    cx = 25,
+    cy = 25,
+    radius = 20,
+    width = 5,
+}: RingChartProps): JSX.Element {
     const dashArray = 2 * Math.PI * radius;
     const startAngle = -90;
     const total = data.reduce((acc, { value }) => acc + value, 0);
@@ -91,8 +86,9 @@ export function RingChart({ data }: RingChartProps): JSX.Element {
         const gradientId = `gradient-${idx}`;
         const ratio = (100 / total) * value;
         const angle = (filled * 360) / 100 + startAngle;
-        const offset = dashArray - (dashArray * ratio) / 100;
+        const offset = dashArray - (dashArray * (ratio * 0.98)) / 100;
         filled += ratio;
+
         return (
             <Fragment key={label}>
                 {gradient && (
@@ -110,9 +106,10 @@ export function RingChart({ data }: RingChartProps): JSX.Element {
                     r={radius}
                     fill="transparent"
                     stroke={gradient ? `url(#${gradientId})` : color}
-                    strokeWidth={5}
+                    strokeWidth={width}
                     strokeDasharray={dashArray}
                     strokeDashoffset={offset}
+                    strokeLinecap="round"
                     transform={`rotate(${angle} ${cx} ${cy})`}
                 />
             </Fragment>
@@ -121,14 +118,12 @@ export function RingChart({ data }: RingChartProps): JSX.Element {
 
     return (
         <div className="relative">
-            <svg viewBox="0 0 50 50" strokeLinecap="butt">
+            <svg viewBox="0 0 50 50" strokeLinecap="round">
                 {segments}
             </svg>
             <div className="absolute inset-0 mx-auto flex items-center justify-center">
                 <div className="flex flex-col items-center gap-1.5">
-                    <Heading variant="heading2/semibold" color="iota-dark">
-                        {total}
-                    </Heading>
+                    <span className="text-title-md text-neutral-10">{total}</span>
                 </div>
             </div>
         </div>

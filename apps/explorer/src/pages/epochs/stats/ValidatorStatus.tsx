@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title, Tooltip } from '@iota/apps-ui-kit';
 import { getRefGasPrice } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading, Text } from '@iota/ui';
+import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
 
-import { Card, RingChart, RingChartLegend } from '~/components/ui';
+import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
@@ -21,60 +22,72 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const nextEpoch = Number(data.epoch || 0) + 1;
 
+    const getHexColorWithOpacity = (color: string, opacity: number) =>
+        `${color}${Math.round(opacity * 255).toString(16)}`;
+
     const chartData = [
         {
-            value: data.activeValidators.length,
+            value: 107,
             label: 'Active',
             gradient: {
                 deg: 315,
                 values: [
-                    { percent: 0, color: '#4C75A6' },
-                    { percent: 100, color: '#589AEA' },
+                    { percent: 0, color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30] },
+                    { percent: 100, color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30] },
                 ],
             },
         },
         {
-            value: Number(data.pendingActiveValidatorsSize ?? 0),
+            value: 12,
             label: 'New',
-            color: '#F2BD24',
+            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
         },
         {
-            value: data.atRiskValidators.length,
+            value: 7,
             label: 'At Risk',
-            color: '#FF794B',
+            color: IOTA_PRIMITIVES_COLOR_PALETTE.neutral[90],
         },
     ];
 
     return (
-        <Card spacing="lg" bg="white" border="steel" rounded="2xl">
-            <div className="flex items-center gap-5">
-                <div className="min-h-[96px] min-w-[96px]">
-                    <RingChart data={chartData} />
-                </div>
+        <Panel>
+            <div className="flex flex-col">
+                <Title title={`Validators in Epoch ${nextEpoch}`} />
+                <div className="flex flex-col items-center gap-sm--rs p-md--rs md:flex-row ">
+                    <div className="flex w-1/2 flex-row gap-x-lg p-md">
+                        <div className="min-h-[96px] min-w-[96px]">
+                            <RingChart data={chartData} />
+                        </div>
 
-                <div className="self-start">
-                    <RingChartLegend data={chartData} title={`Validators in Epoch ${nextEpoch}`} />
+                        <RingChartLegend data={chartData} />
+                    </div>
+
+                    <div className="h-full w-1/2">
+                        {/* Replace with Display Stats */}
+                        <div className="flex h-full w-full flex-col items-start justify-between rounded-xl bg-neutral-96 p-md">
+                            <div className="flex flex-row gap-xxxs">
+                                <div className="flex flex-col">
+                                    <span className="text-label-sm text-neutral-10">
+                                        Estimated Next Epoch
+                                    </span>
+                                    <span className="text-label-sm text-neutral-10">
+                                        Reference Gas Price
+                                    </span>
+                                </div>
+                                <Tooltip text="Example Message">
+                                    <Info className="h-4 w-4 text-neutral-10/40" />
+                                </Tooltip>
+                            </div>
+                            <div className="flex flex-row items-baseline gap-xxs">
+                                <span className="text-title-md text-neutral-10">
+                                    {nextRefGasPrice.toString()}
+                                </span>
+                                <span className="text-label-md text-neutral-10/40">nano</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <div className="mt-8 flex items-center justify-between rounded-lg border border-solid border-steel px-3 py-2">
-                <div>
-                    <Text variant="pSubtitle/semibold" color="steel-darker">
-                        Estimated Next Epoch
-                    </Text>
-                    <Text variant="pSubtitle/semibold" color="steel-darker">
-                        Reference Gas Price
-                    </Text>
-                </div>
-                <div className="text-right">
-                    <Heading variant="heading4/semibold" color="steel-darker">
-                        {nextRefGasPrice.toString()}
-                    </Heading>
-                    <Text variant="pBody/medium" color="steel-darker">
-                        nano
-                    </Text>
-                </div>
-            </div>
-        </Card>
+        </Panel>
     );
 }

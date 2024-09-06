@@ -55,7 +55,6 @@ export function AddressesCardGraph(): JSX.Element {
                                     ? addressMetrics.cumulativeAddresses.toString()
                                     : '--'
                             }
-                            showSupportingLabel={false}
                         />
                     </div>
 
@@ -68,7 +67,6 @@ export function AddressesCardGraph(): JSX.Element {
                                     ? addressMetrics.cumulativeActiveAddresses.toString()
                                     : '--'
                             }
-                            showSupportingLabel={false}
                         />
                     </div>
                 </div>
@@ -80,7 +78,6 @@ export function AddressesCardGraph(): JSX.Element {
                             ? addressMetrics.dailyActiveAddresses.toString()
                             : '--'
                     }
-                    showSupportingLabel={false}
                 />
                 <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl transition-colors">
                     {isPending ? (
