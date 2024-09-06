@@ -37,7 +37,6 @@ export * from './PlayPause';
 export * from './ProgressBar';
 export * from './ProgressCircle';
 export * from './RingChart';
-export * from './Search';
 export * from './SplitPanes';
 export * from './Stats';
 export * from './StatusIcon';
