@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ExplorerLink, ExplorerLinkType } from '_components';
+
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useFormatCoin, type GasSummaryType } from '@iota/core';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-import { Text } from '../../text';
+import { KeyValueInfo } from '@iota/apps-ui-kit';
+import { useAddressLink } from '_src/ui/app/hooks/useAddressLink';
 
 interface GasSummaryProps {
     gasSummary?: GasSummaryType;
@@ -15,56 +16,34 @@ interface GasSummaryProps {
 export function GasSummary({ gasSummary }: GasSummaryProps) {
     const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, IOTA_TYPE_ARG);
     const address = useActiveAddress();
+    const gasOwnerLink = useAddressLink(gasSummary?.owner || null);
 
-    if (!gasSummary) return null;
+    if (!gasSummary)
+        return <KeyValueInfo keyText="Gas fee" valueText="0" supportingLabel={symbol} />;
 
     return (
-        <div className="relative flex flex-col rounded-2xl bg-white shadow-card-soft">
-            <div className="bg-gray-40 rounded-t-2xl px-4 py-2.5">
-                <Text color="steel-darker" variant="captionSmall" weight="semibold">
-                    Gas Fees
-                </Text>
-            </div>
-            <div className="flex w-full flex-col items-center gap-2 px-4 py-3">
-                <div className="flex w-full items-center justify-start">
-                    {address === gasSummary?.owner && (
-                        <div className="mr-auto">
-                            <Text color="steel-dark" variant="pBody" weight="medium">
-                                You Paid
-                            </Text>
-                        </div>
-                    )}
-                    <Text color="steel-darker" variant="pBody" weight="medium">
-                        {gasSummary?.isSponsored ? '0' : gas} {symbol}
-                    </Text>
-                </div>
-                {gasSummary?.isSponsored && gasSummary.owner && (
-                    <>
-                        <div className="flex w-full justify-between">
-                            <Text color="steel-dark" variant="pBody" weight="medium">
-                                Paid by Sponsor
-                            </Text>
-                            <Text color="steel-darker" variant="pBody" weight="medium">
-                                {gas} {symbol}
-                            </Text>
-                        </div>
-                        <div className="flex w-full justify-between">
-                            <Text color="steel-dark" variant="pBody" weight="medium">
-                                Sponsor
-                            </Text>
-                            <ExplorerLink
-                                type={ExplorerLinkType.Address}
-                                address={gasSummary.owner}
-                                className="text-hero-dark no-underline"
-                            >
-                                <Text variant="pBodySmall" truncate mono>
-                                    {formatAddress(gasSummary.owner)}
-                                </Text>
-                            </ExplorerLink>
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>
+        <>
+            {address === gasSummary?.owner && (
+                <KeyValueInfo
+                    keyText="Gas fee"
+                    valueText={gasSummary?.isSponsored ? '0' : gas}
+                    supportingLabel={symbol}
+                />
+            )}
+            {gasSummary?.isSponsored && gasSummary.owner && (
+                <>
+                    <KeyValueInfo
+                        keyText="Sponsored fee"
+                        valueText={gas}
+                        supportingLabel={symbol}
+                    />
+                    <KeyValueInfo
+                        keyText="Sponsor"
+                        valueText={formatAddress(gasSummary.owner)}
+                        valueLink={gasOwnerLink.explorerHref}
+                    />
+                </>
+            )}
+        </>
     );
 }

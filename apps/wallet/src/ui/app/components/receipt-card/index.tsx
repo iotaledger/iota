@@ -8,8 +8,6 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
-import { ExplorerLinkCard } from '../../shared/transaction-summary/cards/ExplorerLink';
-import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
 import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
@@ -58,13 +56,10 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 <section className="bg-iota/10 -mx-5 min-h-full">
                     <div className="px-5 py-10">
                         <div className="flex flex-col gap-4">
-                            {stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}
+                            {stakedTxn ? (
+                                <StakeTxnCard event={stakedTxn} gasSummary={summary?.gas} />
+                            ) : null}
                             {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
-                            <GasSummary gasSummary={summary?.gas} />
-                            <ExplorerLinkCard
-                                digest={summary?.digest}
-                                timestamp={summary?.timestamp ?? undefined}
-                            />
                         </div>
                     </div>
                 </section>

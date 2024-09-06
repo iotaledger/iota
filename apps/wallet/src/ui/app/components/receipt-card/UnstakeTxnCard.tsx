@@ -38,7 +38,7 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                     </div>
                 )}
                 {totalAmount && (
-                    <TxnAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} label="Total" />
+                    <TxnAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} subtitle="Total" />
                 )}
 
                 <div className="flex w-full justify-between py-3.5">
