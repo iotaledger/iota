@@ -17,6 +17,7 @@ use iota_sdk::rpc_types::IotaExecutionStatus;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
+    digests::TransactionDigest,
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
@@ -384,20 +385,22 @@ pub async fn parse(
 ) -> Result<ConstructionParseResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let data = if request.signed {
+    let val = if request.signed {
         let tx: Transaction = bcs::from_bytes(&request.transaction.to_vec()?)?;
-        tx.into_data().intent_message().value.clone()
+        let tx_digest = *tx.digest();
+        (tx.into_data().intent_message().value.clone(), tx_digest)
     } else {
         let intent: IntentMessage<TransactionData> =
             bcs::from_bytes(&request.transaction.to_vec()?)?;
-        intent.value
+        // TODO: Is TransactionDigest::default() safe to use here?
+        (intent.value, TransactionDigest::default())
     };
     let account_identifier_signers = if request.signed {
-        vec![data.sender().into()]
+        vec![val.0.sender().into()]
     } else {
         vec![]
     };
-    let operations = data.try_into()?;
+    let operations = val.try_into()?;
     Ok(ConstructionParseResponse {
         operations,
         account_identifier_signers,

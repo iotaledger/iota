@@ -15,6 +15,7 @@ use iota_types::{
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
+    event::EventID,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
     iota_serde::{
@@ -52,7 +53,7 @@ use tabled::{
 
 use crate::{
     balance_changes::BalanceChange, iota_transaction::GenericSignature::Signature,
-    object_changes::ObjectChange, Filter, IotaEvent, IotaGenesisEvent, IotaObjectRef, Page,
+    object_changes::ObjectChange, Filter, IotaEvent, IotaObjectRef, Page,
 };
 
 // similar to EpochId of iota-types but BigInt
@@ -457,12 +458,21 @@ impl Display for IotaTransactionBlockKind {
 }
 
 impl IotaTransactionBlockKind {
-    fn try_from(tx: TransactionKind, module_cache: &impl GetModule) -> Result<Self, anyhow::Error> {
+    fn try_from(
+        tx: TransactionKind,
+        module_cache: &impl GetModule,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
             TransactionKind::ChangeEpoch(e) => Self::ChangeEpoch(e.into()),
             TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
-                events: g.events.into_iter().map(IotaGenesisEvent::from).collect(),
+                events: g
+                    .events
+                    .into_iter()
+                    .enumerate()
+                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
+                    .collect(),
             }),
             TransactionKind::ConsensusCommitPrologue(p) => {
                 Self::ConsensusCommitPrologue(IotaConsensusCommitPrologue {
@@ -1322,6 +1332,7 @@ impl IotaTransactionBlockData {
     pub fn try_from(
         data: TransactionData,
         module_cache: &impl GetModule,
+        tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let message_version = data
             .message_version()
@@ -1337,7 +1348,8 @@ impl IotaTransactionBlockData {
             price: data.gas_price(),
             budget: data.gas_budget(),
         };
-        let transaction = IotaTransactionBlockKind::try_from(data.into_kind(), module_cache)?;
+        let transaction =
+            IotaTransactionBlockKind::try_from(data.into_kind(), module_cache, tx_digest)?;
         match message_version {
             1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
                 transaction,
@@ -1362,11 +1374,13 @@ impl IotaTransactionBlock {
     pub fn try_from(
         data: SenderSignedData,
         module_cache: &impl GetModule,
+        tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from(
                 data.intent_message().value.clone(),
                 module_cache,
+                tx_digest,
             )?,
             tx_signatures: data.tx_signatures().to_vec(),
         })
@@ -1407,7 +1421,7 @@ impl Display for IotaTransactionBlock {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaGenesisTransaction {
     pub objects: Vec<ObjectID>,
-    pub events: Vec<IotaGenesisEvent>,
+    pub events: Vec<EventID>,
 }
 
 #[serde_as]

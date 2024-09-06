@@ -157,10 +157,12 @@ async fn test_stake() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
+    let tx_digest = response.transaction_identifier.hash;
+
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            response.transaction_identifier.hash,
+            tx_digest.clone(),
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -177,7 +179,7 @@ async fn test_stake() {
         tx.effects.as_ref().unwrap().status()
     );
 
-    let ops2 = Operations::try_from(tx).unwrap();
+    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -217,10 +219,12 @@ async fn test_stake_all() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
+    let tx_digest = response.transaction_identifier.hash;
+
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            response.transaction_identifier.hash,
+            tx_digest.clone(),
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -237,7 +241,7 @@ async fn test_stake_all() {
         tx.effects.as_ref().unwrap().status()
     );
 
-    let ops2 = Operations::try_from(tx).unwrap();
+    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -284,10 +288,12 @@ async fn test_withdraw_stake() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
+    let tx_digest = response.transaction_identifier.hash;
+
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            response.transaction_identifier.hash,
+            tx_digest.clone(),
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -334,10 +340,12 @@ async fn test_withdraw_stake() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
+    let tx_digest = response.transaction_identifier.hash;
+
     let tx = client
         .read_api()
         .get_transaction_with_options(
-            response.transaction_identifier.hash,
+            tx_digest.clone(),
             IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
@@ -353,7 +361,7 @@ async fn test_withdraw_stake() {
     );
     println!("Iota TX: {tx:?}");
 
-    let ops2 = Operations::try_from(tx).unwrap();
+    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -403,6 +411,8 @@ async fn test_pay_iota() {
 
     let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
+    let tx_digest = response.transaction_identifier.hash;
+
     let tx = client
         .read_api()
         .get_transaction_with_options(
@@ -422,7 +432,7 @@ async fn test_pay_iota() {
     );
     println!("Iota TX: {tx:?}");
 
-    let ops2 = Operations::try_from(tx).unwrap();
+    let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
     assert!(
         ops2.contains(&ops),
         "Operation mismatch. expecting:{}, got:{}",
@@ -463,10 +473,12 @@ async fn test_pay_iota_multiple_times() {
 
         let response = rosetta_client.rosetta_flow(&ops, keystore).await;
 
+        let tx_digest = response.transaction_identifier.hash;
+
         let tx = client
             .read_api()
             .get_transaction_with_options(
-                response.transaction_identifier.hash,
+                tx_digest.clone(),
                 IotaTransactionBlockResponseOptions::new()
                     .with_input()
                     .with_effects()
@@ -481,7 +493,7 @@ async fn test_pay_iota_multiple_times() {
             tx.effects.as_ref().unwrap().status()
         );
 
-        let ops2 = Operations::try_from(tx).unwrap();
+        let ops2 = Operations::try_from((tx, tx_digest)).unwrap();
         assert!(
             ops2.contains(&ops),
             "Operation mismatch. expecting:{}, got:{}",

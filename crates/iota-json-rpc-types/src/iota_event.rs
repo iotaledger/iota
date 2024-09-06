@@ -180,50 +180,6 @@ impl IotaEvent {
     }
 }
 
-#[serde_as]
-#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename = "GenesisEvent", rename_all = "camelCase")]
-pub struct IotaGenesisEvent {
-    /// Move package where this event was emitted.
-    pub package_id: ObjectID,
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    /// Move module where this event was emitted.
-    pub transaction_module: Identifier,
-    /// Sender's Iota address.
-    pub sender: IotaAddress,
-    #[schemars(with = "String")]
-    #[serde_as(as = "IotaStructTag")]
-    /// Move event type.
-    pub type_: StructTag,
-    #[serde_as(as = "Base58")]
-    #[schemars(with = "Base58")]
-    /// Base 58 encoded bcs bytes of the move event
-    pub bcs: Vec<u8>,
-}
-
-impl From<Event> for IotaGenesisEvent {
-    fn from(event: Event) -> Self {
-        let Event {
-            package_id,
-            transaction_module,
-            sender,
-            type_,
-            contents,
-        } = event;
-
-        let bcs = contents.to_vec();
-
-        IotaGenesisEvent {
-            package_id,
-            transaction_module,
-            sender,
-            type_,
-            bcs,
-        }
-    }
-}
-
 /// Convert a json array of bytes to Base64
 fn bytes_array_to_base64(v: &mut Value) {
     match v {

@@ -15,6 +15,7 @@ use iota_sdk::rpc_types::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
+    digests::TransactionDigest,
     gas_coin::{GasCoin, GAS},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
@@ -624,9 +625,9 @@ fn is_unstake_event(tag: &StructTag) -> bool {
         && tag.name.as_ident_str() == ident_str!("UnstakingRequestEvent")
 }
 
-impl TryFrom<TransactionData> for Operations {
+impl TryFrom<(TransactionData, TransactionDigest)> for Operations {
     type Error = Error;
-    fn try_from(data: TransactionData) -> Result<Self, Self::Error> {
+    fn try_from(val: (TransactionData, TransactionDigest)) -> Result<Self, Self::Error> {
         struct NoOpsModuleResolver;
         impl ModuleResolver for NoOpsModuleResolver {
             type Error = Error;
@@ -634,8 +635,11 @@ impl TryFrom<TransactionData> for Operations {
                 Ok(None)
             }
         }
+
+        let (data, tx_digest) = val;
+
         // Rosetta don't need the call args to be parsed into readable format
-        IotaTransactionBlockData::try_from(data, &&mut NoOpsModuleResolver)?.try_into()
+        IotaTransactionBlockData::try_from(data, &&mut NoOpsModuleResolver, tx_digest)?.try_into()
     }
 }
 
