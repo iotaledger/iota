@@ -3,6 +3,7 @@
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useState } from 'react';
+import clsx from 'clsx';
 import { useResolveIotaNSName } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
@@ -14,6 +15,7 @@ import { Account, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
+import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -29,15 +31,14 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
     const { unlockAccount, lockAccount } = useUnlockAccount();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
+    const backgroundClient = useBackgroundClient();
 
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
         address: account.address,
     });
 
-    async function handleCopy(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
-        e.preventDefault();
-        await navigator.clipboard.writeText(account.address);
+    async function handleCopySuccess() {
         toast.success('Address copied');
     }
 
@@ -66,23 +67,40 @@ export function AccountGroupItem({ account, isLast }: AccountGroupItemProps) {
         setDialogRemoveOpen(true);
     }
 
+    async function handleSelectAccount() {
+        if (!account) return;
+
+        if (account.isLocked) {
+            unlockAccount(account);
+        } else {
+            await backgroundClient.selectAccount(account.id);
+            toast.success(`Account ${formatAddress(account.address)} selected`);
+        }
+    }
+
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
-            <Account
-                isLocked={account.isLocked}
-                isCopyable
-                isExternal
-                onOpen={handleOpen}
-                avatarContent={() => <AccountAvatar account={account} />}
-                title={accountName}
-                subtitle={formatAddress(account.address)}
-                onCopy={handleCopy}
-                onOptionsClick={() => setDropdownOpen(true)}
-                onLockAccountClick={handleToggleLock}
-                onUnlockAccountClick={handleToggleLock}
-            />
+            <div onClick={handleSelectAccount}>
+                <Account
+                    isLocked={account.isLocked}
+                    isCopyable
+                    isExternal
+                    onOpen={handleOpen}
+                    avatarContent={() => <AccountAvatar account={account} />}
+                    title={accountName}
+                    subtitle={formatAddress(account.address)}
+                    onCopy={handleCopySuccess}
+                    onOptionsClick={() => setDropdownOpen(true)}
+                    onLockAccountClick={handleToggleLock}
+                    onUnlockAccountClick={handleToggleLock}
+                />
+            </div>
             <div
-                className={`absolute right-0 ${isLast ? 'bottom-0' : 'top-0'} z-[100] bg-white ${isDropdownOpen ? '' : 'hidden'}`}
+                className={clsx(
+                    `absolute right-0 z-[100] bg-white`,
+                    isLast ? 'bottom-0' : 'top-0',
+                    isDropdownOpen ? '' : 'hidden',
+                )}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>

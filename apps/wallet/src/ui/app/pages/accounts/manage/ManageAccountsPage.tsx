@@ -20,7 +20,12 @@ export function ManageAccountsPage() {
     }
 
     return (
-        <Overlay showModal title="Manage Accounts" closeOverlay={() => navigate('/home')}>
+        <Overlay
+            showModal
+            title="Manage Accounts"
+            closeOverlay={() => navigate('/home')}
+            titleCentered={false}
+        >
             <div className="flex w-full flex-col">
                 <div className="flex flex-1 flex-col overflow-y-auto">
                     {Object.entries(groupedAccounts).map(([type, accountGroups]) =>

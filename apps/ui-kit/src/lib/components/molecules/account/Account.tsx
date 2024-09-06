@@ -42,6 +42,10 @@ interface AccountProps {
      */
     onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
+     * Text that need to be copied (optional).
+     */
+    copyText?: string;
+    /**
      * The onOpen event of the Address  (optional).
      */
     onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -78,6 +82,7 @@ export function Account({
     onLockAccountClick,
     onUnlockAccountClick,
     onCopy,
+    copyText,
     onOpen,
     isCopyable,
     isExternal,
@@ -99,6 +104,7 @@ export function Account({
                     <Address
                         text={subtitle}
                         onCopySuccess={onCopy}
+                        copyText={copyText}
                         onOpen={onOpen}
                         isCopyable={isCopyable}
                         isExternal={isExternal}

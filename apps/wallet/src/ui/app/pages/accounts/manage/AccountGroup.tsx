@@ -8,6 +8,7 @@ import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
 
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
@@ -100,7 +101,12 @@ export function AccountGroup({
                     <div className="relative flex w-full items-center justify-between gap-1 py-2 pl-1 pr-sm">
                         <div className="flex items-center gap-1">
                             <TriangleDown
-                                className={`${isOpen ? 'rotate-0 transition-transform ease-linear' : '-rotate-90 transition-transform ease-linear'} h-5 w-5 text-neutral-60`}
+                                className={clsx(
+                                    'h-5 w-5 text-neutral-60',
+                                    isOpen
+                                        ? 'rotate-0 transition-transform ease-linear'
+                                        : '-rotate-90 transition-transform ease-linear',
+                                )}
                             />
                             <div className="text-title-md">{getGroupTitle(accounts[0])}</div>
                         </div>
