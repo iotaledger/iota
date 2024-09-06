@@ -70,7 +70,7 @@ export function PageLayout({ gradient, content, loading, isError }: PageLayoutPr
                 </div>
             )}
             <main
-                className="relative z-10 bg-offwhite"
+                className="relative z-10 bg-neutral-98"
                 style={
                     !isGradientVisible
                         ? {
@@ -86,14 +86,13 @@ export function PageLayout({ gradient, content, loading, isError }: PageLayoutPr
                         }}
                         className={clsx(
                             'group/gradientContent',
-                            loading && 'bg-gradients-graph-cards',
+                            loading && 'bg-neutral-98',
                             isError && 'bg-gradients-failure',
-                            !isError && 'bg-gradients-graph-cards',
+                            !isError && 'bg-neutral-98',
                         )}
                     >
                         <div
                             className={clsx(
-                                'mx-auto max-w-[1440px] py-8 lg:px-6 xl:px-10',
                                 gradient.size === 'lg' && 'px-4 xl:py-12',
                                 gradient.size === 'md' && 'px-4',
                             )}
