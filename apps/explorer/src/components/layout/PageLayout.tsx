@@ -60,11 +60,7 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
                 </div>
             )}
             <main className="relative z-10 bg-neutral-98">
-                {!loading && (
-                    <section className="container pb-20 pt-28">
-                        {content}
-                    </section>
-                )}
+                {!loading && <section className="container pb-20 pt-28">{content}</section>}
             </main>
             <Footer />
         </div>
