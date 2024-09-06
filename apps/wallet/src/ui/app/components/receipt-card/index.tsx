@@ -61,7 +61,9 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         return (
             <div className="flex h-full flex-col justify-between">
                 {stakedTxn ? <StakeTxnCard event={stakedTxn} gasSummary={summary?.gas} /> : null}
-                {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
+                {unstakeTxn ? (
+                    <UnStakeTxnCard event={unstakeTxn} gasSummary={summary?.gas} />
+                ) : null}
                 <Button type={ButtonType.Primary} text="Finish" onClick={handleCancel} fullWidth />
             </div>
         );
