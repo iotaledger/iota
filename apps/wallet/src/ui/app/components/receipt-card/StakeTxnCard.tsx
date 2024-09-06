@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
-import { CoinIcon } from '_components';
+import { TxnAmount } from '_components';
 import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
@@ -12,7 +12,6 @@ import {
 import {
     formatPercentageDisplay,
     TimeUnit,
-    useFormatCoin,
     useGetTimeBeforeEpochNumber,
     useGetValidatorsApy,
     useTimeAgo,
@@ -20,18 +19,7 @@ import {
 import type { IotaEvent } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-import {
-    Card,
-    CardAction,
-    CardActionType,
-    CardBody,
-    CardImage,
-    CardType,
-    ImageType,
-    KeyValueInfo,
-    Panel,
-    TooltipPosition,
-} from '@iota/apps-ui-kit';
+import { CardType, KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
 
 interface StakeTxnCardProps {
     event: IotaEvent;
@@ -47,10 +35,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
     const validatorAddress = json?.validator_address;
     const stakedAmount = json?.amount;
     const stakedEpoch = Number(json?.epoch || '0');
-    const [formatted, symbol] = useFormatCoin(
-        Math.abs(Number(stakedAmount.toString())),
-        IOTA_TYPE_ARG,
-    );
+
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
@@ -107,15 +92,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                 />
             )}
             {stakedAmount && (
-                <Card type={CardType.Outlined}>
-                    <CardImage type={ImageType.BgSolid}>
-                        <div className="h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
-                            <CoinIcon coinType={IOTA_TYPE_ARG} />
-                        </div>
-                    </CardImage>
-                    <CardBody title={`${formatted} ${symbol}`} subtitle="Stake" />
-                    <CardAction type={CardActionType.SupportingText} />
-                </Card>
+                <TxnAmount amount={stakedAmount} coinType={IOTA_TYPE_ARG} subtitle="Stake" />
             )}
             <Panel hasBorder>
                 <div className="flex flex-col gap-y-sm p-md">
