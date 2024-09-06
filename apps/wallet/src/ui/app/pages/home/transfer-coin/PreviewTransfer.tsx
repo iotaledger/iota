@@ -18,6 +18,7 @@ import {
     KeyValueInfo,
 } from '@iota/apps-ui-kit';
 import { useAddressLink } from '_app/hooks/useAddressLink';
+import { ImageIconSize } from '_src/ui/app/shared/image-icon';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -49,8 +50,8 @@ export function PreviewTransfer({
         <div className="flex w-full flex-col gap-md">
             <Card type={CardType.Filled}>
                 <CardImage type={ImageType.BgSolid}>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
-                        <CoinIcon coinType={coinType} />
+                    <div className="h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8  text-neutral-10">
+                        <CoinIcon coinType={coinType} size={ImageIconSize.Full} rounded />
                     </div>
                 </CardImage>
                 <CardBody
