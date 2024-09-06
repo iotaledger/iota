@@ -38,26 +38,24 @@ function Search(): JSX.Element {
     }, [debouncedQuery]);
 
     return (
-        <div className="flex w-full text-body-md sm:w-8/12 lg:w-4/12">
-            <SearchBox
-                searchValue={query}
-                onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
-                onSuggestionClick={handleSelectResult}
-                placeholder="Search"
-                isLoading={isPending || debouncedQuery !== query}
-                suggestions={results}
-                renderSuggestion={(suggestion) => (
-                    <div className="flex cursor-pointer justify-between bg-neutral-98">
-                        <ListItem hideBottomBorder>
-                            <div className="overflow-hidden text-ellipsis">{suggestion.label}</div>
-                            <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
-                                {suggestion.type}
-                            </div>
-                        </ListItem>
-                    </div>
-                )}
-            />
-        </div>
+        <SearchBox
+            searchValue={query}
+            onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
+            onSuggestionClick={handleSelectResult}
+            placeholder="Search"
+            isLoading={isPending || debouncedQuery !== query}
+            suggestions={results}
+            renderSuggestion={(suggestion) => (
+                <div className="flex cursor-pointer justify-between bg-neutral-98">
+                    <ListItem hideBottomBorder>
+                        <div className="overflow-hidden text-ellipsis">{suggestion.label}</div>
+                        <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                            {suggestion.type}
+                        </div>
+                    </ListItem>
+                </div>
+            )}
+        />
     );
 }
 

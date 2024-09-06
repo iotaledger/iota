@@ -11,7 +11,7 @@ import { LinkWithQuery } from '~/components/ui';
 function Header(): JSX.Element {
     return (
         <header className="flex h-header justify-center overflow-visible bg-white">
-            <div className="2xl:p-0 flex h-full max-w-[1440px] flex-1 items-center gap-5 px-4 py-8 lg:px-6 xl:px-10">
+            <div className="container flex h-full flex-1 items-center justify-between gap-5">
                 <LinkWithQuery
                     data-testid="nav-logo-button"
                     to="/"
@@ -19,12 +19,10 @@ function Header(): JSX.Element {
                 >
                     <IotaLogoWeb width={137} height={36} />
                 </LinkWithQuery>
-                <div className="flex w-full gap-2">
-                    <div className="flex flex-1 justify-center">
-                        <Search />
-                    </div>
-                    <NetworkSelector />
+                <div className="flex w-[360-px] justify-center">
+                    <Search />
                 </div>
+                <NetworkSelector />
             </div>
         </header>
     );
