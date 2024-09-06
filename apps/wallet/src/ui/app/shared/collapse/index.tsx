@@ -6,35 +6,46 @@ import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '
 import { useState, type ReactNode } from 'react';
 
 interface CollapsibleProps {
-    title: string;
+    title?: string;
     defaultOpen?: boolean;
     children: ReactNode | ReactNode[];
     shade?: 'lighter' | 'darker';
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     titleSize?: TitleSize;
+    render?: ({ isOpen }: { isOpen: boolean }) => ReactNode;
+    hideArrow?: boolean;
+    hideBorder?: boolean;
 }
 
 export function Collapsible({
-    title,
+    title = '',
     children,
     defaultOpen,
     isOpen,
     onOpenChange,
     shade = 'lighter',
     titleSize = TitleSize.Small,
+    render,
+    hideArrow,
+    hideBorder,
 }: CollapsibleProps) {
     const [open, setOpen] = useState(isOpen ?? defaultOpen ?? false);
 
-    const handleOpenChange = (isOpen: boolean) => {
+    function handleOpenChange(isOpen: boolean) {
         setOpen(isOpen);
         onOpenChange?.(isOpen);
-    };
+    }
 
     return (
-        <Accordion>
-            <AccordionHeader isExpanded={isOpen ?? open} onToggle={() => handleOpenChange(!open)}>
-                <Title size={titleSize} title={title} />
+        <Accordion hideBorder={hideBorder}>
+            <AccordionHeader
+                hideBorder={hideBorder}
+                hideArrow={hideArrow}
+                isExpanded={isOpen ?? open}
+                onToggle={() => handleOpenChange(!open)}
+            >
+                {render ? render({ isOpen: open }) : <Title size={titleSize} title={title} />}
             </AccordionHeader>
             <AccordionContent isExpanded={isOpen ?? open}>{children}</AccordionContent>
         </Accordion>

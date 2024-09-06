@@ -6,6 +6,7 @@ pub mod checkpoints;
 pub mod display;
 pub mod epoch;
 pub mod events;
+pub(crate) mod large_objects;
 pub mod objects;
 pub mod packages;
 pub mod transactions;
