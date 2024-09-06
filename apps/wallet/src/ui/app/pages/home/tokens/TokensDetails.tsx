@@ -19,7 +19,6 @@ import {
     useBalance,
     useCoinMetadata,
     useGetDelegatedStake,
-    useResolveIotaNSName,
 } from '@iota/core';
 import {
     Button,
@@ -73,7 +72,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     const activeCoinType = coinType || IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
-    const { data: domainName } = useResolveIotaNSName(activeAccountAddress);
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const {
         data: coinBalance,
@@ -195,11 +193,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                             <Address
                                 isExternal={!!explorerHref}
                                 externalLink={explorerHref!}
-                                text={
-                                    activeAccount.nickname ??
-                                    domainName ??
-                                    formatAddress(activeAccountAddress)
-                                }
+                                text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
                                 onCopySuccess={() => toast.success('Address copied')}
