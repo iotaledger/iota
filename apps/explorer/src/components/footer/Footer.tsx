@@ -29,7 +29,7 @@ function FooterLinks(): JSX.Element {
 
 function Footer(): JSX.Element {
     return (
-        <footer className="sticky top-[100%] bg-gray-40 px-5 py-10 md:px-10 md:py-14">
+        <footer className="sticky top-[100%] bg-neutral-96 px-5 py-10 md:px-10 md:py-14">
             <nav className="container flex flex-col justify-center gap-4 divide-y divide-solid divide-gray-45 md:gap-7.5">
                 <div className="flex flex-col-reverse items-center gap-7.5 md:flex-row md:justify-between ">
                     <div className="hidden self-center text-hero-dark md:flex md:self-start">
