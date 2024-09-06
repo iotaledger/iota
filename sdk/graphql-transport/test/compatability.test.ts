@@ -687,6 +687,13 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
+    test.skip('getCheckpointAddressMetrics', async () => {
+        const rpc = await toolbox.client.getCheckpointAddressMetrics({ checkpoint: '3' });
+        const graphql = await graphQLClient!.getCheckpointAddressMetrics({ checkpoint: '3' });
+
+        expect(graphql).toEqual(rpc);
+    });
+
     test.skip('getEpochs', async () => {
         const rpc = await toolbox.client.getEpochs();
         const graphql = await graphQLClient!.getEpochs();
@@ -697,6 +704,13 @@ describe('GraphQL IotaClient compatibility', () => {
     test.skip('getCurrentEpoch', async () => {
         const rpc = await toolbox.client.getCurrentEpoch();
         const graphql = await graphQLClient!.getCurrentEpoch();
+
+        expect(graphql).toEqual(rpc);
+    });
+
+    test.skip('getTotalTransactions', async () => {
+        const rpc = await toolbox.client.getTotalTransactions();
+        const graphql = await graphQLClient!.getTotalTransactions();
 
         expect(graphql).toEqual(rpc);
     });

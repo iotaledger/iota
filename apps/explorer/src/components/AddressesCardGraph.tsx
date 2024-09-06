@@ -99,8 +99,8 @@ export function AddressesCardGraph(): JSX.Element {
                                             data={adjEpochAddressMetrics}
                                             height={height}
                                             width={width}
-                                            getX={({ epoch }) => epoch}
-                                            getY={(data) => data[GRAPH_DATA_FIELD]}
+                                            getX={({ epoch }) => Number(epoch) || 0}
+                                            getY={(data) => Number(data[GRAPH_DATA_FIELD]) || 0}
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}
                                         />
