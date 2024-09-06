@@ -126,7 +126,6 @@ export function TransactionBlocksForAddress({
                         rowCount={DEFAULT_TRANSACTIONS_LIMIT}
                         rowHeight="16px"
                         colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                        colWidths={['30%', '30%', '10%', '20%', '10%']}
                     />
                 ) : (
                     <div>

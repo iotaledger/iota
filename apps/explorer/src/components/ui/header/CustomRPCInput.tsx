@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import cx from 'clsx';
 import { z } from 'zod';
 import { useZodForm } from '@iota/core';
+import { Input, InputType } from '@iota/apps-ui-kit';
 
 const CustomRPCSchema = z.object({
     url: z.string().url(),
@@ -33,26 +33,20 @@ export function CustomRPCInput({ value, onChange }: CustomRPCInputProps): JSX.El
             })}
             className="relative flex items-center rounded-md"
         >
-            <input
+            <Input
                 {...register('url')}
-                type="text"
-                className={cx(
-                    'w-full rounded-md border p-xs outline-none',
-                    errors.url
-                        ? 'border-issue-dark text-issue-dark'
-                        : 'border-gray-65 text-gray-90',
-                )}
+                type={InputType.Text}
+                errorMessage={errors.url ? 'Invalid URL' : undefined}
+                trailingElement={
+                    <button
+                        disabled={!isDirty || !isValid}
+                        type="submit"
+                        className="flex items-center justify-center rounded-full bg-gray-90 px-2 py-1 text-captionSmall font-semibold uppercase text-white transition disabled:bg-gray-45 disabled:text-gray-65"
+                    >
+                        Save
+                    </button>
+                }
             />
-
-            <div className="absolute inset-y-0 right-0 flex flex-col justify-center px-xs">
-                <button
-                    disabled={!isDirty || !isValid}
-                    type="submit"
-                    className="flex items-center justify-center rounded-full bg-gray-90 px-2 py-1 text-captionSmall font-semibold uppercase text-white transition disabled:bg-gray-45 disabled:text-gray-65"
-                >
-                    Save
-                </button>
-            </div>
         </form>
     );
 }

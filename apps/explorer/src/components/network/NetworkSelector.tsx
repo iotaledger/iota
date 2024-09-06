@@ -11,7 +11,7 @@ import { CustomRPCInput } from '~/components/ui';
 import { ampli } from '~/lib/utils';
 import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { ArrowLeft, ArrowDown, CheckmarkFilled } from '@iota/ui-icons';
+import { ArrowDown, CheckmarkFilled } from '@iota/ui-icons';
 import { Transition } from '@headlessui/react';
 
 interface NetworkOption {
@@ -69,11 +69,11 @@ export function NetworkSelector(): JSX.Element {
                 size={ButtonSize.Small}
                 text={selectedNetwork?.label ?? 'Custom'}
                 icon={
-                    isDropdownOpen ? (
-                        <ArrowDown className="-mr-xs" />
-                    ) : (
-                        <ArrowLeft className="-mr-xs" />
-                    )
+                    <ArrowDown
+                        className={cx('-mr-xs transition-all duration-200 ease-in', {
+                            'rotate-180': isDropdownOpen,
+                        })}
+                    />
                 }
                 iconAfterText
                 onClick={() => {

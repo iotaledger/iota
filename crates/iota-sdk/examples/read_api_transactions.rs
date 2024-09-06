@@ -4,7 +4,7 @@
 //! This example uses the ReadApi to get transaction blocks as paginated
 //! response and stream.
 //!
-//! cargo run --example read_transactions
+//! cargo run --example read_api_transactions
 
 use futures::StreamExt;
 use iota_json_rpc_types::{IotaTransactionBlockResponseQuery, TransactionFilter};

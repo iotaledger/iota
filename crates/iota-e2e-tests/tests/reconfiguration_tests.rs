@@ -724,7 +724,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
             .fullnode_handle
             .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
-        assert_eq!(committee.num_members(), 7);
+        assert_eq!(committee.num_members(), 9);
         assert!(committee.authority_exists(&handle1.state().name));
         assert!(committee.authority_exists(&handle2.state().name));
         removed_validators
