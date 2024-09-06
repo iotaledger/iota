@@ -31,7 +31,7 @@ COPY narwhal narwhal
 COPY external-crates external-crates
 COPY docs docs
 
-RUN cargo --mount=type=ssh build --release \
+RUN --mount=type=ssh cargo build --release \
     --bin iota-source-validation-service
 
 # Production Image
