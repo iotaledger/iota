@@ -1,0 +1,14 @@
+---
+description: Introduction to capabilities and their use in authorizing actions within the Move language.
+---
+
+# Capabilities
+
+A capability is a design pattern that enables the authorization of specific actions with an object.
+For instance,
+the [`UpgradeCap`](../package-upgrades/upgrade.mdx#upgrade-requirements) is used to authorize the upgrading of packages.
+Another common example is the [`TreasuryCap`](../../../../references/framework/iota-framework/coin.mdx#resource-treasurycap),
+which grants the authority to manage treasury functions.
+
+```move file=<rootDir>/docs/examples/move/move-overview/patterns/capabilities.move
+```

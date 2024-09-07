@@ -146,7 +146,6 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                     rowCount={limit || NUMBER_OF_VALIDATORS}
                     rowHeight="13px"
                     colHeadings={['Name', 'Address', 'Stake']}
-                    colWidths={['220px', '220px', '220px']}
                 />
             )}
 

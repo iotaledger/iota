@@ -158,7 +158,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                 className={clsx('flex h-full overflow-hidden md:pl-10', !showPagination && 'pb-2')}
             >
                 <div className="relative flex h-full w-full flex-col gap-4">
-                    <div className="max-sm:pb-3 flex w-full flex-col items-start gap-3 border-b border-gray-45 sm:h-14 sm:min-h-14 sm:flex-row sm:items-center">
+                    <div className="flex w-full flex-col items-start gap-3 border-b border-gray-45 max-sm:pb-3 sm:h-14 sm:min-h-14 sm:flex-row sm:items-center">
                         <Heading color="steel-darker" variant="heading4/semibold">
                             Assets
                         </Heading>

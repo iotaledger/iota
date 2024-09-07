@@ -62,9 +62,18 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-node
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-node/Dockerfile
           platforms: linux/amd64
@@ -107,9 +116,18 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-indexer
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-indexer/Dockerfile
           platforms: linux/amd64
@@ -152,9 +170,18 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-tools
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-tools/Dockerfile
           platforms: linux/amd64
@@ -197,9 +224,18 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
 
+      # TODO: Remove when iota-sim is public https://github.com/iotaledger/iota/issues/2149
+      - name: Set up SSH
+        uses: MrSquaare/ssh-setup-action@v3
+        with:
+          host: github.com
+          private-key: ${{ secrets.SSH_PRIVATE_KEY_IOTA_CI }}
+          private-key-name: github-ppk
+
       - name: Build and push Docker image for iota-graphql-rpc
         uses: docker/build-push-action@v5
         with:
+          ssh: default
           context: .
           file: docker/iota-graphql-rpc/Dockerfile
           platforms: linux/amd64
