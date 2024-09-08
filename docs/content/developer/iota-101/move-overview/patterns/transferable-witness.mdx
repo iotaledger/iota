@@ -1,0 +1,55 @@
+---
+description: Learn about the transferable witness pattern in Move for advanced authorization scenarios.
+---
+# Transferable Witness
+
+The transferable witness pattern combines elements of both [capability](capabilities.mdx)
+and [witness](witness.mdx) patterns to provide flexible and controlled authorization mechanisms.
+While the traditional witness pattern restricts spawning to authorized users,
+there are cases where authorization needs to be delegated across different modules or delayed over time.
+In such scenarios, a storable and transferable witness offers an effective solution.
+
+## When to Use Transferable Witness
+
+This pattern is particularly useful in situations such as:
+
+### Cross-Module Authorization
+
+Allowing a type authorized by one module to be utilized securely in another module.
+
+### Deferred Authorization:
+
+Enabling authorization to occur after a certain condition is met or a specific time has passed.
+
+### Single-Use Access Control
+
+Providing a mechanism that ensures a witness can be used only once, enhancing security and preventing misuse.
+
+## Implementing Transferable Witness in Move
+
+The example below demonstrates how to implement a transferable witness using Move.
+It defines a `WITNESS` struct that can be stored and transferred within a `WitnessCarrier`.
+This carrier can be sent to authorized users, who can then extract the witness when needed.
+
+
+```move file=<rootDir>/docs/examples/move/move-overview/patterns/transferable-witness.move
+```
+
+- **`WITNESS` Struct:** Defined with `store` and `drop` abilities, allowing it to be stored persistently and cleaned up after use.
+
+- **`WitnessCarrier` Struct:** Acts as a container for the `WITNESS`, with a unique identifier (`id`). This carrier can be transferred between parties, providing controlled access to the witness.
+
+- **`init` Function:** Upon module initialization, a new `WitnessCarrier` is created and transferred to the module publisher. This setup ensures that only authorized entities receive the carrier.
+
+- **`get_witness` Function:** Allows extraction of the `WITNESS` from the carrier. This function consumes the `WitnessCarrier`, ensuring that the witness can only be retrieved once, thus maintaining single-use access control.
+
+## Advantages of Transferable Witness
+
+- **Flexibility:** Enables complex authorization flows across different modules and over time.
+- **Security:** Ensures that witnesses are used appropriately through single-use consumption and controlled transfer mechanisms.
+- **Modularity:** Supports clean separation of concerns by allowing authorization logic to be encapsulated and reused across various parts of the system.
+
+## Related Examples
+
+For more insights and practical implementations of advanced authorization patterns in Move, consider exploring the [Hero](https://github.com/iotaledger/iota/blob/main/examples/move/hero/sources/example.move) example.
+This example demonstrates how transferable witnesses and similar patterns can be applied to build secure and robust smart contracts on the IOTA platform.

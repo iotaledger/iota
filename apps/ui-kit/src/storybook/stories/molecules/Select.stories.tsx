@@ -33,19 +33,26 @@ export const Default: Story = {
         },
     },
     render: (args) => {
+        const [selected, setSelected] = useState('Option 1');
         const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
         const onChange = (id: string) => {
             if (id === 'Invalid Option') {
                 setErrorMessage('Invalid Option Selected');
             } else {
+                setSelected(id);
                 setErrorMessage(undefined);
             }
         };
 
         return (
             <div className="h-60">
-                <Select {...args} onValueChange={onChange} errorMessage={errorMessage} />
+                <Select
+                    {...args}
+                    value={selected}
+                    onValueChange={onChange}
+                    errorMessage={errorMessage}
+                />
             </div>
         );
     },
@@ -58,6 +65,8 @@ export const CustomOptions: Story = {
         options: [],
     },
     render: ({ options, ...args }) => {
+        const [selected, setSelected] = useState('iota');
+
         const customOptions: SelectOption[] = [
             {
                 id: 'iota',
@@ -81,7 +90,12 @@ export const CustomOptions: Story = {
 
         return (
             <div className="h-60">
-                <Select {...args} options={customOptions} />
+                <Select
+                    {...args}
+                    value={selected}
+                    onValueChange={setSelected}
+                    options={customOptions}
+                />
             </div>
         );
     },

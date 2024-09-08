@@ -308,6 +308,17 @@ Envelope:
       TYPENAME: SenderSignedData
   - auth_signature:
       TYPENAME: EmptySignInfo
+Event:
+  STRUCT:
+  - package_id:
+      TYPENAME: ObjectID
+  - transaction_module:
+      TYPENAME: Identifier
+  - sender:
+      TYPENAME: IotaAddress
+  - type_:
+      TYPENAME: StructTag
+  - contents: BYTES
 ExecutionData:
   STRUCT:
   - transaction:
@@ -479,6 +490,9 @@ GenesisTransaction:
   - objects:
       SEQ:
         TYPENAME: GenesisObject
+  - events:
+      SEQ:
+        TYPENAME: Event
 IDOperation:
   ENUM:
     0:

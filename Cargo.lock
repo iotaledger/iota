@@ -3428,14 +3428,14 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "docs-examples"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bcs",
  "bip32",
  "iota-keys",
  "iota-move-build",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "move-core-types",
  "serde_json",
  "shared-crypto",
@@ -5042,7 +5042,7 @@ checksum = "0d762194228a2f1c11063e46e32e5acb96e66e906382b9eb5441f2e0504bbd5a"
 
 [[package]]
 name = "iota"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anemo",
  "anyhow",
@@ -5076,7 +5076,7 @@ dependencies = [
  "iota-move-build",
  "iota-protocol-config",
  "iota-replay",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm",
@@ -5177,7 +5177,7 @@ dependencies = [
 
 [[package]]
 name = "iota-analytics-indexer"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -5229,7 +5229,7 @@ dependencies = [
 
 [[package]]
 name = "iota-analytics-indexer-derive"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5335,7 +5335,7 @@ dependencies = [
  "iota-metrics",
  "iota-network",
  "iota-protocol-config",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -5379,7 +5379,7 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -5676,7 +5676,7 @@ dependencies = [
  "iota-move-build",
  "iota-node",
  "iota-protocol-config",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -5744,7 +5744,7 @@ dependencies = [
 
 [[package]]
 name = "iota-faucet"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -5759,7 +5759,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-metrics",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-types",
  "parking_lot 0.12.3",
  "prometheus",
@@ -5937,7 +5937,7 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-swarm-config",
  "iota-types",
  "lru",
@@ -5995,7 +5995,7 @@ dependencies = [
 
 [[package]]
 name = "iota-indexer"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6009,6 +6009,8 @@ dependencies = [
  "diesel_migrations",
  "fastcrypto",
  "futures",
+ "iota-config",
+ "iota-genesis-builder",
  "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -6020,6 +6022,7 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-swarm-config",
  "iota-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
@@ -6028,6 +6031,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "prometheus",
+ "rand",
  "regex",
  "serde",
  "serde_json",
@@ -6150,7 +6154,7 @@ dependencies = [
  "iota-open-rpc",
  "iota-open-rpc-macros",
  "iota-protocol-config",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-simulator",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6227,7 +6231,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-package-resolver",
  "iota-rest-api",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-types",
  "move-binary-format",
  "move-core-types",
@@ -6289,7 +6293,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -6325,7 +6329,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move-build"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -6447,7 +6451,7 @@ dependencies = [
 
 [[package]]
 name = "iota-node"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -6495,7 +6499,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6601,7 +6605,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-protocol-config",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-storage",
  "iota-types",
  "jsonrpsee",
@@ -6667,7 +6671,7 @@ dependencies = [
  "iota-metrics",
  "iota-move-build",
  "iota-node",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
@@ -6690,7 +6694,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rpc-loadgen"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6700,7 +6704,7 @@ dependencies = [
  "futures",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -6715,7 +6719,7 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -6732,6 +6736,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-move-build",
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -6875,7 +6880,7 @@ dependencies = [
 
 [[package]]
 name = "iota-source-validation"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "colored",
@@ -6884,7 +6889,7 @@ dependencies = [
  "futures",
  "iota-json-rpc-types",
  "iota-move-build",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-test-transaction-builder",
  "iota-types",
  "move-binary-format",
@@ -6921,7 +6926,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-source-validation",
  "jsonrpsee",
  "move-compiler",
@@ -7002,7 +7007,7 @@ dependencies = [
 
 [[package]]
 name = "iota-surfer"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bcs",
@@ -7087,7 +7092,7 @@ dependencies = [
  "bcs",
  "iota-genesis-builder",
  "iota-move-build",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-types",
  "move-core-types",
  "shared-crypto",
@@ -7112,7 +7117,7 @@ dependencies = [
 
 [[package]]
 name = "iota-tool"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anemo",
  "anemo-cli",
@@ -7136,7 +7141,7 @@ dependencies = [
  "iota-network",
  "iota-protocol-config",
  "iota-replay",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-snapshot",
  "iota-storage",
  "iota-types",
@@ -13178,7 +13183,7 @@ dependencies = [
  "iota-macros",
  "iota-node",
  "iota-protocol-config",
- "iota-sdk 0.1.6",
+ "iota-sdk 0.2.0",
  "iota-simulator",
  "iota-swarm",
  "iota-swarm-config",

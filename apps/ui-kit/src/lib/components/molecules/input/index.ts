@@ -4,4 +4,5 @@
 export * from './Input';
 export * from './TextArea';
 
+export * from './input.types';
 export * from './input.enums';

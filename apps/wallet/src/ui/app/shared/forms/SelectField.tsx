@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
-import { Select } from '@iota/apps-ui-kit';
+import { Select, type SelectOption } from '@iota/apps-ui-kit';
 
 interface SelectFieldProps {
     name: string;
-    options: string[] | { id: string; label: ReactNode }[];
+    options: SelectOption[];
     disabled?: boolean;
 }
 
@@ -19,15 +19,17 @@ export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(
             <Controller
                 control={control}
                 name={name}
-                render={({ field }) => (
-                    <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        {...props}
-                        ref={forwardedRef}
-                        options={options}
-                    />
-                )}
+                render={({ field }) => {
+                    return (
+                        <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            {...props}
+                            ref={forwardedRef}
+                            options={options}
+                        />
+                    );
+                }}
             />
         );
     },

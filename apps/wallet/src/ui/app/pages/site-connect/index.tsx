@@ -4,11 +4,10 @@
 
 import {
     AccountItemApproveConnection,
-    Loading,
-    UserApproveContainer,
     AccountMultiSelectWithControls,
-    Alert,
+    Loading,
     SectionHeader,
+    UserApproveContainer,
 } from '_components';
 import { useAppDispatch, useAppSelector } from '_hooks';
 import type { RootState } from '_redux/RootReducer';
@@ -21,7 +20,7 @@ import { useAccountGroups } from '../../hooks/useAccountGroups';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning, Info } from '@iota/ui-icons';
 
 function SiteConnectPage() {
     const { requestID } = useParams();
@@ -99,6 +98,7 @@ function SiteConnectPage() {
                     <UserApproveContainer
                         origin={permissionRequest.origin}
                         originFavIcon={permissionRequest.favIcon}
+                        headerTitle="Insecure Website"
                         approveTitle="Continue"
                         rejectTitle="Reject"
                         onSubmit={handleHideWarning}
@@ -129,6 +129,7 @@ function SiteConnectPage() {
                     </UserApproveContainer>
                 ) : (
                     <UserApproveContainer
+                        headerTitle="Approve Connection"
                         origin={permissionRequest.origin}
                         originFavIcon={permissionRequest.favIcon}
                         permissions={permissionRequest.permissions}
@@ -138,8 +139,7 @@ function SiteConnectPage() {
                         approveDisabled={!accountsToConnect.length}
                         blended
                     >
-                        <PageMainLayoutTitle title="Approve Connection" />
-                        <div className="flex flex-col gap-8 py-6">
+                        <div className="flex flex-col gap-md">
                             {unlockedAccounts.length > 0 ? (
                                 <AccountMultiSelectWithControls
                                     selectedAccountIDs={accountsToConnect.map(
@@ -153,9 +153,12 @@ function SiteConnectPage() {
                                     }}
                                 />
                             ) : (
-                                <Alert mode="warning">
-                                    All accounts are currently locked. Unlock accounts to connect.
-                                </Alert>
+                                <InfoBox
+                                    icon={<Info />}
+                                    style={InfoBoxStyle.Elevated}
+                                    type={InfoBoxType.Default}
+                                    title="All accounts are currently locked. Unlock accounts to connect."
+                                />
                             )}
                             {lockedAccounts?.length > 0 && (
                                 <div className="flex flex-col gap-3">
@@ -163,9 +166,7 @@ function SiteConnectPage() {
                                     {lockedAccounts?.map((account) => (
                                         <AccountItemApproveConnection
                                             key={account.id}
-                                            showLock
                                             account={account}
-                                            disabled={account.isLocked}
                                         />
                                     ))}
                                 </div>

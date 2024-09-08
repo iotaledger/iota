@@ -70,7 +70,6 @@ export function TransactionsActivityTable({
                         rowCount={limit}
                         rowHeight="16px"
                         colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                        colWidths={['30%', '30%', '10%', '20%', '10%']}
                     />
                 ) : (
                     <div>

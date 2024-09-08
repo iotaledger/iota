@@ -15,6 +15,21 @@ configuration.
 
 ## Start the services
 
+In current images when cargo is compiling it relies on `iota-sim` which is a private repository, it can be cloned only through ssh.
+As a temporary workaround [until this issue will be closed](https://github.com/iotaledger/iota/issues/2149), before starting services
+we need to build them first, even though `docker compose up -d` does automatically build the images in this case it will fail because an explicit ssh mount is needed.
+
+Before proceeding make sure to follow these steps [here](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent)
+
+> [!NOTE]
+> If you're on MacOS and using Docker Desktop make sure to choose file sharing implementation for your containers from `VirtioFS` to `gRPC FUSE`
+> as dedcribed in this [issue](https://github.com/docker/for-mac/issues/7204#issuecomment-1969109233)
+
+```
+$ docker compose build --ssh default
+$ docker compose up -d
+```
+
 ### `iota-indexer` rpc worker
 
 ```

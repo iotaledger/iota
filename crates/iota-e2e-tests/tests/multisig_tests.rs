@@ -22,6 +22,7 @@ use iota_types::{
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
+
 async fn do_upgraded_multisig_test() -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;
     let tx = make_upgraded_multisig_tx();
@@ -179,6 +180,7 @@ async fn test_multisig_e2e() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_multisig_with_zklogin_scenerios() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
@@ -669,6 +671,7 @@ async fn test_multisig_with_zklogin_scenerios() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_expired_epoch_zklogin_in_multisig() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
@@ -688,6 +691,7 @@ async fn test_expired_epoch_zklogin_in_multisig() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_random_zklogin_in_multisig() {
     let test_vectors = &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")
         .unwrap()[1..11];
@@ -734,6 +738,7 @@ async fn test_random_zklogin_in_multisig() {
     let tx = Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig]);
     let _ = context.execute_transaction_must_succeed(tx).await;
 }
+
 #[sim_test]
 async fn test_multisig_legacy_works() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -771,6 +776,7 @@ async fn test_multisig_legacy_works() {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 async fn test_zklogin_inside_multisig_feature_deny() {
     use iota_protocol_config::ProtocolConfig;
 
