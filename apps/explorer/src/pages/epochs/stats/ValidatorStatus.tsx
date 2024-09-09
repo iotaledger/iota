@@ -27,7 +27,7 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const chartData = [
         {
-            value: 107,
+            value: data.activeValidators.length,
             label: 'Active',
             gradient: {
                 deg: 315,
@@ -38,12 +38,12 @@ export function ValidatorStatus(): JSX.Element | null {
             },
         },
         {
-            value: 12,
+            value: Number(data.pendingActiveValidatorsSize ?? 0),
             label: 'New',
             color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
         },
         {
-            value: 7,
+            value: data.atRiskValidators.length,
             label: 'At Risk',
             color: IOTA_PRIMITIVES_COLOR_PALETTE.neutral[90],
         },
