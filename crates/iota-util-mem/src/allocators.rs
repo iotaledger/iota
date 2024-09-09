@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2020 Parity Technologies
@@ -9,13 +10,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#[cfg(feature = "std")]
-use crate::malloc_size::MallocUnconditionalSizeOf;
-use crate::malloc_size::{MallocSizeOf, MallocSizeOfOps, VoidPtrToSizeFn};
 #[cfg(not(feature = "std"))]
 use core::ffi::c_void;
 #[cfg(feature = "std")]
 use std::os::raw::c_void;
+
+#[cfg(feature = "std")]
+use crate::malloc_size::MallocUnconditionalSizeOf;
+use crate::malloc_size::{MallocSizeOf, MallocSizeOfOps, VoidPtrToSizeFn};
 
 mod usable_size {
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{MallocShallowSizeOf, MallocSizeOf};
@@ -39,7 +40,7 @@ where
         self.complaints.size_of(ops)
     }
 }
-impl<G, EG> MallocSizeOf for fastcrypto_tbls::dkg::Message<G, EG>
+impl<G, EG> MallocSizeOf for fastcrypto_tbls::dkg_v0::Message<G, EG>
 where
     G: fastcrypto::groups::GroupElement,
     EG: fastcrypto::groups::GroupElement,
@@ -48,7 +49,16 @@ where
         self.encrypted_shares.size_of(ops)
     }
 }
-impl<G> MallocSizeOf for fastcrypto_tbls::ecies::Encryption<G>
+impl<G, EG> MallocSizeOf for fastcrypto_tbls::dkg_v1::Message<G, EG>
+where
+    G: fastcrypto::groups::GroupElement,
+    EG: fastcrypto::groups::GroupElement,
+{
+    fn size_of(&self, ops: &mut crate::MallocSizeOfOps) -> usize {
+        self.encrypted_shares.size_of(ops)
+    }
+}
+impl<G> MallocSizeOf for fastcrypto_tbls::ecies_v0::Encryption<G>
 where
     G: fastcrypto::groups::GroupElement,
 {
@@ -57,7 +67,16 @@ where
         0
     }
 }
-impl<G> MallocSizeOf for fastcrypto_tbls::ecies::MultiRecipientEncryption<G>
+impl<G> MallocSizeOf for fastcrypto_tbls::ecies_v0::MultiRecipientEncryption<G>
+where
+    G: fastcrypto::groups::GroupElement,
+{
+    fn size_of(&self, _ops: &mut crate::MallocSizeOfOps) -> usize {
+        // Can't measure size of internal Vec<Vec<u8>> here because it's private.
+        0
+    }
+}
+impl<G> MallocSizeOf for fastcrypto_tbls::ecies_v1::MultiRecipientEncryption<G>
 where
     G: fastcrypto::groups::GroupElement,
 {
@@ -87,8 +106,8 @@ impl<K: MallocSizeOf, V: MallocSizeOf, S> MallocShallowSizeOf for indexmap::Inde
     }
 }
 impl<K: MallocSizeOf, V: MallocSizeOf, S> MallocSizeOf for indexmap::IndexMap<K, V, S> {
-    // This only produces a rough estimate of IndexMap size, because we cannot access private
-    // fields to measure them precisely.
+    // This only produces a rough estimate of IndexMap size, because we cannot
+    // access private fields to measure them precisely.
     fn size_of(&self, ops: &mut crate::MallocSizeOfOps) -> usize {
         let mut n = self.shallow_size_of(ops);
         if let (Some(k), Some(v)) = (K::constant_size(), V::constant_size()) {
@@ -104,8 +123,8 @@ impl<K: MallocSizeOf, V: MallocSizeOf, S> MallocSizeOf for indexmap::IndexMap<K,
 
 // roaring
 impl MallocSizeOf for roaring::RoaringBitmap {
-    // This only produces a rough estimate of RoaringBitmap size, because we cannot access private
-    // fields to measure them precisely.
+    // This only produces a rough estimate of RoaringBitmap size, because we cannot
+    // access private fields to measure them precisely.
     fn size_of(&self, _ops: &mut crate::MallocSizeOfOps) -> usize {
         self.serialized_size()
     }

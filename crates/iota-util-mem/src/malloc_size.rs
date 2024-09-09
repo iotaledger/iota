@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2016-2017 The Servo Project Developers. See the COPYRIGHT
@@ -24,30 +25,28 @@
 //!   are different to the ones for non-graph structures.
 //!
 //! Suggested uses are as follows.
-//! - When possible, use the `MallocSizeOf` trait. (Deriving support is
-//!   provided by the `malloc_size_of_derive` crate.)
+//! - When possible, use the `MallocSizeOf` trait. (Deriving support is provided
+//!   by the `malloc_size_of_derive` crate.)
 //! - If you need an additional synchronization argument, provide a function
 //!   that is like the standard trait method, but with the extra argument.
 //! - If you need multiple measurements for a type, provide a function named
-//!   `add_size_of` that takes a mutable reference to a struct that contains
-//!   the multiple measurement fields.
+//!   `add_size_of` that takes a mutable reference to a struct that contains the
+//!   multiple measurement fields.
 //! - When deep measurement (via `MallocSizeOf`) cannot be implemented for a
 //!   type, shallow measurement (via `MallocShallowSizeOf`) in combination with
 //!   iteration can be a useful substitute.
 //! - `Rc` and `Arc` are always tricky, which is why `MallocSizeOf` is not (and
 //!   should not be) implemented for them.
-//! - If an `Rc` or `Arc` is known to be a "primary" reference and can always
-//!   be measured, it should be measured via the `MallocUnconditionalSizeOf`
-//!   trait.
-//! - If an `Rc` or `Arc` should be measured only if it hasn't been seen
-//!   before, it should be measured via the `MallocConditionalSizeOf` trait.
+//! - If an `Rc` or `Arc` is known to be a "primary" reference and can always be
+//!   measured, it should be measured via the `MallocUnconditionalSizeOf` trait.
 //! - Using universal function call syntax is a good idea when measuring boxed
 //!   fields in structs, because it makes it clear that the Box is being
-//!   measured as well as the thing it points to. E.g.
-//!   `<Box<_> as MallocSizeOf>::size_of(field, ops)`.
+//!   measured as well as the thing it points to. E.g. `<Box<_> as
+//!   MallocSizeOf>::size_of(field, ops)`.
 
 //! This is an extended version of the Servo internal malloc_size crate.
-//! We should occasionally track the upstream changes/fixes and reintroduce them here, whenever applicable.
+//! We should occasionally track the upstream changes/fixes and reintroduce them
+//! here, whenever applicable.
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -60,17 +59,22 @@ mod rstd {
     pub use core::*;
     pub mod collections {
         pub use alloc::collections::*;
+
         pub use vec_deque::VecDeque;
     }
 }
-
-#[cfg(feature = "std")]
-use std::sync::Arc;
 
 #[cfg(not(feature = "std"))]
 pub use alloc::boxed::Box;
 #[cfg(not(feature = "std"))]
 use core::ffi::c_void;
+#[cfg(feature = "std")]
+use std::hash::BuildHasher;
+#[cfg(feature = "std")]
+use std::os::raw::c_void;
+#[cfg(feature = "std")]
+use std::sync::Arc;
+
 #[cfg(feature = "std")]
 use rstd::hash::Hash;
 use rstd::{
@@ -78,10 +82,6 @@ use rstd::{
     mem::size_of,
     ops::{Deref, DerefMut, Range},
 };
-#[cfg(feature = "std")]
-use std::hash::BuildHasher;
-#[cfg(feature = "std")]
-use std::os::raw::c_void;
 
 /// A C function that takes a pointer to a heap allocation and returns its size.
 pub type VoidPtrToSizeFn = unsafe extern "C" fn(ptr: *const c_void) -> usize;
@@ -169,7 +169,8 @@ impl MallocSizeOfOps {
 pub trait MallocSizeOf {
     /// Measure the heap usage of all descendant heap-allocated structures, but
     /// not the space taken up by the value itself.
-    /// If `T::size_of` is a constant, consider implementing `constant_size` as well.
+    /// If `T::size_of` is a constant, consider implementing `constant_size` as
+    /// well.
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize;
 
     /// Used to optimize `MallocSizeOf` implementation for collections
@@ -205,22 +206,6 @@ pub trait MallocUnconditionalSizeOf {
 pub trait MallocUnconditionalShallowSizeOf {
     /// `unconditional_size_of` combined with `shallow_size_of`.
     fn unconditional_shallow_size_of(&self, ops: &mut MallocSizeOfOps) -> usize;
-}
-
-/// Like `MallocSizeOf`, but only measures if the value hasn't already been
-/// measured. For use with types like `Rc` and `Arc` when appropriate (e.g.
-/// when there is no "primary" reference).
-pub trait MallocConditionalSizeOf {
-    /// Measure the heap usage of all heap-allocated descendant structures, but
-    /// not the space taken up by the value itself, and only if that heap usage
-    /// hasn't already been measured.
-    fn conditional_size_of(&self, ops: &mut MallocSizeOfOps) -> usize;
-}
-
-/// `MallocConditionalSizeOf` combined with `MallocShallowSizeOf`.
-pub trait MallocConditionalShallowSizeOf {
-    /// `conditional_size_of` combined with `shallow_size_of`.
-    fn conditional_shallow_size_of(&self, ops: &mut MallocSizeOfOps) -> usize;
 }
 
 impl<'a, T: ?Sized> MallocSizeOf for &'a T {
@@ -511,45 +496,19 @@ where
 // impl<T> !MallocShallowSizeOf for Arc<T> { }
 
 #[cfg(feature = "std")]
-fn arc_ptr<T>(s: &Arc<T>) -> *const T {
-    &(**s) as *const T
-}
-
-#[cfg(feature = "std")]
 impl<T: MallocSizeOf> MallocUnconditionalSizeOf for Arc<T> {
     fn unconditional_size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
         self.unconditional_shallow_size_of(ops) + (**self).size_of(ops)
     }
 }
 
-#[cfg(feature = "std")]
-impl<T> MallocConditionalShallowSizeOf for Arc<T> {
-    fn conditional_shallow_size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        if ops.have_seen_ptr(arc_ptr(self)) {
-            0
-        } else {
-            self.unconditional_shallow_size_of(ops)
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl<T: MallocSizeOf> MallocConditionalSizeOf for Arc<T> {
-    fn conditional_size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        if ops.have_seen_ptr(arc_ptr(self)) {
-            0
-        } else {
-            self.unconditional_size_of(ops)
-        }
-    }
-}
-
-/// If a mutex is stored directly as a member of a data type that is being measured,
-/// it is the unique owner of its contents and deserves to be measured.
+/// If a mutex is stored directly as a member of a data type that is being
+/// measured, it is the unique owner of its contents and deserves to be
+/// measured.
 ///
-/// If a mutex is stored inside of an Arc value as a member of a data type that is being measured,
-/// the Arc will not be automatically measured so there is no risk of overcounting the mutex's
-/// contents.
+/// If a mutex is stored inside of an Arc value as a member of a data type that
+/// is being measured, the Arc will not be automatically measured so there is no
+/// risk of overcounting the mutex's contents.
 ///
 /// The same reasoning applies to RwLock.
 #[cfg(feature = "std")]
@@ -594,7 +553,7 @@ impl<T: MallocSizeOf> MallocSizeOf for parking_lot::RwLock<T> {
 /// in front of type list.
 ///
 /// ```rust
-/// use mysten_util_mem::{malloc_size, malloc_size_of_is_0};
+/// use iota_util_mem::{malloc_size, malloc_size_of_is_0};
 ///
 /// struct Data<P> {
 /// 	phantom: std::marker::PhantomData<P>,
@@ -609,7 +568,7 @@ impl<T: MallocSizeOf> MallocSizeOf for parking_lot::RwLock<T> {
 /// and when no "any: "
 ///
 /// ```rust
-/// use mysten_util_mem::{malloc_size, malloc_size_of_is_0};
+/// use iota_util_mem::{malloc_size, malloc_size_of_is_0};
 ///
 /// struct Data<T>(pub T);
 ///
@@ -672,8 +631,8 @@ malloc_size_of_is_0!(Range<i8>, Range<i16>, Range<i32>, Range<i64>, Range<isize>
 malloc_size_of_is_0!(Range<f32>, Range<f64>);
 malloc_size_of_is_0!(any: PhantomData<T>);
 
-/// Measurable that defers to inner value and used to verify MallocSizeOf implementation in a
-/// struct.
+/// Measurable that defers to inner value and used to verify MallocSizeOf
+/// implementation in a struct.
 #[derive(Clone)]
 pub struct Measurable<T: MallocSizeOf>(pub T);
 
@@ -713,26 +672,6 @@ where
 {
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
         let mut n = self.shallow_size_of(ops);
-        if let (Some(k), Some(v)) = (K::constant_size(), V::constant_size()) {
-            n += self.len() * (k + v)
-        } else {
-            n = self
-                .iter()
-                .fold(n, |acc, (k, v)| acc + k.size_of(ops) + v.size_of(ops))
-        }
-        n
-    }
-}
-
-#[cfg(feature = "lru")]
-impl<K, V, S> MallocSizeOf for lru::LruCache<K, V, S>
-where
-    K: MallocSizeOf + rstd::cmp::Eq + rstd::hash::Hash,
-    V: MallocSizeOf,
-    S: rstd::hash::BuildHasher,
-{
-    fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        let mut n = 0;
         if let (Some(k), Some(v)) = (K::constant_size(), V::constant_size()) {
             n += self.len() * (k + v)
         } else {
@@ -785,9 +724,11 @@ malloc_size_of_is_0!(std::time::Duration);
 
 #[cfg(all(test, feature = "std"))] // tests are using std implementations
 mod tests {
-    use crate::{allocators::new_malloc_size_ops, MallocSizeOf, MallocSizeOfOps};
-    use smallvec::SmallVec;
     use std::{collections::BTreeSet, mem};
+
+    use smallvec::SmallVec;
+
+    use crate::{allocators::new_malloc_size_ops, MallocSizeOf, MallocSizeOfOps};
     impl_smallvec!(3);
 
     #[test]
