@@ -1,19 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::cluster::{new_wallet_context_from_cluster, Cluster};
+use std::{collections::HashMap, env, sync::Arc};
+
 use async_trait::async_trait;
 use fastcrypto::encoding::{Encoding, Hex};
-use std::collections::HashMap;
-use std::env;
-use std::sync::Arc;
-use sui_faucet::{
+use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetResponse,
     SimpleFaucet,
 };
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::KeypairTraits;
+use iota_types::{base_types::IotaAddress, crypto::KeypairTraits};
 use tracing::{debug, info, info_span, Instrument};
 use uuid::Uuid;
+
+use super::cluster::{new_wallet_context_from_cluster, Cluster};
 
 pub struct FaucetClientFactory;
 
@@ -52,8 +52,8 @@ impl FaucetClientFactory {
 /// Faucet Client abstraction
 #[async_trait]
 pub trait FaucetClient {
-    async fn request_sui_coins(&self, request_address: SuiAddress) -> FaucetResponse;
-    async fn batch_request_sui_coins(&self, request_address: SuiAddress) -> BatchFaucetResponse;
+    async fn request_iota_coins(&self, request_address: IotaAddress) -> FaucetResponse;
+    async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse;
     async fn get_batch_send_status(&self, task_id: Uuid) -> BatchStatusFaucetResponse;
 }
 
@@ -71,9 +71,9 @@ impl RemoteFaucetClient {
 
 #[async_trait]
 impl FaucetClient for RemoteFaucetClient {
-    /// Request test SUI coins from faucet.
+    /// Request test IOTA coins from faucet.
     /// It also verifies the effects are observed by fullnode.
-    async fn request_sui_coins(&self, request_address: SuiAddress) -> FaucetResponse {
+    async fn request_iota_coins(&self, request_address: IotaAddress) -> FaucetResponse {
         let gas_url = format!("{}/gas", self.remote_url);
         debug!("Getting coin from remote faucet {}", gas_url);
         let data = HashMap::from([("recipient", Hex::encode(request_address))]);
@@ -102,7 +102,7 @@ impl FaucetClient for RemoteFaucetClient {
 
         faucet_response
     }
-    async fn batch_request_sui_coins(&self, request_address: SuiAddress) -> BatchFaucetResponse {
+    async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse {
         let gas_url = format!("{}/v1/gas", self.remote_url);
         debug!("Getting coin from remote faucet {}", gas_url);
         let data = HashMap::from([("recipient", Hex::encode(request_address))]);
@@ -174,7 +174,7 @@ impl LocalFaucetClient {
 }
 #[async_trait]
 impl FaucetClient for LocalFaucetClient {
-    async fn request_sui_coins(&self, request_address: SuiAddress) -> FaucetResponse {
+    async fn request_iota_coins(&self, request_address: IotaAddress) -> FaucetResponse {
         let receipt = self
             .simple_faucet
             .send(Uuid::new_v4(), request_address, &[200_000_000_000; 5])
@@ -183,7 +183,7 @@ impl FaucetClient for LocalFaucetClient {
 
         receipt.into()
     }
-    async fn batch_request_sui_coins(&self, request_address: SuiAddress) -> BatchFaucetResponse {
+    async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse {
         let receipt = self
             .simple_faucet
             .batch_send(Uuid::new_v4(), request_address, &[200_000_000_000; 5])

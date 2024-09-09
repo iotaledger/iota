@@ -1,28 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::bail;
+use iota_json_rpc_types::{BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions};
+use iota_sdk::IotaClient;
+use iota_types::{
+    base_types::ObjectID, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
+    parse_iota_type_tag,
+};
 use move_core_types::language_storage::TypeTag;
-use sui_json_rpc_types::{BalanceChange, SuiData, SuiObjectData, SuiObjectDataOptions};
-use sui_sdk::SuiClient;
-use sui_types::error::SuiObjectResponseError;
-use sui_types::gas_coin::GasCoin;
-use sui_types::{base_types::ObjectID, object::Owner, parse_sui_type_tag};
 use tracing::{debug, trace};
 
-/// A util struct that helps verify Sui Object.
+/// A util struct that helps verify Iota Object.
 /// Use builder style to construct the conditions.
 /// When optionals fields are not set, related checks are omitted.
 /// Consuming functions such as `check` perform the check and panics if
 /// verification results are unexpected. `check_into_object` and
-/// `check_into_gas_coin` expect to get a `SuiObjectData` and `GasCoin`
+/// `check_into_gas_coin` expect to get a `IotaObjectData` and `GasCoin`
 /// respectfully.
 #[derive(Debug)]
 pub struct ObjectChecker {
     object_id: ObjectID,
     owner: Option<Owner>,
     is_deleted: bool,
-    is_sui_coin: Option<bool>,
+    is_iota_coin: Option<bool>,
 }
 
 impl ObjectChecker {
@@ -31,7 +33,7 @@ impl ObjectChecker {
             object_id,
             owner: None,
             is_deleted: false, // default to exist
-            is_sui_coin: None,
+            is_iota_coin: None,
         }
     }
 
@@ -45,27 +47,27 @@ impl ObjectChecker {
         self
     }
 
-    pub fn is_sui_coin(mut self, is_sui_coin: bool) -> Self {
-        self.is_sui_coin = Some(is_sui_coin);
+    pub fn is_iota_coin(mut self, is_iota_coin: bool) -> Self {
+        self.is_iota_coin = Some(is_iota_coin);
         self
     }
 
-    pub async fn check_into_gas_coin(self, client: &SuiClient) -> GasCoin {
-        if self.is_sui_coin == Some(false) {
-            panic!("'check_into_gas_coin' shouldn't be called with 'is_sui_coin' set as false");
+    pub async fn check_into_gas_coin(self, client: &IotaClient) -> GasCoin {
+        if self.is_iota_coin == Some(false) {
+            panic!("'check_into_gas_coin' shouldn't be called with 'is_iota_coin' set as false");
         }
-        self.is_sui_coin(true)
+        self.is_iota_coin(true)
             .check(client)
             .await
             .unwrap()
             .into_gas_coin()
     }
 
-    pub async fn check_into_object(self, client: &SuiClient) -> SuiObjectData {
+    pub async fn check_into_object(self, client: &IotaClient) -> IotaObjectData {
         self.check(client).await.unwrap().into_object()
     }
 
-    pub async fn check(self, client: &SuiClient) -> Result<CheckerResultObject, anyhow::Error> {
+    pub async fn check(self, client: &IotaClient) -> Result<CheckerResultObject, anyhow::Error> {
         debug!(?self);
 
         let object_id = self.object_id;
@@ -73,7 +75,7 @@ impl ObjectChecker {
             .read_api()
             .get_object_with_options(
                 object_id,
-                SuiObjectDataOptions::new()
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_bcs(),
@@ -84,7 +86,7 @@ impl ObjectChecker {
         trace!("getting object {object_id}, info :: {object_info:?}");
 
         match (object_info.data, object_info.error) {
-            (None, Some(SuiObjectResponseError::NotExists { object_id })) => {
+            (None, Some(IotaObjectResponseError::NotExists { object_id })) => {
                 panic!(
                     "Node can't find gas object {} with client {:?}",
                     object_id,
@@ -93,7 +95,7 @@ impl ObjectChecker {
             }
             (
                 None,
-                Some(SuiObjectResponseError::DynamicFieldNotFound {
+                Some(IotaObjectResponseError::DynamicFieldNotFound {
                     parent_object_id: object_id,
                 }),
             ) => {
@@ -105,7 +107,7 @@ impl ObjectChecker {
             }
             (
                 None,
-                Some(SuiObjectResponseError::Deleted {
+                Some(IotaObjectResponseError::Deleted {
                     object_id,
                     version: _,
                     digest: _,
@@ -130,7 +132,7 @@ impl ObjectChecker {
                         object_id, owner, object_owner
                     );
                 }
-                if self.is_sui_coin == Some(true) {
+                if self.is_iota_coin == Some(true) {
                     let move_obj = object
                         .bcs
                         .as_ref()
@@ -143,10 +145,10 @@ impl ObjectChecker {
                 }
                 Ok(CheckerResultObject::new(None, Some(object)))
             }
-            (None, Some(SuiObjectResponseError::DisplayError { error })) => {
+            (None, Some(IotaObjectResponseError::DisplayError { error })) => {
                 panic!("Display Error: {error:?}");
             }
-            (None, None) | (None, Some(SuiObjectResponseError::Unknown)) => {
+            (None, None) | (None, Some(IotaObjectResponseError::Unknown)) => {
                 panic!("Unexpected response: object not found and no specific error provided");
             }
         }
@@ -155,17 +157,17 @@ impl ObjectChecker {
 
 pub struct CheckerResultObject {
     gas_coin: Option<GasCoin>,
-    object: Option<SuiObjectData>,
+    object: Option<IotaObjectData>,
 }
 
 impl CheckerResultObject {
-    pub fn new(gas_coin: Option<GasCoin>, object: Option<SuiObjectData>) -> Self {
+    pub fn new(gas_coin: Option<GasCoin>, object: Option<IotaObjectData>) -> Self {
         Self { gas_coin, object }
     }
     pub fn into_gas_coin(self) -> GasCoin {
         self.gas_coin.unwrap()
     }
-    pub fn into_object(self) -> SuiObjectData {
+    pub fn into_object(self) -> IotaObjectData {
         self.object.unwrap()
     }
 }
@@ -201,7 +203,7 @@ impl BalanceChangeChecker {
         self
     }
     pub fn coin_type(mut self, coin_type: &str) -> Self {
-        self.coin_type = Some(parse_sui_type_tag(coin_type).unwrap());
+        self.coin_type = Some(parse_iota_type_tag(coin_type).unwrap());
         self
     }
 

@@ -1,14 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 use async_trait::async_trait;
+use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    iota_serde::BigInt,
+    object::Owner,
+};
 use jsonrpsee::rpc_params;
-use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::object::Owner;
-use sui_types::sui_serde::BigInt;
 use tracing::{debug, info};
+
+use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 
 pub struct CoinMergeSplitTest;
 
@@ -19,17 +23,17 @@ impl TestCaseImpl for CoinMergeSplitTest {
     }
 
     fn description(&self) -> &'static str {
-        "Test merge and split SUI coins"
+        "Test merge and split IOTA coins"
     }
 
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
-        let mut sui_objs = ctx.get_sui_from_faucet(Some(1)).await;
-        let gas_obj = sui_objs.swap_remove(0);
+        let mut iota_objs = ctx.get_iota_from_faucet(Some(1)).await;
+        let gas_obj = iota_objs.swap_remove(0);
 
         let signer = ctx.get_wallet_address();
-        let mut sui_objs_2 = ctx.get_sui_from_faucet(Some(1)).await;
+        let mut iota_objs_2 = ctx.get_iota_from_faucet(Some(1)).await;
 
-        let primary_coin = sui_objs_2.swap_remove(0);
+        let primary_coin = iota_objs_2.swap_remove(0);
         let primary_coin_id = *primary_coin.id();
         let original_value = primary_coin.value();
 
@@ -61,7 +65,8 @@ impl TestCaseImpl for CoinMergeSplitTest {
         info!("Testing coin merge.");
         let mut coins_merged = Vec::new();
         let mut txes = Vec::new();
-        // We on purpose linearize the merge operations, otherwise the primary coin may be locked
+        // We on purpose linearize the merge operations, otherwise the primary coin may
+        // be locked
         for new_coin in new_coins {
             let coin_to_merge = new_coin.reference.object_id;
             debug!(
@@ -116,11 +121,11 @@ impl TestCaseImpl for CoinMergeSplitTest {
 impl CoinMergeSplitTest {
     async fn merge_coin(
         ctx: &TestContext,
-        signer: SuiAddress,
+        signer: IotaAddress,
         primary_coin: ObjectID,
         coin_to_merge: ObjectID,
         gas_obj_id: ObjectID,
-    ) -> SuiTransactionBlockResponse {
+    ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,
             primary_coin,
@@ -139,11 +144,11 @@ impl CoinMergeSplitTest {
 
     async fn split_coin(
         ctx: &TestContext,
-        signer: SuiAddress,
+        signer: IotaAddress,
         primary_coin: ObjectID,
         amounts: Vec<BigInt<u64>>,
         gas_obj_id: ObjectID,
-    ) -> SuiTransactionBlockResponse {
+    ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,
             primary_coin,

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_cluster_test::{config::ClusterTestOpt, ClusterTest};
+use iota_cluster_test::{config::ClusterTestOpt, ClusterTest};
 
 #[tokio::test]
 async fn cluster_test() {
@@ -12,16 +13,17 @@ async fn cluster_test() {
 
 #[cfg(feature = "pg_integration")]
 #[tokio::test]
-async fn test_sui_cluster() {
+async fn test_iota_cluster() {
+    use iota_cluster_test::{
+        cluster::{Cluster, LocalNewCluster},
+        config::Env,
+    };
+    use iota_graphql_rpc::client::simple_client::SimpleClient;
     use reqwest::StatusCode;
-    use sui_cluster_test::cluster::Cluster;
-    use sui_cluster_test::cluster::LocalNewCluster;
-    use sui_cluster_test::config::Env;
-    use sui_graphql_rpc::client::simple_client::SimpleClient;
     use tokio::time::sleep;
     let fullnode_rpc_port: u16 = 9020;
     let indexer_rpc_port: u16 = 9124;
-    let pg_address = "postgres://postgres:postgrespw@localhost:5432/sui_indexer".to_string();
+    let pg_address = "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string();
     let graphql_address = format!("127.0.0.1:{}", 8000);
 
     let opts = ClusterTestOpt {

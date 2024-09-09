@@ -1,13 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 use async_trait::async_trait;
-use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_sdk::wallet_context::WalletContext;
-use sui_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
-use sui_types::object::Owner;
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_sdk::wallet_context::WalletContext;
+use iota_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
+use iota_types::object::Owner;
 use tracing::info;
+
+use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 
 pub struct SharedCounterTest;
 
@@ -24,8 +26,8 @@ impl TestCaseImpl for SharedCounterTest {
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
         info!("Testing shared object transactions.");
 
-        let sui_objs = ctx.get_sui_from_faucet(Some(1)).await;
-        assert!(!sui_objs.is_empty());
+        let iota_objs = ctx.get_iota_from_faucet(Some(1)).await;
+        assert!(!iota_objs.is_empty());
 
         let wallet_context: &WalletContext = ctx.get_wallet();
         let address = ctx.get_wallet_address();
@@ -42,7 +44,7 @@ impl TestCaseImpl for SharedCounterTest {
         .await;
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
-            SuiExecutionStatus::Success,
+            IotaExecutionStatus::Success,
             "Increment counter txn failed: {:?}",
             *response.effects.as_ref().unwrap().status()
         );
