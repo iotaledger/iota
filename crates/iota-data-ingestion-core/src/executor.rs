@@ -1,23 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::progress_store::{
-    ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore,
-};
-use crate::reader::CheckpointReader;
-use crate::worker_pool::WorkerPool;
-use crate::Worker;
-use crate::{DataIngestionMetrics, ReaderOptions};
+use std::{path::PathBuf, pin::Pin};
+
 use anyhow::Result;
 use futures::Future;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
+use iota_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
 use prometheus::Registry;
-use std::path::PathBuf;
-use std::pin::Pin;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use tokio::sync::mpsc;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
+
+use crate::{
+    progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
+    reader::CheckpointReader,
+    worker_pool::WorkerPool,
+    DataIngestionMetrics, ReaderOptions, Worker,
+};
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 

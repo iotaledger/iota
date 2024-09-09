@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{str::FromStr, time::Duration};
+
 use anyhow::Result;
-use object_store::aws::AmazonS3ConfigKey;
-use object_store::gcp::GoogleConfigKey;
-use object_store::{ClientOptions, ObjectStore, RetryConfig};
-use std::str::FromStr;
-use std::time::Duration;
+use object_store::{
+    aws::AmazonS3ConfigKey, gcp::GoogleConfigKey, ClientOptions, ObjectStore, RetryConfig,
+};
 use url::Url;
 
 pub fn create_remote_store_client(
@@ -19,7 +20,9 @@ pub fn create_remote_store_client(
         retry_timeout: Duration::from_secs(timeout_secs + 1),
         ..Default::default()
     };
-    let client_options = ClientOptions::new().with_timeout(Duration::from_secs(timeout_secs));
+    let client_options = ClientOptions::new()
+        .with_timeout(Duration::from_secs(timeout_secs))
+        .with_allow_http(true);
     if remote_store_options.is_empty() {
         let http_store = object_store::http::HttpBuilder::new()
             .with_url(url)
