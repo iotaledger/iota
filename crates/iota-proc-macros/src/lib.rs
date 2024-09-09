@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
@@ -36,64 +37,63 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
             // be very important for being able to reproduce a failure that occurs in the Nth
             // iteration of a multi-iteration test run.
             std::thread::spawn(|| {
-                use sui_protocol_config::ProtocolConfig;
-                ::sui_simulator::telemetry_subscribers::init_for_testing();
-                ::sui_simulator::sui_types::execution::get_denied_certificates();
-                ::sui_simulator::sui_framework::BuiltInFramework::all_package_ids();
-                ::sui_simulator::sui_types::gas::SuiGasStatus::new_unmetered();
+                use iota_protocol_config::ProtocolConfig;
+                ::iota_simulator::telemetry_subscribers::init_for_testing();
+                ::iota_simulator::iota_types::execution::get_denied_certificates();
+                ::iota_simulator::iota_framework::BuiltInFramework::all_package_ids();
+                ::iota_simulator::iota_types::gas::IotaGasStatus::new_unmetered();
 
                 // For reasons I can't understand, LruCache causes divergent behavior the second
                 // time one is constructed and inserted into, so construct one before the first
                 // test run for determinism.
-                let mut cache = ::sui_simulator::lru::LruCache::new(1.try_into().unwrap());
+                let mut cache = ::iota_simulator::lru::LruCache::new(1.try_into().unwrap());
                 cache.put(1, 1);
 
                 {
                     // Initialize the static initializers here:
                     // https://github.com/move-language/move/blob/652badf6fd67e1d4cc2aa6dc69d63ad14083b673/language/tools/move-package/src/package_lock.rs#L12
                     use std::path::PathBuf;
-                    use sui_simulator::sui_move_build::{BuildConfig, SuiPackageHooks};
-                    use sui_simulator::tempfile::TempDir;
-                    use sui_simulator::move_package::package_hooks::register_package_hooks;
+                    use iota_simulator::iota_move_build::{BuildConfig, IotaPackageHooks};
+                    use iota_simulator::tempfile::TempDir;
+                    use iota_simulator::move_package::package_hooks::register_package_hooks;
 
-                    register_package_hooks(Box::new(SuiPackageHooks {}));
-                    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                    path.extend(["..", "..", "sui_programmability", "examples", "basics"]);
+                    register_package_hooks(Box::new(IotaPackageHooks {}));
+                    let mut path = PathBuf::from(env!("SIMTEST_STATIC_INIT_MOVE"));
                     let mut build_config = BuildConfig::default();
 
                     build_config.config.install_dir = Some(TempDir::new().unwrap().into_path());
                     let _all_module_bytes = build_config
-                        .build(path)
+                        .build(&path)
                         .unwrap()
                         .get_package_bytes(/* with_unpublished_deps */ false);
                 }
 
 
-                use ::sui_simulator::anemo_tower::callback::CallbackLayer;
-                use ::sui_simulator::anemo_tower::trace::DefaultMakeSpan;
-                use ::sui_simulator::anemo_tower::trace::DefaultOnFailure;
-                use ::sui_simulator::anemo_tower::trace::TraceLayer;
-                use ::sui_simulator::narwhal_network::metrics::MetricsMakeCallbackHandler;
-                use ::sui_simulator::narwhal_network::metrics::NetworkMetrics;
+                use ::iota_simulator::anemo_tower::callback::CallbackLayer;
+                use ::iota_simulator::anemo_tower::trace::DefaultMakeSpan;
+                use ::iota_simulator::anemo_tower::trace::DefaultOnFailure;
+                use ::iota_simulator::anemo_tower::trace::TraceLayer;
+                use ::iota_simulator::narwhal_network::metrics::MetricsMakeCallbackHandler;
+                use ::iota_simulator::narwhal_network::metrics::NetworkMetrics;
 
                 use std::sync::Arc;
-                use ::sui_simulator::fastcrypto::traits::KeyPair;
-                use ::sui_simulator::rand_crate::rngs::{StdRng, OsRng};
-                use ::sui_simulator::rand::SeedableRng;
-                use ::sui_simulator::tower::ServiceBuilder;
+                use ::iota_simulator::fastcrypto::traits::KeyPair;
+                use ::iota_simulator::rand_crate::rngs::{StdRng, OsRng};
+                use ::iota_simulator::rand::SeedableRng;
+                use ::iota_simulator::tower::ServiceBuilder;
 
                 // anemo uses x509-parser, which has many lazy static variables. start a network to
                 // initialize all that static state before the first test.
-                let rt = ::sui_simulator::runtime::Runtime::new();
+                let rt = ::iota_simulator::runtime::Runtime::new();
                 rt.block_on(async move {
-                    use ::sui_simulator::anemo::{Network, Request};
+                    use ::iota_simulator::anemo::{Network, Request};
 
                     let make_network = |port: u16| {
                         let registry = prometheus::Registry::new();
                         let inbound_network_metrics =
-                            NetworkMetrics::new("sui", "inbound", &registry);
+                            NetworkMetrics::new("iota", "inbound", &registry);
                         let outbound_network_metrics =
-                            NetworkMetrics::new("sui", "outbound", &registry);
+                            NetworkMetrics::new("iota", "outbound", &registry);
 
                         let service = ServiceBuilder::new()
                             .layer(
@@ -105,7 +105,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                                 Arc::new(inbound_network_metrics),
                                 usize::MAX,
                             )))
-                            .service(::sui_simulator::anemo::Router::new());
+                            .service(::iota_simulator::anemo::Router::new());
 
                         let outbound_layer = ServiceBuilder::new()
                             .layer(
@@ -123,7 +123,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                         Network::bind(format!("127.0.0.1:{}", port))
                             .server_name("static-init-network")
                             .private_key(
-                                ::sui_simulator::fastcrypto::ed25519::Ed25519KeyPair::generate(&mut StdRng::from_rng(OsRng).unwrap())
+                                ::iota_simulator::fastcrypto::ed25519::Ed25519KeyPair::generate(&mut StdRng::from_rng(OsRng).unwrap())
                                     .private()
                                     .0
                                     .to_bytes(),
@@ -150,19 +150,20 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
     result.into()
 }
 
-/// The sui_test macro will invoke either `#[msim::test]` or `#[tokio::test]`,
+/// The iota_test macro will invoke either `#[msim::test]` or `#[tokio::test]`,
 /// depending on whether the simulator config var is enabled.
 ///
-/// This should be used for tests that can meaningfully run in either environment.
+/// This should be used for tests that can meaningfully run in either
+/// environment.
 #[proc_macro_attribute]
-pub fn sui_test(args: TokenStream, item: TokenStream) -> TokenStream {
+pub fn iota_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
     let arg_parser = Punctuated::<syn::Meta, Token![,]>::parse_terminated;
     let args = arg_parser.parse(args).unwrap().into_iter();
 
     let header = if cfg!(msim) {
         quote! {
-            #[::sui_simulator::sim_test(crate = "sui_simulator", #(#args)* )]
+            #[::iota_simulator::sim_test(crate = "iota_simulator", #(#args)* )]
         }
     } else {
         quote! {
@@ -172,19 +173,21 @@ pub fn sui_test(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let result = quote! {
         #header
-        #[::sui_macros::init_static_initializers]
+        #[::iota_macros::init_static_initializers]
         #input
     };
 
     result.into()
 }
 
-/// The sim_test macro will invoke `#[msim::test]` if the simulator config var is enabled.
+/// The sim_test macro will invoke `#[msim::test]` if the simulator config var
+/// is enabled.
 ///
-/// Otherwise, it will emit an ignored test - if forcibly run, the ignored test will panic.
+/// Otherwise, it will emit an ignored test - if forcibly run, the ignored test
+/// will panic.
 ///
-/// This macro must be used in order to pass any simulator-specific arguments, such as
-/// `check_determinism`, which is not understood by tokio.
+/// This macro must be used in order to pass any simulator-specific arguments,
+/// such as `check_determinism`, which is not understood by tokio.
 #[proc_macro_attribute]
 pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
@@ -202,24 +205,24 @@ pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
         let return_type = &sig.output;
         let body = &input.block;
         quote! {
-            #[::sui_simulator::sim_test(crate = "sui_simulator", #(#args)*)]
-            #[::sui_macros::init_static_initializers]
+            #[::iota_simulator::sim_test(crate = "iota_simulator", #(#args)*)]
+            #[::iota_macros::init_static_initializers]
             #ignore
             #sig {
                 async fn body_fn() #return_type { #body }
 
                 let ret = body_fn().await;
 
-                ::sui_simulator::task::shutdown_all_nodes();
+                ::iota_simulator::task::shutdown_all_nodes();
 
                 // all node handles should have been dropped after the above block exits, but task
                 // shutdown is asynchronous, so we need a brief delay before checking for leaks.
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
                 assert_eq!(
-                    sui_simulator::NodeLeakDetector::get_current_node_count(),
+                    iota_simulator::NodeLeakDetector::get_current_node_count(),
                     0,
-                    "SuiNode leak detected"
+                    "IotaNode leak detected"
                 );
 
                 ret
@@ -234,8 +237,8 @@ pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
             #[tokio::test]
             #ignore
             #sig {
-                if std::env::var("SUI_SKIP_SIMTESTS").is_ok() {
-                    println!("not running test {} in `cargo test`: SUI_SKIP_SIMTESTS is set", stringify!(#fn_name));
+                if std::env::var("IOTA_SKIP_SIMTESTS").is_ok() {
+                    println!("not running test {} in `cargo test`: IOTA_SKIP_SIMTESTS is set", stringify!(#fn_name));
 
                     struct Ret;
 
@@ -319,7 +322,7 @@ impl CheckArithmetic {
         let Ok(exprs) = parser.parse(tokens.clone().into()) else {
             return Err(syn::Error::new_spanned(
                 tokens,
-                "could not process macro contents - use #[skip_checked_arithmetic] to skip this macro"
+                "could not process macro contents - use #[skip_checked_arithmetic] to skip this macro",
             ));
         };
 
@@ -537,10 +540,10 @@ impl Fold for CheckArithmetic {
     }
 }
 
-/// This proc macro generates a function `order_to_variant_map` which returns a map
-/// of the position of each variant to the name of the variant.
-/// It is intended to catch changes in enum order when backward compat is required.
-/// ```rust,ignore
+/// This proc macro generates a function `order_to_variant_map` which returns a
+/// map of the position of each variant to the name of the variant.
+/// It is intended to catch changes in enum order when backward compat is
+/// required. ```rust,ignore
 ///    /// Example for this enum
 ///    #[derive(EnumVariantOrder)]
 ///    pub enum MyEnum {
@@ -571,7 +574,7 @@ pub fn enum_variant_order_derive(input: TokenStream) -> TokenStream {
             .collect::<Vec<_>>();
 
         let deriv = quote! {
-            impl sui_enum_compat_util::EnumOrderMap for #name {
+            impl iota_enum_compat_util::EnumOrderMap for #name {
                 fn order_to_variant_map() -> std::collections::BTreeMap<u64, String > {
                     let mut map = std::collections::BTreeMap::new();
                     #(#variant_entries)*
