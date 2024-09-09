@@ -129,9 +129,9 @@ jobs:
 
   e2e:
     if: |
-      !cancelled() && 
-      needs.diff.outputs.isRust == 'true' && 
-      success('dprint-format', 'license-check', 'typos') && 
+      !cancelled() &&
+      needs.diff.outputs.isRust == 'true' &&
+      success('dprint-format', 'license-check', 'typos') &&
       github.event.pull_request.draft == false
     needs:
       - diff
