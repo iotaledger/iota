@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
-use sui_sdk::rpc_types::{
-    SuiGetPastObjectRequest, SuiObjectDataOptions, SuiTransactionBlockResponseOptions,
+use iota_sdk::{
+    rpc_types::{
+        IotaGetPastObjectRequest, IotaObjectDataOptions, IotaTransactionBlockResponseOptions,
+    },
+    types::base_types::ObjectID,
 };
-use sui_sdk::types::base_types::ObjectID;
 use utils::{setup_for_write, split_coin_digest};
 
 // This example uses the Read API to get owned objects of an address,
@@ -17,12 +20,12 @@ use utils::{setup_for_write, split_coin_digest};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (sui, active_address, _) = setup_for_write().await?;
+    let (iota, active_address, _) = setup_for_write().await?;
 
     // ************ READ API ************ //
     println!("// ************ READ API ************ //\n");
     // Owned Objects
-    let owned_objects = sui
+    let owned_objects = iota
         .read_api()
         .get_owned_objects(active_address, None, None, Some(5))
         .await?;
@@ -32,7 +35,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Dynamic Fields
     let parent_object_id = ObjectID::from_address(active_address.into());
-    let dynamic_fields = sui
+    let dynamic_fields = iota
         .read_api()
         .get_dynamic_fields(parent_object_id, None, None)
         .await?;
@@ -41,7 +44,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Dynamic Fields ***\n");
     if let Some(dynamic_field_info) = dynamic_fields.data.into_iter().next() {
         println!(" *** First Dynamic Field ***");
-        let dynamic_field = sui
+        let dynamic_field = iota
             .read_api()
             .get_dynamic_field_object(parent_object_id, dynamic_field_info.name)
             .await?;
@@ -56,11 +59,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let object_data = object
         .data
         .as_ref()
-        .unwrap_or_else(|| panic!("No object data for this SuiObjectResponse {:?}", object));
+        .unwrap_or_else(|| panic!("No object data for this IotaObjectResponse {:?}", object));
     let object_id = object_data.object_id;
     let version = object_data.version;
 
-    let sui_data_options = SuiObjectDataOptions {
+    let iota_data_options = IotaObjectDataOptions {
         show_type: true,
         show_owner: true,
         show_previous_transaction: true,
@@ -70,23 +73,23 @@ async fn main() -> Result<(), anyhow::Error> {
         show_storage_rebate: true,
     };
 
-    let past_object = sui
+    let past_object = iota
         .read_api()
-        .try_get_parsed_past_object(object_id, version, sui_data_options.clone())
+        .try_get_parsed_past_object(object_id, version, iota_data_options.clone())
         .await?;
     println!(" *** Past Object *** ");
     println!("{:?}", past_object);
     println!(" *** Past Object ***\n");
 
-    let sui_get_past_object_request = past_object.clone().into_object()?;
-    let multi_past_object = sui
+    let iota_get_past_object_request = past_object.clone().into_object()?;
+    let multi_past_object = iota
         .read_api()
         .try_multi_get_parsed_past_object(
-            vec![SuiGetPastObjectRequest {
-                object_id: sui_get_past_object_request.object_id,
-                version: sui_get_past_object_request.version,
+            vec![IotaGetPastObjectRequest {
+                object_id: iota_get_past_object_request.object_id,
+                version: iota_get_past_object_request.version,
             }],
-            sui_data_options.clone(),
+            iota_data_options.clone(),
         )
         .await?;
     println!(" *** Multi Past Object *** ");
@@ -94,9 +97,9 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Multi Past Object ***\n");
 
     // Object with options
-    let object_with_options = sui
+    let object_with_options = iota
         .read_api()
-        .get_object_with_options(sui_get_past_object_request.object_id, sui_data_options)
+        .get_object_with_options(iota_get_past_object_request.object_id, iota_data_options)
         .await?;
 
     println!(" *** Object with Options *** ");
@@ -104,21 +107,21 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Object with Options ***\n");
 
     println!(" *** Chain identifier *** ");
-    println!("{:?}", sui.read_api().get_chain_identifier().await?);
+    println!("{:?}", iota.read_api().get_chain_identifier().await?);
     println!(" *** Chain identifier ***\n ");
 
     println!(" *** Protocol Config *** ");
-    println!("{:?}", sui.read_api().get_protocol_config(None).await?);
+    println!("{:?}", iota.read_api().get_protocol_config(None).await?);
     println!(" *** Protocol Config ***\n ");
 
     // we make a dummy transaction which returns a transaction digest
-    let tx_digest = split_coin_digest(&sui, &active_address).await?;
+    let tx_digest = split_coin_digest(&iota, &active_address).await?;
     println!(" *** Transaction data *** ");
-    let tx_response = sui
+    let tx_response = iota
         .read_api()
         .get_transaction_with_options(
             tx_digest,
-            SuiTransactionBlockResponseOptions {
+            IotaTransactionBlockResponseOptions {
                 show_input: true,
                 show_raw_input: true,
                 show_effects: true,
@@ -133,7 +136,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!("Transaction data: {:?}", tx_response);
 
-    let tx_blocks = sui.read_api().get_total_transaction_blocks().await?;
+    let tx_blocks = iota.read_api().get_total_transaction_blocks().await?;
     println!("Total transaction blocks {tx_blocks}");
     // ************ END OF READ API ************ //
 

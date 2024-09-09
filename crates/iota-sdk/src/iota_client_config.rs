@@ -1,29 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::{Display, Formatter, Write};
 
 use anyhow::anyhow;
+use iota_config::Config;
+use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_types::base_types::*;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{SuiClient, SuiClientBuilder, SUI_DEVNET_URL, SUI_LOCAL_NETWORK_URL, SUI_TESTNET_URL};
-use sui_config::Config;
-use sui_keys::keystore::{AccountKeystore, Keystore};
-use sui_types::base_types::*;
+use crate::{
+    IotaClient, IotaClientBuilder, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL,
+};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
-pub struct SuiClientConfig {
+pub struct IotaClientConfig {
     pub keystore: Keystore,
-    pub envs: Vec<SuiEnv>,
+    pub envs: Vec<IotaEnv>,
     pub active_env: Option<String>,
-    pub active_address: Option<SuiAddress>,
+    pub active_address: Option<IotaAddress>,
 }
 
-impl SuiClientConfig {
+impl IotaClientConfig {
     pub fn new(keystore: Keystore) -> Self {
-        SuiClientConfig {
+        IotaClientConfig {
             keystore,
             envs: vec![],
             active_env: None,
@@ -31,7 +34,7 @@ impl SuiClientConfig {
         }
     }
 
-    pub fn get_env(&self, alias: &Option<String>) -> Option<&SuiEnv> {
+    pub fn get_env(&self, alias: &Option<String>) -> Option<&IotaEnv> {
         if let Some(alias) = alias {
             self.envs.iter().find(|env| &env.alias == alias)
         } else {
@@ -39,7 +42,7 @@ impl SuiClientConfig {
         }
     }
 
-    pub fn get_active_env(&self) -> Result<&SuiEnv, anyhow::Error> {
+    pub fn get_active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
         self.get_env(&self.active_env).ok_or_else(|| {
             anyhow!(
                 "Environment configuration not found for env [{}]",
@@ -48,7 +51,7 @@ impl SuiClientConfig {
         })
     }
 
-    pub fn add_env(&mut self, env: SuiEnv) {
+    pub fn add_env(&mut self, env: IotaEnv) {
         if !self
             .envs
             .iter()
@@ -60,24 +63,36 @@ impl SuiClientConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SuiEnv {
+pub struct IotaEnv {
     pub alias: String,
     pub rpc: String,
     pub ws: Option<String>,
+    /// Basic HTTP access authentication in the format of username:password, if
+    /// needed.
+    pub basic_auth: Option<String>,
 }
 
-impl SuiEnv {
+impl IotaEnv {
     pub async fn create_rpc_client(
         &self,
         request_timeout: Option<std::time::Duration>,
         max_concurrent_requests: Option<u64>,
-    ) -> Result<SuiClient, anyhow::Error> {
-        let mut builder = SuiClientBuilder::default();
+    ) -> Result<IotaClient, anyhow::Error> {
+        let mut builder = IotaClientBuilder::default();
         if let Some(request_timeout) = request_timeout {
             builder = builder.request_timeout(request_timeout);
         }
         if let Some(ws_url) = &self.ws {
             builder = builder.ws_url(ws_url);
+        }
+        if let Some(basic_auth) = &self.basic_auth {
+            let fields: Vec<_> = basic_auth.split(':').collect();
+            if fields.len() != 2 {
+                return Err(anyhow!(
+                    "Basic auth should be in the format `username:password`"
+                ));
+            }
+            builder = builder.basic_auth(fields[0], fields[1]);
         }
 
         if let Some(max_concurrent_requests) = max_concurrent_requests {
@@ -89,28 +104,31 @@ impl SuiEnv {
     pub fn devnet() -> Self {
         Self {
             alias: "devnet".to_string(),
-            rpc: SUI_DEVNET_URL.into(),
+            rpc: IOTA_DEVNET_URL.into(),
             ws: None,
+            basic_auth: None,
         }
     }
     pub fn testnet() -> Self {
         Self {
             alias: "testnet".to_string(),
-            rpc: SUI_TESTNET_URL.into(),
+            rpc: IOTA_TESTNET_URL.into(),
             ws: None,
+            basic_auth: None,
         }
     }
 
     pub fn localnet() -> Self {
         Self {
             alias: "local".to_string(),
-            rpc: SUI_LOCAL_NETWORK_URL.into(),
+            rpc: IOTA_LOCAL_NETWORK_URL.into(),
             ws: None,
+            basic_auth: None,
         }
     }
 }
 
-impl Display for SuiEnv {
+impl Display for IotaEnv {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         writeln!(writer, "Active environment : {}", self.alias)?;
@@ -119,13 +137,17 @@ impl Display for SuiEnv {
             writeln!(writer)?;
             write!(writer, "Websocket URL: {ws}")?;
         }
+        if let Some(basic_auth) = &self.basic_auth {
+            writeln!(writer)?;
+            write!(writer, "Basic Auth: {}", basic_auth)?;
+        }
         write!(f, "{}", writer)
     }
 }
 
-impl Config for SuiClientConfig {}
+impl Config for IotaClientConfig {}
 
-impl Display for SuiClientConfig {
+impl Display for IotaClientConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
 

@@ -1,12 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub use crate::json_rpc_error::Error as JsonRpcError;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
-use sui_types::error::UserInputError;
+use iota_types::{
+    base_types::{IotaAddress, TransactionDigest},
+    error::UserInputError,
+};
 use thiserror::Error;
 
-pub type SuiRpcResult<T = ()> = Result<T, Error>;
+pub use crate::json_rpc_error::Error as JsonRpcError;
+
+pub type IotaRpcResult<T = ()> = Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -24,11 +28,13 @@ pub enum Error {
     FailToConfirmTransactionStatus(TransactionDigest, u64),
     #[error("Data error: {0}")]
     DataError(String),
-    #[error("Client/Server api version mismatch, client api version : {client_version}, server api version : {server_version}")]
+    #[error(
+        "Client/Server api version mismatch, client api version : {client_version}, server api version : {server_version}"
+    )]
     ServerVersionMismatch {
         client_version: String,
         server_version: String,
     },
     #[error("Insufficient fund for address [{address}], requested amount: {amount}")]
-    InsufficientFund { address: SuiAddress, amount: u128 },
+    InsufficientFund { address: IotaAddress, amount: u128 },
 }
