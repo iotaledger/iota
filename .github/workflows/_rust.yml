@@ -2,9 +2,11 @@ name: Rust
 
 on:
   workflow_call:
-    inputs:
-      isRust:
-        type: boolean
+    secrets:
+      SSH_PRIVATE_KEY_IOTA_CI:
+        required: true
+      SSH_GITHUB_KNOWN_HOSTS:
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -32,43 +34,30 @@ env:
 jobs:
   rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
-    with:
-      isRust: ${{ inputs.isRust }}
 
   external-lints:
     uses: ./.github/workflows/_external_rust_lints.yml
-    with:
-      isRust: ${{ inputs.isRust }}
+
+  deny:
+    uses: ./.github/workflows/_cargo_deny.yml
+    secrets: inherit
 
   rust-tests:
-    if: github.event.pull_request.draft == false
-    needs:
-      - rust-lints
-      - external-lints
+    if: |
+      !cancelled() && success('rust-lints', 'external-lints') && github.event.pull_request.draft == false
     uses: ./.github/workflows/_rust_tests.yml
-    with:
-      isRust: ${{ inputs.isRust }}
 
   external-tests:
-    if: github.event.pull_request.draft == false
-    needs:
-      - rust-lints
-      - external-lints
+    if: |
+      !cancelled() && success('rust-lints', 'external-lints') && github.event.pull_request.draft == false
     uses: ./.github/workflows/_external_rust_tests.yml
-    with:
-      isRust: ${{ inputs.isRust }}
 
   mysticeti-tests:
-    if: inputs.isRust && github.event.pull_request.draft == false
-    needs:
-      - rust-lints
-      - external-lints
+    if: |
+      !cancelled() && success('rust-lints', 'external-lints') && github.event.pull_request.draft == false
     uses: ./.github/workflows/_mysticeti_tests.yml
 
   execution-cut:
-    if: inputs.isRust
-    needs:
-      - rust-tests
-      - external-tests
-      - mysticeti-tests
+    if: |
+      !cancelled() && success('rust-lints', 'external-lints', 'mysticeti-tests') && github.event.pull_request.draft == false
     uses: ./.github/workflows/_execution_cut.yml

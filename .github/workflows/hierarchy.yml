@@ -111,9 +111,6 @@ jobs:
   move-tests:
     needs:
       - diff
-      - dprint-format
-      - license-check
-      - typos
     if: |
       !cancelled() &&
       success('dprint-format', 'license-check', 'typos') &&
@@ -125,22 +122,19 @@ jobs:
   rust:
     needs:
       - diff
-      - dprint-format
-      - license-check
-      - typos
     if: |
-      !cancelled() && success('dprint-format', 'license-check', 'typos')
+      !cancelled() && needs.diff.outputs.isRust == 'true' && success('dprint-format', 'license-check', 'typos')
     uses: ./.github/workflows/_rust.yml
-    with:
-      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+    secrets: inherit
 
   e2e:
-    if: github.event.pull_request.draft == false
+    if: |
+      !cancelled() && 
+      needs.diff.outputs.isRust == 'true' && 
+      success('dprint-format', 'license-check', 'typos') && 
+      github.event.pull_request.draft == false
     needs:
       - diff
-      - dprint-format
-      - license-check
-      - typos
     uses: ./.github/workflows/_e2e.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
@@ -148,14 +142,3 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
-
-  deny:
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-    if: |
-      !cancelled() && needs.diff.outputs.isRust == 'true' && success('dprint-format', 'license-check', 'typos')
-    uses: ./.github/workflows/_cargo_deny.yml
-    secrets: inherit
