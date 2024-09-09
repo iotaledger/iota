@@ -42,6 +42,10 @@ interface AccountProps {
      */
     onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
+     * Text that need to be copied (optional).
+     */
+    copyText?: string;
+    /**
      * The onOpen event of the Address  (optional).
      */
     onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -78,6 +82,7 @@ export function Account({
     onLockAccountClick,
     onUnlockAccountClick,
     onCopy,
+    copyText,
     onOpen,
     isCopyable,
     isExternal,
@@ -99,6 +104,7 @@ export function Account({
                     <Address
                         text={subtitle}
                         onCopySuccess={onCopy}
+                        copyText={copyText}
                         onOpen={onOpen}
                         isCopyable={isCopyable}
                         isExternal={isExternal}
@@ -108,6 +114,7 @@ export function Account({
             <div
                 className={cx(
                     'z-10 ml-auto flex items-center space-x-2 [&_button]:hidden [&_button]:h-5 [&_button]:w-5 group-hover:[&_button]:flex',
+                    '[&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-neutral-40',
                     '[&_div.checkmark_button]:flex', // make checkmark visible always
                     isLocked && '[&_div.unlock_button]:flex', // make unlock visible when is locked
                 )}

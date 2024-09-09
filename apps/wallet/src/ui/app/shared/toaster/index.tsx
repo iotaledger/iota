@@ -47,7 +47,7 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
                 position="bottom-right"
             >
                 {(t) => (
-                    <div style={{ opacity: t.visible ? 1 : 0 }}>
+                    <div style={{ opacity: t.visible ? 1 : 0 }} className="w-full">
                         <Snackbar
                             onClose={() => toast.dismiss(t.id)}
                             text={resolveValue(t.message, t)}

@@ -10,7 +10,7 @@ import { LinkWithQuery } from '~/components/ui';
 
 function Header(): JSX.Element {
     return (
-        <header className="flex h-header justify-center overflow-visible bg-white">
+        <header className="flex h-header justify-center overflow-visible bg-neutral-98">
             <div className="container flex h-full flex-1 items-center justify-between gap-5">
                 <LinkWithQuery
                     data-testid="nav-logo-button"

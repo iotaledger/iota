@@ -34,6 +34,7 @@ pub mod indexer;
 pub mod indexer_reader;
 pub mod metrics;
 pub mod models;
+pub mod processors;
 pub mod schema;
 pub mod store;
 pub mod test_utils;
@@ -74,6 +75,8 @@ pub struct IndexerConfig {
     pub fullnode_sync_worker: bool,
     #[clap(long)]
     pub rpc_server_worker: bool,
+    #[clap(long)]
+    pub analytical_worker: bool,
 }
 
 impl IndexerConfig {
@@ -136,6 +139,7 @@ impl Default for IndexerConfig {
             reset_db: false,
             fullnode_sync_worker: true,
             rpc_server_worker: true,
+            analytical_worker: false,
         }
     }
 }
