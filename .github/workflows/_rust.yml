@@ -50,14 +50,24 @@ jobs:
   external-tests:
     if: |
       !cancelled() && success('rust-lints', 'external-lints') && github.event.pull_request.draft == false
+    needs:
+      - rust-lints
+      - external-lints
     uses: ./.github/workflows/_external_rust_tests.yml
 
   mysticeti-tests:
     if: |
       !cancelled() && success('rust-lints', 'external-lints') && github.event.pull_request.draft == false
+    needs:
+      - rust-lints
+      - external-lints
     uses: ./.github/workflows/_mysticeti_tests.yml
 
   execution-cut:
     if: |
-      !cancelled() && success('rust-lints', 'external-lints', 'mysticeti-tests') && github.event.pull_request.draft == false
+      !cancelled() && success('rust-tests', 'external-tests', 'mysticeti-tests') && github.event.pull_request.draft == false
+    needs:
+      - rust-tests
+      - external-tests
+      - mysticeti-tests
     uses: ./.github/workflows/_execution_cut.yml

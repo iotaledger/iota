@@ -111,6 +111,9 @@ jobs:
   move-tests:
     needs:
       - diff
+      - dprint-format
+      - license-check
+      - typos
     if: |
       !cancelled() &&
       success('dprint-format', 'license-check', 'typos') &&
@@ -122,6 +125,9 @@ jobs:
   rust:
     needs:
       - diff
+      - dprint-format
+      - license-check
+      - typos
     if: |
       !cancelled() && needs.diff.outputs.isRust == 'true' && success('dprint-format', 'license-check', 'typos')
     uses: ./.github/workflows/_rust.yml
@@ -135,6 +141,9 @@ jobs:
       github.event.pull_request.draft == false
     needs:
       - diff
+      - dprint-format
+      - license-check
+      - typos
     uses: ./.github/workflows/_e2e.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
