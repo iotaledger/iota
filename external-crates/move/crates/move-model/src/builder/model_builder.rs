@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Translates and validates specification language fragments as they are output from the Move
-//! compiler's expansion phase and adds them to the environment (which was initialized from the
-//! byte code). This includes identifying the Move sub-language supported by the specification
-//! system, as well as type checking it and translating it to the spec language ast.
+//! Translates and validates specification language fragments as they are output
+//! from the Move compiler's expansion phase and adds them to the environment
+//! (which was initialized from the byte code). This includes identifying the
+//! Move sub-language supported by the specification system, as well as type
+//! checking it and translating it to the spec language ast.
 
 use std::collections::BTreeMap;
 
@@ -19,10 +21,11 @@ use crate::{
     ty::Type,
 };
 
-/// A builder is used to enter a sequence of modules in acyclic dependency order into the model. The
-/// builder maintains the incremental state of this process, such that the various tables
-/// are extended with each module translated. Each table is a mapping from fully qualified names
-/// (module names plus item name in the module) to the entity.
+/// A builder is used to enter a sequence of modules in acyclic dependency order
+/// into the model. The builder maintains the incremental state of this process,
+/// such that the various tables are extended with each module translated. Each
+/// table is a mapping from fully qualified names (module names plus item name
+/// in the module) to the entity.
 #[derive(Debug)]
 pub(crate) struct ModelBuilder<'env> {
     /// The global environment we are building.

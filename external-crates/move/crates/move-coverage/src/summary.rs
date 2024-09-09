@@ -1,12 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
-use crate::coverage_map::{
-    ExecCoverageMap, ExecCoverageMapWithModules, ModuleCoverageMap, TraceMap,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{self, Write},
 };
+
 use move_binary_format::{
     access::ModuleAccess,
     control_flow_graph::{BlockId, ControlFlowGraph, VMControlFlowGraph},
@@ -16,9 +19,9 @@ use move_binary_format::{
 use move_core_types::{identifier::Identifier, language_storage::ModuleId};
 use petgraph::{algo::tarjan_scc, Graph};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::{self, Write},
+
+use crate::coverage_map::{
+    ExecCoverageMap, ExecCoverageMapWithModules, ModuleCoverageMap, TraceMap,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -70,8 +73,8 @@ impl ModuleSummary {
         Ok(())
     }
 
-    /// Summarizes the modules coverage, and returns the total module coverage in a human-readable
-    /// format.
+    /// Summarizes the modules coverage, and returns the total module coverage
+    /// in a human-readable format.
     pub fn summarize_human<W: Write>(
         &self,
         summary_writer: &mut W,
@@ -136,7 +139,7 @@ pub fn summarize_inst_cov_by_module(
             let fn_handle = module.function_handle_at(function_def.function);
             let fn_name = module.identifier_at(fn_handle.name).to_owned();
 
-            let fn_summmary = match &function_def.code {
+            let fn_summary = match &function_def.code {
                 None => FunctionSummary {
                     fn_is_native: true,
                     total: 0,
@@ -160,7 +163,7 @@ pub fn summarize_inst_cov_by_module(
                 }
             };
 
-            (fn_name, fn_summmary)
+            (fn_name, fn_summary)
         })
         .collect();
 
@@ -282,11 +285,13 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                             }
 
                             for (path_end_scc, path_end_reachability) in reachability.into_iter() {
-                                assert!(path_nums
-                                    .get_mut(&path_end_scc)
-                                    .unwrap()
-                                    .insert(scc_idx, path_end_reachability)
-                                    .is_none());
+                                assert!(
+                                    path_nums
+                                        .get_mut(&path_end_scc)
+                                        .unwrap()
+                                        .insert(scc_idx, path_end_reachability)
+                                        .is_none()
+                                );
                             }
 
                             // move to branch info if there are more than one branches
@@ -416,7 +421,7 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
             let fn_handle = module.function_handle_at(function_def.function);
             let fn_name = module.identifier_at(fn_handle.name).to_owned();
 
-            let fn_summmary = match &function_def.code {
+            let fn_summary = match &function_def.code {
                 None => FunctionSummary {
                     fn_is_native: true,
                     total: 0,
@@ -432,7 +437,7 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                 },
             };
 
-            (fn_name, fn_summmary)
+            (fn_name, fn_summary)
         })
         .collect();
 

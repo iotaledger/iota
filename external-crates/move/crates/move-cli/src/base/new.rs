@@ -1,14 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::*;
-use move_package::source_package::layout::SourcePackageLayout;
 use std::{
     fmt::Display,
     fs::create_dir_all,
     io::Write,
     path::{Path, PathBuf},
 };
+
+use clap::*;
+use move_package::source_package::layout::SourcePackageLayout;
 
 // TODO get a stable path to this stdlib
 // pub const MOVE_STDLIB_PACKAGE_NAME: &str = "MoveStdlib";
@@ -19,8 +21,8 @@ use std::{
 pub const MOVE_STDLIB_ADDR_NAME: &str = "std";
 pub const MOVE_STDLIB_ADDR_VALUE: &str = "0x1";
 
-/// Create a new Move package with name `name` at `path`. If `path` is not provided the package
-/// will be created in the directory `name`.
+/// Create a new Move package with name `name` at `path`. If `path` is not
+/// provided the package will be created in the directory `name`.
 #[derive(Parser)]
 #[clap(name = "new")]
 pub struct New {

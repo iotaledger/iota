@@ -1,21 +1,19 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod codes;
 
-use crate::{
-    command_line::COLOR_MODE_ENV_VAR,
-    diagnostics::codes::{
-        Category, DiagnosticCode, DiagnosticInfo, ExternalPrefix, Severity, WarningFilter,
-        WellKnownFilterName,
-    },
-    shared::{
-        ast_debug::AstDebug, known_attributes, FILTER_UNUSED_CONST, FILTER_UNUSED_FUNCTION,
-        FILTER_UNUSED_MUT_PARAM, FILTER_UNUSED_MUT_REF, FILTER_UNUSED_STRUCT_FIELD,
-        FILTER_UNUSED_TYPE_PARAMETER,
-    },
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    io::Write,
+    iter::FromIterator,
+    ops::Range,
+    path::PathBuf,
+    sync::Arc,
 };
+
 use codespan_reporting::{
     self as csr,
     files::SimpleFiles,
@@ -29,16 +27,20 @@ use csr::files::Files;
 use move_command_line_common::{env::read_env_var, files::FileHash};
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    io::Write,
-    iter::FromIterator,
-    ops::Range,
-    path::PathBuf,
-    sync::Arc,
-};
 
 use self::codes::UnusedItem;
+use crate::{
+    command_line::COLOR_MODE_ENV_VAR,
+    diagnostics::codes::{
+        Category, DiagnosticCode, DiagnosticInfo, ExternalPrefix, Severity, WarningFilter,
+        WellKnownFilterName,
+    },
+    shared::{
+        ast_debug::AstDebug, known_attributes, FILTER_UNUSED_CONST, FILTER_UNUSED_FUNCTION,
+        FILTER_UNUSED_MUT_PARAM, FILTER_UNUSED_MUT_REF, FILTER_UNUSED_STRUCT_FIELD,
+        FILTER_UNUSED_TYPE_PARAMETER,
+    },
+};
 
 //**************************************************************************************************
 // Types
@@ -109,13 +111,15 @@ pub struct Migration {
     changes: BTreeMap<FileId, Vec<(ByteSpan, MigrationChange)>>,
 }
 
-/// A mapping from file ids to file contents along with the mapping of filehash to fileID.
+/// A mapping from file ids to file contents along with the mapping of filehash
+/// to fileID.
 pub struct MappedFiles {
     files: SimpleFiles<Symbol, Arc<str>>,
     file_mapping: HashMap<FileHash, FileId>,
 }
 
-/// A file, and the line:column start, and line:column end that corresponds to a `Loc`
+/// A file, and the line:column start, and line:column end that corresponds to a
+/// `Loc`
 #[allow(dead_code)]
 pub struct FileLineColSpan {
     pub file_id: FileId,
@@ -130,7 +134,8 @@ pub struct LineColLocation {
     pub byte: usize,
 }
 
-/// A file, and the line:column start, and line:column end that corresponds to a `Loc`
+/// A file, and the line:column start, and line:column end that corresponds to a
+/// `Loc`
 pub struct FileByteSpan {
     file_id: FileId,
     byte_span: ByteSpan,
@@ -535,9 +540,9 @@ impl Diagnostics {
             .any(|d| d.info.external_prefix() == Some(prefix))
     }
 
-    /// Returns the number of diags filtered in source (user) code (an not in the dependencies) that
-    /// have a given prefix (first value returned) and how many different categories of diags were
-    /// filtered.
+    /// Returns the number of diags filtered in source (user) code (an not in
+    /// the dependencies) that have a given prefix (first value returned)
+    /// and how many different categories of diags were filtered.
     pub fn filtered_source_diags_with_prefix(&self, prefix: &str) -> (usize, usize) {
         let Self(Some(inner)) = self else {
             return (0, 0);
@@ -650,11 +655,10 @@ macro_rules! diag {
     }};
 }
 
-pub const ICE_BUG_REPORT_MESSAGE: &str =
-    "The Move compiler has encountered an internal compiler error.\n \
-    Please report this this issue to the Mysten Labs Move language team,\n \
-    including this error and any relevant code, to the Mysten Labs issue tracker\n \
-    at : https://github.com/MystenLabs/sui/issues";
+pub const ICE_BUG_REPORT_MESSAGE: &str = "The Move compiler has encountered an internal compiler error.\n \
+    Please report this this issue to the IOTA Foundation Move language team,\n \
+    including this error and any relevant code, to the IOTA Foundation issue tracker\n \
+    at : https://github.com/iotaledger/iota/issues";
 
 #[macro_export]
 macro_rules! ice {
@@ -731,9 +735,10 @@ impl WarningFilters {
                 .or_insert_with(UnprefixedWarningFilters::new)
                 .union(filters);
         }
-        // if there is a dependency code filter on the stack, it means we are filtering dependent
-        // code and this information must be preserved when stacking up additional filters (which
-        // involves union of the current filter with the new one)
+        // if there is a dependency code filter on the stack, it means we are filtering
+        // dependent code and this information must be preserved when stacking
+        // up additional filters (which involves union of the current filter
+        // with the new one)
         self.for_dependency = self.for_dependency || other.for_dependency;
     }
 
@@ -822,7 +827,8 @@ impl UnprefixedWarningFilters {
     }
 
     /// Add a specific filter to the filter map.
-    /// If filter_code is None, then the filter applies to all codes in the filter_category.
+    /// If filter_code is None, then the filter applies to all codes in the
+    /// filter_category.
     fn add(
         &mut self,
         filter_category: u8,

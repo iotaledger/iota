@@ -1,12 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module lays out the basic abstract costing schedule for bytecode instructions.
+//! This module lays out the basic abstract costing schedule for bytecode
+//! instructions.
 //!
-//! It is important to note that the cost schedule defined in this file does not track hashing
-//! operations or other native operations; the cost of each native operation will be returned by the
-//! native function itself.
+//! It is important to note that the cost schedule defined in this file does not
+//! track hashing operations or other native operations; the cost of each native
+//! operation will be returned by the native function itself.
+use std::ops::{Add, Mul};
+
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
@@ -32,10 +36,6 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    ops::{Add, Mul},
-    u64,
-};
 pub enum GasUnit {}
 
 pub type Gas = GasQuantity<GasUnit>;
@@ -58,12 +58,14 @@ pub const REFERENCE_SIZE: AbstractMemorySize = AbstractMemorySize::new(8);
 /// The size of a struct in bytes
 pub const STRUCT_SIZE: AbstractMemorySize = AbstractMemorySize::new(2);
 
-/// For exists checks on data that doesn't exists this is the multiplier that is used.
+/// For exists checks on data that doesn't exists this is the multiplier that is
+/// used.
 pub const MIN_EXISTS_DATA_SIZE: AbstractMemorySize = AbstractMemorySize::new(100);
 
-/// The cost tables, keyed by the serialized form of the bytecode instruction.  We use the
-/// serialized form as opposed to the instruction enum itself as the key since this will be the
-/// on-chain representation of bytecode instructions in the future.
+/// The cost tables, keyed by the serialized form of the bytecode instruction.
+/// We use the serialized form as opposed to the instruction enum itself as the
+/// key since this will be the on-chain representation of bytecode instructions
+/// in the future.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq, Deserialize)]
 pub struct CostTable {
     pub instruction_table: Vec<GasCost>,
@@ -78,8 +80,10 @@ impl CostTable {
 }
 
 /// The  `GasCost` tracks:
-/// - instruction cost: how much time/computational power is needed to perform the instruction
-/// - memory cost: how much memory is required for the instruction, and storage overhead
+/// - instruction cost: how much time/computational power is needed to perform
+///   the instruction
+/// - memory cost: how much memory is required for the instruction, and storage
+///   overhead
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GasCost {
     pub instruction_gas: u64,
@@ -119,8 +123,9 @@ pub struct GasStatus<'a> {
 impl<'a> GasStatus<'a> {
     /// Initialize the gas state with metering enabled.
     ///
-    /// Charge for every operation and fail when there is no more gas to pay for operations.
-    /// This is the instantiation that must be used when executing a user script.
+    /// Charge for every operation and fail when there is no more gas to pay for
+    /// operations. This is the instantiation that must be used when
+    /// executing a user script.
     pub fn new(cost_table: &'a CostTable, gas_left: Gas) -> Self {
         Self {
             gas_left: gas_left.to_unit(),
@@ -132,8 +137,8 @@ impl<'a> GasStatus<'a> {
 
     /// Initialize the gas state with metering disabled.
     ///
-    /// It should be used by clients in very specific cases and when executing system
-    /// code that does not have to charge the user.
+    /// It should be used by clients in very specific cases and when executing
+    /// system code that does not have to charge the user.
     pub fn new_unmetered() -> Self {
         Self {
             gas_left: InternalGas::new(0),
@@ -180,7 +185,8 @@ impl<'a> GasStatus<'a> {
         )
     }
 
-    /// Charge an instruction over data with a given size and fail if not enough gas units are left.
+    /// Charge an instruction over data with a given size and fail if not enough
+    /// gas units are left.
     fn charge_instr_with_size(
         &mut self,
         opcode: Opcodes,
@@ -633,10 +639,10 @@ pub fn zero_cost_instruction_table() -> Vec<(Bytecode, GasCost)> {
 // Only used for genesis and for tests where we need a cost table and
 // don't have a genesis storage state.
 pub fn zero_cost_schedule() -> CostTable {
-    // The actual costs for the instructions in this table _DO NOT MATTER_. This is only used
-    // for genesis and testing, and for these cases we don't need to worry
-    // about the actual gas for instructions.  The only thing we care about is having an entry
-    // in the gas schedule for each instruction.
+    // The actual costs for the instructions in this table _DO NOT MATTER_. This is
+    // only used for genesis and testing, and for these cases we don't need to
+    // worry about the actual gas for instructions.  The only thing we care
+    // about is having an entry in the gas schedule for each instruction.
     let instrs = zero_cost_instruction_table();
     new_from_instructions(instrs)
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::CancelOnDropHandler;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use crypto::NetworkPublicKey;
@@ -9,6 +10,8 @@ use types::{
     FetchCertificatesResponse, RequestBatchesRequest, RequestBatchesResponse,
     WorkerOthersBatchMessage, WorkerOwnBatchMessage, WorkerSynchronizeMessage,
 };
+
+use crate::CancelOnDropHandler;
 
 pub trait ReliableNetwork<Request: Clone + Send + Sync> {
     type Response: Clone + Send + Sync;

@@ -1,12 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::testutils::compile_module_string;
 use move_binary_format::{
     control_flow_graph::{ControlFlowGraph, VMControlFlowGraph},
     file_format::Bytecode,
 };
+
+use crate::unit_tests::testutils::compile_module_string;
 
 #[test]
 fn cfg_compile_script_ret() {

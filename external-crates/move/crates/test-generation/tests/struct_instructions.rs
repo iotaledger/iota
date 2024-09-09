@@ -1,8 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 extern crate test_generation;
+use std::collections::HashMap;
+
 use move_binary_format::{
     access::ModuleAccess,
     file_format::{
@@ -14,7 +17,6 @@ use move_binary_format::{
     views::{StructDefinitionView, ViewInternals},
 };
 use move_core_types::identifier::Identifier;
-use std::collections::HashMap;
 use test_generation::{
     abilities,
     abstract_state::{AbstractState, AbstractValue, CallGraph},

@@ -1,8 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod state;
+
+use std::collections::BTreeMap;
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use state::*;
 
 use super::absint::*;
 use crate::{
@@ -18,11 +26,6 @@ use crate::{
     parser::ast::{Ability_, StructName},
     shared::{unique_map::UniqueMap, *},
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use state::*;
-use std::collections::BTreeMap;
 
 //**************************************************************************************************
 // Entry and trait bindings

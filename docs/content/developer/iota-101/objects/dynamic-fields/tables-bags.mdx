@@ -1,0 +1,221 @@
+---
+title: Table and Bag
+description: IOTA provides `Table` and `Bag` collections built using dynamic fields, offering additional support to count entries and prevent accidental deletion when non-empty.
+---
+
+[Dynamic fields](dynamic-fields.mdx) in IOTA allow developers to extend existing objects by adding or removing fields on-the-fly.
+However, deleting an object that still has dynamic fields, especially non-drop fields, can lead to issues, particularly with on-chain collections holding numerous key-value pairs. 
+To mitigate this, IOTA offers specialized collections—
+[`Table`](../../../../references/framework/iota-framework/table.mdx) and 
+[`Bag`](../../../../references/framework/iota-framework/bag.mdx)—built on dynamic fields but equipped with mechanisms to count entries and prevent accidental deletion when non-empty.
+
+IOTA also offers [`ObjectTable`](../../../../references/framework/iota-framework/object_table.mdx)
+and [`ObjectBag`](../../../../references/framework/iota-framework/object_bag.mdx) for scenarios
+requiring visibility of stored objects, accessible via their ID in external storage.
+
+## Tables
+
+```move
+module iota::table {
+
+public struct Table<K: copy + drop + store, V: store> has key, store { /* ... */ }
+
+public fun new<K: copy + drop + store, V: store>(
+    ctx: &mut TxContext,
+): Table<K, V>;
+
+}
+```
+
+A [`Table<K, V>`](../../../../references/framework/iota-framework/table.mdx) is a homogeneous map where all keys
+(`K`) and values (`V`) share the same type. 
+These tables are created using [`iota::table::new`](../../../../references/framework/iota-framework/table.mdx#function-new),
+which requires a mutable transaction context (`&mut TxContext`).
+Because `Table` itself is an object, it can be transferred, shared, or wrapped like any other object.
+
+:::tip `ObjectTable`
+
+For a version of `Table` that preserves object visibility,
+see [`iota::object_table::ObjectTable`](../../../../references/framework/iota-framework/object_table.mdx#resource-objecttable).
+
+:::
+
+## Bags
+
+```move
+module iota::bag {
+
+public struct Bag has key, store { /* ... */ }
+
+public fun new(ctx: &mut TxContext): Bag;
+
+}
+```
+
+Unlike `Table`, [`Bag`](../../../../references/framework/iota-framework/bag.mdx) is a heterogeneous map capable of holding key-value pairs of different types.
+Because of this flexibility, `Bag` does not use type parameters. As with `Table`, creating a `Bag` requires a mutable transaction context (`&mut TxContext`) to generate an ID.
+
+:::tip Object Bag
+
+For an object-preserving version of `Bag`,
+see [`iota::object_bag::ObjectBag`](../../../../references/framework/iota-framework/object_bag.mdx#resource-objectbag).
+
+:::
+
+---
+
+The following sections detail how to interact with these collections, using `iota::table` for examples, with notes on differences in other modules.
+
+## Using Collections
+
+All collection types offer the following core functions, defined in their respective modules:
+
+```move
+module iota::table {
+
+public fun add<K: copy + drop + store, V: store>(
+    table: &mut Table<K, V>,
+    k: K,
+    v: V,
+);
+
+public fun borrow<K: copy + drop + store, V: store>(
+    table: &Table<K, V>,
+    k: K
+): &V;
+
+public fun borrow_mut<K: copy + drop + store, V: store>(
+    table: &mut Table<K, V>,
+    k: K
+): &mut V;
+
+public fun remove<K: copy + drop + store, V: store>(
+    table: &mut Table<K, V>,
+    k: K,
+): V;
+
+}
+```
+
+These functions enable you to add, read, modify, and remove entries in the collection.
+The `Table` type parameters (`K` and `V`) ensure that all operations on a single instance of `Table` maintain consistent key and value types.
+In contrast, `Bag`, which lacks these type parameters, allows operations with varying key and value types on the same instance.
+
+:::warning
+
+As with dynamic fields, attempting to overwrite an existing key,
+or access or remove a non-existent key, results in an error.
+
+:::
+
+While `Bag` offers flexibility by permitting different key-value pair types,
+this flexibility means the type system doesn't prevent adding a value with one type
+and then attempting to retrieve it with another type.
+Such mismatches will result in runtime errors.
+
+### Querying Length
+
+You can query the length of any collection and check if it is empty using the following functions:
+
+```move
+module iota::table {
+
+public fun length<K: copy + drop + store, V: store>(
+    table: &Table<K, V>,
+): u64;
+
+public fun is_empty<K: copy + drop + store, V: store>(
+    table: &Table<K, V>
+): bool;
+
+}
+```
+
+While `Bag` supports these functions, they are not generic like in `Table` since `Bag` doesn't use type parameters.
+
+### Querying for Containment
+
+You can check if a key exists in a table with the following function:
+
+```move
+module iota::table {
+
+public fun contains<K: copy + drop + store, V: store>(
+    table: &Table<K, V>
+    k: K
+): bool;
+
+}
+```
+
+For `Bag`, the equivalent functions are:
+
+```move
+module iota::bag {
+
+public fun contains<K: copy + drop + store>(bag: &Bag, k: K): bool;
+
+public fun contains_with_type<K: copy + drop + store, V: store>(
+    bag: &Bag,
+    k: K
+): bool;
+
+}
+```
+
+The first function checks if the `bag` contains a key-value pair with the key `k: K`,
+while the second additionally verifies that the value associated with the key has the specified type `V`.
+
+### Clean-up
+
+To prevent accidental deletion when non-empty, collection types like `Table` and `Bag` do not have the `drop` ability.
+Instead, they must be explicitly deleted using the following API:
+
+```move
+module iota::table {
+
+public fun destroy_empty<K: copy + drop + store, V: store>(
+    table: Table<K, V>,
+);
+
+}
+```
+
+This function deletes the collection only if it is empty.
+If the collection contains entries, the deletion fails.
+For convenience, `iota::table::Table` also provides:
+
+```move
+module iota::table {
+
+public fun drop<K: copy + drop + store, V: drop + store>(
+    table: Table<K, V>,
+);
+
+}
+```
+
+
+This function can delete a table regardless of its state but only if the value type (`V`) has the `drop` ability.
+Unlike other languages, Move requires you to call `drop` explicitly—it does not occur automatically when a table goes out of scope.
+
+`Bag` and `ObjectBag` do not support `drop` due to their potential to hold various types,
+some of which might not have the `drop` ability.
+
+Similarly, `ObjectTable` does not support `drop` because its values are objects,
+which cannot be dropped as they must contain a `UID` field, and `UID` lacks the `drop` ability.
+
+### Equality
+
+Collection equality in Move is based on identity, not content.
+This means that a collection instance is only equal to itself, even if another collection holds identical entries:
+
+```move
+let t1 = iota::table::new<u64, u64>(ctx);
+let t2 = iota::table::new<u64, u64>(ctx);
+
+assert!(&t1 == &t1, 0);
+assert!(&t1 != &t2, 1);
+```
+
+This identity-based equality is unlikely to be the behavior you want for comparing collections.

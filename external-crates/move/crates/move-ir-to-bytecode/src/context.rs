@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{clone::Clone, collections::HashMap, hash::Hash};
 
 use anyhow::{bail, format_err, Result};
 use move_binary_format::{
@@ -27,7 +30,6 @@ use move_ir_types::{
     },
     location::Loc,
 };
-use std::{clone::Clone, collections::HashMap, hash::Hash};
 
 macro_rules! get_or_add_item_macro {
     ($m:ident, $k_get:expr, $k_insert:expr) => {{
@@ -46,7 +48,7 @@ macro_rules! get_or_add_item_macro {
     }};
 }
 
-pub const TABLE_MAX_SIZE: usize = u16::max_value() as usize;
+pub const TABLE_MAX_SIZE: usize = u16::MAX as usize;
 fn get_or_add_item_ref<K: Clone + Eq + Hash>(
     m: &mut HashMap<K, TableIndex>,
     k: &K,
@@ -86,8 +88,8 @@ impl<'a> CompiledDependencyView<'a> {
             let mhandle = dep.module_handle_at(shandle.module);
             let mname = dep.identifier_at(mhandle.name);
             let sname = dep.identifier_at(shandle.name);
-            // get_or_add_item gets the proper struct handle index, as `dep.struct_handles()` is
-            // properly ordered
+            // get_or_add_item gets the proper struct handle index, as
+            // `dep.struct_handles()` is properly ordered
             get_or_add_item(&mut structs, (mname, sname))?;
         }
 
@@ -181,15 +183,17 @@ impl StoredCompiledDependency {
 }
 
 pub(crate) enum CompiledDependency<'a> {
-    /// Simple `CompiledDependecyView` where the borrowed `CompiledModule` is held elsewehere,
-    /// Commonly, it is borrowed from outside of the compilers API
+    /// Simple `CompiledDependecyView` where the borrowed `CompiledModule` is
+    /// held elsewehere, Commonly, it is borrowed from outside of the
+    /// compilers API
     Borrowed(CompiledDependencyView<'a>),
-    /// `Stored` holds the `CompiledModule` as well as the `CompiledDependencyView` into the module
-    /// uses `rental` for a self referential struct
-    /// This is used to solve an issue of creating a `CompiledModule` and immediately needing to
-    /// borrow it for the `CompiledDependencyView`. The `StoredCompiledDependency` gets around this
-    /// by storing the module in it's first field, and then it's second field borrows the value in
-    /// the first field via the `rental` crate
+    /// `Stored` holds the `CompiledModule` as well as the
+    /// `CompiledDependencyView` into the module uses `rental` for a self
+    /// referential struct This is used to solve an issue of creating a
+    /// `CompiledModule` and immediately needing to borrow it for the
+    /// `CompiledDependencyView`. The `StoredCompiledDependency` gets around
+    /// this by storing the module in it's first field, and then it's second
+    /// field borrows the value in the first field via the `rental` crate
     Stored(StoredCompiledDependency),
 }
 
@@ -205,8 +209,8 @@ impl<'a> CompiledDependency<'a> {
 
 pub(crate) type CompiledDependencies<'a> = HashMap<ModuleIdent, CompiledDependency<'a>>;
 
-/// Represents all of the pools to be used in the file format, both by CompiledModule
-/// and CompiledScript.
+/// Represents all of the pools to be used in the file format, both by
+/// CompiledModule and CompiledScript.
 pub struct MaterializedPools {
     /// Module handle pool
     pub module_handles: Vec<ModuleHandle>,
@@ -235,7 +239,8 @@ pub struct MaterializedPools {
 /// Compilation context for a single compilation unit (module or script).
 /// Contains all of the pools as they are built up.
 /// Specific definitions to CompiledModule or CompiledScript are not stored.
-/// However, some fields, like struct_defs and fields, are not used in CompiledScript.
+/// However, some fields, like struct_defs and fields, are not used in
+/// CompiledScript.
 pub(crate) struct Context<'a> {
     dependencies: CompiledDependencies<'a>,
 
@@ -248,7 +253,7 @@ pub(crate) struct Context<'a> {
     labels: HashMap<BlockLabel_, u16>,
 
     // queryable pools
-    // TODO: lookup for Fields is not that seemless after binary format changes
+    // TODO: lookup for Fields is not that seamless after binary format changes
     // We need multiple lookups or a better representation for fields
     fields: HashMap<(StructHandleIndex, Field_), (StructDefinitionIndex, SignatureToken, usize)>,
     function_handles: HashMap<(ModuleName, FunctionName), (FunctionHandle, FunctionHandleIndex)>,
@@ -276,7 +281,8 @@ pub(crate) struct Context<'a> {
 impl<'a> Context<'a> {
     /// Given the dependencies and the current module, creates an empty context.
     /// The current module is a dummy `Self` for CompiledScript.
-    /// It initializes an "import" of `Self` as the alias for the current_module.
+    /// It initializes an "import" of `Self` as the alias for the
+    /// current_module.
     pub fn new(
         decl_location: Loc,
         dependencies: CompiledDependencies<'a>,
@@ -484,7 +490,8 @@ impl<'a> Context<'a> {
         )?))
     }
 
-    /// Get the fake offset for the label. Labels will be fixed to real offsets after compilation
+    /// Get the fake offset for the label. Labels will be fixed to real offsets
+    /// after compilation
     pub fn label_index(&mut self, label: BlockLabel_) -> Result<CodeOffset> {
         get_or_add_item(&mut self.labels, label)
     }
@@ -570,7 +577,8 @@ impl<'a> Context<'a> {
         Ok(ModuleHandle { address, name })
     }
 
-    /// Add an import. This creates a module handle index for the imported module.
+    /// Add an import. This creates a module handle index for the imported
+    /// module.
     pub fn declare_import(
         &mut self,
         id: ModuleIdent,
@@ -588,8 +596,8 @@ impl<'a> Context<'a> {
         )?))
     }
 
-    /// Given an identifier and basic "signature" information, creates a struct handle
-    /// and adds it to the pool.
+    /// Given an identifier and basic "signature" information, creates a struct
+    /// handle and adds it to the pool.
     pub fn declare_struct_handle_index(
         &mut self,
         sname: QualifiedStructIdent,
@@ -638,9 +646,9 @@ impl<'a> Context<'a> {
         ))
     }
 
-    /// Given an identifier and a signature, creates a function handle and adds it to the pool.
-    /// Finds the index for the signature, or adds it to the pool if an identical one has not yet
-    /// been used.
+    /// Given an identifier and a signature, creates a function handle and adds
+    /// it to the pool. Finds the index for the signature, or adds it to the
+    /// pool if an identical one has not yet been used.
     pub fn declare_function(
         &mut self,
         mname: ModuleName,
@@ -738,8 +746,8 @@ impl<'a> Context<'a> {
     }
 
     /// Given an identifier, find the struct handle index.
-    /// Creates the handle and adds it to the pool if it it is the *first* time it looks
-    /// up the struct in a dependency.
+    /// Creates the handle and adds it to the pool if it it is the *first* time
+    /// it looks up the struct in a dependency.
     pub fn struct_handle_index(&mut self, s: QualifiedStructIdent) -> Result<StructHandleIndex> {
         match self.structs.get(&s) {
             Some(sh) => Ok(StructHandleIndex(*self.struct_handles.get(sh).unwrap())),
@@ -865,8 +873,8 @@ impl<'a> Context<'a> {
     }
 
     /// Given an identifier, find the function handle and its index.
-    /// Creates the handle+signature and adds it to the pool if it it is the *first* time it looks
-    /// up the function in a dependency.
+    /// Creates the handle+signature and adds it to the pool if it it is the
+    /// *first* time it looks up the function in a dependency.
     pub fn function_handle(
         &mut self,
         m: ModuleName,

@@ -1,0 +1,104 @@
+processed 21 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 14-61:
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 9279600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 63-63:
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 3 'run'. lines 65-65:
+created: object(3,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 4 'view-object'. lines 67-67:
+Owner: Shared
+Version: 3
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 5 'view-object'. lines 69-72:
+Owner: Account Address ( A )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(3,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 6 'programmable'. lines 73-77:
+mutated: object(0,0), object(3,0)
+deleted: object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+
+task 7 'run'. lines 79-79:
+created: object(7,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 8 'run'. lines 81-81:
+created: object(8,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 9 'run'. lines 83-83:
+created: object(9,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 10 'view-object'. lines 85-85:
+Owner: Account Address ( A )
+Version: 5
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(7,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 11 'view-object'. lines 87-87:
+Owner: Shared
+Version: 6
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(8,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 12 'view-object'. lines 89-91:
+Owner: Shared
+Version: 7
+Contents: t2::o2::Obj2 {id: iota::object::UID {id: iota::object::ID {bytes: fake(9,0)}}}
+
+task 13 'programmable'. lines 92-96:
+mutated: object(0,0), object(9,0)
+deleted: object(7,0), object(8,0)
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 4202800, non_refundable_storage_fee: 0
+
+task 14 'run'. lines 98-98:
+created: object(14,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 15 'run'. lines 100-100:
+created: object(15,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 16 'run'. lines 102-102:
+created: object(16,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 17 'view-object'. lines 104-104:
+Owner: Shared
+Version: 8
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(14,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 18 'view-object'. lines 106-106:
+Owner: Shared
+Version: 9
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(15,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 0u64}}
+
+task 19 'view-object'. lines 108-110:
+Owner: Shared
+Version: 10
+Contents: t2::o2::Obj2 {id: iota::object::UID {id: iota::object::ID {bytes: fake(16,0)}}}
+
+task 20 'programmable'. lines 111-113:
+mutated: object(0,0), object(16,0)
+deleted: object(14,0), object(15,0)
+gas summary: computation_cost: 1000000, storage_cost: 2226800,  storage_rebate: 4202800, non_refundable_storage_fee: 0

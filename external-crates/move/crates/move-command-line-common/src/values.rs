@@ -1,17 +1,20 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    address::ParsedAddress,
-    parser::{Parser, Token},
-};
+use std::fmt::{self, Display};
+
 use anyhow::bail;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{self},
     runtime_value::{MoveStruct, MoveValue},
 };
-use std::fmt::{self, Display};
+
+use crate::{
+    address::ParsedAddress,
+    parser::{Parser, Token},
+};
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum ValueToken {
@@ -232,15 +235,16 @@ impl Token for ValueToken {
                 // guaranteed; from the Rust docs
                 // (https://doc.rust-lang.org/std/primitive.char.html): "char values are USVs and
                 // str values are valid UTF-8, it is safe to store any char in a str or read any
-                // character from a str as a char"; this means that while not every char is valid
-                // UTF8, those stored in &str are
+                // character from a str as a char"; this means that while not every char is
+                // valid UTF8, those stored in &str are
                 let end_quote_byte_offset = match s[1..].find('"') {
                     Some(o) => o,
                     None => bail!("Unexpected end of string before end quote: {}", s),
                 };
-                // the length of the token (which we need in bytes rather than chars as s is sliced
-                // in parser and slicing str uses byte indexes) is the same as position of the
-                // ending double quote (in the whole string) plus 1
+                // the length of the token (which we need in bytes rather than chars as s is
+                // sliced in parser and slicing str uses byte indexes) is the
+                // same as position of the ending double quote (in the whole
+                // string) plus 1
                 let len = s[..1].len() + end_quote_byte_offset + 1;
                 if s[..len].chars().any(|c| c == '\\') {
                     bail!(

@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::fmt::Write;
+
 use anyhow::{bail, Result};
 use clap::Parser;
 use codespan_reporting::{diagnostic::Severity, term::termcolor::Buffer};
-use std::fmt::Write;
-
 use move_binary_format::errors::{Location, PartialVMError, PartialVMResult, VMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -36,13 +38,14 @@ use crate::concrete::{
     runtime::{convert_move_type_tag, Runtime},
     settings::InterpreterSettings,
     ty::{BaseType, IntType, PrimitiveType},
-    value::{BaseValue, GlobalState, TypedValue},
+    value::{BaseValue, GlobalState},
 };
 
 /// Options passed into the interpreter generator.
 #[derive(Parser)]
 pub struct InterpreterOptions {
-    /// The function to be executed, specified in the format of `addr::module_name::function_name`
+    /// The function to be executed, specified in the format of
+    /// `addr::module_name::function_name`
     #[clap(long = "entry", value_parser = parse_entrypoint)]
     pub entrypoint: (ModuleId, Identifier),
 
@@ -62,8 +65,9 @@ pub struct InterpreterOptions {
         action = clap::ArgAction::Append,
     )]
     pub args: Vec<TransactionArgument>,
-    /// Possibly-empty list of type arguments passed to the transaction (e.g., `T` in
-    /// `main<T>()`). Must match the type arguments kinds expected by `script_file`.
+    /// Possibly-empty list of type arguments passed to the transaction (e.g.,
+    /// `T` in `main<T>()`). Must match the type arguments kinds expected by
+    /// `script_file`.
     #[clap(
         long = "ty-args",
         value_parser = parse_type_tag,
@@ -91,12 +95,6 @@ fn parse_entrypoint(input: &str) -> Result<(ModuleId, Identifier)> {
     );
     let func_name = Identifier::new(tokens[2])?;
     Ok((module_id, func_name))
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct ExecutionResult {
-    vm_result: VMResult<Vec<TypedValue>>,
-    global_state: GlobalState,
 }
 
 //**************************************************************************************************
@@ -256,7 +254,7 @@ impl<'env> StacklessBytecodeInterpreter<'env> {
                     Err(err.finish(Location::Undefined)),
                     ChangeSet::new(),
                     global_state.clone(),
-                )
+                );
             }
         };
 
@@ -281,7 +279,7 @@ impl<'env> StacklessBytecodeInterpreter<'env> {
                     Err(err.finish(Location::Undefined)),
                     ChangeSet::new(),
                     global_state.clone(),
-                )
+                );
             }
         };
 
@@ -297,7 +295,7 @@ impl<'env> StacklessBytecodeInterpreter<'env> {
                     Err(err.finish(Location::Undefined)),
                     ChangeSet::new(),
                     global_state.clone(),
-                )
+                );
             }
         };
 

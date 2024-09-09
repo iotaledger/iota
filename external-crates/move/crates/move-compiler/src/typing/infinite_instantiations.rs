@@ -1,6 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use petgraph::{
+    algo::{astar as petgraph_astar, tarjan_scc as petgraph_scc},
+    graphmap::DiGraphMap,
+};
 
 use super::core::{self, Subst, TParamSubst};
 use crate::{
@@ -11,14 +22,6 @@ use crate::{
     shared::{unique_map::UniqueMap, CompilationEnv},
     typing::ast as T,
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use petgraph::{
-    algo::{astar as petgraph_astar, tarjan_scc as petgraph_scc},
-    graphmap::DiGraphMap,
-};
-use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Edge {
@@ -183,7 +186,7 @@ fn module<'a>(
         .for_each(|(_fname, fdef)| function_body(context, &fdef.body));
     let graph = context.instantiation_graph();
     // - get the strongly connected components
-    // - fitler out SCCs that do not contain a 'nested' or 'strong' edge
+    // - filter out SCCs that do not contain a 'nested' or 'strong' edge
     // - report those cycles
     petgraph_scc(&graph)
         .into_iter()

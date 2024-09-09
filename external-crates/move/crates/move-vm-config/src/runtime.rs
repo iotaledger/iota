@@ -1,11 +1,12 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::verifier::{VerifierConfig, DEFAULT_MAX_CONSTANT_VECTOR_LEN};
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::file_format_common::VERSION_MAX;
+use move_binary_format::{binary_config::BinaryConfig, file_format_common::VERSION_MAX};
 #[cfg(feature = "gas-profiler")]
 use once_cell::sync::Lazy;
+
+use crate::verifier::{VerifierConfig, DEFAULT_MAX_CONSTANT_VECTOR_LEN};
 
 #[cfg(feature = "gas-profiler")]
 const MOVE_VM_PROFILER_ENV_VAR_NAME: &str = "MOVE_VM_PROFILE";

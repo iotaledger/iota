@@ -55,116 +55,106 @@ exclude = [
   "external-crates/move/crates/move-vm-types",
   "external-crates/move/crates/serializer-tests",
   "external-crates/move/crates/test-generation",
-  "external-crates/move/move-execution/v0/move-bytecode-verifier",
-  "external-crates/move/move-execution/v0/move-stdlib",
-  "external-crates/move/move-execution/v0/move-vm/runtime",
-  "external-crates/move/move-execution/v1/crates/move-bytecode-verifier",
-  "external-crates/move/move-execution/v1/crates/move-stdlib",
-  "external-crates/move/move-execution/v1/crates/move-vm-runtime",
-  "external-crates/move/move-execution/v2/crates/move-bytecode-verifier",
-  "external-crates/move/move-execution/v2/crates/move-stdlib",
-  "external-crates/move/move-execution/v2/crates/move-vm-runtime",
+  "external-crates/move/move-execution/v0/crates/move-bytecode-verifier",
+  "external-crates/move/move-execution/v0/crates/move-stdlib",
+  "external-crates/move/move-execution/v0/crates/move-vm-runtime",
   "sdk/move-bytecode-template",
 ]
 
 members = [
   "consensus/config",
   "consensus/core",
-  "crates/anemo-benchmark",
-  "crates/data-transform",
-  "crates/mysten-common",
-  "crates/mysten-metrics",
-  "crates/mysten-network",
-  "crates/mysten-service",
-  "crates/mysten-service-boilerplate",
-  "crates/mysten-util-mem",
-  "crates/mysten-util-mem-derive",
+  "crates/iota",
+  "crates/iota-adapter-transactional-tests",
+  "crates/iota-analytics-indexer",
+  "crates/iota-analytics-indexer-derive",
+  "crates/iota-archival",
+  "crates/iota-authority-aggregation",
+  "crates/iota-aws-orchestrator",
+  "crates/iota-benchmark",
+  "crates/iota-cluster-test",
+  "crates/iota-common",
+  "crates/iota-config",
+  "crates/iota-core",
+  "crates/iota-cost",
+  "crates/iota-data-ingestion",
+  "crates/iota-data-ingestion-core",
+  "crates/iota-e2e-tests",
+  "crates/iota-enum-compat-util",
+  "crates/iota-faucet",
+  "crates/iota-framework",
+  "crates/iota-framework-snapshot",
+  "crates/iota-framework-tests",
+  "crates/iota-genesis-builder",
+  "crates/iota-graphql-e2e-tests",
+  "crates/iota-graphql-rpc",
+  "crates/iota-graphql-rpc-client",
+  "crates/iota-graphql-rpc-headers",
+  "crates/iota-indexer",
+  "crates/iota-json",
+  "crates/iota-json-rpc",
+  "crates/iota-json-rpc-api",
+  "crates/iota-json-rpc-tests",
+  "crates/iota-json-rpc-types",
+  "crates/iota-keys",
+  "crates/iota-light-client",
+  "crates/iota-macros",
+  "crates/iota-metric-checker",
+  "crates/iota-metrics",
+  "crates/iota-move",
+  "crates/iota-move-build",
+  "crates/iota-network",
+  "crates/iota-network-stack",
+  "crates/iota-node",
+  "crates/iota-open-rpc",
+  "crates/iota-open-rpc-macros",
+  "crates/iota-package-resolver",
+  "crates/iota-proc-macros",
+  "crates/iota-protocol-config",
+  "crates/iota-protocol-config-macros",
+  "crates/iota-replay",
+  "crates/iota-rest-api",
+  "crates/iota-rosetta",
+  "crates/iota-rpc-loadgen",
+  "crates/iota-sdk",
+  "crates/iota-simulator",
+  "crates/iota-single-node-benchmark",
+  "crates/iota-snapshot",
+  "crates/iota-source-validation",
+  "crates/iota-source-validation-service",
+  "crates/iota-storage",
+  "crates/iota-surfer",
+  "crates/iota-swarm",
+  "crates/iota-swarm-config",
+  "crates/iota-test-transaction-builder",
+  "crates/iota-test-validator",
+  "crates/iota-tool",
+  "crates/iota-transaction-builder",
+  "crates/iota-transaction-checks",
+  "crates/iota-transactional-test-runner",
+  "crates/iota-types",
+  "crates/iota-upgrade-compatibility-transactional-tests",
+  "crates/iota-util-mem",
+  "crates/iota-util-mem-derive",
+  "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
   "crates/simulacrum",
-  "crates/sui",
-  "crates/sui-adapter-transactional-tests",
-  "crates/sui-analytics-indexer",
-  "crates/sui-analytics-indexer-derive",
-  "crates/sui-archival",
-  "crates/sui-authority-aggregation",
-  "crates/sui-aws-orchestrator",
-  "crates/sui-benchmark",
-  "crates/sui-bridge",
-  "crates/sui-cluster-test",
-  "crates/sui-common",
-  "crates/sui-config",
-  "crates/sui-core",
-  "crates/sui-cost",
-  "crates/sui-data-ingestion",
-  "crates/sui-data-ingestion-core",
-  "crates/sui-e2e-tests",
-  "crates/sui-enum-compat-util",
-  "crates/sui-faucet",
-  "crates/sui-framework",
-  "crates/sui-framework-snapshot",
-  "crates/sui-framework-tests",
-  "crates/sui-genesis-builder",
-  "crates/sui-graphql-e2e-tests",
-  "crates/sui-graphql-rpc",
-  "crates/sui-graphql-rpc-client",
-  "crates/sui-graphql-rpc-headers",
-  "crates/sui-indexer",
-  "crates/sui-json",
-  "crates/sui-json-rpc",
-  "crates/sui-json-rpc-api",
-  "crates/sui-json-rpc-tests",
-  "crates/sui-json-rpc-types",
-  "crates/sui-keys",
-  "crates/sui-light-client",
-  "crates/sui-macros",
-  "crates/sui-metric-checker",
-  "crates/sui-move",
-  "crates/sui-move-build",
-  "crates/sui-network",
-  "crates/sui-node",
-  "crates/sui-open-rpc",
-  "crates/sui-open-rpc-macros",
-  "crates/sui-oracle",
-  "crates/sui-package-resolver",
-  "crates/sui-proc-macros",
-  "crates/sui-protocol-config",
-  "crates/sui-protocol-config-macros",
-  "crates/sui-proxy",
-  "crates/sui-replay",
-  "crates/sui-rest-api",
-  "crates/sui-rosetta",
-  "crates/sui-rpc-loadgen",
-  "crates/sui-sdk",
-  "crates/sui-simulator",
-  "crates/sui-single-node-benchmark",
-  "crates/sui-snapshot",
-  "crates/sui-source-validation",
-  "crates/sui-source-validation-service",
-  "crates/sui-storage",
-  "crates/sui-surfer",
-  "crates/sui-swarm",
-  "crates/sui-swarm-config",
-  "crates/sui-telemetry",
-  "crates/sui-test-transaction-builder",
-  "crates/sui-test-validator",
-  "crates/sui-tls",
-  "crates/sui-tool",
-  "crates/sui-transaction-builder",
-  "crates/sui-transaction-checks",
-  "crates/sui-transactional-test-runner",
-  "crates/sui-types",
-  "crates/sui-upgrade-compatibility-transactional-tests",
-  "crates/sui-verifier-transactional-tests",
-  "crates/suins-indexer",
-  "crates/suiop-cli",
   "crates/telemetry-subscribers",
   "crates/test-cluster",
   "crates/transaction-fuzzer",
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
-  "crates/x",
+  "docs/examples/rust",
+  "iota-execution",
+  "iota-execution/cut",
+  "iota-execution/latest/iota-adapter",
+  "iota-execution/latest/iota-move-natives",
+  "iota-execution/latest/iota-verifier",
+  "iota-execution/v0/iota-adapter",
+  "iota-execution/v0/iota-move-natives",
+  "iota-execution/v0/iota-verifier",
   "narwhal/config",
   "narwhal/crypto",
   "narwhal/executor",
@@ -175,32 +165,18 @@ members = [
   "narwhal/test-utils",
   "narwhal/types",
   "narwhal/worker",
-  "sui-execution",
-  "sui-execution/cut",
-  "sui-execution/latest/sui-adapter",
-  "sui-execution/latest/sui-move-natives",
-  "sui-execution/latest/sui-verifier",
-  "sui-execution/v0/sui-adapter",
-  "sui-execution/v0/sui-move-natives",
-  "sui-execution/v0/sui-verifier",
-  "sui-execution/v1/sui-adapter",
-  "sui-execution/v1/sui-move-natives",
-  "sui-execution/v1/sui-verifier",
-  "sui-execution/v2/sui-adapter",
-  "sui-execution/v2/sui-move-natives",
-  "sui-execution/v2/sui-verifier",
 ]
 
 [workspace.package]
-# This version string will be inherited by sui-core, sui-faucet, sui-node, sui-tools, sui-sdk, sui-move-build, and sui crates.
-version = "1.22.0"
+# This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
+version = "0.2.0"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
 debug = 1
 # Write debug info into a separate file.
 split-debuginfo = 'packed'
-# Without stripping, sui binary size would be > 1GB.
+# Without stripping, iota binary size would be > 1GB.
 strip = 'debuginfo'
 # Exit process with SIGABRT when any thread panics
 panic = 'abort'
@@ -231,330 +207,148 @@ opt-level = 1
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
-anyhow = "1.0.71"
-arrow-array = "50.0.0"
-arc-swap = { version = "1.5.1", features = ["serde"] }
-assert_cmd = "2.0.6"
-async-graphql = "6.0.7"
-async-graphql-axum = "6.0.7"
-async-graphql-value = "6.0.7"
-async-recursion = "1.0.4"
-async-trait = "0.1.61"
-atomic_float = "0.1"
-aws-config = "0.56"
-aws-sdk-ec2 = "0.29.0"
-aws-sdk-dynamodb = "0.29.0"
-aws-sdk-s3 = "0.29.0"
-aws-smithy-http = "0.56"
-aws-smithy-runtime-api = "0.56"
-axum = { version = "0.6.6", default-features = false, features = [
-  "headers",
-  "tokio",
-  "http1",
-  "http2",
-  "json",
-  "matched-path",
-  "original-uri",
-  "form",
-  "query",
-  "ws",
-] }
-axum-extra = "0.4.2"
-axum-server = { version = "0.5.1", default-features = false, features = [
-  "tls-rustls",
-] }
-backoff = { version = "0.4.0", features = [
-  "futures",
-  "futures-core",
-  "pin-project-lite",
-  "tokio",
-  "tokio_1",
-] }
-base64 = "0.21.2"
-base64-url = "2"
-bcs = "0.1.4"
-better_any = "0.1.1"
-bimap = "0.6.2"
-bincode = "1.3.3"
-bip32 = "0.4.0"
-byteorder = "1.4.3"
-bytes = { version = "1.5.0", features = ["serde"] }
-cached = "0.43.0"
-camino = "1.1.1"
-cfg-if = "1.0.0"
-chrono = { version = "0.4.26", features = ["clock", "serde"] }
-clap = { version = "4.4", features = ["derive", "wrap_help"] }
-collectable = "0.0.2"
-colored = "2.0.0"
-color-eyre = "0.6.2"
-comfy-table = "6.1.3"
-console-subscriber = "0.2"
-const-str = "0.5.3"
-criterion = { version = "0.5.0", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
-] }
-crossterm = "0.25.0"
-csv = "1.2.1"
-dashmap = "5.5.3"
-# datatest-stable = "0.1.2"
+anyhow = "1.0"
+arc-swap = { version = "1.5", features = ["serde"] }
+async-graphql = "7.0"
+async-recursion = "1.0"
+async-trait = "0.1"
+aws-config = { version = "1.5", features = ["behavior-version-latest"] }
+axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
+axum-extra = "0.9"
+backoff = { version = "0.4", features = ["tokio"] }
+base64 = "0.22"
+base64-url = "3.0"
+bcs = "0.1"
+better_any = { version = "0.2", features = ["derive"] }
+bincode = "1.3"
+bip32 = "0.5"
+byteorder = "1.4"
+bytes = { version = "1.7", features = ["serde"] }
+cached = { version = "0.53", features = ["async"] }
+camino = "1.1"
+cfg-if = "1.0"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+clap = { version = "4.5", features = ["derive", "wrap_help"] }
+colored = "2.0"
+comfy-table = "7.1"
+const-str = "0.5"
+criterion = { version = "0.5", features = ["async", "async_tokio", "html_reports"] }
+crossterm = "0.28"
+csv = "1.2"
+dashmap = "6.0"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
-derivative = "2.2.0"
-derive-syn-parse = "0.1.5"
-derive_builder = "0.12.0"
-derive_more = "0.99.17"
-diesel = { version = "2.1.0", features = [
-  "chrono",
-  "postgres",
-  "r2d2",
-  "serde_json",
-  "64-column-tables",
-  "i-implement-a-third-party-backend-and-opt-into-breaking-changes",
-  "postgres_backend",
-] }
-diesel-derive-enum = { version = "2.0.1", features = ["postgres"] }
-diesel_migrations = { version = "2.0.0" }
-dirs = "4.0.0"
-duration-str = "0.5.0"
-ed25519 = { version = "1.5.0", features = ["pkcs8", "alloc", "zeroize"] }
-ed25519-consensus = { version = "2.0.1", features = ["serde"] }
-either = "1.8.0"
-petgraph = "0.5.1"
+derivative = "2.2"
+diesel = { version = "2.2", features = ["chrono", "postgres", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes", "postgres_backend"] }
+dirs = "5.0"
+ed25519-consensus = { version = "2.0", features = ["serde"] }
+either = "1.8"
 enum_dispatch = "^0.3"
-expect-test = "1.4.0"
-eyre = "0.6.8"
-fdlimit = "0.2.1"
-flate2 = "1.0.28"
-fs_extra = "1.3.0"
-futures = "0.3.28"
-futures-core = "0.3.21"
-git-version = "0.3.5"
-glob = "0.3.1"
-governor = "0.6.0"
-hashbrown = "0.12"
-hdrhistogram = "7.5.1"
-hex = "0.4.3"
-hex-literal = "0.3.4"
-highlight = "all"
-http = "0.2.8"
-http-body = "0.4.5"
-humantime = "2.1.0"
-hyper = "0.14.20"
-hyper-rustls = { version = "0.24", features = ["webpki-roots", "http2"] }
-im = "15"
-impl-trait-for-tuples = "0.2.0"
-indexmap = { version = "2.1.0", features = ["serde"] }
-indicatif = "0.17.2"
-inquire = "0.6.0"
-insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
-integer-encoding = "3.0.1"
-ipnetwork = "0.20.0"
-itertools = "0.10.5"
-jemalloc-ctl = "^0.5"
-jsonrpsee = { git = "https://github.com/wlmyng/jsonrpsee.git", rev = "b1b300784795f6a64d0fcdf8f03081a9bc38bde8", features = [
-  "server",
-  "macros",
-  "ws-client",
-  "http-client",
-  "jsonrpsee-core",
-] }
-json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
-leb128 = "0.2.5"
-lru = "0.10"
-markdown-gen = "1.2.1"
-match_opt = "0.1.2"
-miette = {version = "7", features = ["fancy"] }
-mime = "0.3"
-mockall = "0.11.4"
-moka = { version = "0.12", default-features = false, features = ["sync", "atomic64"] }
-more-asserts = "0.3.1"
-msim = { git = "https://github.com/MystenLabs/mysten-sim.git", rev = "6f88ec84644cb1a6809c010f1f534d0d09e0cd89", package = "msim" }
-msim-macros = { git = "https://github.com/MystenLabs/mysten-sim.git", rev = "6f88ec84644cb1a6809c010f1f534d0d09e0cd89", package = "msim-macros" }
-multiaddr = "0.17.0"
-nexlint = { git = "https://github.com/nextest-rs/nexlint.git", rev = "94da5c787636dad779c340affa65219134d127f5" }
-nexlint-lints = { git = "https://github.com/nextest-rs/nexlint.git", rev = "94da5c787636dad779c340affa65219134d127f5" }
-nonempty = "0.9.0"
-notify = "6.1.1"
-ntest = "0.9.0"
-num-bigint = "0.4.4"
-num_cpus = "1.15.0"
-num_enum = "0.6.1"
-object_store = { version = "0.7", features = ["aws", "gcp", "azure", "http"] }
-once_cell = "1.18.0"
-ouroboros = "0.17"
-parking_lot = "0.12.1"
-parquet = "50.0.0"
-pkcs8 = { version = "0.9.0", features = ["std"] }
-pprof = { version = "0.11.0", features = ["cpp", "frame-pointer"] }
-pretty_assertions = "1.3.0"
-prettytable-rs = "0.10.0"
-proc-macro2 = "1.0.47"
-prometheus = "0.13.3"
-prometheus-http-query = { version = "0.6.6", default_features = false, features = [
-  "rustls-tls",
-] }
-prometheus-parse = { git = "https://github.com/asonnino/prometheus-parser.git", rev = "75334db" }
-proptest = "1.1.0"
-proptest-derive = "0.3.0"
-prost = "0.12.3"
-prost-build = "0.12.3"
-protobuf = { version = "2.28", features = ["with-bytes"] }
-protobuf-src = "1.1.0"
-quinn-proto = "^0.10.5"
-quote = "1.0.23"
-rand = "0.8.5"
-rayon = "1.5.3"
-rcgen = "0.9.2"
-regex = "1.7.1"
-reqwest = { version = "0.11.20", default_features = false, features = [
-  "blocking",
-  "json",
-  "rustls-tls",
-] }
-roaring = "0.10.1"
-rocksdb = { version = "0.21.0", features = [
-  "snappy",
-  "lz4",
-  "zstd",
-  "zlib",
-  "multi-threaded-cf",
-], default-features = false }
-ron = "0.8.0"
-rstest = "0.16.0"
-rusoto_core = { version = "0.48.0", default_features = false, features = [
-  "rustls",
-] }
-rusoto_kms = { version = "0.48.0", default_features = false, features = [
-  "rustls",
-] }
-russh = "0.38.0"
-russh-keys = "0.38.0"
-rust-version = "1.56.1"
-rustls = { version = "0.21.6", features = ["dangerous_configuration"] }
-rustls-pemfile = "1.0.2"
-rustversion = "1.0.9"
-rustyline = "9.1.2"
-rustyline-derive = "0.7.0"
-schemars = { version = "0.8.10", features = ["either"] }
+expect-test = "1.4"
+eyre = "0.6"
+fdlimit = "0.3"
+flate2 = "1.0"
+fs_extra = "1.3"
+futures = "0.3"
+git-version = "0.3"
+governor = "0.6"
+hdrhistogram = "7.5"
+hex = "0.4"
+http = "1.1"
+http-body-util = "0.1"
+humantime = "2.1"
+hyper = { version = "1.3", features = ["http2"] }
+hyper-util = { version = "0.1", default-features = false }
+im = "15.1"
+indexmap = { version = "2.1", features = ["serde"] }
+indicatif = "0.17"
+insta = { version = "1.21", features = ["redactions", "yaml", "json"] }
+integer-encoding = "4.0"
+itertools = "0.13"
+json_to_table = "0.6" # Version 0.8 is incompatable with tabled
+jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
+leb128 = "0.2"
+lru = "0.12"
+mockall = "0.13"
+more-asserts = "0.3"
+msim = { git = "ssh://git@github.com/iotaledger/iota-sim.git", rev = "8fe1939f4bf1e54d0638756c82aaa6c29212e2bb", package = "msim" }
+notify = "6.1"
+num-bigint = "0.4"
+num_cpus = "1.15"
+num_enum = "0.7"
+object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
+once_cell = "1.18"
+parking_lot = "0.12"
+pretty_assertions = "1.3"
+proc-macro2 = "1.0"
+prometheus = "0.13"
+proptest = "1.1"
+proptest-derive = "0.5"
+prost = "0.13"
+quinn-proto = "0.10" # Version 0.11 is incompatable with prometheus
+quote = "1.0"
+rand = "0.8"
+regex = "1.7"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+roaring = "0.10"
+rocksdb = { version = "0.22", features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"], default-features = false }
+rstest = "0.22"
+schemars = { version = "0.8", features = ["either"] }
 scopeguard = "1.1"
-serial_test = "2.0.0"
-serde = { version = "1.0.144", features = ["derive", "rc"] }
-serde-name = "0.2.1"
-serde-reflection = "0.3.6"
-serde_json = { version = "1.0.95", features = [
-  "preserve_order",
-  "arbitrary_precision",
-] }
-serde_repr = "0.1"
-serde_test = "1.0.147"
-serde_with = { version = "2.1.0", features = ["hex"] }
-# serde_yaml = "0.9.21"
-serde_yaml = "0.8.26"
-shell-words = "1.1.0"
-shellexpand = "3.1.0"
-signature = "1.6.0"
-similar = "2.4.0"
-slip10_ed25519 = "0.1.3"
-smallvec = "1.10.0"
-snap = "1.1.0"
-static_assertions = "1.1.0"
-strum = { version = "0.24", features = ["derive"] }
-strum_macros = "0.24.3"
-syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
-# syn = { version = "2", features = ["full", "fold", "extra-traits"] }
-synstructure = "0.12"
-sysinfo = "0.27.5"
-tabled = { version = "0.12" }
-tap = "1.0.1"
-tar = "0.4.40"
-tempfile = "3.3.0"
-test-fuzz = "3.0.4"
-thiserror = "1.0.40"
-tiny-bip39 = "1.0.0"
-tokio = "1.36.0"
-tokio-retry = "0.3"
-tokio-rustls = "0.24"
-tokio-stream = { version = "0.1.14", features = ["sync", "net"] }
-tokio-util = "0.7.10"
-toml = { version = "0.7.4", features = ["preserve_order"] }
-toml_edit = { version = "0.19.10" }
-tonic = { version = "0.11", features = ["transport", "tls"] }
-tonic-build = { version = "0.11", features = ["prost", "transport"] }
-tonic-health = "0.11"
-tower = { version = "0.4.12", features = [
-  "full",
-  "util",
-  "timeout",
-  "load-shed",
-  "limit",
-] }
-tower-http = { version = "0.3.4", features = [
-  "cors",
-  "full",
-  "trace",
-  "set-header",
-  "propagate-header",
-] }
-# tower-http = { version="0.4", features = ["trace"] }
-tower-layer = "0.3.2"
-twox-hash = "1.6.3"
-tracing = "0.1.37"
-tracing-appender = "0.2.2"
-tracing-subscriber = { version = "0.3.15", default-features = false, features = [
-  "std",
-  "smallvec",
-  "fmt",
-  "ansi",
-  "time",
-  "json",
-  "registry",
-  "env-filter",
-] }
-ttl_cache = "0.5.1"
-uint = "0.9.4"
-unescape = "0.1.0"
-ureq = "2.9.1"
-url = "2.3.1"
-uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
-webpki = { version = "0.101.0", package = "rustls-webpki", features = [
-  "alloc",
-  "std",
-] }
-x509-parser = "0.14.0"
-zstd = "0.12.3"
-zeroize = "1.6.0"
-versions = "4.1.0"
-linked-hash-map = "0.5.6"
-shlex = "1.3.0"
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde-reflection = "0.4"
+serde_json = { version = "1.0", features = ["preserve_order", "arbitrary_precision"] }
+serde_with = { version = "2.3", features = ["hex"] } # Version 3 is incompatable with fastcrypto
+serde_yaml = "0.9"
+shellexpand = "3.1"
+signature = "2.2"
+similar = "2.4"
+smallvec = "1.10"
+snap = "1.1"
+static_assertions = "1.1"
+strum = { version = "0.26", features = ["derive"] }
+syn = { version = "1.0", features = ["full", "derive", "extra-traits"] }
+tabled = "0.12" # Version 0.16 is incompatable with ratatui
+tap = "1.0"
+tempfile = "3.12"
+test-fuzz = "5.2"
+thiserror = "1.0"
+# tokio is defined at a specific version to support patching with iota-sim
+# Do not upgrade without updating https://github.com/iotaledger/iota-sim first
+tokio = "=1.39.2"
+tokio-stream = { version = "0.1", features = ["sync", "net"] }
+tokio-util = "0.7"
+toml = { version = "0.8", features = ["preserve_order"] }
+tonic = { version = "0.12", features = ["transport", "tls"] }
+tonic-build = { version = "0.12", features = ["prost", "transport"] }
+tonic-health = "0.12"
+tower = { version = "0.4", features = ["full", "util", "timeout", "load-shed", "limit"] }
+tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
+unescape = "0.1"
+url = "2.3"
+uuid = { version = "1.1", features = ["v4", "fast-rng"] }
 
 # Move dependencies
+move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
 move-binary-format = { path = "external-crates/move/crates/move-binary-format" }
 move-bytecode-utils = { path = "external-crates/move/crates/move-bytecode-utils" }
-move-bytecode-source-map = { path = "external-crates/move/crates/move-bytecode-source-map" }
 move-cli = { path = "external-crates/move/crates/move-cli" }
+move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
 move-compiler = { path = "external-crates/move/crates/move-compiler" }
 move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
+move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
+move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
 move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
 move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
-move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = [
-  "tiered-gas",
-] }
-move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
-move-command-line-common = { path = "external-crates/move/crates/move-command-line-common" }
-move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }
-move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
-move-prover = { path = "external-crates/move/crates/move-prover" }
-move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
-move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
-move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
+move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
 
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "52d00a506a965883f0904ee64bbd5fb9471c42b3" }
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "52d00a506a965883f0904ee64bbd5fb9471c42b3" }
-fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "52d00a506a965883f0904ee64bbd5fb9471c42b3", package = "fastcrypto-zkp" }
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "fastcrypto-zkp-v0.1.3", package = "fastcrypto" }
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "fastcrypto-zkp-v0.1.3", package = "fastcrypto-tbls" }
+fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "fastcrypto-zkp-v0.1.3", package = "fastcrypto-zkp" }
 
 # anemo dependencies
 anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
@@ -563,91 +357,83 @@ anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9a
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "26d415eb9aa6a2417be3c03c57d6e93c30bd1ad7" }
 
 ### Workspace Members ###
-anemo-benchmark = { path = "crates/anemo-benchmark" }
-mysten-common = { path = "crates/mysten-common" }
-mysten-metrics = { path = "crates/mysten-metrics" }
-mysten-network = { path = "crates/mysten-network" }
-mysten-service = { path = "crates/mysten-service" }
-mysten-service-boilerplate = { path = "crates/mysten-service-boilerplate" }
-mysten-util-mem = { path = "crates/mysten-util-mem" }
-mysten-util-mem-derive = { path = "crates/mysten-util-mem-derive" }
+iota = { path = "crates/iota" }
+iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
+iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
+iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" }
+iota-archival = { path = "crates/iota-archival" }
+iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
+iota-benchmark = { path = "crates/iota-benchmark" }
+iota-cluster-test = { path = "crates/iota-cluster-test" }
+iota-common = { path = "crates/iota-common" }
+iota-config = { path = "crates/iota-config" }
+iota-core = { path = "crates/iota-core" }
+iota-cost = { path = "crates/iota-cost" }
+iota-data-ingestion = { path = "crates/iota-data-ingestion" }
+iota-data-ingestion-core = { path = "crates/iota-data-ingestion-core" }
+iota-e2e-tests = { path = "crates/iota-e2e-tests" }
+iota-enum-compat-util = { path = "crates/iota-enum-compat-util" }
+iota-faucet = { path = "crates/iota-faucet" }
+iota-framework = { path = "crates/iota-framework" }
+iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
+iota-framework-tests = { path = "crates/iota-framework-tests" }
+iota-genesis-builder = { path = "crates/iota-genesis-builder" }
+iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
+iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
+iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
+iota-indexer = { path = "crates/iota-indexer" }
+iota-json = { path = "crates/iota-json" }
+iota-json-rpc = { path = "crates/iota-json-rpc" }
+iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
+iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
+iota-keys = { path = "crates/iota-keys" }
+iota-macros = { path = "crates/iota-macros" }
+iota-metric-checker = { path = "crates/iota-metric-checker" }
+iota-metrics = { path = "crates/iota-metrics" }
+iota-move = { path = "crates/iota-move" }
+iota-move-build = { path = "crates/iota-move-build" }
+iota-network = { path = "crates/iota-network" }
+iota-network-stack = { path = "crates/iota-network-stack" }
+iota-node = { path = "crates/iota-node" }
+iota-open-rpc = { path = "crates/iota-open-rpc" }
+iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
+iota-package-resolver = { path = "crates/iota-package-resolver" }
+iota-proc-macros = { path = "crates/iota-proc-macros" }
+iota-protocol-config = { path = "crates/iota-protocol-config" }
+iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
+iota-replay = { path = "crates/iota-replay" }
+iota-rest-api = { path = "crates/iota-rest-api" }
+iota-rosetta = { path = "crates/iota-rosetta" }
+iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
+iota-sdk = { path = "crates/iota-sdk" }
+iota-simulator = { path = "crates/iota-simulator" }
+iota-snapshot = { path = "crates/iota-snapshot" }
+iota-source-validation = { path = "crates/iota-source-validation" }
+iota-source-validation-service = { path = "crates/iota-source-validation-service" }
+iota-storage = { path = "crates/iota-storage" }
+iota-surfer = { path = "crates/iota-surfer" }
+iota-swarm = { path = "crates/iota-swarm" }
+iota-swarm-config = { path = "crates/iota-swarm-config" }
+iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
+iota-test-validator = { path = "crates/iota-test-validator" }
+iota-tool = { path = "crates/iota-tool" }
+iota-transaction-builder = { path = "crates/iota-transaction-builder" }
+iota-transaction-checks = { path = "crates/iota-transaction-checks" }
+iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner" }
+iota-types = { path = "crates/iota-types" }
+iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
+iota-util-mem = { path = "crates/iota-util-mem" }
+iota-util-mem-derive = { path = "crates/iota-util-mem-derive" }
+iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
-sui = { path = "crates/sui" }
-sui-adapter-transactional-tests = { path = "crates/sui-adapter-transactional-tests" }
-sui-analytics-indexer = { path = "crates/sui-analytics-indexer" }
-sui-analytics-indexer-derive = { path = "crates/sui-analytics-indexer-derive" }
-sui-archival = { path = "crates/sui-archival" }
-sui-authority-aggregation = { path = "crates/sui-authority-aggregation" }
-sui-benchmark = { path = "crates/sui-benchmark" }
-sui-cluster-test = { path = "crates/sui-cluster-test" }
-sui-common = { path = "crates/sui-common" }
-sui-config = { path = "crates/sui-config" }
-sui-core = { path = "crates/sui-core" }
-sui-cost = { path = "crates/sui-cost" }
-sui-data-ingestion = { path = "crates/sui-data-ingestion" }
-sui-data-ingestion-core = { path = "crates/sui-data-ingestion-core" }
-sui-e2e-tests = { path = "crates/sui-e2e-tests" }
-sui-enum-compat-util = { path = "crates/sui-enum-compat-util" }
-sui-faucet = { path = "crates/sui-faucet" }
-sui-framework = { path = "crates/sui-framework" }
-sui-framework-snapshot = { path = "crates/sui-framework-snapshot" }
-sui-framework-tests = { path = "crates/sui-framework-tests" }
-sui-graphql-rpc = { path = "crates/sui-graphql-rpc" }
-sui-graphql-rpc-client = { path = "crates/sui-graphql-rpc-client" }
-sui-graphql-rpc-headers = { path = "crates/sui-graphql-rpc-headers" }
-sui-genesis-builder = { path = "crates/sui-genesis-builder" }
-sui-indexer = { path = "crates/sui-indexer" }
-sui-json = { path = "crates/sui-json" }
-sui-json-rpc = { path = "crates/sui-json-rpc" }
-sui-json-rpc-api = { path = "crates/sui-json-rpc-api" }
-sui-json-rpc-types = { path = "crates/sui-json-rpc-types" }
-sui-keys = { path = "crates/sui-keys" }
-sui-macros = { path = "crates/sui-macros" }
-sui-metric-checker = { path = "crates/sui-metric-checker" }
-sui-move = { path = "crates/sui-move" }
-sui-move-build = { path = "crates/sui-move-build" }
-sui-network = { path = "crates/sui-network" }
-sui-node = { path = "crates/sui-node" }
-sui-open-rpc = { path = "crates/sui-open-rpc" }
-sui-open-rpc-macros = { path = "crates/sui-open-rpc-macros" }
-sui-package-resolver = { path = "crates/sui-package-resolver" }
-sui-proc-macros = { path = "crates/sui-proc-macros" }
-sui-protocol-config = { path = "crates/sui-protocol-config" }
-sui-protocol-config-macros = { path = "crates/sui-protocol-config-macros" }
-sui-proxy = { path = "crates/sui-proxy" }
-sui-replay = { path = "crates/sui-replay" }
-sui-rosetta = { path = "crates/sui-rosetta" }
-sui-rpc-loadgen = { path = "crates/sui-rpc-loadgen" }
-sui-sdk = { path = "crates/sui-sdk" }
-sui-simulator = { path = "crates/sui-simulator" }
-sui-snapshot = { path = "crates/sui-snapshot" }
-sui-source-validation = { path = "crates/sui-source-validation" }
-sui-source-validation-service = { path = "crates/sui-source-validation-service" }
-sui-storage = { path = "crates/sui-storage" }
-sui-surfer = { path = "crates/sui-surfer" }
-sui-swarm = { path = "crates/sui-swarm" }
-sui-swarm-config = { path = "crates/sui-swarm-config" }
-sui-telemetry = { path = "crates/sui-telemetry" }
-sui-test-transaction-builder = { path = "crates/sui-test-transaction-builder" }
-sui-test-validator = { path = "crates/sui-test-validator" }
-sui-tls = { path = "crates/sui-tls" }
-sui-rest-api = { path = "crates/sui-rest-api" }
-sui-tool = { path = "crates/sui-tool" }
-sui-transaction-builder = { path = "crates/sui-transaction-builder" }
-sui-transaction-checks = { path = "crates/sui-transaction-checks" }
-sui-transactional-test-runner = { path = "crates/sui-transactional-test-runner" }
-sui-types = { path = "crates/sui-types" }
-sui-upgrade-compatibility-transactional-tests = { path = "crates/sui-upgrade-compatibility-transactional-tests" }
-sui-verifier-transactional-tests = { path = "crates/sui-verifier-transactional-tests" }
 telemetry-subscribers = { path = "crates/telemetry-subscribers" }
 test-cluster = { path = "crates/test-cluster" }
 transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
-x = { path = "crates/x" }
 
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
@@ -663,17 +449,4 @@ narwhal-test-utils = { path = "narwhal/test-utils" }
 narwhal-types = { path = "narwhal/types" }
 narwhal-worker = { path = "narwhal/worker" }
 
-sui-execution = { path = "sui-execution" }
-# sui-move-natives = { path = "sui-execution/latest/sui-move-natives", package = "sui-move-natives-latest" }
-# sui-adapter = { path = "sui-execution/latest/sui-adapter", package = "sui-adapter-latest" }
-# sui-verifier = { path = "sui-execution/latest/sui-verifier", package = "sui-verifier-latest" }
-# move-stdlib = { path = "external-crates/move/move-stdlib" }
-# move-vm-runtime = { path = "external-crates/move/move-vm/runtime" }
-# move-bytecode-verifier = { path = "external-crates/move/move-bytecode-verifier" }
-
-# suiop dependencies
-docker-api = "0.12.2"
-field_names = "0.2.0"
-semver = "1.0.16"
-spinners = "4.1.0"
-include_dir = "0.7.3"
+iota-execution = { path = "iota-execution" }

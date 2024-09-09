@@ -1,20 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    extensions, format_module_id,
-    test_reporter::{
-        FailureReason, MoveError, TestFailure, TestResults, TestRunInfo, TestStatistics,
-    },
-};
+use std::{collections::BTreeMap, io::Write, marker::Send, sync::Mutex, time::Instant};
+
 use anyhow::Result;
 use codespan_reporting::{
     diagnostic::Severity,
     term::termcolor::{ColorChoice, StandardStream},
 };
 use colored::*;
-
 use move_binary_format::{
     errors::{Location, VMResult},
     file_format::CompiledModule,
@@ -40,15 +36,22 @@ use move_stackless_bytecode_interpreter::{
     shared::bridge::adapt_move_vm_result,
     StacklessBytecodeInterpreter,
 };
-use move_vm_runtime::{move_vm::MoveVM, native_functions::NativeFunctionTable};
+use move_vm_runtime::{
+    move_vm::MoveVM, native_extensions::NativeContextExtensions,
+    native_functions::NativeFunctionTable,
+};
 use move_vm_test_utils::{
     gas_schedule::{unit_cost_schedule, CostTable, Gas, GasStatus},
     InMemoryStorage,
 };
 use rayon::prelude::*;
-use std::{collections::BTreeMap, io::Write, marker::Send, sync::Mutex, time::Instant};
 
-use move_vm_runtime::native_extensions::NativeContextExtensions;
+use crate::{
+    extensions, format_module_id,
+    test_reporter::{
+        FailureReason, MoveError, TestFailure, TestResults, TestRunInfo, TestStatistics,
+    },
+};
 
 /// Test state common to all tests
 pub struct SharedTestingConfig {
@@ -69,7 +72,8 @@ pub struct TestRunner {
     tests: TestPlan,
 }
 
-/// Setup storage state with the set of modules that will be needed for all tests
+/// Setup storage state with the set of modules that will be needed for all
+/// tests
 fn setup_test_storage<'a>(
     modules: impl Iterator<Item = &'a CompiledModule>,
 ) -> Result<InMemoryStorage> {
@@ -124,8 +128,8 @@ impl TestRunner {
         verbose: bool,
         report_stacktrace_on_abort: bool,
         tests: TestPlan,
-        // TODO: maybe we should require the clients to always pass in a list of native functions so
-        // we don't have to make assumptions about their gas parameters.
+        // TODO: maybe we should require the clients to always pass in a list of native functions
+        // so we don't have to make assumptions about their gas parameters.
         native_function_table: Option<NativeFunctionTable>,
         cost_table: Option<CostTable>,
         named_address_values: BTreeMap<String, NumericalAddress>,
@@ -150,8 +154,9 @@ impl TestRunner {
                 execution_bound,
                 native_function_table,
                 // TODO: our current implementation uses a unit cost table to prevent programs from
-                // running indefinitely. This should probably be done in a different way, like halting
-                // after executing a certain number of instructions or setting a timer.
+                // running indefinitely. This should probably be done in a different way, like
+                // halting after executing a certain number of instructions or
+                // setting a timer.
                 //
                 // From the API standpoint, we should let the client specify the cost table.
                 cost_table: cost_table.unwrap_or_else(unit_cost_schedule),
@@ -299,7 +304,8 @@ impl SharedTestingConfig {
             function_name.to_string(),
             now.elapsed(),
             // TODO(Gas): This doesn't look quite right...
-            //            We're not computing the number of instructions executed even with a unit gas schedule.
+            //            We're not computing the number of instructions executed even with a unit
+            // gas schedule.
             Gas::new(self.execution_bound)
                 .checked_sub(gas_meter.remaining_gas())
                 .unwrap()
@@ -327,9 +333,9 @@ impl SharedTestingConfig {
         };
         let interpreter = StacklessBytecodeInterpreter::new(env, None, settings);
 
-        // NOTE: as of now, `self.starting_storage_state` contains modules only and no resources.
-        // The modules are captured by `env: &GlobalEnv` and the default GlobalState captures the
-        // empty-resource state.
+        // NOTE: as of now, `self.starting_storage_state` contains modules only and no
+        // resources. The modules are captured by `env: &GlobalEnv` and the
+        // default GlobalState captures the empty-resource state.
         let global_state = GlobalState::default();
         let (return_result, _, _) = interpreter.interpret(
             &test_plan.module_id,
@@ -356,9 +362,9 @@ impl SharedTestingConfig {
         global_test_context: &BTreeMap<ModuleId, NamedCompiledModule>,
         output: &TestOutput<impl Write>,
     ) -> TestStatistics {
-        // TODO: Somehow, paths of some temporary Move interface files are being passed in after those files
-        // have been removed. This is a dirty hack to work around the problem while we investigate the root
-        // cause.
+        // TODO: Somehow, paths of some temporary Move interface files are being passed
+        // in after those files have been removed. This is a dirty hack to work
+        // around the problem while we investigate the root cause.
         let filtered_sources = self
             .source_files
             .iter()

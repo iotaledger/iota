@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Native Function Support
@@ -13,27 +14,29 @@
 //! ) -> PartialVMResult<NativeResult>;`
 //!
 //! arguments are passed with first argument at position 0 and so forth.
-//! Popping values from `arguments` gives the aguments in reverse order (last first).
-//! This module contains the declarations and utilities to implement a native
-//! function.
-
-use crate::values::Value;
-use smallvec::{smallvec, SmallVec};
+//! Popping values from `arguments` gives the arguments in reverse order (last
+//! first). This module contains the declarations and utilities to implement a
+//! native function.
 
 pub use move_binary_format::errors::{PartialVMError, PartialVMResult};
 pub use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
+use smallvec::{smallvec, SmallVec};
+
+use crate::values::Value;
 
 /// Result of a native function execution requires charges for execution cost.
 ///
-/// An execution that causes an invariant violation would not return a `NativeResult` but
-/// return a `PartialVMError` error directly.
-/// All native functions must return a `PartialVMResult<NativeResult>` where an `Err` is returned
-/// when an error condition is met that should not charge for the execution. A common example
-/// is a VM invariant violation which should have been forbidden by the verifier.
-/// Errors (typically user errors and aborts) that are logically part of the function execution
-/// must be expressed in a `NativeResult` with a cost and a VMStatus.
+/// An execution that causes an invariant violation would not return a
+/// `NativeResult` but return a `PartialVMError` error directly.
+/// All native functions must return a `PartialVMResult<NativeResult>` where an
+/// `Err` is returned when an error condition is met that should not charge for
+/// the execution. A common example is a VM invariant violation which should
+/// have been forbidden by the verifier. Errors (typically user errors and
+/// aborts) that are logically part of the function execution must be expressed
+/// in a `NativeResult` with a cost and a VMStatus.
 pub struct NativeResult {
-    /// Result of execution. This is either the return values or the error to report.
+    /// Result of execution. This is either the return values or the error to
+    /// report.
     pub cost: InternalGas,
     pub result: Result<SmallVec<[Value; 1]>, u64>,
 }
@@ -47,10 +50,11 @@ impl NativeResult {
         }
     }
 
-    /// Failed execution. The failure is a runtime failure in the function and not an invariant
-    /// failure of the VM which would raise a `PartialVMError` error directly.
-    /// The only thing the funciton can specify is its abort code, as if it had invoked the `Abort`
-    /// bytecode instruction
+    /// Failed execution. The failure is a runtime failure in the function and
+    /// not an invariant failure of the VM which would raise a
+    /// `PartialVMError` error directly. The only thing the function can
+    /// specify is its abort code, as if it had invoked the `Abort` bytecode
+    /// instruction
     pub fn err(cost: InternalGas, abort_code: u64) -> Self {
         NativeResult {
             cost,
@@ -58,7 +62,7 @@ impl NativeResult {
         }
     }
 
-    /// Convert a PartialVMResult<()> into a PartialVMResult<NativeResult>
+    /// Convert a `PartialVMResult<()>` into a `PartialVMResult<NativeResult>`
     pub fn map_partial_vm_result_empty(
         cost: InternalGas,
         res: PartialVMResult<()>,
@@ -79,7 +83,8 @@ impl NativeResult {
         Ok(result)
     }
 
-    /// Convert a PartialVMResult<Value> into a PartialVMResult<NativeResult>
+    /// Convert a `PartialVMResult<Value>` into a
+    /// `PartialVMResult<NativeResult>`
     pub fn map_partial_vm_result_one(
         cost: InternalGas,
         res: PartialVMResult<Value>,
@@ -103,9 +108,10 @@ impl NativeResult {
 
 /// Return the argument at the top of the stack.
 ///
-/// Arguments are passed to a native as a stack with first arg at the bottom of the stack.
-/// Calling this API can help in making the code more readable.
-/// It's good practice to pop all arguments in locals of the native function on function entry.
+/// Arguments are passed to a native as a stack with first arg at the bottom of
+/// the stack. Calling this API can help in making the code more readable.
+/// It's good practice to pop all arguments in locals of the native function on
+/// function entry.
 #[macro_export]
 macro_rules! pop_arg {
     ($arguments:ident, $t:ty) => {{
@@ -114,7 +120,7 @@ macro_rules! pop_arg {
             None => {
                 return Err(PartialVMError::new(
                     StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
-                ))
+                ));
             }
             Some(Err(e)) => return Err(e),
             Some(Ok(v)) => v,

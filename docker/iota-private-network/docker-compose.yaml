@@ -1,0 +1,311 @@
+version: "3"
+
+x-common-validator: &common-validator
+  image: iota-node
+  environment: &common-env
+    - RUST_BACKTRACE=1
+    - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+    - RPC_WORKER_THREAD=12
+    - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
+    - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
+  command: &common-command [
+    "/usr/local/bin/iota-node",
+    "--config-path",
+    "/opt/iota/config/validator.yaml",
+  ]
+  restart: on-failure
+  logging: &common-logging
+    driver: "json-file"
+    options:
+      max-file: "10"
+      max-size: "1g"
+
+x-common-fullnode: &common-fullnode
+  <<: *common-validator
+  command:
+    [
+      "/usr/local/bin/iota-node",
+      "--config-path",
+      "/opt/iota/config/fullnode.yaml",
+    ]
+
+services:
+  validator-1:
+    <<: *common-validator
+    container_name: validator-1
+    hostname: validator-1
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.11
+    volumes:
+      - ./configs/validators/validator-1-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-1:/opt/iota/db:rw
+
+  validator-2:
+    <<: *common-validator
+    container_name: validator-2
+    hostname: validator-2
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.12
+    volumes:
+      - ./configs/validators/validator-2-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-2:/opt/iota/db:rw
+
+  validator-3:
+    <<: *common-validator
+    container_name: validator-3
+    hostname: validator-3
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.13
+    volumes:
+      - ./configs/validators/validator-3-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-3:/opt/iota/db:rw
+
+  validator-4:
+    <<: *common-validator
+    container_name: validator-4
+    hostname: validator-4
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.14
+    volumes:
+      - ./configs/validators/validator-4-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-4:/opt/iota/db:rw
+
+  fullnode-1:
+    <<: *common-fullnode
+    container_name: fullnode-1
+    hostname: fullnode-1
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.15
+    volumes:
+      - ./data/fullnode-1:/opt/iota/db:rw
+      - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+    expose:
+      - "9000"
+    ports:
+      - "127.0.0.1:9000:9000/tcp"
+      - "127.0.0.1:9184:9184/tcp"
+
+  fullnode-2:
+    <<: *common-fullnode
+    container_name: fullnode-2
+    hostname: fullnode-2
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.16
+    volumes:
+      - ./data/fullnode-2:/opt/iota/db:rw
+      - ./configs/fullnodes/backup.yaml:/opt/iota/config/fullnode.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+    ports:
+      - "127.0.0.1:9001:9000/tcp"
+      - "127.0.0.1:9185:9184/tcp"
+
+  fullnode-3:
+    <<: *common-fullnode
+    container_name: fullnode-3
+    hostname: fullnode-3
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.17
+    volumes:
+      - ./data/fullnode-3:/opt/iota/db:rw
+      - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+    ports:
+      - "127.0.0.1:9002:9000/tcp"
+      - "127.0.0.1:9186:9184/tcp"
+
+  fullnode-4:
+    <<: *common-fullnode
+    container_name: fullnode-4
+    hostname: fullnode-4
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.18
+    volumes:
+      - ./data/fullnode-4:/opt/iota/db:rw
+      - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+    ports:
+      - "127.0.0.1:9003:9000/tcp"
+      - "127.0.0.1:9187:9184/tcp"
+
+  indexer-1:
+    image: iota-indexer
+    container_name: indexer-1
+    hostname: indexer-1
+    restart: on-failure
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.19
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+      - RPC_WORKER_THREAD=12
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres_primary:5432/iota_indexer
+      - --rpc-client-url=http://fullnode-3:9000
+      - --fullnode-sync-worker
+      - --client-metric-port=9181
+      - --reset-db
+    ports:
+      - "127.0.0.1:9004:9000/tcp"
+      - "127.0.0.1:9181:9181/tcp"
+    volumes:
+      - ./data/indexer-1:/opt/iota
+    depends_on:
+      - fullnode-3
+      - postgres_primary
+
+  indexer-2:
+    image: iota-indexer
+    container_name: indexer-2
+    hostname: indexer-2
+    restart: on-failure
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.20
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+      - RPC_WORKER_THREAD=12
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://iota_indexer:iota_indexer@postgres_replica:5432/iota_indexer
+      - --rpc-client-url=http://fullnode-4:9000
+      - --rpc-server-worker
+      - --client-metric-port=9181
+    ports:
+      - "127.0.0.1:9005:9000/tcp"
+      - "127.0.0.1:9182:9181/tcp"
+    depends_on:
+      - fullnode-4
+      - postgres_replica
+    volumes:
+      - ./data/indexer-2:/opt/iota
+
+  faucet-1:
+    image: iota-tools
+    container_name: faucet-1
+    hostname: faucet-1
+    restart: on-failure
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.21
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info
+      - RPC_WORKER_THREAD=12
+    command:
+      - /usr/local/bin/iota-faucet
+      - --port=5003
+      - --host-ip=0.0.0.0
+      - --write-ahead-log=/wal/faucet.wal
+      - --num-coins=1
+      - --amount=10000000000
+    ports:
+      - "127.0.0.1:5003:5003/tcp"
+      - "127.0.0.1:9188:9184/tcp"
+    volumes:
+      - ./configs/faucet:/root/.iota/iota_config
+      - ./data/faucet-1:/wal
+    depends_on:
+      - fullnode-1
+
+  postgres_primary:
+    image: postgres:15
+    user: postgres
+    restart: always
+    container_name: postgres_primary
+    hostname: postgres_primary
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.22
+    expose:
+      - 5432
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: iota_indexer
+      POSTGRES_PASSWORD: iota_indexer
+      POSTGRES_DB: iota_indexer
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: |
+      postgres
+      -c wal_level=replica
+      -c hot_standby=on
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby_feedback=on
+      -c 'max_connections=1000'
+    volumes:
+      - ./static/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data/primary:/var/lib/postgresql/data
+    healthcheck:
+      test: "pg_isready -p 5432"
+      interval: 30s
+      timeout: 15s
+      retries: 20
+      start_period: 10s
+
+  postgres_replica:
+    image: postgres:15
+    user: postgres
+    restart: always
+    container_name: postgres_replica
+    hostname: postgres_replica
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.23
+    expose:
+      - 5432
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      PGUSER: replicator
+      PGPASSWORD: replicator
+    command: |
+      bash -c "
+      if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+        echo 'Initializing replica...'
+        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=postgres_primary --port=5432
+        do
+          echo 'Waiting for primary to connect...'
+          sleep 1s
+        done
+        echo 'Backup done, starting replica...'
+      else
+        echo 'Existing data found, starting replica...'
+      fi
+      chmod 0700 /var/lib/postgresql/data
+      postgres -c 'max_connections=1000'
+      "
+    depends_on:
+      - postgres_primary
+    volumes:
+      - ./data/replica:/var/lib/postgresql/data
+    healthcheck:
+      test: "pg_isready -p 5432"
+      interval: 30s
+      timeout: 15s
+      retries: 20
+      start_period: 10s
+
+networks:
+  iota-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24

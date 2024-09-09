@@ -1,9 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
-use crate::interfaces::LeftScreen;
+use std::collections::HashMap;
+
 use move_binary_format::{
     binary_views::BinaryIndexedView,
     file_format::{CodeOffset, CompiledModule, FunctionDefinitionIndex},
@@ -11,7 +13,8 @@ use move_binary_format::{
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
 use regex::Regex;
-use std::collections::HashMap;
+
+use crate::interfaces::LeftScreen;
 
 #[derive(Clone, Debug)]
 pub struct BytecodeInfo {

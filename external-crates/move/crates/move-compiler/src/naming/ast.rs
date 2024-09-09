@@ -1,6 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt,
+};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+use once_cell::sync::Lazy;
 
 use crate::{
     diagnostics::WarningFilters,
@@ -17,13 +27,6 @@ use crate::{
         ast_debug::*, known_attributes::SyntaxAttribute, program_info::NamingProgramInfo,
         unique_map::UniqueMap, *,
     },
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use once_cell::sync::Lazy;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt,
 };
 
 //**************************************************************************************************
@@ -380,14 +383,16 @@ pub enum Exp_ {
     ModuleCall(
         ModuleIdent,
         FunctionName,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
     MethodCall(
         ExpDotted,
         Name,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
@@ -480,8 +485,8 @@ impl UseFuns {
 
 impl IndexSyntaxMethods {
     pub fn get_name_for_typing(&self) -> Option<(ModuleIdent, FunctionName)> {
-        // We prefer `index` over `index_mut` because its type is subject and return type are higher
-        // in the subtyping lattice.
+        // We prefer `index` over `index_mut` because its type is subject and return
+        // type are higher in the subtyping lattice.
         if let Some(index) = &self.index {
             Some(index.target_function)
         } else {
@@ -824,9 +829,9 @@ impl Type_ {
         }
     }
 
-    // Returns an option holding the ref's mutability (or None, if it is not a reference type).
-    // Also return None for `Anything`, `Var`, or other values that might be compatible wifh `Ref`
-    // types.
+    // Returns an option holding the ref's mutability (or None, if it is not a
+    // reference type). Also return None for `Anything`, `Var`, or other values
+    // that might be compatible wifh `Ref` types.
     pub fn is_ref(&self) -> Option<bool> {
         match self {
             Type_::Ref(mut_, _) => Some(*mut_),

@@ -1,7 +1,7 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::production_config;
 use move_binary_format::file_format::*;
 use move_bytecode_verifier::{
     limits::LimitsVerifier, meter::DummyMeter, verify_module_with_config_for_test,
@@ -10,6 +10,8 @@ use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
 use move_vm_config::verifier::{VerifierConfig, DEFAULT_MAX_IDENTIFIER_LENGTH};
+
+use crate::unit_tests::production_config;
 
 #[test]
 fn test_function_handle_type_instantiation() {
@@ -597,7 +599,7 @@ fn max_identifier_len() {
     let config = production_config();
     let max_ident = "z".repeat(
         config
-            .max_idenfitier_len
+            .max_identifier_len
             .unwrap_or(DEFAULT_MAX_IDENTIFIER_LENGTH) as usize,
     );
     let good_module = leaf_module(&max_ident);
@@ -608,7 +610,7 @@ fn max_identifier_len() {
     let config = production_config();
     let max_ident = "z".repeat(
         (config
-            .max_idenfitier_len
+            .max_identifier_len
             .unwrap_or(DEFAULT_MAX_IDENTIFIER_LENGTH) as usize)
             / 2,
     );
@@ -619,7 +621,7 @@ fn max_identifier_len() {
 
     let over_max_ident = "z".repeat(
         1 + config
-            .max_idenfitier_len
+            .max_identifier_len
             .unwrap_or(DEFAULT_MAX_IDENTIFIER_LENGTH) as usize,
     );
     let bad_module = leaf_module(&over_max_ident);
@@ -632,7 +634,7 @@ fn max_identifier_len() {
 
     let over_max_ident = "zx".repeat(
         1 + config
-            .max_idenfitier_len
+            .max_identifier_len
             .unwrap_or(DEFAULT_MAX_IDENTIFIER_LENGTH) as usize,
     );
     let bad_module = leaf_module(&over_max_ident);

@@ -1,8 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
+
+use move_core_types::vm_status::StatusCode;
 
 use crate::{
     errors::{PartialVMError, PartialVMResult},
@@ -10,30 +13,53 @@ use crate::{
     file_format_common::VERSION_5,
     normalized::Module,
 };
-use move_core_types::vm_status::StatusCode;
 
-/// The result of a linking and layout compatibility check. Here is what the different combinations. NOTE that if `check_struct_layout` is false, type safety over a series of upgrades cannot be guaranteed.
-/// mean:
-/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: true, check_friend_linking: true, check_private_entry_linking: true }`: fully backward compatible
-/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: true, check_friend_linking: true, check_private_entry_linking: false }`: Backwards compatible, private entry function signatures can change
-/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: true, check_friend_linking: false, check_private_entry_linking: true }`: Backward compatible, exclude the friend module declare and friend functions
-/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: true, check_friend_linking: false, check_private_entry_linking: false }`: Backward compatible, exclude the friend module declarations, friend functions, and private and friend entry function
-/// `{ check_struct_and_pub_function_linking: false, check_struct_layout: true, check_friend_linking: false, check_private_entry_linking: _ }`: Dependent modules that reference functions or types in this module may not link. However, fixing, recompiling, and redeploying all dependent modules will work--no data migration needed.
-/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: false, check_friend_linking: true, check_private_entry_linking: _ }`: Attempting to read structs published by this module will now fail at runtime. However, dependent modules will continue to link. Requires data migration, but no changes to dependent modules.
-/// `{ check_struct_and_pub_function_linking: false, check_struct_layout: false, check_friend_linking: false, check_private_entry_linking: _ }`: Everything is broken. Need both a data migration and changes to dependent modules.
+/// The result of a linking and layout compatibility check. Here is what the
+/// different combinations. NOTE that if `check_struct_layout` is false, type
+/// safety over a series of upgrades cannot be guaranteed. mean:
+/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: true,
+/// check_friend_linking: true, check_private_entry_linking: true }`: fully
+/// backward compatible `{ check_struct_and_pub_function_linking: true,
+/// check_struct_layout: true, check_friend_linking: true,
+/// check_private_entry_linking: false }`: Backwards compatible, private entry
+/// function signatures can change `{ check_struct_and_pub_function_linking:
+/// true, check_struct_layout: true, check_friend_linking: false,
+/// check_private_entry_linking: true }`: Backward compatible, exclude the
+/// friend module declare and friend functions
+/// `{ check_struct_and_pub_function_linking: true, check_struct_layout: true,
+/// check_friend_linking: false, check_private_entry_linking: false }`: Backward
+/// compatible, exclude the friend module declarations, friend functions, and
+/// private and friend entry function `{ check_struct_and_pub_function_linking:
+/// false, check_struct_layout: true, check_friend_linking: false,
+/// check_private_entry_linking: _ }`: Dependent modules that reference
+/// functions or types in this module may not link. However, fixing,
+/// recompiling, and redeploying all dependent modules will work--no data
+/// migration needed. `{ check_struct_and_pub_function_linking: true,
+/// check_struct_layout: false, check_friend_linking: true,
+/// check_private_entry_linking: _ }`: Attempting to read structs published by
+/// this module will now fail at runtime. However, dependent modules will
+/// continue to link. Requires data migration, but no changes to dependent
+/// modules. `{ check_struct_and_pub_function_linking: false,
+/// check_struct_layout: false, check_friend_linking: false,
+/// check_private_entry_linking: _ }`: Everything is broken. Need both a data
+/// migration and changes to dependent modules.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct Compatibility {
-    /// if false, do not ensure the dependent modules that reference public functions or structs in this module can link
+    /// if false, do not ensure the dependent modules that reference public
+    /// functions or structs in this module can link
     pub check_struct_and_pub_function_linking: bool,
     /// if false, do not ensure the struct layout capability
     pub check_struct_layout: bool,
-    /// if false, treat `friend` as `private` when `check_struct_and_pub_function_linking`.
+    /// if false, treat `friend` as `private` when
+    /// `check_struct_and_pub_function_linking`.
     pub check_friend_linking: bool,
-    /// if false, treat `entry` as `private` when `check_struct_and_pub_function_linking`.
+    /// if false, treat `entry` as `private` when
+    /// `check_struct_and_pub_function_linking`.
     pub check_private_entry_linking: bool,
     /// The set of abilities that cannot be added to an already exisiting type.
     pub disallowed_new_abilities: AbilitySet,
-    /// Don't allow generic type parameters in structs to change their abilities or constraints.
+    /// Don't allow generic type parameters in structs to change their abilities
+    /// or constraints.
     pub disallow_change_struct_type_params: bool,
 }
 
@@ -70,7 +96,8 @@ impl Compatibility {
         self != &Self::no_check()
     }
 
-    /// Check compatibility for `new_module` relative to old module `old_module`.
+    /// Check compatibility for `new_module` relative to old module
+    /// `old_module`.
     pub fn check(&self, old_module: &Module, new_module: &Module) -> PartialVMResult<()> {
         let mut struct_and_function_linking = true;
         let mut struct_layout = true;
@@ -85,8 +112,9 @@ impl Compatibility {
         // old module's structs are a subset of the new module's structs
         for (name, old_struct) in &old_module.structs {
             let Some(new_struct) = new_module.structs.get(name) else {
-                // Struct not present in new . Existing modules that depend on this struct will fail to link with the new version of the module.
-                // Also, struct layout cannot be guaranteed transitively, because after
+                // Struct not present in new . Existing modules that depend on this struct will
+                // fail to link with the new version of the module. Also, struct
+                // layout cannot be guaranteed transitively, because after
                 // removing the struct, it could be re-added later with a different layout.
                 struct_and_function_linking = false;
                 struct_layout = false;
@@ -115,19 +143,21 @@ impl Compatibility {
             }
         }
 
-        // The modules are considered as compatible function-wise when all the conditions are met:
+        // The modules are considered as compatible function-wise when all the
+        // conditions are met:
         //
-        // - old module's public functions are a subset of the new module's public functions
-        //   (i.e. we cannot remove or change public functions)
-        // - old module's script functions are a subset of the new module's script functions
-        //   (i.e. we cannot remove or change script functions)
+        // - old module's public functions are a subset of the new module's public
+        //   functions (i.e. we cannot remove or change public functions)
+        // - old module's script functions are a subset of the new module's script
+        //   functions (i.e. we cannot remove or change script functions)
         // - for any friend function that is removed or changed in the old module
         //   - if the function visibility is upgraded to public, it is OK
         //   - otherwise, it is considered as incompatible.
         //
-        // NOTE: it is possible to relax the compatibility checking for a friend function, i.e.,
-        // we can remove/change a friend function if the function is not used by any module in the
-        // friend list. But for simplicity, we decided to go to the more restrictive form now and
+        // NOTE: it is possible to relax the compatibility checking for a friend
+        // function, i.e., we can remove/change a friend function if the
+        // function is not used by any module in the friend list. But for
+        // simplicity, we decided to go to the more restrictive form now and
         // we may revisit this in the future.
         for (name, old_func) in &old_module.functions {
             let Some(new_func) = new_module.functions.get(name) else {
@@ -220,8 +250,9 @@ impl Compatibility {
 }
 
 // When upgrading, the new abilities must be a superset of the old abilities.
-// Adding an ability is fine as long as it's not in the disallowed_new_abilities,
-// but removing an ability could cause existing usages to fail.
+// Adding an ability is fine as long as it's not in the
+// disallowed_new_abilities, but removing an ability could cause existing usages
+// to fail.
 fn struct_abilities_compatible(
     disallowed_new_abilities: AbilitySet,
     old_abilities: AbilitySet,
@@ -234,8 +265,8 @@ fn struct_abilities_compatible(
         })
 }
 
-// When upgrading, the new type parameters must be the same length, and the new type parameter
-// constraints must be compatible
+// When upgrading, the new type parameters must be the same length, and the new
+// type parameter constraints must be compatible
 fn fun_type_parameters_compatible(
     old_type_parameters: &[AbilitySet],
     new_type_parameters: &[AbilitySet],
@@ -273,8 +304,9 @@ fn struct_type_parameters_compatible(
         )
 }
 
-// When upgrading, the new constraints must be a subset of (or equal to) the old constraints.
-// Removing an ability is fine, but adding an ability could cause existing callsites to fail
+// When upgrading, the new constraints must be a subset of (or equal to) the old
+// constraints. Removing an ability is fine, but adding an ability could cause
+// existing callsites to fail
 fn type_parameter_constraints_compatible(
     disallow_changing_generic_abilities: bool,
     old_type_constraints: AbilitySet,
@@ -287,9 +319,10 @@ fn type_parameter_constraints_compatible(
     }
 }
 
-// Adding a phantom annotation to a parameter won't break clients because that can only increase the
-// the set of abilities in struct instantiations. Put it differently, adding phantom declarations
-// relaxes the requirements for clients.
+// Adding a phantom annotation to a parameter won't break clients because that
+// can only increase the the set of abilities in struct instantiations. Put it
+// differently, adding phantom declarations relaxes the requirements for
+// clients.
 fn type_parameter_phantom_decl_compatible(
     disallow_changing_generic_abilities: bool,
     old_type_parameter: &StructTypeParameter,
@@ -299,13 +332,13 @@ fn type_parameter_phantom_decl_compatible(
         // phantom/non-phantom cannot change from one version to the next.
         old_type_parameter.is_phantom == new_type_parameter.is_phantom
     } else {
-        // old_type_paramter.is_phantom => new_type_parameter.is_phantom
+        // old_type_parameter.is_phantom => new_type_parameter.is_phantom
         !old_type_parameter.is_phantom || new_type_parameter.is_phantom
     }
 }
 
-/// A simpler, and stricter compatibility checker relating to the inclusion of the old module in
-/// the new.
+/// A simpler, and stricter compatibility checker relating to the inclusion of
+/// the old module in the new.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum InclusionCheck {
     Subset,
@@ -313,9 +346,9 @@ pub enum InclusionCheck {
 }
 
 impl InclusionCheck {
-    // Check that all code in `old_module` is included `new_module`. If `Exact` no new code can be
-    // in `new_module` (Note: `new_module` may have larger pools, but they are not accessed by the
-    // code).
+    // Check that all code in `old_module` is included `new_module`. If `Exact` no
+    // new code can be in `new_module` (Note: `new_module` may have larger
+    // pools, but they are not accessed by the code).
     pub fn check(&self, old_module: &Module, new_module: &Module) -> PartialVMResult<()> {
         let err = Err(PartialVMError::new(
             StatusCode::BACKWARD_INCOMPATIBLE_MODULE_UPDATE,
@@ -329,8 +362,8 @@ impl InclusionCheck {
             return err;
         }
 
-        // If we're checking exactness we make sure there's an inclusion, and that the size of all
-        // of the tables are the exact same except for constants.
+        // If we're checking exactness we make sure there's an inclusion, and that the
+        // size of all of the tables are the exact same except for constants.
         if (self == &Self::Equal)
             && (old_module.structs.len() != new_module.structs.len()
                 || old_module.functions.len() != new_module.functions.len()

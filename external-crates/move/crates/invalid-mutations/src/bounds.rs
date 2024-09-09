@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
 
 use move_binary_format::{
     errors::{bounds_error, PartialVMError},
@@ -17,31 +20,32 @@ use proptest::{
     prelude::*,
     sample::{self, Index as PropIndex},
 };
-use std::collections::BTreeMap;
 
 mod code_unit;
 pub use code_unit::{ApplyCodeUnitBoundsContext, CodeUnitBoundsMutation};
 use move_binary_format::file_format::SignatureToken;
 
-/// Represents the number of pointers that exist out from a node of a particular kind.
+/// Represents the number of pointers that exist out from a node of a particular
+/// kind.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PointerKind {
     /// Exactly one pointer out with this index kind as its destination.
     One(IndexKind),
-    /// Zero or one pointer out with this index kind as its destination. Like the `?` operator in
-    /// regular expressions.
+    /// Zero or one pointer out with this index kind as its destination. Like
+    /// the `?` operator in regular expressions.
     Optional(IndexKind),
-    /// Zero or more pointers out with this index kind as its destination. Like the `*` operator
-    /// in regular expressions.
+    /// Zero or more pointers out with this index kind as its destination. Like
+    /// the `*` operator in regular expressions.
     Star(IndexKind),
 }
 
 impl PointerKind {
-    /// A list of what pointers (indexes) exist out from a particular kind of node within the
-    /// module.
+    /// A list of what pointers (indexes) exist out from a particular kind of
+    /// node within the module.
     ///
-    /// The only special case is `FunctionDefinition`, which contains a `CodeUnit` that can contain
-    /// one of several kinds of pointers out. That is not represented in this table.
+    /// The only special case is `FunctionDefinition`, which contains a
+    /// `CodeUnit` that can contain one of several kinds of pointers out.
+    /// That is not represented in this table.
     #[inline]
     pub fn pointers_from(src_kind: IndexKind) -> &'static [PointerKind] {
         use IndexKind::*;
@@ -108,10 +112,12 @@ mod test {
     }
 }
 
-/// Represents a single mutation to a `CompiledModule` to produce an out-of-bounds situation.
+/// Represents a single mutation to a `CompiledModule` to produce an
+/// out-of-bounds situation.
 ///
-/// Use `OutOfBoundsMutation::strategy()` to generate them, preferably using `Vec` to generate
-/// many at a time. Then use `ApplyOutOfBoundsContext` to apply those mutations.
+/// Use `OutOfBoundsMutation::strategy()` to generate them, preferably using
+/// `Vec` to generate many at a time. Then use `ApplyOutOfBoundsContext` to
+/// apply those mutations.
 #[derive(Debug)]
 pub struct OutOfBoundsMutation {
     src_kind: IndexKind,
@@ -139,7 +145,8 @@ impl OutOfBoundsMutation {
             })
     }
 
-    // Not all source kinds can be made to be out of bounds (e.g. inherent types can't.)
+    // Not all source kinds can be made to be out of bounds (e.g. inherent types
+    // can't.)
     fn src_kind_strategy() -> impl Strategy<Value = IndexKind> {
         sample::select(VALID_POINTER_SRCS)
     }
@@ -181,9 +188,9 @@ impl ApplyOutOfBoundsContext {
     }
 
     pub fn apply(mut self) -> (CompiledModule, Vec<PartialVMError>) {
-        // This is a map from (source kind, dest kind) to the actual mutations -- this is done to
-        // figure out how many mutations to do for a particular pair, which is required for
-        // pick_slice_idxs below.
+        // This is a map from (source kind, dest kind) to the actual mutations -- this
+        // is done to figure out how many mutations to do for a particular pair,
+        // which is required for pick_slice_idxs below.
         let mut mutation_map = BTreeMap::new();
         for mutation in self
             .mutations
@@ -199,8 +206,8 @@ impl ApplyOutOfBoundsContext {
         let mut results = vec![];
 
         for ((src_kind, dst_kind), mutations) in mutation_map {
-            // It would be cool to use an iterator here, if someone could figure out exactly how
-            // to get the lifetimes right :)
+            // It would be cool to use an iterator here, if someone could figure out exactly
+            // how to get the lifetimes right :)
             results.extend(self.apply_one(src_kind, dst_kind, mutations));
         }
         (self.module, results)
@@ -217,7 +224,8 @@ impl ApplyOutOfBoundsContext {
             // For the other sorts it's always possible to change an index.
             src_kind => self.module.kind_count(src_kind),
         };
-        // Any signature can be a destination, not just the ones that have structs in them.
+        // Any signature can be a destination, not just the ones that have structs in
+        // them.
         let dst_count = self.module.kind_count(dst_kind);
         let to_mutate = crate::helpers::pick_slice_idxs(src_count, &mutations);
 
@@ -238,8 +246,9 @@ impl ApplyOutOfBoundsContext {
 
     /// Sets the particular index in the table
     ///
-    /// For example, with `src_kind` set to `ModuleHandle` and `dst_kind` set to `AddressPool`,
-    /// this will set self.module_handles[src_idx].address to new_idx.
+    /// For example, with `src_kind` set to `ModuleHandle` and `dst_kind` set to
+    /// `AddressPool`, this will set self.module_handles[src_idx].address to
+    /// new_idx.
     ///
     /// This is mainly used for test generation.
     fn set_index(
@@ -261,10 +270,10 @@ impl ApplyOutOfBoundsContext {
             dst_count,
         );
 
-        // A dynamic type system would be able to express this next block of code far more
-        // concisely. A static type system would require some sort of complicated dependent type
-        // structure that Rust doesn't have. As things stand today, every possible case needs to
-        // be listed out.
+        // A dynamic type system would be able to express this next block of code far
+        // more concisely. A static type system would require some sort of
+        // complicated dependent type structure that Rust doesn't have. As
+        // things stand today, every possible case needs to be listed out.
 
         match (src_kind, dst_kind) {
             (ModuleHandle, AddressIdentifier) => {
@@ -322,7 +331,8 @@ impl ApplyOutOfBoundsContext {
         err.at_index(src_kind, src_idx as TableIndex)
     }
 
-    /// Returns the indexes of locals signatures that contain struct handles inside them.
+    /// Returns the indexes of locals signatures that contain struct handles
+    /// inside them.
     fn sig_structs(module: &CompiledModule) -> impl Iterator<Item = (SignatureIndex, usize)> + '_ {
         let module_view = ModuleView::new(module);
         module_view
@@ -359,7 +369,7 @@ fn struct_handle(token: &SignatureToken) -> Option<StructHandleIndex> {
         StructInstantiation(struct_inst) => {
             let (sh_idx, _) = &**struct_inst;
             Some(*sh_idx)
-        },
+        }
         Reference(token) | MutableReference(token) => struct_handle(token),
         Bool | U8 | U16 | U32 | U64 | U128 | U256 | Address | Signer | Vector(_)
         | TypeParameter(_) => None,

@@ -1,19 +1,23 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Provides a model for a set of Move modules (and scripts, which
-//! are handled like modules). The model allows to access many different aspects of the Move
-//! code: all declared functions and types, their associated bytecode, their source location,
-//! their source text, and the specification fragments.
+//! are handled like modules). The model allows to access many different aspects
+//! of the Move code: all declared functions and types, their associated
+//! bytecode, their source location, their source text, and the specification
+//! fragments.
 //!
 //! The environment is nested into a hierarchy:
 //!
-//! - A `GlobalEnv` which gives access to all modules plus other information on global level,
-//!   and is the owner of all related data.
-//! - A `ModuleEnv` which is a reference to the data of some module in the environment.
+//! - A `GlobalEnv` which gives access to all modules plus other information on
+//!   global level, and is the owner of all related data.
+//! - A `ModuleEnv` which is a reference to the data of some module in the
+//!   environment.
 //! - A `StructEnv` which is a reference to the data of some struct in a module.
-//! - A `FunctionEnv` which is a reference to the data of some function in a module.
+//! - A `FunctionEnv` which is a reference to the data of some function in a
+//!   module.
 
 use std::{
     any::{Any, TypeId},
@@ -32,9 +36,6 @@ use codespan_reporting::{
 use itertools::Itertools;
 #[allow(unused_imports)]
 use log::{info, warn};
-use move_ir_types::ast as IR;
-use num::BigUint;
-
 pub use move_binary_format::file_format::{AbilitySet, Visibility as FunctionVisibility};
 use move_binary_format::{
     access::ModuleAccess,
@@ -61,6 +62,8 @@ use move_core_types::{
     runtime_value::MoveValue,
 };
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
+use move_ir_types::ast as IR;
+use num::BigUint;
 
 use crate::{
     ast::{Attribute, ModuleName, Value},
@@ -80,7 +83,7 @@ pub const SCRIPT_BYTECODE_FUN_NAME: &str = "<SELF>";
 /// A prefix used for structs which are backing specification ("ghost") memory.
 pub const GHOST_MEMORY_PREFIX: &str = "Ghost$";
 
-const SUI_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
+const IOTA_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
 
 const fn address_from_single_byte(b: u8) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
@@ -131,8 +134,9 @@ impl Loc {
         )
     }
 
-    /// Creates a location which encloses all the locations in the provided slice,
-    /// which must not be empty. All locations are expected to be in the same file.
+    /// Creates a location which encloses all the locations in the provided
+    /// slice, which must not be empty. All locations are expected to be in
+    /// the same file.
     pub fn enclosing(locs: &[&Loc]) -> Loc {
         assert!(!locs.is_empty());
         let loc = locs[0];
@@ -161,15 +165,16 @@ impl Default for Loc {
     }
 }
 
-/// Return true if `f` is a Sui framework function declared in `module` with a name in `names`
+/// Return true if `f` is a Iota framework function declared in `module` with a
+/// name in `names`
 fn is_framework_function(f: &FunctionRef, module: &str, names: Vec<&str>) -> bool {
-    *f.module_id.address() == SUI_FRAMEWORK_ADDRESS
+    *f.module_id.address() == IOTA_FRAMEWORK_ADDRESS
         && f.module_id.name().to_string() == module
         && names.contains(&f.function_ident.as_str())
 }
 
-/// Alias for the Loc variant of MoveIR. This uses a `&static str` instead of `FileId` for the
-/// file name.
+/// Alias for the Loc variant of MoveIR. This uses a `&static str` instead of
+/// `FileId` for the file name.
 pub type MoveIrLoc = move_ir_types::location::Loc;
 
 // =================================================================================================
@@ -177,13 +182,16 @@ pub type MoveIrLoc = move_ir_types::location::Loc;
 ///
 /// Identifiers are opaque values used to reference entities in the environment.
 ///
-/// We have two kinds of ids: those based on an index, and those based on a symbol. We use
-/// the symbol based ids where we do not have control of the definition index order in bytecode
-/// (i.e. we do not know in which order move-compiler enters functions and structs into file format),
-/// and index based ids where we do have control (for modules, SpecFun and SpecVar).
+/// We have two kinds of ids: those based on an index, and those based on a
+/// symbol. We use the symbol based ids where we do not have control of the
+/// definition index order in bytecode (i.e. we do not know in which order
+/// move-compiler enters functions and structs into file format),
+/// and index based ids where we do have control (for modules, SpecFun and
+/// SpecVar).
 ///
-/// In any case, ids are opaque in the sense that if someone has a StructId or similar in hand,
-/// it is known to be defined in the environment, as it has been obtained also from the environment.
+/// In any case, ids are opaque in the sense that if someone has a StructId or
+/// similar in hand, it is known to be defined in the environment, as it has
+/// been obtained also from the environment.
 
 /// Raw index type used in ids. 16 bits are sufficient currently.
 pub type RawIndex = u16;
@@ -208,12 +216,13 @@ pub struct FieldId(Symbol);
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct FunId(Symbol);
 
-/// Identifier for a node in the AST, relative to a module. This is used to associate attributes
-/// with the node, like source location and type.
+/// Identifier for a node in the AST, relative to a module. This is used to
+/// associate attributes with the node, like source location and type.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct NodeId(usize);
 
-/// A global id. Instances of this type represent unique identifiers relative to `GlobalEnv`.
+/// A global id. Instances of this type represent unique identifiers relative to
+/// `GlobalEnv`.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct GlobalId(usize);
 
@@ -387,18 +396,21 @@ impl QualifiedInstId<StructId> {
 pub struct GlobalEnv {
     /// A Files database for the codespan crate which supports diagnostics.
     source_files: Files<String>,
-    /// A map of FileId in the Files database to information about documentation comments in a file.
-    /// The comments are represented as map from ByteIndex into string, where the index is the
-    /// start position of the associated language item in the source.
+    /// A map of FileId in the Files database to information about documentation
+    /// comments in a file. The comments are represented as map from
+    /// ByteIndex into string, where the index is the start position of the
+    /// associated language item in the source.
     doc_comments: BTreeMap<FileId, BTreeMap<ByteIndex, String>>,
-    /// A mapping from file hash to file name and associated FileId. Though this information is
-    /// already in `source_files`, we can't get it out of there so need to book keep here.
+    /// A mapping from file hash to file name and associated FileId. Though this
+    /// information is already in `source_files`, we can't get it out of
+    /// there so need to book keep here.
     file_hash_map: BTreeMap<FileHash, (String, FileId)>,
     /// A mapping from file id to associated alias map.
     file_alias_map: BTreeMap<FileId, Rc<BTreeMap<Symbol, NumericalAddress>>>,
-    /// Bijective mapping between FileId and a plain int. FileId's are themselves wrappers around
-    /// ints, but the inner representation is opaque and cannot be accessed. This is used so we
-    /// can emit FileId's to generated code and read them back.
+    /// Bijective mapping between FileId and a plain int. FileId's are
+    /// themselves wrappers around ints, but the inner representation is
+    /// opaque and cannot be accessed. This is used so we can emit FileId's
+    /// to generated code and read them back.
     file_id_to_idx: BTreeMap<FileId, u16>,
     file_idx_to_id: BTreeMap<u16, FileId>,
     /// A set indicating whether a file id is a target or a dependency.
@@ -406,14 +418,16 @@ pub struct GlobalEnv {
     /// A special constant location representing an unknown location.
     /// This uses a pseudo entry in `source_files` to be safely represented.
     unknown_loc: Loc,
-    /// An equivalent of the MoveIrLoc to the above location. Used to map back and force between
-    /// them.
+    /// An equivalent of the MoveIrLoc to the above location. Used to map back
+    /// and force between them.
     unknown_move_ir_loc: MoveIrLoc,
     /// A special constant location representing an opaque location.
-    /// In difference to an `unknown_loc`, this is a well-known but undisclosed location.
+    /// In difference to an `unknown_loc`, this is a well-known but undisclosed
+    /// location.
     internal_loc: Loc,
-    /// Accumulated diagnosis. In a RefCell so we can add to it without needing a mutable GlobalEnv.
-    /// The boolean indicates whether the diag was reported.
+    /// Accumulated diagnosis. In a RefCell so we can add to it without needing
+    /// a mutable GlobalEnv. The boolean indicates whether the diag was
+    /// reported.
     diags: RefCell<Vec<(Diagnostic<FileId>, bool)>>,
     /// Pool of symbols -- internalized strings.
     symbol_pool: SymbolPool,
@@ -425,7 +439,7 @@ pub struct GlobalEnv {
     pub module_data: Vec<ModuleData>,
     /// A type-indexed container for storing extension data in the environment.
     extensions: RefCell<BTreeMap<TypeId, Box<dyn Any>>>,
-    /// The address of the standard and extension libaries.
+    /// The address of the standard and extension libraries.
     stdlib_address: Option<BigUint>,
     extlib_address: Option<BigUint>,
 }
@@ -480,16 +494,17 @@ impl GlobalEnv {
         }
     }
 
-    /// Creates a display container for the given value. There must be an implementation
-    /// of fmt::Display for an instance to work in formatting.
+    /// Creates a display container for the given value. There must be an
+    /// implementation of fmt::Display for an instance to work in
+    /// formatting.
     pub fn display<'a, T>(&'a self, val: &'a T) -> EnvDisplay<'a, T> {
         EnvDisplay { env: self, val }
     }
 
-    /// Stores extension data in the environment. This can be arbitrary data which is
-    /// indexed by type. Used by tools which want to store their own data in the environment,
-    /// like a set of tool dependent options/flags. This can also be used to update
-    /// extension data.
+    /// Stores extension data in the environment. This can be arbitrary data
+    /// which is indexed by type. Used by tools which want to store their
+    /// own data in the environment, like a set of tool dependent
+    /// options/flags. This can also be used to update extension data.
     pub fn set_extension<T: Any>(&self, x: T) {
         let id = TypeId::of::<T>();
         self.extensions
@@ -497,9 +512,10 @@ impl GlobalEnv {
             .insert(id, Box::new(Rc::new(x)));
     }
 
-    /// Retrieves extension data from the environment. Use as in `env.get_extension::<T>()`.
-    /// An Rc<T> is returned because extension data is stored in a RefCell and we can't use
-    /// lifetimes (`&'a T`) to control borrowing.
+    /// Retrieves extension data from the environment. Use as in
+    /// `env.get_extension::<T>()`. An `Rc<T>` is returned because extension
+    /// data is stored in a RefCell and we can't use lifetimes (`&'a T`) to
+    /// control borrowing.
     pub fn get_extension<T: Any>(&self) -> Option<Rc<T>> {
         let id = TypeId::of::<T>();
         self.extensions
@@ -508,7 +524,8 @@ impl GlobalEnv {
             .and_then(|d| d.downcast_ref::<Rc<T>>().cloned())
     }
 
-    /// Retrieves a clone of the extension data from the environment. Use as in `env.get_cloned_extension::<T>()`.
+    /// Retrieves a clone of the extension data from the environment. Use as in
+    /// `env.get_cloned_extension::<T>()`.
     pub fn get_cloned_extension<T: Any + Clone>(&self) -> T {
         let id = TypeId::of::<T>();
         let d = self
@@ -522,8 +539,9 @@ impl GlobalEnv {
         Rc::try_unwrap(d).unwrap_or_else(|d| d.as_ref().clone())
     }
 
-    /// Updates extension data. If they are no outstanding references to this extension it
-    /// is updated in place, otherwise it will be cloned before the update.
+    /// Updates extension data. If they are no outstanding references to this
+    /// extension it is updated in place, otherwise it will be cloned before
+    /// the update.
     pub fn update_extension<T: Any + Clone>(&self, f: impl FnOnce(&mut T)) {
         let id = TypeId::of::<T>();
         let d = self
@@ -545,9 +563,10 @@ impl GlobalEnv {
         self.extensions.borrow().contains_key(&id)
     }
 
-    /// Clear extension data from the environment (return the data if it is previously set).
-    /// Use as in `env.clear_extension::<T>()` and an `Rc<T>` is returned if the extension data is
-    /// previously stored in the environment.
+    /// Clear extension data from the environment (return the data if it is
+    /// previously set). Use as in `env.clear_extension::<T>()` and an
+    /// `Rc<T>` is returned if the extension data is previously stored in
+    /// the environment.
     pub fn clear_extension<T: Any>(&self) -> Option<Rc<T>> {
         let id = TypeId::of::<T>();
         self.extensions
@@ -666,7 +685,8 @@ impl GlobalEnv {
         self.add_diag(diag);
     }
 
-    /// Adds a diagnostic of given severity to this environment, with secondary labels.
+    /// Adds a diagnostic of given severity to this environment, with secondary
+    /// labels.
     pub fn diag_with_labels(
         &self,
         severity: Severity,
@@ -703,8 +723,8 @@ impl GlobalEnv {
         self.unknown_loc.clone()
     }
 
-    /// Returns a Move IR version of the unknown location which is guaranteed to map to the
-    /// regular unknown location via `to_loc`.
+    /// Returns a Move IR version of the unknown location which is guaranteed to
+    /// map to the regular unknown location via `to_loc`.
     pub fn unknown_move_ir_loc(&self) -> MoveIrLoc {
         self.unknown_move_ir_loc
     }
@@ -714,9 +734,10 @@ impl GlobalEnv {
         self.internal_loc.clone()
     }
 
-    /// Converts a Loc as used by the move-compiler compiler to the one we are using here.
-    /// TODO: move-compiler should use FileId as well so we don't need this here. There is already
-    /// a todo in their code to remove the current use of `&'static str` for file names in Loc.
+    /// Converts a Loc as used by the move-compiler compiler to the one we are
+    /// using here. TODO: move-compiler should use FileId as well so we
+    /// don't need this here. There is already a todo in their code to
+    /// remove the current use of `&'static str` for file names in Loc.
     pub fn to_loc(&self, loc: &MoveIrLoc) -> Loc {
         let Some(file_id) = self.get_file_id(loc.file_hash()) else {
             return self.unknown_loc();
@@ -868,9 +889,9 @@ impl GlobalEnv {
         }
     }
 
-    /// Adds a new module to the environment. StructData and FunctionData need to be provided
-    /// in definition index order. See `create_function_data` and `create_struct_data` for how
-    /// to create them.
+    /// Adds a new module to the environment. StructData and FunctionData need
+    /// to be provided in definition index order. See `create_function_data`
+    /// and `create_struct_data` for how to create them.
     #[allow(clippy::too_many_arguments)]
     pub fn add(
         &mut self,
@@ -939,8 +960,9 @@ impl GlobalEnv {
         }
     }
 
-    /// Creates data for a function, adding any information not contained in bytecode. This is
-    /// a helper for adding a new module to the environment.
+    /// Creates data for a function, adding any information not contained in
+    /// bytecode. This is a helper for adding a new module to the
+    /// environment.
     pub fn create_function_data(
         &self,
         module: &CompiledModule,
@@ -966,8 +988,9 @@ impl GlobalEnv {
         }
     }
 
-    /// Creates data for a struct declared in Move. Currently all information is contained in
-    /// the byte code. This is a helper for adding a new module to the environment.
+    /// Creates data for a struct declared in Move. Currently all information is
+    /// contained in the byte code. This is a helper for adding a new module
+    /// to the environment.
     pub fn create_move_struct_data(
         &self,
         module: &CompiledModule,
@@ -1029,8 +1052,8 @@ impl GlobalEnv {
     }
 
     /// Finds a module by simple name and returns an environment for it.
-    /// TODO: we may need to disallow this to support modules of the same simple name but with
-    ///    different addresses in one verification session.
+    /// TODO: we may need to disallow this to support modules of the same simple
+    /// name but with    different addresses in one verification session.
     pub fn find_module_by_name(&self, simple_name: Symbol) -> Option<ModuleEnv<'_>> {
         self.get_modules()
             .find(|m| m.get_name().name() == simple_name)
@@ -1080,8 +1103,8 @@ impl GlobalEnv {
 
     /// Returns the function enclosing this location.
     pub fn get_enclosing_function(&self, loc: &Loc) -> Option<FunctionEnv<'_>> {
-        // Currently we do a brute-force linear search, may need to speed this up if it appears
-        // to be a bottleneck.
+        // Currently we do a brute-force linear search, may need to speed this up if it
+        // appears to be a bottleneck.
         let module_env = self.get_enclosing_module(loc)?;
         for func_env in module_env.into_functions() {
             if Self::enclosing_span(func_env.get_loc().span(), loc.span()) {
@@ -1168,8 +1191,8 @@ impl GlobalEnv {
             .unwrap_or("")
     }
 
-    /// Attempt to compute a struct tag for (`mid`, `sid`, `ts`). Returns `Some` if all types in
-    /// `ts` are closed, `None` otherwise
+    /// Attempt to compute a struct tag for (`mid`, `sid`, `ts`). Returns `Some`
+    /// if all types in `ts` are closed, `None` otherwise
     pub fn get_struct_tag(
         &self,
         mid: ModuleId,
@@ -1272,7 +1295,8 @@ impl GlobalEnv {
         self.get_node_instantiation_opt(node_id).unwrap_or_default()
     }
 
-    /// Gets the type parameter instantiation associated with the given node, if it is available.
+    /// Gets the type parameter instantiation associated with the given node, if
+    /// it is available.
     pub fn get_node_instantiation_opt(&self, node_id: NodeId) -> Option<Vec<Type>> {
         self.exp_info
             .borrow()
@@ -1280,7 +1304,8 @@ impl GlobalEnv {
             .and_then(|info| info.instantiation.clone())
     }
 
-    /// Gets the type parameter instantiation associated with the given node, if it is available.
+    /// Gets the type parameter instantiation associated with the given node, if
+    /// it is available.
     pub fn get_nodes(&self) -> Vec<NodeId> {
         (*self.exp_info.borrow()).clone().into_keys().collect_vec()
     }
@@ -1303,7 +1328,8 @@ impl GlobalEnv {
         total
     }
 
-    /// Return the total number of Move bytecode instructions (not stackless bytecode) in the modules of `self`
+    /// Return the total number of Move bytecode instructions (not stackless
+    /// bytecode) in the modules of `self`
     pub fn get_move_bytecode_instruction_count(&self) -> usize {
         let mut total = 0;
         for m in self.get_modules() {
@@ -1430,7 +1456,8 @@ impl<'env> ModuleEnv<'env> {
         &self.data.name
     }
 
-    /// Returns true if either the full name or simple name of this module matches the given string
+    /// Returns true if either the full name or simple name of this module
+    /// matches the given string
     pub fn matches_name(&self, name: &str) -> bool {
         self.get_full_name_str() == name
             || self.get_name().display(self.symbol_pool()).to_string() == name
@@ -1461,8 +1488,8 @@ impl<'env> ModuleEnv<'env> {
         self.data.name.is_script()
     }
 
-    /// Returns true of this module is target of compilation. A non-target module is
-    /// a dependency only but not explicitly requested to process.
+    /// Returns true of this module is target of compilation. A non-target
+    /// module is a dependency only but not explicitly requested to process.
     pub fn is_target(&self) -> bool {
         let file_id = self.data.loc.file_id;
         !self.env.file_id_is_dep.contains(&file_id)
@@ -1474,8 +1501,9 @@ impl<'env> ModuleEnv<'env> {
         self.env.source_files.name(file_id)
     }
 
-    /// Return the set of language storage ModuleId's that this module's bytecode depends on
-    /// (including itself), friend modules are excluded from the return result.
+    /// Return the set of language storage ModuleId's that this module's
+    /// bytecode depends on (including itself), friend modules are excluded
+    /// from the return result.
     pub fn get_dependencies(&self) -> Vec<language_storage::ModuleId> {
         let compiled_module = &self.data.module;
         let mut deps = compiled_module.immediate_dependencies();
@@ -1483,7 +1511,8 @@ impl<'env> ModuleEnv<'env> {
         deps
     }
 
-    /// Return the set of language storage ModuleId's that this module declares as friends
+    /// Return the set of language storage ModuleId's that this module declares
+    /// as friends
     pub fn get_friends(&self) -> Vec<language_storage::ModuleId> {
         self.data.module.immediate_friends()
     }
@@ -1540,9 +1569,9 @@ impl<'env> ModuleEnv<'env> {
             .clone()
     }
 
-    /// Returns true if the given module is a transitive dependency of this one. The
-    /// transitive dependency set contains this module and all directly or indirectly used
-    /// modules (without spec usage).
+    /// Returns true if the given module is a transitive dependency of this one.
+    /// The transitive dependency set contains this module and all directly
+    /// or indirectly used modules (without spec usage).
     pub fn is_transitive_dependency(&self, module_id: ModuleId) -> bool {
         if self.get_id() == module_id {
             true
@@ -1669,8 +1698,9 @@ impl<'env> ModuleEnv<'env> {
             })
     }
 
-    /// Gets FunctionEnv for a function used in this module, via the FunctionHandleIndex. The
-    /// returned function might be from this or another module.
+    /// Gets FunctionEnv for a function used in this module, via the
+    /// FunctionHandleIndex. The returned function might be from this or
+    /// another module.
     pub fn get_used_function(&self, idx: FunctionHandleIndex) -> FunctionEnv<'_> {
         let view =
             FunctionHandleView::new(&self.data.module, self.data.module.function_handle_at(idx));
@@ -1687,7 +1717,8 @@ impl<'env> ModuleEnv<'env> {
         self.data.function_idx_to_id.get(&idx).cloned()
     }
 
-    /// Gets the function definition index for the given function id. This is always defined.
+    /// Gets the function definition index for the given function id. This is
+    /// always defined.
     pub fn get_function_def_idx(&self, fun_id: FunId) -> FunctionDefinitionIndex {
         self.data
             .function_data
@@ -1720,7 +1751,8 @@ impl<'env> ModuleEnv<'env> {
         None
     }
 
-    /// Gets the struct id from a definition index which must be valid for this environment.
+    /// Gets the struct id from a definition index which must be valid for this
+    /// environment.
     pub fn get_struct_id(&self, idx: StructDefinitionIndex) -> StructId {
         *self
             .data
@@ -1769,10 +1801,14 @@ impl<'env> ModuleEnv<'env> {
     }
 
     /// Returns the object types that are shared by code in this module
-    /// If `transitive` is false, only return objects directly shared by functions declared in this module
-    /// If `transitive` is true, return objects shared by both functions declared in this module and by transitive callees
-    /// Note that this can include both types declared inside this module (common case) and types declared outside
-    /// Note that objects with `store` can be shared by modules that depend on this one (e.g., by returning the object and subsequently calling `public_share_object`)
+    /// If `transitive` is false, only return objects directly shared by
+    /// functions declared in this module If `transitive` is true, return
+    /// objects shared by both functions declared in this module and by
+    /// transitive callees Note that this can include both types declared
+    /// inside this module (common case) and types declared outside
+    /// Note that objects with `store` can be shared by modules that depend on
+    /// this one (e.g., by returning the object and subsequently calling
+    /// `public_share_object`)
     pub fn get_shared_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut shared = BTreeSet::new();
         for f in self.get_functions() {
@@ -1782,11 +1818,15 @@ impl<'env> ModuleEnv<'env> {
     }
 
     /// Returns the object types that are frozen by this module
-    /// If `transitive` is false, only return objects directly transferred by functions declared in this module
-    /// If `transitive` is true, return objects transferred by both functions declared in this module and by transitive callees
-    /// Note that this function can return both types declared inside this module (common case) and types declared outside
-    /// Note that objects with `store` can be transferred by modules that depend on this one (e.g., by returning the object and subsequently calling `public_transfer`),
-    /// or transferred by a command in a programmable transaction block
+    /// If `transitive` is false, only return objects directly transferred by
+    /// functions declared in this module If `transitive` is true, return
+    /// objects transferred by both functions declared in this module and by
+    /// transitive callees Note that this function can return both types
+    /// declared inside this module (common case) and types declared outside
+    /// Note that objects with `store` can be transferred by modules that depend
+    /// on this one (e.g., by returning the object and subsequently calling
+    /// `public_transfer`), or transferred by a command in a programmable
+    /// transaction block
     pub fn get_transferred_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut transferred = BTreeSet::new();
         for f in self.get_functions() {
@@ -1796,10 +1836,14 @@ impl<'env> ModuleEnv<'env> {
     }
 
     /// Returns the object types that are frozen by this module
-    /// If `transitive` is false, only return objects directly frozen by functions declared in this module
-    /// If `transitive` is true, return objects frozen by both functions declared in this module and by transitive callees
-    /// Note that this function can return both types declared inside this module (common case) and types declared outside
-    /// Note that objects with `store` can be frozen by modules that depend on this one (e.g., by returning the object and subsequently calling `public_freeze`)
+    /// If `transitive` is false, only return objects directly frozen by
+    /// functions declared in this module If `transitive` is true, return
+    /// objects frozen by both functions declared in this module and by
+    /// transitive callees Note that this function can return both types
+    /// declared inside this module (common case) and types declared outside
+    /// Note that objects with `store` can be frozen by modules that depend on
+    /// this one (e.g., by returning the object and subsequently calling
+    /// `public_freeze`)
     pub fn get_frozen_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut frozen = BTreeSet::new();
         for f in self.get_functions() {
@@ -1809,9 +1853,12 @@ impl<'env> ModuleEnv<'env> {
     }
 
     /// Returns the event types that are emitted by this module
-    /// If `transitive` is false, only return events directly emitted by functions declared in this module
-    /// If `transitive` is true, return events emitted by both functions declared in this module and by transitive callees
-    /// Note that this function can return both event types declared inside this module (common case) and event types declared outside
+    /// If `transitive` is false, only return events directly emitted by
+    /// functions declared in this module If `transitive` is true, return
+    /// events emitted by both functions declared in this module and by
+    /// transitive callees Note that this function can return both event
+    /// types declared inside this module (common case) and event types declared
+    /// outside
     pub fn get_events(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut frozen = BTreeSet::new();
         for f in self.get_functions() {
@@ -1820,17 +1867,20 @@ impl<'env> ModuleEnv<'env> {
         frozen
     }
 
-    /// Returns the objects types that are returned by externally callable (`public`, `entry`, and `friend`) functions in this module
-    /// Returned objects with `store` can be transferred, shared, frozen, or wrapped by a different module
-    /// Note that this function returns object types both with and without `store`
+    /// Returns the objects types that are returned by externally callable
+    /// (`public`, `entry`, and `friend`) functions in this module
+    /// Returned objects with `store` can be transferred, shared, frozen, or
+    /// wrapped by a different module Note that this function returns object
+    /// types both with and without `store`
     pub fn get_externally_returned_objects(&'env self) -> BTreeSet<Type> {
         let mut returned = BTreeSet::new();
         for f in self.get_functions() {
             if !f.is_exposed() {
                 continue;
             }
-            // Objects returned by a public function can be transferred, shared, frozen, or wrapped
-            // by a different module or (in the case of transfer) by a command in a programmable transaction block.
+            // Objects returned by a public function can be transferred, shared, frozen, or
+            // wrapped by a different module or (in the case of transfer) by a
+            // command in a programmable transaction block.
             for f in f.get_return_types() {
                 if let Type::Struct(mid, sid, _) = f {
                     let struct_env = self.env.get_module(mid).into_struct(sid);
@@ -1930,8 +1980,9 @@ impl<'env> ModuleEnv<'env> {
         &self.data.module.constant_pool()[idx.0 as usize]
     }
 
-    /// Converts a constant to the specified type. The type must correspond to the expected
-    /// cannonical representation as defined in `move_core_types::values`
+    /// Converts a constant to the specified type. The type must correspond to
+    /// the expected cannonical representation as defined in
+    /// `move_core_types::values`
     pub fn get_constant_value(&self, constant: &VMConstant) -> MoveValue {
         VMConstant::deserialize_constant(constant).unwrap()
     }
@@ -2134,7 +2185,8 @@ impl<'env> StructEnv<'env> {
         }
     }
 
-    /// Determines whether memory-related operations needs to be declared for this struct.
+    /// Determines whether memory-related operations needs to be declared for
+    /// this struct.
     pub fn has_memory(&self) -> bool {
         self.get_abilities().has_key()
     }
@@ -2204,7 +2256,8 @@ impl<'env> StructEnv<'env> {
 
     /// Returns the type parameters associated with this struct.
     pub fn get_type_parameters(&self) -> Vec<TypeParameter> {
-        // TODO: we currently do not know the original names of those formals, so we generate them.
+        // TODO: we currently do not know the original names of those formals, so we
+        // generate them.
         let pool = &self.module_env.env.symbol_pool;
         match &self.data.info {
             StructInfo::Declared { def_idx, .. } => {
@@ -2226,7 +2279,8 @@ impl<'env> StructEnv<'env> {
         }
     }
 
-    /// Returns the type parameters associated with this struct, with actual names.
+    /// Returns the type parameters associated with this struct, with actual
+    /// names.
     pub fn get_named_type_parameters(&self) -> Vec<TypeParameter> {
         match &self.data.info {
             StructInfo::Declared { def_idx, .. } => {
@@ -2596,8 +2650,9 @@ impl<'env> FunctionEnv<'env> {
         view.is_native()
     }
 
-    /// Returns true if this is the well-known native or intrinsic function of the given name.
-    /// The function must reside either in stdlib or extlib address domain.
+    /// Returns true if this is the well-known native or intrinsic function of
+    /// the given name. The function must reside either in stdlib or extlib
+    /// address domain.
     pub fn is_well_known(&self, name: &str) -> bool {
         let env = self.module_env.env;
         if !self.is_native() {
@@ -2613,12 +2668,13 @@ impl<'env> FunctionEnv<'env> {
         self.definition_view().visibility()
     }
 
-    /// Return true if the function is an entry fucntion
+    /// Return true if the function is an entry function
     pub fn is_entry(&self) -> bool {
         self.definition_view().is_entry()
     }
 
-    /// Return the visibility string for this function. Useful for formatted printing.
+    /// Return the visibility string for this function. Useful for formatted
+    /// printing.
     pub fn visibility_str(&self) -> &str {
         match self.visibility() {
             Visibility::Public => "public ",
@@ -2649,7 +2705,7 @@ impl<'env> FunctionEnv<'env> {
 
     /// Returns true if the function is a script function
     pub fn is_script(&self) -> bool {
-        // The main function of a scipt is a script function
+        // The main function of a script is a script function
         self.module_env.is_script_module() || self.definition_view().is_entry()
     }
 
@@ -2658,7 +2714,8 @@ impl<'env> FunctionEnv<'env> {
         self.definition_view().visibility() == Visibility::Friend
     }
 
-    /// Returns true if this function mutates any references (i.e. has &mut parameters).
+    /// Returns true if this function mutates any references (i.e. has &mut
+    /// parameters).
     pub fn is_mutating(&self) -> bool {
         self.get_parameters()
             .iter()
@@ -2772,8 +2829,8 @@ impl<'env> FunctionEnv<'env> {
         view.return_count()
     }
 
-    /// Get the name to be used for a local. If the local is an argument, use that for naming,
-    /// otherwise generate a unique name.
+    /// Get the name to be used for a local. If the local is an argument, use
+    /// that for naming, otherwise generate a unique name.
     pub fn get_local_name(&self, idx: usize) -> Symbol {
         if idx < self.data.arg_names.len() {
             return self.data.arg_names[idx];
@@ -2809,9 +2866,10 @@ impl<'env> FunctionEnv<'env> {
         self.symbol_pool().string(name).contains("tmp#$")
     }
 
-    /// Gets the number of proper locals of this function. Those are locals which are declared
-    /// by the user and also have a user assigned name which can be discovered via `get_local_name`.
-    /// Note we may have more anonymous locals generated e.g by the 'stackless' transformation.
+    /// Gets the number of proper locals of this function. Those are locals
+    /// which are declared by the user and also have a user assigned name
+    /// which can be discovered via `get_local_name`. Note we may have more
+    /// anonymous locals generated e.g by the 'stackless' transformation.
     pub fn get_local_count(&self) -> usize {
         let view = self.definition_view();
         match view.locals_signature() {
@@ -2820,8 +2878,8 @@ impl<'env> FunctionEnv<'env> {
         }
     }
 
-    /// Gets the type of the local at index. This must use an index in the range as determined by
-    /// `get_local_count`.
+    /// Gets the type of the local at index. This must use an index in the range
+    /// as determined by `get_local_count`.
     pub fn get_local_type(&self, idx: usize) -> Type {
         let view = self.definition_view();
         let parameters = view.parameters();
@@ -2852,7 +2910,8 @@ impl<'env> FunctionEnv<'env> {
             .collect()
     }
 
-    /// Returns true if either the name or simple name of this function matches the given string
+    /// Returns true if either the name or simple name of this function matches
+    /// the given string
     pub fn matches_name(&self, name: &str) -> bool {
         name.eq(&*self.get_simple_name_string()) || name.eq(&*self.get_name_string())
     }
@@ -2983,8 +3042,9 @@ impl<'env> FunctionEnv<'env> {
     }
 
     /// Returns the object types that may be shared by this function
-    /// If `transitive` is false, only return objects directly shared by this function
-    /// If `transitive` is true, return objects shared by both this function and its transitive callees
+    /// If `transitive` is false, only return objects directly shared by this
+    /// function If `transitive` is true, return objects shared by both this
+    /// function and its transitive callees
     pub fn get_shared_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut shared = BTreeSet::new();
         if transitive {
@@ -3018,8 +3078,9 @@ impl<'env> FunctionEnv<'env> {
     }
 
     /// Returns the object types that may be transferred by this function
-    /// If `transitive` is false, only objects directly transferred by this function
-    /// If `transitive` is true, return objects transferred by both this function and its transitive callees
+    /// If `transitive` is false, only objects directly transferred by this
+    /// function If `transitive` is true, return objects transferred by both
+    /// this function and its transitive callees
     pub fn get_transferred_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut transferred = BTreeSet::new();
         if transitive {
@@ -3053,8 +3114,9 @@ impl<'env> FunctionEnv<'env> {
     }
 
     /// Returns the object types that may be frozen by this function
-    /// If `transitive` is false, only return objects directly frozen by this function
-    /// If `transitive` is true, return objects frozen by both this function and its transitive callees
+    /// If `transitive` is false, only return objects directly frozen by this
+    /// function If `transitive` is true, return objects frozen by both this
+    /// function and its transitive callees
     pub fn get_frozen_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut frozen = BTreeSet::new();
         if transitive {
@@ -3088,8 +3150,9 @@ impl<'env> FunctionEnv<'env> {
     }
 
     /// Returns the event types that may be emitted by this function
-    /// If `transitive` is false, only return events directly emitted by this function
-    /// If `transitive` is true, return events emitted by both this function and its transitive callees
+    /// If `transitive` is false, only return events directly emitted by this
+    /// function If `transitive` is true, return events emitted by both this
+    /// function and its transitive callees
     pub fn get_events(&'env self, transitive: bool) -> BTreeSet<Type> {
         let mut events = BTreeSet::new();
         if transitive {
@@ -3129,7 +3192,8 @@ pub struct ExpInfo {
     loc: Loc,
     /// The type of this expression.
     ty: Type,
-    /// The associated instantiation of type parameters for this expression, if applicable
+    /// The associated instantiation of type parameters for this expression, if
+    /// applicable
     instantiation: Option<Vec<Type>>,
 }
 

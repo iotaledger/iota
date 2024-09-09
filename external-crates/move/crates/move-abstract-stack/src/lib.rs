@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module defines an abstract stack used by various verifier passes
@@ -6,12 +7,15 @@
 #[cfg(test)]
 mod unit_tests;
 
-use std::cmp::Ordering;
-use std::fmt::{self, Debug};
-use std::num::NonZeroU64;
+use std::{
+    cmp::Ordering,
+    fmt::{self, Debug},
+    num::NonZeroU64,
+};
 
 #[derive(Default, Debug)]
-/// An abstract value that compresses runs of the same value to reduce space usage
+/// An abstract value that compresses runs of the same value to reduce space
+/// usage
 pub struct AbstractStack<T> {
     values: Vec<(u64, T)>,
     len: u64,
@@ -77,8 +81,8 @@ impl<T: Eq + Clone + Debug> AbstractStack<T> {
         self.pop_eq_n(NonZeroU64::new(1).unwrap())
     }
 
-    /// Pops n values off the stack, erroring if there are not enough items or if the n items are
-    /// not equal
+    /// Pops n values off the stack, erroring if there are not enough items or
+    /// if the n items are not equal
     pub fn pop_eq_n(&mut self, n: NonZeroU64) -> Result<T, AbsStackError> {
         let n: u64 = n.get();
         if self.is_empty() || n > self.len {
@@ -101,7 +105,8 @@ impl<T: Eq + Clone + Debug> AbstractStack<T> {
         Ok(ret)
     }
 
-    /// Pop any n items off the stack. Unlike `pop_n`, items do not have to be equal
+    /// Pop any n items off the stack. Unlike `pop_n`, items do not have to be
+    /// equal
     pub fn pop_any_n(&mut self, n: NonZeroU64) -> Result<(), AbsStackError> {
         let n: u64 = n.get();
         if self.is_empty() || n > self.len {

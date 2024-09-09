@@ -1,15 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
+use std::path::Path;
+
 use anyhow::{bail, Result};
 use move_bytecode_utils::layout::{SerdeLayoutBuilder, SerdeLayoutConfig};
 use move_core_types::{
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
 };
-use std::path::Path;
+
+use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
 
 pub fn generate_struct_layouts(
     path: &Path,
@@ -46,7 +49,9 @@ pub fn generate_struct_layouts(
             state.save_struct_layouts(&layout)?;
             println!("{}", layout);
         } else {
-            unimplemented!("Generating layout for all structs in a module. Use the --module and --struct options")
+            unimplemented!(
+                "Generating layout for all structs in a module. Use the --module and --struct options"
+            )
         }
         Ok(())
     } else {

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -138,9 +139,9 @@ impl fmt::Display for SignatureTokenKind {
     }
 }
 
-/// A macro which should be preferred in critical runtime paths for unwrapping an option
-/// if a `PartialVMError` is expected. In debug mode, this will panic. Otherwise
-/// we return an Err.
+/// A macro which should be preferred in critical runtime paths for unwrapping
+/// an option if a `PartialVMError` is expected. In debug mode, this will panic.
+/// Otherwise we return an Err.
 #[macro_export]
 macro_rules! safe_unwrap {
     ($e:expr) => {{

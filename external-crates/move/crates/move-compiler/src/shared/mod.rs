@@ -1,25 +1,8 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    cfgir::visitor::{AbsIntVisitorObj, AbstractInterpreterVisitor},
-    command_line as cli,
-    diagnostics::{
-        codes::{Category, Declarations, DiagnosticsID, Severity, WarningFilter},
-        Diagnostic, Diagnostics, FileName, MappedFiles, WarningFilters,
-    },
-    editions::{check_feature_or_error as edition_check_feature, Edition, FeatureGate, Flavor},
-    expansion::ast as E,
-    naming::ast as N,
-    sui_mode,
-    typing::visitor::{TypingVisitor, TypingVisitorObj},
-};
-use clap::*;
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use petgraph::{algo::astar as petgraph_astar, graphmap::DiGraphMap};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -31,7 +14,27 @@ use std::{
         Arc,
     },
 };
+
+use clap::*;
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+use petgraph::{algo::astar as petgraph_astar, graphmap::DiGraphMap};
 use vfs::{VfsError, VfsPath};
+
+use crate::{
+    cfgir::visitor::{AbsIntVisitorObj, AbstractInterpreterVisitor},
+    command_line as cli,
+    diagnostics::{
+        codes::{Category, Declarations, DiagnosticsID, Severity, WarningFilter},
+        Diagnostic, Diagnostics, FileName, MappedFiles, WarningFilters,
+    },
+    editions::{check_feature_or_error as edition_check_feature, Edition, FeatureGate, Flavor},
+    expansion::ast as E,
+    iota_mode,
+    naming::ast as N,
+    typing::visitor::{TypingVisitor, TypingVisitorObj},
+};
 
 pub mod ast_debug;
 pub mod known_attributes;
@@ -41,21 +44,17 @@ pub mod unique_map;
 pub mod unique_set;
 
 pub use ast_debug::AstDebug;
-
+//**************************************************************************************************
+// Address
+//**************************************************************************************************
+pub use move_command_line_common::address::NumericalAddress;
 //**************************************************************************************************
 // Numbers
 //**************************************************************************************************
-
 pub use move_command_line_common::parser::{
     parse_address_number as parse_address, parse_u128, parse_u16, parse_u256, parse_u32, parse_u64,
     parse_u8, NumberFormat,
 };
-
-//**************************************************************************************************
-// Address
-//**************************************************************************************************
-
-pub use move_command_line_common::address::NumericalAddress;
 
 pub fn parse_named_address(s: &str) -> anyhow::Result<(String, NumericalAddress)> {
     let before_after = s.split('=').collect::<Vec<_>>();
@@ -221,9 +220,11 @@ pub struct CompilationEnv {
     diags: Diagnostics,
     visitors: Rc<Visitors>,
     package_configs: BTreeMap<Symbol, PackageConfig>,
-    /// Config for any package not found in `package_configs`, or for inputs without a package.
+    /// Config for any package not found in `package_configs`, or for inputs
+    /// without a package.
     default_config: PackageConfig,
-    /// Maps warning filter key (filter name and filter attribute name) to the filter itself.
+    /// Maps warning filter key (filter name and filter attribute name) to the
+    /// filter itself.
     known_filters: BTreeMap<FilterPrefix, BTreeMap<FilterName, BTreeSet<WarningFilter>>>,
     /// Maps a diagnostics ID to a known filter name.
     known_filter_names: BTreeMap<DiagnosticsID, (FilterPrefix, FilterName)>,
@@ -257,8 +258,8 @@ impl CompilationEnv {
     ) -> Self {
         use crate::diagnostics::codes::{TypeSafety, UnusedItem};
         visitors.extend([
-            sui_mode::id_leak::IDLeakVerifier.visitor(),
-            sui_mode::typing::SuiTypeChecks.visitor(),
+            iota_mode::id_leak::IDLeakVerifier.visitor(),
+            iota_mode::typing::IotaTypeChecks.visitor(),
         ]);
         let known_filters_: BTreeMap<FilterName, BTreeSet<WarningFilter>> = BTreeMap::from([
             (
@@ -438,10 +439,12 @@ impl CompilationEnv {
     /// Should only be called after compilation is finished
     pub fn take_final_warning_diags(&mut self) -> Diagnostics {
         let final_diags = self.take_final_diags();
-        debug_assert!(final_diags
-            .max_severity()
-            .map(|s| s == Severity::Warning)
-            .unwrap_or(true));
+        debug_assert!(
+            final_diags
+                .max_severity()
+                .map(|s| s == Severity::Warning)
+                .unwrap_or(true)
+        );
         final_diags
     }
 
@@ -531,8 +534,8 @@ impl CompilationEnv {
         self.visitors.clone()
     }
 
-    // Logs an error if the feature isn't supported. Returns `false` if the feature is not
-    // supported, and `true` otherwise.
+    // Logs an error if the feature isn't supported. Returns `false` if the feature
+    // is not supported, and `true` otherwise.
     pub fn check_feature(
         &mut self,
         package: Option<Symbol>,
@@ -632,8 +635,8 @@ pub struct Flags {
     )]
     silence_warnings: bool,
 
-    /// If set, source files will not shadow dependency files. If the same file is passed to both,
-    /// an error will be raised
+    /// If set, source files will not shadow dependency files. If the same file
+    /// is passed to both, an error will be raised
     #[clap(
         name = "SOURCES_SHADOW_DEPS",
         short = cli::SHADOW_SHORT,
@@ -647,8 +650,9 @@ pub struct Flags {
     )]
     bytecode_version: Option<u32>,
 
-    /// Internal flag used by the model builder to maintain functions which would be otherwise
-    /// included only in tests, without creating the unit test code regular tests do.
+    /// Internal flag used by the model builder to maintain functions which
+    /// would be otherwise included only in tests, without creating the unit
+    /// test code regular tests do.
     #[clap(skip)]
     keep_testing_functions: bool,
 }
@@ -786,13 +790,14 @@ impl Visitors {
 // Binop Processing Macro
 //**************************************************************************************************
 
-/// A macro to handle binop processing without recursion in various passes. This macro proceeds by:
+/// A macro to handle binop processing without recursion in various passes. This
+/// macro proceeds by:
 ///
 /// 1. unravelling nested binops into a work queue;
-/// 2. processing that work queue to create a Polish notation expression stack consisting of `Op`
-///    (operator) and `Val` (value) entries;
-/// 3. processing the expression stack in reverse (RPN-style) alongside a value stack to reassemble
-///    the binary operation expressions;
+/// 2. processing that work queue to create a Polish notation expression stack
+///    consisting of `Op` (operator) and `Val` (value) entries;
+/// 3. processing the expression stack in reverse (RPN-style) alongside a value
+///    stack to reassemble the binary operation expressions;
 /// 4. and, finally, returning the final value left on the value stack.
 ///
 /// The macro takes the following arguments:
@@ -800,38 +805,47 @@ impl Visitors {
 ///  Type arguments:
 ///
 /// * `$optype` - The type contained in the Op entries on the expression stack.
-/// * `$valtype` - The type contained in the Val entries on the expression stack.
+/// * `$valtype` - The type contained in the Val entries on the expression
+///   stack.
 ///
 /// Work Queue Arguments:
 ///
 /// * `$e` - The initial expression to start processing.
-/// * `$work_pat` - The pattern used to disassemble entries in the work queue. Note that the work
-///    queue may contain any arbitrary type (such as a tuple of a block and expression), so the
-///    work pattern is used to disassemble and bind component parts.
-/// * `$work_exp` - The actual expression to match on, as defined in the `$work_pat`.
-/// * `$binop_pat` - This is a pattern matched against the `$work_exp` that matches if and only if
-///    the `$work_exp` is in fact a binary operation expression.
-/// * `$bind_rhs` - This block is executed when `$work_exp` matches `$binop_pat`, with any pattern
-///   binders from `$binop_pat` in scope. This block must return a 3-tuple consisting of the
-///   left-hand side work queue entry, the `$optype` entry for the operand, and the right-hand side
-///   work queue entry (as `(lhs, op, rhs)`). Note that `lhs` and `rhs` here should have the same
-///   type as the initial `$e`.
-/// * `$default` - This block processes a work queue entry when the pattern match fails, and is
-///   expected to yield a `$valtype` entry. Note this should be the value you would like on your
-///   value stack (i.e., the type of the final result).
+/// * `$work_pat` - The pattern used to disassemble entries in the work queue.
+///   Note that the work queue may contain any arbitrary type (such as a tuple
+///   of a block and expression), so the work pattern is used to disassemble and
+///   bind component parts.
+/// * `$work_exp` - The actual expression to match on, as defined in the
+///   `$work_pat`.
+/// * `$binop_pat` - This is a pattern matched against the `$work_exp` that
+///   matches if and only if the `$work_exp` is in fact a binary operation
+///   expression.
+/// * `$bind_rhs` - This block is executed when `$work_exp` matches
+///   `$binop_pat`, with any pattern binders from `$binop_pat` in scope. This
+///   block must return a 3-tuple consisting of the left-hand side work queue
+///   entry, the `$optype` entry for the operand, and the right-hand side work
+///   queue entry (as `(lhs, op, rhs)`). Note that `lhs` and `rhs` here should
+///   have the same type as the initial `$e`.
+/// * `$default` - This block processes a work queue entry when the pattern
+///   match fails, and is expected to yield a `$valtype` entry. Note this should
+///   be the value you would like on your value stack (i.e., the type of the
+///   final result).
 ///
 /// Value Stack Arguments:
 ///
 /// * `$value_stack` - An identifier that names the value stack.
-/// * `$op_pat` - When the expression stack finds an `Op`, it will match its contents with this.
-/// * `$op_rhs` - This block is executed when an Op is found on the expression stack. Any pattern
-///   binders from `$op_pat` will be in scope. This block must return value for the `$value_stack`,
-///   and can do so by popping the left-hand side and right-hand side results from the
-///   `$value_stack` (in that order). These values should always be available as per the contract
-///   of the macro and how it disassembles and pushes values across its computation.
+/// * `$op_pat` - When the expression stack finds an `Op`, it will match its
+///   contents with this.
+/// * `$op_rhs` - This block is executed when an Op is found on the expression
+///   stack. Any pattern binders from `$op_pat` will be in scope. This block
+///   must return value for the `$value_stack`, and can do so by popping the
+///   left-hand side and right-hand side results from the `$value_stack` (in
+///   that order). These values should always be available as per the contract
+///   of the macro and how it disassembles and pushes values across its
+///   computation.
 ///
-/// Examples of usage can be found in `expansion/`, `naming/`, `typing/`, and `hlir/`, in their
-/// respective `translation.rs` implementations.
+/// Examples of usage can be found in `expansion/`, `naming/`, `typing/`, and
+/// `hlir/`, in their respective `translation.rs` implementations.
 
 macro_rules! process_binops {
     ($optype:ty,
@@ -898,8 +912,8 @@ pub type IndexedPhysicalPackagePath = IndexedPackagePath<Symbol>;
 pub type IndexedVfsPackagePath = IndexedPackagePath<VfsPath>;
 
 pub fn vfs_path_from_str(path: String, vfs_path: &VfsPath) -> Result<VfsPath, VfsError> {
-    // we need to canonicalized paths for virtual file systems as some of them (e.g., implementation
-    // of the physical one) cannot handle relative paths
+    // we need to canonicalized paths for virtual file systems as some of them
+    // (e.g., implementation of the physical one) cannot handle relative paths
     fn canonicalize(p: String) -> String {
         // dunce's version of canonicalize does a better job on Windows
         match dunce::canonicalize(&p) {

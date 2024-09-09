@@ -1,22 +1,8 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::format_module_id;
-use codespan_reporting::files::{Files, SimpleFiles};
-use colored::{control, Colorize};
-use move_binary_format::{
-    access::ModuleAccess,
-    errors::{ExecutionState, Location, VMError, VMResult},
-};
-use move_command_line_common::files::FileHash;
-use move_compiler::{
-    diagnostics::{self, Diagnostic, Diagnostics},
-    unit_test::{ModuleTestPlan, MoveErrorType, TestName, TestPlan},
-};
-use move_core_types::{language_storage::ModuleId, vm_status::StatusType};
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     io::{Result, Write},
@@ -24,7 +10,23 @@ use std::{
     time::Duration,
 };
 
+use codespan_reporting::files::{Files, SimpleFiles};
+use colored::{control, Colorize};
+use move_binary_format::{
+    access::ModuleAccess,
+    errors::{ExecutionState, Location, VMError, VMResult},
+};
+use move_command_line_common::files::FileHash;
 pub use move_compiler::unit_test::ExpectedMoveError as MoveError;
+use move_compiler::{
+    diagnostics::{self, Diagnostic, Diagnostics},
+    unit_test::{ModuleTestPlan, MoveErrorType, TestName, TestPlan},
+};
+use move_core_types::{language_storage::ModuleId, vm_status::StatusType};
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
+use crate::format_module_id;
 
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub enum FailureReason {
@@ -539,7 +541,8 @@ impl TestResults {
         writeln!(writer.lock().unwrap())
     }
 
-    /// Returns `true` if all tests passed, `false` if there was a test failure/timeout
+    /// Returns `true` if all tests passed, `false` if there was a test
+    /// failure/timeout
     pub fn summarize<W: Write>(self, writer: &Mutex<W>) -> Result<bool> {
         let num_failed_tests = self
             .final_statistics

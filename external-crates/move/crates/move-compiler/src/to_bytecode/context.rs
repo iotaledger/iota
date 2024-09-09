@@ -1,20 +1,23 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    clone::Clone,
+    collections::{BTreeMap, BTreeSet, HashMap},
+};
+
+use move_core_types::account_address::AccountAddress as MoveAddress;
+use move_ir_types::ast as IR;
+use move_symbol_pool::Symbol;
+use IR::Ability;
 
 use crate::{
     expansion::ast::{Address, ModuleIdent, ModuleIdent_},
     parser::ast::{ConstantName, FunctionName, StructName},
     shared::{CompilationEnv, NumericalAddress},
 };
-use move_core_types::account_address::AccountAddress as MoveAddress;
-use move_ir_types::ast as IR;
-use move_symbol_pool::Symbol;
-use std::{
-    clone::Clone,
-    collections::{BTreeMap, BTreeSet, HashMap},
-};
-use IR::Ability;
 
 /// Compilation context for a single compilation unit (module).
 /// Contains all of the dependencies actually used in the module

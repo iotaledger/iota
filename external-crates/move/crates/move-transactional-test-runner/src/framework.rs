@@ -1,13 +1,19 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
-use crate::tasks::{
-    taskify, InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice,
-    TaskCommand, TaskInput,
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::{Debug, Write as FmtWrite},
+    future::Future,
+    io::Write,
+    path::Path,
+    sync::Arc,
 };
+
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::Parser;
@@ -39,15 +45,12 @@ use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
 use move_ir_types::location::Spanned;
 use move_symbol_pool::Symbol;
 use move_vm_runtime::session::SerializedReturnValues;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::{Debug, Write as FmtWrite},
-    future::Future,
-    io::Write,
-    path::Path,
-    sync::Arc,
-};
 use tempfile::NamedTempFile;
+
+use crate::tasks::{
+    taskify, InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice,
+    TaskCommand, TaskInput,
+};
 
 pub struct CompiledState {
     pre_compiled_deps: Option<Arc<FullyCompiledProgram>>,
@@ -631,9 +634,10 @@ pub fn compile_source_units(
 
     use move_compiler::PASS_COMPILATION;
     let named_address_mapping = state.named_address_mapping.clone();
-    // txn testing framework test code includes private unused functions and unused struct types on
-    // purpose and generating warnings for all of them does not make much sense (and there would be
-    // a lot of them!) so let's suppress them function warnings, so let's suppress these
+    // txn testing framework test code includes private unused functions and unused
+    // struct types on purpose and generating warnings for all of them does not
+    // make much sense (and there would be a lot of them!) so let's suppress
+    // them function warnings, so let's suppress these
     let warning_filter = WarningFilters::unused_warnings_filter_for_test();
     let (mut files, comments_and_compiler_res) = move_compiler::Compiler::from_files(
         vec![file_name.as_ref().to_str().unwrap().to_owned()],

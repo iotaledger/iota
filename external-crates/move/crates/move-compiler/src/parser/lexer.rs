@@ -1,6 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::fmt;
+
+use move_command_line_common::{character_sets::DisplayChar, files::FileHash};
+use move_ir_types::location::Loc;
 
 use crate::{
     diag,
@@ -10,9 +16,6 @@ use crate::{
     shared::CompilationEnv,
     FileCommentMap, MatchedFileCommentMap,
 };
-use move_command_line_common::{character_sets::DisplayChar, files::FileHash};
-use move_ir_types::location::Loc;
-use std::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tok {
@@ -238,16 +241,17 @@ impl<'input> Lexer<'input> {
         self.edition
     }
 
-    /// Strips line and block comments from input source, and collects documentation comments,
-    /// putting them into a map indexed by the span of the comment region. Comments in the original
-    /// source will be replaced by spaces, such that positions of source items stay unchanged.
+    /// Strips line and block comments from input source, and collects
+    /// documentation comments, putting them into a map indexed by the span
+    /// of the comment region. Comments in the original source will be
+    /// replaced by spaces, such that positions of source items stay unchanged.
     /// Block comments can be nested.
     ///
     /// Documentation comments are comments which start with
-    /// `///` or `/**`, but not `////` or `/***`. The actually comment delimiters
-    /// (`/// .. <newline>` and `/** .. */`) will be not included in extracted comment string. The
-    /// span in the returned map, however, covers the whole region of the comment, including the
-    /// delimiters.
+    /// `///` or `/**`, but not `////` or `/***`. The actually comment
+    /// delimiters (`/// .. <newline>` and `/** .. */`) will be not included
+    /// in extracted comment string. The span in the returned map, however,
+    /// covers the whole region of the comment, including the delimiters.
     fn trim_whitespace_and_comments(
         &mut self,
         offset: usize,
@@ -366,13 +370,14 @@ impl<'input> Lexer<'input> {
         text
     }
 
-    // Look ahead to the next token after the current one and return it, and its starting offset,
-    // without advancing the state of the lexer.
+    // Look ahead to the next token after the current one and return it, and its
+    // starting offset, without advancing the state of the lexer.
     pub fn lookahead(&mut self) -> Result<Tok, Box<Diagnostic>> {
         let text = self.trim_whitespace_and_comments(self.cur_end)?;
         let next_start = self.text.len() - text.len();
         let (result, _) = find_token(
-            /* panic_mode */ false,
+            // panic_mode
+            false,
             self.file_hash,
             self.edition,
             text,
@@ -382,13 +387,14 @@ impl<'input> Lexer<'input> {
         result.map_err(|diag_opt| diag_opt.unwrap())
     }
 
-    // Look ahead to the next two tokens after the current one and return them without advancing
-    // the state of the lexer.
+    // Look ahead to the next two tokens after the current one and return them
+    // without advancing the state of the lexer.
     pub fn lookahead2(&mut self) -> Result<(Tok, Tok), Box<Diagnostic>> {
         let text = self.trim_whitespace_and_comments(self.cur_end)?;
         let offset = self.text.len() - text.len();
         let (result, length) = find_token(
-            /* panic_mode */ false,
+            // panic_mode
+            false,
             self.file_hash,
             self.edition,
             text,
@@ -398,7 +404,8 @@ impl<'input> Lexer<'input> {
         let text2 = self.trim_whitespace_and_comments(offset + length)?;
         let offset2 = self.text.len() - text2.len();
         let (result2, _) = find_token(
-            /* panic_mode */ false,
+            // panic_mode
+            false,
             self.file_hash,
             self.edition,
             text2,
@@ -408,14 +415,16 @@ impl<'input> Lexer<'input> {
         Ok((first, second))
     }
 
-    // Matches the doc comments after the last token (or the beginning of the file) to the position
-    // of the current token. This moves the comments out of `doc_comments` and
-    // into `matched_doc_comments`. At the end of parsing, if `doc_comments` is not empty, errors
-    // for stale doc comments will be produced.
+    // Matches the doc comments after the last token (or the beginning of the file)
+    // to the position of the current token. This moves the comments out of
+    // `doc_comments` and into `matched_doc_comments`. At the end of parsing, if
+    // `doc_comments` is not empty, errors for stale doc comments will be
+    // produced.
     //
-    // Calling this function during parsing effectively marks a valid point for documentation
-    // comments. The documentation comments are not stored in the AST, but can be retrieved by
-    // using the start position of an item as an index into `matched_doc_comments`.
+    // Calling this function during parsing effectively marks a valid point for
+    // documentation comments. The documentation comments are not stored in the
+    // AST, but can be retrieved by using the start position of an item as an
+    // index into `matched_doc_comments`.
     pub fn match_doc_comments(&mut self) {
         let start = self.previous_end_loc() as u32;
         let end = self.cur_start as u32;
@@ -435,9 +444,9 @@ impl<'input> Lexer<'input> {
         self.matched_doc_comments.insert(end, merged);
     }
 
-    // At the end of parsing, checks whether there are any unmatched documentation comments,
-    // producing errors if so. Otherwise returns a map from file position to associated
-    // documentation.
+    // At the end of parsing, checks whether there are any unmatched documentation
+    // comments, producing errors if so. Otherwise returns a map from file
+    // position to associated documentation.
     pub fn check_and_get_doc_comments(
         &mut self,
         env: &mut CompilationEnv,
@@ -455,11 +464,13 @@ impl<'input> Lexer<'input> {
         std::mem::take(&mut self.matched_doc_comments)
     }
 
-    /// Advance to the next token. This function will keep trying to advance the lexer until it
-    /// actually finds a valid token, skipping over non-token text snippets if necessary (in the
-    /// worst case, it will eventually encounter EOF). If parsing errors are encountered when
-    /// skipping over non-tokens, the first diagnostic will be recorded and returned, so that it can
-    /// be acted upon (if parsing needs to stop) or ignored (if parsing should proceed regardless).
+    /// Advance to the next token. This function will keep trying to advance the
+    /// lexer until it actually finds a valid token, skipping over non-token
+    /// text snippets if necessary (in the worst case, it will eventually
+    /// encounter EOF). If parsing errors are encountered when skipping over
+    /// non-tokens, the first diagnostic will be recorded and returned, so that
+    /// it can be acted upon (if parsing needs to stop) or ignored (if
+    /// parsing should proceed regardless).
     pub fn advance(&mut self) -> Result<(), Box<Diagnostic>> {
         let text_end = self.text.len();
         self.prev_end = self.cur_end;
@@ -483,8 +494,8 @@ impl<'input> Lexer<'input> {
                 };
             };
             let new_start = self.text.len() - text.len();
-            // panic_mode determines if a diag should be actually recorded in find_token (so that
-            // only first one is recorded)
+            // panic_mode determines if a diag should be actually recorded in find_token (so
+            // that only first one is recorded)
             let panic_mode = err.is_some();
             let (result, len) =
                 find_token(panic_mode, self.file_hash, self.edition, text, new_start);
@@ -501,8 +512,8 @@ impl<'input> Lexer<'input> {
                 }
             }
         };
-        // regardless of whether an error was encountered (and diagnostic recorded) or not, the
-        // token is advanced
+        // regardless of whether an error was encountered (and diagnostic recorded) or
+        // not, the token is advanced
         self.token = token;
         if let Some(err) = err {
             Err(err)
@@ -632,7 +643,7 @@ fn find_token(
             if rest_text.starts_with('\'') {
                 let diag = maybe_diag! {
                     let loc = make_loc(file_hash, start_offset, start_offset + len + 1);
-                    let msg = "Charater literals are not supported";
+                    let msg = "Character literals are not supported";
                     let mut diag = diag!(Syntax::UnexpectedToken, (loc, msg));
                     diag.add_note("String literals use double-quote (\").");
                     Box::new(diag)
@@ -823,8 +834,8 @@ fn get_hex_number(text: &str) -> (Tok, usize) {
     get_number_maybe_with_suffix(text, num_text_len)
 }
 
-// Given the text for a number literal and the length for the characters that match to the number
-// portion, checks for a typed suffix.
+// Given the text for a number literal and the length for the characters that
+// match to the number portion, checks for a typed suffix.
 fn get_number_maybe_with_suffix(text: &str, num_text_len: usize) -> (Tok, usize) {
     let rest = &text[num_text_len..];
     if rest.starts_with("u8") {
@@ -896,7 +907,8 @@ fn get_name_token(edition: Edition, name: &str) -> Tok {
     }
 }
 
-// Trim the start whitespace characters, include: space, tab, lf(\n) and crlf(\r\n).
+// Trim the start whitespace characters, include: space, tab, lf(\n) and
+// crlf(\r\n).
 fn trim_start_whitespace(text: &str) -> &str {
     let mut pos = 0;
     let mut iter = text.chars();

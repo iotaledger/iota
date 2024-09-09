@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Contains types and related functions.
@@ -138,8 +139,8 @@ impl Type {
         matches!(self, Type::Vector(..))
     }
 
-    /// Determines whether this is a struct, or a vector of structs, or a reference to any of
-    /// those.
+    /// Determines whether this is a struct, or a vector of structs, or a
+    /// reference to any of those.
     pub fn is_struct_or_vector_of_struct(&self) -> bool {
         match self.skip_reference() {
             Type::Struct(..) => true,
@@ -148,8 +149,8 @@ impl Type {
         }
     }
 
-    /// Returns true if this type is a specification language only type or contains specification
-    /// language only types
+    /// Returns true if this type is a specification language only type or
+    /// contains specification language only types
     pub fn is_spec(&self) -> bool {
         use Type::*;
         match self {
@@ -241,7 +242,8 @@ impl Type {
         }
     }
 
-    /// If this is a struct type, return the associated struct env and type parameters.
+    /// If this is a struct type, return the associated struct env and type
+    /// parameters.
     pub fn get_struct<'env>(
         &'env self,
         env: &'env GlobalEnv,
@@ -351,7 +353,8 @@ impl Type {
         }
     }
 
-    /// Checks whether this type contains a type for which the predicate is true.
+    /// Checks whether this type contains a type for which the predicate is
+    /// true.
     pub fn contains<P>(&self, p: &P) -> bool
     where
         P: Fn(&Type) -> bool,
@@ -371,7 +374,8 @@ impl Type {
         }
     }
 
-    /// Returns true if this type is incomplete, i.e. contains any type variables.
+    /// Returns true if this type is incomplete, i.e. contains any type
+    /// variables.
     pub fn is_incomplete(&self) -> bool {
         use Type::*;
         match self {
@@ -386,7 +390,8 @@ impl Type {
         }
     }
 
-    /// Return true if this type contains generic types (i.e., types that can be instantiated).
+    /// Return true if this type contains generic types (i.e., types that can be
+    /// instantiated).
     pub fn is_open(&self) -> bool {
         let mut has_var = false;
         self.visit(&mut |t| has_var = has_var || matches!(t, Type::TypeParameter(_)));
@@ -531,10 +536,12 @@ impl Type {
     }
 }
 
-/// A parameter for type unification that specifies the type compatibility rules to follow.
+/// A parameter for type unification that specifies the type compatibility rules
+/// to follow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Variance {
-    /// Co-variance is allowed in all depths of the recursive type unification process
+    /// Co-variance is allowed in all depths of the recursive type unification
+    /// process
     Allow,
     /// Co-variance is only allowed for the outermost type unification round
     Shallow,
@@ -555,14 +562,16 @@ impl Substitution {
         self.subs.insert(var, ty);
     }
 
-    /// Specializes the type, substituting all variables bound in this substitution.
+    /// Specializes the type, substituting all variables bound in this
+    /// substitution.
     pub fn specialize(&self, t: &Type) -> Type {
         t.replace(None, Some(self))
     }
 
     /// Return either a shallow or deep substitution of the type variable.
     ///
-    /// If deep substitution is requested, follow down the substitution chain until either
+    /// If deep substitution is requested, follow down the substitution chain
+    /// until either
     /// - `Some(ty)` when the final type is not a type variable or
     /// - `None` when the final type variable does not have a substitution
     pub fn get_substitution(&self, var: u16, shallow: bool) -> Option<Type> {
@@ -585,15 +594,17 @@ impl Substitution {
     ///
     /// - 1) References are dropped (i.e. &T and T are compatible)
     /// - 2) All integer types are compatible if co-variance is allowed.
-    /// - 3) With the joint effect of 1) and 2), if (P, Q) is compatible under co-variance,
-    ///      (&P, Q), (P, &Q), and (&P, &Q) are all compatible under co-variance.
-    /// - 4) If in two tuples (P1, P2, ..., Pn) and (Q1, Q2, ..., Qn), all (Pi, Qi) pairs are
-    ///      compatible under co-variance, then the two tuples are compatible under co-variance.
+    /// - 3) With the joint effect of 1) and 2), if (P, Q) is compatible under
+    ///   co-variance, (&P, Q), (P, &Q), and (&P, &Q) are all compatible under
+    ///   co-variance.
+    /// - 4) If in two tuples (P1, P2, ..., Pn) and (Q1, Q2, ..., Qn), all (Pi,
+    ///   Qi) pairs are compatible under co-variance, then the two tuples are
+    ///   compatible under co-variance.
     ///
-    /// The substitution will be refined by variable assignments as needed to perform
-    /// unification. If unification fails, the substitution will be in some intermediate state;
-    /// to implement transactional unification, the substitution must be cloned before calling
-    /// this.
+    /// The substitution will be refined by variable assignments as needed to
+    /// perform unification. If unification fails, the substitution will be
+    /// in some intermediate state; to implement transactional unification,
+    /// the substitution must be cloned before calling this.
     pub fn unify(
         &mut self,
         variance: Variance,
@@ -724,8 +735,8 @@ impl Substitution {
         Ok(rs)
     }
 
-    /// Tries to substitute or assign a variable. Returned option is Some if unification
-    /// was performed, None if not.
+    /// Tries to substitute or assign a variable. Returned option is Some if
+    /// unification was performed, None if not.
     fn try_substitute_or_assign(
         &mut self,
         variance: Variance,
@@ -780,15 +791,15 @@ impl Default for Substitution {
 
 /// Helper to unify types which stem from different generic contexts.
 ///
-/// Both comparison side may have type parameters (equally named as #0, #1, ...).
-/// The helper converts the type parameter from or both sides into variables
-/// and then performs unification of the terms. The resulting substitution
-/// is converted back to parameter instantiations.
+/// Both comparison side may have type parameters (equally named as #0, #1,
+/// ...). The helper converts the type parameter from or both sides into
+/// variables and then performs unification of the terms. The resulting
+/// substitution is converted back to parameter instantiations.
 ///
-/// Example: consider a function f<X> which uses memory M<X, u64>, and invariant
-/// invariant<X> which uses memory M<bool, X>. Using this helper to unify both
-/// memories will result in instantiations which when applied create f<bool>
-/// and invariant<u64> respectively.
+/// Example: consider a function `f<X>` which uses memory M<X, u64>, and
+/// invariant `invariant<X>` which uses memory `M<bool, X>`. Using this helper
+/// to unify both memories will result in instantiations which when applied
+/// create `f<bool>` and `invariant<u64>` respectively.
 pub struct TypeUnificationAdapter {
     type_vars_map: BTreeMap<u16, (bool, TypeParameterIndex)>,
     types_adapted_lhs: Vec<Type>,
@@ -799,10 +810,12 @@ impl TypeUnificationAdapter {
     /// Initialize the context for the type unifier.
     ///
     /// If `treat_lhs_type_param_as_var_after_index` is set to P,
-    /// - any type parameter on the LHS with index < P will be treated as concrete types and
-    /// - only type parameters on the LHS with index >= P are treated as variables and thus,
-    ///   participate in the type unification process.
-    /// The same rule applies to the RHS parameters via `treat_rhs_type_param_as_var_after_index`.
+    /// - any type parameter on the LHS with index < P will be treated as
+    ///   concrete types and
+    /// - only type parameters on the LHS with index >= P are treated as
+    ///   variables and thus, participate in the type unification process.
+    /// The same rule applies to the RHS parameters via
+    /// `treat_rhs_type_param_as_var_after_index`.
     fn new<'a, I>(
         lhs_types: I,
         rhs_types: I,
@@ -882,10 +895,12 @@ impl TypeUnificationAdapter {
         }
     }
 
-    /// Create a TypeUnificationAdapter with the goal of unifying a pair of types.
+    /// Create a TypeUnificationAdapter with the goal of unifying a pair of
+    /// types.
     ///
-    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on the LHS as variables.
-    /// If `treat_rhs_type_param_as_var` is True, treat all type parameters on the RHS as variables.
+    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on
+    /// the LHS as variables. If `treat_rhs_type_param_as_var` is True,
+    /// treat all type parameters on the RHS as variables.
     pub fn new_pair(
         lhs_type: &Type,
         rhs_type: &Type,
@@ -900,10 +915,12 @@ impl TypeUnificationAdapter {
         )
     }
 
-    /// Create a TypeUnificationAdapter with the goal of unifying a pair of type tuples.
+    /// Create a TypeUnificationAdapter with the goal of unifying a pair of type
+    /// tuples.
     ///
-    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on the LHS as variables.
-    /// If `treat_rhs_type_param_as_var` is True, treat all type parameters on the RHS as variables.
+    /// If `treat_lhs_type_param_as_var` is True, treat all type parameters on
+    /// the LHS as variables. If `treat_rhs_type_param_as_var` is True,
+    /// treat all type parameters on the RHS as variables.
     pub fn new_vec(
         lhs_types: &[Type],
         rhs_types: &[Type],
@@ -918,9 +935,10 @@ impl TypeUnificationAdapter {
         )
     }
 
-    /// Consume the TypeUnificationAdapter and produce the unification result. If type unification
-    /// is successful, return a pair of instantiations for type parameters on each side which
-    /// unify the LHS and RHS respectively. If the LHS and RHS cannot unify, None is returned.
+    /// Consume the TypeUnificationAdapter and produce the unification result.
+    /// If type unification is successful, return a pair of instantiations
+    /// for type parameters on each side which unify the LHS and RHS
+    /// respectively. If the LHS and RHS cannot unify, None is returned.
     pub fn unify(
         self,
         variance: Variance,
@@ -998,16 +1016,21 @@ impl TypeUnificationError {
 pub struct TypeInstantiationDerivation {}
 
 impl TypeInstantiationDerivation {
-    /// Find what the instantiations should we have for the type parameter at `target_param_index`.
+    /// Find what the instantiations should we have for the type parameter at
+    /// `target_param_index`.
     ///
-    /// The invariant is, forall type parameters whose index < target_param_index, it should either
-    /// - be assigned with a concrete type already and hence, ceases to be a type parameter, or
-    /// - does not have any matching instantiation and hence, either remains a type parameter or is
-    ///   represented as a type error.
-    /// But in anyway, these type parameters no longer participate in type unification anymore.
+    /// The invariant is, forall type parameters whose index <
+    /// target_param_index, it should either
+    /// - be assigned with a concrete type already and hence, ceases to be a
+    ///   type parameter, or
+    /// - does not have any matching instantiation and hence, either remains a
+    ///   type parameter or is represented as a type error.
+    /// But in anyway, these type parameters no longer participate in type
+    /// unification anymore.
     ///
-    /// If `target_lhs` is True, derive instantiations for the type parameter with
-    /// `target_param_index` on the `lhs_types`. Otherwise, target the `rhs_types`.
+    /// If `target_lhs` is True, derive instantiations for the type parameter
+    /// with `target_param_index` on the `lhs_types`. Otherwise, target the
+    /// `rhs_types`.
     fn derive_instantiations_for_target_parameter(
         lhs_types: &BTreeSet<Type>,
         rhs_types: &BTreeSet<Type>,
@@ -1053,28 +1076,35 @@ impl TypeInstantiationDerivation {
         target_param_insts
     }
 
-    /// Find the set of valid instantiation combinations for all the type parameters.
+    /// Find the set of valid instantiation combinations for all the type
+    /// parameters.
     ///
-    /// The algorithm is progressive. For a list of parameters with arity `params_arity = N`, it
-    /// - first finds all possible instantiation for parameter at index 0 (`inst_param_0`) and,'
+    /// The algorithm is progressive. For a list of parameters with arity
+    /// `params_arity = N`, it
+    /// - first finds all possible instantiation for parameter at index 0
+    ///   (`inst_param_0`) and,'
     /// - for each instantiation in `inst_param_0`,
     ///   - refines LHS or RHS types and
-    ///   - finds all possible instantiations for parameter at index 1 (`inst_param_1`)
+    ///   - finds all possible instantiations for parameter at index 1
+    ///     (`inst_param_1`)
     ///   - for each instantiation in `inst_param_1`,
     ///     - refines LHS or RHS types and
-    ///     - finds all possible instantiations for parameter at index 2 (`inst_param_2`)
+    ///     - finds all possible instantiations for parameter at index 2
+    ///       (`inst_param_2`)
     ///     - for each instantiation in `inst_param_2`,
     ///       - ......
-    /// The process continues until all type parameters are analyzed (i.e., reaching the type
-    /// parameter at index `N`).
+    /// The process continues until all type parameters are analyzed (i.e.,
+    /// reaching the type parameter at index `N`).
     ///
-    /// If `refine_lhs` is True, refine the `lhs_types` after each round; same for `refine_rhs`.
+    /// If `refine_lhs` is True, refine the `lhs_types` after each round; same
+    /// for `refine_rhs`.
     ///
-    /// If `target_lhs` is True, find instantiations for the type parameters in the `lhs_types`,
-    /// otherwise, target the `rhs_types`.
+    /// If `target_lhs` is True, find instantiations for the type parameters in
+    /// the `lhs_types`, otherwise, target the `rhs_types`.
     ///
-    /// If `mark_irrelevant_param_as_error` is True, type parameters that do not have any valid
-    /// instantiation will be marked as `Type::Error`. Otherwise, leave the type parameter as it is.
+    /// If `mark_irrelevant_param_as_error` is True, type parameters that do not
+    /// have any valid instantiation will be marked as `Type::Error`.
+    /// Otherwise, leave the type parameter as it is.
     pub fn progressive_instantiation<'a, I>(
         lhs_types: I,
         rhs_types: I,

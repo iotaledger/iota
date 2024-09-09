@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod cargo_runner;
@@ -7,7 +8,13 @@ pub mod extensions;
 pub mod test_reporter;
 pub mod test_runner;
 
-use crate::test_runner::TestRunner;
+use std::{
+    collections::BTreeMap,
+    io::{Result, Write},
+    marker::Send,
+    sync::Mutex,
+};
+
 use clap::*;
 use move_command_line_common::files::verify_and_create_named_address_mapping;
 use move_compiler::{
@@ -20,12 +27,8 @@ use move_compiler::{
 use move_core_types::language_storage::ModuleId;
 use move_vm_runtime::native_functions::NativeFunctionTable;
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::{
-    collections::BTreeMap,
-    io::{Result, Write},
-    marker::Send,
-    sync::Mutex,
-};
+
+use crate::test_runner::TestRunner;
 
 /// The default value bounding the amount of gas consumed in a test.
 const DEFAULT_EXECUTION_BOUND: u64 = 1_000_000;
@@ -33,7 +36,8 @@ const DEFAULT_EXECUTION_BOUND: u64 = 1_000_000;
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about)]
 pub struct UnitTestingConfig {
-    /// Bound the gas limit for any one test. If using custom gas table, this is the max number of instructions.
+    /// Bound the gas limit for any one test. If using custom gas table, this is
+    /// the max number of instructions.
     #[clap(name = "gas-limit", short = 'i', long = "gas-limit")]
     pub gas_limit: Option<u64>,
 
@@ -64,7 +68,8 @@ pub struct UnitTestingConfig {
     )]
     pub dep_files: Vec<String>,
 
-    /// Report test statistics at the end of testing. CSV report generated if 'csv' passed
+    /// Report test statistics at the end of testing. CSV report generated if
+    /// 'csv' passed
     #[clap(name = "report-statistics", short = 's', long = "statistics")]
     pub report_statistics: Option<Option<String>>,
 
@@ -92,8 +97,8 @@ pub struct UnitTestingConfig {
     )]
     pub source_files: Vec<String>,
 
-    /// Use the stackless bytecode interpreter to run the tests and cross check its results with
-    /// the execution result from Move VM.
+    /// Use the stackless bytecode interpreter to run the tests and cross check
+    /// its results with the execution result from Move VM.
     #[clap(long = "stackless")]
     pub check_stackless_vm: bool,
 

@@ -1,6 +1,28 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::BTreeMap,
+    fs,
+    io::{Read, Write},
+    path::PathBuf,
+    sync::Arc,
+};
+
+use move_command_line_common::files::{
+    find_filenames_vfs, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, SOURCE_MAP_EXTENSION,
+};
+use move_core_types::language_storage::ModuleId as CompiledModuleId;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use pathdiff::diff_paths;
+use vfs::{
+    impls::{memory::MemoryFS, physical::PhysicalFS},
+    path::VfsFileType,
+    VfsPath,
+};
 
 use crate::{
     cfgir::{self, visitor::AbsIntVisitorObj},
@@ -21,25 +43,6 @@ use crate::{
     to_bytecode,
     typing::{self, visitor::TypingVisitorObj},
     unit_test,
-};
-use move_command_line_common::files::{
-    find_filenames_vfs, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, SOURCE_MAP_EXTENSION,
-};
-use move_core_types::language_storage::ModuleId as CompiledModuleId;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use pathdiff::diff_paths;
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::{Read, Write},
-    path::PathBuf,
-    sync::Arc,
-};
-use vfs::{
-    impls::{memory::MemoryFS, physical::PhysicalFS},
-    path::VfsFileType,
-    VfsPath,
 };
 
 //**************************************************************************************************
@@ -280,11 +283,13 @@ impl Compiler {
         FilesSourceText,
         Result<(CommentMap, SteppedCompiler<TARGET>), (Pass, Diagnostics)>,
     )> {
-        /// Path relativization after parsing is needed as paths are initially canonicalized when
-        /// converted to virtual file system paths and would show up as absolute in the test output
-        /// which wouldn't be machine-agnostic. We need to relativize using `vfs_root` beacuse it
-        /// was also used during canonicalization and might have altered path prefix in a
-        /// non-standard way (e.g., this can happen on Windows).
+        /// Path relativization after parsing is needed as paths are initially
+        /// canonicalized when converted to virtual file system paths
+        /// and would show up as absolute in the test output
+        /// which wouldn't be machine-agnostic. We need to relativize using
+        /// `vfs_root` because it was also used during canonicalization
+        /// and might have altered path prefix in a non-standard way
+        /// (e.g., this can happen on Windows).
         fn relativize_path(vsf_root: &VfsPath, path: Symbol) -> Symbol {
             let Some(current_dir) = std::env::current_dir().ok() else {
                 return path;
@@ -579,8 +584,9 @@ impl SteppedCompiler<PASS_COMPILATION> {
     }
 }
 
-/// Given a set of dependencies, precompile them and save the ASTs so that they can be used again
-/// to compile against without having to recompile these dependencies
+/// Given a set of dependencies, precompile them and save the ASTs so that they
+/// can be used again to compile against without having to recompile these
+/// dependencies
 pub fn construct_pre_compiled_lib<Paths: Into<Symbol>, NamedAddress: Into<Symbol>>(
     targets: Vec<PackagePaths<Paths, NamedAddress>>,
     interface_files_dir_opt: Option<String>,
@@ -692,7 +698,8 @@ pub fn sanity_check_compiled_units(
     }
 }
 
-/// Given a file map and a set of compiled programs, saves the compiled programs to disk
+/// Given a file map and a set of compiled programs, saves the compiled programs
+/// to disk
 pub fn output_compiled_units(
     bytecode_version: Option<u32>,
     emit_source_maps: bool,
@@ -827,9 +834,10 @@ pub fn generate_interface_files(
         interface_sub_dir
     };
 
-    // interface files for dependencies are generated into a separate in-memory virtual file
-    // system (`deps_out_vfs`) and subsequently read by the parser (input for interface
-    // generation is still read from the "regular" virtual file system, that is `vfs`)
+    // interface files for dependencies are generated into a separate in-memory
+    // virtual file system (`deps_out_vfs`) and subsequently read by the parser
+    // (input for interface generation is still read from the "regular" virtual
+    // file system, that is `vfs`)
     let deps_out_vfs = VfsPath::new(MemoryFS::new());
     let mut result = vec![];
     for IndexedVfsPackagePath {

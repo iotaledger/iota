@@ -1,18 +1,22 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
-use clap::*;
-use move_package::{BuildConfig, ModelConfig};
 use std::path::PathBuf;
 
-/// Generate error map for the package and its dependencies at `path` for use by the Move
-/// explanation tool.
+use clap::*;
+use move_package::{BuildConfig, ModelConfig};
+
+use super::reroot_path;
+
+/// Generate error map for the package and its dependencies at `path` for use by
+/// the Move explanation tool.
 #[derive(Parser)]
 #[clap(name = "errmap")]
 pub struct Errmap {
-    /// The prefix that all error reasons within modules will be prefixed with, e.g., "E" if
-    /// all error reasons are "E_CANNOT_PERFORM_OPERATION", "E_CANNOT_ACCESS", etc.
+    /// The prefix that all error reasons within modules will be prefixed with,
+    /// e.g., "E" if all error reasons are "E_CANNOT_PERFORM_OPERATION",
+    /// "E_CANNOT_ACCESS", etc.
     #[clap(long)]
     pub error_prefix: Option<String>,
     /// The file to serialize the generated error map to.

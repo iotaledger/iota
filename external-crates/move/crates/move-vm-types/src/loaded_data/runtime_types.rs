@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{cmp::max, collections::BTreeMap, fmt::Debug};
 
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
@@ -12,8 +15,6 @@ use move_core_types::{
     gas_algebra::AbstractMemorySize, identifier::Identifier, language_storage::ModuleId,
     vm_status::StatusCode,
 };
-use std::fmt::Debug;
-use std::{cmp::max, collections::BTreeMap};
 
 pub const TYPE_DEPTH_MAX: usize = 256;
 
@@ -46,9 +47,9 @@ impl DepthFormula {
         }
     }
 
-    /// We `max` over a list of formulas, and we normalize it to deal with duplicate terms, e.g.
-    /// `max(max(t1 + 1, t2 + 2, 2), max(t1 + 3, t2 + 1, 4))` becomes
-    /// `max(t1 + 3, t2 + 2, 4)`
+    /// We `max` over a list of formulas, and we normalize it to deal with
+    /// duplicate terms, e.g. `max(max(t1 + 1, t2 + 2, 2), max(t1 + 3, t2 +
+    /// 1, 4))` becomes `max(t1 + 3, t2 + 2, 4)`
     pub fn normalize(formulas: Vec<Self>) -> Self {
         let mut var_map = BTreeMap::new();
         let mut constant_acc = None;
@@ -72,7 +73,8 @@ impl DepthFormula {
         }
     }
 
-    /// Substitute in formulas for each type parameter and normalize the final formula
+    /// Substitute in formulas for each type parameter and normalize the final
+    /// formula
     pub fn subst(
         &self,
         mut map: BTreeMap<TypeParameterIndex, DepthFormula>,
@@ -95,7 +97,8 @@ impl DepthFormula {
         Ok(DepthFormula::normalize(formulas))
     }
 
-    /// Given depths for each type parameter, solve the formula giving the max depth for the type
+    /// Given depths for each type parameter, solve the formula giving the max
+    /// depth for the type
     pub fn solve(&self, tparam_depths: &[u64]) -> PartialVMResult<u64> {
         let Self { terms, constant } = self;
         let mut depth = constant.as_ref().copied().unwrap_or(0);
@@ -105,7 +108,7 @@ impl DepthFormula {
                     return Err(
                         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                             .with_message(format!("{t_i:?} missing mapping")),
-                    )
+                    );
                 }
                 Some(ty_depth) => depth = max(depth, ty_depth.saturating_add(*c_i)),
             }
@@ -113,8 +116,9 @@ impl DepthFormula {
         Ok(depth)
     }
 
-    // `max(t_0 + c_0, ..., t_n + c_n, c_base) + c`. But our representation forces us to distribute
-    // the addition, so it becomes `max(t_0 + c_0 + c, ..., t_n + c_n + c, c_base + c)`
+    // `max(t_0 + c_0, ..., t_n + c_n, c_base) + c`. But our representation forces
+    // us to distribute the addition, so it becomes `max(t_0 + c_0 + c, ..., t_n
+    // + c_n + c, c_base + c)`
     pub fn add(&mut self, c: u64) {
         let Self { terms, constant } = self;
         for (_t_i, c_i) in terms {
@@ -245,10 +249,9 @@ impl Type {
             Struct(_) => Self::LEGACY_BASE_MEMORY_SIZE,
             StructInstantiation(struct_inst) => {
                 let (_, tys) = &**struct_inst;
-                tys
-                    .iter()
+                tys.iter()
                     .fold(Self::LEGACY_BASE_MEMORY_SIZE, |acc, ty| acc + ty.size())
-            },
+            }
         }
     }
 
@@ -271,14 +274,14 @@ impl Type {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Unable to load const type signature".to_string()),
-                )
+                );
             }
             // Not allowed/Not meaningful
             S::TypeParameter(_) | S::Reference(_) | S::MutableReference(_) | S::Signer => {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Unable to load const type signature".to_string()),
-                )
+                );
             }
         })
     }

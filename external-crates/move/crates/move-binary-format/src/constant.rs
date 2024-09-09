@@ -1,10 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::file_format::{Constant, SignatureToken};
-
 use move_core_types::runtime_value::{MoveTypeLayout, MoveValue};
+
+use crate::file_format::{Constant, SignatureToken};
 
 fn sig_to_ty(sig: &SignatureToken) -> Option<MoveTypeLayout> {
     match sig {

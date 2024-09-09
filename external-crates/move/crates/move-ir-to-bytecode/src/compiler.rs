@@ -1,8 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::context::{CompiledDependency, Context, MaterializedPools, TABLE_MAX_SIZE};
+use std::{
+    clone::Clone,
+    collections::{
+        hash_map::Entry::{Occupied, Vacant},
+        BTreeSet, HashMap, HashSet,
+    },
+    fmt::Write,
+};
+
 use anyhow::{bail, format_err, Result};
 use move_binary_format::{
     file_format::{
@@ -22,14 +31,8 @@ use move_ir_types::{
     sp,
 };
 use move_symbol_pool::Symbol;
-use std::{
-    clone::Clone,
-    collections::{
-        hash_map::Entry::{Occupied, Vacant},
-        BTreeSet, HashMap, HashSet,
-    },
-    fmt::Write,
-};
+
+use crate::context::{CompiledDependency, Context, MaterializedPools, TABLE_MAX_SIZE};
 
 macro_rules! record_src_loc {
     (local: $context:expr, $var:expr) => {{
@@ -145,7 +148,9 @@ impl FunctionFrame {
     // Manage the stack info for the function
     fn push(&mut self) -> Result<()> {
         if self.cur_stack_depth == i64::MAX {
-            bail!("ICE Stack depth accounting overflow. The compiler can only support a maximum stack depth of up to i64::max_value")
+            bail!(
+                "ICE Stack depth accounting overflow. The compiler can only support a maximum stack depth of up to i64::max_value"
+            )
         }
         self.cur_stack_depth += 1;
         self.max_stack_depth = std::cmp::max(self.max_stack_depth, self.cur_stack_depth);
@@ -154,7 +159,9 @@ impl FunctionFrame {
 
     fn pop(&mut self) -> Result<()> {
         if self.cur_stack_depth == i64::MIN {
-            bail!("ICE Stack depth accounting underflow. The compiler can only support a minimum stack depth of up to i64::min_value")
+            bail!(
+                "ICE Stack depth accounting underflow. The compiler can only support a minimum stack depth of up to i64::min_value"
+            )
         }
         self.cur_stack_depth -= 1;
         Ok(())
@@ -190,7 +197,8 @@ impl FunctionFrame {
     }
 }
 
-// Returns an error that lists any labels that have been redeclared, or used without being declared.
+// Returns an error that lists any labels that have been redeclared, or used
+// without being declared.
 fn label_verification_error(
     redeclared: &[&BlockLabel_],
     undeclared: &[&BlockLabel_],
@@ -291,9 +299,10 @@ fn verify_bytecode_function_body(code: &[(BlockLabel_, BytecodeBlock)]) -> Resul
     }
 }
 
-/// Verify that, within a single function, no two blocks use the same label, and all jump statements
-/// specify a destination label that exists on some block. If any block labels or statements don't
-/// meet these conditions, return an error.
+/// Verify that, within a single function, no two blocks use the same label, and
+/// all jump statements specify a destination label that exists on some block.
+/// If any block labels or statements don't meet these conditions, return an
+/// error.
 fn verify_function(function: &Function) -> Result<()> {
     match &function.value.body {
         FunctionBody::Move { code, .. } => verify_move_function_body(code),
@@ -302,8 +311,8 @@ fn verify_function(function: &Function) -> Result<()> {
     }
 }
 
-/// Verifies that the given module is semantically valid. Invoking this prior to compiling the
-/// module to bytecode may help diagnose malformed programs.
+/// Verifies that the given module is semantically valid. Invoking this prior to
+/// compiling the module to bytecode may help diagnose malformed programs.
 fn verify_module(module: &ModuleDefinition) -> Result<()> {
     for function in &module.functions {
         verify_function(&function.1)?;
@@ -364,10 +373,11 @@ pub fn compile_module<'a>(
     }
 
     for ir_constant in module.constants {
-        // If the constant is an error constant in the source, then add the error constant's name
-        // look up the constant's name, as a constant valeu -- this may be present already,
-        // e.g., in the case of something like `const Foo: vector<u8> = b"Foo"` in which case the
-        // new index will not be added and the previous index will be used.
+        // If the constant is an error constant in the source, then add the error
+        // constant's name look up the constant's name, as a constant value --
+        // this may be present already, e.g., in the case of something like
+        // `const Foo: vector<u8> = b"Foo"` in which case the new index will not
+        // be added and the previous index will be used.
         if ir_constant.is_error_constant {
             // Will add if not present, and will return the index, or will just return
             // index if already present.
@@ -428,8 +438,8 @@ pub fn compile_module<'a>(
     Ok((module, source_map))
 }
 
-// Note: DO NOT try to recover from this function as it zeros out the `outer_contexts` dependencies
-// and sets them after a successful result
+// Note: DO NOT try to recover from this function as it zeros out the
+// `outer_contexts` dependencies and sets them after a successful result
 // Any `Error` should stop compilation in the caller
 fn compile_explicit_dependency_declarations(
     outer_context: &mut Context,
@@ -833,10 +843,12 @@ fn compile_function_body(
     })
 }
 
-/// Translates each of the blocks that a function body is composed of to bytecode.
+/// Translates each of the blocks that a function body is composed of to
+/// bytecode.
 ///
-/// Once the initial translation of statements to bytecode instructions is complete, instructions
-/// that jump to an offset in the bytecode are fixed up to refer to the correct offset.
+/// Once the initial translation of statements to bytecode instructions is
+/// complete, instructions that jump to an offset in the bytecode are fixed up
+/// to refer to the correct offset.
 fn compile_blocks(
     context: &mut Context,
     function_frame: &mut FunctionFrame,
@@ -876,9 +888,10 @@ fn compile_block(
 
 /// Translates a statement to one or more bytecode instructions.
 ///
-/// Most statements do not impact the control flow of the program, except for the `assert`
-/// statement. When translating this statement, additional labels are added to our mapping, and
-/// jump instructions referring to those labels' offsets are inserted into the bytecode.
+/// Most statements do not impact the control flow of the program, except for
+/// the `assert` statement. When translating this statement, additional labels
+/// are added to our mapping, and jump instructions referring to those labels'
+/// offsets are inserted into the bytecode.
 fn compile_statement(
     context: &mut Context,
     function_frame: &mut FunctionFrame,
@@ -904,7 +917,8 @@ fn compile_statement(
 
             // Create a conditional branch that continues execution if the condition holds,
             // and otherwise falls through to an abort. Because the condition expression is
-            // evaluated as `!(exp)`, branch to the failure label if the condition is *false*.
+            // evaluated as `!(exp)`, branch to the failure label if the condition is
+            // *false*.
             let cont_label = BlockLabel_(Symbol::from(format!("assert_cont_{}", code.len())));
             push_instr!(
                 cond_loc,
@@ -1694,9 +1708,9 @@ fn compile_bytecode(
                 let constant_value_index = context.named_constant_index(&const_name)?.0;
                 bitset_builder.with_constant_index(constant_value_index);
 
-                // All error constant names will be inserted in bulk when adding constants to the
-                // module, so we can just use the index of the constant name here and don't need to add
-                // anything.
+                // All error constant names will be inserted in bulk when adding constants to
+                // the module, so we can just use the index of the constant name
+                // here and don't need to add anything.
                 let constant_name_value_index =
                     constant_name_as_constant_value_index(context, &const_name)?;
                 bitset_builder.with_identifier_index(constant_name_value_index.0);

@@ -1,12 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
-use clap::*;
-use move_package::BuildConfig;
 use std::path::PathBuf;
 
-/// Migrate to Move 2024 for the package at `path`. If no path is provided defaults to current directory.
+use clap::*;
+use move_package::BuildConfig;
+
+use super::reroot_path;
+
+/// Migrate to Move 2024 for the package at `path`. If no path is provided
+/// defaults to current directory.
 #[derive(Parser)]
 #[clap(name = "migrate")]
 pub struct Migrate;

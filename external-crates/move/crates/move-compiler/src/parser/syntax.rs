@@ -1,10 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // In the informal grammar comments in this file, Comma<T> is shorthand for:
 //      (<T> ",")* <T>?
 // Note that this allows an optional trailing comma.
+
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::{symbol, Symbol};
 
 use crate::{
     diag,
@@ -14,11 +20,6 @@ use crate::{
     shared::*,
     MatchedFileCommentMap,
 };
-
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::{symbol, Symbol};
 
 struct Context<'env, 'lexer, 'input> {
     package_name: Option<Symbol>,
@@ -85,28 +86,28 @@ fn add_type_args_ambiguity_label(loc: Loc, mut diag: Box<Diagnostic>) -> Box<Dia
     diag
 }
 
-// A macro for providing better diagnostics when we expect a specific token and find some other
-// pattern instead. For example, we can use this to handle the case when a const is missing its
-// type annotation as:
+// A macro for providing better diagnostics when we expect a specific token and
+// find some other pattern instead. For example, we can use this to handle the
+// case when a const is missing its type annotation as:
 //
 //  expect_token!(
 //      context.tokens,
 //      Tok::Colon,
-//      Tok::Equal => (Syntax::UnexpectedToken, name.loc(), "Add type annotation to this constant")
-//  )?;
+//      Tok::Equal => (Syntax::UnexpectedToken, name.loc(), "Add type annotation
+// to this constant")  )?;
 //
-// This macro will fall through to an unexpected token error, but may also define its own default
-// as well:
+// This macro will fall through to an unexpected token error, but may also
+// define its own default as well:
 //
 //  expect_token!(
 //      context.tokens,
 //      Tok::Colon,
-//      Tok::Equal => (Syntax::UnexpectedToken, name.loc(), "Add type annotation to this constant")
-//      _ => (Syntax::UnexpectedToken, name.loc(), "Misformed constant definition")
-//  )?;
+//      Tok::Equal => (Syntax::UnexpectedToken, name.loc(), "Add type annotation
+// to this constant")      _ => (Syntax::UnexpectedToken, name.loc(), "Misformed
+// constant definition")  )?;
 //
-//  NB(cgswords): we could make $expected a pat if we required users to pass in a name for it as
-//  well for the default-case error reporting.
+//  NB(cgswords): we could make $expected a pat if we required users to pass in
+// a name for it as  well for the default-case error reporting.
 
 macro_rules! expect_token {
     ($tokens:expr, $expected:expr, $($tok:pat => ($code:expr, $loc:expr, $msg:expr)),+) => {
@@ -143,8 +144,8 @@ macro_rules! expect_token {
     }
 }
 
-/// Error when parsing a module member with a special case when (unexpectedly) encountering another
-/// module to be parsed.
+/// Error when parsing a module member with a special case when (unexpectedly)
+/// encountering another module to be parsed.
 enum ErrCase {
     Unknown(Box<Diagnostic>),
     ContinueToModule(Vec<Attributes>),
@@ -223,7 +224,8 @@ fn consume_token_(
 // let exp_msg = format!("Expected '::' {}", case);
 // Err(vec![(unexp_loc, unexp_msg), (addr_loc, exp_msg)])
 
-// Check for the identifier token with specified value and return an error if it does not match.
+// Check for the identifier token with specified value and return an error if it
+// does not match.
 fn consume_identifier(tokens: &mut Lexer, value: &str) -> Result<(), Box<Diagnostic>> {
     if tokens.peek() == Tok::Identifier && tokens.content() == value {
         tokens.advance()
@@ -267,8 +269,8 @@ where
     )
 }
 
-// Parse a comma-separated list of items, including the specified ending token, but
-// assuming that the starting token has already been consumed.
+// Parse a comma-separated list of items, including the specified ending token,
+// but assuming that the starting token has already been consumed.
 fn parse_comma_list_after_start<F, R>(
     context: &mut Context,
     start_loc: usize,
@@ -316,8 +318,8 @@ where
     }
 }
 
-// Parse a list of items, without specified start and end tokens, and the separator determined by
-// the passed function `parse_list_continue`.
+// Parse a list of items, without specified start and end tokens, and the
+// separator determined by the passed function `parse_list_continue`.
 fn parse_list<C, F, R>(
     context: &mut Context,
     mut parse_list_continue: C,
@@ -379,8 +381,8 @@ fn parse_identifier(context: &mut Context) -> Result<Name, Box<Diagnostic>> {
 }
 
 // Parse a macro parameter identifier.
-// The name, SyntaxIdentifier, comes from the usage of the identifier to perform expression
-// substitution in a macro invocation, i.e. a syntactic substitution.
+// The name, SyntaxIdentifier, comes from the usage of the identifier to perform
+// expression substitution in a macro invocation, i.e. a syntactic substitution.
 //      SyntaxIdentifier = <SyntaxIdentifierValue>
 fn parse_syntax_identifier(context: &mut Context) -> Result<Name, Box<Diagnostic>> {
     if context.tokens.peek() != Tok::SyntaxIdentifier {
@@ -417,12 +419,14 @@ fn parse_address_bytes(
 }
 
 // Parse the beginning of an access, either an address or an identifier:
-//      LeadingNameAccess = <NumericalAddress> | <Identifier> | <SyntaxIdentifier>
+//      LeadingNameAccess = <NumericalAddress> | <Identifier> |
+// <SyntaxIdentifier>
 fn parse_leading_name_access(context: &mut Context) -> Result<LeadingNameAccess, Box<Diagnostic>> {
     parse_leading_name_access_(context, false, || "an address or an identifier")
 }
 
-// Parse the beginning of an access, either an address or an identifier with a specific description
+// Parse the beginning of an access, either an address or an identifier with a
+// specific description
 fn parse_leading_name_access_<'a, F: FnOnce() -> &'a str>(
     context: &mut Context,
     global_name: bool,
@@ -496,7 +500,8 @@ fn parse_module_name(context: &mut Context) -> Result<ModuleName, Box<Diagnostic
 //                  | "::" <LeadingNameAccess> "::" <ModuleName>
 
 // Parse a module access (a variable, struct type, or function):
-//      NameAccessChain = <LeadingNameAccess> ( "::" <Identifier> ( "::" <Identifier> )? )?
+//      NameAccessChain = <LeadingNameAccess> ( "::" <Identifier> ( "::"
+// <Identifier> )? )?
 fn parse_name_access_chain<'a, F: FnOnce() -> &'a str>(
     context: &mut Context,
     item_description: F,
@@ -528,7 +533,7 @@ fn parse_name_access_chain_<'a, F: FnOnce() -> &'a str>(
     let ln = match ln {
         // A name by itself is a valid access chain
         sp!(_, LeadingNameAccess_::Name(n1)) if context.tokens.peek() != Tok::ColonColon => {
-            return Ok(NameAccessChain_::One(n1))
+            return Ok(NameAccessChain_::One(n1));
         }
         ln => ln,
     };
@@ -595,8 +600,8 @@ impl Modifiers {
 // Parse module member modifiers: visiblility and native.
 //      ModuleMemberModifiers = <ModuleMemberModifier>*
 //      ModuleMemberModifier = <Visibility> | "native"
-// ModuleMemberModifiers checks for uniqueness, meaning each individual ModuleMemberModifier can
-// appear only once
+// ModuleMemberModifiers checks for uniqueness, meaning each individual
+// ModuleMemberModifier can appear only once
 fn parse_module_member_modifiers(context: &mut Context) -> Result<Modifiers, Box<Diagnostic>> {
     fn duplicate_modifier_error(
         context: &mut Context,
@@ -806,8 +811,8 @@ fn parse_attributes(context: &mut Context) -> Result<Vec<Attributes>, Box<Diagno
 // Fields and Bindings
 //**************************************************************************************************
 
-// Parse an optional "mut" modifier token. Consumes and returns the location of the token if present
-// and returns None otherwise.
+// Parse an optional "mut" modifier token. Consumes and returns the location of
+// the token if present and returns None otherwise.
 //     MutOpt = "mut"?
 fn parse_mut_opt(context: &mut Context) -> Result<Option<Loc>, Box<Diagnostic>> {
     // In migration mode, 'mut' is assumed to be an identifier that needsd escaping.
@@ -900,8 +905,8 @@ fn parse_bind(context: &mut Context) -> Result<Bind, Box<Diagnostic>> {
         }
     }
     // The item description specified here should include the special case above for
-    // variable names, because if the current context cannot be parsed as a struct name
-    // it is possible that the user intention was to use a variable name.
+    // variable names, because if the current context cannot be parsed as a struct
+    // name it is possible that the user intention was to use a variable name.
     let ty = parse_name_access_chain(context, || "a variable or struct name")?;
     let ty_args = parse_optional_type_args(context)?;
     let args = if context.tokens.peek() == Tok::LParen {
@@ -1037,7 +1042,8 @@ fn maybe_parse_value(context: &mut Context) -> Result<Option<Value>, Box<Diagnos
             Value_::Bool(false)
         }
         Tok::NumValue => {
-            //  If the number is followed by "::", parse it as the beginning of an address access
+            //  If the number is followed by "::", parse it as the beginning of an address
+            // access
             if let Ok(Tok::ColonColon) = context.tokens.lookahead() {
                 return Ok(None);
             }
@@ -1364,7 +1370,7 @@ fn parse_block_label(context: &mut Context) -> Result<BlockLabel, Box<Diagnostic
 // AND NOT,       if (cond) e1 else ({ e2 } + 1)
 // But otherwise, if (cond) e1 else e2 + 1
 // should be,     if (cond) e1 else (e2 + 1)
-// This also aplies to any named block
+// This also applies to any named block
 // e.g.           if (cond) e1 else 'a: { e2 } + 1
 // should be,    (if (cond) e1 else 'a: { e2 }) + 1
 fn parse_control_exp(context: &mut Context) -> Result<(Exp, bool), Box<Diagnostic>> {
@@ -1745,8 +1751,8 @@ fn get_precedence(token: Tok) -> u32 {
 // Parse a binary operator expression:
 //      BinOpExp =
 //          <BinOpExp> <BinOp> <BinOpExp>
-//          | <BinOpExp> "as" <Type> // in some sense, the lowest precedence binop
-//          | <UnaryExp>
+//          | <BinOpExp> "as" <Type> // in some sense, the lowest precedence
+// binop          | <UnaryExp>
 //      BinOp = (listed from lowest to highest precedence)
 //          "==>"                                       spec only
 //          | "||"
@@ -1900,8 +1906,8 @@ fn parse_unary_exp(context: &mut Context) -> Result<Exp, Box<Diagnostic>> {
     Ok(spanned(context.tokens.file_hash(), start_loc, end_loc, exp))
 }
 
-// Parse an expression term optionally followed by a chain of dot or index accesses:
-//      DotOrIndexChain =
+// Parse an expression term optionally followed by a chain of dot or index
+// accesses:      DotOrIndexChain =
 //          <DotOrIndexChain> "." <Identifier>
 //          | <DotOrIndexChain> "." <Number>
 //          | <DotOrIndexChain> "[" <Exp> "]"                      spec only
@@ -1994,9 +2000,9 @@ fn parse_dot_or_index_chain(context: &mut Context) -> Result<Exp, Box<Diagnostic
     Ok(lhs)
 }
 
-// Look ahead to determine if this is the start of a call expression. Used when parsing method calls
-// to determine if we should parse the type arguments and args following a name. Otherwise, we will
-// parse a field access
+// Look ahead to determine if this is the start of a call expression. Used when
+// parsing method calls to determine if we should parse the type arguments and
+// args following a name. Otherwise, we will parse a field access
 fn is_start_of_call_after_function_name(context: &Context, n: &Name) -> bool {
     let call_start = context.tokens.start_loc();
     let peeked = context.tokens.peek();
@@ -2028,8 +2034,8 @@ fn is_quant(context: &mut Context) -> bool {
 // Parses a quantifier expressions, assuming is_quant(context) is true.
 //
 //   <Quantifier> =
-//       ( "forall" | "exists" ) <QuantifierBindings> ({ (<Exp>)* })* ("where" <Exp>)? ":" Exp
-//     | ( "choose" [ "min" ] ) <QuantifierBind> "where" <Exp>
+//       ( "forall" | "exists" ) <QuantifierBindings> ({ (<Exp>)* })* ("where"
+// <Exp>)? ":" Exp     | ( "choose" [ "min" ] ) <QuantifierBind> "where" <Exp>
 //   <QuantifierBindings> = <QuantifierBind> ("," <QuantifierBind>)*
 //   <QuantifierBind> = <Identifier> ":" <Type> | <Identifier> "in" <Exp>
 //
@@ -2398,7 +2404,8 @@ fn parse_optional_type_parameters(
 }
 
 // Parse optional struct type parameters:
-//    StructTypeParameter = '<' Comma<TypeParameterWithPhantomDecl> ">" | <empty>
+//    StructTypeParameter = '<' Comma<TypeParameterWithPhantomDecl> ">" |
+// <empty>
 fn parse_struct_type_parameters(
     context: &mut Context,
 ) -> Result<Vec<StructTypeParameter>, Box<Diagnostic>> {
@@ -2466,9 +2473,10 @@ fn parse_function_decl(
     if match_token(context.tokens, Tok::Acquires)? {
         let follows_acquire = |tok| matches!(tok, Tok::Semicolon | Tok::LBrace);
         loop {
-            acquires.push(parse_name_access_chain(context, || {
-                "a resource struct name"
-            })?);
+            acquires.push(parse_name_access_chain(
+                context,
+                || "a resource struct name",
+            )?);
             if follows_acquire(context.tokens.peek()) {
                 break;
             }
@@ -2542,11 +2550,11 @@ fn parse_parameter(context: &mut Context) -> Result<(Mutability, Var, Type), Box
 // Parse a struct definition:
 //      StructDecl =
 //          "struct" <StructDefName> ("has" <Ability> (, <Ability>)+)?
-//          (("{" Comma<FieldAnnot> "}" | "(" Comma<PosField> ")") ("has" <Ability> (, <Ability>)+;)? | ";")
-//      StructDefName =
+//          (("{" Comma<FieldAnnot> "}" | "(" Comma<PosField> ")") ("has"
+// <Ability> (, <Ability>)+;)? | ";")      StructDefName =
 //          <Identifier> <OptionalTypeParameters>
-// Where the the two "has" statements are mutually exclusive -- a struct cannot be declared with
-// both infix and postfix ability declarations.
+// Where the the two "has" statements are mutually exclusive -- a struct cannot
+// be declared with both infix and postfix ability declarations.
 fn parse_struct_decl(
     attributes: Vec<Attributes>,
     start_loc: usize,
@@ -2674,9 +2682,10 @@ fn parse_postfix_ability_declarations(
 
         context.tokens.advance()?;
 
-        // Only add a diagnostic about prefix xor postfix ability declarations if the feature is
-        // supported. Otherwise we will already have an error that the `has` is not supported in
-        // that position, and the feature check diagnostic as well, so adding this additional error
+        // Only add a diagnostic about prefix xor postfix ability declarations if the
+        // feature is supported. Otherwise we will already have an error that
+        // the `has` is not supported in that position, and the feature check
+        // diagnostic as well, so adding this additional error
         // could be confusing.
         if let Some(previous_declaration_loc) = infix_ability_declaration_loc {
             let msg = "Duplicate ability declaration. Abilities can be declared before \
@@ -3033,8 +3042,7 @@ fn parse_use_decl(
         }
         _ => {
             if let Some(vis) = visibility {
-                let msg =
-                    "Invalid use declaration. Non-'use fun' declarations cannot have visibility \
+                let msg = "Invalid use declaration. Non-'use fun' declarations cannot have visibility \
                            modifiers as they are always internal";
                 context
                     .env
@@ -3140,19 +3148,20 @@ fn parse_use_alias(context: &mut Context) -> Result<Option<Name>, Box<Diagnostic
 
 // Parse a module:
 //      Module =
-//          <DocComments> ( "spec" | "module") (<LeadingNameAccess>::)?<ModuleName> "{"
-//              ( <Attributes>
+//          <DocComments> ( "spec" | "module")
+// (<LeadingNameAccess>::)?<ModuleName> "{"              ( <Attributes>
 //                  ( <FriendDecl> | <SpecBlock> |
 //                    <DocComments> <ModuleMemberModifiers>
-//                        (<ConstantDecl> | <StructDecl> | <FunctionDecl> | <UseDecl>) )
-//                  )
+//                        (<ConstantDecl> | <StructDecl> | <FunctionDecl> |
+// <UseDecl>) )                  )
 //              )*
 //          "}"
 //
-// Due to parsing error recovery, while parsing a module the parser may advance past the end of the
-// current module and encounter the next module which also should be parsed. At the point of
-// encountering this next module's starting keyword, its (optional) attributes are already parsed
-// and should be used when constructing this next module - hence making them part of the returned
+// Due to parsing error recovery, while parsing a module the parser may advance
+// past the end of the current module and encounter the next module which also
+// should be parsed. At the point of encountering this next module's starting
+// keyword, its (optional) attributes are already parsed and should be used when
+// constructing this next module - hence making them part of the returned
 // result.
 fn parse_module(
     attributes: Vec<Attributes>,
@@ -3236,8 +3245,8 @@ fn parse_module(
     Ok((def, next_mod_attributes))
 }
 
-/// Skips tokens until reaching the desired one or EOF. Returns true if further parsing is
-/// impossible and parser should stop.
+/// Skips tokens until reaching the desired one or EOF. Returns true if further
+/// parsing is impossible and parser should stop.
 fn skip_to_next_desired_tok_or_eof(
     context: &mut Context,
     is_desired_tok: fn(Tok, &str) -> bool,
@@ -3249,8 +3258,8 @@ fn skip_to_next_desired_tok_or_eof(
             return tok;
         }
         if let Err(diag) = context.tokens.advance() {
-            // record diagnostics but keep advancing until encountering one of the desired tokens or
-            // (which is eventually guaranteed) EOF
+            // record diagnostics but keep advancing until encountering one of the desired
+            // tokens or (which is eventually guaranteed) EOF
             context.env.add_diag(*diag);
         }
     }
@@ -3278,11 +3287,13 @@ fn is_start_of_module_or_spec(tok: Tok, _: &str) -> bool {
     matches!(tok, Tok::Spec | Tok::Module)
 }
 
-/// Parse a single module member. Due to parsing error recovery, when attempting to parse the next
-/// module member, the parser may have already advanced past the end of the current module and
-/// encounter the next module which also should be parsed. While this is a member parsing error,
-/// (optional) attributes for this presumed member (but in fact the next module) had already been
-/// parsed and should be returned as part of the result to allow further parsing of the next module.
+/// Parse a single module member. Due to parsing error recovery, when attempting
+/// to parse the next module member, the parser may have already advanced past
+/// the end of the current module and encounter the next module which also
+/// should be parsed. While this is a member parsing error, (optional)
+/// attributes for this presumed member (but in fact the next module) had
+/// already been parsed and should be returned as part of the result to allow
+/// further parsing of the next module.
 fn parse_module_member(context: &mut Context) -> Result<ModuleMember, ErrCase> {
     let attributes = parse_attributes(context)?;
     match context.tokens.peek() {
@@ -3416,8 +3427,8 @@ fn parse_file(context: &mut Context) -> Result<Vec<Definition>, Box<Diagnostic>>
     while context.tokens.peek() != Tok::EOF {
         if let Err(diag) = parse_file_def(context, &mut defs) {
             context.env.add_diag(*diag);
-            // skip to the next def and try parsing it if it's there (ignore address blocks as they
-            // are pretty much defunct anyway)
+            // skip to the next def and try parsing it if it's there (ignore address blocks
+            // as they are pretty much defunct anyway)
             skip_to_next_desired_tok_or_eof(context, is_start_of_module_or_spec);
         }
     }
@@ -3450,8 +3461,9 @@ fn parse_file_def(
 }
 
 /// Parse the `input` string as a file of Move source code and return the
-/// result as either a pair of FileDefinition and doc comments or some Diagnostics. The `file` name
-/// is used to identify source locations in error messages.
+/// result as either a pair of FileDefinition and doc comments or some
+/// Diagnostics. The `file` name is used to identify source locations in error
+/// messages.
 pub fn parse_file_string(
     env: &mut CompilationEnv,
     file_hash: FileHash,

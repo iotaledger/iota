@@ -1,31 +1,38 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-    runtime_value as R, u256,
+use std::{
+    convert::From,
+    fmt::{self, Debug},
 };
+
 use anyhow::Result as AResult;
 use serde::{
     de::Error as DeError,
     ser::{SerializeMap, SerializeSeq, SerializeStruct},
     Deserialize, Serialize,
 };
-use std::{
-    convert::From,
-    fmt::{self, Debug},
+
+use crate::{
+    account_address::AccountAddress,
+    annotated_visitor::{visit_struct, visit_value, Error as VError, Visitor},
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+    runtime_value as R, u256,
 };
 
-/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde struct with this name
+/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
+/// struct with this name
 pub const MOVE_STRUCT_NAME: &str = "struct";
 
-/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde struct with this as the first field
+/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
+/// struct with this as the first field
 pub const MOVE_STRUCT_TYPE: &str = "type";
 
-/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde struct with this as the second field
+/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
+/// struct with this as the second field
 pub const MOVE_STRUCT_FIELDS: &str = "fields";
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -64,7 +71,8 @@ impl MoveFieldLayout {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveStructLayout {
-    /// An decorated representation with both types and human-readable field names
+    /// An decorated representation with both types and human-readable field
+    /// names
     pub type_: StructTag,
     pub fields: Vec<MoveFieldLayout>,
 }
@@ -98,8 +106,48 @@ pub enum MoveTypeLayout {
 }
 
 impl MoveValue {
+    /// TODO (annotated-visitor): Port legacy uses of this method to
+    /// `BoundedVisitor`.
     pub fn simple_deserialize(blob: &[u8], ty: &MoveTypeLayout) -> AResult<Self> {
         Ok(bcs::from_bytes_seed(ty, blob)?)
+    }
+
+    /// Deserialize `blob` as a Move value with the given `ty`-pe layout, and
+    /// visit its sub-structure with the given `visitor`. The visitor
+    /// dictates the return value that is built up during deserialization.
+    ///
+    /// # Nested deserialization
+    ///
+    /// Vectors and structs are nested structures that can be met during
+    /// deserialization. Visitors are passed a driver (`VecDriver` or
+    /// `StructDriver` correspondingly) which controls how nested elements
+    /// or fields are visited including whether a given nested element/field is
+    /// explored, which visitor to use (the visitor can pass `self` to
+    /// recursively explore them) and whether a given element is visited or
+    /// skipped.
+    ///
+    /// The visitor may leave elements unvisited at the end of the vector or
+    /// struct, which implicitly skips them.
+    ///
+    /// # Errors
+    ///
+    /// Deserialization can fail because of an issue in the serialized format
+    /// (data doesn't match layout, unexpected bytes or trailing bytes), or
+    /// a custom error expressed by the visitor.
+    pub fn visit_deserialize<V: Visitor>(
+        mut blob: &[u8],
+        ty: &MoveTypeLayout,
+        visitor: &mut V,
+    ) -> AResult<V::Value>
+    where
+        V::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let res = visit_value(&mut blob, ty, visitor)?;
+        if blob.is_empty() {
+            Ok(res)
+        } else {
+            Err(VError::TrailingBytes(blob.len()).into())
+        }
     }
 
     pub fn simple_serialize(&self) -> Option<Vec<u8>> {
@@ -142,8 +190,29 @@ impl MoveStruct {
         Self { type_, fields }
     }
 
+    /// TODO (annotated-visitor): Port legacy uses of this method to
+    /// `BoundedVisitor`.
     pub fn simple_deserialize(blob: &[u8], ty: &MoveStructLayout) -> AResult<Self> {
         Ok(bcs::from_bytes_seed(ty, blob)?)
+    }
+
+    /// Like `MoveValue::visit_deserialize` (see for details), but specialized
+    /// to visiting a struct (the `blob` is known to be a serialized Move
+    /// struct, and the layout is a `MoveStructLayout`).
+    pub fn visit_deserialize<V: Visitor>(
+        mut blob: &[u8],
+        ty: &MoveStructLayout,
+        visitor: &mut V,
+    ) -> AResult<V::Value>
+    where
+        V::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let res = visit_struct(&mut blob, ty, visitor)?;
+        if blob.is_empty() {
+            Ok(res)
+        } else {
+            Err(VError::TrailingBytes(blob.len()).into())
+        }
     }
 
     pub fn into_fields(self) -> Vec<MoveValue> {
@@ -308,13 +377,16 @@ impl<'a> serde::Serialize for MoveFields<'a> {
 
 impl serde::Serialize for MoveStruct {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        // Serialize a Move struct as Serde struct type named `struct `with two fields named `type` and `fields`.
-        // `fields` will get serialized as a Serde map.
-        // Unfortunately, we can't serialize this in the logical way: as a Serde struct named `type` with a field for
-        // each of `fields` because serde insists that struct and field names be `'static &str`'s
+        // Serialize a Move struct as Serde struct type named `struct `with two fields
+        // named `type` and `fields`. `fields` will get serialized as a Serde
+        // map. Unfortunately, we can't serialize this in the logical way: as a
+        // Serde struct named `type` with a field for each of `fields` because
+        // serde insists that struct and field names be `'static &str`'s
         let mut t = serializer.serialize_struct(MOVE_STRUCT_NAME, 2)?;
-        // serialize type as string (e.g., 0x0::ModuleName::StructName<TypeArg1,TypeArg2>) instead of (e.g.
-        // { address: 0x0...0, module: ModuleName, name: StructName, type_args: [TypeArg1, TypeArg2]})
+        // serialize type as string (e.g.,
+        // 0x0::ModuleName::StructName<TypeArg1,TypeArg2>) instead of (e.g.
+        // { address: 0x0...0, module: ModuleName, name: StructName, type_args:
+        // [TypeArg1, TypeArg2]})
         t.serialize_field(MOVE_STRUCT_TYPE, &self.type_.to_string())?;
         t.serialize_field(MOVE_STRUCT_FIELDS, &MoveFields(&self.fields))?;
         t.end()
@@ -342,9 +414,10 @@ impl fmt::Display for MoveTypeLayout {
     }
 }
 
-/// Helper type that uses `T`'s `Display` implementation as its own `Debug` implementation, to allow
-/// other `Display` implementations in this module to take advantage of the structured formatting
-/// helpers that Rust uses for its own debug types.
+/// Helper type that uses `T`'s `Display` implementation as its own `Debug`
+/// implementation, to allow other `Display` implementations in this module to
+/// take advantage of the structured formatting helpers that Rust uses for its
+/// own debug types.
 struct DebugAsDisplay<'a, T>(&'a T);
 impl<'a, T: fmt::Display> fmt::Debug for DebugAsDisplay<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

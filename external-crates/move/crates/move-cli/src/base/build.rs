@@ -1,12 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
-use clap::*;
-use move_package::BuildConfig;
 use std::path::PathBuf;
 
-/// Build the package at `path`. If no path is provided defaults to current directory.
+use clap::*;
+use move_package::BuildConfig;
+
+use super::reroot_path;
+
+/// Build the package at `path`. If no path is provided defaults to current
+/// directory.
 #[derive(Parser)]
 #[clap(name = "build")]
 pub struct Build;

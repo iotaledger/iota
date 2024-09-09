@@ -1,8 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
+
+use std::{convert::TryInto, fmt::Debug, path::Path, str::FromStr};
 
 use anyhow::{anyhow, bail, Result};
 use clap::*;
@@ -14,7 +17,6 @@ use move_command_line_common::{
 };
 use move_compiler::shared::NumericalAddress;
 use move_core_types::identifier::Identifier;
-use std::{convert::TryInto, fmt::Debug, path::Path, str::FromStr};
 use tempfile::NamedTempFile;
 
 #[derive(Debug)]
@@ -29,11 +31,12 @@ pub struct TaskInput<Command> {
 }
 
 pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput<Command>>> {
-    use regex::Regex;
     use std::{
         fs::File,
         io::{self, BufRead, Write},
     };
+
+    use regex::Regex;
     // checks for lines that are entirely whitespace
     let re_whitespace = Regex::new(r"^\s*$").unwrap();
     // checks for lines that start with // comments
@@ -270,12 +273,12 @@ pub enum TaskCommand<
 }
 
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > FromArgMatches
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> FromArgMatches
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
     fn from_arg_matches(matches: &ArgMatches) -> Result<Self, Error> {
@@ -306,12 +309,12 @@ impl<
 }
 
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > CommandFactory
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> CommandFactory
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
     fn command() -> Command {
@@ -329,19 +332,19 @@ impl<
         todo!()
     }
 }
-// Note: this needs to be manually implemented because clap cannot handle generic tuples
-// with more than 1 element currently.
+// Note: this needs to be manually implemented because clap cannot handle
+// generic tuples with more than 1 element currently.
 //
-// The code is a simplified version of what `#[derive(Parser)` would generate had it worked.
-// (`cargo expand` is useful in printing out the derived code.)
+// The code is a simplified version of what `#[derive(Parser)` would generate
+// had it worked. (`cargo expand` is useful in printing out the derived code.)
 //
 impl<
-        ExtraInitArgs: Parser,
-        ExtraPublishArgs: Parser,
-        ExtraValueArgs: ParsableValue,
-        ExtraRunArgs: Parser,
-        SubCommands: Parser,
-    > Parser
+    ExtraInitArgs: Parser,
+    ExtraPublishArgs: Parser,
+    ExtraValueArgs: ParsableValue,
+    ExtraRunArgs: Parser,
+    SubCommands: Parser,
+> Parser
     for TaskCommand<ExtraInitArgs, ExtraPublishArgs, ExtraValueArgs, ExtraRunArgs, SubCommands>
 {
 }

@@ -1,16 +1,8 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    abstract_state::{AbstractState, BorrowState, CallGraph, InstantiableModule},
-    config::{
-        CALL_STACK_LIMIT, INHABITATION_INSTRUCTION_LIMIT, MAX_CFG_BLOCKS, MUTATION_TOLERANCE,
-        NEGATE_PRECONDITIONS, NEGATION_PROBABILITY, VALUE_STACK_LIMIT,
-    },
-    control_flow_graph::CFG,
-    substitute, summaries,
-};
 use move_binary_format::{
     access::ModuleAccess,
     file_format::{
@@ -23,6 +15,16 @@ use move_binary_format::{
 use move_core_types::u256::U256;
 use rand::{rngs::StdRng, Rng};
 use tracing::{debug, error, warn};
+
+use crate::{
+    abstract_state::{AbstractState, BorrowState, CallGraph, InstantiableModule},
+    config::{
+        CALL_STACK_LIMIT, INHABITATION_INSTRUCTION_LIMIT, MAX_CFG_BLOCKS, MUTATION_TOLERANCE,
+        NEGATE_PRECONDITIONS, NEGATION_PROBABILITY, VALUE_STACK_LIMIT,
+    },
+    control_flow_graph::CFG,
+    substitute, summaries,
+};
 
 /// This type represents bytecode instructions that take a `LocalIndex`
 type LocalIndexToBytecode = fn(LocalIndex) -> Bytecode;
@@ -51,7 +53,8 @@ type U256ToBytecode = fn(Box<U256>) -> Bytecode;
 /// This type represents bytecode instructions that take a `AddressPoolIndex`
 type ConstantPoolIndexToBytecode = fn(ConstantPoolIndex) -> Bytecode;
 
-/// This type represents bytecode instructions that take a `StructDefinitionIndex`
+/// This type represents bytecode instructions that take a
+/// `StructDefinitionIndex`
 type StructIndexToBytecode = fn(StructDefinitionIndex) -> Bytecode;
 
 /// This type represents bytecode instructions that take a `FieldHandleIndex`
@@ -60,13 +63,16 @@ type FieldHandleIndexToBytecode = fn(FieldHandleIndex) -> Bytecode;
 /// This type represents bytecode instructions that take a `FunctionHandleIndex`
 type FunctionIndexToBytecode = fn(FunctionHandleIndex) -> Bytecode;
 
-/// This type represents bytecode instructions that take a `StructDefInstantiationIndex`
+/// This type represents bytecode instructions that take a
+/// `StructDefInstantiationIndex`
 type StructInstIndexToBytecode = fn(StructDefInstantiationIndex) -> Bytecode;
 
-/// This type represents bytecode instructions that take a `FieldInstantiationIndex`
+/// This type represents bytecode instructions that take a
+/// `FieldInstantiationIndex`
 type FieldInstIndexToBytecode = fn(FieldInstantiationIndex) -> Bytecode;
 
-/// This type represents bytecode instructions that take a `FunctionInstantiationIndex`
+/// This type represents bytecode instructions that take a
+/// `FunctionInstantiationIndex`
 type FunctionInstIndexToBytecode = fn(FunctionInstantiationIndex) -> Bytecode;
 
 /// There are six types of bytecode instructions
@@ -160,7 +166,7 @@ impl FunctionGenerationContext {
 
     pub fn incr_instruction_count(&mut self) -> Option<()> {
         self.bytecode_len += 1;
-        if self.bytecode_len >= (u16::max_value() - 1) as u64 {
+        if self.bytecode_len >= (u16::MAX - 1) as u64 {
             return None;
         }
         Some(())
@@ -170,7 +176,8 @@ impl FunctionGenerationContext {
 /// Generates a sequence of bytecode instructions.
 /// This generator has:
 /// - `instructions`: A list of bytecode instructions to use for generation
-/// - `rng`: A random number generator for uniform random choice of next instruction
+/// - `rng`: A random number generator for uniform random choice of next
+///   instruction
 #[derive(Debug)]
 pub struct BytecodeGenerator<'a> {
     instructions: Vec<(StackEffect, BytecodeType)>,
@@ -295,9 +302,9 @@ impl<'a> BytecodeGenerator<'a> {
         }
     }
 
-    // Soft cutoff: We starting making it less likely for the stack size to be increased once it
-    // becomes greater than VALUE_STACK_LIMIT - 24. Once we reach the stack limit then we have a
-    // hard cutoff.
+    // Soft cutoff: We starting making it less likely for the stack size to be
+    // increased once it becomes greater than VALUE_STACK_LIMIT - 24. Once we
+    // reach the stack limit then we have a hard cutoff.
     fn value_backpressure(state: &AbstractState, probability: f32) -> f32 {
         let len = state.stack_len();
 
@@ -312,8 +319,9 @@ impl<'a> BytecodeGenerator<'a> {
         0.0
     }
 
-    // Tight cutoff: calls can be generated as long as it's less than the max call stack height. If
-    // the call would cause the call stack to overflow then it can't be generated.
+    // Tight cutoff: calls can be generated as long as it's less than the max call
+    // stack height. If the call would cause the call stack to overflow then it
+    // can't be generated.
     fn call_stack_backpressure(
         state: &AbstractState,
         fn_context: &FunctionGenerationContext,
@@ -330,9 +338,9 @@ impl<'a> BytecodeGenerator<'a> {
         None
     }
 
-    /// Given an `AbstractState`, `state`, and a the number of locals the function has,
-    /// this function returns a list of instructions whose preconditions are satisfied for
-    /// the state.
+    /// Given an `AbstractState`, `state`, and a the number of locals the
+    /// function has, this function returns a list of instructions whose
+    /// preconditions are satisfied for the state.
     fn candidate_instructions(
         &mut self,
         fn_context: &FunctionGenerationContext,
@@ -360,29 +368,29 @@ impl<'a> BytecodeGenerator<'a> {
                 }
                 BytecodeType::U8(instruction) => {
                     // Generate a random u8 constant to load
-                    Some(instruction(self.rng.gen_range(0..u8::max_value())))
+                    Some(instruction(self.rng.gen_range(0..u8::MAX)))
                 }
                 BytecodeType::U16(instruction) => {
                     // Generate a random u16 constant to load
-                    Some(instruction(self.rng.gen_range(0..u16::max_value())))
+                    Some(instruction(self.rng.gen_range(0..u16::MAX)))
                 }
                 BytecodeType::U32(instruction) => {
                     // Generate a random u32 constant to load
-                    Some(instruction(self.rng.gen_range(0..u32::max_value())))
+                    Some(instruction(self.rng.gen_range(0..u32::MAX)))
                 }
                 BytecodeType::U64(instruction) => {
                     // Generate a random u64 constant to load
-                    Some(instruction(self.rng.gen_range(0..u64::max_value())))
+                    Some(instruction(self.rng.gen_range(0..u64::MAX)))
                 }
                 BytecodeType::U128(instruction) => {
                     // Generate a random u128 constant to load
-                    Some(instruction(Box::new(self.rng.gen_range(0..u128::max_value()))))
+                    Some(instruction(Box::new(self.rng.gen_range(0..u128::MAX))))
                 }
                 BytecodeType::U256(instruction) => {
                     // Generate a random u256 constant to load
-                    Some(instruction(
-                        Box::new(self.rng.gen_range(U256::zero()..U256::max_value())),
-                    ))
+                    Some(instruction(Box::new(
+                        self.rng.gen_range(U256::zero()..U256::max_value()),
+                    )))
                 }
                 BytecodeType::ConstantPoolIndex(instruction) => {
                     // Select a random address from the module's address pool
@@ -442,8 +450,9 @@ impl<'a> BytecodeGenerator<'a> {
                     && self.rng.gen_range(0..101) > 100 - (NEGATION_PROBABILITY * 100.0) as u8)
                     || unsatisfied_preconditions == 0
                 {
-                    // The size of matches cannot be greater than the number of bytecode instructions
-                    debug_assert!(matches.len() < usize::max_value());
+                    // The size of matches cannot be greater than the number of bytecode
+                    // instructions
+                    debug_assert!(matches.len() < usize::MAX);
                     matches.push((*stack_effect, instruction));
                 }
             }
@@ -451,8 +460,9 @@ impl<'a> BytecodeGenerator<'a> {
         matches
     }
 
-    /// Select an instruction from the list of candidates based on the current state's
-    /// stack size and the expected number of function return parameters.
+    /// Select an instruction from the list of candidates based on the current
+    /// state's stack size and the expected number of function return
+    /// parameters.
     fn select_candidate(
         &mut self,
         return_len: usize,
@@ -478,8 +488,8 @@ impl<'a> BytecodeGenerator<'a> {
                 .map(|(_, candidate)| candidate)
                 .cloned()
                 .collect();
-            // Add candidates should not be empty unless the list of bytecode instructions is
-            // changed
+            // Add candidates should not be empty unless the list of bytecode instructions
+            // is changed
             if add_candidates.is_empty() {
                 return Err("Could not find valid add candidate".to_string());
             }
@@ -494,8 +504,8 @@ impl<'a> BytecodeGenerator<'a> {
                 .map(|(_, candidate)| candidate)
                 .cloned()
                 .collect();
-            // Sub candidates should not be empty unless the list of bytecode instructions is
-            // changed
+            // Sub candidates should not be empty unless the list of bytecode instructions
+            // is changed
             if sub_candidates.is_empty() {
                 return Err("Could not find sub valid candidate".to_string());
             }
@@ -504,8 +514,8 @@ impl<'a> BytecodeGenerator<'a> {
         }
     }
 
-    /// Transition an abstract state, `state` to the next state by applying all of the effects
-    /// of a particular bytecode instruction, `instruction`.
+    /// Transition an abstract state, `state` to the next state by applying all
+    /// of the effects of a particular bytecode instruction, `instruction`.
     fn abstract_step(
         &self,
         mut state: AbstractState,
@@ -562,8 +572,8 @@ impl<'a> BytecodeGenerator<'a> {
         }
     }
 
-    /// Transition an abstract state, `state` to the next state and add the instruction
-    /// to the bytecode sequence
+    /// Transition an abstract state, `state` to the next state and add the
+    /// instruction to the bytecode sequence
     pub fn apply_instruction(
         &self,
         fn_context: &mut FunctionGenerationContext,
@@ -573,7 +583,7 @@ impl<'a> BytecodeGenerator<'a> {
         exact: bool,
     ) -> Option<AbstractState> {
         // Bytecode will never be generated this large
-        debug_assert!(bytecode.len() < usize::max_value());
+        debug_assert!(bytecode.len() < usize::MAX);
         debug!("**********************");
         debug!("State1: {}", state);
         debug!("Next instr: {:?}", instruction);
@@ -593,8 +603,9 @@ impl<'a> BytecodeGenerator<'a> {
         Some(state)
     }
 
-    /// Given a valid starting state `abstract_state_in`, generate a valid sequence of
-    /// bytecode instructions such that `abstract_state_out` is reached.
+    /// Given a valid starting state `abstract_state_in`, generate a valid
+    /// sequence of bytecode instructions such that `abstract_state_out` is
+    /// reached.
     pub fn generate_block(
         &mut self,
         fn_context: &mut FunctionGenerationContext,
@@ -705,13 +716,14 @@ impl<'a> BytecodeGenerator<'a> {
                 unreachable!("Target locals out contains new local");
             }
         }
-        // Update the module to be the module that we've been building in our abstract state
+        // Update the module to be the module that we've been building in our abstract
+        // state
         Some((bytecode, state))
     }
 
-    /// Generate the body of a function definition given a set of starting `locals` and a target
-    /// return `signature`. The sequence should contain at least `target_min` and at most
-    /// `target_max` instructions.
+    /// Generate the body of a function definition given a set of starting
+    /// `locals` and a target return `signature`. The sequence should
+    /// contain at least `target_min` and at most `target_max` instructions.
     pub fn generate(
         &mut self,
         fn_context: &mut FunctionGenerationContext,
@@ -854,8 +866,9 @@ impl<'a> BytecodeGenerator<'a> {
         Some(module)
     }
 
-    /// Generate a sequence of instructions whose overall effect is to push a single value of type token
-    /// on the stack, specifically without consuming any values that existed on the stack prior to the
+    /// Generate a sequence of instructions whose overall effect is to push a
+    /// single value of type token on the stack, specifically without
+    /// consuming any values that existed on the stack prior to the
     /// execution of the instruction sequence.
     pub fn inhabit_with_bytecode_seq(
         module: &mut InstantiableModule,

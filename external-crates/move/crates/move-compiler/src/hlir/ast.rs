@@ -1,6 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     diagnostics::WarningFilters,
@@ -13,9 +19,6 @@ use crate::{
     },
     shared::{ast_debug::*, unique_map::UniqueMap, Name, NumericalAddress, TName},
 };
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 // High Level IR
 
@@ -39,7 +42,8 @@ pub struct ModuleDefinition {
     pub package_name: Option<Symbol>,
     pub attributes: Attributes,
     pub is_source_module: bool,
-    /// `dependency_order` is the topological order/rank in the dependency graph.
+    /// `dependency_order` is the topological order/rank in the dependency
+    /// graph.
     pub dependency_order: usize,
     pub friends: UniqueMap<ModuleIdent, Friend>,
     pub structs: UniqueMap<StructName, StructDefinition>,
@@ -120,8 +124,9 @@ pub struct Function {
     pub attributes: Attributes,
     /// The original, declared visibility as defined in the source file
     pub visibility: Visibility,
-    /// We sometimes change the visibility of functions, e.g. `entry` is marked as `public` in
-    /// test_mode. This is the visibility we will actually emit in the compiled module
+    /// We sometimes change the visibility of functions, e.g. `entry` is marked
+    /// as `public` in test_mode. This is the visibility we will actually
+    /// emit in the compiled module
     pub compiled_visibility: Visibility,
     pub entry: Option<Loc>,
     pub signature: FunctionSignature,

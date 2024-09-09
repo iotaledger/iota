@@ -1,8 +1,22 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
-use crate::NativeFunctionRecord;
+// if unix
+#[cfg(target_family = "unix")]
+use std::os::unix::prelude::ExitStatusExt;
+// if windows
+#[cfg(target_family = "windows")]
+use std::os::windows::process::ExitStatusExt;
+use std::{
+    collections::HashMap,
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    process::ExitStatus,
+    sync::Arc,
+};
+
 use anyhow::Result;
 use clap::*;
 use move_command_line_common::files::{FileHash, MOVE_COVERAGE_MAP_EXTENSION};
@@ -16,20 +30,9 @@ use move_coverage::coverage_map::{output_map_to_file, CoverageMap};
 use move_package::{compilation::build_plan::BuildPlan, BuildConfig};
 use move_unit_test::UnitTestingConfig;
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::{
-    collections::HashMap,
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-    process::ExitStatus,
-    sync::Arc,
-};
-// if windows
-#[cfg(target_family = "windows")]
-use std::os::windows::process::ExitStatusExt;
-// if unix
-#[cfg(target_family = "unix")]
-use std::os::unix::prelude::ExitStatusExt;
+
+use super::reroot_path;
+use crate::NativeFunctionRecord;
 // if not windows nor unix
 #[cfg(not(any(target_family = "windows", target_family = "unix")))]
 compile_error!("Unsupported OS, currently we only support windows and unix family");
@@ -41,8 +44,9 @@ pub struct Test {
     /// Bound the amount of gas used by any one test.
     #[clap(name = "gas-limit", short = 'i', long = "gas-limit")]
     pub gas_limit: Option<u64>,
-    /// An optional filter string to determine which unit tests to run. A unit test will be run only if it
-    /// contains this string in its fully qualified (<addr>::<module_name>::<fn_name>) name.
+    /// An optional filter string to determine which unit tests to run. A unit
+    /// test will be run only if it contains this string in its fully
+    /// qualified (`<addr>::<module_name>::<fn_name>`) name.
     #[clap(name = "filter")]
     pub filter: Option<String>,
     /// List all tests
@@ -56,18 +60,20 @@ pub struct Test {
         long = "threads"
     )]
     pub num_threads: usize,
-    /// Report test statistics at the end of testing. CSV report generated if 'csv' passed
+    /// Report test statistics at the end of testing. CSV report generated if
+    /// 'csv' passed
     #[clap(name = "report-statistics", short = 's', long = "statistics")]
     pub report_statistics: Option<Option<String>>,
 
-    /// Use the stackless bytecode interpreter to run the tests and cross check its results with
-    /// the execution result from Move VM.
+    /// Use the stackless bytecode interpreter to run the tests and cross check
+    /// its results with the execution result from Move VM.
     #[clap(long = "stackless")]
     pub check_stackless_vm: bool,
     /// Verbose mode
     #[clap(long = "verbose")]
     pub verbose_mode: bool,
-    /// Collect coverage information for later use with the various `move coverage` subcommands. Currently supported only in debug builds.
+    /// Collect coverage information for later use with the various `move
+    /// coverage` subcommands. Currently supported only in debug builds.
     #[clap(long = "coverage")]
     pub compute_coverage: bool,
 }
@@ -123,7 +129,8 @@ impl Test {
     }
 }
 
-/// Encapsulates the possible returned states when running unit tests on a move package.
+/// Encapsulates the possible returned states when running unit tests on a move
+/// package.
 #[derive(PartialEq, Eq, Debug)]
 pub enum UnitTestResult {
     Success,
@@ -143,12 +150,12 @@ pub fn run_move_unit_tests<W: Write + Send>(
     build_config.test_mode = true;
     build_config.dev_mode = true;
 
-    // Build the resolution graph (resolution graph diagnostics are only needed for CLI commands so
-    // ignore them by passing a vector as the writer)
+    // Build the resolution graph (resolution graph diagnostics are only needed for
+    // CLI commands so ignore them by passing a vector as the writer)
     let resolution_graph = build_config.resolution_graph_for_package(pkg_path, &mut Vec::new())?;
 
-    // Note: unit_test_config.named_address_values is always set to vec![] (the default value) before
-    // being passed in.
+    // Note: unit_test_config.named_address_values is always set to vec![] (the
+    // default value) before being passed in.
     unit_test_config.named_address_values = resolution_graph
         .extract_named_address_mapping()
         .map(|(name, addr)| {
@@ -159,8 +166,8 @@ pub fn run_move_unit_tests<W: Write + Send>(
         })
         .collect();
 
-    // Get the source files for all modules. We need this in order to report source-mapped error
-    // messages.
+    // Get the source files for all modules. We need this in order to report
+    // source-mapped error messages.
     let dep_file_map: HashMap<_, _> = resolution_graph
         .package_table
         .iter()
@@ -178,10 +185,11 @@ pub fn run_move_unit_tests<W: Write + Send>(
         .collect();
     let root_package = resolution_graph.root_package();
     let build_plan = BuildPlan::create(resolution_graph)?;
-    // Compile the package. We need to intercede in the compilation, process being performed by the
-    // Move package system, to first grab the compilation env, construct the test plan from it, and
-    // then save it, before resuming the rest of the compilation and returning the results and
-    // control back to the Move package system.
+    // Compile the package. We need to intercede in the compilation, process being
+    // performed by the Move package system, to first grab the compilation env,
+    // construct the test plan from it, and then save it, before resuming the
+    // rest of the compilation and returning the results and control back to the
+    // Move package system.
     let mut warning_diags = None;
     build_plan.compile_with_driver(writer, |compiler| {
         let (files, comments_and_compiler_res) = compiler.run::<PASS_CFGIR>().unwrap();
@@ -223,14 +231,14 @@ pub fn run_move_unit_tests<W: Write + Send>(
 
     cleanup_trace();
 
-    // If we need to compute test coverage set the VM tracking environment variable since we will
-    // need this trace to construct the coverage information.
+    // If we need to compute test coverage set the VM tracking environment variable
+    // since we will need this trace to construct the coverage information.
     if compute_coverage {
         std::env::set_var("MOVE_VM_TRACE", &trace_path);
     }
 
-    // Run the tests. If any of the tests fail, then we don't produce a coverage report, so cleanup
-    // the trace files.
+    // Run the tests. If any of the tests fail, then we don't produce a coverage
+    // report, so cleanup the trace files.
     if !unit_test_config
         .run_and_report_unit_tests(test_plan, Some(natives), cost_table, writer)
         .unwrap()

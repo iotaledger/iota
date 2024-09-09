@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, LinkedList};
 
 use itertools::Itertools;
-use num::{BigInt, BigUint, FromPrimitive};
-
 use move_compiler::{expansion::ast as EA, parser::ast as PA, shared::Name};
 use move_core_types::runtime_value::MoveValue;
+use num::{BigInt, BigUint, FromPrimitive};
 
 use crate::{
     ast::Value,
@@ -25,11 +25,11 @@ pub(crate) struct ExpTranslator<'env, 'translator, 'module_translator> {
     pub type_params_table: BTreeMap<Symbol, Type>,
     /// Type parameters in sequence they have been added.
     pub type_params: Vec<(Symbol, Type)>,
-    /// A scoped symbol table for local names. The first element in the list contains the most
-    /// inner scope.
+    /// A scoped symbol table for local names. The first element in the list
+    /// contains the most inner scope.
     pub local_table: LinkedList<BTreeMap<Symbol, LocalVarEntry>>,
-    /// When compiling a condition, the result type of the function the condition is associated
-    /// with.
+    /// When compiling a condition, the result type of the function the
+    /// condition is associated with.
     #[allow(unused)]
     pub result_type: Option<Type>,
     /// The currently build type substitution.
@@ -91,8 +91,8 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
             .update_node_instantiation(node_id, instantiation);
     }
 
-    /// Finalizes types in this build, producing errors if some could not be inferred
-    /// and remained incomplete.
+    /// Finalizes types in this build, producing errors if some could not be
+    /// inferred and remained incomplete.
     pub fn finalize_types(&mut self) {
         for i in self.node_counter_start..self.parent.parent.env.next_free_node_number() {
             let node_id = NodeId::new(i);
@@ -128,7 +128,8 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
         ty
     }
 
-    /// Constructs a type display context used to visualize types in error messages.
+    /// Constructs a type display context used to visualize types in error
+    /// messages.
     fn type_display_context(&self) -> TypeDisplayContext<'_> {
         TypeDisplayContext::WithoutEnv {
             symbol_pool: self.symbol_pool(),
@@ -195,8 +196,9 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
         }
     }
 
-    /// Analyzes the sequence of type parameters as they are provided via the source AST and enters
-    /// them into the environment. Returns a vector for representing them in the target AST.
+    /// Analyzes the sequence of type parameters as they are provided via the
+    /// source AST and enters them into the environment. Returns a vector
+    /// for representing them in the target AST.
     pub fn analyze_and_add_type_params<'a, I>(&mut self, type_params: I) -> Vec<(Symbol, Type)>
     where
         I: IntoIterator<Item = &'a Name>,
@@ -213,8 +215,9 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
             .collect_vec()
     }
 
-    /// Analyzes the sequence of function parameters as they are provided via the source AST and
-    /// enters them into the environment. Returns a vector for representing them in the target AST.
+    /// Analyzes the sequence of function parameters as they are provided via
+    /// the source AST and enters them into the environment. Returns a
+    /// vector for representing them in the target AST.
     pub fn analyze_and_add_params(
         &mut self,
         params: &[(EA::Mutability, PA::Var, EA::Type)],
@@ -261,7 +264,7 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
                             return check_zero_args(self, Type::new_prim(PrimitiveType::U128));
                         }
                         "u256" => {
-                            return check_zero_args(self, Type::new_prim(PrimitiveType::U256))
+                            return check_zero_args(self, Type::new_prim(PrimitiveType::U256));
                         }
                         "num" => return check_zero_args(self, Type::new_prim(PrimitiveType::Num)),
                         "range" => {

@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
 
 use move_binary_format::{
     errors::{offset_out_of_bounds, PartialVMError},
@@ -15,7 +18,6 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 use proptest::{prelude::*, sample::Index as PropIndex};
-use std::collections::BTreeMap;
 
 /// Represents a single mutation onto a code unit to make it out of bounds.
 #[derive(Debug)]
@@ -175,7 +177,8 @@ impl<'a> ApplyCodeUnitBoundsContext<'a> {
         fidx: usize,
         mutations: Vec<CodeUnitBoundsMutation>,
     ) -> Vec<PartialVMError> {
-        // For this function def, find all the places where a bounds mutation can be applied.
+        // For this function def, find all the places where a bounds mutation can be
+        // applied.
         let func_def = &mut self.module.function_defs[fidx];
         let current_fdef = FunctionDefinitionIndex(fidx as TableIndex);
         let func_handle = &self.module.function_handles[func_def.function.into_index()];

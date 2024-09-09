@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_core_types::vm_status::StatusCode;
 
 use crate::{
     binary_views::BinaryIndexedView,
@@ -17,7 +20,6 @@ use crate::{
     internals::ModuleIndex,
     IndexKind,
 };
-use move_core_types::vm_status::StatusCode;
 
 enum BoundsCheckingContext {
     Module,
@@ -51,7 +53,8 @@ impl<'a> BoundsChecker<'a> {
         }
 
         // The bounds checker has already checked each function definition's code, but a
-        // script's code exists outside of any function definition. It gets checked here.
+        // script's code exists outside of any function definition. It gets checked
+        // here.
         bounds_check.check_code(
             &script.code,
             &script.type_parameters,
@@ -202,7 +205,8 @@ impl<'a> BoundsChecker<'a> {
         check_bounds_impl(self.view.identifiers(), function_handle.name)?;
         check_bounds_impl(self.view.signatures(), function_handle.parameters)?;
         check_bounds_impl(self.view.signatures(), function_handle.return_)?;
-        // function signature type paramters must be in bounds to the function type parameters
+        // function signature type parameters must be in bounds to the function type
+        // parameters
         let type_param_count = function_handle.type_parameters.len();
         if let Some(sig) = self
             .view
@@ -370,7 +374,8 @@ impl<'a> BoundsChecker<'a> {
             ));
         }
 
-        // if there are locals check that the type parameters in local signature are in bounds.
+        // if there are locals check that the type parameters in local signature are in
+        // bounds.
         let type_param_count = type_parameters.len();
         for local in locals {
             self.check_type_parameter(local, type_param_count)?
@@ -464,7 +469,8 @@ impl<'a> BoundsChecker<'a> {
                         *idx,
                         bytecode_offset,
                     )?;
-                    // check type parameters in type operations are bound to the function type parameters
+                    // check type parameters in type operations are bound to the function type
+                    // parameters
                     if let Some(struct_inst) = self
                         .view
                         .struct_instantiations()
@@ -683,7 +689,10 @@ impl<'a> BoundsChecker<'a> {
     ) -> PartialVMError {
         match self.context {
             BoundsCheckingContext::Module => {
-                let msg = format!("Indexing into bytecode {} during bounds checking but 'current_function' was not set", cur_bytecode_offset);
+                let msg = format!(
+                    "Indexing into bytecode {} during bounds checking but 'current_function' was not set",
+                    cur_bytecode_offset
+                );
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(msg)
             }
             BoundsCheckingContext::ModuleFunction(current_function_index) => {
@@ -698,8 +707,9 @@ impl<'a> BoundsChecker<'a> {
             }
             BoundsCheckingContext::Script => {
                 let msg = format!(
-        "Index {} out of bounds for {} at bytecode offset {} in script while indexing {}",
-        target_offset, target_pool_len, cur_bytecode_offset, kind);
+                    "Index {} out of bounds for {} at bytecode offset {} in script while indexing {}",
+                    target_offset, target_pool_len, cur_bytecode_offset, kind
+                );
                 PartialVMError::new(status).with_message(msg)
             }
         }

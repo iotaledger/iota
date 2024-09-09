@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_ir_types::location::{sp, Loc};
@@ -58,7 +59,8 @@ impl FilterContext for Context<'_> {
     }
 
     // A module member should be removed if:
-    // * It is annotated as a test function (test_only, test, abort) and test mode is not set; or
+    // * It is annotated as a test function (test_only, test, abort) and test mode
+    //   is not set; or
     // * If it is a library and is annotated as #[test]
     fn should_remove_by_attributes(&mut self, attrs: &[P::Attributes]) -> bool {
         use known_attributes::TestingAttribute;
@@ -81,9 +83,10 @@ impl FilterContext for Context<'_> {
 const UNIT_TEST_MODULE_NAME: Symbol = symbol!("unit_test");
 const STDLIB_ADDRESS_NAME: Symbol = symbol!("std");
 
-// This filters out all test, and test-only annotated module member from `prog` if the `test` flag
-// in `compilation_env` is not set. If the test flag is set, no filtering is performed, and instead
-// a test plan is created for use by the testing framework.
+// This filters out all test, and test-only annotated module member from `prog`
+// if the `test` flag in `compilation_env` is not set. If the test flag is set,
+// no filtering is performed, and instead a test plan is created for use by the
+// testing framework.
 pub fn program(compilation_env: &mut CompilationEnv, prog: P::Program) -> P::Program {
     if !check_has_unit_test_module(compilation_env, &prog) {
         return prog;
@@ -141,10 +144,11 @@ fn check_has_unit_test_module(compilation_env: &mut CompilationEnv, prog: &P::Pr
     true
 }
 
-/// If a module is being compiled in test mode, create a dummy function that calls a native
-/// function `0x1::UnitTest::create_signers_for_testing` that only exists if the VM is being run
-/// with the "unit_test" feature flag set. This will then cause the module to fail to link if
-/// an attempt is made to publish a module that has been compiled in test mode on a VM that is not
+/// If a module is being compiled in test mode, create a dummy function that
+/// calls a native function `0x1::UnitTest::create_signers_for_testing` that
+/// only exists if the VM is being run with the "unit_test" feature flag set.
+/// This will then cause the module to fail to link if an attempt is made to
+/// publish a module that has been compiled in test mode on a VM that is not
 /// running in test mode.
 fn create_test_poison(mloc: Loc) -> P::ModuleMember {
     let signature = P::FunctionSignature {

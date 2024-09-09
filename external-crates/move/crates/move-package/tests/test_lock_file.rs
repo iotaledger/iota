@@ -1,22 +1,25 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use expect_test::expect;
 use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::PathBuf,
 };
-use tempfile::TempDir;
 
+use expect_test::expect;
 use move_compiler::editions::{Edition, Flavor};
-use move_package::lock_file::schema::{
-    update_managed_address, ManagedAddressUpdate, ToolchainVersion,
+use move_package::{
+    lock_file::{
+        schema::{update_managed_address, ManagedAddressUpdate, ToolchainVersion},
+        LockFile,
+    },
+    resolution::dependency_graph::DependencyGraph,
+    BuildConfig,
 };
-use move_package::lock_file::LockFile;
-use move_package::resolution::dependency_graph::DependencyGraph;
-use move_package::BuildConfig;
 use move_symbol_pool::Symbol;
+use tempfile::TempDir;
 
 #[test]
 fn commit() {
@@ -26,8 +29,10 @@ fn commit() {
     {
         let mut lock = LockFile::new(
             pkg.path().to_path_buf(),
-            /* manifest_digest */ "42".to_string(),
-            /* deps_digest */ "7".to_string(),
+            // manifest_digest
+            "42".to_string(),
+            // deps_digest
+            "7".to_string(),
         )
         .unwrap();
         writeln!(lock, "# Write and commit").unwrap();
@@ -43,8 +48,9 @@ fn commit() {
         buf
     };
 
-    // Check that the content written into the `LockFile` instance above can be found at the path
-    // that that lock file was committed to (indicating that the commit actually happened).
+    // Check that the content written into the `LockFile` instance above can be
+    // found at the path that that lock file was committed to (indicating that
+    // the commit actually happened).
     assert!(
         lock_contents.ends_with("# Write and commit\n"),
         "Lock file doesn't have expected content:\n{}",
@@ -59,8 +65,10 @@ fn discard() {
     {
         let mut lock = LockFile::new(
             pkg.path().to_path_buf(),
-            /* manifest_digest */ "42".to_string(),
-            /* deps_digest */ "7".to_string(),
+            // manifest_digest
+            "42".to_string(),
+            // deps_digest
+            "7".to_string(),
         )
         .unwrap();
         writeln!(lock, "# Write but don't commit").unwrap();
@@ -86,7 +94,7 @@ deps_digest = "0"
 [move.toolchain-version]
 compiler-version = "0.0.0"
 edition = "legacy"
-flavor = "sui"
+flavor = "iota"
 "#;
     fs::write(lock_path.clone(), lock_contents).unwrap();
 
@@ -149,7 +157,7 @@ flavor = "sui"
         [move.toolchain-version]
         compiler-version = "0.0.0"
         edition = "legacy"
-        flavor = "sui"
+        flavor = "iota"
     "#]];
     expected.assert_eq(&contents);
 }
@@ -161,14 +169,16 @@ fn update_lock_file_toolchain_version() {
 
     let lock = LockFile::new(
         pkg.path().to_path_buf(),
-        /* manifest_digest */ "42".to_string(),
-        /* deps_digest */ "7".to_string(),
+        // manifest_digest
+        "42".to_string(),
+        // deps_digest
+        "7".to_string(),
     )
     .unwrap();
     lock.commit(&lock_path).unwrap();
 
     let build_config = BuildConfig {
-        default_flavor: Some(Flavor::Sui),
+        default_flavor: Some(Flavor::Iota),
         default_edition: Some(Edition::E2024_ALPHA),
         lock_file: Some(lock_path.clone()),
         ..Default::default()
@@ -185,7 +195,7 @@ fn update_lock_file_toolchain_version() {
     let expected = expect![[r#"
         compiler-version = "0.0.1"
         edition = "2024.alpha"
-        flavor = "sui"
+        flavor = "iota"
     "#]];
     expected.assert_eq(&toml);
 }
@@ -198,8 +208,10 @@ fn test_update_managed_address() {
     // Initialize lock file.
     let lock = LockFile::new(
         pkg.path().to_path_buf(),
-        /* manifest_digest */ "42".to_string(),
-        /* deps_digest */ "7".to_string(),
+        // manifest_digest
+        "42".to_string(),
+        // deps_digest
+        "7".to_string(),
     )
     .unwrap();
     lock.commit(&lock_path).unwrap();
@@ -209,7 +221,7 @@ fn test_update_managed_address() {
     let mut lock = LockFile::from(pb, &lock_path).unwrap();
     update_managed_address(
         &mut lock,
-        "default".into(),
+        "default",
         ManagedAddressUpdate::Published {
             original_id: "0x123".into(),
             chain_id: "35834a8a".into(),
@@ -219,7 +231,7 @@ fn test_update_managed_address() {
 
     update_managed_address(
         &mut lock,
-        "default".into(),
+        "default",
         ManagedAddressUpdate::Upgraded {
             latest_id: "0x456".into(),
             version: 2,
@@ -255,8 +267,8 @@ fn test_update_managed_address() {
     expected.assert_eq(&contents);
 }
 
-/// Create a simple Move package with no sources (just a manifest and an output directory) in a
-/// temporary directory, and return it.
+/// Create a simple Move package with no sources (just a manifest and an output
+/// directory) in a temporary directory, and return it.
 fn create_test_package() -> io::Result<TempDir> {
     let dir = tempfile::tempdir()?;
 

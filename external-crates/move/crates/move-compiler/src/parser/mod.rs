@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod ast;
@@ -10,23 +11,25 @@ pub mod lexer;
 pub(crate) mod syntax;
 pub(crate) mod verification_attribute_filter;
 
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
+
+use anyhow::anyhow;
+use comments::*;
+use move_command_line_common::files::{find_move_filenames_vfs, FileHash};
+use move_symbol_pool::Symbol;
+use vfs::VfsPath;
+
 use crate::{
     diagnostics::FilesSourceText,
     parser::{self, ast::PackageDefinition, syntax::parse_file_string},
     shared::{CompilationEnv, IndexedVfsPackagePath, NamedAddressMaps},
 };
-use anyhow::anyhow;
-use comments::*;
-use move_command_line_common::files::{find_move_filenames_vfs, FileHash};
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
-use vfs::VfsPath;
 
-/// Parses program's targets and dependencies, both of which are read from different virtual file
-/// systems (vfs and deps_out_vfs, respectively).
+/// Parses program's targets and dependencies, both of which are read from
+/// different virtual file systems (vfs and deps_out_vfs, respectively).
 pub(crate) fn parse_program(
     compilation_env: &mut CompilationEnv,
     named_address_maps: NamedAddressMaps,
@@ -53,8 +56,8 @@ pub(crate) fn parse_program(
                     }),
             );
         }
-        // sort the filenames so errors about redefinitions, or other inter-file conflicts, are
-        // deterministic
+        // sort the filenames so errors about redefinitions, or other inter-file
+        // conflicts, are deterministic
         res.sort_by(|p1, p2| p1.path.as_str().cmp(p2.path.as_str()));
         Ok(res)
     }

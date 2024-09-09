@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::{
     criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
@@ -9,7 +12,6 @@ use narwhal_primary::consensus::{
     Bullshark, ConsensusMetrics, ConsensusState, LeaderSchedule, LeaderSwapTable,
 };
 use prometheus::Registry;
-use std::{collections::BTreeSet, sync::Arc};
 use storage::NodeStorage;
 use test_utils::{latest_protocol_version, make_optimal_certificates, temp_dir, CommitteeFixture};
 use tokio::time::Instant;
@@ -30,17 +32,12 @@ pub fn process_certificates(c: &mut Criterion) {
         let rounds: Round = *size;
 
         // process certificates for rounds, check we don't grow the dag too much
-        let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+        let genesis = Certificate::genesis(&committee)
             .iter()
             .map(|x| x.digest())
             .collect::<BTreeSet<_>>();
-        let (certificates, _next_parents) = make_optimal_certificates(
-            &committee,
-            &latest_protocol_version(),
-            1..=rounds,
-            &genesis,
-            &keys,
-        );
+        let (certificates, _next_parents) =
+            make_optimal_certificates(&committee, 1..=rounds, &genesis, &keys);
 
         let store_path = temp_dir();
         let store = NodeStorage::reopen(&store_path, None);

@@ -1,7 +1,11 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, fmt::Debug};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 
 use crate::{
     cfgir::{
@@ -18,8 +22,6 @@ use crate::{
     },
     shared::CompilationEnv,
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
 
 pub type AbsIntVisitorObj = Box<dyn AbstractInterpreterVisitor>;
 
@@ -44,7 +46,8 @@ pub trait AbstractInterpreterVisitor {
 // simple visitor
 //**************************************************************************************************
 
-/// The reason why a local variable is unavailable (mostly useful for error messages)
+/// The reason why a local variable is unavailable (mostly useful for error
+/// messages)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnavailableReason {
     Unassigned,
@@ -63,15 +66,16 @@ pub enum LocalState<V: Clone + Debug + Default> {
     },
 }
 
-/// A trait for a the context when visiting a `Command` in a block. At a minimum it must hold the diagnostics
-/// and the abstract state
+/// A trait for a the context when visiting a `Command` in a block. At a minimum
+/// it must hold the diagnostics and the abstract state
 pub trait SimpleExecutionContext {
     /// Add a diagnostic
     fn add_diag(&mut self, diag: Diagnostic);
 }
 
-/// The domain used for the simple abstract interpreter template. Accessors for the local variables
-/// must be provided, but it will manage the joining of the locals (given a way to join values).
+/// The domain used for the simple abstract interpreter template. Accessors for
+/// the local variables must be provided, but it will manage the joining of the
+/// locals (given a way to join values).
 pub trait SimpleDomain: AbstractDomain {
     /// The non-default abstract value
     type Value: Clone + Debug + Default + Eq;
@@ -87,10 +91,12 @@ pub trait SimpleDomain: AbstractDomain {
     /// Immutable access for the states of local variables
     fn locals(&self) -> &BTreeMap<Var, LocalState<Self::Value>>;
 
-    /// Joining values. Called during joining if a local is available in both states
+    /// Joining values. Called during joining if a local is available in both
+    /// states
     fn join_value(v1: &Self::Value, v2: &Self::Value) -> Self::Value;
 
-    /// `join_impl` is called after joining locals in `join` if any custom joining logic is needed
+    /// `join_impl` is called after joining locals in `join` if any custom
+    /// joining logic is needed
     fn join_impl(&mut self, other: &Self, result: &mut JoinResult);
 }
 
@@ -153,9 +159,10 @@ impl<V: SimpleDomain> AbstractDomain for V {
     }
 }
 
-/// Trait for simple abstract interpreter passes. Custom hooks can be implemented with additional
-/// logic as needed. The provided implementation will do all of the plumbing of abstract values
-/// through the expressions, commands, and locals.
+/// Trait for simple abstract interpreter passes. Custom hooks can be
+/// implemented with additional logic as needed. The provided implementation
+/// will do all of the plumbing of abstract values through the expressions,
+/// commands, and locals.
 pub trait SimpleAbsIntConstructor: Sized {
     type AI<'a>: Sized + SimpleAbsInt;
     /// Given the initial state/domain, construct a new abstract interpreter.
@@ -205,9 +212,9 @@ pub trait SimpleAbsInt: Sized {
     /// The execution context local to a command
     type ExecutionContext: SimpleExecutionContext;
 
-    /// A hook for an additional processing after visiting all codes. The `final_states` are the
-    /// pre-states for each block (keyed by the label for the block). The `diags` are collected from
-    /// all code visited.
+    /// A hook for an additional processing after visiting all codes. The
+    /// `final_states` are the pre-states for each block (keyed by the label
+    /// for the block). The `diags` are collected from all code visited.
     fn finish(
         &mut self,
         final_states: BTreeMap<Label, Self::State>,
@@ -224,7 +231,8 @@ pub trait SimpleAbsInt: Sized {
         state: &mut Self::State,
     ) -> Diagnostics;
 
-    /// custom visit for a command. It will skip `command` if `command_custom` returns true.
+    /// custom visit for a command. It will skip `command` if `command_custom`
+    /// returns true.
     fn command_custom(
         &self,
         _context: &mut Self::ExecutionContext,
@@ -271,7 +279,7 @@ pub trait SimpleAbsInt: Sized {
         ls: &[LValue],
         values: Vec<<Self::State as SimpleDomain>::Value>,
     ) {
-        // pad with defautl to account for errors
+        // pad with default to account for errors
         let padded_values = values.into_iter().chain(std::iter::repeat(
             <Self::State as SimpleDomain>::Value::default(),
         ));
@@ -280,7 +288,8 @@ pub trait SimpleAbsInt: Sized {
         }
     }
 
-    /// custom visit for an lvalue. It will skip `lvalue` if `lvalue_custom` returns true.
+    /// custom visit for an lvalue. It will skip `lvalue` if `lvalue_custom`
+    /// returns true.
     fn lvalue_custom(
         &self,
         _context: &mut Self::ExecutionContext,
@@ -317,7 +326,8 @@ pub trait SimpleAbsInt: Sized {
         }
     }
 
-    /// custom visit for an exp. It will skip `exp` and `call_custom` if `exp_custom` returns Some.
+    /// custom visit for an exp. It will skip `exp` and `call_custom` if
+    /// `exp_custom` returns Some.
     fn exp_custom(
         &self,
         _context: &mut Self::ExecutionContext,

@@ -1,15 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{fmt, hash::Hash};
+
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::shared::{
     ast_debug::*, Identifier, Name, NamedAddressMap, NamedAddressMapIndex, NamedAddressMaps,
     NumericalAddress, TName,
 };
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{fmt, hash::Hash};
 
 macro_rules! new_name {
     ($n:ident) => {
@@ -267,10 +270,11 @@ pub enum FunctionBody_ {
 pub type FunctionBody = Spanned<FunctionBody_>;
 
 #[derive(PartialEq, Debug, Clone)]
-// (public?) foo<T1(: copyable?), ..., TN(: copyable?)>(x1: t1, ..., xn: tn): t1 * ... * tn {
-//    body
+// (public?) foo<T1(: copyable?), ..., TN(: copyable?)>(x1: t1, ..., xn: tn): t1
+// * ... * tn {    body
 //  }
-// (public?) native foo<T1(: copyable?), ..., TN(: copyable?)>(x1: t1, ..., xn: tn): t1 * ... * tn;
+// (public?) native foo<T1(: copyable?), ..., TN(: copyable?)>(x1: t1, ..., xn:
+// tn): t1 * ... * tn;
 pub struct Function {
     pub attributes: Vec<Attributes>,
     pub loc: Loc,
@@ -488,7 +492,8 @@ pub enum Exp_ {
     // vector [ e1, ..., e_n ]
     // vector<t> [e1, ..., en ]
     Vector(
-        /* name loc */ Loc,
+        // name loc
+        Loc,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
@@ -551,7 +556,8 @@ pub enum Exp_ {
     DotCall(
         Box<Exp>,
         Name,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
@@ -574,7 +580,8 @@ pub type Exp = Spanned<Exp_>;
 
 // { e1; ... ; en }
 // { e1; ... ; en; }
-// The Loc field holds the source location of the final semicolon, if there is one.
+// The Loc field holds the source location of the final semicolon, if there is
+// one.
 pub type Sequence = (
     Vec<UseDecl>,
     Vec<SequenceItem>,
@@ -703,9 +710,10 @@ impl Ability_ {
     pub const STORE: &'static str = "store";
     pub const KEY: &'static str = "key";
 
-    /// For a struct with ability `a`, each field needs to have the ability `a.requires()`.
-    /// Consider a generic type Foo<t1, ..., tn>, for Foo<t1, ..., tn> to have ability `a`, Foo must
-    /// have been declared with `a` and each type argument ti must have the ability `a.requires()`
+    /// For a struct with ability `a`, each field needs to have the ability
+    /// `a.requires()`. Consider a generic type Foo<t1, ..., tn>, for
+    /// Foo<t1, ..., tn> to have ability `a`, Foo must have been declared
+    /// with `a` and each type argument ti must have the ability `a.requires()`
     pub fn requires(self) -> Ability_ {
         match self {
             Ability_::Copy => Ability_::Copy,
@@ -715,7 +723,8 @@ impl Ability_ {
         }
     }
 
-    /// An inverse of `requires`, where x is in a.required_by() iff x.requires() == a
+    /// An inverse of `requires`, where x is in a.required_by() iff x.requires()
+    /// == a
     pub fn required_by(self) -> Vec<Ability_> {
         match self {
             Self::Copy => vec![Ability_::Copy],

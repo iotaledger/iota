@@ -1,10 +1,13 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
+use std::path::PathBuf;
+
 use clap::*;
 use move_package::BuildConfig;
-use std::path::PathBuf;
+
+use super::reroot_path;
 
 /// Print address information.
 #[derive(Parser)]

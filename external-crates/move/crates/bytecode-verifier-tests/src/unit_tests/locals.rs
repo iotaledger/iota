@@ -1,7 +1,7 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::production_config;
 use move_binary_format::file_format::{
     empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
@@ -10,9 +10,12 @@ use move_binary_format::file_format::{
 use move_bytecode_verifier::meter::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
 
+use crate::unit_tests::production_config;
+
 #[test]
 fn test_locals() {
-    // See also: github.com/aptos-labs/aptos-core/security/advisories/GHSA-jjqw-f9pc-525j
+    // See also: github.com/aptos-labs/aptos-core/security/advisories/
+    // GHSA-jjqw-f9pc-525j
     let mut m = empty_module();
 
     const MAX_BASIC_BLOCKS: u16 = 1024;

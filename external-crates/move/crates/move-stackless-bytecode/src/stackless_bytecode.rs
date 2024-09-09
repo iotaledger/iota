@@ -1,8 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::function_target::FunctionTarget;
+use std::{collections::BTreeMap, fmt, fmt::Formatter};
+
 use ethnum::U256;
 use itertools::Itertools;
 use move_binary_format::file_format::CodeOffset;
@@ -13,7 +15,8 @@ use move_model::{
     ty::{Type, TypeDisplayContext},
 };
 use num::BigUint;
-use std::{collections::BTreeMap, fmt, fmt::Formatter};
+
+use crate::function_target::FunctionTarget;
 
 /// A label for a branch destination.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -43,8 +46,8 @@ impl AttrId {
     }
 }
 
-/// An id for a spec block. A spec block can contain assumes and asserts to be enforced at a
-/// program point.
+/// An id for a spec block. A spec block can contain assumes and asserts to be
+/// enforced at a program point.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct SpecBlockId(u16);
 
@@ -105,8 +108,8 @@ impl From<&u256::U256> for Constant {
     }
 }
 
-/// An operation -- target of a call. This contains user functions, builtin functions, and
-/// operators.
+/// An operation -- target of a call. This contains user functions, builtin
+/// functions, and operators.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
     // User function
@@ -325,8 +328,8 @@ impl BorrowEdge {
 }
 
 /// Information about the action to take on abort. The label represents the
-/// destination to jump to, and the temporary where to store the abort code before
-/// jump.
+/// destination to jump to, and the temporary where to store the abort code
+/// before jump.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbortAction(pub Label, pub TempIndex);
 
@@ -422,8 +425,8 @@ impl Bytecode {
         res
     }
 
-    /// Return the successor offsets of this instruction. In addition to the code, a map
-    /// of label to code offset need to be passed in.
+    /// Return the successor offsets of this instruction. In addition to the
+    /// code, a map of label to code offset need to be passed in.
     pub fn get_successors(
         pc: CodeOffset,
         code: &[Bytecode],
@@ -473,11 +476,7 @@ impl Bytecode {
         F: FnMut(TempIndex) -> TempIndex,
     {
         self.remap_vars_internal(func_target, &mut |is_src, idx| {
-            if is_src {
-                f(idx)
-            } else {
-                idx
-            }
+            if is_src { f(idx) } else { idx }
         })
     }
 
@@ -596,14 +595,18 @@ impl Bytecode {
         }
     }
 
-    /// Return the temporaries this instruction modifies and how the temporaries are modified.
+    /// Return the temporaries this instruction modifies and how the temporaries
+    /// are modified.
     ///
-    /// For a temporary with TempIndex $t, if $t is modified by the instruction and
-    /// 1) $t is a value or an immutable reference, it will show up in the first Vec
-    /// 2) $t is a mutable reference and only its value is modified, not the reference itself,
-    ///    it will show up in the second Vec as ($t, false).
-    /// 3) $t is a mutable reference and the reference itself is modified (i.e., the location and
-    ///    path it is pointing to), it will show up in the second Vec as ($t, true).
+    /// For a temporary with TempIndex $t, if $t is modified by the instruction
+    /// and
+    /// 1) $t is a value or an immutable reference, it will show up in the first
+    ///    Vec
+    /// 2) $t is a mutable reference and only its value is modified, not the
+    ///    reference itself, it will show up in the second Vec as ($t, false).
+    /// 3) $t is a mutable reference and the reference itself is modified (i.e.,
+    ///    the location and path it is pointing to), it will show up in the
+    ///    second Vec as ($t, true).
     pub fn modifies(
         &self,
         func_target: &FunctionTarget<'_>,
@@ -641,7 +644,8 @@ impl Bytecode {
                 (add_abort(vec![], aa), vec![(*dest, false)])
             }
             Call(_, _, Operation::WriteRef, srcs, aa) => {
-                // write-ref only distorts the value of the reference, but not the pointer itself
+                // write-ref only distorts the value of the reference, but not the pointer
+                // itself
                 (add_abort(vec![], aa), vec![(srcs[0], false)])
             }
             Call(_, dests, Function(..), srcs, aa) => {
@@ -1080,7 +1084,8 @@ pub struct BorrowNodeDisplay<'env> {
 }
 
 impl BorrowNode {
-    /// Creates a format object for a borrow node in context of a function target.
+    /// Creates a format object for a borrow node in context of a function
+    /// target.
     pub fn display<'env>(
         &'env self,
         func_target: &'env FunctionTarget<'env>,

@@ -1,18 +1,21 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    address::{NumericalAddress, ParsedAddress},
-    types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType, TypeToken},
-    values::{ParsableValue, ParsedValue, ValueToken},
-};
+use std::{fmt::Display, iter::Peekable, num::ParseIntError};
+
 use anyhow::{anyhow, bail, Result};
 use move_core_types::{
     account_address::AccountAddress,
     u256::{U256FromStrError, U256},
 };
 use num_bigint::BigUint;
-use std::{fmt::Display, iter::Peekable, num::ParseIntError};
+
+use crate::{
+    address::{NumericalAddress, ParsedAddress},
+    types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType, TypeToken},
+    values::{ParsableValue, ParsedValue, ValueToken},
+};
 
 const MAX_TYPE_DEPTH: u64 = 128;
 const MAX_TYPE_NODE_COUNT: u64 = 256;
@@ -460,12 +463,13 @@ pub fn parse_address_number(s: &str) -> Option<([u8; AccountAddress::LENGTH], Nu
 
 #[cfg(test)]
 mod tests {
+    use move_core_types::{account_address::AccountAddress, u256::U256};
+
     use crate::{
         address::{NumericalAddress, ParsedAddress},
         types::{ParsedStructType, ParsedType},
         values::ParsedValue,
     };
-    use move_core_types::{account_address::AccountAddress, u256::U256};
 
     #[allow(clippy::unreadable_literal)]
     #[test]

@@ -1,6 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 
 use crate::{
     diag,
@@ -10,7 +19,7 @@ use crate::{
         Attribute, AttributeValue_, Attribute_, DottedUsage, Fields, Friend, ModuleAccess_,
         ModuleIdent, ModuleIdent_, Mutability, Value_, Visibility,
     },
-    ice,
+    ice, iota_mode,
     naming::ast::{
         self as N, BlockLabel, IndexSyntaxMethods, TParam, TParamID, Type, TypeName_, Type_,
     },
@@ -24,7 +33,6 @@ use crate::{
         unique_map::UniqueMap,
         *,
     },
-    sui_mode,
     typing::{
         ast as T,
         core::{
@@ -35,12 +43,6 @@ use crate::{
         syntax_methods::validate_syntax_methods,
     },
     FullyCompiledProgram,
-};
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    sync::Arc,
 };
 
 //**************************************************************************************************
@@ -134,10 +136,11 @@ fn modules(
     mut modules: UniqueMap<ModuleIdent, N::ModuleDefinition>,
 ) -> UniqueMap<ModuleIdent, T::ModuleDefinition> {
     let mut all_new_friends = BTreeMap::new();
-    // We validate the syntax methods first so that processing syntax method forms later are
-    // better-typed. It would be preferable to do this in naming, but the typing machinery makes it
-    // much easier to enforce the typeclass-like constraints. We also update the program info to
-    // reflect any changes that happened.
+    // We validate the syntax methods first so that processing syntax method forms
+    // later are better-typed. It would be preferable to do this in naming, but
+    // the typing machinery makes it much easier to enforce the typeclass-like
+    // constraints. We also update the program info to reflect any changes that
+    // happened.
     for (key, mdef) in modules.key_cloned_iter_mut() {
         validate_syntax_methods(context, &key, mdef);
         context
@@ -163,7 +166,7 @@ fn modules(
     for (mident, friends) in all_new_friends {
         let mdef = typed_modules.get_mut(&mident).unwrap();
         // point of interest: if we have any new friends, we know there can't be any
-        // "current" friends becahse all thew new friends are generated off of
+        // "current" friends because all thew new friends are generated off of
         // `public(package)` usage, which disallows other friends.
         mdef.friends = UniqueMap::maybe_from_iter(friends.into_iter())
             .expect("ICE compiler added duplicate friends to public(package) friend list");
@@ -353,7 +356,8 @@ fn constant(context: &mut Context, _name: ConstantName, nconstant: N::Constant) 
 
     process_attributes(context, &attributes);
 
-    // Don't need to add base type constraint, as it is checked in `check_valid_constant::signature`
+    // Don't need to add base type constraint, as it is checked in
+    // `check_valid_constant::signature`
     let mut signature = core::instantiate(context, signature);
     check_valid_constant::signature(
         context,
@@ -391,6 +395,9 @@ fn constant(context: &mut Context, _name: ConstantName, nconstant: N::Constant) 
 }
 
 mod check_valid_constant {
+    use move_ir_types::location::*;
+    use move_proc_macros::growing_stack;
+
     use super::subtype_no_report;
     use crate::{
         diag,
@@ -402,8 +409,6 @@ mod check_valid_constant {
             core::{self, Context, Subst},
         },
     };
-    use move_ir_types::location::*;
-    use move_proc_macros::growing_stack;
 
     pub(crate) fn signature<T: ToString, F: FnOnce() -> T>(
         context: &mut Context,
@@ -647,8 +652,8 @@ fn struct_def(context: &mut Context, s: &mut N::StructDefinition) {
     }
     core::solve_constraints(context);
 
-    // substitute the declared type parameters with an Any type to check for ability field
-    // requirements
+    // substitute the declared type parameters with an Any type to check for ability
+    // field requirements
     let declared_abilities = &s.abilities;
     let tparam_subst = &core::make_tparam_subst(
         s.type_parameters.iter().map(|tp| &tp.param),
@@ -1764,7 +1769,7 @@ fn binop(
         Range | Implies | Iff => {
             context
                 .env
-                .add_diag(ice!((loc, "ICE unexpect specification operator")));
+                .add_diag(ice!((loc, "ICE unexpected specification operator")));
             (context.error_type(loc), context.error_type(loc))
         }
     };
@@ -1809,7 +1814,8 @@ fn loop_body(
     if let Some(break_ty) = break_ty_opt {
         (true, break_ty, eloop)
     } else {
-        // if it was a while loop, the `if` case ran, so we can simply make a type var for the loop
+        // if it was a while loop, the `if` case ran, so we can simply make a type var
+        // for the loop
         (false, context.named_block_type(name, eloc), eloop)
     }
 }
@@ -1923,7 +1929,6 @@ fn lvalue(
     ty: Type,
 ) -> T::LValue {
     use LValueCase as C;
-
     use N::LValue_ as NL;
     use T::LValue_ as TL;
     let tl_ = match nl_ {
@@ -2126,7 +2131,7 @@ fn add_field_types<T>(
         N::StructFields::Native(nloc) => {
             let msg = format!(
                 "Invalid {} usage for native struct '{}::{}'. Native structs cannot be directly \
-                 constructed/deconstructed, and their fields cannot be dirctly accessed",
+                 constructed/deconstructed, and their fields cannot be directly accessed",
                 verb, m, n
             );
             context.env.add_diag(diag!(
@@ -2221,9 +2226,9 @@ fn find_index_funs(context: &mut Context, loc: Loc, ty: &Type) -> Option<IndexSy
     }
 }
 
-// Returns an optional IndexSyntexMethod entry (if one exits) and the base return type for the
-// index method (with refs discarded), using the argumnets to instantiate the method to determine
-// that return type.
+// Returns an optional IndexSyntexMethod entry (if one exits) and the base
+// return type for the index method (with refs discarded), using the argumnets
+// to instantiate the method to determine that return type.
 fn resolve_index_funs_and_type(
     context: &mut Context,
     loc: Loc,
@@ -2255,8 +2260,8 @@ fn resolve_index_funs_and_type(
         .iter()
         .map(|e| core::ready_tvars(&context.subst, e.ty.clone()))
         .collect::<Vec<_>>();
-    // We insert a mut ref here because it will be a correct subtype regardless of if
-    // only `index` or `index_mut` is defined.
+    // We insert a mut ref here because it will be a correct subtype regardless of
+    // if only `index` or `index_mut` is defined.
     arg_types.insert(0, sp(loc, Type_::Ref(true, Box::new(readied))));
     let ty = syntax_call_return_ty(context, loc, m, f, fty, argloc, arg_types);
     (Some(index), ty)
@@ -2266,7 +2271,8 @@ fn resolve_index_funs_and_type(
 // Dotted Expressions
 //--------------------------------------------------------------------------------------------------
 
-// An ExpDotted is a base expression with some number of field and index accessors attached:
+// An ExpDotted is a base expression with some number of field and index
+// accessors attached:
 //
 //   E := base | E . field | E [ args ]
 
@@ -2277,7 +2283,7 @@ enum ExpDottedAccess {
         index_loc: Loc,
         syntax_methods: Option<IndexSyntaxMethods>,
         args: Spanned<Vec<T::Exp>>,
-        base_type: Type, /* base (non-ref) return type */
+        base_type: Type, // base (non-ref) return type
     },
 }
 
@@ -2421,9 +2427,9 @@ fn exp_dotted_expression(
     resolve_exp_dotted(context, usage, eloc, edotted)
 }
 
-// This comment servees to document the function below. Depending on the shape of the dotted
-// expression and the usage requested, we might do significantly different things with the base
-// expression.
+// This comment servees to document the function below. Depending on the shape
+// of the dotted expression and the usage requested, we might do significantly
+// different things with the base expression.
 //
 // | USAGE  | BASE     | ACCESSORS | RESULT          | Diagnostic
 // |--------|----------+-----------+-----------------+----------------------------------------------
@@ -2445,8 +2451,8 @@ fn exp_dotted_expression(
 // | BORROW | <Any>    | <Any>     | Val ~> Borrow   | Ensures agreeable mutability
 // |--------+----------+-----------+-----------------+----------------------------------------------
 //
-// See `borrow_exp_dotted` and `exp_dotted_to_owned` for more details on how those translations
-// proceed.
+// See `borrow_exp_dotted` and `exp_dotted_to_owned` for more details on how
+// those translations proceed.
 
 fn resolve_exp_dotted(
     context: &mut Context,
@@ -2562,8 +2568,8 @@ fn resolve_exp_dotted(
     }
 }
 
-//   Borrowing proceeds based on mutability and if the base expression was originally a
-//   reference:
+//   Borrowing proceeds based on mutability and if the base expression was
+// originally a   reference:
 //
 //        if base is not a ref        if base is a var, check mut
 //     -----------------------------------------------------------[base-borrow]
@@ -2573,9 +2579,9 @@ fn resolve_exp_dotted(
 //     ------------------------------------------------[base-ref-identity]
 //      mut |- base : Ref(_, t)  ~> base : Ref(mut, t)
 //
-//     Note that if `E` was a borrow expression (like `&x`), we constraint the base type to a
-//     single, non-reference type, producing a constraint error if we try to reborrow via
-//     [base-reborrow].
+//     Note that if `E` was a borrow expression (like `&x`), we constraint the
+// base type to a     single, non-reference type, producing a constraint error
+// if we try to reborrow via     [base-reborrow].
 //
 //        mut |- E ~> e : Ref(mut_e, _t)     check(mut == mut_e) or error
 //     -------------------------------------------------------------------[field-borrow]
@@ -2619,8 +2625,8 @@ fn borrow_exp_dotted(context: &mut Context, mut_: bool, ed: ExpDotted) -> Box<T:
         mut warn_on_constant,
     } = ed;
 
-    // If we have accessors, we are definitely going to actually borrow and that means we'll copy
-    // a base constant, so we should warn if we do.
+    // If we have accessors, we are definitely going to actually borrow and that
+    // means we'll copy a base constant, so we should warn if we do.
     warn_on_constant = warn_on_constant || !accessors.is_empty();
 
     let mut exp = match base_kind {
@@ -2696,13 +2702,14 @@ fn borrow_exp_dotted(context: &mut Context, mut_: bool, ed: ExpDotted) -> Box<T:
     exp
 }
 
-//   Ownership is more-precarious, as we only call into it when a few things are true:
+//   Ownership is more-precarious, as we only call into it when a few things are
+// true:
 //   1) The expression has some number of accessors
-//   2) The usage is `use` or `copy` (not `borrow`, which only calls borrow above, or `move`, which
-//      will not work with dotted paths).
+//   2) The usage is `use` or `copy` (not `borrow`, which only calls borrow
+//      above, or `move`, which will not work with dotted paths).
 //
-//   We double-check that these things are the case with compiler panics if they are not, and then
-//   we proceed by rewriting the E as:
+//   We double-check that these things are the case with compiler panics if they
+// are not, and then   we proceed by rewriting the E as:
 //
 //
 //      false |- E ~> e : t  (borrow above)
@@ -2748,8 +2755,8 @@ fn exp_dotted_to_owned(context: &mut Context, usage: DottedUsage, ed: ExpDotted)
             "'copy'"
         }
     };
-    // If we are going to an owned value and we have a constant with no accessors, we're fine to
-    // not warn about its usage.
+    // If we are going to an owned value and we have a constant with no accessors,
+    // we're fine to not warn about its usage.
     let mut edotted = ed;
     if edotted.accessors.is_empty() {
         edotted.warn_on_constant = false;
@@ -2785,7 +2792,8 @@ fn exp_to_borrow(
     base_type: Type,
 ) -> Box<T::Exp> {
     exp_to_borrow_(
-        context, loc, mut_, eb, base_type, /* warn_on_constant */ true,
+        context, loc, mut_, eb, base_type, // warn_on_constant
+        true,
     )
 }
 
@@ -2947,7 +2955,8 @@ fn module_call_impl(
         return_,
     } = fty;
     check_call_target(
-        context, loc, /* is_macro_call */ None, macro_, declared, f,
+        context, loc, // is_macro_call
+        None, macro_, declared, f,
     );
     let (arguments, arg_tys) = call_args(
         context,
@@ -2984,8 +2993,9 @@ fn module_call_impl(
     (call, return_)
 }
 
-/// If the constant that we are referencing has an `error` attribute, we need to change the type of
-/// the constant to a u64 since this will be compiled into a u64 error code.
+/// If the constant that we are referencing has an `error` attribute, we need to
+/// change the type of the constant to a u64 since this will be compiled into a
+/// u64 error code.
 fn annotated_error_const(context: &mut Context, e: &mut T::Exp, abort_or_assert_str: &str) {
     let u64_type = Type_::u64(e.ty.loc);
     let mut const_name = None;
@@ -3121,8 +3131,8 @@ fn syntax_call_return_ty(
         params: parameters,
         return_,
     } = fty;
-    // First, make sure we have a valid function for this. These are never macro calls, so this is
-    // just double-checking.
+    // First, make sure we have a valid function for this. These are never macro
+    // calls, so this is just double-checking.
     check_call_target(context, loc, None, macro_, declared, f);
     // Next we take our args in question and get their types.
     let arg_tys = {
@@ -3132,21 +3142,24 @@ fn syntax_call_return_ty(
     };
     assert!(arg_tys.len() == parameters.len());
     let mut valid = true;
-    // Now we unify the arg types against the function's parameter types. This is to instantiate
-    // the type in the case of a polymorphic return type, e.g.,
+    // Now we unify the arg types against the function's parameter types. This is to
+    // instantiate the type in the case of a polymorphic return type, e.g.,
     //     fun index<T>(&mut S, x: &T): &T { ... }
-    // We don't know what the base type is until we have T in our hand and do this. The subtyping
-    // takes care of this for us. If it fails, however, we're in error mode (explained below).
+    // We don't know what the base type is until we have T in our hand and do this.
+    // The subtyping takes care of this for us. If it fails, however, we're in
+    // error mode (explained below).
     for (arg_ty, (_, param_ty)) in arg_tys.into_iter().zip(parameters.clone()) {
         if let Err(_failure) = subtype_no_report(context, arg_ty, param_ty) {
             valid = false;
         }
     }
-    // The failure case for dotted expressions hands an error expression up the chain: if a field
-    // or syntax index function fails to resolve, we hand up an error and propagate it, instead of
-    // re-attempting to handle it at each step in the accessors (which would cause the user to get
-    // a new error for each part of the access path). Similarly, if our call arguments are wrong,
-    // the path is already bad so we're done trying to resolve it and drop into this error case.
+    // The failure case for dotted expressions hands an error expression up the
+    // chain: if a field or syntax index function fails to resolve, we hand up
+    // an error and propagate it, instead of re-attempting to handle it at each
+    // step in the accessors (which would cause the user to get a new error for
+    // each part of the access path). Similarly, if our call arguments are wrong,
+    // the path is already bad so we're done trying to resolve it and drop into this
+    // error case.
     if !valid {
         context.error_type(return_.loc)
     } else {
@@ -3362,7 +3375,8 @@ fn macro_call_impl(
     check_call_target(
         context,
         loc,
-        /* is_macro_call */ Some(macro_call_loc),
+        // is_macro_call
+        Some(macro_call_loc),
         macro_,
         declared,
         f,
@@ -3375,7 +3389,8 @@ fn macro_call_impl(
         argloc,
         args.len(),
     );
-    // instantiate the param types to check for constraints, even if the argument isn't used
+    // instantiate the param types to check for constraints, even if the argument
+    // isn't used
     for (_, param_ty) in &parameters {
         core::instantiate(context, param_ty.clone());
     }
@@ -3415,8 +3430,8 @@ fn macro_call_impl(
     (ty_args, args_with_ty, return_)
 }
 
-// If the argument is a lambda, we need to check that the lambda's type matches the expected type
-// so that any calls to the lambda can be properly expanded
+// If the argument is a lambda, we need to check that the lambda's type matches
+// the expected type so that any calls to the lambda can be properly expanded
 // Otherwise, we just return the parameters type
 fn expected_by_name_arg_type(
     context: &mut Context,
@@ -3456,7 +3471,8 @@ fn expected_by_name_arg_type(
         )
     };
     subtype(context, call_loc, msg, tfun.clone(), param_ty);
-    // prefer the lambda type over the parameters to preserve annotations on the lambda
+    // prefer the lambda type over the parameters to preserve annotations on the
+    // lambda
     tfun
 }
 
@@ -3469,8 +3485,7 @@ fn expand_macro(
     args: Vec<macro_expand::Arg>,
     return_ty: Type,
 ) -> (Type, T::UnannotatedExp_) {
-    use T::SequenceItem_ as TS;
-    use T::UnannotatedExp_ as TE;
+    use T::{SequenceItem_ as TS, UnannotatedExp_ as TE};
 
     let valid = context.add_macro_expansion(m, f, call_loc);
     if !valid {
@@ -3521,13 +3536,15 @@ fn expand_macro(
     }
 }
 
-/// We need to make sure that arguments to macro calls are either lambdas or a Block
-/// These arguments are call-by-name so the whole expression is substituted in. So we need to track
-/// metadata about the scope where these expressions were originally written.
-/// The Block lets us track two pieces of metadata
-/// 1) We can track the use_fun_scope, which is used for resolving method calls correctly
-/// 2) After substitution, we can mark the Block as coming from a macro expansion which is used
-///    for tracking recursive macro calls
+/// We need to make sure that arguments to macro calls are either lambdas or a
+/// Block These arguments are call-by-name so the whole expression is
+/// substituted in. So we need to track metadata about the scope where these
+/// expressions were originally written. The Block lets us track two pieces of
+/// metadata
+/// 1) We can track the use_fun_scope, which is used for resolving method calls
+///    correctly
+/// 2) After substitution, we can mark the Block as coming from a macro
+///    expansion which is used for tracking recursive macro calls
 fn convert_macro_arg_to_block(context: &Context, sp!(loc, ne_): N::Exp) -> N::Exp {
     let ne_ = match ne_ {
         N::Exp_::Block(_) | N::Exp_::Lambda(_) | N::Exp_::UnresolvedError => ne_,
@@ -3580,13 +3597,13 @@ fn process_attributes<T: TName>(context: &mut Context, all_attributes: &UniqueMa
 /// Should be called after the whole program has been processed.
 fn unused_module_members(context: &mut Context, mident: &ModuleIdent_, mdef: &T::ModuleDefinition) {
     if !mdef.is_source_module {
-        // generate warnings only for modules compiled in this pass rather than for all modules
-        // including pre-compiled libraries for which we do not have source code available and
-        // cannot be analyzed in this pass
+        // generate warnings only for modules compiled in this pass rather than for all
+        // modules including pre-compiled libraries for which we do not have
+        // source code available and cannot be analyzed in this pass
         return;
     }
 
-    let is_sui_mode = context.env.package_config(mdef.package_name).flavor == Flavor::Sui;
+    let is_iota_mode = context.env.package_config(mdef.package_name).flavor == Flavor::Iota;
     context
         .env
         .add_warning_filter_scope(mdef.warning_filter.clone());
@@ -3612,8 +3629,8 @@ fn unused_module_members(context: &mut Context, mident: &ModuleIdent_, mdef: &T:
             // functions with #[test] attribute are implicitly used
             continue;
         }
-        if is_sui_mode && *name == sui_mode::INIT_FUNCTION_NAME {
-            // a Sui-specific filter to avoid signaling that the init function is unused
+        if is_iota_mode && *name == iota_mode::INIT_FUNCTION_NAME {
+            // a Iota-specific filter to avoid signaling that the init function is unused
             continue;
         }
         context
@@ -3625,8 +3642,8 @@ fn unused_module_members(context: &mut Context, mident: &ModuleIdent_, mdef: &T:
             && matches!(fun.visibility, Visibility::Internal)
             && (members.is_none() || !members.unwrap().contains(name))
         {
-            // TODO: postponing handling of friend functions until we decide what to do with them
-            // vis-a-vis ideas around package-private
+            // TODO: postponing handling of friend functions until we decide what to do with
+            // them vis-a-vis ideas around package-private
             let msg = format!(
                 "The non-'public', non-'entry' function '{name}' is never called. \
                 Consider removing it."

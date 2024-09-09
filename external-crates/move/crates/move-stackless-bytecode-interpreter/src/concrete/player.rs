@@ -1,12 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file implements the statement interpretation part of the stackless bytecode interpreter.
+//! This file implements the statement interpretation part of the stackless
+//! bytecode interpreter.
 
 use std::{collections::BTreeMap, rc::Rc};
-
-use num::{BigInt, ToPrimitive, Zero};
 
 use bytecode_interpreter_crypto::{
     ed25519_deserialize_public_key, ed25519_deserialize_signature, ed25519_verify_signature,
@@ -31,6 +31,7 @@ use move_stackless_bytecode::{
         Operation,
     },
 };
+use num::{BigInt, ToPrimitive, Zero};
 
 use crate::{
     concrete::{
@@ -55,7 +56,8 @@ pub type ExecResult<T> = ::std::result::Result<T, AbortInfo>;
 // Constants
 //**************************************************************************************************
 
-// TODO(mengxu): these constants are defined in values_impl.rs which are currently not exposed.
+// TODO(mengxu): these constants are defined in values_impl.rs which are
+// currently not exposed.
 const INDEX_OUT_OF_BOUNDS: u64 = sub_status::NFE_VECTOR_ERROR_BASE + 1;
 const POP_EMPTY_VEC: u64 = sub_status::NFE_VECTOR_ERROR_BASE + 2;
 const DESTROY_NON_EMPTY_VEC: u64 = sub_status::NFE_VECTOR_ERROR_BASE + 3;
@@ -91,7 +93,6 @@ impl<'env> FunctionContext<'env> {
         }
     }
 
-    //
     // settings
     //
 
@@ -103,7 +104,6 @@ impl<'env> FunctionContext<'env> {
             .unwrap_or_default()
     }
 
-    //
     // execution
     //
 
@@ -368,7 +368,6 @@ impl<'env> FunctionContext<'env> {
         Ok(())
     }
 
-    //
     // per-bytecode processing
     //
 
@@ -449,9 +448,11 @@ impl<'env> FunctionContext<'env> {
                 None => (),
                 Some(action) => {
                     assert!(op.can_abort());
-                    assert!(local_state
-                        .get_type(action.1)
-                        .is_compatible_for_abort_code());
+                    assert!(
+                        local_state
+                            .get_type(action.1)
+                            .is_compatible_for_abort_code()
+                    );
                 }
             }
         }
@@ -1249,9 +1250,11 @@ impl<'env> FunctionContext<'env> {
         local_state: &mut LocalState,
     ) {
         if cfg!(debug_assertions) {
-            assert!(op_val
-                .get_ty()
-                .is_ref_of(local_state.get_type(local_root).get_base_type(), Some(true)));
+            assert!(
+                op_val
+                    .get_ty()
+                    .is_ref_of(local_state.get_type(local_root).get_base_type(), Some(true))
+            );
             assert!(local_state.has_value(local_root));
         }
         match op_val.get_ptr() {
@@ -1979,7 +1982,6 @@ impl<'env> FunctionContext<'env> {
         local_state.terminate_with_return(ret_vals);
     }
 
-    //
     // natives
     //
 
@@ -2234,7 +2236,6 @@ impl<'env> FunctionContext<'env> {
         TypedValue::mk_bool(verified)
     }
 
-    //
     // utilities
     //
 
@@ -2296,7 +2297,8 @@ impl<'env> FunctionContext<'env> {
                 .string(target.get_local_name(i))
                 .to_string();
 
-            // check that types for local slots is compatible with the declared parameter type
+            // check that types for local slots is compatible with the declared parameter
+            // type
             if cfg!(debug_assertions) {
                 let local_ty = target.get_local_type(i);
                 let param_decl_ty = &param_decls.get(i).unwrap().1;

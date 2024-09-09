@@ -1,7 +1,7 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::production_config;
 use move_binary_format::file_format::{
     empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken,
@@ -9,6 +9,8 @@ use move_binary_format::file_format::{
 };
 use move_bytecode_verifier::meter::BoundMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
+
+use crate::unit_tests::production_config;
 
 const NUM_LOCALS: u8 = 64;
 const NUM_CALLS: u16 = 77;
@@ -24,7 +26,8 @@ fn get_nested_vec_type(len: usize) -> SignatureToken {
 
 #[test]
 fn test_large_types() {
-    // See also: github.com/aptos-labs/aptos-core/security/advisories/GHSA-37qw-jfpw-8899
+    // See also: github.com/aptos-labs/aptos-core/security/advisories/
+    // GHSA-37qw-jfpw-8899
     let mut m = empty_module();
 
     m.signatures.push(Signature(

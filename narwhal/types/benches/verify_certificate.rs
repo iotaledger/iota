@@ -1,13 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeSet;
 
 use criterion::{
     criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
 };
 use fastcrypto::{hash::Hash, traits::KeyPair};
 use narwhal_types::Certificate;
-use std::collections::BTreeSet;
-use test_utils::{latest_protocol_version, make_optimal_signed_certificates, CommitteeFixture};
+use test_utils::{make_optimal_signed_certificates, CommitteeFixture};
 
 pub fn verify_certificates(c: &mut Criterion) {
     let mut bench_group = c.benchmark_group("verify_certificate");
@@ -25,17 +27,12 @@ pub fn verify_certificates(c: &mut Criterion) {
             .collect();
 
         // process certificates for rounds, check we don't grow the dag too much
-        let genesis = Certificate::genesis(&latest_protocol_version(), &committee)
+        let genesis = Certificate::genesis(&committee)
             .iter()
             .map(|x| x.digest())
             .collect::<BTreeSet<_>>();
-        let (certificates, _next_parents) = make_optimal_signed_certificates(
-            1..=1,
-            &genesis,
-            &committee,
-            &latest_protocol_version(),
-            keys.as_slice(),
-        );
+        let (certificates, _next_parents) =
+            make_optimal_signed_certificates(1..=1, &genesis, &committee, keys.as_slice());
         let certificate = certificates.front().unwrap().clone();
 
         let data_size: usize = bcs::to_bytes(&certificate).unwrap().len();

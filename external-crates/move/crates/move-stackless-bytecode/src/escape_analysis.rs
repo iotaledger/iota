@@ -1,15 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This escape analysis flags procedures that return a reference pointing inside of a struct type
-//! declared in the current module.
+//! This escape analysis flags procedures that return a reference pointing
+//! inside of a struct type declared in the current module.
 
 use std::{cell::RefCell, cmp::Ordering, collections::BTreeMap};
 
 use codespan::FileId;
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
-
 use move_binary_format::file_format::CodeOffset;
 use move_model::{ast::TempIndex, model::FunctionEnv};
 
@@ -209,7 +209,8 @@ impl<'a> TransferFunctions for EscapeAnalysis<'a> {
                     // these operations do not assign any locals
                 }
                 Uninit => {
-                    // this operation is just a marker and does not assign any locals
+                    // this operation is just a marker and does not assign any
+                    // locals
                 }
                 Destroy => {
                     state.remove(&args[0]);

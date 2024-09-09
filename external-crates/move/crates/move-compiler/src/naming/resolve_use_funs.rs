@@ -1,14 +1,19 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::expansion::ast::{self as E, ModuleIdent};
-use crate::naming::ast as N;
-use crate::parser::ast::{FunctionName, Visibility};
-use crate::shared::{program_info::NamingProgramInfo, unique_map::UniqueMap, *};
-use crate::typing::core;
-use crate::{diag, ice};
 use move_ir_types::location::*;
 use move_proc_macros::growing_stack;
+
+use crate::{
+    diag,
+    expansion::ast::{self as E, ModuleIdent},
+    ice,
+    naming::ast as N,
+    parser::ast::{FunctionName, Visibility},
+    shared::{program_info::NamingProgramInfo, unique_map::UniqueMap, *},
+    typing::core,
+};
 
 //**************************************************************************************************
 // Entry
@@ -186,7 +191,8 @@ fn use_funs(context: &mut Context, uf: &mut N::UseFuns) {
     resolved.retain(|_, methods| !methods.is_empty());
 
     // resolve implicit candidates, removing if
-    // - It is not a valid method (i.e. if it would be invalid to declare as a 'use fun')
+    // - It is not a valid method (i.e. if it would be invalid to declare as a 'use
+    //   fun')
     // - The name is already bound
     for (method, implicit) in std::mem::take(implicit_candidates) {
         let E::ImplicitUseFunCandidate {
@@ -208,7 +214,8 @@ fn use_funs(context: &mut Context, uf: &mut N::UseFuns) {
         let (kind, used) = match ekind {
             E::ImplicitUseFunKind::FunctionDeclaration => (
                 N::UseFunKind::FunctionDeclaration,
-                /* silences unused warning */ true,
+                // silences unused warning
+                true,
             ),
             E::ImplicitUseFunKind::UseAlias { used } => {
                 assert!(is_public.is_none());

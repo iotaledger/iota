@@ -1,6 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::HashSet,
+    convert::TryInto,
+    io::{Cursor, Read},
+};
+
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, metadata::Metadata,
+    vm_status::StatusCode,
+};
 
 use crate::{
     binary_config::{BinaryConfig, TableConfig},
@@ -9,11 +21,6 @@ use crate::{
     file_format::*,
     file_format_common::*,
 };
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, metadata::Metadata,
-    vm_status::StatusCode,
-};
-use std::{collections::HashSet, convert::TryInto, io::{Cursor, Read}};
 
 impl CompiledScript {
     /// Deserializes a &[u8] slice into a `CompiledScript` instance.
@@ -41,10 +48,7 @@ impl CompiledScript {
 impl CompiledModule {
     /// Deserialize a &[u8] slice into a `CompiledModule` instance.
     pub fn deserialize_with_defaults(binary: &[u8]) -> BinaryLoaderResult<Self> {
-        Self::deserialize_with_config(
-            binary,
-            &BinaryConfig::with_extraneous_bytes_check(false),
-        )
+        Self::deserialize_with_config(binary, &BinaryConfig::with_extraneous_bytes_check(false))
     }
 
     /// Deserialize a &[u8] slice into a `CompiledModule` instance with settings
@@ -66,8 +70,8 @@ impl CompiledModule {
     }
 }
 
-/// Table info: table type, offset where the table content starts from, count of bytes for
-/// the table content.
+/// Table info: table type, offset where the table content starts from, count of
+/// bytes for the table content.
 #[derive(Clone, Debug)]
 struct Table {
     kind: TableType,
@@ -127,7 +131,6 @@ fn read_u256_internal(
     Ok(move_core_types::u256::U256::from_le_bytes(&u256_bytes))
 }
 
-//
 // Helpers to read all uleb128 encoded integers.
 //
 fn read_uleb_internal<T>(cursor: &mut VersionedCursor, max: u64) -> BinaryLoaderResult<T>
@@ -380,7 +383,7 @@ fn read_table(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Table> {
         Ok(kind) => kind,
         Err(_) => {
             return Err(PartialVMError::new(StatusCode::MALFORMED)
-                .with_message("Error reading table".to_string()))
+                .with_message("Error reading table".to_string()));
         }
     };
     let table_offset = load_table_offset(cursor)?;
@@ -390,9 +393,11 @@ fn read_table(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Table> {
 
 /// Verify correctness of tables.
 ///
-/// Tables cannot have duplicates, must cover the entire blob and must be disjoint.
+/// Tables cannot have duplicates, must cover the entire blob and must be
+/// disjoint.
 fn check_tables(tables: &mut Vec<Table>, binary_len: usize) -> BinaryLoaderResult<u32> {
-    // there is no real reason to pass a mutable reference but we are sorting next line
+    // there is no real reason to pass a mutable reference but we are sorting next
+    // line
     tables.sort_by(|t1, t2| t1.offset.cmp(&t2.offset));
 
     let mut current_offset: u32 = 0;
@@ -418,7 +423,6 @@ fn check_tables(tables: &mut Vec<Table>, binary_len: usize) -> BinaryLoaderResul
     Ok(current_offset)
 }
 
-//
 // Trait to read common tables from CompiledScript or CompiledModule
 //
 
@@ -557,19 +561,21 @@ fn build_common_tables(
         friend_decls: _,
     } = &binary.binary_config.table_config;
     for table in tables {
-        // minimize code that checks limits with a local macro that knows the context (`table: &Table`)
+        // minimize code that checks limits with a local macro that knows the context
+        // (`table: &Table`)
         macro_rules! check_table_size {
             ($vec:expr, $max:expr) => {
                 if $vec.len() > $max as usize {
-                    return Err(PartialVMError::new(StatusCode::MALFORMED)
-                        .with_message(format!(
+                    return Err(
+                        PartialVMError::new(StatusCode::MALFORMED).with_message(format!(
                             "Exceeded size ({} > {})  in {:?}",
                             $vec.len(),
                             $max,
                             table.kind,
-                    )));
+                        )),
+                    );
                 }
-            }
+            };
         }
 
         match table.kind {
@@ -665,22 +671,23 @@ fn build_module_tables(
         function_defs: function_defs_max,
         field_handles: field_handles_max,
         field_instantiations: field_instantiations_max,
-        friend_decls:  friend_decls_max,
+        friend_decls: friend_decls_max,
     } = &binary.binary_config.table_config;
     for table in tables {
         // minimize code that checks limits bu a local macro that know the context
         macro_rules! check_table_size {
             ($vec:expr, $max:expr) => {
                 if $vec.len() > $max as usize {
-                    return Err(PartialVMError::new(StatusCode::MALFORMED)
-                        .with_message(format!(
+                    return Err(
+                        PartialVMError::new(StatusCode::MALFORMED).with_message(format!(
                             "Exceeded size ({} > {})  in {:?}",
                             $vec.len(),
                             $max,
                             table.kind,
-                    )));
+                        )),
+                    );
                 }
-            }
+            };
         }
 
         match table.kind {
@@ -1015,7 +1022,8 @@ pub fn load_signature_token_test_entry(
 
 /// Deserializes a `SignatureToken`.
 fn load_signature_token(cursor: &mut VersionedCursor) -> BinaryLoaderResult<SignatureToken> {
-    // The following algorithm works by storing partially constructed types on a stack.
+    // The following algorithm works by storing partially constructed types on a
+    // stack.
     //
     // Example:
     //
@@ -1067,7 +1075,9 @@ fn load_signature_token(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Sign
                 } => {
                     ty_args.push(tok);
                     if ty_args.len() >= arity {
-                        T::Saturated(SignatureToken::StructInstantiation(Box::new((sh_idx, ty_args))))
+                        T::Saturated(SignatureToken::StructInstantiation(Box::new((
+                            sh_idx, ty_args,
+                        ))))
                     } else {
                         T::StructInst {
                             sh_idx,
@@ -1194,16 +1204,16 @@ fn load_ability_set(
     //   - all kind becomes empty
     //   - resource kind becomes resource
     //   - copyable kind becomes copy+drop
-    // In summary, we do not need store on the struct type parameter case for backwards
-    // compatibility because any old code paths or entry points will use them with store types.
-    // Any new code paths gain flexibility by being able to use the struct with possibly non-store
-    // instantiations
+    // In summary, we do not need store on the struct type parameter case for
+    // backwards compatibility because any old code paths or entry points will
+    // use them with store types. Any new code paths gain flexibility by being
+    // able to use the struct with possibly non-store instantiations
     if cursor.version() < 2 {
         let byte = match cursor.read_u8() {
             Ok(byte) => byte,
             Err(_) => {
                 return Err(PartialVMError::new(StatusCode::MALFORMED)
-                    .with_message("Unexpected EOF".to_string()))
+                    .with_message("Unexpected EOF".to_string()));
             }
         };
         match pos {
@@ -1232,8 +1242,9 @@ fn load_ability_set(
             }
         }
     } else {
-        // The uleb here doesn't really do anything as it is bounded currently to 0xF, but the
-        // if we get many more constraints in the future, uleb will be helpful.
+        // The uleb here doesn't really do anything as it is bounded currently to 0xF,
+        // but the if we get many more constraints in the future, uleb will be
+        // helpful.
         let u = read_uleb_internal(cursor, AbilitySet::ALL.into_u8() as u64)?;
         match AbilitySet::from_u8(u) {
             Some(abilities) => Ok(abilities),
@@ -1296,7 +1307,7 @@ fn load_struct_defs(
             Ok(byte) => SerializedNativeStructFlag::from_u8(byte)?,
             Err(_) => {
                 return Err(PartialVMError::new(StatusCode::MALFORMED)
-                    .with_message("Invalid field info in struct".to_string()))
+                    .with_message("Invalid field info in struct".to_string()));
             }
         };
         let field_information = match field_information_flag {
@@ -1401,11 +1412,12 @@ fn load_function_def(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Functio
     })?;
 
     // NOTE: changes compared with VERSION_1
-    // - in VERSION_1: the flags is a byte compositing both the visibility info and whether
-    //                 the function is a native function
-    // - in VERSION_2 onwards: the flags only represent the visibility info and we need to
-    //                 advance the cursor to read up the next byte as flags
-    // - in VERSION_5 onwards: script visibility has been deprecated for an entry function flag
+    // - in VERSION_1: the flags is a byte compositing both the visibility info and
+    //   whether the function is a native function
+    // - in VERSION_2 onwards: the flags only represent the visibility info and we
+    //   need to advance the cursor to read up the next byte as flags
+    // - in VERSION_5 onwards: script visibility has been deprecated for an entry
+    //   function flag
     let (visibility, is_entry, mut extra_flags) = if cursor.version() == VERSION_1 {
         let vis = if (flags & FunctionDefinition::DEPRECATED_PUBLIC_BIT) != 0 {
             flags ^= FunctionDefinition::DEPRECATED_PUBLIC_BIT;
@@ -1452,8 +1464,8 @@ fn load_function_def(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Functio
         Some(load_code_unit(cursor)?)
     };
 
-    // check that the bits unused in the flags are not set, otherwise it might cause some trouble
-    // if later we decide to assign meaning to these bits.
+    // check that the bits unused in the flags are not set, otherwise it might cause
+    // some trouble if later we decide to assign meaning to these bits.
     if extra_flags != 0 {
         return Err(PartialVMError::new(StatusCode::INVALID_FLAG_BITS));
     }
@@ -1856,7 +1868,6 @@ impl Opcodes {
     }
 }
 
-//
 // Cursor API
 //
 
@@ -1889,8 +1900,7 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
         // check magic
         let mut magic = [0u8; BinaryConstants::MOVE_MAGIC_SIZE];
         if let Ok(count) = cursor.read(&mut magic) {
-            if count != BinaryConstants::MOVE_MAGIC_SIZE || magic != BinaryConstants::MOVE_MAGIC
-            {
+            if count != BinaryConstants::MOVE_MAGIC_SIZE || magic != BinaryConstants::MOVE_MAGIC {
                 return Err(PartialVMError::new(StatusCode::BAD_MAGIC));
             }
         } else {
@@ -1905,21 +1915,20 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
                     .with_message("Bad binary header".to_string()));
             }
         };
-        if version == 0 || version > u32::min(binary_config.max_binary_format_version, VERSION_MAX) {
+        if version == 0 || version > u32::min(binary_config.max_binary_format_version, VERSION_MAX)
+        {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }
 
-        let mut versioned_cursor = VersionedCursor {
-            version,
-            cursor,
-        };
+        let mut versioned_cursor = VersionedCursor { version, cursor };
         // load table info
         let table_count = load_table_count(&mut versioned_cursor)?;
         let mut tables: Vec<Table> = Vec::new();
         read_tables(&mut versioned_cursor, table_count, &mut tables)?;
         let table_size = check_tables(&mut tables, binary_len)?;
         if table_size as u64 + versioned_cursor.position() > binary_len as u64 {
-            return Err(PartialVMError::new(StatusCode::MALFORMED).with_message("Table size too big".to_string()))
+            return Err(PartialVMError::new(StatusCode::MALFORMED)
+                .with_message("Table size too big".to_string()));
         }
 
         // save "start offset" for table content (data)
@@ -1935,15 +1944,14 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
         // end of binary
         let binary_end_offset = versioned_cursor.position() as usize;
         Ok(Self {
-                binary_config,
-                binary,
-                version,
-                tables,
-                module_idx,
-                data_offset,
-                binary_end_offset,
-            },
-        )
+            binary_config,
+            binary,
+            version,
+            tables,
+            module_idx,
+            data_offset,
+            binary_end_offset,
+        })
     }
 
     fn version(&self) -> u32 {
@@ -2006,10 +2014,7 @@ impl<'a> VersionedCursor<'a> {
 
     #[cfg(test)]
     fn new_for_test(version: u32, cursor: Cursor<&'a [u8]>) -> Self {
-        Self {
-            version,
-            cursor,
-        }
+        Self { version, cursor }
     }
 }
 

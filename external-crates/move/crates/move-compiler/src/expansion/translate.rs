@@ -1,6 +1,19 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    iter::IntoIterator,
+    sync::Arc,
+};
+
+use move_command_line_common::parser::{parse_u16, parse_u256, parse_u32};
+use move_core_types::account_address::AccountAddress;
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
@@ -24,16 +37,6 @@ use crate::{
     shared::{known_attributes::AttributePosition, unique_map::UniqueMap, *},
     FullyCompiledProgram,
 };
-use move_command_line_common::parser::{parse_u16, parse_u256, parse_u32};
-use move_core_types::account_address::AccountAddress;
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    iter::IntoIterator,
-    sync::Arc,
-};
 
 //**************************************************************************************************
 // Context
@@ -41,10 +44,10 @@ use std::{
 
 type ModuleMembers = BTreeMap<Name, ModuleMemberKind>;
 
-// NB: We carry a few things separately because we need to split them out during path resolution to
-// allow for dynamic behavior during that resolution. This dynamic behavior allows us to reuse the
-// majority of the pass while swapping out how we handle paths and aliases for Move 2024 versus
-// legacy.
+// NB: We carry a few things separately because we need to split them out during
+// path resolution to allow for dynamic behavior during that resolution. This
+// dynamic behavior allows us to reuse the majority of the pass while swapping
+// out how we handle paths and aliases for Move 2024 versus legacy.
 
 struct DefnContext<'env, 'map> {
     named_address_mapping: Option<&'map NamedAddressMap>,
@@ -117,7 +120,7 @@ impl<'env, 'map> Context<'env, 'map> {
         }
     }
 
-    /// Pushes a new alias map onto the alias information in the pash expander.
+    /// Pushes a new alias map onto the alias information in the path expander.
     pub fn push_alias_scope(&mut self, loc: Loc, new_scope: AliasMapBuilder) {
         let res = self
             .path_expander
@@ -130,7 +133,8 @@ impl<'env, 'map> Context<'env, 'map> {
         }
     }
 
-    // Push a number of type parameters onto the alias information in the path expander.
+    // Push a number of type parameters onto the alias information in the path
+    // expander.
     pub fn push_type_parameters<'a, I: IntoIterator<Item = &'a Name>>(&mut self, tparams: I)
     where
         I::IntoIter: ExactSizeIterator,
@@ -141,8 +145,9 @@ impl<'env, 'map> Context<'env, 'map> {
             .push_type_parameters(tparams.into_iter().collect::<Vec<_>>());
     }
 
-    /// Pops the innermost alias information on the path expander and reports errors for aliases
-    /// that were unused Marks implicit use funs as unused
+    /// Pops the innermost alias information on the path expander and reports
+    /// errors for aliases that were unused Marks implicit use funs as
+    /// unused
     pub fn pop_alias_scope(&mut self, mut use_funs: Option<&mut E::UseFuns>) {
         let AliasSet { modules, members } = self.path_expander.as_mut().unwrap().pop_alias_scope();
         for alias in modules {
@@ -272,8 +277,8 @@ fn unnecessary_alias_error(context: &mut Context, unnecessary: UnnecessaryAlias)
     context.env().add_diag(diag);
 }
 
-/// We mark named addresses as having a conflict if there is not a bidirectional mapping between
-/// the name and its value
+/// We mark named addresses as having a conflict if there is not a bidirectional
+/// mapping between the name and its value
 fn compute_address_conflicts(
     pre_compiled_lib: Option<Arc<FullyCompiledProgram>>,
     prog: &P::Program,
@@ -316,16 +321,16 @@ const IMPLICIT_STD_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[(
     ModuleMemberKind::Struct,
 )];
 
-// Implicit aliases for Sui mode:
-// use sui::object::{Self, ID, UID};
-// use sui::transfer;
-// use sui::tx_context::{Self, TxContext};
-const IMPLICIT_SUI_MODULES: &[Symbol] = &[
+// Implicit aliases for Iota mode:
+// use iota::object::{Self, ID, UID};
+// use iota::transfer;
+// use iota::tx_context::{Self, TxContext};
+const IMPLICIT_IOTA_MODULES: &[Symbol] = &[
     symbol!("object"),
     symbol!("transfer"),
     symbol!("tx_context"),
 ];
-const IMPLICIT_SUI_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[
+const IMPLICIT_IOTA_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[
     (symbol!("object"), symbol!("ID"), ModuleMemberKind::Struct),
     (symbol!("object"), symbol!("UID"), ModuleMemberKind::Struct),
     (
@@ -344,10 +349,11 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
     {
         return builder;
     }
-    // Unused loc since these will not conflict and are implicit so no warnings are given
+    // Unused loc since these will not conflict and are implicit so no warnings are
+    // given
     let loc = Loc::invalid();
     let std_address = maybe_make_well_known_address(context, loc, symbol!("std"));
-    let sui_address = maybe_make_well_known_address(context, loc, symbol!("sui"));
+    let iota_address = maybe_make_well_known_address(context, loc, symbol!("iota"));
     let mut modules: Vec<(Address, Symbol)> = vec![];
     let mut members: Vec<(Address, Symbol, Symbol, ModuleMemberKind)> = vec![];
     // if std is defined, add implicit std aliases
@@ -365,21 +371,23 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
                 .map(|(m, mem, k)| (std_address, m, mem, k)),
         );
     }
-    // if sui is defined and the current package is in Sui mode, add implicit sui aliases
-    if sui_address.is_some() && context.env().package_config(current_package).flavor == Flavor::Sui
+    // if iota is defined and the current package is in Iota mode, add implicit iota
+    // aliases
+    if iota_address.is_some()
+        && context.env().package_config(current_package).flavor == Flavor::Iota
     {
-        let sui_address = sui_address.unwrap();
+        let iota_address = iota_address.unwrap();
         modules.extend(
-            IMPLICIT_SUI_MODULES
+            IMPLICIT_IOTA_MODULES
                 .iter()
                 .copied()
-                .map(|m| (sui_address, m)),
+                .map(|m| (iota_address, m)),
         );
         members.extend(
-            IMPLICIT_SUI_MEMBERS
+            IMPLICIT_IOTA_MEMBERS
                 .iter()
                 .copied()
-                .map(|(m, mem, k)| (sui_address, m, mem, k)),
+                .map(|(m, mem, k)| (iota_address, m, mem, k)),
         );
     }
     for (addr, module) in modules {
@@ -559,7 +567,8 @@ fn definition(
             let module_addr = module_paddr.map(|addr| {
                 let address = top_level_address(
                     &mut context.defn_context,
-                    /* suggest_declaration */ true,
+                    // suggest_declaration
+                    true,
                     addr,
                 );
                 sp(addr.loc, address)
@@ -569,7 +578,8 @@ fn definition(
         P::Definition::Address(a) => {
             let addr = top_level_address(
                 &mut context.defn_context,
-                /* suggest_declaration */ false,
+                // suggest_declaration
+                false,
                 a.addr,
             );
             for mut m in a.modules {
@@ -581,7 +591,8 @@ fn definition(
     context.pop_alias_scope(None);
 }
 
-// Access a top level address as declared, not affected by any aliasing/shadowing
+// Access a top level address as declared, not affected by any
+// aliasing/shadowing
 fn top_level_address(
     context: &mut DefnContext,
     suggest_declaration: bool,
@@ -716,7 +727,8 @@ fn check_module_address(
             let other_loc = other_paddr.loc;
             let other_addr = top_level_address(
                 &mut context.defn_context,
-                /* suggest_declaration */ true,
+                // suggest_declaration
+                true,
                 other_paddr,
             );
             let msg = if addr == other_addr {
@@ -1165,8 +1177,8 @@ fn attribute(
     ))
 }
 
-/// Like warning_filter, but it will filter _all_ warnings for non-source definitions (or for any
-/// dependency packages)
+/// Like warning_filter, but it will filter _all_ warnings for non-source
+/// definitions (or for any dependency packages)
 fn module_warning_filter(context: &mut Context, attributes: &E::Attributes) -> WarningFilters {
     let filters = warning_filter(context, attributes);
     let is_dep = !context.is_source_definition || {
@@ -1174,16 +1186,16 @@ fn module_warning_filter(context: &mut Context, attributes: &E::Attributes) -> W
         context.env().package_config(pkg).is_dependency
     };
     if is_dep {
-        // For dependencies (non source defs or package deps), we check the filters for errors
-        // but then throw them away and actually ignore _all_ warnings
+        // For dependencies (non source defs or package deps), we check the filters for
+        // errors but then throw them away and actually ignore _all_ warnings
         context.all_filter_alls.clone()
     } else {
         filters
     }
 }
 
-/// Finds the warning filters from the #[allow(_)] attribute and the deprecated #[lint_allow(_)]
-/// attribute.
+/// Finds the warning filters from the #[allow(_)] attribute and the deprecated
+/// #[lint_allow(_)] attribute.
 fn warning_filter(context: &mut Context, attributes: &E::Attributes) -> WarningFilters {
     let mut warning_filters = WarningFilters::new_for_source();
     let mut prefixed_filters: Vec<(DiagnosticAttribute, Option<Symbol>, Vec<Name>)> = vec![];
@@ -1325,8 +1337,9 @@ enum Access {
     Module, // Just used for errors
 }
 
-// This trait describes the commands available to handle alias scopes and expanding name access
-// chains. This is used to model both legacy and modern path expansion.
+// This trait describes the commands available to handle alias scopes and
+// expanding name access chains. This is used to model both legacy and modern
+// path expansion.
 
 trait PathExpander {
     // Push a new innermost alias scope
@@ -1336,8 +1349,9 @@ trait PathExpander {
         new_scope: AliasMapBuilder,
     ) -> Result<Vec<UnnecessaryAlias>, Box<Diagnostic>>;
 
-    // Push a number of type parameters onto the alias information in the path expander. They are
-    // never resolved, but are tracked to apply appropriate shadowing.
+    // Push a number of type parameters onto the alias information in the path
+    // expander. They are never resolved, but are tracked to apply appropriate
+    // shadowing.
     fn push_type_parameters(&mut self, tparams: Vec<&Name>);
 
     // Pop the innermost alias scope
@@ -1428,8 +1442,8 @@ impl PathExpander for LegacyPathExpander {
                     }
                     EV::Module(mident)
                 }
-                // bit wonky, but this is the only spot currently where modules and expressions exist
-                // in the same namespace.
+                // bit wonky, but this is the only spot currently where modules and expressions
+                // exist in the same namespace.
                 // TODO consider if we want to just force all of these checks into the well-known
                 // attribute setup
                 PV::ModuleAccess(sp!(ident_loc, PN::One(n)))
@@ -1454,7 +1468,8 @@ impl PathExpander for LegacyPathExpander {
                 {
                     let addr = top_level_address(
                         context,
-                        /* suggest_declaration */ false,
+                        // suggest_declaration
+                        false,
                         sp(aloc, LN::Name(n1)),
                     );
                     let mident = sp(ident_loc, ModuleIdent_::new(addr, ModuleName(n2)));
@@ -1598,7 +1613,7 @@ fn unexpected_address_module_error(loc: Loc, nloc: Loc, access: Access) -> Diagn
                     "ICE expected a module name and got one, but tried to report an error"
                 ),
                 (nloc, "Name location")
-            )
+            );
         }
     };
     let unexpected_msg = format!(
@@ -1683,17 +1698,19 @@ impl Move2024PathExpander {
 
         match self.aliases.resolve(namespace, &name) {
             Some(AliasEntry::Member(_, mident, sp!(_, mem))) => {
-                // We are preserving the name's original location, rather than referring to where
-                // the alias was defined. The name represents JUST the member name, though, so we do
-                // not change location of the module as we don't have this information.
-                // TODO maybe we should also keep the alias reference (or its location)?
+                // We are preserving the name's original location, rather than referring to
+                // where the alias was defined. The name represents JUST the
+                // member name, though, so we do not change location of the
+                // module as we don't have this information. TODO maybe we
+                // should also keep the alias reference (or its location)?
                 ModuleAccess(name.loc, EN::ModuleAccess(mident, sp(name.loc, mem)))
             }
             Some(AliasEntry::Module(_, mident)) => {
-                // We are preserving the name's original location, rather than referring to where
-                // the alias was defined. The name represents JUST the module name, though, so we do
-                // not change location of the address as we don't have this information.
-                // TODO maybe we should also keep the alias reference (or its location)?
+                // We are preserving the name's original location, rather than referring to
+                // where the alias was defined. The name represents JUST the
+                // module name, though, so we do not change location of the
+                // address as we don't have this information. TODO maybe we
+                // should also keep the alias reference (or its location)?
                 let sp!(
                     _,
                     ModuleIdent_ {
@@ -1759,8 +1776,7 @@ impl Move2024PathExpander {
 
         match chain {
             PN::One(name) => {
-                use crate::naming::ast::BuiltinFunction_;
-                use crate::naming::ast::BuiltinTypeName_;
+                use crate::naming::ast::{BuiltinFunction_, BuiltinTypeName_};
                 let namespace = match access {
                     Access::Type | Access::ApplyNamed | Access::ApplyPositional | Access::Term => {
                         NameSpace::ModuleMembers
@@ -2152,7 +2168,8 @@ fn all_module_members<'a>(
                     Some(a) => top_level_address_(
                         context,
                         named_addr_map,
-                        /* suggest_declaration */ true,
+                        // suggest_declaration
+                        true,
                         *a,
                     ),
                     // Error will be handled when the module is compiled
@@ -2164,7 +2181,8 @@ fn all_module_members<'a>(
                 let addr = top_level_address_(
                     context,
                     named_addr_map,
-                    /* suggest_declaration */ false,
+                    // suggest_declaration
+                    false,
                     addr_def.addr,
                 );
                 for m in &addr_def.modules {
@@ -2210,8 +2228,9 @@ fn named_addr_map_to_alias_map_builder(
 ) -> AliasMapBuilder {
     let mut new_aliases = context.new_alias_map_builder();
     for (name, addr) in named_addr_map {
-        // Address symbols get dummy locations so that we can lift them to names. These should
-        // always be rewritten with more-accurate information as they are used.
+        // Address symbols get dummy locations so that we can lift them to names. These
+        // should always be rewritten with more-accurate information as they are
+        // used.
         new_aliases
             .add_address_alias(sp(Loc::invalid(), *name), *addr)
             .expect("ICE dupe address");
@@ -3694,8 +3713,7 @@ fn lvalues(context: &mut Context, e: Box<P::Exp>) -> Option<LValue> {
 }
 
 fn assign(context: &mut Context, sp!(loc, e_): P::Exp) -> Option<E::LValue> {
-    use E::LValue_ as EL;
-    use E::ModuleAccess_ as M;
+    use E::{LValue_ as EL, ModuleAccess_ as M};
     use P::Exp_ as PE;
     match e_ {
         PE::Name(name, ptys_opt) => {
@@ -3816,8 +3834,7 @@ fn check_valid_address_name(
 }
 
 fn check_valid_function_parameter_name(context: &mut Context, is_macro: Option<Loc>, v: &Var) {
-    const SYNTAX_IDENTIFIER_NOTE: &str =
-        "'macro' parameters start with '$' to indicate that their arguments are not evaluated \
+    const SYNTAX_IDENTIFIER_NOTE: &str = "'macro' parameters start with '$' to indicate that their arguments are not evaluated \
         before the macro is expanded, meaning the entire expression is substituted. \
         This is different from regular function parameters that are evaluated before the \
         function is called.";
@@ -4098,7 +4115,7 @@ fn check_restricted_name_all_cases(
             if Var::is_syntax_identifier_name(n.value) {
                 let msg = format!(
                     "Invalid {} name '{}'. Identifiers starting with '$' can be used only for \
-                    parameters and type paramters",
+                    parameters and type parameters",
                     case.name(),
                     n,
                 );

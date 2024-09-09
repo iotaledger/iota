@@ -1,0 +1,25 @@
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1 'publish'. lines 9-21:
+created: object(1,0), object(1,1), object(1,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 10617200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'programmable'. lines 23-25:
+created: object(2,0)
+mutated: object(0,0), object(1,2)
+gas summary: computation_cost: 1000000, storage_cost: 4012800,  storage_rebate: 2690400, non_refundable_storage_fee: 0
+
+task 3 'view-object'. lines 27-27:
+Owner: Account Address ( A )
+Version: 3
+Contents: iota::coin::Coin<test::fake::FAKE> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, balance: iota::balance::Balance<test::fake::FAKE> {value: 100u64}}
+
+task 4 'programmable'. lines 29-35:
+created: object(4,0)
+mutated: object(0,0), object(1,2)
+deleted: object(2,0)
+gas summary: computation_cost: 1000000, storage_cost: 4012800,  storage_rebate: 4012800, non_refundable_storage_fee: 0

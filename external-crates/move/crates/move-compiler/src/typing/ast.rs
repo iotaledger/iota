@@ -1,6 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeSet, VecDeque},
+    fmt,
+};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     debug_display,
@@ -20,12 +29,6 @@ use crate::{
     shared::{
         ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, CompilationEnv, Name,
     },
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeSet, VecDeque},
-    fmt,
 };
 
 //**************************************************************************************************
@@ -55,8 +58,9 @@ pub struct ModuleDefinition {
     pub package_name: Option<Symbol>,
     pub attributes: Attributes,
     pub is_source_module: bool,
-    /// `dependency_order` is the topological order/rank in the dependency graph.
-    /// `dependency_order` is initialized at `0` and set in the uses pass
+    /// `dependency_order` is the topological order/rank in the dependency
+    /// graph. `dependency_order` is initialized at `0` and set in the uses
+    /// pass
     pub dependency_order: usize,
     pub immediate_neighbors: UniqueMap<ModuleIdent, Neighbor>,
     pub used_addresses: BTreeSet<Address>,
@@ -88,8 +92,9 @@ pub struct Function {
     pub attributes: Attributes,
     /// The original, declared visibility as defined in the source file
     pub visibility: Visibility,
-    /// We sometimes change the visibility of functions, e.g. `entry` is marked as `public` in
-    /// test_mode. This is the visibility we will actually emit in the compiled module
+    /// We sometimes change the visibility of functions, e.g. `entry` is marked
+    /// as `public` in test_mode. This is the visibility we will actually
+    /// emit in the compiled module
     pub compiled_visibility: Visibility,
     pub entry: Option<Loc>,
     pub macro_: Option<Loc>,
@@ -239,8 +244,9 @@ pub enum ExpListItem {
 
 impl BuiltinFunction_ {
     pub fn display_name(&self) -> &'static str {
-        use crate::naming::ast::BuiltinFunction_ as NB;
         use BuiltinFunction_ as B;
+
+        use crate::naming::ast::BuiltinFunction_ as NB;
         match self {
             B::Freeze(_) => NB::FREEZE,
             B::Assert(_) => NB::ASSERT_MACRO,
@@ -732,8 +738,9 @@ impl AstDebug for ModuleCall {
 
 impl AstDebug for BuiltinFunction_ {
     fn ast_debug(&self, w: &mut AstWriter) {
-        use crate::naming::ast::BuiltinFunction_ as NF;
         use BuiltinFunction_ as F;
+
+        use crate::naming::ast::BuiltinFunction_ as NF;
         let (n, bt_opt) = match self {
             F::Freeze(bt) => (NF::FREEZE, Some(bt)),
             F::Assert(_) => (NF::ASSERT_MACRO, None),

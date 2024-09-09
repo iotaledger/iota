@@ -1,29 +1,32 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Serialization of transactions and modules.
 //!
-//! This module exposes two entry points for serialization of `CompiledScript` and
-//! `CompiledModule`. The entry points are exposed on the main structs `CompiledScript` and
-//! `CompiledModule`.
+//! This module exposes two entry points for serialization of `CompiledScript`
+//! and `CompiledModule`. The entry points are exposed on the main structs
+//! `CompiledScript` and `CompiledModule`.
 //!
 //! **Versioning**
 //!
-//! A note about versioning. The serializer supports writing file_format versions >= v5. The
-//! entry points get the version number passed in and generate compatible formats. However,
-//! not all of the newer language constructs might be supported for older versions, leading to
-//! serialization errors.
+//! A note about versioning. The serializer supports writing file_format
+//! versions >= v5. The entry points get the version number passed in and
+//! generate compatible formats. However, not all of the newer language
+//! constructs might be supported for older versions, leading to serialization
+//! errors.
 
-use crate::{file_format::*, file_format_common::*};
 use anyhow::{anyhow, bail, Result};
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, metadata::Metadata,
 };
 
+use crate::{file_format::*, file_format_common::*};
+
 impl CompiledScript {
-    /// Serializes a `CompiledScript` into a binary. The mutable `Vec<u8>` will contain the
-    /// binary blob on return.
+    /// Serializes a `CompiledScript` into a binary. The mutable `Vec<u8>` will
+    /// contain the binary blob on return.
     pub fn serialize(&self, binary: &mut Vec<u8>) -> Result<()> {
         self.serialize_for_version(None, binary)
     }
@@ -214,8 +217,8 @@ fn validate_version(version: u32) -> Result<()> {
 }
 
 impl CompiledModule {
-    /// Serializes a `CompiledModule` into a binary. The mutable `Vec<u8>` will contain the
-    /// binary blob on return.
+    /// Serializes a `CompiledModule` into a binary. The mutable `Vec<u8>` will
+    /// contain the binary blob on return.
     pub fn serialize(&self, binary: &mut Vec<u8>) -> Result<()> {
         self.serialize_for_version(None, binary)
     }
@@ -232,11 +235,11 @@ impl CompiledModule {
         let mut ser = ModuleSerializer::new(version);
         let mut temp = BinaryData::new();
         ser.serialize_tables(&mut temp, self)?;
-        if temp.len() > u32::max_value() as usize {
+        if temp.len() > u32::MAX as usize {
             bail!(
                 "table content size ({}) cannot exceed ({})",
                 temp.len(),
-                u32::max_value()
+                u32::MAX
             );
         }
         ser.common.serialize_header(&mut binary_data)?;
@@ -254,8 +257,8 @@ impl CompiledModule {
 /// Holds data to compute the header of a generic binary.
 ///
 /// A binary header contains information about the tables serialized.
-/// The serializer needs to serialize the tables in order to compute the offset and size
-/// of each table.
+/// The serializer needs to serialize the tables in order to compute the offset
+/// and size of each table.
 /// `CommonSerializer` keeps track of the tables common to `CompiledScript` and
 /// `CompiledModule`.
 #[derive(Debug)]
@@ -291,15 +294,14 @@ struct ScriptSerializer {
     common: CommonSerializer,
 }
 
-//
 // Helpers
 //
 fn check_index_in_binary(index: usize) -> Result<u32> {
-    if index > u32::max_value() as usize {
+    if index > u32::MAX as usize {
         bail!(
             "Compilation unit too big ({}) cannot exceed {}",
             index,
-            u32::max_value()
+            u32::MAX
         )
     }
     Ok(index as u32)
@@ -432,7 +434,8 @@ fn serialize_module_handle(binary: &mut BinaryData, module_handle: &ModuleHandle
 /// A `StructHandle` gets serialized as follows:
 /// - `StructHandle.module` as a ULEB128 (index into the `ModuleHandle` table)
 /// - `StructHandle.name` as a ULEB128 (index into the `IdentifierPool`)
-/// - `StructHandle.is_nominal_resource` as a 1 byte boolean (0 for false, 1 for true)
+/// - `StructHandle.is_nominal_resource` as a 1 byte boolean (0 for false, 1 for
+///   true)
 fn serialize_struct_handle(binary: &mut BinaryData, struct_handle: &StructHandle) -> Result<()> {
     serialize_module_handle_index(binary, &struct_handle.module)?;
     serialize_identifier_index(binary, &struct_handle.name)?;
@@ -545,9 +548,12 @@ fn serialize_byte_blob(
 /// Serializes a `StructDefinition`.
 ///
 /// A `StructDefinition` gets serialized as follows:
-/// - `StructDefinition.handle` as a ULEB128 (index into the `ModuleHandle` table)
-/// - `StructDefinition.field_count` as a ULEB128 (number of fields defined in the type)
-/// - `StructDefinition.fields` as a ULEB128 (index into the `FieldDefinition` table)
+/// - `StructDefinition.handle` as a ULEB128 (index into the `ModuleHandle`
+///   table)
+/// - `StructDefinition.field_count` as a ULEB128 (number of fields defined in
+///   the type)
+/// - `StructDefinition.fields` as a ULEB128 (index into the `FieldDefinition`
+///   table)
 fn serialize_struct_definition(
     binary: &mut BinaryData,
     struct_definition: &StructDefinition,
@@ -583,8 +589,10 @@ fn serialize_field_definitions(binary: &mut BinaryData, fields: &[FieldDefinitio
 /// Serializes a `FieldDefinition`.
 ///
 /// A `FieldDefinition` gets serialized as follows:
-/// - `FieldDefinition.struct_` as a ULEB128 (index into the `StructHandle` table)
-/// - `StructDefinition.name` as a ULEB128 (index into the `IdentifierPool` table)
+/// - `FieldDefinition.struct_` as a ULEB128 (index into the `StructHandle`
+///   table)
+/// - `StructDefinition.name` as a ULEB128 (index into the `IdentifierPool`
+///   table)
 /// - `StructDefinition.signature` a serialized `TypeSignatureToekn`)
 fn serialize_field_definition(
     binary: &mut BinaryData,
@@ -620,7 +628,8 @@ fn serialize_acquires(binary: &mut BinaryData, indices: &[StructDefinitionIndex]
 
 /// Serializes a `Signature`.
 ///
-/// A `Signature` gets serialized as follows the vector of `SignatureToken`s for locals
+/// A `Signature` gets serialized as follows the vector of `SignatureToken`s for
+/// locals
 fn serialize_signature(binary: &mut BinaryData, signature: &Signature) -> Result<()> {
     serialize_signature_tokens(binary, &signature.0)
 }
@@ -688,8 +697,8 @@ pub(crate) fn serialize_signature_token_unchecked(
 
 /// Serializes a `SignatureToken`.
 ///
-/// A `SignatureToken` gets serialized as a variable size blob depending on composition.
-/// Values for types are defined in `SerializedType`.
+/// A `SignatureToken` gets serialized as a variable size blob depending on
+/// composition. Values for types are defined in `SerializedType`.
 pub(crate) fn serialize_signature_token(
     binary: &mut BinaryData,
     token: &SignatureToken,
@@ -1058,7 +1067,8 @@ impl CommonSerializer {
             self.constant_pool.1,
         )?;
         if self.major_version >= VERSION_5 {
-            // Metadata was not introduced before v5, so do not generate it for lower versions.
+            // Metadata was not introduced before v5, so do not generate it for lower
+            // versions.
             serialize_table_index(
                 binary,
                 TableType::METADATA,
@@ -1400,11 +1410,14 @@ impl ModuleSerializer {
     /// Serializes a `FunctionDefinition`.
     ///
     /// A `FunctionDefinition` gets serialized as follows:
-    /// - `FunctionDefinition.function` as a ULEB128 (index into the `FunctionHandle` table)
-    /// - `FunctionDefinition.visibility` 1 byte for the visibility modifier of the function
-    /// - `FunctionDefinition.flags` 1 byte for the flags of the function
-    ///   The flags now has only one bit used:
-    ///   - bit 0x2: native indicator, indicates whether the function is a native function.
+    /// - `FunctionDefinition.function` as a ULEB128 (index into the
+    ///   `FunctionHandle` table)
+    /// - `FunctionDefinition.visibility` 1 byte for the visibility modifier of
+    ///   the function
+    /// - `FunctionDefinition.flags` 1 byte for the flags of the function The
+    ///   flags now has only one bit used:
+    ///   - bit 0x2: native indicator, indicates whether the function is a
+    ///     native function.
     /// - `FunctionDefinition.code` a variable size stream for the `CodeUnit`
     fn serialize_function_definition(
         &mut self,

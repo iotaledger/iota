@@ -1,8 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{account_address::AccountAddress, annotated_value as A, fmt_list, u256};
+use std::fmt::{self, Debug};
+
 use anyhow::{anyhow, Result as AResult};
 use move_proc_macros::test_variant_order;
 use serde::{
@@ -10,15 +12,19 @@ use serde::{
     ser::{SerializeSeq, SerializeTuple},
     Deserialize, Serialize,
 };
-use std::fmt::{self, Debug};
 
-/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde struct with this name
+use crate::{account_address::AccountAddress, annotated_value as A, fmt_list, u256};
+
+/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
+/// struct with this name
 pub const MOVE_STRUCT_NAME: &str = "struct";
 
-/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde struct with this as the first field
+/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
+/// struct with this as the first field
 pub const MOVE_STRUCT_TYPE: &str = "type";
 
-/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde struct with this as the second field
+/// In the `WithTypes` configuration, a Move struct gets serialized into a Serde
+/// struct with this as the second field
 pub const MOVE_STRUCT_FIELDS: &str = "fields";
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -85,8 +91,8 @@ impl MoveValue {
         MoveValue::Vector(v.into_iter().map(MoveValue::U8).collect())
     }
 
-    /// Converts the `Vec<MoveValue>` to a `Vec<u8>` if the inner `MoveValue` is a `MoveValue::U8`,
-    /// or returns an error otherwise.
+    /// Converts the `Vec<MoveValue>` to a `Vec<u8>` if the inner `MoveValue` is
+    /// a `MoveValue::U8`, or returns an error otherwise.
     pub fn vec_to_vec_u8(vec: Vec<MoveValue>) -> AResult<Vec<u8>> {
         let mut vec_u8 = Vec::with_capacity(vec.len());
 
@@ -331,9 +337,10 @@ impl fmt::Display for MoveTypeLayout {
     }
 }
 
-/// Helper type that uses `T`'s `Display` implementation as its own `Debug` implementation, to allow
-/// other `Display` implementations in this module to take advantage of the structured formatting
-/// helpers that Rust uses for its own debug types.
+/// Helper type that uses `T`'s `Display` implementation as its own `Debug`
+/// implementation, to allow other `Display` implementations in this module to
+/// take advantage of the structured formatting helpers that Rust uses for its
+/// own debug types.
 struct DebugAsDisplay<'a, T>(&'a T);
 impl<'a, T: fmt::Display> fmt::Debug for DebugAsDisplay<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

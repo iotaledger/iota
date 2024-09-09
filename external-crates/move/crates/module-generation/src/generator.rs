@@ -1,8 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{options::ModuleGeneratorOptions, padding::Pad, utils::random_string};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    iter::FromIterator,
+};
+
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_verifier::verify_module_unmetered;
 use move_core_types::account_address::AccountAddress;
@@ -10,10 +15,8 @@ use move_ir_to_bytecode::compiler::compile_module;
 use move_ir_types::{ast::*, location::*};
 use move_symbol_pool::Symbol;
 use rand::{rngs::StdRng, Rng};
-use std::{
-    collections::{BTreeSet, VecDeque},
-    iter::FromIterator,
-};
+
+use crate::{options::ModuleGeneratorOptions, padding::Pad, utils::random_string};
 
 type Set<K> = BTreeSet<K>;
 
@@ -27,7 +30,8 @@ pub fn generate_module(rng: &mut StdRng, options: ModuleGeneratorOptions) -> Com
     generate_modules(rng, 1, options).0
 }
 
-/// Generate a `number - 1` modules. Then generate a root module that imports all of these modules.
+/// Generate a `number - 1` modules. Then generate a root module that imports
+/// all of these modules.
 pub fn generate_modules(
     rng: &mut StdRng,
     number: usize,
@@ -55,7 +59,8 @@ pub fn generate_modules(
         })
         .collect();
 
-    // TODO: for friend visibility, maybe we could generate a module that friend all other modules...
+    // TODO: for friend visibility, maybe we could generate a module that friend all
+    // other modules...
 
     let mut compiled_root = compile_module(root_module, &compiled_callees).unwrap().0;
     Pad::pad(table_size, &mut compiled_root, options);
@@ -96,8 +101,9 @@ impl<'a> ModuleGenerator<'a> {
     }
 
     fn base_type(&mut self, ty_param_context: &[&TypeVar]) -> Type {
-        // TODO: Don't generate nested resources for now. Once we allow functions to take resources
-        // (and have type parameters of kind Resource or All) then we should revisit this here.
+        // TODO: Don't generate nested resources for now. Once we allow functions to
+        // take resources (and have type parameters of kind Resource or All)
+        // then we should revisit this here.
         let structs: Vec<_> = self
             .current_module
             .structs
@@ -153,8 +159,8 @@ impl<'a> ModuleGenerator<'a> {
                 .map(|(tv, _)| tv)
                 .collect::<Vec<_>>(),
         );
-        // TODO: Always change the base type to a reference if it's resource type. Then we can
-        // allow functions to take resources.
+        // TODO: Always change the base type to a reference if it's resource type. Then
+        // we can allow functions to take resources.
         // if typ.is_nominal_resource { .... }
         if self.options.references_allowed && self.gen.gen_bool(0.25) {
             let is_mutable = self.gen.gen_bool(0.25);
@@ -193,8 +199,9 @@ impl<'a> ModuleGenerator<'a> {
         }
     }
 
-    // All functions will have unit return type, and an empty body with the exception of a return.
-    // We'll scoop this out and replace it later on in the compiled module that we generate.
+    // All functions will have unit return type, and an empty body with the
+    // exception of a return. We'll scoop this out and replace it later on in
+    // the compiled module that we generate.
     fn function_signature(&mut self) -> FunctionSignature {
         let ty_params = self.fun_type_parameters();
         let number_of_args = self.index(self.options.max_function_call_size);
@@ -292,13 +299,14 @@ impl<'a> ModuleGenerator<'a> {
     fn gen(mut self) -> ModuleDefinition {
         let num_structs = self.index(self.options.max_structs) + 1;
         let num_functions = self.index(self.options.max_functions) + 1;
-        // TODO: the order of generation here means that functions can't take resources as arguments.
-        // We will need to generate (valid) bytecode bodies for these functions before we allow
-        // resources.
+        // TODO: the order of generation here means that functions can't take resources
+        // as arguments. We will need to generate (valid) bytecode bodies for
+        // these functions before we allow resources.
         {
-            // We generate a function at this point as an "entry point" into the module: since we
-            // haven't generated any structs yet, this function will only take base types as its input
-            // parameters. Likewise we can't take references since there isn't any value stack.
+            // We generate a function at this point as an "entry point" into the module:
+            // since we haven't generated any structs yet, this function will
+            // only take base types as its input parameters. Likewise we can't
+            // take references since there isn't any value stack.
             let simple_types = self.options.simple_types_only;
             self.options.simple_types_only = true;
             self.function_def();

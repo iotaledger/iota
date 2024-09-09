@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{bail, Result};
@@ -16,11 +17,12 @@ use move_command_line_common::character_sets::is_permitted_chars;
 use move_ir_to_bytecode_syntax::syntax::{self, ParseError};
 use move_ir_types::{ast, location::*};
 
-// We restrict strings to only ascii visual characters (0x20 <= c <= 0x7E) or a permitted newline
-// character--\r--,--\n--or a tab--\t. Checking each character in the input string is more fool-proof
-// than checking each character later during lexing & tokenization, since that would require special
-// handling of characters inside of comments (usually not included as tokens) and within byte
-// array literals.
+// We restrict strings to only ascii visual characters (0x20 <= c <= 0x7E) or a
+// permitted newline character--\r--,--\n--or a tab--\t. Checking each character
+// in the input string is more fool-proof than checking each character later
+// during lexing & tokenization, since that would require special handling of
+// characters inside of comments (usually not included as tokens) and within
+// byte array literals.
 fn verify_string(string: &str) -> Result<()> {
     let chars: Vec<char> = string.chars().collect();
     chars

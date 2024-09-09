@@ -1,21 +1,24 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    fmt::{Display, Formatter},
+    str::FromStr,
+};
+
+use move_proc_macros::test_variant_order;
+use once_cell::sync::Lazy;
+#[cfg(any(test, feature = "fuzzing"))]
+use proptest_derive::Arbitrary;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     account_address::AccountAddress,
     gas_algebra::{AbstractMemorySize, BOX_ABSTRACT_SIZE, ENUM_BASE_ABSTRACT_SIZE},
     identifier::{IdentStr, Identifier},
     parser::{parse_struct_tag, parse_type_tag},
-};
-use move_proc_macros::test_variant_order;
-use once_cell::sync::Lazy;
-#[cfg(any(test, feature = "fuzzing"))]
-use proptest_derive::Arbitrary;
-use serde::{Deserialize, Serialize};
-use std::{
-    fmt::{Display, Formatter},
-    str::FromStr,
 };
 
 pub const CODE_TAG: u8 = 0;
@@ -59,22 +62,25 @@ pub enum TypeTag {
 }
 
 impl TypeTag {
-    /// Return a canonical string representation of the type. All types are represented
-    /// using their source syntax:
-    /// "u8", "u64", "u128", "bool", "address", "vector", "signer" for ground types.
-    /// Struct types are represented as fully qualified type names; e.g.
-    /// `00000000000000000000000000000001::string::String` or
+    /// Return a canonical string representation of the type. All types are
+    /// represented using their source syntax:
+    /// "u8", "u64", "u128", "bool", "address", "vector", "signer" for ground
+    /// types. Struct types are represented as fully qualified type names;
+    /// e.g. `00000000000000000000000000000001::string::String` or
     /// `0000000000000000000000000000000a::module_name1::type_name1<0000000000000000000000000000000a::module_name2::type_name2<u64>>`
     /// With or without the prefix 0x depending on the `with_prefix` flag.
-    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16, 20, or 32 depending on the Move platform)
-    /// Note: this function is guaranteed to be stable, and this is suitable for use inside
-    /// Move native functions or the VM. By contrast, the `Display` implementation is subject
-    /// to change and should not be used inside stable code.
+    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16,
+    /// 20, or 32 depending on the Move platform) Note: this function is
+    /// guaranteed to be stable, and this is suitable for use inside
+    /// Move native functions or the VM. By contrast, the `Display`
+    /// implementation is subject to change and should not be used inside
+    /// stable code.
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         self.to_canonical_display(with_prefix).to_string()
     }
 
-    /// Return the canonical string representation of the TypeTag conditionally with prefix 0x
+    /// Return the canonical string representation of the TypeTag conditionally
+    /// with prefix 0x
     pub fn to_canonical_display(&self, with_prefix: bool) -> impl std::fmt::Display + '_ {
         struct CanonicalDisplay<'a> {
             data: &'a TypeTag,
@@ -153,16 +159,16 @@ impl StructTag {
         key
     }
 
-    /// Returns true if this is a `StructTag` for an `std::ascii::String` struct defined in the
-    /// standard library at address `move_std_addr`.
+    /// Returns true if this is a `StructTag` for an `std::ascii::String` struct
+    /// defined in the standard library at address `move_std_addr`.
     pub fn is_ascii_string(&self, move_std_addr: &AccountAddress) -> bool {
         self.address == *move_std_addr
             && self.module.as_str().eq("ascii")
             && self.name.as_str().eq("String")
     }
 
-    /// Returns true if this is a `StructTag` for an `std::string::String` struct defined in the
-    /// standard library at address `move_std_addr`.
+    /// Returns true if this is a `StructTag` for an `std::string::String`
+    /// struct defined in the standard library at address `move_std_addr`.
     pub fn is_std_string(&self, move_std_addr: &AccountAddress) -> bool {
         self.address == *move_std_addr
             && self.module.as_str().eq("string")
@@ -177,17 +183,20 @@ impl StructTag {
     /// Struct types are represented as fully qualified type names; e.g.
     /// `00000000000000000000000000000001::string::String`,
     /// `0000000000000000000000000000000a::module_name1::type_name1<0000000000000000000000000000000a::module_name2::type_name2<u64>>`,
-    /// or `0000000000000000000000000000000a::module_name2::type_name2<bool,u64,u128>.
-    /// With or without the prefix 0x depending on the `with_prefix` flag.
-    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16, 20, or 32 depending on the Move platform)
-    /// Note: this function is guaranteed to be stable, and this is suitable for use inside
-    /// Move native functions or the VM. By contrast, the `Display` implementation is subject
-    /// to change and should not be used inside stable code.
+    /// or `0000000000000000000000000000000a::module_name2::type_name2<bool,u64,
+    /// u128>. With or without the prefix 0x depending on the `with_prefix`
+    /// flag. Addresses are hex-encoded lowercase values of length
+    /// ADDRESS_LENGTH (16, 20, or 32 depending on the Move platform)
+    /// Note: this function is guaranteed to be stable, and this is suitable for
+    /// use inside Move native functions or the VM. By contrast, the
+    /// `Display` implementation is subject to change and should not be used
+    /// inside stable code.
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         self.to_canonical_display(with_prefix).to_string()
     }
 
-    /// Implements the canonical string representation of the StructTag with the prefix 0x
+    /// Implements the canonical string representation of the StructTag with the
+    /// prefix 0x
     pub fn to_canonical_display(&self, with_prefix: bool) -> impl std::fmt::Display + '_ {
         struct CanonicalDisplay<'a> {
             data: &'a StructTag,
@@ -208,8 +217,9 @@ impl StructTag {
                     write!(f, "<")?;
                     write!(f, "{}", first_ty.to_canonical_display(self.with_prefix))?;
                     for ty in self.data.type_params.iter().skip(1) {
-                        // Note that unlike Display for StructTag, there is no space between the comma and canonical display.
-                        // This follows the original to_canonical_string() implementation.
+                        // Note that unlike Display for StructTag, there is no space between the
+                        // comma and canonical display. This follows the
+                        // original to_canonical_string() implementation.
                         write!(f, ",{}", ty.to_canonical_display(self.with_prefix))?;
                     }
                     write!(f, ">")?;
@@ -249,8 +259,8 @@ impl FromStr for StructTag {
     }
 }
 
-/// Represents the initial key into global storage where we first index by the address, and then
-/// the struct tag
+/// Represents the initial key into global storage where we first index by the
+/// address, and then the struct tag
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 pub struct ResourceKey {
     pub address: AccountAddress,
@@ -273,8 +283,8 @@ impl ResourceKey {
     }
 }
 
-/// Represents the initial key into global storage where we first index by the address, and then
-/// the struct tag
+/// Represents the initial key into global storage where we first index by the
+/// address, and then the struct tag
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(Arbitrary))]
 #[cfg_attr(any(test, feature = "fuzzing"), proptest(no_params))]
@@ -312,8 +322,9 @@ impl ModuleId {
         self.to_canonical_display(with_prefix).to_string()
     }
 
-    /// Proxy type for overriding `ModuleId`'s display implementation, to use a canonical form
-    /// (full-width addresses), with an optional "0x" prefix (controlled by the `with_prefix` flag).
+    /// Proxy type for overriding `ModuleId`'s display implementation, to use a
+    /// canonical form (full-width addresses), with an optional "0x" prefix
+    /// (controlled by the `with_prefix` flag).
     pub fn to_canonical_display(&self, with_prefix: bool) -> impl Display + '_ {
         struct IdDisplay<'a> {
             id: &'a ModuleId,
@@ -403,12 +414,13 @@ impl From<StructTag> for TypeTag {
 
 #[cfg(test)]
 mod tests {
+    use std::mem;
+
     use super::{ModuleId, TypeTag};
     use crate::{
         account_address::AccountAddress, ident_str, identifier::Identifier,
         language_storage::StructTag,
     };
-    use std::mem;
 
     #[test]
     fn test_type_tag_serde() {

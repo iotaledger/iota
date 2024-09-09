@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use base::{
@@ -17,6 +18,8 @@ pub const DEFAULT_STORAGE_DIR: &str = "storage";
 /// Default directory for build output
 pub const DEFAULT_BUILD_DIR: &str = ".";
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::Parser;
 use move_core_types::{
@@ -24,7 +27,6 @@ use move_core_types::{
 };
 use move_vm_runtime::native_functions::NativeFunction;
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::path::PathBuf;
 
 type NativeFunctionRecord = (AccountAddress, Identifier, Identifier, NativeFunction);
 
@@ -70,8 +72,8 @@ pub enum Command {
     /// Execute a sandbox command.
     #[clap(name = "sandbox")]
     Sandbox {
-        /// Directory storing Move resources, events, and module bytecodes produced by module publishing
-        /// and script execution.
+        /// Directory storing Move resources, events, and module bytecodes
+        /// produced by module publishing and script execution.
         #[clap(long, default_value = DEFAULT_STORAGE_DIR)]
         storage_dir: PathBuf,
         #[clap(subcommand)]
@@ -86,9 +88,11 @@ pub fn run_cli(
     move_args: Move,
     cmd: Command,
 ) -> Result<()> {
-    // TODO: right now, the gas metering story for move-cli (as a library) is a bit of a mess.
+    // TODO: right now, the gas metering story for move-cli (as a library) is a bit
+    // of a mess.
     //         1. It's still using the old CostTable.
-    //         2. The CostTable only affects sandbox runs, but not unit tests, which use a unit cost table.
+    //         2. The CostTable only affects sandbox runs, but not unit tests, which
+    //            use a unit cost table.
     match cmd {
         Command::Build(c) => c.execute(move_args.package_path, move_args.build_config),
         Command::Coverage(c) => c.execute(move_args.package_path, move_args.build_config),

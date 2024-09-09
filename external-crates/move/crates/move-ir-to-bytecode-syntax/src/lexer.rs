@@ -1,10 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::syntax::ParseError;
 use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
+
+use crate::syntax::ParseError;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tok {
@@ -386,9 +388,9 @@ fn get_hex_digits_len(text: &str) -> usize {
         .unwrap_or(text.len())
 }
 
-// Check for an optional sequence of hex digits following by a double quote, and return
-// the length of that string if found. This is used to lex ByteArrayValue tokens after
-// seeing the 'h"' prefix.
+// Check for an optional sequence of hex digits following by a double quote, and
+// return the length of that string if found. This is used to lex ByteArrayValue
+// tokens after seeing the 'h"' prefix.
 fn get_byte_array_value_len(text: &str) -> usize {
     let hex_len = get_hex_digits_len(text);
     match &text[hex_len..].chars().next() {

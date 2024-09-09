@@ -1,0 +1,9 @@
+[package]
+name = "object_cross_module_ref"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+base_addr = "0x0"

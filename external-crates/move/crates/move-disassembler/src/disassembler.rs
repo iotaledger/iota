@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -63,9 +64,10 @@ pub struct Disassembler<'a> {
     options: DisassemblerOptions,
     // Optional coverage map for use in displaying code coverage
     coverage_map: Option<ExecCoverageMap>,
-    /// If the code being disassembled imports multiple modules of the form (a, SameModuleName)
-    /// `module_alias` will contain an entry for each distinct a
-    /// e.g., for `use 0xA::M; use 0xB::M`, this will contain [(0xA, M) -> M, (0xB, M) -> 1M]
+    /// If the code being disassembled imports multiple modules of the form (a,
+    /// SameModuleName) `module_alias` will contain an entry for each
+    /// distinct a e.g., for `use 0xA::M; use 0xB::M`, this will contain
+    /// [(0xA, M) -> M, (0xB, M) -> 1M]
     module_aliases: HashMap<ModuleId, String>,
 }
 
@@ -85,8 +87,8 @@ impl<'a> Disassembler<'a> {
             module_names
                 .entry(module_name.clone())
                 .and_modify(|name_count| {
-                    // This module imports >1 modules named `name`--add alias <count><module_name> for `id`.
-                    // Move identifiers cannot begin with an integer,
+                    // This module imports >1 modules named `name`--add alias <count><module_name>
+                    // for `id`. Move identifiers cannot begin with an integer,
                     // so this is guaranteed not to conflict with other module names.
                     module_aliases.insert(id, format!("{}{}", name_count, module_name));
                     *name_count += 1;
@@ -461,8 +463,8 @@ impl<'a> Disassembler<'a> {
     // Disassemblers
     //***************************************************************************
 
-    // These need to be in the context of a function or a struct definition since type parameters
-    // can refer to function/struct type parameters.
+    // These need to be in the context of a function or a struct definition since
+    // type parameters can refer to function/struct type parameters.
     fn disassemble_sig_tok(
         &self,
         sig_tok: SignatureToken,
@@ -1057,12 +1059,14 @@ impl<'a> Disassembler<'a> {
         Ok(locals_names_tys)
     }
 
-    /// Translates a compiled "function definition" into a disassembled bytecode string.
+    /// Translates a compiled "function definition" into a disassembled bytecode
+    /// string.
     ///
-    /// Because a "function definition" can refer to either a function defined in a module or to a
-    /// script's "main" function (which is not represented by a function definition in the binary
-    /// format), this method takes a function definition and handle as optional arguments. These are
-    /// `None` when disassembling a script's "main" function.
+    /// Because a "function definition" can refer to either a function defined
+    /// in a module or to a script's "main" function (which is not
+    /// represented by a function definition in the binary format), this
+    /// method takes a function definition and handle as optional arguments.
+    /// These are `None` when disassembling a script's "main" function.
     pub fn disassemble_function_def(
         &self,
         function_source_map: &FunctionSourceMap,
@@ -1161,8 +1165,8 @@ impl<'a> Disassembler<'a> {
         ))
     }
 
-    // The struct defs will filter out the structs that we print to only be the ones that are
-    // defined in the module in question.
+    // The struct defs will filter out the structs that we print to only be the ones
+    // that are defined in the module in question.
     pub fn disassemble_struct_def(&self, struct_def_idx: StructDefinitionIndex) -> Result<String> {
         let struct_definition = self.get_struct_def(struct_def_idx)?;
         let struct_handle = self
@@ -1298,16 +1302,18 @@ impl<'a> Disassembler<'a> {
 
         let function_defs: Vec<String> = match self.source_mapper.bytecode {
             BinaryIndexedView::Script(script) => {
-                vec![self.disassemble_function_def(
-                    self.source_mapper
-                        .source_map
-                        .get_function_source_map(FunctionDefinitionIndex(0_u16))?,
-                    None,
-                    IdentStr::new("main")?,
-                    &script.type_parameters,
-                    script.parameters,
-                    Some(&script.code),
-                )?]
+                vec![
+                    self.disassemble_function_def(
+                        self.source_mapper
+                            .source_map
+                            .get_function_source_map(FunctionDefinitionIndex(0_u16))?,
+                        None,
+                        IdentStr::new("main")?,
+                        &script.type_parameters,
+                        script.parameters,
+                        Some(&script.code),
+                    )?,
+                ]
             }
             BinaryIndexedView::Module(module) => (0..module.function_defs.len())
                 .map(|i| {

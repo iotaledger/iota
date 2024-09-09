@@ -1,8 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::shared::{NumberFormat, NumericalAddress};
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Result};
 use move_binary_format::{
     access::ModuleAccess,
@@ -13,8 +15,9 @@ use move_binary_format::{
     },
 };
 use move_core_types::language_storage::ModuleId;
-use std::collections::BTreeMap;
 use vfs::VfsPath;
+
+use crate::shared::{NumberFormat, NumericalAddress};
 
 pub const NATIVE_INTERFACE: &str = "native_interface";
 
@@ -30,9 +33,10 @@ macro_rules! push {
     }};
 }
 
-/// Generate the text for the "interface" file of a compiled module. This "interface" is the
-/// publically visible contents of the CompiledModule, represented in source language syntax
-/// Additionally, it returns the module id (address+name) of the module that was deserialized
+/// Generate the text for the "interface" file of a compiled module. This
+/// "interface" is the publically visible contents of the CompiledModule,
+/// represented in source language syntax Additionally, it returns the module id
+/// (address+name) of the module that was deserialized
 pub fn write_file_to_string(
     named_address_mapping: &BTreeMap<ModuleId, impl AsRef<str>>,
     compiled_module_file_input_path: &VfsPath,

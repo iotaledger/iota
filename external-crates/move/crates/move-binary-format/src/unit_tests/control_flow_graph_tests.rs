@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -11,10 +12,14 @@ fn traversal_no_loops() {
     let cfg = {
         use Bytecode::*;
         VMControlFlowGraph::new(&[
-            /* L0 */ LdTrue,
-            /*    */ BrTrue(3),
-            /* L2 */ Branch(3),
-            /* L3 */ Ret,
+            // L0
+            LdTrue,
+            //
+            BrTrue(3),
+            // L2
+            Branch(3),
+            // L3
+            Ret,
         ])
     };
 
@@ -28,13 +33,20 @@ fn traversal_loops() {
     let cfg = {
         use Bytecode::*;
         VMControlFlowGraph::new(&[
-            /* L0: Outer head     */ LdTrue,
-            /*     Outer break    */ BrTrue(6),
-            /* L2: Inner head     */ LdTrue,
-            /*     Inner break    */ BrTrue(5),
-            /* L4: Inner continue */ Branch(2),
-            /*     Outer continue */ Branch(0),
-            /* L6:                */ Ret,
+            // L0: Outer head
+            LdTrue,
+            // Outer break
+            BrTrue(6),
+            // L2: Inner head
+            LdTrue,
+            // Inner break
+            BrTrue(5),
+            // L4: Inner continue
+            Branch(2),
+            // Outer continue
+            Branch(0),
+            // L6:
+            Ret,
         ])
     };
 
@@ -48,9 +60,12 @@ fn traversal_non_loop_back_branch() {
     let cfg = {
         use Bytecode::*;
         VMControlFlowGraph::new(&[
-            /* L0 */ Branch(2),
-            /* L1 */ Ret,
-            /* L2 */ Branch(1),
+            // L0
+            Branch(2),
+            // L1
+            Ret,
+            // L2
+            Branch(1),
         ])
     };
 
@@ -59,8 +74,9 @@ fn traversal_non_loop_back_branch() {
     assert_eq!(traversal(&cfg), vec![0, 2, 1]);
 }
 
-/// Return a vector containing the `BlockId`s from `cfg` in the order suggested by successively
-/// calling `ControlFlowGraph::next_block` starting from the entry block.
+/// Return a vector containing the `BlockId`s from `cfg` in the order suggested
+/// by successively calling `ControlFlowGraph::next_block` starting from the
+/// entry block.
 fn traversal(cfg: &dyn ControlFlowGraph) -> Vec<BlockId> {
     let mut order = Vec::with_capacity(cfg.num_blocks() as usize);
     let mut next = Some(cfg.entry_block_id());

@@ -1,14 +1,15 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::views::{TypeView, ValueView};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
     gas_algebra::{InternalGas, NumArgs, NumBytes},
     language_storage::ModuleId,
 };
-
 use move_vm_profiler::GasProfiler;
+
+use crate::views::{TypeView, ValueView};
 
 /// Enum of instructions that do not need extra information for gas metering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -69,8 +70,8 @@ pub enum SimpleInstruction {
     CastU256,
 }
 
-/// Trait that defines a generic gas meter interface, allowing clients of the Move VM to implement
-/// their own metering scheme.
+/// Trait that defines a generic gas meter interface, allowing clients of the
+/// Move VM to implement their own metering scheme.
 pub trait GasMeter {
     /// Charge an instruction and fail if not enough gas units are left.
     fn charge_simple_instr(&mut self, instr: SimpleInstruction) -> PartialVMResult<()>;
@@ -97,7 +98,7 @@ pub trait GasMeter {
     fn charge_ld_const(&mut self, size: NumBytes) -> PartialVMResult<()>;
 
     fn charge_ld_const_after_deserialization(&mut self, val: impl ValueView)
-        -> PartialVMResult<()>;
+    -> PartialVMResult<()>;
 
     fn charge_copy_loc(&mut self, val: impl ValueView) -> PartialVMResult<()>;
 

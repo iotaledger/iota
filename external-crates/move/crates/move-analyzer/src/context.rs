@@ -1,10 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::symbols::Symbols;
-use lsp_server::Connection;
 use std::sync::{Arc, Mutex};
+
+use lsp_server::Connection;
+
+use crate::symbols::Symbols;
 
 /// The context within which the language server is running.
 pub struct Context {

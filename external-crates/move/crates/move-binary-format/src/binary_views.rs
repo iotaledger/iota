@@ -1,6 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+    language_storage::ModuleId,
+    vm_status::StatusCode,
+};
 
 use crate::{
     access::{ModuleAccess, ScriptAccess},
@@ -17,17 +25,12 @@ use crate::{
     },
     CompiledModule,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::ModuleId,
-    vm_status::StatusCode,
-};
 
-// A `BinaryIndexedView` provides table indexed access for both `CompiledModule` and
-// `CompiledScript`.
+// A `BinaryIndexedView` provides table indexed access for both `CompiledModule`
+// and `CompiledScript`.
 // Operations that are not allowed for `CompiledScript` return an error.
-// A typical use of a `BinaryIndexedView` is while resolving indexes in bytecodes.
+// A typical use of a `BinaryIndexedView` is while resolving indexes in
+// bytecodes.
 #[derive(Clone, Copy, Debug)]
 pub enum BinaryIndexedView<'a> {
     Module(&'a CompiledModule),
@@ -248,7 +251,8 @@ impl<'a> BinaryIndexedView<'a> {
 
     // Return the `AbilitySet` of a `SignatureToken` given a context.
     // A `TypeParameter` has the abilities of its `constraints`.
-    // `StructInstantiation` abilities are predicated on the particular instantiation
+    // `StructInstantiation` abilities are predicated on the particular
+    // instantiation
     pub fn abilities(
         &self,
         ty: &SignatureToken,

@@ -69,7 +69,7 @@ use iota_core::{
     state_accumulator::{StateAccumulator, StateAccumulatorMetrics},
     storage::{RestReadStore, RocksDbStore},
     traffic_controller::metrics::TrafficControllerMetrics,
-    transaction_orchestrator::TransactiondOrchestrator,
+    transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_json_rpc::{
     bridge_api::BridgeReadApi, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -181,7 +181,7 @@ mod simulator {
             iota_types::zk_login_util::DEFAULT_JWK_BYTES,
             &OIDCProvider::Twitch,
         )
-        .map_err(|_| IotaError::JWKRetrievalError)
+        .map_err(|_| IotaError::JWKRetrieval)
     }
 
     thread_local! {
@@ -214,7 +214,7 @@ pub struct IotaNode {
     /// experimental rest service
     _http_server: Option<tokio::task::JoinHandle<()>>,
     state: Arc<AuthorityState>,
-    transaction_orchestrator: Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
     metrics: Arc<IotaNodeMetrics>,
 
@@ -269,6 +269,10 @@ impl IotaNode {
         Self::start_async(config, registry_service, custom_rpc_runtime, "unknown").await
     }
 
+    /// Starts the JWK (JSON Web Key) updater tasks for the specified node
+    /// configuration.
+    /// This function ensures continuous fetching, validation, and submission of
+    /// JWKs, maintaining up-to-date keys for the specified providers.
     fn start_jwk_updater(
         config: &NodeConfig,
         metrics: Arc<IotaNodeMetrics>,
@@ -520,7 +524,7 @@ impl IotaNode {
             // the expected_network_iota_amount table.
             cache_traits
                 .reconfig_api
-                .expensive_check_iota_conservation(&epoch_store)
+                .expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
         }
 
@@ -725,7 +729,7 @@ impl IotaNode {
 
         let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
             Some(Arc::new(
-                TransactiondOrchestrator::new_with_auth_aggregator(
+                TransactionOrchestrator::new_with_auth_aggregator(
                     auth_agg.load_full(),
                     state.clone(),
                     end_of_epoch_receiver,
@@ -1145,6 +1149,8 @@ impl IotaNode {
         ))
     }
 
+    /// Asynchronously constructs and initializes the components necessary for
+    /// the validator node.
     async fn construct_validator_components(
         config: NodeConfig,
         state: Arc<AuthorityState>,
@@ -1236,6 +1242,8 @@ impl IotaNode {
         .await
     }
 
+    /// Initializes and starts components specific to the current
+    /// epoch for the validator node.
     async fn start_epoch_specific_validator_components(
         config: &NodeConfig,
         state: Arc<AuthorityState>,
@@ -1346,6 +1354,12 @@ impl IotaNode {
         })
     }
 
+    /// Starts the checkpoint service for the validator node, initializing
+    /// necessary components and settings.
+    /// The function ensures proper initialization of the checkpoint service,
+    /// preparing it to handle checkpoint creation and submission to consensus,
+    /// while also setting up the necessary monitoring and synchronization
+    /// mechanisms.
     fn start_checkpoint_service(
         config: &NodeConfig,
         consensus_adapter: Arc<ConsensusAdapter>,
@@ -1486,7 +1500,7 @@ impl IotaNode {
 
     pub fn transaction_orchestrator(
         &self,
-    ) -> Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>> {
+    ) -> Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>> {
         self.transaction_orchestrator.clone()
     }
 
@@ -1500,8 +1514,9 @@ impl IotaNode {
     }
 
     /// This function awaits the completion of checkpoint execution of the
-    /// current epoch, after which it iniitiates reconfiguration of the
-    /// entire system.
+    /// current epoch, after which it initiates reconfiguration of the
+    /// entire system. This function also handles role changes for the node when
+    /// epoch changes.
     pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
         let checkpoint_executor_metrics =
             CheckpointExecutorMetrics::new(&self.registry_service.default_registry());
@@ -1668,7 +1683,7 @@ impl IotaNode {
                         new_epoch_start_state,
                         accumulator.clone(),
                     )
-                    .await;
+                    .await?;
 
                 // No other components should be holding a strong reference to state accumulator
                 // at this point. Confirm here before we swap in the new accumulator.
@@ -1720,7 +1735,7 @@ impl IotaNode {
                         new_epoch_start_state,
                         accumulator.clone(),
                     )
-                    .await;
+                    .await?;
 
                 // No other components should be holding a strong reference to state accumulator
                 // at this point. Confirm here before we swap in the new accumulator.
@@ -1790,6 +1805,8 @@ impl IotaNode {
         }
     }
 
+    /// Asynchronously reconfigures the state of the authority node for the next
+    /// epoch.
     async fn reconfigure_state(
         &self,
         state: &Arc<AuthorityState>,
@@ -1797,7 +1814,7 @@ impl IotaNode {
         next_epoch_committee: Committee,
         next_epoch_start_system_state: EpochStartSystemState,
         accumulator: Arc<StateAccumulator>,
-    ) -> Arc<AuthorityPerEpochStore> {
+    ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let next_epoch = next_epoch_committee.epoch();
 
         let last_checkpoint = self
@@ -1805,6 +1822,13 @@ impl IotaNode {
             .get_epoch_last_checkpoint(cur_epoch_store.epoch())
             .expect("Error loading last checkpoint for current epoch")
             .expect("Could not load last checkpoint for current epoch");
+        let epoch_supply_change = last_checkpoint
+            .end_of_epoch_data
+            .as_ref()
+            .ok_or_else(|| {
+                IotaError::from("last checkpoint in epoch should contain end of epoch data")
+            })?
+            .epoch_supply_change;
 
         let epoch_start_configuration = EpochStartConfiguration::new(
             next_epoch_start_system_state,
@@ -1823,6 +1847,7 @@ impl IotaNode {
                 epoch_start_configuration,
                 accumulator,
                 &self.config.expensive_safety_check_config,
+                epoch_supply_change,
             )
             .await
             .expect("Reconfigure authority state cannot fail");
@@ -1833,7 +1858,7 @@ impl IotaNode {
             new_epoch_store.epoch_start_config().flags(),
         );
 
-        new_epoch_store
+        Ok(new_epoch_store)
     }
 
     pub fn get_config(&self) -> &NodeConfig {
@@ -1855,7 +1880,7 @@ impl IotaNode {
         let client = reqwest::Client::new();
         fetch_jwks(provider, &client)
             .await
-            .map_err(|_| IotaError::JWKRetrievalError)
+            .map_err(|_| IotaError::JWKRetrieval)
     }
 }
 
@@ -1941,10 +1966,26 @@ fn build_kv_store(
     )))
 }
 
+/// Builds and starts the HTTP server for the Iota node, exposing JSON-RPC and
+/// REST APIs based on the node's configuration.
+///
+/// This function performs the following tasks:
+/// 1. Checks if the node is a validator by inspecting the consensus
+///    configuration; if so, it returns early as validators do not expose these
+///    APIs.
+/// 2. Creates an Axum router to handle HTTP requests.
+/// 3. Initializes the JSON-RPC server and registers various RPC modules based
+///    on the node's state and configuration, including CoinApi,
+///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
+///    IndexerApi.
+/// 4. Optionally, if the REST API is enabled, nests the REST API router under
+///    the `/rest` path.
+/// 5. Binds the server to the specified JSON-RPC address and starts listening
+///    for incoming connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     store: RocksDbStore,
-    transaction_orchestrator: &Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
+    transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
     _custom_runtime: Option<Handle>,
@@ -1995,26 +2036,10 @@ pub async fn build_http_server(
             ))?;
         }
 
-        let name_service_config =
-            if let (Some(package_address), Some(registry_id), Some(reverse_registry_id)) = (
-                config.name_service_package_address,
-                config.name_service_registry_id,
-                config.name_service_reverse_registry_id,
-            ) {
-                iota_json_rpc::name_service::NameServiceConfig::new(
-                    package_address,
-                    registry_id,
-                    reverse_registry_id,
-                )
-            } else {
-                iota_json_rpc::name_service::NameServiceConfig::default()
-            };
-
         server.register_module(IndexerApi::new(
             state.clone(),
             ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
             kv_store,
-            name_service_config,
             metrics,
             config.indexer_max_subscriptions,
         ))?;

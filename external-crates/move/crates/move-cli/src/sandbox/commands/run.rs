@@ -1,14 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    sandbox::utils::{
-        contains_module, explain_execution_error, get_gas_status, is_bytecode_file,
-        on_disk_state_view::OnDiskStateView,
-    },
-    NativeFunctionRecord,
-};
+use std::{fs, path::Path};
+
 use anyhow::{anyhow, bail, Result};
 use move_binary_format::file_format::CompiledModule;
 use move_command_line_common::files::try_exists;
@@ -23,7 +19,14 @@ use move_core_types::{
 use move_package::compilation::compiled_package::CompiledPackage;
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::{fs, path::Path};
+
+use crate::{
+    sandbox::utils::{
+        contains_module, explain_execution_error, get_gas_status, is_bytecode_file,
+        on_disk_state_view::OnDiskStateView,
+    },
+    NativeFunctionRecord,
+};
 
 pub fn run(
     natives: impl IntoIterator<Item = NativeFunctionRecord>,
@@ -56,7 +59,8 @@ pub fn run(
         .iter()
         .map(|s| AccountAddress::from_hex_literal(s))
         .collect::<Result<Vec<AccountAddress>, _>>()?;
-    // TODO: parse Value's directly instead of going through the indirection of TransactionArgument?
+    // TODO: parse Value's directly instead of going through the indirection of
+    // TransactionArgument?
     let vm_args: Vec<Vec<u8>> = convert_txn_args(txn_args);
 
     let vm = MoveVM::new(natives).unwrap();

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
@@ -20,14 +21,16 @@ use crate::{
     stackless_bytecode::{Bytecode, Operation},
 };
 
-/// Get all closed types that may be packed by (1) genesis and (2) all transaction scripts.
-/// This makes some simplifying assumptions that are not correct in general, but hold for the
-/// current Diem Framework:
+/// Get all closed types that may be packed by (1) genesis and (2) all
+/// transaction scripts. This makes some simplifying assumptions that are not
+/// correct in general, but hold for the current Diem Framework:
 /// - Transaction scripts have at most 1 type argument
-/// - The only values that can be bound to a transaction script type argument are XUS and
-///   XDX. Passing any other values will lead to an aborted transaction.
-/// The first assumption is checked and will trigger an assert failure if violated. The second
-/// is unchecked, but would be a nice property for the prover.
+/// - The only values that can be bound to a transaction script type argument
+///   are XUS and XDX. Passing any other values will lead to an aborted
+///   transaction.
+/// The first assumption is checked and will trigger an assert failure if
+/// violated. The second is unchecked, but would be a nice property for the
+/// prover.
 pub fn get_packed_types(
     env: &GlobalEnv,
     targets: &FunctionTargetsHolder,
@@ -51,16 +54,25 @@ pub fn get_packed_types(
                 // instantiate the tx script open types with XUS, XDX
                 if is_script {
                     let num_type_parameters = func_env.get_type_parameters().len();
-                    assert!(num_type_parameters <= 1, "Assuming that transaction scripts have <= 1 type parameters for simplicity. If there can be >1 type parameter, the code here must account for all permutations of type params");
+                    assert!(
+                        num_type_parameters <= 1,
+                        "Assuming that transaction scripts have <= 1 type parameters for simplicity. If there can be >1 type parameter, the code here must account for all permutations of type params"
+                    );
 
                     if num_type_parameters == 1 {
                         for open_ty in annotation.open_types.iter() {
                             for coin_ty in &coin_types {
-                                match open_ty.instantiate(vec![coin_ty.clone()].as_slice()).into_type_tag(env) {
-                                    Some(TypeTag::Struct(s)) =>     {
+                                match open_ty
+                                    .instantiate(vec![coin_ty.clone()].as_slice())
+                                    .into_type_tag(env)
+                                {
+                                    Some(TypeTag::Struct(s)) => {
                                         packed_types.insert(*s);
                                     }
-                                    _ => panic!("Invariant violation: failed to specialize tx script open type {:?} into struct", open_ty),
+                                    _ => panic!(
+                                        "Invariant violation: failed to specialize tx script open type {:?} into struct",
+                                        open_ty
+                                    ),
                                 }
                             }
                         }
@@ -74,9 +86,11 @@ pub fn get_packed_types(
 
 #[derive(Debug, Clone, Default, Eq, PartialOrd, PartialEq)]
 struct PackedTypesState {
-    // Closed types (i.e., with no free type variables) that may be directly or transitively packed by this function.
+    // Closed types (i.e., with no free type variables) that may be directly or transitively packed
+    // by this function.
     closed_types: SetDomain<StructTag>,
-    // Open types (i.e., with free type variables) that may be directly or transitively packed by this function.
+    // Open types (i.e., with free type variables) that may be directly or transitively packed by
+    // this function.
     open_types: SetDomain<Type>,
 }
 
@@ -141,7 +155,10 @@ impl<'a> TransferFunctions for PackedTypesAnalysis<'a> {
                             {
                                 state.closed_types.insert(*s);
                             } else {
-                                panic!("Invariant violation: struct type {:?} became non-struct type after substitution", open_ty)
+                                panic!(
+                                    "Invariant violation: struct type {:?} became non-struct type after substitution",
+                                    open_ty
+                                )
                             }
                         }
                     }
@@ -187,8 +204,9 @@ impl FunctionTargetProcessor for PackedTypesProcessor {
         let cache = SummaryCache::new(targets, func_env.module_env.env);
         let analysis = PackedTypesAnalysis { cache };
         let summary = analysis.summarize(&fun_target, initial_state);
-        // TODO(mengxu, sam): recursion seems to have an impact on how this analysis are conducted,
-        // resolve the TODO item above in the code and update the fixedpoint calculation logic here.
+        // TODO(mengxu, sam): recursion seems to have an impact on how this analysis are
+        // conducted, resolve the TODO item above in the code and update the
+        // fixedpoint calculation logic here.
         data.annotations.set(summary, true);
         data
     }

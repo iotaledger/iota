@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_cli::base::test::{run_move_unit_tests, UnitTestResult};
@@ -20,7 +21,8 @@ fn run_tests_for_pkg(path_to_pkg: impl Into<String>, include_nursery_natives: bo
     );
     if include_nursery_natives {
         natives.extend(nursery_natives(
-            /* silent */ false,
+            // silent
+            false,
             AccountAddress::from_hex_literal("0x1").unwrap(),
             NurseryGasParameters::zeros(),
         ))
@@ -36,7 +38,8 @@ fn run_tests_for_pkg(path_to_pkg: impl Into<String>, include_nursery_natives: bo
         UnitTestingConfig::default_with_bound(Some(1_000_000_000)),
         natives,
         None,
-        /* compute_coverage */ false,
+        // compute_coverage
+        false,
         &mut std::io::stdout(),
     )
     .unwrap();

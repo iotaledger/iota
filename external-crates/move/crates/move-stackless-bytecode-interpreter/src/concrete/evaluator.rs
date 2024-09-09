@@ -1,11 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file implements the expression evaluation part of the stackless bytecode interpreter.
+//! This file implements the expression evaluation part of the stackless
+//! bytecode interpreter.
+
+use std::collections::BTreeMap;
 
 use num::BigInt;
-use std::collections::BTreeMap;
 
 use crate::concrete::value::BaseValue;
 

@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_ir_types::location::*;
 
 use crate::{
     diagnostics::Diagnostic,
@@ -13,7 +16,6 @@ use crate::{
     parser::ast::ModuleName,
     shared::{unique_map::UniqueMap, *},
 };
-use move_ir_types::location::*;
 
 type ScopeDepth = usize;
 
@@ -21,7 +23,8 @@ type ScopeDepth = usize;
 pub struct AliasMap {
     modules: UniqueMap<Name, (Option<ScopeDepth>, ModuleIdent)>,
     members: UniqueMap<Name, (Option<ScopeDepth>, (ModuleIdent, Name))>,
-    // essentially a mapping from ScopeDepth => AliasSet, which are the unused aliases at that depth
+    // essentially a mapping from ScopeDepth => AliasSet, which are the unused aliases at that
+    // depth
     unused: Vec<AliasSet>,
 }
 
@@ -48,10 +51,11 @@ impl AliasMap {
                     self.unused[*depth].modules.remove(n);
                 }
                 *depth_opt = None;
-                // We are preserving the name's original location, rather than referring to where
-                // the alias was defined. The name represents JUST the module name, though, so we do
-                // not change location of the address as we don't have this information.
-                // TODO maybe we should also keep the alias reference (or its location)?
+                // We are preserving the name's original location, rather than referring to
+                // where the alias was defined. The name represents JUST the
+                // module name, though, so we do not change location of the
+                // address as we don't have this information. TODO maybe we
+                // should also keep the alias reference (or its location)?
                 let sp!(
                     _,
                     ModuleIdent_ {
@@ -74,17 +78,18 @@ impl AliasMap {
                     self.unused[*depth].members.remove(n);
                 }
                 *depth_opt = None;
-                // We are preserving the name's original location, rather than referring to where
-                // the alias was defined. The name represents JUST the member name, though, so we do
-                // not change location of the module as we don't have this information.
-                // TODO maybe we should also keep the alias reference (or its location)?
+                // We are preserving the name's original location, rather than referring to
+                // where the alias was defined. The name represents JUST the
+                // member name, though, so we do not change location of the
+                // module as we don't have this information. TODO maybe we
+                // should also keep the alias reference (or its location)?
                 Some((sp(*mem_mod_loc, *mem_mod), sp(n.loc, *mem_name)))
             }
         }
     }
 
-    /// Adds all of the new items in the new inner scope as shadowing the outer one.
-    /// Gives back the outer scope
+    /// Adds all of the new items in the new inner scope as shadowing the outer
+    /// one. Gives back the outer scope
     pub fn add_and_shadow_all(
         &mut self,
         loc: Loc,
@@ -129,7 +134,8 @@ impl AliasMap {
         Ok(outer_scope)
     }
 
-    /// Similar to add_and_shadow but just removes aliases now shadowed by a type parameter
+    /// Similar to add_and_shadow but just removes aliases now shadowed by a
+    /// type parameter
     pub fn shadow_for_type_parameters<'a, I: IntoIterator<Item = &'a Name>>(
         &mut self,
         tparams: I,

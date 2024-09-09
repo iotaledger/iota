@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{control_flow_graph::VMControlFlowGraph, file_format::Bytecode};
@@ -24,11 +25,16 @@ fn linear_summary() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ Nop,
-            /*        */ Branch(2),
-            /* B2, L1 */ Nop,
-            /*        */ Branch(4),
-            /* B4, L2 */ Ret,
+            // B0, L0
+            Nop,
+            //
+            Branch(2),
+            // B2, L1
+            Nop,
+            //
+            Branch(4),
+            // B4, L2
+            Ret,
         ]))
     };
 
@@ -66,10 +72,14 @@ fn non_loop_back_branch_summary() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ Nop,
-            /*        */ Branch(3),
-            /* B2, L2 */ Ret,
-            /* B3, L1 */ Branch(2),
+            // B0, L0
+            Nop,
+            //
+            Branch(3),
+            // B2, L2
+            Ret,
+            // B3, L1
+            Branch(2),
         ]))
     };
 
@@ -107,10 +117,14 @@ fn branching_summary() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ LdTrue,
-            /*        */ BrTrue(3),
-            /* B2, L2 */ Nop,
-            /* B3, L1 */ Ret,
+            // B0, L0
+            LdTrue,
+            //
+            BrTrue(3),
+            // B2, L2
+            Nop,
+            // B3, L1
+            Ret,
         ]))
     };
 
@@ -142,8 +156,8 @@ fn branching_summary() {
         /* backs */ &[]
     );
 
-    // Although L2 -> L1 is an edge in the CFG, it's not an edge in the DFST, so L2 is said to have
-    // no descendants.
+    // Although L2 -> L1 is an edge in the CFG, it's not an edge in the DFST, so L2
+    // is said to have no descendants.
     assert!(!summary.is_descendant(n[2], n[1]));
 }
 
@@ -152,11 +166,16 @@ fn looping_summary() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ LdTrue,
-            /*        */ BrTrue(4),
-            /* B2, L2 */ Nop,
-            /*        */ Branch(0),
-            /* B4, L1 */ Ret,
+            // B0, L0
+            LdTrue,
+            //
+            BrTrue(4),
+            // B2, L2
+            Nop,
+            //
+            Branch(0),
+            // B4, L1
+            Ret,
         ]))
     };
 
@@ -194,12 +213,18 @@ fn branches_in_loops_summary() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ LdTrue,
-            /*        */ BrTrue(3),
-            /* B2, L3 */ Nop,
-            /* B3, L1 */ LdFalse,
-            /*        */ BrFalse(0),
-            /* B5, L2 */ Ret,
+            // B0, L0
+            LdTrue,
+            //
+            BrTrue(3),
+            // B2, L3
+            Nop,
+            // B3, L1
+            LdFalse,
+            //
+            BrFalse(0),
+            // B5, L2
+            Ret,
         ]))
     };
 
@@ -245,20 +270,34 @@ fn loops_in_branches_summary() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0,  L0 */ LdTrue,
-            /*         */ BrTrue(8),
-            /* B2,  L5   */ Nop,
-            /* B3,  L6     */ LdFalse,
-            /*             */ BrFalse(3),
-            /* B5,  L7   */ LdTrue,
-            /*           */ BrTrue(2),
-            /* B7,  L8 */ Branch(13),
-            /* B8,  L1   */ Nop,
-            /* B9,  L2   */ LdTrue,
-            /*           */ BrTrue(8),
-            /* B11, L3   */ LdFalse,
-            /*           */ BrFalse(9),
-            /* B13, L4 */ Ret,
+            // B0,  L0
+            LdTrue,
+            //
+            BrTrue(8),
+            // B2,  L5
+            Nop,
+            // B3,  L6
+            LdFalse,
+            //
+            BrFalse(3),
+            // B5,  L7
+            LdTrue,
+            //
+            BrTrue(2),
+            // B7,  L8
+            Branch(13),
+            // B8,  L1
+            Nop,
+            // B9,  L2
+            LdTrue,
+            //
+            BrTrue(8),
+            // B11, L3
+            LdFalse,
+            //
+            BrFalse(9),
+            // B13, L4
+            Ret,
         ]))
     };
 
@@ -344,11 +383,16 @@ fn loop_collapsing() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ LdTrue,
-            /*        */ BrTrue(4),
-            /* B2, L2 */ Nop,
-            /*        */ Branch(0),
-            /* B4, L1 */ Ret,
+            // B0, L0
+            LdTrue,
+            //
+            BrTrue(4),
+            // B2, L2
+            Nop,
+            //
+            Branch(0),
+            // B4, L1
+            Ret,
         ]))
     };
 
@@ -370,14 +414,22 @@ fn nested_loop_collapsing() {
     let summary = {
         use Bytecode::*;
         LoopSummary::new(&VMControlFlowGraph::new(&[
-            /* B0, L0 */ Nop,
-            /* B1, L1   */ LdTrue,
-            /*          */ BrTrue(1),
-            /* B3, L2 */ LdFalse,
-            /*        */ BrFalse(0),
-            /* B5, L3 */ LdTrue,
-            /*        */ BrTrue(0),
-            /* B7, L4 */ Ret,
+            // B0, L0
+            Nop,
+            // B1, L1
+            LdTrue,
+            //
+            BrTrue(1),
+            // B3, L2
+            LdFalse,
+            //
+            BrFalse(0),
+            // B5, L3
+            LdTrue,
+            //
+            BrTrue(0),
+            // B7, L4
+            Ret,
         ]))
     };
 

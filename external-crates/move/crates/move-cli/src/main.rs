@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -13,7 +14,8 @@ fn main() -> Result<()> {
     let natives = all_natives(addr, GasParameters::zeros())
         .into_iter()
         .chain(nursery_natives(
-            /* silent */ false,
+            // silent
+            false,
             addr,
             NurseryGasParameters::zeros(),
         ))

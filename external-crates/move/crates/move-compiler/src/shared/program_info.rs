@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -13,8 +14,7 @@ use crate::{
         SyntaxMethods, Type,
     },
     parser::ast::{ConstantName, FunctionName, StructName},
-    shared::unique_map::UniqueMap,
-    shared::*,
+    shared::{unique_map::UniqueMap, *},
     typing::ast::{self as T},
     FullyCompiledProgram,
 };

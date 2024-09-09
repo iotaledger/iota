@@ -1,7 +1,10 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
+
+use move_ir_types::location::*;
 
 use crate::{
     diag,
@@ -16,7 +19,6 @@ use crate::{
     parser::ast::FunctionName,
     shared::{known_attributes::SyntaxAttribute, CompilationEnv},
 };
-use move_ir_types::location::*;
 
 #[derive(PartialEq, Eq, Ord, PartialOrd)]
 enum SyntaxMethodPrekind_ {
@@ -159,7 +161,8 @@ fn attr_param_from_str(loc: Loc, name_str: &str) -> Option<SyntaxMethodPrekind> 
     }
 }
 
-/// Resolve the mapping for a function + syntax attribute into a SyntaxMethodKind.
+/// Resolve the mapping for a function + syntax attribute into a
+/// SyntaxMethodKind.
 fn resolve_syntax_method_prekind(
     env: &mut CompilationEnv,
     sp!(loc, attr_): &Attribute,
@@ -361,8 +364,7 @@ fn valid_return_type(
                 valid_index_return_type(context, loc, ty)
             } else if valid_mut_ref(ty) {
                 let msg = format!("Invalid {} annotation", SyntaxAttribute::SYNTAX);
-                let tmsg =
-                    "This syntax method must return an immutable reference to match its subject type";
+                let tmsg = "This syntax method must return an immutable reference to match its subject type";
                 context.env.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*loc, msg),

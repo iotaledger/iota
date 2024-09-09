@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { render, screen } from '@testing-library/react';
@@ -8,17 +9,17 @@ import { ConnectButton } from '../../src/components/ConnectButton';
 import { createWalletProviderContextWrapper } from '../test-utils';
 
 describe('ConnectButton', () => {
-	test('clicking the button opens the connect modal', async () => {
-		const wrapper = createWalletProviderContextWrapper();
+    test('clicking the button opens the connect modal', async () => {
+        const wrapper = createWalletProviderContextWrapper();
 
-		render(<ConnectButton />, { wrapper });
+        render(<ConnectButton />, { wrapper });
 
-		const connectButtonEl = screen.getByRole('button', { name: 'Connect Wallet' });
-		expect(connectButtonEl).toBeInTheDocument();
+        const connectButtonEl = screen.getByRole('button', { name: 'Connect Wallet' });
+        expect(connectButtonEl).toBeInTheDocument();
 
-		const user = userEvent.setup();
-		await user.click(connectButtonEl);
+        const user = userEvent.setup();
+        await user.click(connectButtonEl);
 
-		expect(screen.getByRole('dialog')).toBeInTheDocument();
-	});
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
 });

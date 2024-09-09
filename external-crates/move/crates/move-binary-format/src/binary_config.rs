@@ -1,6 +1,6 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 
 use crate::file_format_common::VERSION_MAX;
 
@@ -70,7 +70,8 @@ impl BinaryConfig {
         }
     }
 
-    // We want to make this disappear from the public API in favor of a "true" config
+    // We want to make this disappear from the public API in favor of a "true"
+    // config
     pub fn legacy(max_binary_format_version: u32, check_no_extraneous_bytes: bool) -> Self {
         Self {
             max_binary_format_version,
@@ -79,7 +80,8 @@ impl BinaryConfig {
         }
     }
 
-    /// Run always with the max version but with controllable "extraneous bytes check"
+    /// Run always with the max version but with controllable "extraneous bytes
+    /// check"
     pub fn with_extraneous_bytes_check(check_no_extraneous_bytes: bool) -> Self {
         Self {
             max_binary_format_version: VERSION_MAX,
@@ -98,4 +100,3 @@ impl BinaryConfig {
         }
     }
 }
-

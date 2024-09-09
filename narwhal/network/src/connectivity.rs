@@ -1,19 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::NetworkConnectionMetrics;
-use anemo::types::PeerEvent;
-use anemo::PeerId;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+
+use anemo::{types::PeerEvent, PeerId};
 use dashmap::DashMap;
 use futures::future;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use quinn_proto::ConnectionStats;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::task::JoinHandle;
-use tokio::time;
+use tokio::{task::JoinHandle, time};
 use types::ConditionalBroadcastReceiver;
+
+use crate::metrics::NetworkConnectionMetrics;
 
 const CONNECTION_STAT_COLLECTION_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -253,16 +252,18 @@ impl ConnectionMonitor {
 
 #[cfg(test)]
 mod tests {
-    use crate::connectivity::{ConnectionMonitor, ConnectionStatus};
-    use crate::metrics::NetworkConnectionMetrics;
+    use std::{collections::HashMap, convert::Infallible, time::Duration};
+
     use anemo::{Network, Request, Response};
     use bytes::Bytes;
     use prometheus::Registry;
-    use std::collections::HashMap;
-    use std::convert::Infallible;
-    use std::time::Duration;
     use tokio::time::{sleep, timeout};
     use tower::util::BoxCloneService;
+
+    use crate::{
+        connectivity::{ConnectionMonitor, ConnectionStatus},
+        metrics::NetworkConnectionMetrics,
+    };
 
     #[tokio::test]
     async fn test_connectivity() {

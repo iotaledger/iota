@@ -1,14 +1,17 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::command_line::compiler::Visitor;
-use crate::diagnostics::WarningFilters;
-use crate::expansion::ast::ModuleIdent;
-use crate::parser::ast::{ConstantName, FunctionName};
-use crate::shared::{program_info::TypingProgramInfo, CompilationEnv};
-use crate::typing::ast as T;
-
 use move_proc_macros::growing_stack;
+
+use crate::{
+    command_line::compiler::Visitor,
+    diagnostics::WarningFilters,
+    expansion::ast::ModuleIdent,
+    parser::ast::{ConstantName, FunctionName},
+    shared::{program_info::TypingProgramInfo, CompilationEnv},
+    typing::ast as T,
+};
 
 pub type TypingVisitorObj = Box<dyn TypingVisitor>;
 
@@ -60,9 +63,9 @@ pub trait TypingVisitorContext {
         false
     }
 
-    /// By default, the visitor will visit all all expressions in all functions in all modules. A
-    /// custom version should of this function should be created if different type of analysis is
-    /// required.
+    /// By default, the visitor will visit all all expressions in all functions
+    /// in all modules. A custom version should of this function should be
+    /// created if different type of analysis is required.
     fn visit(&mut self, program: &mut T::Program_) {
         for (mident, mdef) in program.modules.key_cloned_iter_mut() {
             self.add_warning_filter_scope(mdef.warning_filter.clone());
@@ -147,7 +150,8 @@ pub trait TypingVisitorContext {
         }
     }
 
-    /// Custom visit for an expression. It will skip `visit_exp` if `visit_exp_custom` returns true.
+    /// Custom visit for an expression. It will skip `visit_exp` if
+    /// `visit_exp_custom` returns true.
     fn visit_exp_custom(&mut self, _exp: &mut T::Exp) -> bool {
         false
     }

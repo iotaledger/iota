@@ -1,13 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::support::dummy_procedure_module;
 use move_binary_format::file_format::Bytecode;
-use move_bytecode_verifier::meter::DummyMeter;
-use move_bytecode_verifier::CodeUnitVerifier;
+use move_bytecode_verifier::{meter::DummyMeter, CodeUnitVerifier};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
+
+use crate::support::dummy_procedure_module;
 
 #[test]
 fn invalid_fallthrough_br_true() {
@@ -29,7 +30,8 @@ fn invalid_fallthrough_br_false() {
     );
 }
 
-// all non-branch instructions should trigger invalid fallthrough; just check one of them
+// all non-branch instructions should trigger invalid fallthrough; just check
+// one of them
 #[test]
 fn invalid_fallthrough_non_branch() {
     let module = dummy_procedure_module(vec![Bytecode::LdTrue, Bytecode::Pop]);

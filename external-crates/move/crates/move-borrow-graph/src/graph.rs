@@ -1,12 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     paths::{self, Path, PathSlice},
     references::*,
 };
-use std::collections::{BTreeMap, BTreeSet};
 
 //**************************************************************************************************
 // Definitions
@@ -51,9 +53,9 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
 
     /// Return the references borrowing the `id` reference
     /// The borrows are collected by first label in the borrow edge
-    /// `BTreeMap<RefID, Loc>` represents all of the "full" or "epsilon" borrows (non field borrows)
-    /// `BTreeMap<Lbl, BTreeMap<RefID, Loc>>)` represents the field borrows, collected over the
-    /// first label
+    /// `BTreeMap<RefID, Loc>` represents all of the "full" or "epsilon" borrows
+    /// (non field borrows) `BTreeMap<Lbl, BTreeMap<RefID, Loc>>)`
+    /// represents the field borrows, collected over the first label
     pub fn borrowed_by(
         &self,
         id: RefID,
@@ -119,7 +121,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
         self.factor(parent_id, loc, vec![], child_id)
     }
 
-    /// Add a strong (exact) field borrow from `parent_id` to `child_id` at field `field`
+    /// Add a strong (exact) field borrow from `parent_id` to `child_id` at
+    /// field `field`
     pub fn add_strong_field_borrow(
         &mut self,
         loc: Loc,
@@ -136,8 +139,9 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
         self.add_path(parent_id, loc, false, vec![], child_id)
     }
 
-    /// Add a weak (prefix) field borrow from `parent_id` to `child_id` at field `field`
-    /// i.e. `child_id` might be borrowing from ANY field in `parent_id` rooted at `field`
+    /// Add a weak (prefix) field borrow from `parent_id` to `child_id` at field
+    /// `field` i.e. `child_id` might be borrowing from ANY field in
+    /// `parent_id` rooted at `field`
     pub fn add_weak_field_borrow(
         &mut self,
         loc: Loc,
@@ -197,12 +201,13 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
         }
 
         for child_id in cleanup_ids {
-            assert!(self
-                .0
-                .get_mut(child_id)
-                .unwrap()
-                .borrows_from
-                .remove(&parent_id));
+            assert!(
+                self.0
+                    .get_mut(child_id)
+                    .unwrap()
+                    .borrows_from
+                    .remove(&parent_id)
+            );
         }
 
         for (child_id, parent_to_child_edge) in needs_factored {
@@ -218,7 +223,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
         self.add_path(
             parent_id,
             loc,
-            /* strong */ true,
+            // strong
+            true,
             path,
             intermediate_id,
         );
@@ -230,8 +236,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
     //**********************************************************************************************
 
     /// Remove reference `id` from the graph
-    /// Fixes any transitive borrows, so if `parent` borrowed by `id` borrowed by `child`
-    /// After the release, `parent` borrowed by `child`
+    /// Fixes any transitive borrows, so if `parent` borrowed by `id` borrowed
+    /// by `child` After the release, `parent` borrowed by `child`
     pub fn release(&mut self, id: RefID) {
         debug_assert!(self.check_invariant());
         let Ref {
@@ -351,8 +357,9 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
     //**********************************************************************************************
 
     /// Joins other into self
-    /// It adds only 'unmatched' edges from other into self, i.e. for any edge in other, if there
-    /// is an edge in self that is <= than that edge, it is not added.
+    /// It adds only 'unmatched' edges from other into self, i.e. for any edge
+    /// in other, if there is an edge in self that is <= than that edge, it
+    /// is not added.
     pub fn join(&self, other: &Self) -> Self {
         debug_assert!(self.check_invariant());
         debug_assert!(other.check_invariant());
@@ -379,8 +386,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
         self.id_consistency() && self.edge_consistency() && self.no_self_loops()
     }
 
-    /// Checks at all ids in edges are contained in the borrow map itself, i.e. that each id
-    /// corresponds to a reference
+    /// Checks at all ids in edges are contained in the borrow map itself, i.e.
+    /// that each id corresponds to a reference
     fn id_consistency(&self) -> bool {
         let contains_id = |id| self.0.contains_key(id);
         self.0.values().all(|r| {
@@ -388,8 +395,8 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowGraph<Loc, Lbl> {
         })
     }
 
-    /// Checks that for every edge in borrowed_by there is a flipped edge in borrows_from
-    /// And vice versa
+    /// Checks that for every edge in borrowed_by there is a flipped edge in
+    /// borrows_from And vice versa
     //// i.e. verifies the "back edges" in the borrow graph
     fn edge_consistency(&self) -> bool {
         let parent_to_child_consistency =

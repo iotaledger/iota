@@ -1,6 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeSet;
+
+use proptest::{
+    collection::{vec, SizeRange},
+    option,
+    prelude::*,
+    sample::Index as PropIndex,
+    std_facade::hash_set::HashSet,
+};
 
 use crate::{
     file_format::{
@@ -14,16 +25,9 @@ use crate::{
         signature::{AbilitySetGen, SignatureTokenGen},
     },
 };
-use proptest::{
-    collection::{vec, SizeRange},
-    option,
-    prelude::*,
-    sample::Index as PropIndex,
-    std_facade::hash_set::HashSet,
-};
-use std::collections::BTreeSet;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct TypeSignatureIndex(u16);
 
 #[derive(Debug)]

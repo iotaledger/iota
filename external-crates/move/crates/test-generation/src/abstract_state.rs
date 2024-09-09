@@ -1,8 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{borrow_graph::BorrowGraph, error::VMError};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
+
 use move_binary_format::{
     access::ModuleAccess,
     file_format::{
@@ -12,10 +17,8 @@ use move_binary_format::{
         StructDefInstantiation, StructDefInstantiationIndex, StructDefinitionIndex, TableIndex,
     },
 };
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+
+use crate::{borrow_graph::BorrowGraph, error::VMError};
 
 /// The BorrowState denotes whether a local is `Available` or
 /// has been moved and is `Unavailable`.
@@ -50,7 +53,8 @@ pub enum Mutability {
 }
 
 impl AbstractValue {
-    /// Create a new primitive `AbstractValue` given its type; the kind will be `Copyable`
+    /// Create a new primitive `AbstractValue` given its type; the kind will be
+    /// `Copyable`
     pub fn new_primitive(token: SignatureToken) -> AbstractValue {
         assert!(
             match token {
@@ -103,8 +107,8 @@ impl AbstractValue {
         AbstractValue { token, abilities }
     }
 
-    /// Predicate on whether the type of the abstract value is generic -- it is if it contains a
-    /// type parameter.
+    /// Predicate on whether the type of the abstract value is generic -- it is
+    /// if it contains a type parameter.
     pub fn is_generic(&self) -> bool {
         Self::is_generic_token(&self.token)
     }
@@ -163,8 +167,9 @@ impl CallGraph {
         instantiation_depth
     }
 
-    /// None if recursive, Some(index) if non-recursive, and index is the length of the maximal call
-    /// graph path originating at caller, and calling through callee.
+    /// None if recursive, Some(index) if non-recursive, and index is the length
+    /// of the maximal call graph path originating at caller, and calling
+    /// through callee.
     pub fn call_depth(
         &self,
         caller: FunctionHandleIndex,
@@ -195,12 +200,14 @@ impl CallGraph {
     }
 }
 
-/// During the generation of a bytecode sequence, specific instantiations may need to be made, that
-/// may not yet exist in the underlying module. Instead of mutating the underlying module in order to record these instantiations in the
-/// locals signature table, we instead build wrapper around the underlying module containing the
-/// type instantiations, and at the end materialize this updated signature pool into a module. We
-/// also need the ability to quickly determine if an instantiation has already been created, and if
-/// so, at which index. So this also keeps a reverse lookup table of instantiation to
+/// During the generation of a bytecode sequence, specific instantiations may
+/// need to be made, that may not yet exist in the underlying module. Instead of
+/// mutating the underlying module in order to record these instantiations in
+/// the locals signature table, we instead build wrapper around the underlying
+/// module containing the type instantiations, and at the end materialize this
+/// updated signature pool into a module. We also need the ability to quickly
+/// determine if an instantiation has already been created, and if so, at which
+/// index. So this also keeps a reverse lookup table of instantiation to
 /// SignatureIndex.
 #[derive(Debug, Clone)]
 pub struct InstantiableModule {
@@ -262,9 +269,10 @@ impl InstantiableModule {
         }
     }
 
-    /// If the `instantiant` is not in the `instantiations` table, this adds the instantiant to the
-    /// `instance_for_offset` for table, and adds the index to the reverse lookup table. Returns
-    /// the SignatureIndex for the `instantiant`.
+    /// If the `instantiant` is not in the `instantiations` table, this adds the
+    /// instantiant to the `instance_for_offset` for table, and adds the
+    /// index to the reverse lookup table. Returns the SignatureIndex for
+    /// the `instantiant`.
     pub fn add_instantiation(&mut self, instantiant: Vec<SignatureToken>) -> SignatureIndex {
         match self.instantiations.get(&instantiant) {
             Some(index) => *index,
@@ -279,9 +287,9 @@ impl InstantiableModule {
         }
     }
 
-    /// If the `instantiant` is not in the `struct_instantiations` table, this adds the
-    /// instantiant to the `struct_instance_for_offset` for table, and adds the index to the
-    /// reverse lookup table.
+    /// If the `instantiant` is not in the `struct_instantiations` table, this
+    /// adds the instantiant to the `struct_instance_for_offset` for table,
+    /// and adds the index to the reverse lookup table.
     /// Returns the SignatureIndex for the `instantiant`.
     pub fn add_struct_instantiation(
         &mut self,
@@ -301,9 +309,9 @@ impl InstantiableModule {
         }
     }
 
-    /// If the `instantiant` is not in the `function_instantiations` table, this adds the
-    /// instantiant to the `func_instance_for_offset` for table, and adds the index to the
-    /// reverse lookup table.
+    /// If the `instantiant` is not in the `function_instantiations` table, this
+    /// adds the instantiant to the `func_instance_for_offset` for table,
+    /// and adds the index to the reverse lookup table.
     /// Returns the SignatureIndex for the `instantiant`.
     pub fn add_function_instantiation(
         &mut self,
@@ -322,9 +330,9 @@ impl InstantiableModule {
         }
     }
 
-    /// If the `instantiant` is not in the `field_instantiations` table, this adds the
-    /// instantiant to the `field_instance_for_offset` for table, and adds the index to the
-    /// reverse lookup table.
+    /// If the `instantiant` is not in the `field_instantiations` table, this
+    /// adds the instantiant to the `field_instance_for_offset` for table,
+    /// and adds the index to the reverse lookup table.
     /// Returns the SignatureIndex for the `instantiant`.
     pub fn add_field_instantiation(
         &mut self,
@@ -343,7 +351,8 @@ impl InstantiableModule {
         }
     }
 
-    /// Returns the type instantiation at `index`. Errors if the instantiation does not exist.
+    /// Returns the type instantiation at `index`. Errors if the instantiation
+    /// does not exist.
     pub fn instantiantiation_at(&self, index: SignatureIndex) -> &Vec<SignatureToken> {
         match self.sig_instance_for_offset.get(index.0 as usize) {
             Some(vec) => vec,
@@ -353,7 +362,8 @@ impl InstantiableModule {
         }
     }
 
-    /// Returns the struct instantiation at `index`. Errors if the instantiation does not exist.
+    /// Returns the struct instantiation at `index`. Errors if the instantiation
+    /// does not exist.
     pub fn struct_instantiantiation_at(
         &self,
         index: StructDefInstantiationIndex,
@@ -366,7 +376,8 @@ impl InstantiableModule {
         }
     }
 
-    /// Returns the struct instantiation at `index`. Errors if the instantiation does not exist.
+    /// Returns the struct instantiation at `index`. Errors if the instantiation
+    /// does not exist.
     pub fn function_instantiantiation_at(
         &self,
         index: FunctionInstantiationIndex,
@@ -379,7 +390,8 @@ impl InstantiableModule {
         }
     }
 
-    /// Returns the struct instantiation at `index`. Errors if the instantiation does not exist.
+    /// Returns the struct instantiation at `index`. Errors if the instantiation
+    /// does not exist.
     pub fn field_instantiantiation_at(
         &self,
         index: FieldInstantiationIndex,
@@ -392,8 +404,8 @@ impl InstantiableModule {
         }
     }
 
-    /// Consumes self, and adds the instantiations that have been built up to the underlying
-    /// module, and returns the resultant compiled module.
+    /// Consumes self, and adds the instantiations that have been built up to
+    /// the underlying module, and returns the resultant compiled module.
     pub fn instantiate(self) -> CompiledModule {
         let mut module = self.module;
         module.signatures = self
@@ -411,17 +423,17 @@ impl InstantiableModule {
 /// An AbstractState represents an abstract view of the execution of the
 /// Move VM. Rather than considering values of items on the stack or in
 /// the locals, we only consider their type, represented by a `AbstractValue`
-/// and their availibility, represented by the `BorrowState`.
+/// and their availability, represented by the `BorrowState`.
 #[derive(Debug, Clone)]
 pub struct AbstractState {
     /// A Vector of `AbstractValue`s representing the VM value stack
     stack: Vec<AbstractValue>,
 
-    /// A vector of type kinds for any generic function type parameters of the function that we are
-    /// in.
+    /// A vector of type kinds for any generic function type parameters of the
+    /// function that we are in.
     pub instantiation: Vec<AbilitySet>,
 
-    /// A HashMap mapping local indicies to `AbstractValue`s and `BorrowState`s
+    /// A HashMap mapping local indices to `AbstractValue`s and `BorrowState`s
     locals: HashMap<usize, (AbstractValue, BorrowState)>,
 
     /// Temporary location for storing the results of instruction effects for
@@ -431,19 +443,20 @@ pub struct AbstractState {
     /// The module state
     pub module: InstantiableModule,
 
-    /// The global resources acquired by the function corresponding to this abstract state
+    /// The global resources acquired by the function corresponding to this
+    /// abstract state
     pub acquires_global_resources: Vec<StructDefinitionIndex>,
 
-    /// This flag is set when applying an instruction that should result in an error
-    /// in the VM runtime.
+    /// This flag is set when applying an instruction that should result in an
+    /// error in the VM runtime.
     aborted: bool,
 
-    /// This flag controls whether or not control flow operators are allowed to be applied to the
-    /// abstract state.
+    /// This flag controls whether or not control flow operators are allowed to
+    /// be applied to the abstract state.
     control_flow_allowed: bool,
 
-    /// This graph stores borrow information needed to ensure that bytecode instructions
-    /// are memory safe
+    /// This graph stores borrow information needed to ensure that bytecode
+    /// instructions are memory safe
     #[allow(dead_code)]
     borrow_graph: BorrowGraph,
 
@@ -468,8 +481,9 @@ impl AbstractState {
         }
     }
 
-    /// Create a new AbstractState given a list of `SignatureTokens` that will be
-    /// the (available) locals that the state will have, as well as the module state
+    /// Create a new AbstractState given a list of `SignatureTokens` that will
+    /// be the (available) locals that the state will have, as well as the
+    /// module state
     pub fn from_locals(
         module: CompiledModule,
         locals: HashMap<usize, (AbstractValue, BorrowState)>,
@@ -514,7 +528,7 @@ impl AbstractState {
     pub fn stack_push(&mut self, item: AbstractValue) {
         // Programs that are large enough to exceed this bound
         // will not be generated
-        debug_assert!(self.stack.len() < usize::max_value());
+        debug_assert!(self.stack.len() < usize::MAX);
         self.stack.push(item);
     }
 
@@ -524,7 +538,7 @@ impl AbstractState {
         if let Some(abstract_value) = self.register_move() {
             // Programs that are large enough to exceed this bound
             // will not be generated
-            debug_assert!(self.stack.len() < usize::max_value());
+            debug_assert!(self.stack.len() < usize::MAX);
             self.stack.push(abstract_value);
             Ok(())
         } else {
@@ -560,7 +574,7 @@ impl AbstractState {
 
     /// Check if the local at index `i` exists
     pub fn local_exists(&self, i: usize) -> bool {
-        self.locals.get(&i).is_some()
+        self.locals.contains_key(&i)
     }
 
     /// Get the local at index `i` if it exists
@@ -579,8 +593,8 @@ impl AbstractState {
         }
     }
 
-    /// Place a reference to the local at index `i` if it exists into the register
-    /// If it does not exist return a `VMError`.
+    /// Place a reference to the local at index `i` if it exists into the
+    /// register If it does not exist return a `VMError`.
     pub fn local_take_borrow(&mut self, i: usize, mutability: Mutability) -> Result<(), VMError> {
         if let Some((abstract_value, _)) = self.locals.get(&i) {
             let ref_token = match mutability {
@@ -591,7 +605,7 @@ impl AbstractState {
                     SignatureToken::Reference(Box::new(abstract_value.token.clone()))
                 }
                 Mutability::Either => {
-                    return Err(VMError::new("Mutability cannot be Either".to_string()))
+                    return Err(VMError::new("Mutability cannot be Either".to_string()));
                 }
             };
             self.register = Some(AbstractValue::new_reference(
@@ -669,8 +683,9 @@ impl AbstractState {
         &self.locals
     }
 
-    /// Set the abstract state to be `aborted` when a precondition of an instruction
-    /// fails. (This will happen if `NEGATE_PRECONDITIONs` is true).
+    /// Set the abstract state to be `aborted` when a precondition of an
+    /// instruction fails. (This will happen if `NEGATE_PRECONDITIONs` is
+    /// true).
     pub fn abort(&mut self) {
         self.aborted = true;
     }

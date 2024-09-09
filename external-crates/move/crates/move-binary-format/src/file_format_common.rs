@@ -1,22 +1,25 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Constants for the binary format.
 //!
-//! Definition for the constants of the binary format, used by the serializer and the deserializer.
-//! This module also offers helpers for the serialization and deserialization of certain
-//! integer indexes.
+//! Definition for the constants of the binary format, used by the serializer
+//! and the deserializer. This module also offers helpers for the serialization
+//! and deserialization of certain integer indexes.
 //!
-//! We use LEB128 for integer compression. LEB128 is a representation from the DWARF3 spec,
-//! http://dwarfstd.org/Dwarf3Std.php or https://en.wikipedia.org/wiki/LEB128.
+//! We use LEB128 for integer compression. LEB128 is a representation from the
+//! DWARF3 spec, <http://dwarfstd.org/Dwarf3Std.php> or <https://en.wikipedia.org/wiki/LEB128>.
 //! It's used to compress mostly indexes into the main binary tables.
-use crate::file_format::Bytecode;
-use anyhow::{bail, Result};
 use std::{
     io::{Cursor, Read},
     mem::size_of,
 };
+
+use anyhow::{bail, Result};
+
+use crate::file_format::Bytecode;
 
 /// Constant values for the binary format header.
 ///
@@ -26,10 +29,11 @@ impl BinaryConstants {
     /// The blob that must start a binary.
     pub const MOVE_MAGIC_SIZE: usize = 4;
     pub const MOVE_MAGIC: [u8; BinaryConstants::MOVE_MAGIC_SIZE] = [0xA1, 0x1C, 0xEB, 0x0B];
-    /// The `DIEM_MAGIC` size, 4 byte for major version and 1 byte for table count.
+    /// The `DIEM_MAGIC` size, 4 byte for major version and 1 byte for table
+    /// count.
     pub const HEADER_SIZE: usize = BinaryConstants::MOVE_MAGIC_SIZE + 5;
-    /// A (Table Type, Start Offset, Byte Count) size, which is 1 byte for the type and
-    /// 4 bytes for the offset/count.
+    /// A (Table Type, Start Offset, Byte Count) size, which is 1 byte for the
+    /// type and 4 bytes for the offset/count.
     pub const TABLE_HEADER_SIZE: u8 = size_of::<u32>() as u8 * 2 + 1;
 }
 
@@ -225,7 +229,7 @@ pub enum Opcodes {
 }
 
 /// Upper limit on the binary size
-pub const BINARY_SIZE_LIMIT: usize = usize::max_value();
+pub const BINARY_SIZE_LIMIT: usize = usize::MAX;
 
 /// A wrapper for the binary vector
 #[derive(Default, Debug)]
@@ -233,7 +237,8 @@ pub(crate) struct BinaryData {
     _binary: Vec<u8>,
 }
 
-/// The wrapper mirrors Vector operations but provides additional checks against overflow
+/// The wrapper mirrors Vector operations but provides additional checks against
+/// overflow
 impl BinaryData {
     pub fn new() -> Self {
         BinaryData {
@@ -378,7 +383,6 @@ pub fn read_uleb128_as_u64(cursor: &mut Cursor<&[u8]>) -> Result<u64> {
     bail!("invalid ULEB128 repr for usize");
 }
 
-//
 // Bytecode evolution
 //
 
@@ -416,8 +420,8 @@ pub const VERSION_MAX: u32 = VERSION_6;
 // TODO(#145): finish v4 compatibility; as of now, only metadata is implemented
 pub const VERSION_MIN: u32 = VERSION_5;
 
-/// The encoding of the instruction is the serialized form of it, but disregarding the
-/// serialization of the instruction's argument(s).
+/// The encoding of the instruction is the serialized form of it, but
+/// disregarding the serialization of the instruction's argument(s).
 pub fn instruction_key(instruction: &Bytecode) -> u8 {
     use Bytecode::*;
     let opcode = match instruction {

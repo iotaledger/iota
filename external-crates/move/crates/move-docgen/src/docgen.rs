@@ -1,12 +1,23 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[allow(unused_imports)]
-use log::{debug, info, warn};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::Write as FmtWrite,
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    rc::Rc,
+};
 
 use codespan::{ByteIndex, Span};
 use itertools::Itertools;
+#[allow(unused_imports)]
+use log::{debug, info, warn};
 use move_compiler::parser::keywords::{BUILTINS, CONTEXTUAL_KEYWORDS, KEYWORDS};
 use move_model::{
     ast::ModuleName,
@@ -23,16 +34,6 @@ use num::BigUint;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::Write as FmtWrite,
-    fs::{self, File},
-    io::{Read, Write},
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
-    rc::Rc,
-};
 
 /// The maximum number of subheadings that are allowed
 const MAX_SUBSECTIONS: usize = 6;
@@ -41,33 +42,34 @@ const MAX_SUBSECTIONS: usize = 6;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DocgenOptions {
-    /// The level where we start sectioning. Often markdown sections are rendered with
-    /// unnecessary large section fonts, setting this value high reduces the size.
+    /// The level where we start sectioning. Often markdown sections are
+    /// rendered with unnecessary large section fonts, setting this value
+    /// high reduces the size.
     pub section_level_start: usize,
     /// Whether to include private functions in the generated docs.
     pub include_private_fun: bool,
     /// Whether to include specifications in the generated docs.
     pub include_specs: bool,
-    /// Whether to put specifications in the same section as a declaration or put them all
-    /// into an independent section.
+    /// Whether to put specifications in the same section as a declaration or
+    /// put them all into an independent section.
     pub specs_inlined: bool,
     /// Whether to include Move implementations.
     pub include_impl: bool,
     /// Max depth to which sections are displayed in table-of-contents.
     pub toc_depth: usize,
-    /// Whether to use collapsed sections (<details>) for impl and specs
+    /// Whether to use collapsed sections (`<details>`) for impl and specs
     pub collapsed_sections: bool,
     /// In which directory to store output.
     pub output_directory: String,
     /// In which directories to look for references.
     pub doc_path: Vec<String>,
-    /// A list of paths to files containing templates for root documents for the generated
-    /// documentation.
+    /// A list of paths to files containing templates for root documents for the
+    /// generated documentation.
     ///
-    /// A root document is a markdown file which contains placeholders for generated
-    /// documentation content. It is also processed following the same rules than
-    /// documentation comments in Move, including creation of cross-references and
-    /// Move code highlighting.
+    /// A root document is a markdown file which contains placeholders for
+    /// generated documentation content. It is also processed following the
+    /// same rules than documentation comments in Move, including creation
+    /// of cross-references and Move code highlighting.
     ///
     /// A placeholder is a single line starting with a markdown quotation marker
     /// of the following form:
@@ -78,21 +80,22 @@ pub struct DocgenOptions {
     /// > {{move-index}}
     /// ```
     ///
-    /// These lines will be replaced by the generated content of the module or script,
-    /// or a table of contents, respectively.
+    /// These lines will be replaced by the generated content of the module or
+    /// script, or a table of contents, respectively.
     ///
     /// For a module or script which is included in the root document, no
-    /// separate file is generated. References between the included and the standalone
-    /// module/script content work transparently.
+    /// separate file is generated. References between the included and the
+    /// standalone module/script content work transparently.
     pub root_doc_templates: Vec<String>,
-    /// An optional file containing reference definitions. The content of this file will
-    /// be added to each generated markdown doc.
+    /// An optional file containing reference definitions. The content of this
+    /// file will be added to each generated markdown doc.
     pub references_file: Option<String>,
     /// Whether to include dependency diagrams in the generated docs.
     pub include_dep_diagrams: bool,
     /// Whether to include call diagrams in the generated docs.
     pub include_call_diagrams: bool,
-    /// If this is being compiled relative to a different place where it will be stored (output directory).
+    /// If this is being compiled relative to a different place where it will be
+    /// stored (output directory).
     pub compile_relative_to_output_dir: bool,
 }
 
@@ -142,16 +145,18 @@ pub struct Docgen<'env> {
     last_root_section_nest: RefCell<usize>,
 }
 
-/// Information about the generated documentation for a specific script or module.
+/// Information about the generated documentation for a specific script or
+/// module.
 #[derive(Debug, Default, Clone)]
 struct ModuleInfo {
-    /// The file in which the generated content for this module is located. This has a path
-    /// relative to the `options.output_directory`.
+    /// The file in which the generated content for this module is located. This
+    /// has a path relative to the `options.output_directory`.
     target_file: String,
     /// The label in this file.
     label: String,
-    /// Whether this module is included in another document instead of living in its own file.
-    /// Among others, we do not generate table-of-contents for included modules.
+    /// Whether this module is included in another document instead of living in
+    /// its own file. Among others, we do not generate table-of-contents for
+    /// included modules.
     is_included: bool,
 }
 
@@ -188,7 +193,8 @@ impl<'env> Docgen<'env> {
         }
     }
 
-    /// Generate document contents, returning pairs of output file names and generated contents.
+    /// Generate document contents, returning pairs of output file names and
+    /// generated contents.
     pub fn gen(mut self) -> Vec<(String, String)> {
         // If there is a root templates, parse them.
         let root_templates = self
@@ -223,7 +229,8 @@ impl<'env> Docgen<'env> {
             self.expand_root_template(&out_file, elements);
         }
 
-        // Generate documentation for standalone modules which are not included in the templates.
+        // Generate documentation for standalone modules which are not included in the
+        // templates.
         for (id, info) in self.infos.clone() {
             let m = self.env.get_module(id);
             if !info.is_included {
@@ -394,8 +401,9 @@ impl<'env> Docgen<'env> {
                         self.infos.insert(module_env.get_id(), info);
                         included.insert(module_env.get_id());
                     } else {
-                        // If this is not defined, we continue anyway and will not expand
-                        // the placeholder in the generated root doc (following common template
+                        // If this is not defined, we continue anyway and will
+                        // not expand the placeholder in
+                        // the generated root doc (following common template
                         // practice).
                     }
                 }
@@ -418,15 +426,12 @@ impl<'env> Docgen<'env> {
     }
 
     fn module_modifier(name: &ModuleName) -> &str {
-        if name.is_script() {
-            "Script"
-        } else {
-            "Module"
-        }
+        if name.is_script() { "Script" } else { "Module" }
     }
 
-    /// Computes file location for a module. This considers if the module is a dependency
-    /// and if so attempts to locate already generated documentation for it.
+    /// Computes file location for a module. This considers if the module is a
+    /// dependency and if so attempts to locate already generated
+    /// documentation for it.
     fn compute_output_file(&self, module_env: &ModuleEnv<'env>) -> Option<String> {
         let output_path = PathBuf::from(&self.options.output_directory);
         let file_name = PathBuf::from(module_env.get_source_path())
@@ -446,17 +451,13 @@ impl<'env> Docgen<'env> {
                             .to_string(),
                     )
                 } else {
-                    // If it's a dependency traverse back up to finde the package name so that we
+                    // If it's a dependency traverse back up to find the package name so that we
                     // can generate the documentation in the right place.
                     let path = PathBuf::from(module_env.get_source_path());
                     let package_name = path.ancestors().find_map(|dir| {
                         let mut path = PathBuf::from(dir);
                         path.push("Move.toml");
-                        if path.exists() {
-                            dir.file_stem()
-                        } else {
-                            None
-                        }
+                        if path.exists() { dir.file_stem() } else { None }
                     });
                     package_name.map(|package_name| {
                         format!(
@@ -497,8 +498,9 @@ impl<'env> Docgen<'env> {
         }
     }
 
-    /// Generates documentation for a module. The result is written into the current code
-    /// writer. Writer and other state is initialized if this module is standalone.
+    /// Generates documentation for a module. The result is written into the
+    /// current code writer. Writer and other state is initialized if this
+    /// module is standalone.
     fn gen_module(&mut self, module_env: &ModuleEnv<'env>, info: &ModuleInfo) {
         if !info.is_included {
             // (Re-) initialize state for this module.
@@ -679,7 +681,8 @@ impl<'env> Docgen<'env> {
         self.gen_svg_file(&out_file_path, &dot_src_lines.join("\n"));
     }
 
-    /// Generate a forward (or backward) dependency diagram (.svg) for the given module.
+    /// Generate a forward (or backward) dependency diagram (.svg) for the given
+    /// module.
     fn gen_dependency_diagram(&self, module_id: ModuleId, is_forward: bool) {
         let module_env = self.env.get_module(module_id);
         let module_name = module_env.get_name().display(module_env.symbol_pool());
@@ -727,7 +730,8 @@ impl<'env> Docgen<'env> {
         self.gen_svg_file(&out_file_path, &dot_src_lines.join("\n"));
     }
 
-    /// Execute the external tool "dot" with doc_src as input to generate a .svg image file.
+    /// Execute the external tool "dot" with doc_src as input to generate a .svg
+    /// image file.
     fn gen_svg_file(&self, out_file_path: &Path, dot_src: &str) {
         if let Err(e) = fs::create_dir_all(out_file_path.parent().unwrap()) {
             self.env.error(
@@ -785,8 +789,8 @@ impl<'env> Docgen<'env> {
         }
     }
 
-    /// Generate header for TOC, returning label where we can later insert the content after
-    /// file generation is done.
+    /// Generate header for TOC, returning label where we can later insert the
+    /// content after file generation is done.
     fn gen_toc_header(&mut self) -> CodeWriterLabel {
         // Create label where we later can insert the TOC
         emitln!(self.writer);
@@ -832,10 +836,11 @@ impl<'env> Docgen<'env> {
         self.writer = writer;
     }
 
-    /// Generate an index of all modules and scripts in the context. This includes generated
-    /// ones and those which are only dependencies.
+    /// Generate an index of all modules and scripts in the context. This
+    /// includes generated ones and those which are only dependencies.
     fn gen_index(&self) {
-        // Sort all modules and script by simple name. (Perhaps we should include addresses?)
+        // Sort all modules and script by simple name. (Perhaps we should include
+        // addresses?)
         let sorted_infos = self.infos.iter().sorted_by(|(id1, _), (id2, _)| {
             let name = |id: ModuleId| {
                 self.env
@@ -898,9 +903,10 @@ impl<'env> Docgen<'env> {
 
     /// Returns "Struct `N`" or "Resource `N`".
     fn struct_title(&self, struct_env: &StructEnv<'_>) -> String {
-        // NOTE(mengxu): although we no longer declare structs with the `resource` keyword, it
-        // might be helpful in keeping `Resource N` in struct title as the boogie translator still
-        // depends on the `is_resource()` predicate to add additional functions to structs declared
+        // NOTE(mengxu): although we no longer declare structs with the `resource`
+        // keyword, it might be helpful in keeping `Resource N` in struct title
+        // as the boogie translator still depends on the `is_resource()`
+        // predicate to add additional functions to structs declared
         // with the `key` ability.
         format!(
             "{} `{}`",
@@ -1106,12 +1112,14 @@ impl<'env> Docgen<'env> {
         *self.section_nest.borrow_mut() += 1;
     }
 
-    /// Decrements section nest, committing sub-sections to the table-of-contents map.
+    /// Decrements section nest, committing sub-sections to the
+    /// table-of-contents map.
     fn decrement_section_nest(&self) {
         *self.section_nest.borrow_mut() -= 1;
     }
 
-    /// Creates a new section header and inserts a table-of-contents entry into the generator.
+    /// Creates a new section header and inserts a table-of-contents entry into
+    /// the generator.
     fn section_header(&self, s: &str, label: &str) {
         let level = *self.section_nest.borrow();
         if usize::saturating_add(self.options.section_level_start, level) > MAX_SUBSECTIONS {
@@ -1208,8 +1216,8 @@ impl<'env> Docgen<'env> {
         format!("@{}", s.replace(' ', "_"))
     }
 
-    /// Decorates documentation text, identifying code fragments and decorating them
-    /// as code. Code blocks in comments are untouched.
+    /// Decorates documentation text, identifying code fragments and decorating
+    /// them as code. Code blocks in comments are untouched.
     fn decorate_text(&self, text: &str) -> String {
         let mut decorated_text = String::new();
         let mut chars = text.chars();
@@ -1227,10 +1235,15 @@ impl<'env> Docgen<'env> {
                     let code = chars.take_while_ref(non_code_filter).collect::<String>();
                     // consume the remaining '`'. Report an error if we find an unmatched '`'.
                     assert!(
-                                            chars.next() == Some('`'),
-                                            "Missing backtick found in {} while generating documentation for the following text: \"{}\"",
-                                            self.current_module.as_ref().unwrap().get_name().display_full(self.env.symbol_pool()), text,
-                                        );
+                        chars.next() == Some('`'),
+                        "Missing backtick found in {} while generating documentation for the following text: \"{}\"",
+                        self.current_module
+                            .as_ref()
+                            .unwrap()
+                            .get_name()
+                            .display_full(self.env.symbol_pool()),
+                        text,
+                    );
 
                     write!(
                         &mut decorated_text,
@@ -1247,8 +1260,8 @@ impl<'env> Docgen<'env> {
         decorated_text
     }
 
-    /// Begins a code block. This uses html, not markdown code blocks, so we are able to
-    /// insert style and links into the code.
+    /// Begins a code block. This uses html, not markdown code blocks, so we are
+    /// able to insert style and links into the code.
     fn begin_code(&self) {
         emitln!(self.writer);
         // If we newline after <pre><code>, an empty line will be created. So we don't.
@@ -1268,8 +1281,8 @@ impl<'env> Docgen<'env> {
         emitln!(self.writer, &self.decorate_code(code));
     }
 
-    /// Decorates a code fragment, for use in an html block. Replaces < and >, bolds keywords and
-    /// tries to resolve and cross-link references.
+    /// Decorates a code fragment, for use in an html block. Replaces < and >,
+    /// bolds keywords and tries to resolve and cross-link references.
     fn decorate_code(&self, code: &str) -> String {
         static REX: Lazy<Regex> = Lazy::new(|| {
             Regex::new(
@@ -1320,10 +1333,11 @@ impl<'env> Docgen<'env> {
         r
     }
 
-    /// Resolve a string of the form `ident`, `ident::ident`, or `0xN::ident::ident` into
-    /// the label for the declaration inside of this documentation. This uses a
-    /// heuristic and may not work in all cases or produce wrong results (for instance, it
-    /// ignores aliases). To improve on this, we would need best direct support by the compiler.
+    /// Resolve a string of the form `ident`, `ident::ident`, or
+    /// `0xN::ident::ident` into the label for the declaration inside of
+    /// this documentation. This uses a heuristic and may not work in all
+    /// cases or produce wrong results (for instance, it ignores aliases).
+    /// To improve on this, we would need best direct support by the compiler.
     fn resolve_to_label(&self, mut s: &str, is_followed_by_open: bool) -> Option<String> {
         // For clarity in documentation, we allow `script::` or `module::` as a prefix.
         // However, right now it will be ignored for resolution.
@@ -1350,10 +1364,10 @@ impl<'env> Docgen<'env> {
         let try_func_struct_or_const = |module: &ModuleEnv<'_>,
                                         name: Symbol,
                                         is_qualified: bool| {
-            // Below we only resolve a simple name to a hyperref if it is followed by a ( or <,
-            // or if it is a named constant in the module.
-            // Otherwise we get too many false positives where names are resolved to functions
-            // but are actually fields.
+            // Below we only resolve a simple name to a hyperref if it is followed by a ( or
+            // <, or if it is a named constant in the module.
+            // Otherwise we get too many false positives where names are resolved to
+            // functions but are actually fields.
             if module.find_struct(name).is_some()
                 || module.find_named_constant(name).is_some()
                 || self
@@ -1506,7 +1520,7 @@ impl<'env> Docgen<'env> {
 
     /// Display a type parameter.
     fn type_parameter_display(&self, tp: &TypeParameter) -> String {
-        let ability_tokens = self.ability_tokens(tp.1 .0);
+        let ability_tokens = self.ability_tokens(tp.1.0);
         if ability_tokens.is_empty() {
             self.name_string(tp.0).to_string()
         } else {
@@ -1529,9 +1543,10 @@ impl<'env> Docgen<'env> {
     }
 
     /// Retrieves source of code fragment with adjusted indentation.
-    /// Typically code has the first line unindented because location tracking starts
-    /// at the first keyword of the item (e.g. `public fun`), but subsequent lines are then
-    /// indented. This uses a heuristic by guessing the indentation from the context.
+    /// Typically code has the first line unindented because location tracking
+    /// starts at the first keyword of the item (e.g. `public fun`), but
+    /// subsequent lines are then indented. This uses a heuristic by
+    /// guessing the indentation from the context.
     fn get_source_with_indent(&self, loc: &Loc) -> String {
         if let Ok(source) = self.env.get_source(loc) {
             // Compute the indentation of this source fragment by looking at some

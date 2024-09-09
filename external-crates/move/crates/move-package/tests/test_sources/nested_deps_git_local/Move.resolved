@@ -31,8 +31,8 @@ ResolvedGraph {
             "MoveNursery": Package {
                 kind: Git(
                     GitInfo {
-                        git_url: "https://github.com/MystenLabs/sui",
-                        git_rev: "5d8a867",
+                        git_url: "https://github.com/iotaledger/iota",
+                        git_rev: "f7e5011",
                         subdir: "external-crates/move/crates/move-stdlib/nursery",
                     },
                 ),
@@ -42,8 +42,8 @@ ResolvedGraph {
             "MoveStdlib": Package {
                 kind: Git(
                     GitInfo {
-                        git_url: "https://github.com/MystenLabs/sui",
-                        git_rev: "5d8a867",
+                        git_url: "https://github.com/iotaledger/iota",
+                        git_rev: "f7e5011",
                         subdir: "external-crates/move/crates/move-stdlib",
                     },
                 ),
@@ -56,7 +56,7 @@ ResolvedGraph {
             "MoveStdlib",
             "NestedDeps",
         },
-        manifest_digest: "598DCC919F7378E59F328E1B448D1AAC70B8F34894146860B3ABF46600F9F79B",
+        manifest_digest: "F45479F592B1338CBDD902E019A40FA7A1D802E49E9BE96FFECA91B3B5AA178D",
         deps_digest: "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082",
     },
     build_options: BuildConfig {
@@ -177,8 +177,8 @@ ResolvedGraph {
                         InternalDependency {
                             kind: Git(
                                 GitInfo {
-                                    git_url: "https://github.com/MystenLabs/sui",
-                                    git_rev: "5d8a867",
+                                    git_url: "https://github.com/iotaledger/iota",
+                                    git_rev: "f7e5011",
                                     subdir: "external-crates/move/crates/move-stdlib/nursery",
                                 },
                             ),

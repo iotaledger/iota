@@ -1,5 +1,12 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::VecDeque, iter::Peekable};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
@@ -10,52 +17,42 @@ use crate::{
     shared::{unique_map::UniqueMap, *},
     typing::ast as T,
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use std::{collections::VecDeque, iter::Peekable};
 
 //**************************************************************************************************
 // Description
 //**************************************************************************************************
-// This analysis considers the input for potentially dead code due to control flow. It tracks
-// control flow in a somewhat fine-grained way, and when it finds a position that diverges it
-// reports that as an error.
+// This analysis considers the input for potentially dead code due to control
+// flow. It tracks control flow in a somewhat fine-grained way, and when it
+// finds a position that diverges it reports that as an error.
 //
-// For simplicity, it aims to satify the following requirements:
+// For simplicity, it aims to satisfy the following requirements:
 //
-//     1. For each block, if we discover a divergent instruction either at the top level or
-//        embedded in a value position (e.g., the RHS of a let, or tail-value position), we report
-//        that user to the error as possible dead code, under the following guidelines:.
-//        a) If the divergent code is nested within a value, we report it as a value error.
-//        b) If the divergent code is in a statement position and the block has a trailing unit as
-//           its last expression, report it as a trailing semicolon error.
-//        c) If the divergent code is in any other statement position, report it as such.
-//        d) If both arms of an if diverge in the same way in value or tail position, report the
-//           entire if together.
+//     1. For each block, if we discover a divergent instruction either at the
+//        top level or embedded in a value position (e.g., the RHS of a let, or
+//        tail-value position), we report that user to the error as possible
+//        dead code, under the following guidelines:. a) If the divergent code
+//        is nested within a value, we report it as a value error. b) If the
+//        divergent code is in a statement position and the block has a trailing
+//        unit as its last expression, report it as a trailing semicolon error.
+//        c) If the divergent code is in any other statement position, report it
+//        as such. d) If both arms of an if diverge in the same way in value or
+//        tail position, report the entire if together.
 //
-//     2. We only report the first such error we find, as described above, per-block. For example,
-//        this will only yield one error, pointing at the first line:
-//            {
-//                1 + loop {};
-//                1 + loop {};
-//            }
+//     2. We only report the first such error we find, as described above,
+//        per-block. For example, this will only yield one error, pointing at
+//        the first line: { 1 + loop {}; 1 + loop {}; }
 //
-//     3. If we discover a malformed sub-expression, we do not return a further error.
-//        For example, we would report a trailing semicolon error for this:
-//            {
-//                if (true) { return 0 } else { return 1 };
-//            }
-//        However, we will not for this `if`, only its inner arms, as they are malformed:
-//            {
-//                if (true) { return 0; } else { return 1; };
-//            }
-//        This is because the former case has two well-formed sub-blocks, but the latter case is
-//        already going to raise warnings for each of the sub-block cases.
+//     3. If we discover a malformed sub-expression, we do not return a further
+//        error. For example, we would report a trailing semicolon error for
+//        this: { if (true) { return 0 } else { return 1 }; } However, we will
+//        not for this `if`, only its inner arms, as they are malformed: { if
+//        (true) { return 0; } else { return 1; }; } This is because the former
+//        case has two well-formed sub-blocks, but the latter case is already
+//        going to raise warnings for each of the sub-block cases.
 //
-//  The implementation proceeds as a context-based walk, considering `tail` (or `return`) position,
-//  `value` position, and `statement` position. Errors are reported differently depending upon
-//  where they are found.
+//  The implementation proceeds as a context-based walk, considering `tail` (or
+// `return`) position,  `value` position, and `statement` position. Errors are
+// reported differently depending upon  where they are found.
 
 //**************************************************************************************************
 // Context
@@ -165,8 +162,7 @@ const NOT_EXECUTED_MSG: &str =
     "Unreachable code. This statement (and any following statements) will not be executed.";
 
 const SEMI_MSG: &str = "Invalid trailing ';'";
-const INFO_MSG: &str =
-    "A trailing ';' in an expression block implicitly adds a '()' value after the semicolon. \
+const INFO_MSG: &str = "A trailing ';' in an expression block implicitly adds a '()' value after the semicolon. \
      That '()' value will not be reachable";
 
 fn exits_named_block(name: BlockLabel, cf: Option<ControlFlow>) -> bool {
@@ -326,8 +322,8 @@ fn tail(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
         // Whiles and loops Loops are currently moved to statement position
         E::While(_, _, _) | E::Loop { .. } => statement(context, e),
         E::NamedBlock(name, (_, seq)) => {
-            // a named block in tail position checks for bad semicolons plus if the body exits that
-            // block; if so, at least some of that code is live.
+            // a named block in tail position checks for bad semicolons plus if the body
+            // exits that block; if so, at least some of that code is live.
             let body_result = tail_block(context, seq);
             if exits_named_block(*name, body_result) {
                 None
@@ -354,7 +350,9 @@ fn tail_block(context: &mut Context, seq: &VecDeque<T::SequenceItem>) -> Option<
     use T::SequenceItem_ as S;
     let last_exp = seq.iter().last();
     let stmt_flow = statement_block(
-        context, seq, /* stmt_pos */ false, /* skip_last */ true,
+        context, seq,   // stmt_pos
+        false, // skip_last
+        true,
     );
     if let (Some(control_flow), Some(sp!(_, S::Seq(last)))) = (stmt_flow, last_exp) {
         context.report_statement_tail_error(control_flow, last);
@@ -422,8 +420,8 @@ fn value(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
         }
         E::While(..) | E::Loop { .. } => statement(context, e),
         E::NamedBlock(name, (_, seq)) => {
-            // a named block in value position checks if the body exits that block; if so, at least
-            // some of that code is live.
+            // a named block in value position checks if the body exits that block; if so,
+            // at least some of that code is live.
             let body_result = value_block(context, seq);
             if exits_named_block(*name, body_result) {
                 None
@@ -511,7 +509,9 @@ fn value_block(context: &mut Context, seq: &VecDeque<T::SequenceItem>) -> Option
     use T::SequenceItem_ as S;
     let last_exp = seq.iter().last();
     let stmt_flow = statement_block(
-        context, seq, /* stmt_pos */ false, /* skip_last */ true,
+        context, seq,   // stmt_pos
+        false, // skip_last
+        true,
     );
     if let (Some(control_flow), Some(sp!(_, S::Seq(last)))) = (stmt_flow, last_exp) {
         context.report_statement_tail_error(control_flow, last);
@@ -555,8 +555,8 @@ fn statement(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
                 statement(context, alt);
                 already_reported(*eloc)
             } else {
-                // if the test was okay but the arms both diverged, we need to report that for the
-                // purpose of trailing semicolons.
+                // if the test was okay but the arms both diverged, we need to report that for
+                // the purpose of trailing semicolons.
                 match (statement(context, conseq), statement(context, alt)) {
                     (Some(_), Some(_)) => divergent(*eloc),
                     _ => None,
@@ -591,8 +591,8 @@ fn statement(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
             }
         }
         E::NamedBlock(name, (_, seq)) => {
-            // a named block in statement position checks if the body exits that block; if so, at
-            // least some of that code is live.
+            // a named block in statement position checks if the body exits that block; if
+            // so, at least some of that code is live.
             let body_result = value_block(context, seq);
             if exits_named_block(*name, body_result) {
                 None
@@ -601,7 +601,9 @@ fn statement(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
             }
         }
         E::Block((_, seq)) => statement_block(
-            context, seq, /* stmt_pos */ true, /* skip_last */ false,
+            context, seq,  // stmt_pos
+            true, // skip_last
+            false,
         ),
         E::Return(rhs) => {
             if let Some(rhs_control_flow) = value(context, rhs) {
@@ -684,13 +686,15 @@ fn statement_block(
 ) -> Option<ControlFlow> {
     use T::SequenceItem_ as S;
 
-    // if we're in statement position, we need to check for a trailing semicolon error
-    // this code does that by noting a trialing unit and then proceeding as if we are not in
-    // statement position.
+    // if we're in statement position, we need to check for a trailing semicolon
+    // error this code does that by noting a trialing unit and then proceeding
+    // as if we are not in statement position.
     if stmt_pos && has_trailing_unit(seq) {
         let last = seq.iter().last();
         let result = statement_block(
-            context, seq, /* stmt_pos */ false, /* skip_last */ true,
+            context, seq,   // stmt_pos
+            false, // skip_last
+            true,
         );
         return if let (Some(control_flow), Some(sp!(_, S::Seq(entry)))) = (result, last) {
             context.report_statement_tail_error(control_flow, entry);
@@ -712,7 +716,8 @@ fn statement_block(
         match seq_item {
             S::Seq(entry) if ndx == last_ndx => {
                 // If this is the last statement, the error may indicate a trailing semicolon
-                // error. Return it to whoever is expecting it so they can report it appropriately.
+                // error. Return it to whoever is expecting it so they can report it
+                // appropriately.
                 return statement(context, entry);
             }
             S::Seq(entry) => {

@@ -1,13 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_core_types::{metadata::Metadata, vm_status::StatusCode};
 
 use crate::{
     binary_config::BinaryConfig,
     file_format::{basic_test_module, CompiledModule, CompiledScript},
     file_format_common::*,
 };
-use move_core_types::{metadata::Metadata, vm_status::StatusCode};
 
 fn malformed_simple_versioned_test(version: u32) {
     // bad uleb (more than allowed for table count)
@@ -246,7 +248,8 @@ fn deserialize_file() {
     CompiledScript::deserialize(EMPTY_SCRIPT).expect("script should deserialize properly");
 }
 
-// An invalid script that is missing a signature should not deserialize successfully.
+// An invalid script that is missing a signature should not deserialize
+// successfully.
 static INVALID_SCRIPT_NO_SIGNATURE: &[u8] = include_bytes!("invalid_script_no_signature.mv");
 
 #[test]

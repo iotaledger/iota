@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Core types for Move.
@@ -9,6 +10,7 @@ use std::fmt;
 pub mod abi;
 pub mod account_address;
 pub mod annotated_value;
+pub mod annotated_visitor;
 pub mod effects;
 pub mod errmap;
 pub mod gas_algebra;

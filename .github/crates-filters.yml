@@ -1,0 +1,204 @@
+consensus-config:
+  - "consensus/config/**"
+consensus-core:
+  - "consensus/core/**"
+iota-common:
+  - "crates/iota-common/**"
+iota-metrics:
+  - "crates/iota-metrics/**"
+iota-network-stack:
+  - "crates/iota-network-stack/**"
+iota-util-mem:
+  - "crates/iota-util-mem/**"
+iota-util-mem-derive:
+  - "crates/iota-util-mem-derive/**"
+prometheus-closure-metric:
+  - "crates/prometheus-closure-metric/**"
+shared-crypto:
+  - "crates/shared-crypto/**"
+simulacrum:
+  - "crates/simulacrum/**"
+iota:
+  - "crates/iota/**"
+iota-adapter-transactional-tests:
+  - "crates/iota-adapter-transactional-tests/**"
+iota-analytics-indexer:
+  - "crates/iota-analytics-indexer/**"
+iota-analytics-indexer-derive:
+  - "crates/iota-analytics-indexer-derive/**"
+iota-archival:
+  - "crates/iota-archival/**"
+iota-authority-aggregation:
+  - "crates/iota-authority-aggregation/**"
+iota-aws-orchestrator:
+  - "crates/iota-aws-orchestrator/**"
+iota-benchmark:
+  - "crates/iota-benchmark/**"
+iota-cluster-test:
+  - "crates/iota-cluster-test/**"
+iota-config:
+  - "crates/iota-config/**"
+iota-core:
+  - "crates/iota-core/**"
+iota-cost:
+  - "crates/iota-cost/**"
+iota-data-ingestion:
+  - "crates/iota-data-ingestion/**"
+iota-data-ingestion-core:
+  - "crates/iota-data-ingestion-core/**"
+iota-e2e-tests:
+  - "crates/iota-e2e-tests/**"
+iota-enum-compat-util:
+  - "crates/iota-enum-compat-util/**"
+iota-faucet:
+  - "crates/iota-faucet/**"
+iota-framework:
+  - "crates/iota-framework/**"
+iota-framework-snapshot:
+  - "crates/iota-framework-snapshot/**"
+iota-framework-tests:
+  - "crates/iota-framework-tests/**"
+iota-genesis-builder:
+  - "crates/iota-genesis-builder/**"
+iota-graphql-e2e-tests:
+  - "crates/iota-graphql-e2e-tests/**"
+iota-graphql-rpc:
+  - "crates/iota-graphql-rpc/**"
+iota-graphql-rpc-client:
+  - "crates/iota-graphql-rpc-client/**"
+iota-graphql-rpc-headers:
+  - "crates/iota-graphql-rpc-headers/**"
+iota-indexer:
+  - "crates/iota-indexer/**"
+iota-json:
+  - "crates/iota-json/**"
+iota-json-rpc:
+  - "crates/iota-json-rpc/**"
+iota-json-rpc-api:
+  - "crates/iota-json-rpc-api/**"
+iota-json-rpc-tests:
+  - "crates/iota-json-rpc-tests/**"
+iota-json-rpc-types:
+  - "crates/iota-json-rpc-types/**"
+iota-keys:
+  - "crates/iota-keys/**"
+iota-light-client:
+  - "crates/iota-light-client/**"
+iota-macros:
+  - "crates/iota-macros/**"
+iota-metric-checker:
+  - "crates/iota-metric-checker/**"
+iota-move:
+  - "crates/iota-move/**"
+iota-move-build:
+  - "crates/iota-move-build/**"
+iota-network:
+  - "crates/iota-network/**"
+iota-node:
+  - "crates/iota-node/**"
+iota-open-rpc:
+  - "crates/iota-open-rpc/**"
+iota-open-rpc-macros:
+  - "crates/iota-open-rpc-macros/**"
+iota-package-resolver:
+  - "crates/iota-package-resolver/**"
+iota-proc-macros:
+  - "crates/iota-proc-macros/**"
+iota-protocol-config:
+  - "crates/iota-protocol-config/**"
+iota-protocol-config-macros:
+  - "crates/iota-protocol-config-macros/**"
+iota-replay:
+  - "crates/iota-replay/**"
+iota-rest-api:
+  - "crates/iota-rest-api/**"
+iota-rosetta:
+  - "crates/iota-rosetta/**"
+iota-rpc-loadgen:
+  - "crates/iota-rpc-loadgen/**"
+iota-sdk:
+  - "crates/iota-sdk/**"
+iota-simulator:
+  - "crates/iota-simulator/**"
+iota-single-node-benchmark:
+  - "crates/iota-single-node-benchmark/**"
+iota-snapshot:
+  - "crates/iota-snapshot/**"
+iota-source-validation:
+  - "crates/iota-source-validation/**"
+iota-source-validation-service:
+  - "crates/iota-source-validation-service/**"
+iota-storage:
+  - "crates/iota-storage/**"
+iota-surfer:
+  - "crates/iota-surfer/**"
+iota-swarm:
+  - "crates/iota-swarm/**"
+iota-swarm-config:
+  - "crates/iota-swarm-config/**"
+iota-test-transaction-builder:
+  - "crates/iota-test-transaction-builder/**"
+iota-test-validator:
+  - "crates/iota-test-validator/**"
+iota-tool:
+  - "crates/iota-tool/**"
+iota-transaction-builder:
+  - "crates/iota-transaction-builder/**"
+iota-transaction-checks:
+  - "crates/iota-transaction-checks/**"
+iota-transactional-test-runner:
+  - "crates/iota-transactional-test-runner/**"
+iota-types:
+  - "crates/iota-types/**"
+iota-upgrade-compatibility-transactional-tests:
+  - "crates/iota-upgrade-compatibility-transactional-tests/**"
+iota-verifier-transactional-tests:
+  - "crates/iota-verifier-transactional-tests/**"
+telemetry-subscribers:
+  - "crates/telemetry-subscribers/**"
+test-cluster:
+  - "crates/test-cluster/**"
+transaction-fuzzer:
+  - "crates/transaction-fuzzer/**"
+typed-store:
+  - "crates/typed-store/**"
+typed-store-derive:
+  - "crates/typed-store-derive/**"
+typed-store-error:
+  - "crates/typed-store-error/**"
+narwhal-config:
+  - "narwhal/config/**"
+narwhal-crypto:
+  - "narwhal/crypto/**"
+narwhal-executor:
+  - "narwhal/executor/**"
+narwhal-network:
+  - "narwhal/network/**"
+narwhal-node:
+  - "narwhal/node/**"
+narwhal-primary:
+  - "narwhal/primary/**"
+narwhal-storage:
+  - "narwhal/storage/**"
+narwhal-test-utils:
+  - "narwhal/test-utils/**"
+narwhal-types:
+  - "narwhal/types/**"
+narwhal-worker:
+  - "narwhal/worker/**"
+iota-execution:
+  - "iota-execution/**"
+iota-execution-cut:
+  - "iota-execution/cut/**"
+iota-adapter-latest:
+  - "iota-execution/latest/iota-adapter/**"
+iota-move-natives-latest:
+  - "iota-execution/latest/iota-move-natives/**"
+iota-verifier-latest:
+  - "iota-execution/latest/iota-verifier/**"
+iota-adapter-v0:
+  - "iota-execution/v0/iota-adapter/**"
+iota-move-natives-v0:
+  - "iota-execution/v0/iota-move-natives/**"
+iota-verifier-v0:
+  - "iota-execution/v0/iota-verifier/**"

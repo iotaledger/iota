@@ -1,6 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::iter::Peekable;
+
+use anyhow::{bail, format_err, Result};
 
 use crate::{
     account_address::AccountAddress,
@@ -8,8 +13,6 @@ use crate::{
     language_storage::{StructTag, TypeTag},
     transaction_argument::TransactionArgument,
 };
-use anyhow::{bail, format_err, Result};
-use std::iter::Peekable;
 
 #[derive(Eq, PartialEq, Debug)]
 enum Token {

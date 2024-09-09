@@ -1,18 +1,18 @@
 {
 	"name": "move",
 	"displayName": "Move",
-	"description": "A Move language integrated development environment for Sui.",
-	"publisher": "mysten",
+	"description": "A Move language integrated development environment for Iota.",
+	"publisher": "IOTA Foundation",
 	"icon": "images/move.png",
 	"license": "Apache-2.0",
 	"version": "1.0.0",
 	"preview": true,
 	"repository": {
-		"url": "https://github.com/MystenLabs/sui.git",
+		"url": "https://github.com/iotaledger/iota.git",
 		"type": "git"
 	},
 	"bugs": {
-		"url": "https://github.com/MystenLabs/sui/issues"
+		"url": "https://github.com/iotaledger/iota/issues"
 	},
 	"engines": {
 		"vscode": "^1.61.0"
@@ -22,7 +22,7 @@
 	],
 	"keywords": [
 		"move",
-		"Sui"
+		"Iota"
 	],
 	"main": "./out/src/main.js",
 	"activationEvents": [
@@ -53,7 +53,7 @@
                     ],
                     "scope": "machine-overridable",
                     "default": null,
-                    "markdownDescription": "Path to rust-analyzer executable (points to `~/.sui/bin/move-analyzer` by default)."
+                    "markdownDescription": "Path to rust-analyzer executable (points to `~/.iota/bin/move-analyzer` by default)."
 				},
 				"move.trace.server": {
 					"type": "string",

@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod build;
@@ -11,8 +12,9 @@ pub mod migrate;
 pub mod new;
 pub mod test;
 
-use move_package::source_package::layout::SourcePackageLayout;
 use std::path::PathBuf;
+
+use move_package::source_package::layout::SourcePackageLayout;
 
 pub fn reroot_path(path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     let path = path.unwrap_or_else(|| PathBuf::from("."));

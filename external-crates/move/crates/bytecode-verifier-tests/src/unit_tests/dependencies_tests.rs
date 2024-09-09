@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::file_format::*;
@@ -242,7 +243,6 @@ fn mk_invoking_script(use_generic: bool) -> CompiledScript {
 }
 
 #[test]
-
 // tests the deprecated Script visibility logic for < V5
 // tests correct permissible invocation of Script functions
 fn deprecated_script_visibility_checks_valid() {

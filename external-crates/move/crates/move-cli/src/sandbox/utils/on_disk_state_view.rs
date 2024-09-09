@@ -1,8 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use anyhow::{anyhow, bail, Result};
 use move_binary_format::{
     access::ModuleAccess,
@@ -14,20 +19,19 @@ use move_command_line_common::files::MOVE_COMPILED_EXTENSION;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    language_storage::{ModuleId, StructTag},
     resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
 };
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Spanned;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
 
-/// subdirectory of `DEFAULT_STORAGE_DIR`/<addr> where modules are stored
+use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
+
+/// subdirectory of `DEFAULT_STORAGE_DIR/<addr>` where modules are stored
 pub const MODULES_DIR: &str = "modules";
 
-/// file under `DEFAULT_BUILD_DIR` where a registry of generated struct layouts are stored
+/// file under `DEFAULT_BUILD_DIR` where a registry of generated struct layouts
+/// are stored
 pub const STRUCT_LAYOUTS_FILE: &str = "struct_layouts.yaml";
 
 #[derive(Debug)]
@@ -37,7 +41,8 @@ pub struct OnDiskStateView {
 }
 
 impl OnDiskStateView {
-    /// Create an `OnDiskStateView` that reads/writes resource data and modules in `storage_dir`.
+    /// Create an `OnDiskStateView` that reads/writes resource data and modules
+    /// in `storage_dir`.
     pub fn create<P: Into<PathBuf>>(build_dir: P, storage_dir: P) -> Result<Self> {
         let build_dir = build_dir.into();
         if !build_dir.exists() {
@@ -197,7 +202,8 @@ impl OnDiskStateView {
         Ok(fs::write(layouts_file, layouts)?)
     }
 
-    /// Save all the modules in the local cache, re-generate mv_interfaces if required.
+    /// Save all the modules in the local cache, re-generate mv_interfaces if
+    /// required.
     pub fn save_modules<'a>(
         &self,
         modules: impl IntoIterator<Item = &'a (ModuleId, Vec<u8>)>,
@@ -276,53 +282,5 @@ impl Default for OnDiskStateView {
     fn default() -> Self {
         OnDiskStateView::create(Path::new(DEFAULT_BUILD_DIR), Path::new(DEFAULT_STORAGE_DIR))
             .expect("Failure creating OnDiskStateView")
-    }
-}
-
-// wrappers of TypeTag, StructTag, Vec<TypeTag> to allow us to implement the FromStr/ToString traits
-#[derive(Debug)]
-struct TypeID(TypeTag);
-#[derive(Debug)]
-struct StructID(StructTag);
-#[derive(Debug)]
-struct Generics(Vec<TypeTag>);
-
-impl ToString for TypeID {
-    fn to_string(&self) -> String {
-        match &self.0 {
-            TypeTag::Struct(s) => StructID(*s.clone()).to_string(),
-            TypeTag::Vector(t) => format!("vector<{}>", TypeID(*t.clone()).to_string()),
-            t => t.to_string(),
-        }
-    }
-}
-
-impl ToString for StructID {
-    fn to_string(&self) -> String {
-        let tag = &self.0;
-        // TODO: TypeTag parser insists on leading 0x for StructTag's, so we insert one here.
-        // Would be nice to expose a StructTag parser and get rid of the 0x here
-        format!(
-            "0x{}::{}::{}{}",
-            tag.address,
-            tag.module,
-            tag.name,
-            Generics(tag.type_params.clone()).to_string()
-        )
-    }
-}
-
-impl ToString for Generics {
-    fn to_string(&self) -> String {
-        if self.0.is_empty() {
-            "".to_string()
-        } else {
-            let generics: Vec<String> = self
-                .0
-                .iter()
-                .map(|t| TypeID(t.clone()).to_string())
-                .collect();
-            format!("<{}>", generics.join(","))
-        }
     }
 }

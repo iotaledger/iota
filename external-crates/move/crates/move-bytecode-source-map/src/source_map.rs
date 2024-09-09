@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeMap, ops::Bound};
 
 use anyhow::{format_err, Result};
 use move_binary_format::{
@@ -20,7 +23,6 @@ use move_ir_types::{
 };
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, ops::Bound};
 
 //***************************************************************************
 // Source location mapping
@@ -33,34 +35,38 @@ pub struct StructSourceMap {
     /// The source declaration location of the struct
     pub definition_location: Loc,
 
-    /// Important: type parameters need to be added in the order of their declaration
+    /// Important: type parameters need to be added in the order of their
+    /// declaration
     pub type_parameters: Vec<SourceName>,
 
-    /// Note that fields to a struct source map need to be added in the order of the fields in the
-    /// struct definition.
+    /// Note that fields to a struct source map need to be added in the order of
+    /// the fields in the struct definition.
     pub fields: Vec<Loc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FunctionSourceMap {
-    /// The source location for the definition of this entire function. Note that in certain
-    /// instances this will have no valid source location e.g. the "main" function for modules that
-    /// are treated as programs are synthesized and therefore have no valid source location.
+    /// The source location for the definition of this entire function. Note
+    /// that in certain instances this will have no valid source location
+    /// e.g. the "main" function for modules that are treated as programs
+    /// are synthesized and therefore have no valid source location.
     pub definition_location: Loc,
 
     /// The names of the type parameters to the function.
-    /// Note that type parameters need to be added in the order of their declaration.
+    /// Note that type parameters need to be added in the order of their
+    /// declaration.
     pub type_parameters: Vec<SourceName>,
 
     /// The names of the parameters to the function.
     pub parameters: Vec<SourceName>,
 
-    /// The index into the vector is the local's index. The corresponding `(Identifier, Location)` tuple
-    /// is the name and location of the local.
+    /// The index into the vector is the local's index. The corresponding
+    /// `(Identifier, Location)` tuple is the name and location of the
+    /// local.
     pub locals: Vec<SourceName>,
 
-    /// A map to the code offset for a corresponding nop. Nop's are used as markers for some
-    /// high level language information
+    /// A map to the code offset for a corresponding nop. Nop's are used as
+    /// markers for some high level language information
     pub nops: BTreeMap<NopLabel, CodeOffset>,
 
     /// The source location map for the function body.
@@ -72,16 +78,18 @@ pub struct FunctionSourceMap {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SourceMap {
-    /// The source location for the definition of the module or script that this source map is for.
+    /// The source location for the definition of the module or script that this
+    /// source map is for.
     pub definition_location: Loc,
 
-    /// The name <address.module_name> of the module that this source map is for.
+    /// The name <address.module_name> of the module that this source map is
+    /// for.
     pub module_name: (AccountAddress, Identifier),
 
     // A mapping of `StructDefinitionIndex` to source map for each struct/resource.
     struct_map: BTreeMap<TableIndex, StructSourceMap>,
 
-    // A mapping of `FunctionDefinitionIndex` to the soure map for that function.
+    // A mapping of `FunctionDefinitionIndex` to the source map for that function.
     // For scripts, this map has a single element that points to a source map corresponding to the
     // script's "main" function.
     function_map: BTreeMap<TableIndex, FunctionSourceMap>,
@@ -158,13 +166,14 @@ impl FunctionSourceMap {
         self.type_parameters.get(type_parameter_idx).cloned()
     }
 
-    /// A single source-level instruction may possibly map to a number of bytecode instructions. In
-    /// order to not store a location for each instruction, we instead use a BTreeMap to represent
-    /// a segment map (holding the left-hand-sides of each segment).  Thus, an instruction
-    /// sequence is always marked from its starting point. To determine what part of the source
-    /// code corresponds to a given `CodeOffset` we query to find the element that is the largest
-    /// number less than or equal to the query. This will give us the location for that bytecode
-    /// range.
+    /// A single source-level instruction may possibly map to a number of
+    /// bytecode instructions. In order to not store a location for each
+    /// instruction, we instead use a BTreeMap to represent a segment map
+    /// (holding the left-hand-sides of each segment).  Thus, an instruction
+    /// sequence is always marked from its starting point. To determine what
+    /// part of the source code corresponds to a given `CodeOffset` we query
+    /// to find the element that is the largest number less than or equal to
+    /// the query. This will give us the location for that bytecode range.
     pub fn add_code_mapping(&mut self, start_offset: CodeOffset, location: Loc) {
         let possible_segment = self.get_code_location(start_offset);
         match possible_segment.map(|other_location| other_location != location) {
@@ -189,13 +198,13 @@ impl FunctionSourceMap {
         self.parameters.push(name)
     }
 
-    /// Recall that we are using a segment tree. We therefore lookup the location for the code
-    /// offset by performing a range query for the largest number less than or equal to the code
-    /// offset passed in.
+    /// Recall that we are using a segment tree. We therefore lookup the
+    /// location for the code offset by performing a range query for the
+    /// largest number less than or equal to the code offset passed in.
     pub fn get_code_location(&self, code_offset: CodeOffset) -> Option<Loc> {
-        // If the function is a native, and we are asking for the "first bytecode offset in it"
-        // return the location of the declaration of the function. Otherwise, we will return
-        // `None`.
+        // If the function is a native, and we are asking for the "first bytecode offset
+        // in it" return the location of the declaration of the function.
+        // Otherwise, we will return `None`.
         if self.is_native {
             if code_offset == 0 {
                 Some(self.definition_location)
@@ -257,8 +266,8 @@ impl FunctionSourceMap {
             }
         }
 
-        // We just need to insert the code map at the 0'th index since we represent this with a
-        // segment map
+        // We just need to insert the code map at the 0'th index since we represent this
+        // with a segment map
         self.add_code_mapping(0, default_loc);
 
         Ok(())
@@ -349,8 +358,9 @@ impl SourceMap {
         Ok(())
     }
 
-    /// Given a function definition and a code offset within that function definition, this returns
-    /// the location in the source code associated with the instruction at that offset.
+    /// Given a function definition and a code offset within that function
+    /// definition, this returns the location in the source code associated
+    /// with the instruction at that offset.
     pub fn get_code_location(
         &self,
         fdef_idx: FunctionDefinitionIndex,
@@ -417,7 +427,7 @@ impl SourceMap {
             .insert(name, const_idx.0)
             .map_or(Ok(()), |_| {
                 Err(format_err!(
-                    "Multiple constans with same name encountered when constructing source map"
+                    "Multiple constants with same name encountered when constructing source map"
                 ))
             })
     }
@@ -488,8 +498,9 @@ impl SourceMap {
             .ok_or_else(|| format_err!("Unable to get struct source map"))
     }
 
-    /// Create a 'dummy' source map for a compiled module or script. This is useful for e.g. disassembling
-    /// with generated or real names depending upon if the source map is available or not.
+    /// Create a 'dummy' source map for a compiled module or script. This is
+    /// useful for e.g. disassembling with generated or real names depending
+    /// upon if the source map is available or not.
     pub fn dummy_from_view(view: &BinaryIndexedView, default_loc: Loc) -> Result<Self> {
         let module_ident = match view {
             BinaryIndexedView::Script(..) => {

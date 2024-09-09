@@ -1,13 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Utilities for property-based testing.
 
-use crate::file_format::{
-    AddressIdentifierIndex, CompiledModule, FunctionDefinition, FunctionHandle, IdentifierIndex,
-    ModuleHandle, ModuleHandleIndex, StructDefinition, TableIndex,
-};
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use proptest::{
     collection::{btree_set, vec, SizeRange},
@@ -15,11 +12,18 @@ use proptest::{
     sample::Index as PropIndex,
 };
 
+use crate::file_format::{
+    AddressIdentifierIndex, CompiledModule, FunctionDefinition, FunctionHandle, IdentifierIndex,
+    ModuleHandle, ModuleHandleIndex, StructDefinition, TableIndex,
+};
+
 mod constants;
 mod functions;
 mod metadata;
 mod signature;
 mod types;
+
+use std::collections::{BTreeSet, HashMap};
 
 use constants::ConstantPoolGen;
 use functions::{
@@ -31,13 +35,13 @@ use crate::proptest_types::{
     signature::SignatureGen,
     types::{StDefnMaterializeState, StructDefinitionGen, StructHandleGen},
 };
-use std::collections::{BTreeSet, HashMap};
 
 /// Represents how large [`CompiledModule`] tables can be.
 pub type TableSize = u16;
 
 impl CompiledModule {
-    /// Convenience wrapper around [`CompiledModuleStrategyGen`][CompiledModuleStrategyGen] that
+    /// Convenience wrapper around
+    /// [`CompiledModuleStrategyGen`] that
     /// generates valid modules with the given size.
     pub fn valid_strategy(size: usize) -> impl Strategy<Value = Self> {
         CompiledModuleStrategyGen::new(size as TableSize).generate()
@@ -46,36 +50,41 @@ impl CompiledModule {
 
 /// Contains configuration to generate [`CompiledModule`] instances.
 ///
-/// If you don't care about customizing these parameters, see [`CompiledModule::valid_strategy`].
+/// If you don't care about customizing these parameters, see
+/// [`CompiledModule::valid_strategy`].
 ///
-/// A `CompiledModule` can be looked at as a graph, with several kinds of nodes, and a nest of
-/// pointers among those nodes. This graph has some properties:
+/// A `CompiledModule` can be looked at as a graph, with several kinds of nodes,
+/// and a nest of pointers among those nodes. This graph has some properties:
 ///
-/// 1. The graph has cycles. Generating DAGs is often simpler, but is not an option in this case.
-/// 2. The actual structure of the graph is well-defined in terms of the kinds of nodes and
-///    pointers that exist.
+/// 1. The graph has cycles. Generating DAGs is often simpler, but is not an
+///    option in this case.
+/// 2. The actual structure of the graph is well-defined in terms of the kinds
+///    of nodes and pointers that exist.
 ///
-/// TODO: the graph also has pointers *out* of it, via address references to other modules.
-/// This doesn't need to be handled when viewing modules in isolation, but some verification passes
-/// will need to look at the entire set of modules. The work to make generating such modules
-/// possible remains to be done.
+/// TODO: the graph also has pointers *out* of it, via address references to
+/// other modules. This doesn't need to be handled when viewing modules in
+/// isolation, but some verification passes will need to look at the entire set
+/// of modules. The work to make generating such modules possible remains to be
+/// done.
 ///
 /// Intermediate types
 /// ------------------
 ///
-/// The pointers are represented as indexes into vectors of other kinds of nodes. One of the
-/// bigger problems is that the number of types, functions etc isn't known upfront so it is
-/// impossible to know what range to pick from for the index types (`ModuleHandleIndex`,
-/// `StructHandleIndex`, etc). To deal with this, the code generates a bunch of intermediate
-/// structures (sometimes tuples, other times more complicated structures with their own internal
-/// constraints), with "holes" represented by [`Index`](proptest::sample::Index) instances. Once all
-/// the lengths are known, there's a final "materialize" step at the end that "fills in" these
-/// holes.
+/// The pointers are represented as indexes into vectors of other kinds of
+/// nodes. One of the bigger problems is that the number of types, functions etc
+/// isn't known upfront so it is impossible to know what range to pick from for
+/// the index types (`ModuleHandleIndex`, `StructHandleIndex`, etc). To deal
+/// with this, the code generates a bunch of intermediate structures (sometimes
+/// tuples, other times more complicated structures with their own internal
+/// constraints), with "holes" represented by [`Index`](proptest::sample::Index)
+/// instances. Once all the lengths are known, there's a final "materialize"
+/// step at the end that "fills in" these holes.
 ///
-/// One alternative would have been to generate lengths up front, then create vectors of those
-/// lengths. This would have worked fine for generation but would have made shrinking take much
-/// longer, because the shrinker would be less aware of the overall structure of the problem and
-/// would have ended up redoing a lot of work. The approach taken here does end up being more
+/// One alternative would have been to generate lengths up front, then create
+/// vectors of those lengths. This would have worked fine for generation but
+/// would have made shrinking take much longer, because the shrinker would be
+/// less aware of the overall structure of the problem and would have ended up
+/// redoing a lot of work. The approach taken here does end up being more
 /// verbose but should perform optimally.
 ///
 /// See [`proptest` issue #130](https://github.com/AltSysrq/proptest/issues/130) for more discussion
@@ -95,7 +104,8 @@ pub struct CompiledModuleStrategyGen {
 }
 
 impl CompiledModuleStrategyGen {
-    /// Create a new configuration for randomly generating [`CompiledModule`] instances.
+    /// Create a new configuration for randomly generating [`CompiledModule`]
+    /// instances.
     pub fn new(size: TableSize) -> Self {
         Self {
             size: size as usize,
@@ -111,7 +121,8 @@ impl CompiledModuleStrategyGen {
         }
     }
 
-    /// Zero out all fields, type parameters, arguments and return types of struct and functions.
+    /// Zero out all fields, type parameters, arguments and return types of
+    /// struct and functions.
     #[inline]
     pub fn zeros_all(&mut self) -> &mut Self {
         self.field_count = 0.into();
@@ -125,9 +136,9 @@ impl CompiledModuleStrategyGen {
         self
     }
 
-    /// Create a `proptest` strategy for `CompiledModule` instances using this configuration.
+    /// Create a `proptest` strategy for `CompiledModule` instances using this
+    /// configuration.
     pub fn generate(self) -> impl Strategy<Value = CompiledModule> {
-        //
         // leaf pool generator
         //
         let self_idx_strat = any::<PropIndex>();
@@ -136,15 +147,13 @@ impl CompiledModuleStrategyGen {
         let constant_pool_strat = ConstantPoolGen::strategy(0..=self.size, 0..=self.size);
         let metadata_strat = MetadataGen::strategy(0..=self.size);
 
-        // The number of PropIndex instances in each tuple represents the number of pointers out
-        // from an instance of that particular kind of node.
+        // The number of PropIndex instances in each tuple represents the number of
+        // pointers out from an instance of that particular kind of node.
 
-        //
         // Module handle generator
         //
         let module_handles_strat = vec(any::<(PropIndex, PropIndex)>(), 1..=self.size);
 
-        //
         // Struct generators
         //
         let struct_handles_strat = vec(
@@ -159,18 +168,17 @@ impl CompiledModuleStrategyGen {
             1..=self.size,
         );
 
-        //
         // Random signatures generator
         //
-        // These signatures may or may not be used in the bytecode. One way to use these signatures
-        // is the Vec* bytecode (e.g. VecEmpty), which will grab a random index from the pool.
+        // These signatures may or may not be used in the bytecode. One way to use these
+        // signatures is the Vec* bytecode (e.g. VecEmpty), which will grab a
+        // random index from the pool.
         //
         let random_sigs_strat = vec(
             SignatureGen::strategy(self.tokens_per_random_sig_count),
             self.random_sigs_count,
         );
 
-        //
         // Functions generators
         //
 
@@ -196,7 +204,6 @@ impl CompiledModuleStrategyGen {
             1..=self.size,
         );
 
-        //
         // Friend generator
         //
         let friends_strat = vec(any::<(PropIndex, PropIndex)>(), 1..=self.size);
@@ -219,14 +226,13 @@ impl CompiledModuleStrategyGen {
             .prop_map(
                 |(
                     self_idx_gen,
-                    (address_identifier_gens, identifier_gens, constant_pool_gen, metdata_gen),
+                    (address_identifier_gens, identifier_gens, constant_pool_gen, metadata_gen),
                     module_handles_gen,
                     (struct_handle_gens, struct_def_gens),
                     random_sigs_gens,
                     (function_handle_gens, function_def_gens),
                     friend_decl_gens,
                 )| {
-                    //
                     // leaf pools
                     let address_identifiers: Vec<_> = address_identifier_gens.into_iter().collect();
                     let address_identifiers_len = address_identifiers.len();
@@ -234,9 +240,8 @@ impl CompiledModuleStrategyGen {
                     let identifiers_len = identifiers.len();
                     let constant_pool = constant_pool_gen.constant_pool();
                     let constant_pool_len = constant_pool.len();
-                    let metadata = metdata_gen.metadata();
+                    let metadata = metadata_gen.metadata();
 
-                    //
                     // module handles
                     let mut module_handles_set = BTreeSet::new();
                     let mut module_handles = vec![];
@@ -253,12 +258,10 @@ impl CompiledModuleStrategyGen {
                     }
                     let module_handles_len = module_handles.len();
 
-                    //
                     // self module handle index
                     let self_module_handle_idx =
                         ModuleHandleIndex(self_idx_gen.index(module_handles_len) as TableIndex);
 
-                    //
                     // Friend Declarations
                     let friend_decl_set: BTreeSet<_> = friend_decl_gens
                         .into_iter()
@@ -271,7 +274,6 @@ impl CompiledModuleStrategyGen {
                         .collect();
                     let friend_decls = friend_decl_set.into_iter().collect();
 
-                    //
                     // struct handles
                     let mut struct_handles = vec![];
                     if module_handles_len > 1 {
@@ -288,7 +290,6 @@ impl CompiledModuleStrategyGen {
                         }
                     }
 
-                    //
                     // Struct definitions.
                     // Struct handles for the definitions are generated in this step
                     let mut state = StDefnMaterializeState::new(
@@ -308,14 +309,12 @@ impl CompiledModuleStrategyGen {
                     }
                     let StDefnMaterializeState { struct_handles, .. } = state;
 
-                    //
                     // Create some random signatures.
                     let mut signatures: Vec<_> = random_sigs_gens
                         .into_iter()
                         .map(|sig_gen| sig_gen.materialize(&struct_handles))
                         .collect();
 
-                    //
                     // Function handles.
                     let mut function_handles: Vec<FunctionHandle> = vec![];
                     if module_handles_len > 1 {
@@ -336,7 +335,6 @@ impl CompiledModuleStrategyGen {
                         signatures = state.signatures();
                     }
 
-                    //
                     // Function Definitions
                     // Here we need pretty much everything if we are going to emit instructions.
                     // signatures and function handles
@@ -394,9 +392,10 @@ impl CompiledModuleStrategyGen {
     }
 }
 
-/// A utility function that produces a prop_index but also avoiding the given index. If the random
-/// index at the first choice collides with the avoidance, then try +/- 1 from the chosen value and
-/// pick the one that does not over/under-flow.
+/// A utility function that produces a prop_index but also avoiding the given
+/// index. If the random index at the first choice collides with the avoidance,
+/// then try +/- 1 from the chosen value and pick the one that does not
+/// over/under-flow.
 pub(crate) fn prop_index_avoid(gen: PropIndex, avoid: usize, pool_size: usize) -> usize {
     assert!(pool_size > 1);
     assert!(pool_size > avoid);

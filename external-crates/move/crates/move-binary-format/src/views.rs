@@ -1,28 +1,33 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! An alternate representation of the file format built on top of the existing format.
+//! An alternate representation of the file format built on top of the existing
+//! format.
 //!
 //! Some general notes:
 //!
-//! * These views are not meant to be set in stone. Feel free to change the views exposed as the
-//!   format and our understanding evolves.
-//! * The typical use for these views would be to materialize all the lazily evaluated data
-//!   immediately -- the views are a convenience to make that simpler. They've been written as lazy
-//!   iterators to aid understanding of the file format and to make it easy to generate views.
+//! * These views are not meant to be set in stone. Feel free to change the
+//!   views exposed as the format and our understanding evolves.
+//! * The typical use for these views would be to materialize all the lazily
+//!   evaluated data immediately -- the views are a convenience to make that
+//!   simpler. They've been written as lazy iterators to aid understanding of
+//!   the file format and to make it easy to generate views.
 
-use std::iter::DoubleEndedIterator;
-
-use crate::{access::ModuleAccess, file_format::*, SignatureTokenKind};
-use std::collections::BTreeSet;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::DoubleEndedIterator,
+};
 
 use move_core_types::{identifier::IdentStr, language_storage::ModuleId};
-use std::collections::BTreeMap;
+
+use crate::{access::ModuleAccess, file_format::*, SignatureTokenKind};
 
 /// Represents a lazily evaluated abstraction over a module.
 ///
-/// `T` here is any sort of `ModuleAccess`. See the documentation in access.rs for more.
+/// `T` here is any sort of `ModuleAccess`. See the documentation in access.rs
+/// for more.
 pub struct ModuleView<'a, T> {
     module: &'a T,
     name_to_function_definition_view: BTreeMap<&'a IdentStr, FunctionDefinitionView<'a, T>>,
@@ -236,14 +241,19 @@ impl<'a, T: ModuleAccess> StructHandleView<'a, T> {
         self.module.module_id_for_handle(self.module_handle())
     }
 
-    /// Return the StructHandleIndex of this handle in the module's struct handle table
+    /// Return the StructHandleIndex of this handle in the module's struct
+    /// handle table
     pub fn handle_idx(&self) -> StructHandleIndex {
         for (idx, handle) in self.module.struct_handles().iter().enumerate() {
             if handle == self.handle() {
                 return StructHandleIndex::new(idx as u16);
             }
         }
-        unreachable!("Cannot resolve StructHandle {:?} in module {:?}. This should never happen in a well-formed `StructHandleView`. Perhaps this handle came from a different module?", self.handle(), self.module().name())
+        unreachable!(
+            "Cannot resolve StructHandle {:?} in module {:?}. This should never happen in a well-formed `StructHandleView`. Perhaps this handle came from a different module?",
+            self.handle(),
+            self.module().name()
+        )
     }
 }
 
@@ -679,8 +689,8 @@ impl<'a, T: ModuleAccess> SignatureTokenView<'a, T> {
     }
 }
 
-/// This is used to expose some view internals to checks and other areas. This might be exposed
-/// to external code in the future.
+/// This is used to expose some view internals to checks and other areas. This
+/// might be exposed to external code in the future.
 pub trait ViewInternals {
     type ModuleType;
     type Inner;

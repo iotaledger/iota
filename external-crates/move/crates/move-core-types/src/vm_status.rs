@@ -1,14 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(clippy::unit_arg)]
+
+use std::{convert::TryFrom, fmt};
 
 use anyhow::Result;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::prelude::*;
 use serde::{de, ser};
-use std::{convert::TryFrom, fmt};
 
 /// The minimum status code for validation statuses
 pub static VALIDATION_STATUS_MIN_CODE: u64 = 0;
@@ -40,8 +42,8 @@ pub static EXECUTION_STATUS_MIN_CODE: u64 = 4000;
 /// The maximum status code for runtim statuses
 pub static EXECUTION_STATUS_MAX_CODE: u64 = 4999;
 
-/// A status type is one of 5 different variants, along with a fallback variant in the case that we
-/// don't recognize the status code.
+/// A status type is one of 5 different variants, along with a fallback variant
+/// in the case that we don't recognize the status code.
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub enum StatusType {
     Validation,
@@ -382,7 +384,7 @@ pub enum StatusCode {
     VM_MAX_TYPE_NODES_REACHED = 4029,
 
     // A reserved status to represent an unknown vm status.
-    // this is std::u64::MAX, but we can't pattern match on that, so put the hardcoded value in
+    // this is u64::MAX, but we can't pattern match on that, so put the hardcoded value in
     UNKNOWN_STATUS = 18446744073709551615,
 }
 }
@@ -475,7 +477,8 @@ pub mod sub_status {
     pub const NFE_BCS_SERIALIZATION_FAILURE: u64 = 0x1C5;
 }
 
-/// The `Arbitrary` impl only generates validation statuses since the full enum is too large.
+/// The `Arbitrary` impl only generates validation statuses since the full enum
+/// is too large.
 #[cfg(any(test, feature = "fuzzing"))]
 impl Arbitrary for StatusCode {
     type Parameters = ();
@@ -494,8 +497,8 @@ impl Arbitrary for StatusCode {
 #[test]
 fn test_status_codes() {
     use std::collections::HashSet;
-    // Make sure that within the 0-EXECUTION_STATUS_MAX_CODE that all of the status codes succeed
-    // when they should, and fail when they should.
+    // Make sure that within the 0-EXECUTION_STATUS_MAX_CODE that all of the status
+    // codes succeed when they should, and fail when they should.
     for possible_major_status_code in 0..=EXECUTION_STATUS_MAX_CODE {
         if STATUS_CODE_VALUES.contains(&possible_major_status_code) {
             let status = StatusCode::try_from(possible_major_status_code);
@@ -509,8 +512,8 @@ fn test_status_codes() {
 
     let mut seen_statuses = HashSet::new();
     let mut seen_codes = HashSet::new();
-    // Now make sure that all of the error codes (including any that may be out-of-range) succeed.
-    // Make sure there aren't any duplicate mappings
+    // Now make sure that all of the error codes (including any that may be
+    // out-of-range) succeed. Make sure there aren't any duplicate mappings
     for major_status_code in STATUS_CODE_VALUES.iter() {
         assert!(
             !seen_codes.contains(major_status_code),

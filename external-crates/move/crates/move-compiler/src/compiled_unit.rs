@@ -1,6 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_binary_format::file_format as F;
+use move_bytecode_source_map::source_map::SourceMap;
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier as MoveCoreIdentifier,
+    language_storage::ModuleId,
+};
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
@@ -10,14 +20,6 @@ use crate::{
     parser::ast::{FunctionName, ModuleName},
     shared::{unique_map::UniqueMap, Name, NumericalAddress},
 };
-use move_binary_format::file_format as F;
-use move_bytecode_source_map::source_map::SourceMap;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier as MoveCoreIdentifier,
-    language_storage::ModuleId,
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
 
 //**************************************************************************************************
 // Compiled Unit

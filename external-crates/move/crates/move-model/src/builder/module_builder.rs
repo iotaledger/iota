@@ -1,11 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
-
 use move_binary_format::{
     access::ModuleAccess,
     file_format::{Constant, FunctionDefinitionIndex, StructDefinitionIndex},
@@ -59,23 +59,27 @@ impl<'env, 'translator> ModuleBuilder<'env, 'translator> {
         }
     }
 
-    /// Translates the given module definition from the Move compiler's expansion phase,
-    /// combined with a compiled module (bytecode) and a source map, and enters it into
-    /// this global environment. Any type check or others errors encountered will be collected
-    /// in the environment for later processing. Dependencies of this module are guaranteed to
-    /// have been analyzed and being already part of the environment.
+    /// Translates the given module definition from the Move compiler's
+    /// expansion phase, combined with a compiled module (bytecode) and a
+    /// source map, and enters it into this global environment. Any type
+    /// check or others errors encountered will be collected
+    /// in the environment for later processing. Dependencies of this module are
+    /// guaranteed to have been analyzed and being already part of the
+    /// environment.
     ///
     /// Translation happens in three phases:
     ///
-    /// 1. In the *declaration analysis*, we collect all information about structs, functions,
-    ///    spec functions, spec vars, and schemas in a module. We do not yet analyze function
-    ///    bodies, conditions, and invariants, which we can only analyze after we know all
-    ///    global declarations (declaration of globals is order independent, and they can have
-    ///    cyclic references).
-    /// 2. In the *definition analysis*, we visit the definitions we have skipped in step (1),
-    ///    specifically analyzing and type checking expressions and schema inclusions.
-    /// 3. In the *population phase*, we populate the global environment with the information
-    ///    from this module.
+    /// 1. In the *declaration analysis*, we collect all information about
+    ///    structs, functions, spec functions, spec vars, and schemas in a
+    ///    module. We do not yet analyze function bodies, conditions, and
+    ///    invariants, which we can only analyze after we know all global
+    ///    declarations (declaration of globals is order independent, and they
+    ///    can have cyclic references).
+    /// 2. In the *definition analysis*, we visit the definitions we have
+    ///    skipped in step (1), specifically analyzing and type checking
+    ///    expressions and schema inclusions.
+    /// 3. In the *population phase*, we populate the global environment with
+    ///    the information from this module.
     pub fn translate(
         &mut self,
         loc: Loc,
@@ -110,7 +114,8 @@ impl<'env, 'translator> ModuleBuilder<'env, 'translator> {
         self.qualified_by_module(sym)
     }
 
-    /// Converts a ModuleAccess into its parts, an optional ModuleName and base name.
+    /// Converts a ModuleAccess into its parts, an optional ModuleName and base
+    /// name.
     pub fn module_access_to_parts(
         &self,
         access: &EA::ModuleAccess,
@@ -129,8 +134,8 @@ impl<'env, 'translator> ModuleBuilder<'env, 'translator> {
         }
     }
 
-    /// Converts a ModuleAccess into a qualified symbol which can be used for lookup of
-    /// types or functions.
+    /// Converts a ModuleAccess into a qualified symbol which can be used for
+    /// lookup of types or functions.
     pub fn module_access_to_qualified(&self, access: &EA::ModuleAccess) -> QualifiedSymbol {
         let (module_name_opt, symbol) = self.module_access_to_parts(access);
         let module_name = module_name_opt.unwrap_or_else(|| self.module_name.clone());

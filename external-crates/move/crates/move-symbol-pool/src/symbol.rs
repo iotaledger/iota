@@ -1,14 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{borrow::Cow, cmp::Ordering, fmt, num::NonZeroU64, ops::Deref};
+
+use serde::{de::Deserialize, ser::Serialize};
 
 use crate::{
     pool::Entry,
     static_symbols::{STATIC_SYMBOLS, STATIC_SYMBOL_IDX},
     SYMBOL_POOL,
 };
-use serde::{de::Deserialize, ser::Serialize};
-use std::{borrow::Cow, cmp::Ordering, fmt, num::NonZeroU64, ops::Deref};
 
 /// Represents a string that has been cached.
 ///
@@ -21,7 +24,7 @@ use std::{borrow::Cow, cmp::Ordering, fmt, num::NonZeroU64, ops::Deref};
 /// the `Symbol` are created.
 ///
 /// ```
-///# use crate::move_symbol_pool::Symbol;
+/// # use crate::move_symbol_pool::Symbol;
 /// let s1 = Symbol::from("hi"); // "hi" is stored in the global cache
 /// let s2 = Symbol::from("hi"); // "hi" is already stored, cache does not grow
 /// assert_eq!(s1, s2);
@@ -33,10 +36,12 @@ use std::{borrow::Cow, cmp::Ordering, fmt, num::NonZeroU64, ops::Deref};
 /// crates that print strings to a terminal, such as codespan.
 ///
 /// ```
-///# use crate::move_symbol_pool::Symbol;
-/// let message = format!("{} {}",
+/// # use crate::move_symbol_pool::Symbol;
+/// let message = format!(
+///     "{} {}",
 ///     Symbol::from("hello").as_str(),
-///     Symbol::from("world"));
+///     Symbol::from("world")
+/// );
 /// assert_eq!(message, "hello world");
 /// ```
 ///
@@ -47,11 +52,11 @@ pub struct Symbol(NonZeroU64);
 
 /// The `Tag` signifies what sort of Symbol it is
 /// The `Tag` is stored in the lowest two bits of the Symbol's value
-/// `Tag::Dynamic`: if the `Symbol` points into the Symbol pool, the lower bits will be zero for
-///                 pointer alignment. So the tag value is 0
-/// `Tag::Inline`: if the string for the `Symbol` has less than 7 characters, those characters can
-///                be stuffed into the value of the symbol, along with the tag and the length. The
-///                tag is set to 1
+/// `Tag::Dynamic`: if the `Symbol` points into the Symbol pool, the lower bits
+/// will be zero for                 pointer alignment. So the tag value is 0
+/// `Tag::Inline`: if the string for the `Symbol` has less than 7 characters,
+/// those characters can                be stuffed into the value of the symbol,
+/// along with the tag and the length. The                tag is set to 1
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 enum Tag {
@@ -218,8 +223,8 @@ fn inline_symbol_slice(x: &NonZeroU64) -> &[u8] {
     unsafe {
         let x: *const NonZeroU64 = x;
         let mut data = x as *const u8;
-        // Lowest byte (first in little-endian, last in big-endian) is skipped as it stores the
-        // tag
+        // Lowest byte (first in little-endian, last in big-endian) is skipped as it
+        // stores the tag
         if cfg!(target_endian = "little") {
             data = data.offset(1);
         }
@@ -233,8 +238,8 @@ fn inline_symbol_slice_mut(x: &mut u64) -> &mut [u8] {
     unsafe {
         let x: *mut u64 = x;
         let mut data = x as *mut u8;
-        // Lowest byte (first in little-endian, last in big-endian) is skipped as it stores the
-        // tag
+        // Lowest byte (first in little-endian, last in big-endian) is skipped as it
+        // stores the tag
         if cfg!(target_endian = "little") {
             data = data.offset(1);
         }
@@ -305,13 +310,13 @@ macro_rules! static_symbols {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::size_of;
+
     use crate::{
         static_symbols::{STATIC_SYMBOLS, STATIC_SYMBOL_IDX},
         symbol::{Tag, MAX_INLINE_LEN},
         Symbol,
     };
-
-    use std::mem::size_of;
 
     #[test]
     fn test_size() {

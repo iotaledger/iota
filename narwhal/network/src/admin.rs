@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
+    time::Duration,
+};
+
 use axum::{extract::Extension, http::StatusCode, routing::get, Json, Router};
-use mysten_metrics::{spawn_logged_monitored_task, spawn_monitored_task};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
-use std::time::Duration;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use iota_metrics::{spawn_logged_monitored_task, spawn_monitored_task};
+use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info};
 use types::ConditionalBroadcastReceiver;
 
@@ -34,7 +37,7 @@ pub fn start_admin_server(
     // Spawn a task to shutdown server.
     handles.push(spawn_monitored_task!(async move {
         _ = tr_shutdown.receiver.recv().await;
-        handle.clone().shutdown();
+        handle.shutdown();
     }));
 
     handles.push(spawn_logged_monitored_task!(

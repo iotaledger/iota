@@ -1,10 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
 
-use crate::cli::Options;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::Instant,
+};
+
 use anyhow::anyhow;
 use codespan_reporting::{
     diagnostic::Severity,
@@ -22,11 +28,8 @@ use move_stackless_bytecode::{
     number_operation::GlobalNumberOperationState,
     pipeline_factory,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+
+use crate::cli::Options;
 
 pub mod cli;
 
@@ -73,7 +76,7 @@ pub fn create_init_num_operation_state(env: &GlobalEnv) {
             global_state.create_initial_func_oper_state(&fun_env);
         }
     }
-    //global_state.create_initial_exp_oper_state(env);
+    // global_state.create_initial_exp_oper_state(env);
     env.set_extension(global_state);
 }
 
@@ -94,11 +97,12 @@ pub fn run_move_prover_with_model<W: WriteColor>(
     )?;
     env.report_diag(error_writer, options.prover.report_severity);
 
-    // Add the prover options as an extension to the environment, so they can be accessed
-    // from there.
+    // Add the prover options as an extension to the environment, so they can be
+    // accessed from there.
     env.set_extension(options.prover.clone());
 
-    // Populate initial number operation state for each function and struct based on the pragma
+    // Populate initial number operation state for each function and struct based on
+    // the pragma
     create_init_num_operation_state(env);
 
     // Until this point, prover and docgen have same code. Here we part ways.
@@ -255,7 +259,8 @@ fn run_escape(env: &GlobalEnv, options: &Options, now: Instant) {
     pipeline.run(env, &mut targets);
     let end = now.elapsed();
 
-    // print escaped internal refs flagged by analysis. do not report errors in dependencies
+    // print escaped internal refs flagged by analysis. do not report errors in
+    // dependencies
     let mut error_writer = Buffer::no_color();
     env.report_diag_with_filter(&mut error_writer, |d| {
         let fname = env.get_file(d.labels[0].file_id).to_str().unwrap();

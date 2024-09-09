@@ -1,6 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
 use clap::Parser;
@@ -11,17 +18,11 @@ use lsp_types::{
     HoverProviderCapability, OneOf, SaveOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
-use move_compiler::linters::LintLevel;
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-
 use move_analyzer::{
     completion::on_completion_request, context::Context, symbols,
     vfs::on_text_document_sync_notification,
 };
+use move_compiler::linters::LintLevel;
 use url::Url;
 use vfs::{impls::memory::MemoryFS, VfsPath};
 
@@ -35,8 +36,9 @@ fn main() {
     Options::parse();
 
     // stdio is used to communicate Language Server Protocol requests and responses.
-    // stderr is used for logging (and, when Visual Studio Code is used to communicate with this
-    // server, it captures this output in a dedicated "output channel").
+    // stderr is used for logging (and, when Visual Studio Code is used to
+    // communicate with this server, it captures this output in a dedicated
+    // "output channel").
     let exe = std::env::current_exe()
         .unwrap()
         .to_string_lossy()
@@ -138,11 +140,12 @@ fn main() {
             lint,
         );
 
-        // If initialization information from the client contains a path to the directory being
-        // opened, try to initialize symbols before sending response to the client. Do not bother
-        // with diagnostics as they will be recomputed whenever the first source file is opened. The
-        // main reason for this is to enable unit tests that rely on the symbolication information
-        // to be available right after the client is initialized.
+        // If initialization information from the client contains a path to the
+        // directory being opened, try to initialize symbols before sending
+        // response to the client. Do not bother with diagnostics as they will
+        // be recomputed whenever the first source file is opened. The
+        // main reason for this is to enable unit tests that rely on the symbolication
+        // information to be available right after the client is initialized.
         if let Some(uri) = initialize_params.root_uri {
             if let Some(p) = symbols::SymbolicatorRunner::root_dir(&uri.to_file_path().unwrap()) {
                 if let Ok((Some(new_symbols), _)) = symbols::get_symbols(
@@ -214,7 +217,7 @@ fn main() {
                     Ok(Message::Request(request)) => {
                         // the server should not quit after receiving the shutdown request to give itself
                         // a chance of completing pending requests (but should not accept new requests
-                        // either which is handled inside on_requst) - instead it quits after receiving
+                        // either which is handled inside on_request) - instead it quits after receiving
                         // the exit notification from the client, which is handled below
                         shutdown_req_received = on_request(&context, &request, ide_files_root.clone(), shutdown_req_received);
                     }
@@ -241,10 +244,11 @@ fn main() {
     eprintln!("Shut down language server '{}'.", exe);
 }
 
-/// This function returns `true` if shutdown request has been received, and `false` otherwise.
-/// The reason why this information is also passed as an argument is that according to the LSP
-/// spec, if any additional requests are received after shutdownd then the LSP implementation
-/// should respond with a particular type of error.
+/// This function returns `true` if shutdown request has been received, and
+/// `false` otherwise. The reason why this information is also passed as an
+/// argument is that according to the LSP spec, if any additional requests are
+/// received after shutdownd then the LSP implementation should respond with a
+/// particular type of error.
 fn on_request(
     context: &Context,
     request: &Request,

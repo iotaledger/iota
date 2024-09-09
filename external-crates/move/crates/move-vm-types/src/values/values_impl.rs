@@ -1,11 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    loaded_data::runtime_types::Type,
-    views::{ValueView, ValueVisitor},
+use std::{
+    cell::RefCell,
+    fmt::{self, Debug, Display},
+    iter,
+    rc::Rc,
 };
+
 use move_binary_format::{
     errors::*,
     file_format::{Constant, SignatureToken},
@@ -18,22 +22,24 @@ use move_core_types::{
     u256,
     vm_status::{sub_status::NFE_VECTOR_ERROR_BASE, StatusCode},
 };
-use std::{
-    cell::RefCell,
-    fmt::{self, Debug, Display},
-    iter,
-    rc::Rc,
+
+use crate::{
+    loaded_data::runtime_types::Type,
+    views::{ValueView, ValueVisitor},
 };
 
-/***************************************************************************************
- *
- * Internal Types
- *
- *   Internal representation of the Move value calculus. These types are abstractions
- *   over the concrete Move concepts and may carry additional information that is not
- *   defined by the language, but required by the implementation.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Internal Types
+///
+///   Internal representation of the Move value calculus. These types are
+/// abstractions   over the concrete Move concepts and may carry additional
+/// information that is not   defined by the language, but required by the
+/// implementation.
+///
+/// ****************************************************************************
+/// *******
 
 /// Runtime representation of a Move value.
 #[derive(Debug)]
@@ -55,15 +61,15 @@ enum ValueImpl {
     IndexedRef(IndexedRef),
 }
 
-/// A container is a collection of values. It is used to represent data structures like a
-/// Move vector or struct.
+/// A container is a collection of values. It is used to represent data
+/// structures like a Move vector or struct.
 ///
-/// There is one general container that can be used to store an array of any values, same
-/// type or not, and a few specialized flavors to offer compact memory layout for small
-/// primitive types.
+/// There is one general container that can be used to store an array of any
+/// values, same type or not, and a few specialized flavors to offer compact
+/// memory layout for small primitive types.
 ///
-/// Except when not owned by the VM stack, a container always lives inside an Rc<RefCell<>>,
-/// making it possible to be shared by references.
+/// Except when not owned by the VM stack, a container always lives inside an
+/// Rc<RefCell<>>, making it possible to be shared by references.
 #[derive(Debug, Clone)]
 enum Container {
     Locals(Rc<RefCell<Vec<ValueImpl>>>),
@@ -79,9 +85,9 @@ enum Container {
     VecU256(Rc<RefCell<Vec<u256::U256>>>),
 }
 
-/// A ContainerRef is a direct reference to a container, which could live either in the frame
-/// or in global storage. In the latter case, it also keeps a status flag indicating whether
-/// the container has been possibly modified.
+/// A ContainerRef is a direct reference to a container, which could live either
+/// in the frame or in global storage. In the latter case, it also keeps a
+/// status flag indicating whether the container has been possibly modified.
 #[derive(Debug)]
 enum ContainerRef {
     Local(Container),
@@ -107,31 +113,33 @@ struct IndexedRef {
     container_ref: ContainerRef,
 }
 
-/// An umbrella enum for references. It is used to hide the internals of the public type
-/// Reference.
+/// An umbrella enum for references. It is used to hide the internals of the
+/// public type Reference.
 #[derive(Debug)]
 enum ReferenceImpl {
     IndexedRef(IndexedRef),
     ContainerRef(ContainerRef),
 }
 
-/***************************************************************************************
- *
- * Public Types
- *
- *   Types visible from outside the module. They are almost exclusively wrappers around
- *   the internal representation, acting as public interfaces. The methods they provide
- *   closely resemble the Move concepts their names suggest: move_local, borrow_field,
- *   pack, unpack, etc.
- *
- *   They are opaque to an external caller by design -- no knowledge about the internal
- *   representation is given and they can only be manipulated via the public methods,
- *   which is to ensure no arbitrary invalid states can be created unless some crucial
- *   internal invariants are violated.
- *
- **************************************************************************************/
-/// A Move value -- a wrapper around `ValueImpl` which can be created only through valid
-/// means.
+/// ****************************************************************************
+/// *********
+///
+/// Public Types
+///
+///   Types visible from outside the module. They are almost exclusively
+/// wrappers around   the internal representation, acting as public interfaces.
+/// The methods they provide   closely resemble the Move concepts their names
+/// suggest: move_local, borrow_field,   pack, unpack, etc.
+///
+///   They are opaque to an external caller by design -- no knowledge about the
+/// internal   representation is given and they can only be manipulated via the
+/// public methods,   which is to ensure no arbitrary invalid states can be
+/// created unless some crucial   internal invariants are violated.
+///
+/// ****************************************************************************
+/// *******
+/// A Move value -- a wrapper around `ValueImpl` which can be created only
+/// through valid means.
 #[derive(Debug)]
 pub struct Value(ValueImpl);
 
@@ -159,62 +167,70 @@ pub struct Struct {
 #[derive(Debug)]
 pub struct Vector(Container);
 
-/// A reference to a Move struct that allows you to take a reference to one of its fields.
+/// A reference to a Move struct that allows you to take a reference to one of
+/// its fields.
 #[derive(Debug)]
 pub struct StructRef(ContainerRef);
 
-/// A generic Move reference that offers two functionalities: read_ref & write_ref.
+/// A generic Move reference that offers two functionalities: read_ref &
+/// write_ref.
 #[derive(Debug)]
 pub struct Reference(ReferenceImpl);
 
-// A reference to a signer. Clients can attempt a cast to this struct if they are
-// expecting a Signer on the stack or as an argument.
+// A reference to a signer. Clients can attempt a cast to this struct if they
+// are expecting a Signer on the stack or as an argument.
 #[derive(Debug)]
 pub struct SignerRef(ContainerRef);
 
-// A reference to a vector. This is an alias for a ContainerRef for now but we may change
-// it once Containers are restructured.
-// It's used from vector native functions to get a reference to a vector and operate on that.
-// There is an impl for VectorRef which implements the API private to this module.
+// A reference to a vector. This is an alias for a ContainerRef for now but we
+// may change it once Containers are restructured.
+// It's used from vector native functions to get a reference to a vector and
+// operate on that. There is an impl for VectorRef which implements the API
+// private to this module.
 #[derive(Debug)]
 pub struct VectorRef(ContainerRef);
 
-/// A special "slot" in global storage that can hold a resource. It also keeps track of the status
-/// of the resource relative to the global state, which is necessary to compute the effects to emit
-/// at the end of transaction execution.
+/// A special "slot" in global storage that can hold a resource. It also keeps
+/// track of the status of the resource relative to the global state, which is
+/// necessary to compute the effects to emit at the end of transaction
+/// execution.
 #[derive(Debug)]
 enum GlobalValueImpl {
     /// No resource resides in this slot or in storage.
     None,
-    /// A resource has been published to this slot and it did not previously exist in storage.
+    /// A resource has been published to this slot and it did not previously
+    /// exist in storage.
     Fresh { fields: Rc<RefCell<Vec<ValueImpl>>> },
-    /// A resource resides in this slot and also in storage. The status flag indicates whether
-    /// it has potentially been altered.
+    /// A resource resides in this slot and also in storage. The status flag
+    /// indicates whether it has potentially been altered.
     Cached {
         fields: Rc<RefCell<Vec<ValueImpl>>>,
         status: Rc<RefCell<GlobalDataStatus>>,
     },
-    /// A resource used to exist in storage but has been deleted by the current transaction.
+    /// A resource used to exist in storage but has been deleted by the current
+    /// transaction.
     Deleted,
 }
 
-/// A wrapper around `GlobalValueImpl`, representing a "slot" in global storage that can
-/// hold a resource.
+/// A wrapper around `GlobalValueImpl`, representing a "slot" in global storage
+/// that can hold a resource.
 #[derive(Debug)]
 pub struct GlobalValue(GlobalValueImpl);
 
-/// The locals for a function frame. It allows values to be read, written or taken
-/// reference from.
+/// The locals for a function frame. It allows values to be read, written or
+/// taken reference from.
 #[derive(Debug)]
 pub struct Locals(Rc<RefCell<Vec<ValueImpl>>>);
 
-/***************************************************************************************
- *
- * Misc
- *
- *   Miscellaneous helper functions.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Misc
+///
+///   Miscellaneous helper functions.
+///
+/// ****************************************************************************
+/// *******
 
 impl Container {
     fn len(&self) -> usize {
@@ -250,14 +266,16 @@ impl Container {
     }
 }
 
-/***************************************************************************************
- *
- * Borrows (Internal)
- *
- *   Helper functions to handle Rust borrows. When borrowing from a RefCell, we want
- *   to return an error instead of panicking.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Borrows (Internal)
+///
+///   Helper functions to handle Rust borrows. When borrowing from a RefCell, we
+/// want   to return an error instead of panicking.
+///
+/// ****************************************************************************
+/// *******
 
 fn take_unique_ownership<T: Debug>(r: Rc<RefCell<T>>) -> PartialVMResult<T> {
     match Rc::try_unwrap(r) {
@@ -283,14 +301,16 @@ impl ContainerRef {
     }
 }
 
-/***************************************************************************************
- *
- * Reference Conversions (Internal)
- *
- *   Helpers to obtain a Rust reference to a value via a VM reference. Required for
- *   equalities.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Reference Conversions (Internal)
+///
+///   Helpers to obtain a Rust reference to a value via a VM reference. Required
+/// for   equalities.
+///
+/// ****************************************************************************
+/// *******
 trait VMValueRef<T> {
     fn value_ref(&self) -> PartialVMResult<&T>;
 }
@@ -327,15 +347,17 @@ impl ValueImpl {
     }
 }
 
-/***************************************************************************************
- *
- * Copy Value
- *
- *   Implementation of Move copy. Extra care needs to be taken when copying references.
- *   It is intentional we avoid implementing the standard library trait Clone, to prevent
- *   surprising behaviors from happening.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Copy Value
+///
+///   Implementation of Move copy. Extra care needs to be taken when copying
+/// references.   It is intentional we avoid implementing the standard library
+/// trait Clone, to prevent   surprising behaviors from happening.
+///
+/// ****************************************************************************
+/// *******
 impl ValueImpl {
     fn copy_value(&self) -> PartialVMResult<Self> {
         use ValueImpl::*;
@@ -390,7 +412,7 @@ impl Container {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("cannot copy a Locals container".to_string()),
-                )
+                );
             }
         })
     }
@@ -439,22 +461,24 @@ impl Value {
     }
 }
 
-/***************************************************************************************
- *
- * Equality
- *
- *   Equality tests of Move values. Errors are raised when types mismatch.
- *
- *   It is intended to NOT use or even implement the standard library traits Eq and
- *   Partial Eq due to:
- *     1. They do not allow errors to be returned.
- *     2. They can be invoked without the user being noticed thanks to operator
- *        overloading.
- *
- *   Eq and Partial Eq must also NOT be derived for the reasons above plus that the
- *   derived implementation differs from the semantics we want.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Equality
+///
+///   Equality tests of Move values. Errors are raised when types mismatch.
+///
+///   It is intended to NOT use or even implement the standard library traits Eq
+/// and   Partial Eq due to:
+///     1. They do not allow errors to be returned.
+///     2. They can be invoked without the user being noticed thanks to operator
+///        overloading.
+///
+///   Eq and Partial Eq must also NOT be derived for the reasons above plus that
+/// the   derived implementation differs from the semantics we want.
+///
+/// ****************************************************************************
+/// *******
 
 impl ValueImpl {
     fn equals(&self, other: &Self) -> PartialVMResult<bool> {
@@ -487,7 +511,7 @@ impl ValueImpl {
             | (ContainerRef(_), _)
             | (IndexedRef(_), _) => {
                 return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
-                    .with_message(format!("cannot compare values: {:?}, {:?}", self, other)))
+                    .with_message(format!("cannot compare values: {:?}, {:?}", self, other)));
             }
         };
 
@@ -539,7 +563,7 @@ impl Container {
                         "cannot compare container values: {:?}, {:?}",
                         self, other
                     )),
-                )
+                );
             }
         };
 
@@ -649,7 +673,7 @@ impl IndexedRef {
             | (VecBool(_), _)
             | (VecAddress(_), _) => {
                 return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
-                    .with_message(format!("cannot compare references {:?}, {:?}", self, other)))
+                    .with_message(format!("cannot compare references {:?}, {:?}", self, other)));
             }
         };
         Ok(res)
@@ -662,13 +686,15 @@ impl Value {
     }
 }
 
-/***************************************************************************************
- *
- * Read Ref
- *
- *   Implementation of the Move operation read ref.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Read Ref
+///
+///   Implementation of the Move operation read ref.
+///
+/// ****************************************************************************
+/// *******
 
 impl ContainerRef {
     fn read_ref(self) -> PartialVMResult<Value> {
@@ -717,13 +743,15 @@ impl Reference {
     }
 }
 
-/***************************************************************************************
- *
- * Write Ref
- *
- *   Implementation of the Move operation write ref.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Write Ref
+///
+///   Implementation of the Move operation write ref.
+///
+/// ****************************************************************************
+/// *******
 
 impl ContainerRef {
     fn write_ref(self, v: Value) -> PartialVMResult<()> {
@@ -739,7 +767,7 @@ impl ContainerRef {
                                 )
                                 .with_message(
                                     "failed to write_ref: container type mismatch".to_string(),
-                                ))
+                                ));
                             }
                         };
                         *$r1.borrow_mut() = take_unique_ownership(r)?;
@@ -761,7 +789,7 @@ impl ContainerRef {
                         return Err(PartialVMError::new(
                             StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
                         )
-                        .with_message("cannot overwrite Container::Locals".to_string()))
+                        .with_message("cannot overwrite Container::Locals".to_string()));
                     }
                 }
                 self.mark_dirty();
@@ -773,7 +801,7 @@ impl ContainerRef {
                             "cannot write value {:?} to container ref {:?}",
                             v, self
                         )),
-                )
+                );
             }
         }
         Ok(())
@@ -793,7 +821,7 @@ impl IndexedRef {
                             "cannot write value {:?} to indexed ref {:?}",
                             x, self
                         )),
-                )
+                );
             }
             _ => (),
         }
@@ -825,7 +853,7 @@ impl IndexedRef {
                         "cannot write value {:?} to indexed ref {:?}",
                         x, self
                     )),
-                )
+                );
             }
         }
         self.container_ref.mark_dirty();
@@ -848,14 +876,16 @@ impl Reference {
     }
 }
 
-/***************************************************************************************
- *
- * Borrows (Move)
- *
- *   Implementation of borrowing in Move: borrow field, borrow local and infrastructure
- *   to support borrowing an element from a vector.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Borrows (Move)
+///
+///   Implementation of borrowing in Move: borrow field, borrow local and
+/// infrastructure   to support borrowing an element from a vector.
+///
+/// ****************************************************************************
+/// *******
 
 impl ContainerRef {
     fn borrow_elem(&self, idx: usize) -> PartialVMResult<ValueImpl> {
@@ -965,13 +995,15 @@ impl SignerRef {
     }
 }
 
-/***************************************************************************************
- *
- * Locals
- *
- *   Public APIs for Locals to support reading, writing and moving of values.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Locals
+///
+///   Public APIs for Locals to support reading, writing and moving of values.
+///
+/// ****************************************************************************
+/// *******
 impl Locals {
     pub fn new(n: usize) -> Self {
         Self(Rc::new(RefCell::new(
@@ -1077,13 +1109,15 @@ impl Locals {
     }
 }
 
-/***************************************************************************************
- *
- * Public Value Constructors
- *
- *   Constructors to allow values to be created outside this module.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Public Value Constructors
+///
+///   Constructors to allow values to be created outside this module.
+///
+/// ****************************************************************************
+/// *******
 impl Value {
     pub fn u8(x: u8) -> Self {
         Self(ValueImpl::U8(x))
@@ -1121,8 +1155,8 @@ impl Value {
         Self(ValueImpl::Container(Container::signer(x)))
     }
 
-    /// Create a "unowned" reference to a signer value (&signer) for populating the &signer in
-    /// execute function
+    /// Create a "unowned" reference to a signer value (&signer) for populating
+    /// the &signer in execute function
     pub fn signer_reference(x: AccountAddress) -> Self {
         Self(ValueImpl::ContainerRef(ContainerRef::Local(
             Container::signer(x),
@@ -1135,7 +1169,8 @@ impl Value {
         ))))
     }
 
-    // TODO: consider whether we want to replace these with fn vector(v: Vec<Value>).
+    // TODO: consider whether we want to replace these with fn vector(v:
+    // Vec<Value>).
     pub fn vector_u8(it: impl IntoIterator<Item = u8>) -> Self {
         Self(ValueImpl::Container(Container::VecU8(Rc::new(
             RefCell::new(it.into_iter().collect()),
@@ -1192,19 +1227,23 @@ impl Value {
     }
 }
 
-/***************************************************************************************
- *
- * Casting
- *
- *   Due to the public value types being opaque to an external user, the following
- *   public APIs are required to enable conversion between types in order to gain access
- *   to specific operations certain more refined types offer.
- *   For example, one must convert a `Value` to a `Struct` before unpack can be called.
- *
- *   It is expected that the caller will keep track of the invariants and guarantee
- *   the conversion will succeed. An error will be raised in case of a violation.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Casting
+///
+///   Due to the public value types being opaque to an external user, the
+/// following   public APIs are required to enable conversion between types in
+/// order to gain access   to specific operations certain more refined types
+/// offer.   For example, one must convert a `Value` to a `Struct` before unpack
+/// can be called.
+///
+///   It is expected that the caller will keep track of the invariants and
+/// guarantee   the conversion will succeed. An error will be raised in case of
+/// a violation.
+///
+/// ****************************************************************************
+/// *******
 pub trait VMValueCast<T> {
     fn cast(self) -> PartialVMResult<T>;
 }
@@ -1443,13 +1482,15 @@ impl IntegerValue {
     }
 }
 
-/***************************************************************************************
- *
- * Integer Operations
- *
- *   Arithmetic operations and conversions for integer values.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Integer Operations
+///
+///   Arithmetic operations and conversions for integer values.
+///
+/// ****************************************************************************
+/// *******
 impl IntegerValue {
     pub fn add_checked(self, other: Self) -> PartialVMResult<Self> {
         use IntegerValue::*;
@@ -1761,7 +1802,7 @@ impl IntegerValue {
         match self {
             U8(x) => Ok(x),
             U16(x) => {
-                if x > (std::u8::MAX as u16) {
+                if x > (u8::MAX as u16) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u16({}) to u8", x)))
                 } else {
@@ -1769,7 +1810,7 @@ impl IntegerValue {
                 }
             }
             U32(x) => {
-                if x > (std::u8::MAX as u32) {
+                if x > (u8::MAX as u32) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u32({}) to u8", x)))
                 } else {
@@ -1777,7 +1818,7 @@ impl IntegerValue {
                 }
             }
             U64(x) => {
-                if x > (std::u8::MAX as u64) {
+                if x > (u8::MAX as u64) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u64({}) to u8", x)))
                 } else {
@@ -1785,7 +1826,7 @@ impl IntegerValue {
                 }
             }
             U128(x) => {
-                if x > (std::u8::MAX as u128) {
+                if x > (u8::MAX as u128) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u128({}) to u8", x)))
                 } else {
@@ -1793,7 +1834,7 @@ impl IntegerValue {
                 }
             }
             U256(x) => {
-                if x > (u256::U256::from(std::u8::MAX)) {
+                if x > (u256::U256::from(u8::MAX)) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u256({}) to u8", x)))
                 } else {
@@ -1810,7 +1851,7 @@ impl IntegerValue {
             U8(x) => Ok(x as u16),
             U16(x) => Ok(x),
             U32(x) => {
-                if x > (std::u16::MAX as u32) {
+                if x > (u16::MAX as u32) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u32({}) to u16", x)))
                 } else {
@@ -1818,7 +1859,7 @@ impl IntegerValue {
                 }
             }
             U64(x) => {
-                if x > (std::u16::MAX as u64) {
+                if x > (u16::MAX as u64) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u64({}) to u16", x)))
                 } else {
@@ -1826,7 +1867,7 @@ impl IntegerValue {
                 }
             }
             U128(x) => {
-                if x > (std::u16::MAX as u128) {
+                if x > (u16::MAX as u128) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u128({}) to u16", x)))
                 } else {
@@ -1834,7 +1875,7 @@ impl IntegerValue {
                 }
             }
             U256(x) => {
-                if x > (u256::U256::from(std::u16::MAX)) {
+                if x > (u256::U256::from(u16::MAX)) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u256({}) to u16", x)))
                 } else {
@@ -1852,7 +1893,7 @@ impl IntegerValue {
             U16(x) => Ok(x as u32),
             U32(x) => Ok(x),
             U64(x) => {
-                if x > (std::u32::MAX as u64) {
+                if x > (u32::MAX as u64) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u64({}) to u32", x)))
                 } else {
@@ -1860,7 +1901,7 @@ impl IntegerValue {
                 }
             }
             U128(x) => {
-                if x > (std::u32::MAX as u128) {
+                if x > (u32::MAX as u128) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u128({}) to u32", x)))
                 } else {
@@ -1868,7 +1909,7 @@ impl IntegerValue {
                 }
             }
             U256(x) => {
-                if x > (u256::U256::from(std::u32::MAX)) {
+                if x > (u256::U256::from(u32::MAX)) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u128({}) to u32", x)))
                 } else {
@@ -1887,7 +1928,7 @@ impl IntegerValue {
             U32(x) => Ok(x as u64),
             U64(x) => Ok(x),
             U128(x) => {
-                if x > (std::u64::MAX as u128) {
+                if x > (u64::MAX as u128) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u128({}) to u64", x)))
                 } else {
@@ -1895,7 +1936,7 @@ impl IntegerValue {
                 }
             }
             U256(x) => {
-                if x > (u256::U256::from(std::u64::MAX)) {
+                if x > (u256::U256::from(u64::MAX)) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u256({}) to u64", x)))
                 } else {
@@ -1915,7 +1956,7 @@ impl IntegerValue {
             U64(x) => Ok(x as u128),
             U128(x) => Ok(x),
             U256(x) => {
-                if x > (u256::U256::from(std::u128::MAX)) {
+                if x > (u256::U256::from(u128::MAX)) {
                     Err(PartialVMError::new(StatusCode::ARITHMETIC_ERROR)
                         .with_message(format!("Cannot cast u256({}) to u128", x)))
                 } else {
@@ -1939,13 +1980,15 @@ impl IntegerValue {
     }
 }
 
-/***************************************************************************************
-*
-* Vector
-*
-*   Implemented as a built-in data type.
-*
-**************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Vector
+///
+///   Implemented as a built-in data type.
+///
+/// ****************************************************************************
+/// *******
 
 pub const INDEX_OUT_OF_BOUNDS: u64 = NFE_VECTOR_ERROR_BASE + 1;
 pub const POP_EMPTY_VEC: u64 = NFE_VECTOR_ERROR_BASE + 2;
@@ -2065,7 +2108,8 @@ impl VectorRef {
         Ok(Value(self.0.borrow_elem(idx)?))
     }
 
-    /// Returns a RefCell reference to the underlying vector of a `&vector<u8>` value.
+    /// Returns a RefCell reference to the underlying vector of a `&vector<u8>`
+    /// value.
     pub fn as_bytes_ref(&self) -> std::cell::Ref<'_, Vec<u8>> {
         let c = self.0.container();
         match c {
@@ -2224,7 +2268,7 @@ impl Vector {
                 return Err(
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message(format!("invalid type param for vector: {:?}", type_param)),
-                )
+                );
             }
         };
 
@@ -2299,17 +2343,19 @@ impl Vector {
     }
 }
 
-/***************************************************************************************
- *
- * Abstract Memory Size
- *
- *   TODO(Gas): This is the oldest implementation of abstract memory size.
- *              It is now kept only as a reference impl, which is used to ensure
- *              the new implementation is fully backward compatible.
- *              We should be able to get this removed after we use the new impl
- *              for a while and gain enough confidence in that.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Abstract Memory Size
+///
+///   TODO(Gas): This is the oldest implementation of abstract memory size.
+///              It is now kept only as a reference impl, which is used to
+/// ensure              the new implementation is fully backward compatible.
+///              We should be able to get this removed after we use the new impl
+///              for a while and gain enough confidence in that.
+///
+/// ****************************************************************************
+/// *******
 
 /// The size in bytes for a non-string or address constant on the stack
 pub(crate) const LEGACY_CONST_SIZE: AbstractMemorySize = AbstractMemorySize::new(16);
@@ -2419,13 +2465,15 @@ impl Reference {
     }
 }
 
-/***************************************************************************************
- *
- * Struct Operations
- *
- *   Public APIs for Struct.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Struct Operations
+///
+///   Public APIs for Struct.
+///
+/// ****************************************************************************
+/// *******
 impl Struct {
     pub fn pack<I: IntoIterator<Item = Value>>(vals: I) -> Self {
         Self {
@@ -2438,15 +2486,18 @@ impl Struct {
     }
 }
 
-/***************************************************************************************
- *
- * Global Value Operations
- *
- *   Public APIs for GlobalValue. They allow global values to be created from external
- *   source (a.k.a. storage), and references to be taken from them. At the end of the
- *   transaction execution the dirty ones can be identified and wrote back to storage.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Global Value Operations
+///
+///   Public APIs for GlobalValue. They allow global values to be created from
+/// external   source (a.k.a. storage), and references to be taken from them. At
+/// the end of the   transaction execution the dirty ones can be identified and
+/// wrote back to storage.
+///
+/// ****************************************************************************
+/// *******
 #[allow(clippy::unnecessary_wraps)]
 impl GlobalValueImpl {
     fn cached(
@@ -2480,7 +2531,7 @@ impl GlobalValueImpl {
     fn move_from(&mut self) -> PartialVMResult<ValueImpl> {
         let fields = match self {
             Self::None | Self::Deleted => {
-                return Err(PartialVMError::new(StatusCode::MISSING_DATA))
+                return Err(PartialVMError::new(StatusCode::MISSING_DATA));
             }
             Self::Fresh { .. } => match std::mem::replace(self, Self::None) {
                 Self::Fresh { fields } => fields,
@@ -2506,7 +2557,7 @@ impl GlobalValueImpl {
                 return Err((
                     PartialVMError::new(StatusCode::RESOURCE_ALREADY_EXISTS),
                     val,
-                ))
+                ));
             }
             Self::None => *self = Self::fresh(val)?,
             Self::Deleted => *self = Self::cached(val, GlobalDataStatus::Dirty)?,
@@ -2601,14 +2652,16 @@ impl GlobalValue {
     }
 }
 
-/***************************************************************************************
-*
-* Display
-*
-*   Implementation of the Display trait for VM Values. These are supposed to be more
-*   friendly & readable than the generated Debug dump.
-*
-**************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Display
+///
+///   Implementation of the Display trait for VM Values. These are supposed to
+/// be more   friendly & readable than the generated Debug dump.
+///
+/// ****************************************************************************
+/// *******
 
 impl Display for ValueImpl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -2740,8 +2793,9 @@ impl Display for Locals {
 
 #[allow(dead_code)]
 pub mod debug {
-    use super::*;
     use std::fmt::Write;
+
+    use super::*;
 
     fn print_invalid<B: Write>(buf: &mut B) -> PartialVMResult<()> {
         debug_write!(buf, "-")
@@ -2886,7 +2940,8 @@ pub mod debug {
         }
     }
 
-    // TODO: This function was used in an old implementation of std::debug::print, and can probably be removed.
+    // TODO: This function was used in an old implementation of std::debug::print,
+    // and can probably be removed.
     pub fn print_reference<B: Write>(buf: &mut B, r: &Reference) -> PartialVMResult<()> {
         match &r.0 {
             ReferenceImpl::ContainerRef(r) => print_container_ref(buf, r),
@@ -2909,25 +2964,28 @@ pub mod debug {
     }
 }
 
-/***************************************************************************************
- *
- * Serialization & Deserialization
- *
- *   BCS implementation for VM values. Note although values are represented as Rust
- *   enums that carry type info in the tags, we should NOT rely on them for
- *   serialization:
- *     1) Depending on the specific internal representation, it may be impossible to
- *        reconstruct the layout from a value. For example, one cannot tell if a general
- *        container is a struct or a value.
- *     2) Even if 1) is not a problem at a certain time, we may change to a different
- *        internal representation that breaks the 1-1 mapping. Extremely speaking, if
- *        we switch to untagged unions one day, none of the type info will be carried
- *        by the value.
- *
- *   Therefore the appropriate & robust way to implement serialization & deserialization
- *   is to involve an explicit representation of the type layout.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Serialization & Deserialization
+///
+///   BCS implementation for VM values. Note although values are represented as
+/// Rust   enums that carry type info in the tags, we should NOT rely on them
+/// for   serialization:
+///     1) Depending on the specific internal representation, it may be
+///        impossible to reconstruct the layout from a value. For example, one
+///        cannot tell if a general container is a struct or a value.
+///     2) Even if 1) is not a problem at a certain time, we may change to a
+///        different internal representation that breaks the 1-1 mapping.
+///        Extremely speaking, if we switch to untagged unions one day, none of
+///        the type info will be carried by the value.
+///
+///   Therefore the appropriate & robust way to implement serialization &
+/// deserialization   is to involve an explicit representation of the type
+/// layout.
+///
+/// ****************************************************************************
+/// *******
 use serde::{
     de::Error as DeError,
     ser::{Error as SerError, SerializeSeq, SerializeTuple},
@@ -3205,13 +3263,15 @@ impl<'d, 'a> serde::de::Visitor<'d> for StructFieldVisitor<'a> {
     }
 }
 
-/***************************************************************************************
-*
-* Constants
-*
-*   Implementation of deserialization of constant data into a runtime value
-*
-**************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Constants
+///
+///   Implementation of deserialization of constant data into a runtime value
+///
+/// ****************************************************************************
+/// *******
 
 impl Value {
     fn constant_sig_token_to_layout(constant_signature: &SignatureToken) -> Option<MoveTypeLayout> {
@@ -3242,24 +3302,29 @@ impl Value {
     }
 }
 
-/***************************************************************************************
-*
-* Destructors
-*
-**************************************************************************************/
-// Locals may contain reference values that points to the same cotnainer through Rc, hencing forming
-// a cycle. Therefore values need to be manually taken out of the Locals in order to not leak memory.
+/// ****************************************************************************
+/// *********
+///
+/// Destructors
+///
+/// ****************************************************************************
+/// *******
+// Locals may contain reference values that points to the same cotnainer through
+// Rc, hencing forming a cycle. Therefore values need to be manually taken out
+// of the Locals in order to not leak memory.
 impl Drop for Locals {
     fn drop(&mut self) {
         _ = self.drop_all_values();
     }
 }
 
-/***************************************************************************************
-*
-* Views
-*
-**************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Views
+///
+/// ****************************************************************************
+/// *******
 impl Container {
     fn visit_impl(&self, visitor: &mut impl ValueVisitor, depth: usize) {
         use Container::*;
@@ -3436,7 +3501,8 @@ impl ValueView for SignerRef {
     }
 }
 
-// Note: We may want to add more helpers to retrieve value views behind references here.
+// Note: We may want to add more helpers to retrieve value views behind
+// references here.
 
 impl Struct {
     #[allow(clippy::needless_lifetimes)]
@@ -3513,17 +3579,20 @@ impl GlobalValue {
     }
 }
 
-/***************************************************************************************
- *
- * Prop Testing
- *
- *   Random generation of values that fit into a given layout.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Prop Testing
+///
+///   Random generation of values that fit into a given layout.
+///
+/// ****************************************************************************
+/// *******
 #[cfg(feature = "fuzzing")]
 pub mod prop {
-    use super::*;
     use proptest::{collection::vec, prelude::*};
+
+    use super::*;
 
     pub fn value_strategy_with_layout(layout: &MoveTypeLayout) -> impl Strategy<Value = Value> {
         use MoveTypeLayout as L;

@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::path::Path;
 
 use anyhow::anyhow;
 use codespan_reporting::{diagnostic::Severity, term::termcolor::Buffer};
@@ -23,7 +26,6 @@ use move_stackless_bytecode::{
     print_targets_for_test,
     reaching_def_analysis::ReachingDefProcessor,
 };
-use std::path::Path;
 
 fn get_tested_transformation_pipeline(
     dir_name: &str,

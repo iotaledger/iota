@@ -1,6 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::VecDeque, fmt, hash::Hash};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     diagnostics::WarningFilters,
@@ -14,9 +20,6 @@ use crate::{
         unique_set::UniqueSet, *,
     },
 };
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{collections::VecDeque, fmt, hash::Hash};
 
 //**************************************************************************************************
 // Program
@@ -46,8 +49,8 @@ pub enum ImplicitUseFunKind {
     UseAlias { used: bool },
 }
 
-// These are only candidates as we have not yet checked if they have the proper signature for a
-// use fun declaration
+// These are only candidates as we have not yet checked if they have the proper
+// signature for a use fun declaration
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplicitUseFunCandidate {
     pub loc: Loc,
@@ -342,14 +345,16 @@ pub enum Exp_ {
     Name(ModuleAccess, Option<Vec<Type>>),
     Call(
         ModuleAccess,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
     MethodCall(
         Box<ExpDotted>,
         Name,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
@@ -923,17 +928,14 @@ impl AstDebug for ImplicitUseFunCandidate {
             ImplicitUseFunKind::UseAlias { used: false } => "#unused",
             ImplicitUseFunKind::FunctionDeclaration => "#fundecl",
         };
-        w.writeln(&format!("implcit{kind_str}#use fun {m}::{n};"));
+        w.writeln(&format!("implicit{kind_str}#use fun {m}::{n};"));
     }
 }
 
 impl AstDebug for UseFuns {
     fn ast_debug(&self, w: &mut AstWriter) {
-        let UseFuns {
-            explicit: explict,
-            implicit,
-        } = self;
-        for use_fun in explict {
+        let UseFuns { explicit, implicit } = self;
+        for use_fun in explicit {
             use_fun.ast_debug(w);
         }
         for (_, _, use_fun) in implicit {

@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::io::Cursor;
 
 use crate::{
     deserializer::load_signature_token_test_entry,
@@ -8,7 +11,6 @@ use crate::{
     file_format_common::{BinaryData, SerializedType, SIGNATURE_TOKEN_DEPTH_MAX},
     serializer::{serialize_signature_token, serialize_signature_token_unchecked},
 };
-use std::io::Cursor;
 
 #[test]
 fn serialize_and_deserialize_nested_types_max() {
@@ -50,8 +52,8 @@ fn deserialize_struct_inst_arity_0() {
     let cursor = Cursor::new(
         [
             SerializedType::STRUCT_INST as u8,
-            0x0, /* struct handle idx */
-            0x0, /* arity */
+            0x0, // struct handle idx
+            0x0, // arity
             SerializedType::BOOL as u8,
         ]
         .as_slice(),
@@ -64,8 +66,8 @@ fn deserialize_struct_inst_arity_1() {
     let cursor = Cursor::new(
         [
             SerializedType::STRUCT_INST as u8,
-            0x0, /* struct handle idx */
-            0x1, /* arity */
+            0x0, // struct handle idx
+            0x1, // arity
             SerializedType::BOOL as u8,
         ]
         .as_slice(),
@@ -78,8 +80,8 @@ fn deserialize_struct_inst_arity_2() {
     let cursor = Cursor::new(
         [
             SerializedType::STRUCT_INST as u8,
-            0x0, /* struct handle idx */
-            0x2, /* arity */
+            0x0, // struct handle idx
+            0x2, // arity
             SerializedType::BOOL as u8,
             SerializedType::BOOL as u8,
         ]

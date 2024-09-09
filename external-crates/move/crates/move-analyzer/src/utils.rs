@@ -1,15 +1,17 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::HashMap;
 
 use codespan_reporting::files::{Files, SimpleFiles};
 use lsp_types::Position;
 use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
-use std::collections::HashMap;
 
-/// Converts a location from the byte index format to the line/character (Position) format, where
-/// line/character are 0-based.
+/// Converts a location from the byte index format to the line/character
+/// (Position) format, where line/character are 0-based.
 pub fn get_loc(
     fhash: &FileHash,
     pos: ByteIndex,

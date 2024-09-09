@@ -1,13 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_symbol_pool::Symbol;
 
 use crate::parser::ast as P;
 
-// TODO we should really do this after expansion so that its done after attribute resolution. But
-// that can only really be done if we move most of expansion into naming.
+// TODO we should really do this after expansion so that its done after
+// attribute resolution. But that can only really be done if we move most of
+// expansion into naming.
 
 /// A trait that decides whether to include a parsed element in the compilation
 pub trait FilterContext {
@@ -83,7 +85,8 @@ pub trait FilterContext {
     }
 }
 
-/// This filters out module member from `prog` based on supplied `FilterContext` implementation
+/// This filters out module member from `prog` based on supplied `FilterContext`
+/// implementation
 pub fn filter_program<T: FilterContext>(context: &mut T, prog: P::Program) -> P::Program {
     let P::Program {
         named_address_maps,

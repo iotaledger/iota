@@ -1,6 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Arc,
+};
+
+use cfgir::ast::LoopInfo;
+use move_core_types::{account_address::AccountAddress as MoveAddress, runtime_value::MoveValue};
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use petgraph::{
+    algo::{kosaraju_scc as petgraph_scc, toposort as petgraph_toposort},
+    graphmap::DiGraphMap,
+};
 
 use crate::{
     cfgir::{
@@ -15,19 +31,6 @@ use crate::{
     parser::ast::{ConstantName, FunctionName, StructName},
     shared::{unique_map::UniqueMap, CompilationEnv},
     FullyCompiledProgram,
-};
-use cfgir::ast::LoopInfo;
-use move_core_types::{account_address::AccountAddress as MoveAddress, runtime_value::MoveValue};
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use petgraph::{
-    algo::{kosaraju_scc as petgraph_scc, toposort as petgraph_toposort},
-    graphmap::DiGraphMap,
-};
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    sync::Arc,
 };
 
 //**************************************************************************************************
@@ -210,8 +213,8 @@ fn constants(
     module: ModuleIdent,
     mut consts: UniqueMap<ConstantName, H::Constant>,
 ) -> UniqueMap<ConstantName, G::Constant> {
-    // Traverse the constants and compute the dependency graph between constants: if one mentions
-    // another, an edge is added between them.
+    // Traverse the constants and compute the dependency graph between constants: if
+    // one mentions another, an edge is added between them.
     let mut graph = DiGraphMap::new();
     for (name, constant) in consts.key_cloned_iter() {
         let deps = dependent_constants(constant);
@@ -251,10 +254,11 @@ fn constants(
             cycle_nodes.append(&mut scc.into_iter().collect());
         }
     }
-    // report any node that relies on a node in a cycle but is not iself part of that cycle
+    // report any node that relies on a node in a cycle but is not itself part of
+    // that cycle
     for cycle_node in cycle_nodes.iter() {
-        // petgraph retains edges for nodes that have been deleted, so we ensure the node is not
-        // part of a cyclle _and_ it's still in the graph
+        // petgraph retains edges for nodes that have been deleted, so we ensure the
+        // node is not part of a cyclle _and_ it's still in the graph
         let neighbors: Vec<_> = graph
             .neighbors(*cycle_node)
             .filter(|node| !cycle_nodes.contains(node) && graph.contains_node(*node))
@@ -275,11 +279,12 @@ fn constants(
         graph.remove_node(*cycle_node);
     }
 
-    // Finally, iterate the remaining constants in dependency order, inlining them into each other
-    // via the constant folding optimizer as we process them.
+    // Finally, iterate the remaining constants in dependency order, inlining them
+    // into each other via the constant folding optimizer as we process them.
 
-    // petgraph will include nodes in the toposort that only appear in an edge, even if that node
-    // has been removed from the graph, so we filter down to only the remaining nodes
+    // petgraph will include nodes in the toposort that only appear in an edge, even
+    // if that node has been removed from the graph, so we filter down to only
+    // the remaining nodes
     let remaining_nodes: BTreeSet<_> = graph.nodes().collect();
     let sorted: Vec<_> = petgraph_toposort(&graph, None)
         .expect("ICE concstant cycles not removed")

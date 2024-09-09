@@ -1,14 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::btree_map::{self, BTreeMap};
+
+use anyhow::{bail, Result};
 
 use crate::{
     account_address::AccountAddress,
     identifier::Identifier,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use anyhow::{bail, Result};
-use std::collections::btree_map::{self, BTreeMap};
 
 /// A storage operation.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -62,10 +65,12 @@ pub struct AccountChangeSet {
     resources: BTreeMap<StructTag, Op<Vec<u8>>>,
 }
 
-/// This implements an algorithm to squash two change sets together by merging pairs of operations
-/// on the same item together. This is similar to squashing two commits in a version control system.
+/// This implements an algorithm to squash two change sets together by merging
+/// pairs of operations on the same item together. This is similar to squashing
+/// two commits in a version control system.
 ///
-/// It should be noted that all operation types have some implied pre and post conditions:
+/// It should be noted that all operation types have some implied pre and post
+/// conditions:
 ///   - New
 ///     - before: data doesn't exist
 ///     - after: data exists (new)
@@ -76,8 +81,8 @@ pub struct AccountChangeSet {
 ///     - before: data exists
 ///     - after: data does not exist (deleted)
 ///
-/// It is possible to have a pair of operations resulting in conflicting states, in which case the
-/// squash will fail.
+/// It is possible to have a pair of operations resulting in conflicting states,
+/// in which case the squash will fail.
 fn squash<K, V>(map: &mut BTreeMap<K, Op<V>>, other: BTreeMap<K, Op<V>>) -> Result<()>
 where
     K: Ord,
@@ -187,10 +192,11 @@ impl AccountChangeSet {
     }
 }
 
-// TODO: ChangeSet does not have a canonical representation so the derived Ord is not sound.
+// TODO: ChangeSet does not have a canonical representation so the derived Ord
+// is not sound.
 
-/// A collection of changes to a Move state. Each AccountChangeSet in the domain of `accounts`
-/// is guaranteed to be nonempty
+/// A collection of changes to a Move state. Each AccountChangeSet in the domain
+/// of `accounts` is guaranteed to be nonempty
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ChangeSet {
     accounts: BTreeMap<AccountAddress, AccountChangeSet>,

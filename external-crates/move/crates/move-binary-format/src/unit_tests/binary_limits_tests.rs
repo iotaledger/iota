@@ -1,17 +1,17 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
+};
 
 use crate::{
     binary_config::{BinaryConfig, TableConfig},
-    CompiledModule,
     errors::BinaryLoaderResult,
     file_format::*,
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    vm_status::StatusCode,
+    CompiledModule,
 };
 // Add simple proptest tests
 // use proptest::prelude::*;
@@ -25,10 +25,9 @@ fn deserialize(
     let mut bytes = vec![];
     module.serialize(&mut bytes).unwrap();
     // deserialize the module just serialized (round trip)
-    CompiledModule::deserialize_with_config(&bytes, &binary_config)
+    CompiledModule::deserialize_with_config(&bytes, binary_config)
 }
 
-//
 // macro helpers
 //
 
@@ -86,7 +85,8 @@ fn binary_limits_test() {
         friend_decls: 12,
     };
 
-    // From file_format_common.rs::TableType test table type of interest (no METADATA
+    // From file_format_common.rs::TableType test table type of interest (no
+    // METADATA
 
     // MODULE_HANDLES
     let module_test = &mut module.clone();
@@ -273,12 +273,10 @@ fn binary_limits_test() {
     });
     module_test.struct_defs.push(StructDefinition {
         struct_handle: StructHandleIndex(0),
-        field_information: StructFieldInformation::Declared(vec![
-            FieldDefinition {
-                name: IdentifierIndex(0),
-                signature: TypeSignature(SignatureToken::Bool),
-            },
-        ]),
+        field_information: StructFieldInformation::Declared(vec![FieldDefinition {
+            name: IdentifierIndex(0),
+            signature: TypeSignature(SignatureToken::Bool),
+        }]),
     });
     check_limit!(
         module_test,
@@ -301,12 +299,10 @@ fn binary_limits_test() {
     });
     module_test.struct_defs.push(StructDefinition {
         struct_handle: StructHandleIndex(0),
-        field_information: StructFieldInformation::Declared(vec![
-            FieldDefinition {
-                name: IdentifierIndex(0),
-                signature: TypeSignature(SignatureToken::Bool),
-            },
-        ]),
+        field_information: StructFieldInformation::Declared(vec![FieldDefinition {
+            name: IdentifierIndex(0),
+            signature: TypeSignature(SignatureToken::Bool),
+        }]),
     });
     module_test.field_handles.push(FieldHandle {
         owner: StructDefinitionIndex(0),

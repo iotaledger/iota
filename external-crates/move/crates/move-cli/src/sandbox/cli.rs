@@ -1,14 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    sandbox::{
-        self,
-        utils::{on_disk_state_view::OnDiskStateView, PackageContext},
-    },
-    Move, NativeFunctionRecord, DEFAULT_BUILD_DIR,
+use std::{
+    fs,
+    path::{Path, PathBuf},
 };
+
 use anyhow::Result;
 use clap::Parser;
 use move_core_types::{
@@ -17,14 +16,19 @@ use move_core_types::{
 };
 use move_package::compilation::package_layout::CompiledPackageLayout;
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::{
-    fs,
-    path::{Path, PathBuf},
+
+use crate::{
+    sandbox::{
+        self,
+        utils::{on_disk_state_view::OnDiskStateView, PackageContext},
+    },
+    Move, NativeFunctionRecord, DEFAULT_BUILD_DIR,
 };
 
 #[derive(Parser)]
 pub enum SandboxCommand {
-    /// Compile the modules in this package and its dependencies and publish the resulting bytecodes in global storage.
+    /// Compile the modules in this package and its dependencies and publish the
+    /// resulting bytecodes in global storage.
     #[clap(name = "publish")]
     Publish {
         /// By default, code that might cause breaking changes for bytecode
@@ -48,32 +52,35 @@ pub enum SandboxCommand {
         )]
         override_ordering: Option<Vec<String>>,
     },
-    /// Run a Move script that reads/writes resources stored on disk in `storage-dir`.
-    /// The script must be defined in the package.
+    /// Run a Move script that reads/writes resources stored on disk in
+    /// `storage-dir`. The script must be defined in the package.
     #[clap(name = "run")]
     Run {
         /// Path to .mv file containing either module bytecodes.
         #[clap(name = "module")]
         module_file: PathBuf,
-        /// Name of the function inside the module specified in `module_file` to call.
+        /// Name of the function inside the module specified in `module_file` to
+        /// call.
         #[clap(name = "name")]
         function_name: String,
-        /// Possibly-empty list of signers for the current transaction (e.g., `account` in
-        /// `main(&account: signer)`). Must match the number of signers expected by `script_file`.
+        /// Possibly-empty list of signers for the current transaction (e.g.,
+        /// `account` in `main(&account: signer)`). Must match the
+        /// number of signers expected by `script_file`.
         #[clap(
             long = "signers",
             num_args(1..),
             action = clap::ArgAction::Append,
         )]
         signers: Vec<String>,
-        /// Possibly-empty list of arguments passed to the transaction (e.g., `i` in
-        /// `main(i: u64)`). Must match the arguments types expected by `script_file`.
-        /// Supported argument types are
+        /// Possibly-empty list of arguments passed to the transaction (e.g.,
+        /// `i` in `main(i: u64)`). Must match the arguments types
+        /// expected by `script_file`. Supported argument types are
         /// bool literals (true, false),
         /// u64 literals (e.g., 10, 58),
         /// address literals (e.g., 0x12, 0x0000000000000000000000000000000f),
-        /// hexadecimal strings (e.g., x"0012" will parse as the vector<u8> value [00, 12]), and
-        /// ASCII strings (e.g., 'b"hi" will parse as the vector<u8> value [68, 69]).
+        /// hexadecimal strings (e.g., x"0012" will parse as the `vector<u8>`
+        /// value [00, 12]), and ASCII strings (e.g., 'b"hi" will parse
+        /// as the `vector<u8>` value [68, 69]).
         #[clap(
             long = "args",
             value_parser = parser::parse_transaction_argument,
@@ -81,8 +88,9 @@ pub enum SandboxCommand {
             action = clap::ArgAction::Append,
         )]
         args: Vec<TransactionArgument>,
-        /// Possibly-empty list of type arguments passed to the transaction (e.g., `T` in
-        /// `main<T>()`). Must match the type arguments kinds expected by `script_file`.
+        /// Possibly-empty list of type arguments passed to the transaction
+        /// (e.g., `T` in `main<T>()`). Must match the type arguments
+        /// kinds expected by `script_file`.
         #[clap(
             long = "type-args",
             value_parser = parser::parse_type_tag,
@@ -91,12 +99,14 @@ pub enum SandboxCommand {
         )]
         type_args: Vec<TypeTag>,
         /// Maximum number of gas units to be consumed by execution.
-        /// When the budget is exhaused, execution will abort.
-        /// By default, no `gas-budget` is specified and gas metering is disabled.
+        /// When the budget is exhausted, execution will abort.
+        /// By default, no `gas-budget` is specified and gas metering is
+        /// disabled.
         #[clap(long = "gas-budget", short = 'g')]
         gas_budget: Option<u64>,
-        /// If set, the effects of executing `script_file` (i.e., published, updated, and
-        /// deleted resources) will NOT be committed to disk.
+        /// If set, the effects of executing `script_file` (i.e., published,
+        /// updated, and deleted resources) will NOT be committed to
+        /// disk.
         #[clap(long = "dry-run", short = 'n')]
         dry_run: bool,
     },
@@ -104,7 +114,8 @@ pub enum SandboxCommand {
     #[clap(name = "exp-test")]
     Test {
         /// Use an ephemeral directory to serve as the testing workspace.
-        /// By default, the directory containing the `args.txt` will be the workspace.
+        /// By default, the directory containing the `args.txt` will be the
+        /// workspace.
         #[clap(long = "use-temp-dir")]
         use_temp_dir: bool,
         /// Show coverage information after tests are done.
@@ -119,13 +130,15 @@ pub enum SandboxCommand {
         #[clap(name = "file")]
         file: PathBuf,
     },
-    /// Delete all resources, events, and modules stored on disk under `storage-dir`.
-    /// Does *not* delete anything in `src`.
+    /// Delete all resources, events, and modules stored on disk under
+    /// `storage-dir`. Does *not* delete anything in `src`.
     Clean {},
-    /// Run well-formedness checks on the `storage-dir` and `install-dir` directories.
+    /// Run well-formedness checks on the `storage-dir` and `install-dir`
+    /// directories.
     #[clap(name = "doctor")]
     Doctor {},
-    /// Generate struct layout bindings for the modules stored on disk under `storage-dir`
+    /// Generate struct layout bindings for the modules stored on disk under
+    /// `storage-dir`
     // TODO: expand this to generate script bindings, etc.?.
     #[clap(name = "generate")]
     Generate {
@@ -136,14 +149,16 @@ pub enum SandboxCommand {
 
 #[derive(Parser)]
 pub enum GenerateCommand {
-    /// Generate struct layout bindings for the modules stored on disk under `storage-dir`.
+    /// Generate struct layout bindings for the modules stored on disk under
+    /// `storage-dir`.
     #[clap(name = "struct-layouts")]
     StructLayouts {
         /// Path to a module stored on disk.
         #[clap(long)]
         module: PathBuf,
-        /// If set, generate bindings for the specified struct and type arguments. If unset,
-        /// generate bindings for all closed struct definitions.
+        /// If set, generate bindings for the specified struct and type
+        /// arguments. If unset, generate bindings for all closed struct
+        /// definitions.
         #[clap(flatten)]
         options: StructLayoutOptions,
     },
@@ -162,23 +177,28 @@ pub struct StructLayoutOptions {
         num_args(1..),
     )]
     type_args: Option<Vec<TypeTag>>,
-    /// If set, replace all Move source syntax separators ("::" for address/struct/module name
-    /// separation, "<", ">", and "," for generics separation) with this string.
-    /// If unset, use the same syntax as Move source
+    /// If set, replace all Move source syntax separators ("::" for
+    /// address/struct/module name separation, "<", ">", and "," for
+    /// generics separation) with this string. If unset, use the same syntax
+    /// as Move source
     #[clap(long = "separator")]
     separator: Option<String>,
     /// If true, do not include addresses in fully qualified type names.
     /// If there is a name conflict (e.g., the registry we're building has both
-    /// 0x1::M::T and 0x2::M::T), layout generation will fail when this option is true.
+    /// 0x1::M::T and 0x2::M::T), layout generation will fail when this option
+    /// is true.
     #[clap(long = "omit-addresses")]
     omit_addresses: bool,
-    /// If true, do not include phantom types in fully qualified type names, since they do not contribute to the layout
-    /// E.g., if we have `struct S<phantom T> { u: 64 }` and try to generate bindings for this struct with `T = u8`,
-    /// the name for `S` in the registry will be `S<u64>` when this option is false, and `S` when this option is true
+    /// If true, do not include phantom types in fully qualified type names,
+    /// since they do not contribute to the layout E.g., if we have `struct
+    /// S<phantom T> { u: 64 }` and try to generate bindings for this struct
+    /// with `T = u8`, the name for `S` in the registry will be `S<u64>`
+    /// when this option is false, and `S` when this option is true
     #[clap(long = "ignore-phantom-types")]
     ignore_phantom_types: bool,
     /// If set, generate bindings only for the struct passed in.
-    /// When unset, generates bindings for the struct and all of its transitive dependencies.
+    /// When unset, generates bindings for the struct and all of its transitive
+    /// dependencies.
     #[clap(long = "shallow")]
     shallow: bool,
 }

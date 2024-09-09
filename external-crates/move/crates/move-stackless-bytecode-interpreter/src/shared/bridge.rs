@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::errors::{PartialVMError, VMResult};
@@ -8,8 +9,9 @@ use move_core_types::{
     resolver::MoveResolver,
 };
 
-/// The result returned by the stackless VM does not contain code offsets and indices. In order to
-/// do cross-vm comparison, we need to adapt the Move VM result by removing these fields.
+/// The result returned by the stackless VM does not contain code offsets and
+/// indices. In order to do cross-vm comparison, we need to adapt the Move VM
+/// result by removing these fields.
 pub fn adapt_move_vm_result<T>(result: VMResult<T>) -> VMResult<T> {
     result.map_err(|err| {
         let (status_code, sub_status, _, _, location, _, _) = err.all_data();
@@ -22,11 +24,12 @@ pub fn adapt_move_vm_result<T>(result: VMResult<T>) -> VMResult<T> {
     })
 }
 
-/// The change-set produced by the stackless VM guarantees that for a global resource, if the
-/// underlying value is not changed in the execution, there will not be an entry in the change set.
-/// The same guarantee is not provided by the Move VM. In Move VM, we could borrow_global_mut but
-/// write the same value back instead of an updated value. In this case, the Move VM produces an
-/// entry in the change_set.
+/// The change-set produced by the stackless VM guarantees that for a global
+/// resource, if the underlying value is not changed in the execution, there
+/// will not be an entry in the change set. The same guarantee is not provided
+/// by the Move VM. In Move VM, we could borrow_global_mut but write the same
+/// value back instead of an updated value. In this case, the Move VM produces
+/// an entry in the change_set.
 pub fn adapt_move_vm_change_set<S: MoveResolver>(
     change_set_result: VMResult<ChangeSet>,
     old_storage: &S,

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_vm_config::verifier::{
@@ -51,7 +52,7 @@ pub(crate) fn production_config() -> VerifierConfig {
         max_per_fun_meter_units: Some(1000 * 8000),
         max_per_mod_meter_units: Some(1000 * 8000),
         max_constant_vector_len: Some(DEFAULT_MAX_CONSTANT_VECTOR_LEN),
-        max_idenfitier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
+        max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
         allow_receiving_object_id: true,
         reject_mutable_random_on_entry_functions: true,
     }

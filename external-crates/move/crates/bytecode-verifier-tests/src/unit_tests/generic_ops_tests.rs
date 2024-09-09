@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::file_format::*;
@@ -8,9 +9,10 @@ use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
 
-// Make a Module with 2 structs and 2 resources with one field each, and 2 functions.
-// One of the struct/resource and one of the function is generic, the other "normal".
-// Also make a test function whose body will be filled by given test cases.
+// Make a Module with 2 structs and 2 resources with one field each, and 2
+// functions. One of the struct/resource and one of the function is generic, the
+// other "normal". Also make a test function whose body will be filled by given
+// test cases.
 fn make_module() -> CompiledModule {
     CompiledModule {
         version: move_binary_format::file_format_common::VERSION_MAX,

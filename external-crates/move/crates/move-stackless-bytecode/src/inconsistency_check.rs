@@ -1,24 +1,29 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Instrument `assert false;` in strategic locations in the program such that if proved, signals
-//! an inconsistency among the specifications.
+//! Instrument `assert false;` in strategic locations in the program such that
+//! if proved, signals an inconsistency among the specifications.
 //!
-//! The presence of inconsistency is a serious issue. If there is an inconsistency in the
-//! verification assumptions (perhaps due to a specification mistake or a Prover bug), any false
-//! post-condition can be proved vacuously. The `InconsistencyCheckInstrumentationProcessor` adds
+//! The presence of inconsistency is a serious issue. If there is an
+//! inconsistency in the verification assumptions (perhaps due to a
+//! specification microsake or a Prover bug), any false post-condition can be
+//! proved vacuously. The `InconsistencyCheckInstrumentationProcessor` adds
 //! an `assert false` before
 //! - every `return` and
-//! - every `abort` (if the `unconditional-abort-as-inconsistency` option is set).
-//! In this way, if the instrumented `assert false` can be proved, it means we have an inconsistency
-//! in the specifications.
+//! - every `abort` (if the `unconditional-abort-as-inconsistency` option is
+//!   set).
+//! In this way, if the instrumented `assert false` can be proved, it means we
+//! have an inconsistency in the specifications.
 //!
-//! A function that unconditionally abort might be considered as some form of inconsistency as well.
-//! Consider the function `fun always_abort() { abort 0 }`, it might seem surprising that the prover
-//! can prove that `spec always_abort { ensures 1 == 2; }`. If this function aborts unconditionally,
-//! any post-condition can be proved. Checking of this behavior is turned-off by default, and can
-//! be enabled with the `unconditional-abort-as-inconsistency` flag.
+//! A function that unconditionally abort might be considered as some form of
+//! inconsistency as well. Consider the function `fun always_abort() { abort 0
+//! }`, it might seem surprising that the prover can prove that `spec
+//! always_abort { ensures 1 == 2; }`. If this function aborts unconditionally,
+//! any post-condition can be proved. Checking of this behavior is turned-off by
+//! default, and can be enabled with the `unconditional-abort-as-inconsistency`
+//! flag.
 
 use move_model::model::FunctionEnv;
 

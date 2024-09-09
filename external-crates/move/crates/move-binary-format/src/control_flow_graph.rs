@@ -1,10 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module defines the control-flow graph uses for bytecode verification.
-use crate::file_format::{Bytecode, CodeOffset};
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
+
+use crate::file_format::{Bytecode, CodeOffset};
 
 // BTree/Hash agnostic type wrappers
 type Map<K, V> = BTreeMap<K, V>;
@@ -82,8 +84,8 @@ const ENTRY_BLOCK_ID: BlockId = 0;
 impl VMControlFlowGraph {
     pub fn new(code: &[Bytecode]) -> Self {
         let code_len = code.len() as CodeOffset;
-        // First go through and collect block ids, i.e., offsets that begin basic blocks.
-        // Need to do this first in order to handle backwards edges.
+        // First go through and collect block ids, i.e., offsets that begin basic
+        // blocks. Need to do this first in order to handle backwards edges.
         let mut block_ids = Set::new();
         block_ids.insert(ENTRY_BLOCK_ID);
         for pc in 0..code.len() {
@@ -112,16 +114,17 @@ impl VMControlFlowGraph {
 
         // # Loop analysis
         //
-        // This section identifies loops in the control-flow graph, picks a back edge and loop head
-        // (the basic block the back edge returns to), and decides the order that blocks are
-        // traversed during abstract interpretation (reverse post-order).
+        // This section identifies loops in the control-flow graph, picks a back edge
+        // and loop head (the basic block the back edge returns to), and decides
+        // the order that blocks are traversed during abstract interpretation
+        // (reverse post-order).
         //
-        // The implementation is based on the algorithm for finding widening points in Section 4.1,
-        // "Depth-first numbering" of Bourdoncle [1993], "Efficient chaotic iteration strategies
-        // with widenings."
+        // The implementation is based on the algorithm for finding widening points in
+        // Section 4.1, "Depth-first numbering" of Bourdoncle [1993], "Efficient
+        // chaotic iteration strategies with widenings."
         //
-        // NB. The comments below refer to a block's sub-graph -- the reflexive transitive closure
-        // of its successor edges, modulo cycles.
+        // NB. The comments below refer to a block's sub-graph -- the reflexive
+        // transitive closure of its successor edges, modulo cycles.
 
         #[derive(Copy, Clone)]
         enum Exploration {
@@ -132,26 +135,30 @@ impl VMControlFlowGraph {
         let mut exploration: Map<BlockId, Exploration> = Map::new();
         let mut stack = vec![ENTRY_BLOCK_ID];
 
-        // For every loop in the CFG that is reachable from the entry block, there is an entry in
-        // `loop_heads` mapping to all the back edges pointing to it, and vice versa.
+        // For every loop in the CFG that is reachable from the entry block, there is an
+        // entry in `loop_heads` mapping to all the back edges pointing to it,
+        // and vice versa.
         //
-        // Entry in `loop_heads` implies loop in the CFG is justified by the comments in the loop
-        // below.  Loop in the CFG implies entry in `loop_heads` is justified by considering the
-        // point at which the first node in that loop, `F` is added to the `exploration` map:
+        // Entry in `loop_heads` implies loop in the CFG is justified by the comments in
+        // the loop below.  Loop in the CFG implies entry in `loop_heads` is
+        // justified by considering the point at which the first node in that
+        // loop, `F` is added to the `exploration` map:
         //
-        // - By definition `F` is part of a loop, meaning there is a block `L` such that:
+        // - By definition `F` is part of a loop, meaning there is a block `L` such
+        //   that:
         //
         //     F - ... -> L -> F
         //
-        // - `F` will not transition to `Done` until all the nodes reachable from it (including `L`)
-        //   have been visited.
-        // - Because `F` is the first node seen in the loop, all the other nodes in the loop
-        //   (including `L`) will be visited while `F` is `InProgress`.
+        // - `F` will not transition to `Done` until all the nodes reachable from it
+        //   (including `L`) have been visited.
+        // - Because `F` is the first node seen in the loop, all the other nodes in the
+        //   loop (including `L`) will be visited while `F` is `InProgress`.
         // - Therefore, we will process the `L -> F` edge while `F` is `InProgress`.
         // - Therefore, we will record a back edge to it.
         let mut loop_heads: Map<BlockId, Set<BlockId>> = Map::new();
 
-        // Blocks appear in `post_order` after all the blocks in their (non-reflexive) sub-graph.
+        // Blocks appear in `post_order` after all the blocks in their (non-reflexive)
+        // sub-graph.
         let mut post_order = Vec::with_capacity(blocks.len());
 
         while let Some(block) = stack.pop() {
@@ -201,8 +208,9 @@ impl VMControlFlowGraph {
         }
 
         let traversal_order = {
-            // This reverse post order is akin to a topological sort (ignoring cycles) and is
-            // different from a pre-order in the presence of diamond patterns in the graph.
+            // This reverse post order is akin to a topological sort (ignoring cycles) and
+            // is different from a pre-order in the presence of diamond patterns
+            // in the graph.
             post_order.reverse();
             post_order
         };
@@ -283,8 +291,9 @@ impl ControlFlowGraph for VMControlFlowGraph {
     // - Every CFG (even one with no instructions) has a block at ENTRY_BLOCK_ID
     // - The only way to acquire new BlockId's is via block_successors()
     // - block_successors only() returns valid BlockId's
-    // Note: it is still possible to get a BlockId from one CFG and use it in another CFG where it
-    // is not valid. The design does not attempt to prevent this abuse of the API.
+    // Note: it is still possible to get a BlockId from one CFG and use it in
+    // another CFG where it is not valid. The design does not attempt to prevent
+    // this abuse of the API.
 
     fn block_start(&self, block_id: BlockId) -> CodeOffset {
         block_id

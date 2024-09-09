@@ -1,9 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file implements the information needed in the local interpretation context, i.e., the
-//! context created and updated when interpreting a single function.
+//! This file implements the information needed in the local interpretation
+//! context, i.e., the context created and updated when interpreting a single
+//! function.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -20,7 +22,8 @@ use crate::concrete::{
 pub enum AbortInfo {
     /// User-specific abort
     User(u64, Location),
-    /// Internal abort (e.g., integer overflow or resource does not exist in global storage)
+    /// Internal abort (e.g., integer overflow or resource does not exist in
+    /// global storage)
     Internal(StatusCode, Location),
 }
 
@@ -102,19 +105,23 @@ impl LocalState {
     pub fn has_value(&self, index: TempIndex) -> bool {
         self.slots.get(index).unwrap().has_value()
     }
-    /// Get the value held in local slot `index`. Panics if the slot does not hold a value
+    /// Get the value held in local slot `index`. Panics if the slot does not
+    /// hold a value
     pub fn get_value(&self, index: TempIndex) -> TypedValue {
         self.slots.get(index).unwrap().get_value()
     }
-    /// Put the value held in local slot `index`. Override if the slot already holds a value
+    /// Put the value held in local slot `index`. Override if the slot already
+    /// holds a value
     pub fn put_value_override(&mut self, index: TempIndex, val: TypedValue) {
         self.slots.get_mut(index).unwrap().put_value_override(val)
     }
-    /// Put the value held in local slot `index`. Panics if the slot already holds a value
+    /// Put the value held in local slot `index`. Panics if the slot already
+    /// holds a value
     pub fn put_value(&mut self, index: TempIndex, val: TypedValue) {
         self.slots.get_mut(index).unwrap().put_value(val)
     }
-    /// Delete the value held in local slot `index`. Panics if the slot does not hold a value
+    /// Delete the value held in local slot `index`. Panics if the slot does not
+    /// hold a value
     pub fn del_value(&mut self, index: TempIndex) -> TypedValue {
         self.slots.get_mut(index).unwrap().del_value()
     }
@@ -138,7 +145,8 @@ impl LocalState {
             assert!(inserted);
         }
     }
-    /// Unset the mark that the mutable reference is uninitialized, return True if unset
+    /// Unset the mark that the mutable reference is uninitialized, return True
+    /// if unset
     pub fn unset_uninit(&mut self, index: TempIndex) -> bool {
         self.uninit_mut_refs.remove(&index)
     }
@@ -178,7 +186,8 @@ impl LocalState {
             .collect()
     }
 
-    /// Mark that an abort is raised and we will be executing the abort action next
+    /// Mark that an abort is raised and we will be executing the abort action
+    /// next
     pub fn transit_to_post_abort(&mut self, info: AbortInfo) {
         if cfg!(debug_assertions) {
             assert!(matches!(self.termination, TerminationStatus::None));

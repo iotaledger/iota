@@ -1,10 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file implements the orchestration part of the stackless bytecode interpreter and also
-//! provides outside-facing interfaces for the clients of stackless bytecode interpreter. Clients
-//! of the interpreter should never directly interact with the statement player (in `player.rs`) nor
+//! This file implements the orchestration part of the stackless bytecode
+//! interpreter and also provides outside-facing interfaces for the clients of
+//! stackless bytecode interpreter. Clients of the interpreter should never
+//! directly interact with the statement player (in `player.rs`) nor
 //! the expression evaluator (in `evaluator.rs`).
 
 use move_binary_format::errors::{Location, PartialVMError, PartialVMResult, VMResult};
@@ -34,15 +36,15 @@ use crate::{
     shared::{ident::StructIdent, variant::choose_variant},
 };
 
-/// A stackless bytecode runtime in charge of pre- and post-execution checking, conversion, and
-/// monitoring. The main, step-by-step interpretation loop is delegated to the `Player` instance.
+/// A stackless bytecode runtime in charge of pre- and post-execution checking,
+/// conversion, and monitoring. The main, step-by-step interpretation loop is
+/// delegated to the `Player` instance.
 pub struct Runtime<'env> {
     env: &'env GlobalEnv,
     functions: &'env FunctionTargetsHolder,
 }
 
 impl<'env> Runtime<'env> {
-    //
     // public interfaces
     //
 
@@ -51,9 +53,10 @@ impl<'env> Runtime<'env> {
         Self { env, functions }
     }
 
-    /// Execute a function (identified by `fun_id`) with given type arguments, arguments, and a
-    /// mutable reference of the global state. Returns the result of the execution. Any updates to
-    /// the global states is recorded in the mutable reference.
+    /// Execute a function (identified by `fun_id`) with given type arguments,
+    /// arguments, and a mutable reference of the global state. Returns the
+    /// result of the execution. Any updates to the global states is
+    /// recorded in the mutable reference.
     pub fn execute(
         &self,
         fun_env: &FunctionEnv,
@@ -73,7 +76,6 @@ impl<'env> Runtime<'env> {
         )
     }
 
-    //
     // execution internals
     //
 
@@ -94,7 +96,8 @@ impl<'env> Runtime<'env> {
             ty_args,
             args.to_vec(),
             settings.no_expr_check,
-            /* level */ 1,
+            // level
+            1,
             global_state,
         )
         .map_err(|abort_info| abort_info.into_err())
@@ -133,8 +136,8 @@ fn check_and_convert_type_args_and_args(
         debug_assert_eq!(local_ty, param.1);
 
         // NOTE: for historical reasons, we may receive `&signer` as arguments
-        // TODO (mengxu): clean this up when we no longer accept `&signer` as valid arguments
-        // for transaction scripts and `public(script)` functions.
+        // TODO (mengxu): clean this up when we no longer accept `&signer` as valid
+        // arguments for transaction scripts and `public(script)` functions.
         match local_ty {
             MT::Type::Reference(false, base_ty)
                 if matches!(*base_ty, MT::Type::Primitive(MT::PrimitiveType::Signer)) =>
@@ -281,7 +284,7 @@ fn check_type_instantiation(
         ));
     }
     for (arg, param) in args.iter().zip(params) {
-        if !param.1 .0.is_subset(get_abilities(env, arg)?) {
+        if !param.1.0.is_subset(get_abilities(env, arg)?) {
             return Err(PartialVMError::new(StatusCode::CONSTRAINT_NOT_SATISFIED));
         }
     }

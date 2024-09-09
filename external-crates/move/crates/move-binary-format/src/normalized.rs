@@ -1,6 +1,17 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
+
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
+use move_proc_macros::test_variant_order;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     access::ModuleAccess,
@@ -13,25 +24,18 @@ use crate::{
         TypeParameterIndex, Visibility,
     },
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
-use move_proc_macros::test_variant_order;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
-/// Defines normalized representations of Move types, fields, kinds, structs, functions, and
-/// modules. These representations are useful in situations that require require comparing
-/// functions, resources, and types across modules. This arises in linking, compatibility checks
-/// (e.g., "is it safe to deploy this new module without updating its dependents and/or restarting
-/// genesis?"), defining schemas for resources stored on-chain, and (possibly in the future)
-/// allowing module updates transactions.
+/// Defines normalized representations of Move types, fields, kinds, structs,
+/// functions, and modules. These representations are useful in situations that
+/// require require comparing functions, resources, and types across modules.
+/// This arises in linking, compatibility checks (e.g., "is it safe to deploy
+/// this new module without updating its dependents and/or restarting
+/// genesis?"), defining schemas for resources stored on-chain, and (possibly in
+/// the future) allowing module updates transactions.
 
-/// A normalized version of `SignatureToken`, a type expression appearing in struct or function
-/// declarations. Unlike `SignatureToken`s, `normalized::Type`s from different modules can safely be
-/// compared.
+/// A normalized version of `SignatureToken`, a type expression appearing in
+/// struct or function declarations. Unlike `SignatureToken`s,
+/// `normalized::Type`s from different modules can safely be compared.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[test_variant_order(src/unit_tests/staged_enum_variant_order/type.yaml)]
 pub enum Type {
@@ -67,10 +71,11 @@ pub enum Type {
     U256,
 }
 
-/// Normalized version of a `FieldDefinition`. The `name` is included even though it is
-/// metadata that it is ignored by the VM. The reason: names are important to clients. We would
-/// want a change from `Account { bal: u64, seq: u64 }` to `Account { seq: u64, bal: u64 }` to be
-/// marked as incompatible. Not safe to compare without an enclosing `Struct`.
+/// Normalized version of a `FieldDefinition`. The `name` is included even
+/// though it is metadata that it is ignored by the VM. The reason: names are
+/// important to clients. We would want a change from `Account { bal: u64, seq:
+/// u64 }` to `Account { seq: u64, bal: u64 }` to be marked as incompatible. Not
+/// safe to compare without an enclosing `Struct`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Ord, PartialOrd)]
 pub struct Field {
     pub name: Identifier,
@@ -84,8 +89,8 @@ pub struct Constant {
     pub data: Vec<u8>,
 }
 
-/// Normalized version of a `StructDefinition`. Not safe to compare without an associated
-/// `ModuleId` or `Module`.
+/// Normalized version of a `StructDefinition`. Not safe to compare without an
+/// associated `ModuleId` or `Module`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Ord, PartialOrd)]
 pub struct Struct {
     pub abilities: AbilitySet,
@@ -93,8 +98,8 @@ pub struct Struct {
     pub fields: Vec<Field>,
 }
 
-/// Normalized version of a `FunctionDefinition`. Not safe to compare without an associated
-/// `ModuleId` or `Module`.
+/// Normalized version of a `FunctionDefinition`. Not safe to compare without an
+/// associated `ModuleId` or `Module`.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Function {
     pub visibility: Visibility,
@@ -111,14 +116,18 @@ pub struct FieldRef {
     pub field_index: u16,
 }
 
-// Functions can reference external modules. We don't track the exact type parameters and the like
-// since we know they can't change, or don't matter since:
-// * Either we allow compatible upgrades in which case the changing of the call parameters/types
-//   doesn't matter since this will align with the callee signature, and that callee must go through
-//   the compatibility checker for any upgrades.
+// Functions can reference external modules. We don't track the exact type
+// parameters and the like since we know they can't change, or don't matter
+// since:
+// * Either we allow compatible upgrades in which case the changing of the call
+//   parameters/types doesn't matter since this will align with the callee
+//   signature, and that callee must go through the compatibility checker for
+//   any upgrades.
 // * We are in an inclusion scenario. In which case either:
-//   - The callee is in the same package as this call, in which case the callee couldn't have changed; or
-//   - The callee was in a different package and therefore public, and therefore the API of that
+//   - The callee is in the same package as this call, in which case the callee
+//     couldn't have changed; or
+//   - The callee was in a different package and therefore public, and therefore
+//     the API of that
 //   function must not have changed by compatibility rules.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FunctionRef {
@@ -218,8 +227,8 @@ impl Constant {
     }
 }
 
-/// Normalized version of a `CompiledModule`: its address, name, struct declarations, and public
-/// function declarations.
+/// Normalized version of a `CompiledModule`: its address, name, struct
+/// declarations, and public function declarations.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Module {
     pub file_format_version: u32,
@@ -233,9 +242,10 @@ pub struct Module {
 }
 
 impl Module {
-    /// Extract a normalized module from a `CompiledModule`. The module `m` should be verified.
-    /// Nothing will break here if that is not the case, but there is little point in computing a
-    /// normalized representation of a module that won't verify (since it can't be published).
+    /// Extract a normalized module from a `CompiledModule`. The module `m`
+    /// should be verified. Nothing will break here if that is not the case,
+    /// but there is little point in computing a normalized representation
+    /// of a module that won't verify (since it can't be published).
     pub fn new(m: &CompiledModule) -> Self {
         let friends = m.immediate_friends();
         let structs = m.struct_defs().iter().map(|d| Struct::new(m, d)).collect();
@@ -274,7 +284,10 @@ impl Type {
         match s {
             Struct(shi) => {
                 let s_handle = m.struct_handle_at(*shi);
-                assert!(s_handle.type_parameters.is_empty(), "A struct with N type parameters should be encoded as StructModuleInstantiation with type_arguments = [TypeParameter(1), ..., TypeParameter(N)]");
+                assert!(
+                    s_handle.type_parameters.is_empty(),
+                    "A struct with N type parameters should be encoded as StructModuleInstantiation with type_arguments = [TypeParameter(1), ..., TypeParameter(N)]"
+                );
                 let m_handle = m.module_handle_at(s_handle.module);
                 Type::Struct {
                     address: *m.address_identifier_at(m_handle.address),
@@ -419,8 +432,8 @@ impl Field {
 }
 
 impl Struct {
-    /// Create a `Struct` for `StructDefinition` `def` in module `m`. Panics if `def` is a
-    /// a native struct definition.
+    /// Create a `Struct` for `StructDefinition` `def` in module `m`. Panics if
+    /// `def` is a a native struct definition.
     pub fn new(m: &CompiledModule, def: &StructDefinition) -> (Identifier, Self) {
         let handle = m.struct_handle_at(def.struct_handle);
         let fields = match &def.field_information {

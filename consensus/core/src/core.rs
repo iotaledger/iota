@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -8,13 +9,11 @@ use std::{
 };
 
 use consensus_config::ProtocolKeyPair;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use parking_lot::RwLock;
 use tokio::sync::{broadcast, watch};
 use tracing::{debug, info, warn};
 
-use crate::stake_aggregator::{QuorumThreshold, StakeAggregator};
-use crate::transaction::TransactionGuard;
 use crate::{
     block::{
         timestamp_utc_ms, Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, Round, SignedBlock,
@@ -25,8 +24,9 @@ use crate::{
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
     threshold_clock::ThresholdClock,
-    transaction::TransactionConsumer,
+    transaction::{TransactionConsumer, TransactionGuard},
     universal_committer::{
         universal_committer_builder::UniversalCommitterBuilder, UniversalCommitter,
     },
@@ -44,32 +44,39 @@ pub(crate) struct Core {
     context: Arc<Context>,
     /// The threshold clock that is used to keep track of the current round
     threshold_clock: ThresholdClock,
-    /// The consumer to use in order to pull transactions to be included for the next proposals
+    /// The consumer to use in order to pull transactions to be included for the
+    /// next proposals
     transaction_consumer: TransactionConsumer,
-    /// The block manager which is responsible for keeping track of the DAG dependencies when processing new blocks
-    /// and accept them or suspend if we are missing their causal history
+    /// The block manager which is responsible for keeping track of the DAG
+    /// dependencies when processing new blocks and accept them or suspend
+    /// if we are missing their causal history
     block_manager: BlockManager,
     /// Used to make commit decisions for leader blocks in the dag.
     committer: UniversalCommitter,
     /// The last produced block
     last_proposed_block: VerifiedBlock,
-    /// The blocks of the last included ancestors per authority. This vector is basically used as a
-    /// watermark in order to include in the next block proposal only ancestors of higher rounds.
-    /// By default, is initialised with `None` values.
+    /// The blocks of the last included ancestors per authority. This vector is
+    /// basically used as a watermark in order to include in the next block
+    /// proposal only ancestors of higher rounds. By default, is initialised
+    /// with `None` values.
     last_included_ancestors: Vec<Option<BlockRef>>,
-    /// The last decided leader returned from the universal committer. Important to note
-    /// that this does not signify that the leader has been persisted yet as it still has
-    /// to go through CommitObserver and persist the commit in store. On recovery/restart
-    /// the last_decided_leader will be set to the last_commit leader in dag state.
+    /// The last decided leader returned from the universal committer. Important
+    /// to note that this does not signify that the leader has been
+    /// persisted yet as it still has to go through CommitObserver and
+    /// persist the commit in store. On recovery/restart
+    /// the last_decided_leader will be set to the last_commit leader in dag
+    /// state.
     last_decided_leader: Slot,
-    /// The commit observer is responsible for observing the commits and collecting
+    /// The commit observer is responsible for observing the commits and
+    /// collecting
     /// + sending subdags over the consensus output channel.
     commit_observer: CommitObserver,
     /// Sender of outgoing signals from Core.
     signals: CoreSignals,
     /// The keypair to be used for block signing
     block_signer: ProtocolKeyPair,
-    /// Keeping track of state of the DAG, including blocks, commits and last committed rounds.
+    /// Keeping track of state of the DAG, including blocks, commits and last
+    /// committed rounds.
     dag_state: Arc<RwLock<DagState>>,
 }
 
@@ -95,14 +102,16 @@ impl Core {
             .read()
             .get_last_block_for_authority(context.own_index);
 
-        // Recover the last included ancestor rounds based on the last proposed block. That will allow
-        // to perform the next block proposal by using ancestor blocks of higher rounds and avoid
-        // re-including blocks that have been already included in the last (or earlier) block proposal.
-        // This is only strongly guaranteed for a quorum of ancestors. It is still possible to re-include
-        // a block from an authority which hadn't been added as part of the last proposal hence its
-        // latest included ancestor is not accurately captured here. This is considered a small deficiency,
-        // and it mostly matters just for this next proposal without any actual penalties in performance
-        // or block proposal.
+        // Recover the last included ancestor rounds based on the last proposed block.
+        // That will allow to perform the next block proposal by using ancestor
+        // blocks of higher rounds and avoid re-including blocks that have been
+        // already included in the last (or earlier) block proposal.
+        // This is only strongly guaranteed for a quorum of ancestors. It is still
+        // possible to re-include a block from an authority which hadn't been
+        // added as part of the last proposal hence its latest included ancestor
+        // is not accurately captured here. This is considered a small deficiency,
+        // and it mostly matters just for this next proposal without any actual
+        // penalties in performance or block proposal.
         let mut last_included_ancestors = vec![None; context.committee.size()];
         for ancestor in last_proposed_block.ancestors() {
             last_included_ancestors[ancestor.author] = Some(*ancestor);
@@ -136,12 +145,17 @@ impl Core {
         // Recover the last available quorum to correctly advance the threshold clock.
         let last_quorum = self.dag_state.read().last_quorum();
         self.add_accepted_blocks(last_quorum);
-        // Try to commit and propose, since they may not have run after the last storage write.
+        // Try to commit and propose, since they may not have run after the last storage
+        // write.
         self.try_commit().unwrap();
         if self.try_propose(true).unwrap().is_none() {
-            assert!(self.last_proposed_block.round() > GENESIS_ROUND, "At minimum a block of round higher that genesis should have been produced during recovery");
+            assert!(
+                self.last_proposed_block.round() > GENESIS_ROUND,
+                "At minimum a block of round higher that genesis should have been produced during recovery"
+            );
 
-            // if no new block proposed then just re-broadcast the last proposed one to ensure liveness.
+            // if no new block proposed then just re-broadcast the last proposed one to
+            // ensure liveness.
             self.signals
                 .new_block(self.last_proposed_block.clone())
                 .unwrap();
@@ -150,8 +164,9 @@ impl Core {
         self
     }
 
-    /// Processes the provided blocks and accepts them if possible when their causal history exists.
-    /// The method returns the references of parents that are unknown and need to be fetched.
+    /// Processes the provided blocks and accepts them if possible when their
+    /// causal history exists. The method returns the references of parents
+    /// that are unknown and need to be fetched.
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
@@ -181,10 +196,11 @@ impl Core {
         Ok(missing_blocks)
     }
 
-    /// Adds/processed all the newly `accepted_blocks`. We basically try to move the threshold clock and add them to the
-    /// pending ancestors list.
+    /// Adds/processed all the newly `accepted_blocks`. We basically try to move
+    /// the threshold clock and add them to the pending ancestors list.
     fn add_accepted_blocks(&mut self, accepted_blocks: Vec<VerifiedBlock>) {
-        // Advance the threshold clock. If advanced to a new round then send a signal that a new quorum has been received.
+        // Advance the threshold clock. If advanced to a new round then send a signal
+        // that a new quorum has been received.
         if let Some(new_round) = self
             .threshold_clock
             .add_blocks(accepted_blocks.iter().map(|b| b.reference()).collect())
@@ -201,7 +217,8 @@ impl Core {
             .set(self.threshold_clock.get_round() as i64);
     }
 
-    /// Force creating a new block for the dictated round. This is used when a leader timeout occurs.
+    /// Force creating a new block for the dictated round. This is used when a
+    /// leader timeout occurs.
     pub(crate) fn force_new_block(
         &mut self,
         round: Round,
@@ -214,8 +231,8 @@ impl Core {
     }
 
     // Attempts to create a new block, persist and propose it to all peers.
-    // When force is true, ignore if leader from the last round exists among ancestors and if
-    // the minimum round delay has passed.
+    // When force is true, ignore if leader from the last round exists among
+    // ancestors and if the minimum round delay has passed.
     fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlock>> {
         if let Some(block) = self.try_new_block(force) {
             self.signals.new_block(block.clone())?;
@@ -226,8 +243,9 @@ impl Core {
         Ok(None)
     }
 
-    /// Attempts to propose a new block for the next round. If a block has already proposed for latest
-    /// or earlier round, then no block is created and None is returned.
+    /// Attempts to propose a new block for the next round. If a block has
+    /// already proposed for latest or earlier round, then no block is
+    /// created and None is returned.
     fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
         let _scope = monitored_scope("Core::try_new_block");
         let _s = self
@@ -245,8 +263,9 @@ impl Core {
 
         let now = timestamp_utc_ms();
 
-        // Create a new block either because we want to "forcefully" propose a block due to a leader timeout,
-        // or because we are actually ready to produce the block (leader exists and min delay has passed).
+        // Create a new block either because we want to "forcefully" propose a block due
+        // to a leader timeout, or because we are actually ready to produce the
+        // block (leader exists and min delay has passed).
         if !force {
             if !self.last_quorum_leaders_exist() {
                 return None;
@@ -258,17 +277,20 @@ impl Core {
             }
         }
 
-        // TODO: produce the block for the clock_round. As the threshold clock can advance many rounds at once (ex
-        // because we synchronized a bulk of blocks) we can decide here whether we want to produce blocks per round
-        // or just the latest one. From earlier experiments I saw only benefit on proposing for the penultimate round
-        // only when the validator was supposed to be the leader of the round - so we bring down the missed leaders.
+        // TODO: produce the block for the clock_round. As the threshold clock can
+        // advance many rounds at once (ex because we synchronized a bulk of
+        // blocks) we can decide here whether we want to produce blocks per round
+        // or just the latest one. From earlier experiments I saw only benefit on
+        // proposing for the penultimate round only when the validator was
+        // supposed to be the leader of the round - so we bring down the missed leaders.
         // Probably proposing for all the intermediate rounds might not make much sense.
 
         // Consume the ancestors to be included in proposal
         let ancestors = self.ancestors_to_propose(clock_round, now);
 
-        // Consume the next transactions to be included. Do not drop the guards yet as this would acknowledge
-        // the inclusion of transactions. Just let this be done in the end of the method.
+        // Consume the next transactions to be included. Do not drop the guards yet as
+        // this would acknowledge the inclusion of transactions. Just let this
+        // be done in the end of the method.
         let transaction_guards = self.transaction_consumer.next();
         let transactions = transaction_guards
             .iter()
@@ -371,8 +393,10 @@ impl Core {
         self.block_manager.missing_blocks()
     }
 
-    /// Retrieves the next ancestors to propose to form a block at `clock_round` round. Also, the `block_timestamp` is provided
-    /// to sanity check that everything that goes into the proposal is ensured to have a timestamp < block_timestamp
+    /// Retrieves the next ancestors to propose to form a block at `clock_round`
+    /// round. Also, the `block_timestamp` is provided to sanity check that
+    /// everything that goes into the proposal is ensured to have a timestamp <
+    /// block_timestamp
     fn ancestors_to_propose(
         &mut self,
         clock_round: Round,
@@ -414,7 +438,11 @@ impl Core {
             quorum.add(ancestor.author(), &self.context.committee);
         }
 
-        assert!(quorum.reached_threshold(&self.context.committee), "Fatal error, quorum not reached for parent round when proposing for round {}. Possible mismatch between DagState and Core.", clock_round);
+        assert!(
+            quorum.reached_threshold(&self.context.committee),
+            "Fatal error, quorum not reached for parent round when proposing for round {}. Possible mismatch between DagState and Core.",
+            clock_round
+        );
 
         // Ensure that timestamps are correct
         ancestors.iter().for_each(|block|{
@@ -422,15 +450,16 @@ impl Core {
             assert!(block.timestamp_ms() <= block_timestamp, "Violation, ancestor block timestamp {} greater than our timestamp {block_timestamp}", block.timestamp_ms());
         });
 
-        // Compress the references in the block. We don't want to include an ancestors that already referenced by other blocks
-        // we are about to include.
+        // Compress the references in the block. We don't want to include an ancestors
+        // that already referenced by other blocks we are about to include.
         let all_ancestors_parents: HashSet<&BlockRef> = ancestors
             .iter()
             .flat_map(|block| block.ancestors())
             .collect();
 
-        // Keep block refs to propose in a map, so even if somehow a byzantine node managed to provide blocks that don't
-        // form a valid chain we can still pick one block per author.
+        // Keep block refs to propose in a map, so even if somehow a byzantine node
+        // managed to provide blocks that don't form a valid chain we can still
+        // pick one block per author.
         let mut to_propose = BTreeMap::new();
         for block in &ancestors {
             if !all_ancestors_parents.contains(&block.reference()) {
@@ -440,8 +469,8 @@ impl Core {
 
         assert!(!to_propose.is_empty());
 
-        // always include our last proposed block in front of the vector and make sure that we do not
-        // double insert.
+        // always include our last proposed block in front of the vector and make sure
+        // that we do not double insert.
         let mut result = vec![self.last_proposed_block.reference()];
         for (authority_index, block_ref) in to_propose {
             if authority_index != self.context.own_index {
@@ -453,16 +482,18 @@ impl Core {
     }
 
     /// Checks whether all the leaders of the previous quorum exist.
-    /// TODO: we can leverage some additional signal here in order to more cleverly manipulate later the leader timeout
-    /// Ex if we already have one leader - the first in order - we might don't want to wait as much.
+    /// TODO: we can leverage some additional signal here in order to more
+    /// cleverly manipulate later the leader timeout Ex if we already have
+    /// one leader - the first in order - we might don't want to wait as much.
     fn last_quorum_leaders_exist(&self) -> bool {
         let quorum_round = self.threshold_clock.get_round().saturating_sub(1);
 
         let dag_state = self.dag_state.read();
         for leader in self.leaders(quorum_round) {
             // Search for all the leaders. If at least one is not found, then return false.
-            // A linear search should be fine here as the set of elements is not expected to be small enough and more sophisticated
-            // data structures might not give us much here.
+            // A linear search should be fine here as the set of elements is not expected to
+            // be small enough and more sophisticated data structures might not
+            // give us much here.
             if !dag_state.contains_cached_block_at_slot(leader) {
                 return false;
             }
@@ -494,7 +525,8 @@ impl Core {
     }
 }
 
-/// Senders of signals from Core, for outputs and events (ex new block produced).
+/// Senders of signals from Core, for outputs and events (ex new block
+/// produced).
 pub(crate) struct CoreSignals {
     tx_block_broadcast: broadcast::Sender<VerifiedBlock>,
     new_round_sender: watch::Sender<Round>,
@@ -524,8 +556,9 @@ impl CoreSignals {
         (me, receivers)
     }
 
-    /// Sends a signal to all the waiters that a new block has been produced. The method will return
-    /// true if block has reached even one subscriber, false otherwise.
+    /// Sends a signal to all the waiters that a new block has been produced.
+    /// The method will return true if block has reached even one
+    /// subscriber, false otherwise.
     pub fn new_block(&self, block: VerifiedBlock) -> ConsensusResult<()> {
         // When there is only one authority in committee, it is unnecessary to broadcast
         // the block which will fail anyway without subscribers to the signal.
@@ -540,15 +573,17 @@ impl CoreSignals {
         Ok(())
     }
 
-    /// Sends a signal that threshold clock has advanced to new round. The `round_number` is the round at which the
-    /// threshold clock has advanced to.
+    /// Sends a signal that threshold clock has advanced to new round. The
+    /// `round_number` is the round at which the threshold clock has
+    /// advanced to.
     pub fn new_round(&mut self, round_number: Round) {
         let _ = self.new_round_sender.send_replace(round_number);
     }
 }
 
 /// Receivers of signals from Core.
-/// Intentially un-clonable. Comonents should only subscribe to channels they need.
+/// Intentially un-clonable. Comonents should only subscribe to channels they
+/// need.
 pub(crate) struct CoreSignalsReceivers {
     tx_block_broadcast: broadcast::Sender<VerifiedBlock>,
     new_round_receiver: watch::Receiver<Round>,
@@ -569,7 +604,7 @@ mod test {
     use std::{collections::BTreeSet, time::Duration};
 
     use consensus_config::{local_committee_and_keys, AuthorityIndex, Parameters, Stake};
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
     use tokio::{
         sync::mpsc::{unbounded_channel, UnboundedReceiver},
         time::sleep,
@@ -577,8 +612,7 @@ mod test {
 
     use super::*;
     use crate::{
-        block::genesis_blocks,
-        block::TestBlock,
+        block::{genesis_blocks, TestBlock},
         block_verifier::NoopBlockVerifier,
         commit::CommitAPI as _,
         storage::{mem_store::MemStore, Store, WriteBatch},
@@ -586,7 +620,8 @@ mod test {
         CommitConsumer, CommitIndex,
     };
 
-    /// Recover Core and continue proposing from the last round which forms a quorum.
+    /// Recover Core and continue proposing from the last round which forms a
+    /// quorum.
     #[tokio::test]
     async fn test_core_recover_from_store_for_full_round() {
         telemetry_subscribers::init_for_testing();
@@ -596,7 +631,8 @@ mod test {
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone(), None);
 
-        // Create test blocks for all the authorities for 4 rounds and populate them in store
+        // Create test blocks for all the authorities for 4 rounds and populate them in
+        // store
         let mut last_round_blocks = genesis_blocks(context.clone());
         let mut all_blocks: Vec<VerifiedBlock> = last_round_blocks.clone();
         for round in 1..=4 {
@@ -679,16 +715,17 @@ mod test {
             .expect("last commit should be set");
 
         // There were no commits prior to the core starting up but there was completed
-        // rounds up to and including round 4. So we should commit leaders in round 1 & 2
-        // as soon as the new block for round 5 is proposed.
+        // rounds up to and including round 4. So we should commit leaders in round 1 &
+        // 2 as soon as the new block for round 5 is proposed.
         assert_eq!(last_commit.index(), 2);
         assert_eq!(dag_state.read().last_commit_index(), 2);
         let all_stored_commits = store.scan_commits(0..CommitIndex::MAX).unwrap();
         assert_eq!(all_stored_commits.len(), 2);
     }
 
-    /// Recover Core and continue proposing when having a partial last round which doesn't form a quorum and we haven't
-    /// proposed for that round yet.
+    /// Recover Core and continue proposing when having a partial last round
+    /// which doesn't form a quorum and we haven't proposed for that round
+    /// yet.
     #[tokio::test]
     async fn test_core_recover_from_store_for_partial_round() {
         telemetry_subscribers::init_for_testing();
@@ -705,7 +742,8 @@ mod test {
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
 
-            // For round 4 only produce f+1 blocks only skip our validator and that of position 1 from creating blocks.
+            // For round 4 only produce f+1 blocks only skip our validator and that of
+            // position 1 from creating blocks.
             let authorities_to_skip = if round == 4 {
                 context.committee.validity_threshold() as usize
             } else {
@@ -896,7 +934,8 @@ mod test {
                 .expect("Block should be found amongst genesis blocks");
         }
 
-        // Try to propose again - with or without ignore leaders check, it will not return any block
+        // Try to propose again - with or without ignore leaders check, it will not
+        // return any block
         assert!(core.try_propose(false).unwrap().is_none());
         assert!(core.try_propose(true).unwrap().is_none());
 
@@ -959,7 +998,8 @@ mod test {
         // attempt to create a block - none will be produced.
         assert!(core.try_propose(false).unwrap().is_none());
 
-        // Adding another block now forms a quorum for round 1, so block at round 2 will proposed
+        // Adding another block now forms a quorum for round 1, so block at round 2 will
+        // proposed
         let block_3 = VerifiedBlock::new_for_test(TestBlock::new(1, 2).build());
         expected_ancestors.insert(block_3.reference());
         // Wait for min round delay to allow blocks to be proposed.
@@ -990,13 +1030,15 @@ mod test {
         // Create the cores for all authorities
         let mut all_cores = create_cores(vec![1, 1, 1, 1]);
 
-        // Create blocks for rounds 1..=3 from all Cores except last Core of authority 3, so we miss the block from it. As
-        // it will be the leader of round 3 then no-one will be able to progress to round 4 unless we explicitly trigger
+        // Create blocks for rounds 1..=3 from all Cores except last Core of authority
+        // 3, so we miss the block from it. As it will be the leader of round 3
+        // then no-one will be able to progress to round 4 unless we explicitly trigger
         // the block creation.
         // create the cores and their signals for all the authorities
         let (_last_core, cores) = all_cores.split_last_mut().unwrap();
 
-        // Now iterate over a few rounds and ensure the corresponding signals are created while network advances
+        // Now iterate over a few rounds and ensure the corresponding signals are
+        // created while network advances
         let mut last_round_blocks = Vec::new();
         for round in 1..=3 {
             let mut this_round_blocks = Vec::new();
@@ -1023,15 +1065,16 @@ mod test {
             last_round_blocks = this_round_blocks;
         }
 
-        // Try to create the blocks for round 4 by calling the try_propose() method. No block should be created as the
-        // leader - authority 3 - hasn't proposed any block.
+        // Try to create the blocks for round 4 by calling the try_propose() method. No
+        // block should be created as the leader - authority 3 - hasn't proposed
+        // any block.
         for (core, _, _, _, _) in cores.iter_mut() {
             core.add_blocks(last_round_blocks.clone()).unwrap();
             assert!(core.try_propose(false).unwrap().is_none());
         }
 
-        // Now try to create the blocks for round 4 via the leader timeout method which should
-        // ignore any leader checks or min round delay.
+        // Now try to create the blocks for round 4 via the leader timeout method which
+        // should ignore any leader checks or min round delay.
         for (core, _, _, _, store) in cores.iter_mut() {
             assert!(core.force_new_block(4).unwrap().is_some());
             assert_eq!(core.last_proposed_round(), 4);
@@ -1057,7 +1100,8 @@ mod test {
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(vec![1, 1, 1, 1]);
 
-        // Now iterate over a few rounds and ensure the corresponding signals are created while network advances
+        // Now iterate over a few rounds and ensure the corresponding signals are
+        // created while network advances
         let mut last_round_blocks = Vec::new();
         for round in 1..=10 {
             let mut this_round_blocks = Vec::new();
@@ -1066,10 +1110,12 @@ mod test {
                 // Wait for min round delay to allow blocks to be proposed.
                 sleep(default_params.min_round_delay).await;
                 // add the blocks from last round
-                // this will trigger a block creation for the round and a signal should be emitted
+                // this will trigger a block creation for the round and a signal should be
+                // emitted
                 core.add_blocks(last_round_blocks.clone()).unwrap();
 
-                // A "new round" signal should be received given that all the blocks of previous round have been processed
+                // A "new round" signal should be received given that all the blocks of previous
+                // round have been processed
                 let new_round = receive(
                     Duration::from_secs(1),
                     signal_receivers.new_round_receiver(),
@@ -1145,7 +1191,8 @@ mod test {
                     continue;
                 }
 
-                // try to propose to ensure that we are covering the case where we miss the leader authority 3
+                // try to propose to ensure that we are covering the case where we miss the
+                // leader authority 3
                 core.add_blocks(last_round_blocks.clone()).unwrap();
                 core.force_new_block(round).unwrap();
 
@@ -1156,21 +1203,24 @@ mod test {
                 this_round_blocks.push(block.clone());
             }
 
-            last_round_blocks = this_round_blocks.clone();
+            last_round_blocks.clone_from(&this_round_blocks);
             all_blocks.extend(this_round_blocks);
         }
 
-        // Now send all the produced blocks to core of authority 3. It should produce a new block. If no compression would
-        // be applied the we should expect all the previous blocks to be referenced from round 0..=10. However, since compression
-        // is applied only the last round's (10) blocks should be referenced + the authority's block of round 0.
+        // Now send all the produced blocks to core of authority 3. It should produce a
+        // new block. If no compression would be applied the we should expect
+        // all the previous blocks to be referenced from round 0..=10. However, since
+        // compression is applied only the last round's (10) blocks should be
+        // referenced + the authority's block of round 0.
         let (core, _, _, _, store) = &mut cores[excluded_authority];
         // Wait for min round delay to allow blocks to be proposed.
         sleep(default_params.min_round_delay).await;
         // add blocks to trigger proposal.
         core.add_blocks(all_blocks).unwrap();
 
-        // Assert that a block has been created for round 11 and it references to blocks of round 10 for the other peers, and
-        // to round 1 for its own block (created after recovery).
+        // Assert that a block has been created for round 11 and it references to blocks
+        // of round 10 for the other peers, and to round 1 for its own block
+        // (created after recovery).
         let block = core.last_proposed_block();
         assert_eq!(block.round(), 11);
         assert_eq!(block.ancestors().len(), 4);
@@ -1195,8 +1245,9 @@ mod test {
         assert_eq!(all_stored_commits.len(), 6);
     }
 
-    /// Creates cores for the specified number of authorities for their corresponding stakes. The method returns the
-    /// cores and their respective signal receivers are returned in `AuthorityIndex` order asc.
+    /// Creates cores for the specified number of authorities for their
+    /// corresponding stakes. The method returns the cores and their
+    /// respective signal receivers are returned in `AuthorityIndex` order asc.
     // TODO: return a test fixture instead.
     fn create_cores(
         authorities: Vec<Stake>,

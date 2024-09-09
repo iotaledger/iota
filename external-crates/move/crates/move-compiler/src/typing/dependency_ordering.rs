@@ -1,6 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use petgraph::{algo::toposort as petgraph_toposort, graphmap::DiGraphMap};
 
 use crate::{
     diagnostics::{codes::*, Diagnostic},
@@ -9,10 +16,6 @@ use crate::{
     shared::{unique_map::UniqueMap, *},
     typing::ast as T,
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use petgraph::{algo::toposort as petgraph_toposort, graphmap::DiGraphMap};
-use std::collections::{BTreeMap, BTreeSet};
 
 //**************************************************************************************************
 // Entry
@@ -88,9 +91,9 @@ impl<'a> Context<'a> {
 
     fn add_neighbor(&mut self, mident: ModuleIdent, dep_type: DepType, loc: Loc) {
         if !self.modules.contains_key(&mident) {
-            // as the dependency checking happens before the naming phase, it is possible to refer
-            // to a module with a ModuleIdent outside of the compilation context. Do not add such
-            // modules as neighbors.
+            // as the dependency checking happens before the naming phase, it is possible to
+            // refer to a module with a ModuleIdent outside of the compilation
+            // context. Do not add such modules as neighbors.
             return;
         }
 

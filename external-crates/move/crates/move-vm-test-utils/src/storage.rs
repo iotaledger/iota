@@ -1,6 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{btree_map, BTreeMap},
+    fmt::Debug,
+};
 
 use anyhow::{bail, Result};
 use move_core_types::{
@@ -9,10 +15,6 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::{ModuleId, StructTag},
     resolver::{LinkageResolver, ModuleResolver, MoveResolver, ResourceResolver},
-};
-use std::{
-    collections::{btree_map, BTreeMap},
-    fmt::Debug,
 };
 
 /// A dummy storage containing no modules or resources.
@@ -49,8 +51,9 @@ impl ResourceResolver for BlankStorage {
     }
 }
 
-/// A storage adapter created by stacking a change set on top of an existing storage backend.
-/// This can be used for additional computations without modifying the base.
+/// A storage adapter created by stacking a change set on top of an existing
+/// storage backend. This can be used for additional computations without
+/// modifying the base.
 #[derive(Debug, Clone)]
 pub struct DeltaStorage<'a, 'b, S> {
     base: &'a S,
@@ -107,7 +110,8 @@ struct InMemoryAccountStorage {
     modules: BTreeMap<Identifier, Vec<u8>>,
 }
 
-/// Simple in-memory storage that can be used as a Move VM storage backend for testing purposes.
+/// Simple in-memory storage that can be used as a Move VM storage backend for
+/// testing purposes.
 #[derive(Debug, Clone)]
 pub struct InMemoryStorage {
     accounts: BTreeMap<AccountAddress, InMemoryAccountStorage>,
@@ -212,7 +216,8 @@ impl InMemoryStorage {
     }
 }
 
-/// Use all default implementations for InMemoryStorage implementation of LinkageResolver
+/// Use all default implementations for InMemoryStorage implementation of
+/// LinkageResolver
 impl LinkageResolver for InMemoryStorage {
     type Error = ();
 }

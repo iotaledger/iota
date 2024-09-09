@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use invalid_mutations::bounds::{
@@ -139,8 +140,10 @@ fn invalid_struct_with_actuals_in_field() {
     let mut m = basic_test_module();
     match &mut m.struct_defs[0].field_information {
         StructFieldInformation::Declared(ref mut fields) => {
-            fields[0].signature.0 =
-                StructInstantiation(Box::new((StructHandleIndex::new(0), vec![TypeParameter(0)])));
+            fields[0].signature.0 = StructInstantiation(Box::new((
+                StructHandleIndex::new(0),
+                vec![TypeParameter(0)],
+            )));
             assert_eq!(
                 BoundsChecker::verify_module(&m).unwrap_err().major_status(),
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH
@@ -307,7 +310,7 @@ fn invalid_signature_for_vector_operation() {
 
     let skeleton = basic_test_module();
     let sig_index = SignatureIndex(skeleton.signatures.len() as u16);
-    for bytecode in vec![
+    for bytecode in [
         VecPack(sig_index, 0),
         VecLen(sig_index),
         VecImmBorrow(sig_index),
@@ -336,7 +339,7 @@ fn invalid_struct_for_vector_operation() {
         .signatures
         .push(Signature(vec![Struct(StructHandleIndex::new(3))]));
     let sig_index = SignatureIndex((skeleton.signatures.len() - 1) as u16);
-    for bytecode in vec![
+    for bytecode in [
         VecPack(sig_index, 0),
         VecLen(sig_index),
         VecImmBorrow(sig_index),
@@ -363,7 +366,7 @@ fn invalid_type_param_for_vector_operation() {
     let mut skeleton = basic_test_module();
     skeleton.signatures.push(Signature(vec![TypeParameter(0)]));
     let sig_index = SignatureIndex((skeleton.signatures.len() - 1) as u16);
-    for bytecode in vec![
+    for bytecode in [
         VecPack(sig_index, 0),
         VecLen(sig_index),
         VecImmBorrow(sig_index),
@@ -389,10 +392,11 @@ proptest! {
     }
 }
 
-/// Ensure that valid modules that don't have any members (e.g. function args, struct fields) pass
-/// bounds checks.
+/// Ensure that valid modules that don't have any members (e.g. function args,
+/// struct fields) pass bounds checks.
 ///
-/// There are some potentially tricky edge cases around ranges that are captured here.
+/// There are some potentially tricky edge cases around ranges that are captured
+/// here.
 #[test]
 fn valid_bounds_no_members() {
     let mut gen = CompiledModuleStrategyGen::new(20);

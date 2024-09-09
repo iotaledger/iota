@@ -1,13 +1,16 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Serde compatible types to deserialize the schematized parts of the lock file (everything in the
-//! [move] table).  This module does not support serialization because of limitations in the `toml`
-//! crate related to serializing types as inline tables.
+//! Serde compatible types to deserialize the schematized parts of the lock file
+//! (everything in the `[move]` table).  This module does not support
+//! serialization because of limitations in the `toml` crate related to
+//! serializing types as inline tables.
 
 use std::io::{Read, Seek, Write};
 
 use anyhow::{anyhow, bail, Context, Result};
+use move_compiler::editions::{Edition, Flavor};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use toml::value::Value;
@@ -17,13 +20,12 @@ use toml_edit::{
     Value as EValue,
 };
 
-use move_compiler::editions::{Edition, Flavor};
-
 use super::LockFile;
 
-/// Lock file version written by this version of the compiler.  Backwards compatibility is
-/// guaranteed (the compiler can read lock files with older versions), forward compatibility is not
-/// (the compiler will fail to read lock files at newer versions).
+/// Lock file version written by this version of the compiler.  Backwards
+/// compatibility is guaranteed (the compiler can read lock files with older
+/// versions), forward compatibility is not (the compiler will fail to read lock
+/// files at newer versions).
 ///
 /// V0: Base version.
 /// V1: Adds toolchain versioning support.
@@ -52,11 +54,13 @@ pub struct Packages {
 
 #[derive(Deserialize)]
 pub struct Package {
-    /// The name of the package (corresponds to the name field from its source manifest).
+    /// The name of the package (corresponds to the name field from its source
+    /// manifest).
     pub name: String,
 
-    /// Where to find this dependency.  Schema is not described in terms of serde-compatible
-    /// structs, so it is deserialized into a generic data structure.
+    /// Where to find this dependency.  Schema is not described in terms of
+    /// serde-compatible structs, so it is deserialized into a generic data
+    /// structure.
     pub source: Value,
 
     /// The version resolved from the version resolution hook.
@@ -69,16 +73,17 @@ pub struct Package {
 
 #[derive(Deserialize)]
 pub struct Dependency {
-    /// The name of the dependency (corresponds to the key for the dependency in the depending
-    /// package's source manifest).
+    /// The name of the dependency (corresponds to the key for the dependency in
+    /// the depending package's source manifest).
     pub name: String,
 
-    /// Mappings for named addresses to apply to the package being depended on, when referred to by
-    /// the depending package.
+    /// Mappings for named addresses to apply to the package being depended on,
+    /// when referred to by the depending package.
     #[serde(rename = "addr_subst")]
     pub subst: Option<Value>,
 
-    /// Expected hash for the source and manifest of the package being depended upon.
+    /// Expected hash for the source and manifest of the package being depended
+    /// upon.
     pub digest: Option<String>,
 }
 
@@ -95,12 +100,13 @@ pub struct ToolchainVersion {
 #[derive(Serialize, Deserialize)]
 pub struct Header {
     pub version: u64,
-    /// A hash of the manifest file content this lock file was generated from computed using SHA-256
-    /// hashing algorithm.
+    /// A hash of the manifest file content this lock file was generated from
+    /// computed using SHA-256 hashing algorithm.
     pub manifest_digest: String,
-    /// A hash of all the dependencies (their lock file content) this lock file depends on, computed
-    /// by first hashing all lock files using SHA-256 hashing algorithm and then combining them into
-    /// a single digest using SHA-256 hasher (similarly to the package digest is computed). If there
+    /// A hash of all the dependencies (their lock file content) this lock file
+    /// depends on, computed by first hashing all lock files using SHA-256
+    /// hashing algorithm and then combining them into a single digest using
+    /// SHA-256 hasher (similarly to the package digest is computed). If there
     /// are no dependencies, it's an empty string.
     pub deps_digest: String,
 }
@@ -112,8 +118,9 @@ struct Schema<T> {
 }
 
 impl Packages {
-    /// Read packages from the lock file, assuming the file's format matches the schema expected
-    /// by this lock file, and its version is not newer than the version supported by this library.
+    /// Read packages from the lock file, assuming the file's format matches the
+    /// schema expected by this lock file, and its version is not newer than
+    /// the version supported by this library.
     pub fn read(lock: &mut impl Read) -> Result<(Packages, Header)> {
         let contents = {
             let mut buf = String::new();
@@ -128,8 +135,9 @@ impl Packages {
 }
 
 impl ToolchainVersion {
-    /// Read toolchain version info from the lock file. Returns successfully with None if
-    /// parsing the lock file succeeds but an entry for `[toolchain-version]` does not exist.
+    /// Read toolchain version info from the lock file. Returns successfully
+    /// with None if parsing the lock file succeeds but an entry for
+    /// `[toolchain-version]` does not exist.
     pub fn read(lock: &mut impl Read) -> Result<Option<ToolchainVersion>> {
         let contents = {
             let mut buf = String::new();
@@ -150,8 +158,8 @@ impl ToolchainVersion {
 }
 
 impl Header {
-    /// Read lock file header after verifying that the version of the lock is not newer than the version
-    /// supported by this library.
+    /// Read lock file header after verifying that the version of the lock is
+    /// not newer than the version supported by this library.
     pub fn read(lock: &mut impl Read) -> Result<Header> {
         let contents = {
             let mut buf = String::new();
@@ -211,7 +219,7 @@ pub fn update_dependency_graph(
     use toml_edit::value;
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::Document>()?;
+    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
     let move_table = toml
         .entry("move")
         .or_insert(Item::Table(toml_edit::Table::new()))
@@ -258,7 +266,7 @@ pub fn update_compiler_toolchain(
 ) -> Result<()> {
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::Document>()?;
+    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
     let move_table = toml["move"].as_table_mut().ok_or(std::fmt::Error)?;
     let toolchain_version = toml::Value::try_from(ToolchainVersion {
         compiler_version,
@@ -318,11 +326,11 @@ pub fn update_managed_address(
     environment: &str,
     managed_address_update: ManagedAddressUpdate,
 ) -> Result<()> {
-    use toml_edit::{value, Document, Table};
+    use toml_edit::{value, DocumentMut, Table};
 
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<Document>()?;
+    let mut toml = toml_string.parse::<DocumentMut>()?;
 
     let env_table = toml
         .entry(ENV_TABLE_NAME)
@@ -346,10 +354,14 @@ pub fn update_managed_address(
         }
         ManagedAddressUpdate::Upgraded { latest_id, version } => {
             if !env_table.contains_key(CHAIN_ID_KEY) {
-                bail!("Move.lock violation: attempted address update for package upgrade when no {CHAIN_ID_KEY} exists")
+                bail!(
+                    "Move.lock violation: attempted address update for package upgrade when no {CHAIN_ID_KEY} exists"
+                )
             }
             if !env_table.contains_key(ORIGINAL_PUBLISHED_ID_KEY) {
-                bail!("Move.lock violation: attempted address update for package upgrade when no {ORIGINAL_PUBLISHED_ID_KEY} exists")
+                bail!(
+                    "Move.lock violation: attempted address update for package upgrade when no {ORIGINAL_PUBLISHED_ID_KEY} exists"
+                )
             }
             env_table[LATEST_PUBLISHED_ID_KEY] = value(latest_id);
             env_table[PUBLISHED_VERSION_KEY] = value(version.to_string());

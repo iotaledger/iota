@@ -1,6 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
+
+use anyhow::{bail, Result};
+use move_binary_format::errors::Location;
+use move_command_line_common::env::get_bytecode_version_from_env;
+use move_package::compilation::compiled_package::CompiledPackage;
+use move_vm_runtime::move_vm::MoveVM;
+use move_vm_test_utils::gas_schedule::CostTable;
 
 use crate::{
     sandbox::utils::{
@@ -9,13 +19,6 @@ use crate::{
     },
     NativeFunctionRecord,
 };
-use anyhow::{bail, Result};
-use move_binary_format::errors::Location;
-use move_command_line_common::env::get_bytecode_version_from_env;
-use move_package::compilation::compiled_package::CompiledPackage;
-use move_vm_runtime::move_vm::MoveVM;
-use move_vm_test_utils::gas_schedule::CostTable;
-use std::collections::BTreeMap;
 
 pub fn publish(
     natives: impl IntoIterator<Item = NativeFunctionRecord>,
@@ -82,7 +85,8 @@ pub fn publish(
 
     let bytecode_version = get_bytecode_version_from_env();
 
-    // use the the publish_module API from the VM if we do not allow breaking changes
+    // use the the publish_module API from the VM if we do not allow breaking
+    // changes
     if !ignore_breaking_changes {
         let vm = MoveVM::new(natives).unwrap();
         let mut gas_status = get_gas_status(cost_table, None)?;
@@ -117,14 +121,16 @@ pub fn publish(
                     if let Err(err) = res {
                         println!("Invalid multi-module publishing: {}", err);
                         if let Location::Module(module_id) = err.location() {
-                            // find the module where error occures and explain
+                            // find the module where error occurres and explain
                             if let Some(unit) = modules_to_publish
                                 .into_iter()
                                 .find(|&x| x.unit.name().as_str() == module_id.name().as_str())
                             {
                                 explain_publish_error(err, state, unit)?
                             } else {
-                                println!("Unable to locate the module in the multi-module publishing error");
+                                println!(
+                                    "Unable to locate the module in the multi-module publishing error"
+                                );
                             }
                         }
                         has_error = true;
@@ -162,9 +168,10 @@ pub fn publish(
             state.save_modules(&modules)?;
         }
     } else {
-        // NOTE: the VM enforces the most strict way of module republishing and does not allow
-        // backward incompatible changes, as as result, if this flag is set, we skip the VM process
-        // and force the CLI to override the on-disk state directly
+        // NOTE: the VM enforces the most strict way of module republishing and does not
+        // allow backward incompatible changes, as as result, if this flag is
+        // set, we skip the VM process and force the CLI to override the on-disk
+        // state directly
         let mut serialized_modules = vec![];
         for unit in modules_to_publish {
             let id = unit.unit.module.self_id();

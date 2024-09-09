@@ -1,14 +1,19 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeSet, fmt};
+
+use move_ir_types::location::*;
+
 use crate::{
-    expansion::ast::{self as E, ModuleIdent},
-    expansion::translate::ModuleMemberKind,
+    expansion::{
+        ast::{self as E, ModuleIdent},
+        translate::ModuleMemberKind,
+    },
     parser::ast::{self as P},
     shared::{unique_map::UniqueMap, *},
 };
-use move_ir_types::location::*;
-use std::{collections::BTreeSet, fmt};
 
 #[derive(Clone)]
 pub enum AliasMapBuilder {
@@ -24,7 +29,8 @@ pub enum AliasMapBuilder {
 
 pub type MemberName = (ModuleIdent, Name, ModuleMemberKind);
 
-/// Represents an unnecessary and duplicate alias, where the alias was already in scope
+/// Represents an unnecessary and duplicate alias, where the alias was already
+/// in scope
 pub struct UnnecessaryAlias {
     pub entry: AliasEntry,
     pub prev: Loc,
@@ -94,7 +100,8 @@ impl AliasEntry {
         }
     }
 }
-/// Remove a duplicate element in the map, returning its location as an error if it exists
+/// Remove a duplicate element in the map, returning its location as an error if
+/// it exists
 fn remove_dup<K: TName, V>(map: &mut UniqueMap<K, V>, alias: &K) -> Result<(), K::Loc> {
     let loc = map.get_loc(alias).copied();
     match map.remove(alias) {
@@ -262,8 +269,8 @@ impl AliasMapBuilder {
         self.add_address_alias_(alias, address, /* is_implicit */ false)
     }
 
-    /// Same as `add_module_alias` but it does not update the scope, and as such it will not be
-    /// reported as unused
+    /// Same as `add_module_alias` but it does not update the scope, and as such
+    /// it will not be reported as unused
     pub fn add_implicit_module_alias(
         &mut self,
         alias: Name,
@@ -272,8 +279,8 @@ impl AliasMapBuilder {
         self.add_module_alias_(alias, ident, /* is_implicit */ true)
     }
 
-    /// Same as `add_member_alias` but it does not update the scope, and as such it will not be
-    /// reported as unused
+    /// Same as `add_member_alias` but it does not update the scope, and as such
+    /// it will not be reported as unused
     pub fn add_implicit_member_alias(
         &mut self,
         alias: Name,

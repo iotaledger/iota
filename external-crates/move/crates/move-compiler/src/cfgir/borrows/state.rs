@@ -1,10 +1,21 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //**************************************************************************************************
 // Abstract state
 //**************************************************************************************************
+
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
+
+use move_borrow_graph::references::RefID;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
 
 use crate::{
     cfgir::absint::*,
@@ -20,14 +31,6 @@ use crate::{
     },
     parser::ast::Field,
     shared::{unique_map::UniqueMap, *},
-};
-use move_borrow_graph::references::RefID;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -824,8 +827,8 @@ impl BorrowState {
         };
         for value in &values {
             if let Value::Ref(id) = value {
-                // mark return values as used mutably, since the caller cannot change the signature
-                // of the called function
+                // mark return values as used mutably, since the caller cannot change the
+                // signature of the called function
                 self.mark_mutably_used(*id);
                 let parents = if self.borrows.is_mutable(*id) {
                     &mut_parents

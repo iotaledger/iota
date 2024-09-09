@@ -1,8 +1,10 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use once_cell::sync::Lazy;
 use std::{collections::BTreeSet, fmt};
+
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AttributePosition {

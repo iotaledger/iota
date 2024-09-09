@@ -1,55 +1,56 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query getStakes($owner: SuiAddress!, $limit: Int, $cursor: String) {
-	address(address: $owner) {
-		stakedSuis(first: $limit, after: $cursor) {
-			pageInfo {
-				hasNextPage
-				endCursor
-			}
-			nodes {
-				...RPC_STAKE_FIELDS
-			}
-		}
-	}
+query getStakes($owner: IotaAddress!, $limit: Int, $cursor: String) {
+    address(address: $owner) {
+        stakedIotas(first: $limit, after: $cursor) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            nodes {
+                ...RPC_STAKE_FIELDS
+            }
+        }
+    }
 }
 
-query getStakesByIds($ids: [SuiAddress!]!, $limit: Int, $cursor: String) {
-	objects(first: $limit, after: $cursor, filter: { objectIds: $ids }) {
-		pageInfo {
-			hasNextPage
-			endCursor
-		}
-		nodes {
-			asMoveObject {
-				asStakedSui {
-					...RPC_STAKE_FIELDS
-				}
-			}
-		}
-	}
+query getStakesByIds($ids: [IotaAddress!]!, $limit: Int, $cursor: String) {
+    objects(first: $limit, after: $cursor, filter: { objectIds: $ids }) {
+        pageInfo {
+            hasNextPage
+            endCursor
+        }
+        nodes {
+            asMoveObject {
+                asStakedIota {
+                    ...RPC_STAKE_FIELDS
+                }
+            }
+        }
+    }
 }
 
-fragment RPC_STAKE_FIELDS on StakedSui {
-	principal
-	activatedEpoch {
-		epochId
-		referenceGasPrice
-	}
-	stakeStatus
-	requestedEpoch {
-		epochId
-	}
-	activatedEpoch {
-		epochId
-	}
-	# staking pool can be read from contents
-	contents {
-		json
-	}
+fragment RPC_STAKE_FIELDS on StakedIota {
+    principal
+    activatedEpoch {
+        epochId
+        referenceGasPrice
+    }
+    stakeStatus
+    requestedEpoch {
+        epochId
+    }
+    activatedEpoch {
+        epochId
+    }
+    # staking pool can be read from contents
+    contents {
+        json
+    }
 
-	address
-	estimatedReward
-	# validatorAddress?
+    address
+    estimatedReward
+    # validatorAddress?
 }

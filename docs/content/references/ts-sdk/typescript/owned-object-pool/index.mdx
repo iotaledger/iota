@@ -1,0 +1,32 @@
+import Beta from '@site/../content/_snippets/iota-oop-beta.mdx'
+
+# IOTA Owned Object Pools Quick Start
+
+<Beta/>
+
+IOTAOOP is a TypeScript library that provides a set of tools for managing multiple concurrent
+transactions on the IOTA network to help avoid object equivocation and locking.
+
+## Installation
+
+```sh npm2yarn
+npm i iotaoop
+```
+
+## Usage
+
+At a high level, this is how you implement the library:
+
+```ts
+// Initialize the ExecutorServiceHandler.
+const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, iotaClient);
+
+/// And then for each incoming request...
+/// ...get the incoming transactionBlock
+const myTransactionBlock;
+
+/// and send it for execution
+const promise = eshandler.execute(myTransactionBlock, iotaClient, splitStrategy);
+```
+
+See [End-to-End Examples](../owned-object-pool/examples.mdx) for sample code you can run.

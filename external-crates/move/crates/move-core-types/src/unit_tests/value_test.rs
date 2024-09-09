@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use serde_json::json;
 
 use crate::{
     account_address::AccountAddress,
@@ -9,7 +12,6 @@ use crate::{
     language_storage::{StructTag, TypeTag},
     runtime_value as R,
 };
-use serde_json::json;
 
 #[test]
 fn struct_deserialization() {

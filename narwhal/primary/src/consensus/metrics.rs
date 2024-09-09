@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::histogram::Histogram as MystenHistogram;
+use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
     default_registry, register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
@@ -19,36 +20,42 @@ pub struct ConsensusMetrics {
     pub consensus_dag_rounds: IntGaugeVec,
     /// The last committed round from consensus
     pub last_committed_round: IntGaugeVec,
-    /// The number of times the consensus state was restored from the consensus store
-    /// following a node restart
+    /// The number of times the consensus state was restored from the consensus
+    /// store following a node restart
     pub recovered_consensus_state: IntCounter,
-    /// The number of certificates from consensus that were restored and sent to the executor
-    /// following a node restart
+    /// The number of certificates from consensus that were restored and sent to
+    /// the executor following a node restart
     pub recovered_consensus_output: IntCounter,
     /// The latency between two successful commit rounds
     pub commit_rounds_latency: Histogram,
     /// The number of certificates committed per commit round
-    pub committed_certificates: MystenHistogram,
+    pub committed_certificates: IotaHistogram,
     /// The time it takes for a certificate from the moment it gets created
     /// up to the moment it gets committed.
     pub certificate_commit_latency: Histogram,
-    /// On every even round we expect a leader to be elected and committed. However, this is not
-    /// always the case and this metric gives more insight. The metric follows the commit path, so
-    /// all the nodes are expected to report the same results. For every leader of each round the
+    /// On every even round we expect a leader to be elected and committed.
+    /// However, this is not always the case and this metric gives more
+    /// insight. The metric follows the commit path, so all the nodes are
+    /// expected to report the same results. For every leader of each round the
     /// output can be one of the following:
-    /// * committed: the leader has been found and its subdag will get committed - no matter if the leader
+    /// * committed: the leader has been found and its subdag will get committed
+    ///   - no matter if the leader
     /// is committed on its time or not (part of recursion)
-    /// * not_found: the leader has not been found on the commit path and doesn't get committed
+    /// * not_found: the leader has not been found on the commit path and
+    ///   doesn't get committed
     /// * no_path: the leader exists but there is no path that leads to it
     pub leader_election: IntCounterVec,
-    /// Under normal circumstances every odd round should trigger leader election for its previous
-    /// even round. We consider a "hit" in this case when the leader has been elected when the network
-    /// has not moved to the next even round (so latency is still in the expected range). If the network
-    /// has moved to the next even round and the leader has not been elected/committed, then we consider
-    /// this a "miss". The leader might be committed later on, but we don't consider this a case where
+    /// Under normal circumstances every odd round should trigger leader
+    /// election for its previous even round. We consider a "hit" in this
+    /// case when the leader has been elected when the network has not moved
+    /// to the next even round (so latency is still in the expected range). If
+    /// the network has moved to the next even round and the leader has not
+    /// been elected/committed, then we consider this a "miss". The leader
+    /// might be committed later on, but we don't consider this a case where
     /// the leader has been committed "on time".
     pub leader_commit_accuracy: IntCounterVec,
-    /// Count leader certificates committed, and whether the leader has strong support.
+    /// Count leader certificates committed, and whether the leader has strong
+    /// support.
     pub leader_commits: IntCounterVec,
     /// number of bad nodes in the committee
     pub num_of_bad_nodes: IntGauge,
@@ -86,7 +93,7 @@ impl ConsensusMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             ).unwrap(),
-            committed_certificates: MystenHistogram::new_in_registry(
+            committed_certificates: IotaHistogram::new_in_registry(
                 "committed_certificates",
                 "The number of certificates committed on a commit round",
                 registry

@@ -1,11 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{marking::MarkedSourceMapping, source_map::SourceMap};
 use anyhow::Result;
 use move_binary_format::binary_views::BinaryIndexedView;
 use move_ir_types::location::Loc;
+
+use crate::{marking::MarkedSourceMapping, source_map::SourceMap};
 
 /// An object that associates source code with compiled bytecode and source map.
 #[derive(Debug)]

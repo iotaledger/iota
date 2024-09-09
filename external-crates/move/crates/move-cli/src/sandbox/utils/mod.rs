@@ -1,10 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(hidden_glob_reexports)]
-use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
-use anyhow::{bail, Result};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::Path,
+    sync::Arc,
+};
 
+use anyhow::{bail, Result};
 use move_binary_format::{
     access::ModuleAccess,
     compatibility::Compatibility,
@@ -26,12 +32,8 @@ use move_core_types::{
 use move_ir_types::location::Loc;
 use move_package::compilation::compiled_package::CompiledUnitWithSource;
 use move_vm_test_utils::gas_schedule::Gas;
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-    path::Path,
-    sync::Arc,
-};
+
+use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
 
 pub mod on_disk_state_view;
 pub mod package_context;
@@ -157,7 +159,9 @@ pub(crate) fn explain_publish_error(
             println!("Module {} exists already.", module_id);
         }
         BACKWARD_INCOMPATIBLE_MODULE_UPDATE => {
-            println!("Breaking change detected--publishing aborted. Re-run with --ignore-breaking-changes to publish anyway.");
+            println!(
+                "Breaking change detected--publishing aborted. Re-run with --ignore-breaking-changes to publish anyway."
+            );
 
             let old_module = state.get_module_by_id(&module_id)?.unwrap();
             let old_api = normalized::Module::new(&old_module);
@@ -174,9 +178,13 @@ pub(crate) fn explain_publish_error(
             .check(&old_api, &new_api)
             .is_err()
             {
-                // TODO: we could choose to make this more precise by walking the global state and looking for published
-                // structs of this type. but probably a bad idea
-                println!("Layout API for structs of module {} has changed. Need to do a data migration of published structs", module_id)
+                // TODO: we could choose to make this more precise by walking the global state
+                // and looking for published structs of this type. but probably
+                // a bad idea
+                println!(
+                    "Layout API for structs of module {} has changed. Need to do a data migration of published structs",
+                    module_id
+                )
             } else if (Compatibility {
                 check_struct_and_pub_function_linking: true,
                 check_struct_layout: false,
@@ -188,9 +196,13 @@ pub(crate) fn explain_publish_error(
             .check(&old_api, &new_api)
             .is_err()
             {
-                // TODO: this will report false positives if we *are* simultaneously redeploying all dependent modules.
-                // but this is not easy to check without walking the global state and looking for everything
-                println!("Linking API for structs/functions of module {} has changed. Need to redeploy all dependent modules.", module_id)
+                // TODO: this will report false positives if we *are* simultaneously redeploying
+                // all dependent modules. but this is not easy to check without
+                // walking the global state and looking for everything
+                println!(
+                    "Linking API for structs/functions of module {} has changed. Need to redeploy all dependent modules.",
+                    module_id
+                )
             }
         }
         CYCLIC_MODULE_DEPENDENCY => {

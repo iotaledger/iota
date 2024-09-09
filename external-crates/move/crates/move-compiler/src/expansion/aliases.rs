@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeSet, fmt};
 
 use move_ir_types::location::Loc;
 
@@ -10,7 +13,6 @@ use crate::{
     ice,
     shared::{unique_map::UniqueMap, unique_set::UniqueSet, *},
 };
-use std::{collections::BTreeSet, fmt};
 
 #[derive(Clone, Debug)]
 pub struct AliasSet {
@@ -146,9 +148,9 @@ impl AliasMap {
         None
     }
 
-    /// Pushes a new scope, adding all of the new items to it (shadowing the outer one).
-    /// Returns any name collisions that occur between addresses, members, and modules in the map
-    /// builder.
+    /// Pushes a new scope, adding all of the new items to it (shadowing the
+    /// outer one). Returns any name collisions that occur between
+    /// addresses, members, and modules in the map builder.
     pub fn push_alias_scope(
         &mut self,
         loc: Loc,
@@ -212,8 +214,9 @@ impl AliasMap {
         Ok(duplicate)
     }
 
-    /// Similar to add_and_shadow but just hides aliases now shadowed by a type parameter.
-    /// Type parameters are never resolved. We track them to apply appropriate shadowing.
+    /// Similar to add_and_shadow but just hides aliases now shadowed by a type
+    /// parameter. Type parameters are never resolved. We track them to
+    /// apply appropriate shadowing.
     pub fn push_type_parameters<'a, I: IntoIterator<Item = &'a Name>>(&mut self, tparams: I)
     where
         I::IntoIter: ExactSizeIterator,
@@ -232,7 +235,8 @@ impl AliasMap {
         self.previous = Some(Box::new(previous));
     }
 
-    /// Resets the alias map to the previous scope, and returns the set of unused aliases
+    /// Resets the alias map to the previous scope, and returns the set of
+    /// unused aliases
     pub fn pop_scope(&mut self) -> AliasSet {
         let previous = self
             .previous

@@ -1,52 +1,53 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 query getTypeLayout($type: String!) {
-	type(type: $type) {
-		layout
-	}
+    type(type: $type) {
+        layout
+    }
 }
 
-query getDynamicFieldObject($parentId: SuiAddress!, $name: DynamicFieldName!) {
-	object(address: $parentId) {
-		dynamicObjectField(name: $name) {
-			value {
-				__typename
-				... on MoveObject {
-					owner {
-						__typename
-						... on Parent {
-							parent {
-								address
-								digest
-								version
-								storageRebate
-								owner {
-									__typename
-									... on Parent {
-										parent {
-											address
-										}
-									}
-								}
-								previousTransactionBlock {
-									digest
-								}
-								asMoveObject {
-									contents {
-										data
-										type {
-											repr
-											layout
-										}
-									}
-									hasPublicTransfer
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
+    object(address: $parentId) {
+        dynamicObjectField(name: $name) {
+            value {
+                __typename
+                ... on MoveObject {
+                    owner {
+                        __typename
+                        ... on Parent {
+                            parent {
+                                address
+                                digest
+                                version
+                                storageRebate
+                                owner {
+                                    __typename
+                                    ... on Parent {
+                                        parent {
+                                            address
+                                        }
+                                    }
+                                }
+                                previousTransactionBlock {
+                                    digest
+                                }
+                                asMoveObject {
+                                    contents {
+                                        data
+                                        type {
+                                            repr
+                                            layout
+                                        }
+                                    }
+                                    hasPublicTransfer
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

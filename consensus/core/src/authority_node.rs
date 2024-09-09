@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -10,9 +11,9 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
+use iota_protocol_config::ProtocolConfig;
 use parking_lot::RwLock;
 use prometheus::Registry;
-use sui_protocol_config::ProtocolConfig;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
@@ -38,8 +39,9 @@ use crate::{
     CommitConsumer,
 };
 
-/// ConsensusAuthority is used by Sui to manage the lifetime of AuthorityNode.
-/// It hides the details of the implementation from the caller, MysticetiManager.
+/// ConsensusAuthority is used by Iota to manage the lifetime of AuthorityNode.
+/// It hides the details of the implementation from the caller,
+/// MysticetiManager.
 #[allow(private_interfaces)]
 pub enum ConsensusAuthority {
     WithAnemo(AuthorityNode<AnemoManager>),
@@ -54,6 +56,7 @@ pub enum NetworkType {
 }
 
 impl ConsensusAuthority {
+    /// Starts the `ConsensusAuthority` for the specified network type.
     pub async fn start(
         network_type: NetworkType,
         own_index: AuthorityIndex,
@@ -141,6 +144,9 @@ impl<N> AuthorityNode<N>
 where
     N: NetworkManager<AuthorityService<ChannelCoreThreadDispatcher>>,
 {
+    /// This function initializes and starts the consensus authority node
+    /// It ensures that the authority node is fully initialized and
+    /// ready to participate in the consensus process.
     pub(crate) async fn start(
         own_index: AuthorityIndex,
         committee: Committee,
@@ -176,7 +182,8 @@ where
         let mut network_manager = N::new(context.clone());
         let network_client = network_manager.client();
 
-        // REQUIRED: Broadcaster must be created before Core, to start listen on block broadcasts.
+        // REQUIRED: Broadcaster must be created before Core, to start listen on block
+        // broadcasts.
         let broadcaster =
             Broadcaster::new(context.clone(), network_client.clone(), &signals_receivers);
 
@@ -398,10 +405,10 @@ mod tests {
 
     use async_trait::async_trait;
     use consensus_config::{local_committee_and_keys, Parameters};
+    use iota_protocol_config::ProtocolConfig;
     use parking_lot::Mutex;
     use prometheus::Registry;
     use rstest::rstest;
-    use sui_protocol_config::ProtocolConfig;
     use tempfile::TempDir;
     use tokio::{sync::mpsc::unbounded_channel, time::sleep};
 
@@ -414,8 +421,17 @@ mod tests {
         core_thread::{CoreError, CoreThreadDispatcher},
         network::NetworkClient,
         storage::mem_store::MemStore,
-        transaction::NoopTransactionVerifier,
+        ValidationError,
     };
+
+    /// `NoopTransactionVerifier` accepts all transactions.
+    struct NoopTransactionVerifier;
+
+    impl TransactionVerifier for NoopTransactionVerifier {
+        fn verify_batch(&self, _batch: &[&[u8]]) -> Result<(), ValidationError> {
+            Ok(())
+        }
+    }
 
     struct FakeCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,

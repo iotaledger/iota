@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -11,17 +12,17 @@ use std::{
 
 use itertools::Itertools;
 
-/// A container for an extensible, dynamically typed set of annotations, that may or may not have
-/// reached a fixedpoint state
+/// A container for an extensible, dynamically typed set of annotations, that
+/// may or may not have reached a fixedpoint state
 #[derive(Default, Clone)]
 pub struct Annotations {
     map: BTreeMap<TypeId, (Data, bool)>,
 }
 
-/// An internal struct to represent annotation data. This carries in addition to the
-/// dynamically typed value a function for cloning this value. This works
-/// around the restriction that we cannot use a trait to call into an Any type, so we need
-/// to maintain the "vtable" by ourselves.
+/// An internal struct to represent annotation data. This carries in addition to
+/// the dynamically typed value a function for cloning this value. This works
+/// around the restriction that we cannot use a trait to call into an Any type,
+/// so we need to maintain the "vtable" by ourselves.
 struct Data {
     value: Box<dyn Any>,
     clone_fun: Rc<dyn Fn(&Box<dyn Any>) -> Box<dyn Any>>,

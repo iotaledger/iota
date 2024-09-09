@@ -1,12 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::support::dummy_procedure_module;
 use move_binary_format::file_format::Bytecode;
-use move_bytecode_verifier::meter::DummyMeter;
-use move_bytecode_verifier::CodeUnitVerifier;
+use move_bytecode_verifier::{meter::DummyMeter, CodeUnitVerifier};
 use move_core_types::vm_status::StatusCode;
+
+use crate::support::dummy_procedure_module;
 
 #[test]
 fn one_pop_no_push() {

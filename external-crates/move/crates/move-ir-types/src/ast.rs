@@ -1,8 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::location::*;
+use std::{
+    collections::{BTreeSet, HashSet, VecDeque},
+    fmt,
+};
+
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
     runtime_value::MoveValue,
@@ -10,10 +15,8 @@ use move_core_types::{
 use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
-    fmt,
-};
+
+use crate::location::*;
 
 //**************************************************************************************************
 // Program
@@ -38,7 +41,8 @@ pub struct ModuleName(pub Symbol);
 /// `addr.m`
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ModuleIdent {
-    /// Name for the module. Will be unique among modules published under the same address
+    /// Name for the module. Will be unique among modules published under the
+    /// same address
     pub name: ModuleName,
     /// Address that this module is published under
     pub address: AccountAddress,
@@ -55,13 +59,13 @@ pub struct ModuleDefinition {
     pub friends: Vec<ModuleIdent>,
     /// the module's dependencies
     pub imports: Vec<ImportDefinition>,
-    /// Explicit declaration of dependencies. If not provided, will be inferred based on given
-    /// dependencies to the IR compiler
+    /// Explicit declaration of dependencies. If not provided, will be inferred
+    /// based on given dependencies to the IR compiler
     pub explicit_dependency_declarations: Vec<ModuleDependency>,
     /// the structs (including resources) that the module defines
     pub structs: Vec<StructDefinition>,
-    /// the constants that the script defines. Only a utility, the identifiers are not carried into
-    /// the Move bytecode
+    /// the constants that the script defines. Only a utility, the identifiers
+    /// are not carried into the Move bytecode
     pub constants: Vec<Constant>,
     /// the procedure that the module defines
     pub functions: Vec<(FunctionName, Function)>,
@@ -70,7 +74,7 @@ pub struct ModuleDefinition {
 /// Explicitly given dependency
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModuleDependency {
-    /// Qualified identifer of the dependency
+    /// Qualified identifier of the dependency
     pub name: ModuleName,
     /// The structs (including resources) that the dependency defines
     pub structs: Vec<StructDependency>,
@@ -104,7 +108,8 @@ pub struct Var_(pub Symbol);
 /// The type of a variable with a location
 pub type Var = Spanned<Var_>;
 
-/// New type that represents a type variable. Used to declare type formals & reference them.
+/// New type that represents a type variable. Used to declare type formals &
+/// reference them.
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct TypeVar_(pub Symbol);
 
@@ -115,14 +120,17 @@ pub type TypeVar = Spanned<TypeVar_>;
 // Abilities
 //**************************************************************************************************
 
-/// The abilities of a type. Analogous to `move_binary_format::file_format::Ability`.
+/// The abilities of a type. Analogous to
+/// `move_binary_format::file_format::Ability`.
 #[derive(Debug, Clone, Eq, Copy, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Ability {
     /// Allows values of types with this ability to be copied
     Copy,
-    /// Allows values of types with this ability to be dropped or if left in a local at return
+    /// Allows values of types with this ability to be dropped or if left in a
+    /// local at return
     Drop,
-    /// Allows values of types with this ability to exist inside a struct in global storage
+    /// Allows values of types with this ability to exist inside a struct in
+    /// global storage
     Store,
     /// Allows the type to serve as a key for global storage operations
     Key,
@@ -156,7 +164,8 @@ pub enum Type {
     Vector(Box<Type>),
     /// A module defined struct
     Struct(QualifiedStructIdent, Vec<Type>),
-    /// A reference type, the bool flag indicates whether the reference is mutable
+    /// A reference type, the bool flag indicates whether the reference is
+    /// mutable
     Reference(bool, Box<Type>),
     /// A type parameter
     TypeParameter(TypeVar_),
@@ -166,14 +175,14 @@ pub enum Type {
 // Structs
 //**************************************************************************************************
 
-/// Identifier for a struct definition. Tells us where to look in the storage layer to find the
-/// code associated with the interface
+/// Identifier for a struct definition. Tells us where to look in the storage
+/// layer to find the code associated with the interface
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct QualifiedStructIdent {
     /// Module name and address in which the struct is contained
     pub module: ModuleName,
-    /// Name for the struct class. Should be unique among structs published under the same
-    /// module+address
+    /// Name for the struct class. Should be unique among structs published
+    /// under the same module+address
     pub name: StructName,
 }
 
@@ -189,7 +198,7 @@ pub type Field = Spanned<Field_>;
 /// Rather than simply referring to a field 'f' with a single identifier and
 /// relying on type inference to determine the type of the struct being
 /// accessed, this type refers to the field 'f' on the explicit struct type
-/// 'S<T>' -- that is, 'S<T>::f'.
+/// `S<T>` -- that is, `S<T>::f`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldIdent_ {
     /// The name of the struct type on which the field is declared.
@@ -210,7 +219,8 @@ pub type Fields<T> = Vec<(Field, T)>;
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct StructName(pub Symbol);
 
-/// A struct type parameter with its constraints and whether it's declared as phantom.
+/// A struct type parameter with its constraints and whether it's declared as
+/// phantom.
 pub type StructTypeParameter = (bool, TypeVar, BTreeSet<Ability>);
 
 /// A Move struct
@@ -280,7 +290,8 @@ pub struct FunctionName(pub Symbol);
 /// The signature of a function
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionSignature {
-    /// Possibly-empty list of (formal name, formal type) pairs. Names are unique.
+    /// Possibly-empty list of (formal name, formal type) pairs. Names are
+    /// unique.
     pub formals: Vec<(Var, Type)>,
     /// Optional return types
     pub return_type: Vec<Type>,
@@ -303,8 +314,8 @@ pub enum FunctionVisibility {
     /// The procedure can be invoked anywhere
     /// `public`
     Public,
-    /// The procedure can be invoked internally as well as by modules in the friend list
-    /// `public(friend)`
+    /// The procedure can be invoked internally as well as by modules in the
+    /// friend list `public(friend)`
     Friend,
     /// The procedure can be invoked only internally
     /// `<no modifier>`
@@ -349,23 +360,28 @@ pub type Function = Spanned<Function_>;
 // Statements
 //**************************************************************************************************
 
-/// Builtin "function"-like operators that often have a signature not expressable in the
-/// type system and/or have access to some runtime/storage context
+/// Builtin "function"-like operators that often have a signature not
+/// expressable in the type system and/or have access to some runtime/storage
+/// context
 #[derive(Debug, PartialEq, Clone)]
 pub enum Builtin {
-    /// Pack a vector fix a fixed number of elements. Zero elements means an empty vector.
+    /// Pack a vector fix a fixed number of elements. Zero elements means an
+    /// empty vector.
     VecPack(Vec<Type>, u64),
     /// Get the length of a vector
     VecLen(Vec<Type>),
-    /// Acquire an immutable reference to the element at a given index of the vector
+    /// Acquire an immutable reference to the element at a given index of the
+    /// vector
     VecImmBorrow(Vec<Type>),
-    /// Acquire a mutable reference to the element at a given index of the vector
+    /// Acquire a mutable reference to the element at a given index of the
+    /// vector
     VecMutBorrow(Vec<Type>),
     /// Push an element to the end of the vector
     VecPushBack(Vec<Type>),
     /// Pop and return an element from the end of the vector
     VecPopBack(Vec<Type>),
-    /// Destroy a vector of a fixed length. Zero length means destroying an empty vector.
+    /// Destroy a vector of a fixed length. Zero length means destroying an
+    /// empty vector.
     VecUnpack(Vec<Type>, u64),
     /// Swap the elements at twi indices in the vector
     VecSwap(Vec<Type>),
@@ -414,8 +430,8 @@ pub enum LValue_ {
 }
 pub type LValue = Spanned<LValue_>;
 
-/// A [`Block_`] is composed of zero or more "statements," which can be translated into one or more
-/// bytecode instructions.
+/// A [`Block_`] is composed of zero or more "statements," which can be
+/// translated into one or more bytecode instructions.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement_ {
     /// `abort e`.
@@ -440,8 +456,8 @@ pub enum Statement_ {
 /// A [`Statement_`] with a location.
 pub type Statement = Spanned<Statement_>;
 
-/// A block is composed of a [`BlockLabel`], followed by 0 or more [`Statement`],
-/// e.g.: `label b: s_1; ... s_n;`.
+/// A block is composed of a [`BlockLabel`], followed by 0 or more
+/// [`Statement`], e.g.: `label b: s_1; ... s_n;`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Block_ {
     /// The label that can be used to jump to this block.
@@ -456,8 +472,8 @@ pub type Block = Spanned<Block_>;
 // Expressions
 //**************************************************************************************************
 
-/// Bottom of the value hierarchy. These values can be trivially copyable and stored in statedb as a
-/// single entry.
+/// Bottom of the value hierarchy. These values can be trivially copyable and
+/// stored in statedb as a single entry.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum CopyableVal_ {
     /// An address in the global storage
@@ -554,9 +570,9 @@ pub enum Exp_ {
     /// `v`
     Value(CopyableVal),
     /// Takes the given field values and instantiates the struct
-    /// Returns a fresh `StructInstance` whose type and kind (resource or otherwise)
-    /// as the current struct class (i.e., the class of the method we're currently executing).
-    /// `n { f_1: e_1, ... , f_j: e_j }`
+    /// Returns a fresh `StructInstance` whose type and kind (resource or
+    /// otherwise) as the current struct class (i.e., the class of the
+    /// method we're currently executing). `n { f_1: e_1, ... , f_j: e_j }`
     Pack(StructName, Vec<Type>, ExpFields),
     /// `&e.f`, `&mut e.f`
     Borrow {
@@ -703,8 +719,8 @@ impl ModuleName {
 }
 
 impl ModuleIdent {
-    /// Creates a new fully qualified module identifier from the module name and the address at
-    /// which it is published
+    /// Creates a new fully qualified module identifier from the module name and
+    /// the address at which it is published
     pub fn new(name: ModuleName, address: AccountAddress) -> Self {
         ModuleIdent { name, address }
     }
@@ -721,9 +737,10 @@ impl ModuleIdent {
 }
 
 impl ModuleDefinition {
-    /// Creates a new `ModuleDefinition` from its string name, dependencies, structs+resources,
-    /// and procedures
-    /// Does not verify the correctness of any internal properties of its elements
+    /// Creates a new `ModuleDefinition` from its string name, dependencies,
+    /// structs+resources, and procedures
+    /// Does not verify the correctness of any internal properties of its
+    /// elements
     pub fn new(
         loc: Loc,
         identifier: ModuleIdent,
@@ -787,7 +804,8 @@ impl Type {
 }
 
 impl QualifiedStructIdent {
-    /// Creates a new StructType handle from the name of the module alias and the name of the struct
+    /// Creates a new StructType handle from the name of the module alias and
+    /// the name of the struct
     pub fn new(module: ModuleName, name: StructName) -> Self {
         QualifiedStructIdent { module, name }
     }
@@ -804,8 +822,9 @@ impl QualifiedStructIdent {
 }
 
 impl ImportDefinition {
-    /// Creates a new import definition from a module identifier and an optional alias
-    /// If the alias is `None`, the alias will be a cloned copy of the identifiers module name
+    /// Creates a new import definition from a module identifier and an optional
+    /// alias If the alias is `None`, the alias will be a cloned copy of the
+    /// identifiers module name
     pub fn new(ident: ModuleIdent, alias_opt: Option<ModuleName>) -> Self {
         let alias = match alias_opt {
             Some(alias) => alias,
@@ -816,10 +835,11 @@ impl ImportDefinition {
 }
 
 impl StructDefinition_ {
-    /// Creates a new StructDefinition from the abilities, the string representation of the name,
-    /// and the user specified fields, a map from their names to their types
-    /// Does not verify the correctness of any internal properties, e.g. doesn't check that the
-    /// fields do not have reference types
+    /// Creates a new StructDefinition from the abilities, the string
+    /// representation of the name, and the user specified fields, a map
+    /// from their names to their types Does not verify the correctness of
+    /// any internal properties, e.g. doesn't check that the fields do not
+    /// have reference types
     pub fn move_declared(
         abilities: BTreeSet<Ability>,
         name: Symbol,
@@ -834,8 +854,9 @@ impl StructDefinition_ {
         }
     }
 
-    /// Creates a new StructDefinition from the abilities, the string representation of the name,
-    /// and the user specified fields, a map from their names to their types
+    /// Creates a new StructDefinition from the abilities, the string
+    /// representation of the name, and the user specified fields, a map
+    /// from their names to their types
     pub fn native(
         abilities: BTreeSet<Ability>,
         name: Symbol,
@@ -851,7 +872,8 @@ impl StructDefinition_ {
 }
 
 impl FunctionSignature {
-    /// Creates a new function signature from the parameters and the return types
+    /// Creates a new function signature from the parameters and the return
+    /// types
     pub fn new(
         formals: Vec<(Var, Type)>,
         return_type: Vec<Type>,
@@ -952,7 +974,8 @@ impl Exp_ {
         Exp_::value(CopyableVal_::ByteArray(buf))
     }
 
-    /// Creates a new pack/struct-instantiation `Exp` with no location information
+    /// Creates a new pack/struct-instantiation `Exp` with no location
+    /// information
     pub fn instantiate(n: StructName, tys: Vec<Type>, s: ExpFields) -> Exp {
         Spanned::unsafe_no_loc(Exp_::Pack(n, tys, s))
     }

@@ -1,20 +1,21 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use move_command_line_common::env::MOVE_HOME;
 use std::{
     io::Write,
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
+use move_command_line_common::env::MOVE_HOME;
+
+use self::dependency_graph::DependencyGraphBuilder;
 use crate::{
     source_package::parsed_manifest::{CustomDepInfo, DependencyKind, GitInfo},
     BuildConfig,
 };
-
-use self::dependency_graph::DependencyGraphBuilder;
 
 pub mod dependency_cache;
 pub mod dependency_graph;
@@ -71,8 +72,8 @@ pub fn download_dependency_repos<Progress: Write>(
     Ok(())
 }
 
-/// The local location of the repository containing the dependency of kind `kind` (and potentially
-/// other, related dependencies).
+/// The local location of the repository containing the dependency of kind
+/// `kind` (and potentially other, related dependencies).
 fn repository_path(kind: &DependencyKind) -> PathBuf {
     match kind {
         DependencyKind::Local(path) => path.clone(),
@@ -113,7 +114,8 @@ fn repository_path(kind: &DependencyKind) -> PathBuf {
     }
 }
 
-/// The path that the dependency of kind `kind` is found at locally, after it is fetched.
+/// The path that the dependency of kind `kind` is found at locally, after it is
+/// fetched.
 fn local_path(kind: &DependencyKind) -> PathBuf {
     let mut repo_path = repository_path(kind);
 

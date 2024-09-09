@@ -1,14 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file implements several value representations to track values produced and consumed during
-//! the statement interpretation and expression evaluation process. The value representations are
-//! carefully designed to match the type system. In particular, `BaseValue` must match `BaseType`
-//! and `TypedValue` must match `Type` (by match, we mean each value must have a way to type it,
+//! This file implements several value representations to track values produced
+//! and consumed during the statement interpretation and expression evaluation
+//! process. The value representations are carefully designed to match the type
+//! system. In particular, `BaseValue` must match `BaseType` and `TypedValue`
+//! must match `Type` (by match, we mean each value must have a way to type it,
 //! and each type must also have a way to construct a value of this type).
 
-use num::{BigInt, ToPrimitive};
 use std::collections::{BTreeMap, BTreeSet};
 
 use move_core_types::{
@@ -18,6 +19,7 @@ use move_core_types::{
     u256,
 };
 use move_model::ast::TempIndex;
+use num::{BigInt, ToPrimitive};
 
 use crate::concrete::ty::{BaseType, PrimitiveType, StructInstantiation, Type};
 
@@ -210,7 +212,6 @@ impl TypedValue {
         }
     }
 
-    //
     // value creation
     //
 
@@ -393,7 +394,6 @@ impl TypedValue {
         }
     }
 
-    //
     // value casting
     //
 
@@ -531,7 +531,6 @@ impl TypedValue {
         (self.val.into_struct(), self.ty.into_ref_type().0, self.ptr)
     }
 
-    //
     // Getters
     //
 
@@ -548,7 +547,6 @@ impl TypedValue {
         (self.ty, self.val, self.ptr)
     }
 
-    //
     // Operations
     //
 
@@ -616,7 +614,8 @@ impl TypedValue {
         }
     }
 
-    /// Wrap the pointer in the mutable reference to mark that this ref is passed in as an argument
+    /// Wrap the pointer in the mutable reference to mark that this ref is
+    /// passed in as an argument
     pub fn box_into_mut_ref_arg(self, index: TempIndex) -> TypedValue {
         let (ty, val, ptr) = self.decompose();
         if cfg!(debug_assertions) {
@@ -646,7 +645,8 @@ impl TypedValue {
         }
     }
 
-    /// Wrap the pointer in the mutable reference to mark that this ref is passed out as a return
+    /// Wrap the pointer in the mutable reference to mark that this ref is
+    /// passed out as a return
     pub fn box_into_mut_ref_ret(self, ptrs: &BTreeMap<TempIndex, &Pointer>) -> TypedValue {
         fn follow_return_pointers_recursive(
             cur: &Pointer,
@@ -724,7 +724,8 @@ impl TypedValue {
         }
     }
 
-    /// Retrieve an element from a vector at the given index. Return None of index out-of-bounds.
+    /// Retrieve an element from a vector at the given index. Return None of
+    /// index out-of-bounds.
     pub fn get_vector_element(self, elem_num: usize) -> Option<TypedValue> {
         let elem_ty = self.ty.into_vector_elem();
         let val = match self.val {
@@ -743,7 +744,8 @@ impl TypedValue {
         })
     }
 
-    /// Borrow an element from a vector at the given index. Return None of index out-of-bounds.
+    /// Borrow an element from a vector at the given index. Return None of index
+    /// out-of-bounds.
     pub fn borrow_ref_vector_element(
         self,
         elem_num: usize,
@@ -830,7 +832,8 @@ impl TypedValue {
         Some(new_vec)
     }
 
-    /// Update an element in the vector, creates a new vector that contains the update
+    /// Update an element in the vector, creates a new vector that contains the
+    /// update
     pub fn update_ref_vector_element(self, elem_num: usize, elem_val: TypedValue) -> TypedValue {
         let (elem_ty, elem_val, _) = elem_val.decompose();
         let (vec_ty, vec_val, vec_ptr) = self.decompose();
@@ -919,7 +922,8 @@ impl TypedValue {
         }
     }
 
-    /// update one specific field from a struct reference, create a new struct reference
+    /// update one specific field from a struct reference, create a new struct
+    /// reference
     pub fn update_ref_struct_field(self, field_num: usize, field_val: TypedValue) -> TypedValue {
         let (field_ty, field_val, _) = field_val.decompose();
         let (struct_ty, struct_val, struct_ptr) = self.decompose();
@@ -1034,7 +1038,8 @@ impl LocalSlot {
     pub fn has_value(&self) -> bool {
         self.content.is_some()
     }
-    /// Get the value held in this local slot. Panics if the slot does not hold a value
+    /// Get the value held in this local slot. Panics if the slot does not hold
+    /// a value
     pub fn get_value(&self) -> TypedValue {
         let (val, ptr) = self.content.as_ref().unwrap();
         TypedValue {
@@ -1043,7 +1048,8 @@ impl LocalSlot {
             ptr: ptr.clone(),
         }
     }
-    /// Put the value held in this local slot. Override if the slot already holds a value
+    /// Put the value held in this local slot. Override if the slot already
+    /// holds a value
     pub fn put_value_override(&mut self, val: TypedValue) {
         let (ty, val, ptr) = val.decompose();
         if cfg!(debug_assertions) {
@@ -1051,14 +1057,16 @@ impl LocalSlot {
         }
         self.content = Some((val, ptr));
     }
-    /// Put the value held in this local slot. Panics if the slot already holds a value
+    /// Put the value held in this local slot. Panics if the slot already holds
+    /// a value
     pub fn put_value(&mut self, val: TypedValue) {
         if cfg!(debug_assertions) {
             assert!(self.content.is_none());
         }
         self.put_value_override(val);
     }
-    /// Delete the value held in this local slot. Panics if the slot does not hold a value
+    /// Delete the value held in this local slot. Panics if the slot does not
+    /// hold a value
     pub fn del_value(&mut self) -> TypedValue {
         let (val, ptr) = self.content.take().unwrap();
         TypedValue {
@@ -1068,7 +1076,8 @@ impl LocalSlot {
         }
     }
 
-    /// Get the content of the slot, if any, return None of the slot does not currently hold a value
+    /// Get the content of the slot, if any, return None of the slot does not
+    /// currently hold a value
     pub fn get_content(&self) -> Option<&(BaseValue, Pointer)> {
         self.content.as_ref()
     }
@@ -1084,7 +1093,8 @@ struct AccountState {
 }
 
 impl AccountState {
-    /// Get a resource from the address, return None of the resource does not exist
+    /// Get a resource from the address, return None of the resource does not
+    /// exist
     fn get_resource(&self, key: &StructInstantiation) -> Option<BaseValue> {
         self.storage.get(key).cloned()
     }
@@ -1113,7 +1123,8 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    /// Get a reference to a resource from the address, return None if the resource does not exist
+    /// Get a reference to a resource from the address, return None if the
+    /// resource does not exist
     pub fn get_resource_for_spec(
         &self,
         is_mut_opt: Option<bool>,
@@ -1135,8 +1146,9 @@ impl GlobalState {
         })
     }
 
-    /// Get a reference to a resource from the address, return None if the resource does not exist
-    /// otherwise, update the set of addresses touched by the bytecode
+    /// Get a reference to a resource from the address, return None if the
+    /// resource does not exist otherwise, update the set of addresses
+    /// touched by the bytecode
     pub fn get_resource_for_code(
         &mut self,
         is_mut_opt: Option<bool>,
@@ -1147,7 +1159,8 @@ impl GlobalState {
         self.get_resource_for_spec(is_mut_opt, addr, key)
     }
 
-    /// Remove a resource from the address, return the old resource (as struct) if exists
+    /// Remove a resource from the address, return the old resource (as struct)
+    /// if exists
     pub fn del_resource(
         &mut self,
         addr: AccountAddress,
@@ -1163,7 +1176,8 @@ impl GlobalState {
         })
     }
 
-    /// Put a resource into the address, return the old resource (as struct) if exists
+    /// Put a resource into the address, return the old resource (as struct) if
+    /// exists
     pub fn put_resource(
         &mut self,
         addr: AccountAddress,

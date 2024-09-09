@@ -1,6 +1,20 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    convert::TryInto,
+    sync::Arc,
+};
+
+use move_binary_format::file_format as F;
+use move_bytecode_source_map::source_map::SourceMap;
+use move_core_types::account_address::AccountAddress as MoveAddress;
+use move_ir_types::{ast as IR, location::*};
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
 
 use super::{canonicalize_handles, context::*, optimize};
 use crate::{
@@ -19,17 +33,6 @@ use crate::{
     },
     shared::{unique_map::UniqueMap, *},
     FullyCompiledProgram,
-};
-use move_binary_format::file_format as F;
-use move_bytecode_source_map::source_map::SourceMap;
-use move_core_types::account_address::AccountAddress as MoveAddress;
-use move_ir_types::{ast as IR, location::*};
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    convert::TryInto,
-    sync::Arc,
 };
 
 type CollectedInfos = UniqueMap<FunctionName, CollectedInfo>;
@@ -231,8 +234,8 @@ fn module(
     })
 }
 
-/// Generate a mapping from numerical address and module name to named address, for modules whose
-/// identities contained a named address.
+/// Generate a mapping from numerical address and module name to named address,
+/// for modules whose identities contained a named address.
 fn address_names<'a>(
     dependencies: impl Iterator<Item = &'a ModuleIdent>,
 ) -> HashMap<(MoveAddress, &'a str), Symbol> {
@@ -633,7 +636,8 @@ fn var(v: Var) -> IR::Var {
 }
 
 fn field(f: Field) -> IR::Field {
-    // If it's a positional field, lower it into `pos{field_idx}` so they're a valid identifier
+    // If it's a positional field, lower it into `pos{field_idx}` so they're a valid
+    // identifier
     let field_ident = if f.0.value.parse::<u8>().is_ok() {
         format!("pos{}", f.0.value).into()
     } else {
@@ -915,8 +919,8 @@ fn exp(context: &mut Context, code: &mut IR::BytecodeBlock, e: H::Exp) {
         E::ErrorConstant(const_name) => {
             let line_no = context.env.file_mapping().location(loc).start.line;
 
-            // Clamp line number to u16::MAX -- so if the line number exceeds u16::MAX, we don't
-            // record the line number essentially.
+            // Clamp line number to u16::MAX -- so if the line number exceeds u16::MAX, we
+            // don't record the line number essentially.
             let line_number = std::cmp::min(line_no, u16::MAX as usize) as u16;
 
             code.push(sp(

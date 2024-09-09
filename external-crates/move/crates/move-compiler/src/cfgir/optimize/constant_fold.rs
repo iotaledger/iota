@@ -1,6 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::convert::TryFrom;
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 
 use crate::{
     cfgir::cfg::MutForwardCFG,
@@ -13,9 +19,6 @@ use crate::{
     parser::ast::{BinOp, BinOp_, ConstantName, UnaryOp, UnaryOp_},
     shared::unique_map::UniqueMap,
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use std::convert::TryFrom;
 
 /// returns true if anything changed
 pub fn optimize(

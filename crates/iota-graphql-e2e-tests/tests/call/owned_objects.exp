@@ -1,0 +1,114 @@
+processed 11 tasks
+
+task 1 'publish'. lines 23-42:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 5570800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run-graphql'. lines 44-62:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 3 'run'. lines 64-64:
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 2302800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+
+task 4 'view-object'. lines 66-66:
+Owner: Account Address ( A )
+Version: 3
+Contents: Test::M1::Object {id: iota::object::UID {id: iota::object::ID {bytes: fake(3,0)}}, value: 0u64}
+
+task 5 'create-checkpoint'. lines 68-68:
+Checkpoint created: 1
+
+task 6 'run-graphql'. lines 70-88:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "owner": {
+                "__typename": "AddressOwner",
+                "owner": {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 7 'run-graphql'. lines 90-108:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "owner": {
+                "__typename": "AddressOwner",
+                "owner": {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 8 'run-graphql'. lines 110-128:
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 9 'run-graphql'. lines 130-148:
+Response: {
+  "data": {
+    "owner": {
+      "objects": {
+        "edges": [
+          {
+            "node": {
+              "owner": {
+                "__typename": "AddressOwner",
+                "owner": {
+                  "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 10 'run-graphql'. lines 150-168:
+Response: {
+  "data": {
+    "object": null
+  }
+}

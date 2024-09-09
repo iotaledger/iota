@@ -1,6 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
 
 use crate::{
     debug_display, diag,
@@ -19,13 +29,6 @@ use crate::{
     parser::ast::{self as P, ConstantName, Field, FunctionName, StructName, MACRO_MODIFIER},
     shared::{program_info::NamingProgramInfo, unique_map::UniqueMap, *},
     FullyCompiledProgram,
-};
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
 };
 
 //**************************************************************************************************
@@ -102,10 +105,12 @@ pub(super) struct Context<'env> {
     used_locals: BTreeSet<N::Var_>,
     nominal_blocks: Vec<(Option<Symbol>, BlockLabel, NominalBlockType)>,
     nominal_block_id: u16,
-    /// Type parameters used in a function (they have to be cleared after processing each function).
+    /// Type parameters used in a function (they have to be cleared after
+    /// processing each function).
     used_fun_tparams: BTreeSet<TParamID>,
-    /// Indicates if the compiler is currently translating a function (set to true before starting
-    /// to translate a function and to false after translation is over).
+    /// Indicates if the compiler is currently translating a function (set to
+    /// true before starting to translate a function and to false after
+    /// translation is over).
     translating_fun: bool,
     pub current_package: Option<Symbol>,
 }
@@ -195,9 +200,10 @@ impl<'env> Context<'env> {
     }
 
     fn resolve_module(&mut self, m: &ModuleIdent) -> bool {
-        // NOTE: piggybacking on `scoped_functions` to provide a set of modules in the context。
-        // TODO: a better solution would be to have a single `BTreeMap<ModuleIdent, ModuleInfo>`
-        // in the context that can be used to resolve modules, types, and functions.
+        // NOTE: piggybacking on `scoped_functions` to provide a set of modules in the
+        // context。 TODO: a better solution would be to have a single
+        // `BTreeMap<ModuleIdent, ModuleInfo>` in the context that can be used
+        // to resolve modules, types, and functions.
         let resolved = self.scoped_functions.contains_key(m);
         if !resolved {
             self.env.add_diag(diag!(
@@ -735,12 +741,13 @@ fn module(
         constant(context, name, c)
     });
     // Silence unused use fun warnings if a module has macros.
-    // For public macros, the macro will pull in the use fun, and we will which case we will be
-    //   unable to tell if it is used or not
-    // For private macros, we duplicate the scope of the module and when resolving the method
-    //   fail to mark the outer scope as used (instead we only mark the modules scope cloned
-    //   into the macro)
-    // TODO we should approximate this by just checking for the name, regardless of the type
+    // For public macros, the macro will pull in the use fun, and we will which case
+    // we will be   unable to tell if it is used or not
+    // For private macros, we duplicate the scope of the module and when resolving
+    // the method   fail to mark the outer scope as used (instead we only mark
+    // the modules scope cloned   into the macro)
+    // TODO we should approximate this by just checking for the name, regardless of
+    // the type
     let has_macro = functions.iter().any(|(_, _, f)| f.macro_.is_some());
     if has_macro {
         mark_all_use_funs_as_used(&mut use_funs);
@@ -931,7 +938,8 @@ fn use_fun_module_defines(
                 debug_display!(ty)
             );
             context.env.add_diag(ice!((tn.loc, msg)));
-            // This is already reporting a bug, so let's continue for lack of something better to do.
+            // This is already reporting a bug, so let's continue for lack of something
+            // better to do.
             Ok(())
         }
     }
@@ -963,9 +971,10 @@ fn mark_all_use_funs_as_used(use_funs: &mut N::UseFuns) {
 fn friend(context: &mut Context, mident: ModuleIdent, friend: E::Friend) -> Option<E::Friend> {
     let current_mident = context.current_module.as_ref().unwrap();
     if mident.value.address != current_mident.value.address {
-        // NOTE: in alignment with the bytecode verifier, this constraint is a policy decision
-        // rather than a technical requirement. The compiler, VM, and bytecode verifier DO NOT
-        // rely on the assumption that friend modules must reside within the same account address.
+        // NOTE: in alignment with the bytecode verifier, this constraint is a policy
+        // decision rather than a technical requirement. The compiler, VM, and
+        // bytecode verifier DO NOT rely on the assumption that friend modules
+        // must reside within the same account address.
         let msg = "Cannot declare modules out of the current address as a friend";
         context.env.add_diag(diag!(
             Declarations::InvalidFriendDeclaration,
@@ -1750,8 +1759,7 @@ fn exp(context: &mut Context, e: Box<E::Exp>) -> Box<N::Exp> {
                 }
                 ResolvedFunction::Var(v) => {
                     if let Some(mloc) = is_macro {
-                        let msg =
-                            "Unexpected macro invocation. Bound lambdas cannot be invoked as \
+                        let msg = "Unexpected macro invocation. Bound lambdas cannot be invoked as \
                             a macro";
                         context
                             .env

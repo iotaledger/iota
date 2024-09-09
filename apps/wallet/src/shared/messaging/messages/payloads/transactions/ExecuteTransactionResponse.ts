@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import type { SuiTransactionBlockResponse } from '@mysten/sui.js/client';
-import { type SuiSignTransactionBlockOutput } from '@mysten/wallet-standard';
+import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { type IotaSignTransactionBlockOutput } from '@iota/wallet-standard';
 
 export interface ExecuteTransactionResponse extends BasePayload {
-	type: 'execute-transaction-response';
-	result: SuiTransactionBlockResponse;
+    type: 'execute-transaction-response';
+    result: IotaTransactionBlockResponse;
 }
 
 export function isExecuteTransactionResponse(
-	payload: Payload,
+    payload: Payload,
 ): payload is ExecuteTransactionResponse {
-	return isBasePayload(payload) && payload.type === 'execute-transaction-response';
+    return isBasePayload(payload) && payload.type === 'execute-transaction-response';
 }
 
 export interface SignTransactionResponse extends BasePayload {
-	type: 'sign-transaction-response';
-	result: SuiSignTransactionBlockOutput;
+    type: 'sign-transaction-response';
+    result: IotaSignTransactionBlockOutput;
 }
 
 export function isSignTransactionResponse(payload: Payload): payload is SignTransactionResponse {
-	return isBasePayload(payload) && payload.type === 'sign-transaction-response';
+    return isBasePayload(payload) && payload.type === 'sign-transaction-response';
 }

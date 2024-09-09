@@ -1,5 +1,11 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 
 use crate::{
     diag,
@@ -13,9 +19,6 @@ use crate::{
         core::{self, TParamSubst},
     },
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 type LambdaMap = BTreeMap<Var_, (N::Lambda, Vec<Type>, Type)>;
 type ArgMap = BTreeMap<Var_, (N::Exp, Type)>;
@@ -58,7 +61,8 @@ pub(crate) fn call(
     return_type: Type,
 ) -> Option<ExpandedMacro> {
     let next_color = context.next_variable_color();
-    // If none, there is no body to expand, likely because of an error in the macro definition
+    // If none, there is no body to expand, likely because of an error in the macro
+    // definition
     let macro_body = context.macro_body(&m, &f)?;
     let macro_info = context.function_info(&m, &f);
     let (macro_type_params, macro_params, mut macro_body, return_label, max_color) =
@@ -273,14 +277,15 @@ fn bind_lambda(
 use recolor_struct::*;
 
 mod recolor_struct {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use crate::{
         expansion::ast::Mutability,
         naming::ast::{self as N, BlockLabel, Color, Var},
     };
-    use std::collections::{BTreeMap, BTreeSet};
     // handles all of the recoloring of variables, labels, and use funs.
-    // The mask of known vars and labels is here to handle the case where a variable was captured
-    // by a lambda
+    // The mask of known vars and labels is here to handle the case where a variable
+    // was captured by a lambda
     pub(super) struct Recolor {
         next_color: Color,
         remapping: BTreeMap<Color, Color>,
@@ -332,9 +337,9 @@ mod recolor_struct {
             self.block_labels.insert(label);
         }
 
-        // We need to fully remap colors, and not simply set everything to the specified color,
-        // to handle the case where a lambda captures another expanded lambda, for example
-        // `|i| v.push_back(f(i))`
+        // We need to fully remap colors, and not simply set everything to the specified
+        // color, to handle the case where a lambda captures another expanded
+        // lambda, for example `|i| v.push_back(f(i))`
         // where f is
         // `|i| i``
         // In this case we have
@@ -342,8 +347,8 @@ mod recolor_struct {
         // `let i#_#c = arg; v.push_back({ let i#_#d = i#_#c; i#_#d })`
         // we need to make sure `i#_#c` and `i#_#d` remain separated
         //
-        // This has similar feeling to lifting  De Bruijn indices, though it is not exactly the same
-        // (... I think)
+        // This has similar feeling to lifting  De Bruijn indices, though it is not
+        // exactly the same (... I think)
         pub fn remap_color(&mut self, color: Color) -> Color {
             *self.remapping.entry(color).or_insert_with(|| {
                 let cur = self.next_color;
@@ -803,7 +808,8 @@ fn exp(context: &mut Context, sp!(eloc, e_): &mut N::Exp) {
             let recolor_use_funs = false;
             let recolor = &mut Recolor::new(
                 next_color,
-                /* return already labeled */ None,
+                // return already labeled
+                None,
                 recolor_use_funs,
             );
             recolor.add_block_label(return_label);
@@ -848,7 +854,8 @@ fn exp(context: &mut Context, sp!(eloc, e_): &mut N::Exp) {
                 sp(argloc, N::Exp_::UnresolvedError)
             }));
             // Unlike other by-name arguments, we try to check the type of the lambda before
-            // expanding them macro. That, plus the arity check above, ensures these zips are safe
+            // expanding them macro. That, plus the arity check above, ensures these zips
+            // are safe
             let mut result: VecDeque<_> = lambda_params
                 .into_iter()
                 .zip(args)
@@ -879,7 +886,8 @@ fn exp(context: &mut Context, sp!(eloc, e_): &mut N::Exp) {
             let recolor_use_funs = false;
             let recolor = &mut Recolor::new(
                 next_color,
-                /* return already labeled */ None,
+                // return already labeled
+                None,
                 recolor_use_funs,
             );
             recolor_exp(recolor, &mut arg);

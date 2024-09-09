@@ -1,6 +1,9 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeSet;
 
 use crate::{
     cfgir::{cfg::MutForwardCFG, remove_no_ops},
@@ -9,7 +12,6 @@ use crate::{
     parser,
     shared::unique_map::UniqueMap,
 };
-use std::collections::BTreeSet;
 
 /// returns true if anything changed
 pub fn optimize(
@@ -48,13 +50,14 @@ fn count(signature: &FunctionSignature, cfg: &MutForwardCFG) -> BTreeSet<Var> {
 }
 
 mod count {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use move_proc_macros::growing_stack;
 
     use crate::{
         hlir::ast::{FunctionSignature, *},
         parser::ast::{BinOp, UnaryOp},
     };
-    use std::collections::{BTreeMap, BTreeSet};
 
     pub struct Context {
         assigned: BTreeMap<Var, Option<usize>>,
@@ -259,10 +262,12 @@ fn eliminate(cfg: &mut MutForwardCFG, ssa_temps: BTreeSet<Var>) {
 }
 
 mod eliminate {
-    use crate::hlir::ast::{self as H, *};
+    use std::collections::{BTreeMap, BTreeSet};
+
     use move_ir_types::location::*;
     use move_proc_macros::growing_stack;
-    use std::collections::{BTreeMap, BTreeSet};
+
+    use crate::hlir::ast::{self as H, *};
 
     pub struct Context {
         eliminated: BTreeMap<Var, Exp>,
