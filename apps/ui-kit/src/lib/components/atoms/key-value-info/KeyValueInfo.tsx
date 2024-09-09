@@ -93,7 +93,11 @@ export function KeyValueInfo({
                 'justify-between': fullwidth,
             })}
         >
-            <div className="flex shrink-0 flex-row items-center gap-x-0.5">
+            <div
+                className={cx('flex shrink-0 flex-row items-center gap-x-0.5', {
+                    'w-1/4': !fullwidth,
+                })}
+            >
                 <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
                 {tooltipText && (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
@@ -101,7 +105,11 @@ export function KeyValueInfo({
                     </Tooltip>
                 )}
             </div>
-            <div className="flex flex-row items-baseline gap-1 break-words">
+            <div
+                className={cx('flex flex-row items-baseline gap-1 break-all', {
+                    'w-3/4': !fullwidth,
+                })}
+            >
                 {valueLink ? (
                     <a
                         href={valueLink}
