@@ -5,9 +5,6 @@ on:
     inputs:
       isRust:
         type: boolean
-    secrets:
-      GITHUB_TOKEN:
-        required: true
 
 concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

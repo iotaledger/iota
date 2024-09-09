@@ -5,9 +5,6 @@ on:
     inputs:
       isRust:
         type: boolean
-    secrets:
-      GITHUB_TOKEN:
-        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,7 +34,6 @@ jobs:
     uses: ./.github/workflows/_rust_lints.yml
     with:
       isRust: ${{ inputs.isRust }}
-    secrets: inherit
 
   external-lints:
     uses: ./.github/workflows/_external_rust_lints.yml

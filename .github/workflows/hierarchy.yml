@@ -133,7 +133,6 @@ jobs:
     uses: ./.github/workflows/_rust.yml
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
-    secrets: inherit
 
   e2e:
     if: github.event.pull_request.draft == false
