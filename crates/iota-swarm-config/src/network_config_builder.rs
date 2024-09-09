@@ -1,38 +1,52 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::time::Duration;
-use std::{num::NonZeroUsize, path::Path, sync::Arc};
+use std::{
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
+use iota_config::{
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
+    node::AuthorityOverloadConfig,
+};
+use iota_macros::nondeterministic;
+use iota_types::{
+    base_types::{AuthorityName, IotaAddress},
+    committee::{Committee, ProtocolVersion},
+    crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey},
+    object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+};
 use rand::rngs::OsRng;
-use sui_config::genesis::{TokenAllocation, TokenDistributionScheduleBuilder};
-use sui_config::node::AuthorityOverloadConfig;
-use sui_macros::nondeterministic;
-use sui_protocol_config::SupportedProtocolVersions;
-use sui_types::base_types::{AuthorityName, SuiAddress};
-use sui_types::committee::{Committee, ProtocolVersion};
-use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey};
-use sui_types::object::Object;
 
-use crate::genesis_config::{AccountConfig, ValidatorGenesisConfigBuilder, DEFAULT_GAS_AMOUNT};
-use crate::genesis_config::{GenesisConfig, ValidatorGenesisConfig};
-use crate::network_config::NetworkConfig;
-use crate::node_config_builder::ValidatorConfigBuilder;
+use crate::{
+    genesis_config::{
+        AccountConfig, GenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
+        DEFAULT_GAS_AMOUNT,
+    },
+    network_config::NetworkConfig,
+    node_config_builder::ValidatorConfigBuilder,
+};
 
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
     AccountKeys(Vec<AccountKeyPair>),
-    /// Indicates that a committee should be deterministically generated, using the provided rng
-    /// as a source of randomness as well as generating deterministic network port information.
+    /// Indicates that a committee should be deterministically generated, using
+    /// the provided rng as a source of randomness as well as generating
+    /// deterministic network port information.
     Deterministic((NonZeroUsize, Option<Vec<AccountKeyPair>>)),
 }
 
 pub type SupportedProtocolVersionsCallback = Arc<
     dyn Fn(
-            usize,                 /* validator idx */
-            Option<AuthorityName>, /* None for fullnode */
+            usize,                 // validator idx
+            Option<AuthorityName>, // None for fullnode
         ) -> SupportedProtocolVersions
         + Send
         + Sync
@@ -50,6 +64,14 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
+pub type StateAccumulatorV2EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+
+#[derive(Clone)]
+pub enum StateAccumulatorV2EnabledConfig {
+    Global(bool),
+    PerValidator(StateAccumulatorV2EnabledCallback),
+}
+
 pub struct ConfigBuilder<R = OsRng> {
     rng: Option<R>,
     config_directory: PathBuf,
@@ -62,6 +84,11 @@ pub struct ConfigBuilder<R = OsRng> {
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     data_ingestion_dir: Option<PathBuf>,
+    policy_config: Option<PolicyConfig>,
+    firewall_config: Option<RemoteFirewallConfig>,
+    max_submit_position: Option<usize>,
+    submit_delay_step_override_millis: Option<u64>,
+    state_accumulator_v2_enabled_config: Option<StateAccumulatorV2EnabledConfig>,
 }
 
 impl ConfigBuilder {
@@ -78,6 +105,11 @@ impl ConfigBuilder {
             num_unpruned_validators: None,
             authority_overload_config: None,
             data_ingestion_dir: None,
+            policy_config: None,
+            firewall_config: None,
+            max_submit_position: None,
+            submit_delay_step_override_millis: None,
+            state_accumulator_v2_enabled_config: None,
         }
     }
 
@@ -195,8 +227,54 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
+    pub fn with_state_accumulator_v2_enabled(mut self, enabled: bool) -> Self {
+        self.state_accumulator_v2_enabled_config =
+            Some(StateAccumulatorV2EnabledConfig::Global(enabled));
+        self
+    }
+
+    pub fn with_state_accumulator_v2_enabled_callback(
+        mut self,
+        func: StateAccumulatorV2EnabledCallback,
+    ) -> Self {
+        self.state_accumulator_v2_enabled_config =
+            Some(StateAccumulatorV2EnabledConfig::PerValidator(func));
+        self
+    }
+
+    pub fn with_state_accumulator_v2_enabled_config(
+        mut self,
+        c: StateAccumulatorV2EnabledConfig,
+    ) -> Self {
+        self.state_accumulator_v2_enabled_config = Some(c);
+        self
+    }
+
     pub fn with_authority_overload_config(mut self, c: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(c);
+        self
+    }
+
+    pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
+        self.policy_config = config;
+        self
+    }
+
+    pub fn with_firewall_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
+        self.firewall_config = config;
+        self
+    }
+
+    pub fn with_max_submit_position(mut self, max_submit_position: usize) -> Self {
+        self.max_submit_position = Some(max_submit_position);
+        self
+    }
+
+    pub fn with_submit_delay_step_override_millis(
+        mut self,
+        submit_delay_step_override_millis: u64,
+    ) -> Self {
+        self.submit_delay_step_override_millis = Some(submit_delay_step_override_millis);
         self
     }
 
@@ -213,6 +291,11 @@ impl<R> ConfigBuilder<R> {
             jwk_fetch_interval: self.jwk_fetch_interval,
             authority_overload_config: self.authority_overload_config,
             data_ingestion_dir: self.data_ingestion_dir,
+            policy_config: self.policy_config,
+            firewall_config: self.firewall_config,
+            max_submit_position: self.max_submit_position,
+            submit_delay_step_override_millis: self.submit_delay_step_override_millis,
+            state_accumulator_v2_enabled_config: self.state_accumulator_v2_enabled_config,
         }
     }
 
@@ -225,7 +308,8 @@ impl<R> ConfigBuilder<R> {
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
-    //TODO right now we always randomize ports, we may want to have a default port configuration
+    // TODO right now we always randomize ports, we may want to have a default port
+    // configuration
     pub fn build(self) -> NetworkConfig {
         let committee = self.committee;
 
@@ -233,9 +317,9 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let validators = match committee {
             CommitteeConfig::Size(size) => {
                 // We always get fixed protocol keys from this function (which is isolated from
-                // external test randomness because it uses a fixed seed). Necessary because some
-                // tests call `make_tx_certs_and_signed_effects`, which locally forges a cert using
-                // this same committee.
+                // external test randomness because it uses a fixed seed). Necessary because
+                // some tests call `make_tx_certs_and_signed_effects`, which
+                // locally forges a cert using this same committee.
                 let (_, keys) = Committee::new_simple_test_committee_of_size(size.into());
 
                 keys.into_iter()
@@ -306,16 +390,16 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             // Add allocations for each validator
             for validator in &validators {
                 let account_key: PublicKey = validator.account_key_pair.public();
-                let address = SuiAddress::from(&account_key);
+                let address = IotaAddress::from(&account_key);
                 // Give each validator some gas so they can pay for their transactions.
                 let gas_coin = TokenAllocation {
                     recipient_address: address,
-                    amount_mist: DEFAULT_GAS_AMOUNT,
+                    amount_nanos: DEFAULT_GAS_AMOUNT,
                     staked_with_validator: None,
                 };
                 let stake = TokenAllocation {
                     recipient_address: address,
-                    amount_mist: validator.stake,
+                    amount_nanos: validator.stake,
                     staked_with_validator: Some(address),
                 };
                 builder.add_allocation(gas_coin);
@@ -325,7 +409,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         };
 
         let genesis = {
-            let mut builder = sui_genesis_builder::Builder::new()
+            let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
 
@@ -353,7 +437,20 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             .enumerate()
             .map(|(idx, validator)| {
                 let mut builder = ValidatorConfigBuilder::new()
-                    .with_config_directory(self.config_directory.clone());
+                    .with_config_directory(self.config_directory.clone())
+                    .with_policy_config(self.policy_config.clone())
+                    .with_firewall_config(self.firewall_config.clone());
+
+                if let Some(max_submit_position) = self.max_submit_position {
+                    builder = builder.with_max_submit_position(max_submit_position);
+                }
+
+                if let Some(submit_delay_step_override_millis) =
+                    self.submit_delay_step_override_millis
+                {
+                    builder = builder
+                        .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
+                }
 
                 if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
                     builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
@@ -380,6 +477,14 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);
                 }
+                if let Some(acc_v2_config) = &self.state_accumulator_v2_enabled_config {
+                    let state_accumulator_v2_enabled: bool = match acc_v2_config {
+                        StateAccumulatorV2EnabledConfig::Global(enabled) => *enabled,
+                        StateAccumulatorV2EnabledConfig::PerValidator(func) => func(idx),
+                    };
+                    builder =
+                        builder.with_state_accumulator_v2_enabled(state_accumulator_v2_enabled);
+                }
                 if let Some(num_unpruned_validators) = self.num_unpruned_validators {
                     if idx < num_unpruned_validators {
                         builder = builder.with_unpruned_checkpoints();
@@ -398,7 +503,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
 #[cfg(test)]
 mod tests {
-    use sui_config::node::Genesis;
+    use iota_config::node::Genesis;
 
     #[test]
     fn serialize_genesis_config_in_place() {
@@ -446,16 +551,15 @@ mod tests {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
-    use std::sync::Arc;
-    use sui_config::genesis::Genesis;
-    use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use sui_types::epoch_data::EpochData;
-    use sui_types::gas::SuiGasStatus;
-    use sui_types::in_memory_storage::InMemoryStorage;
-    use sui_types::metrics::LimitsMetrics;
-    use sui_types::sui_system_state::SuiSystemStateTrait;
-    use sui_types::transaction::CheckedInputObjects;
+    use std::{collections::HashSet, sync::Arc};
+
+    use iota_config::genesis::Genesis;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_types::{
+        epoch_data::EpochData, gas::IotaGasStatus, in_memory_storage::InMemoryStorage,
+        iota_system_state::IotaSystemStateTrait, metrics::LimitsMetrics,
+        transaction::CheckedInputObjects,
+    };
 
     #[test]
     fn roundtrip() {
@@ -475,7 +579,8 @@ mod test {
         let builder = crate::network_config_builder::ConfigBuilder::new_with_temp_dir();
         let network_config = builder.build();
         let genesis = network_config.genesis;
-        let protocol_version = ProtocolVersion::new(genesis.sui_system_object().protocol_version());
+        let protocol_version =
+            ProtocolVersion::new(genesis.iota_system_object().protocol_version());
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
 
         let genesis_transaction = genesis.transaction().clone();
@@ -483,7 +588,7 @@ mod test {
         let genesis_digest = *genesis_transaction.digest();
 
         let silent = true;
-        let executor = sui_execution::executor(&protocol_config, silent, None)
+        let executor = iota_execution::executor(&protocol_config, silent, None)
             .expect("Creating an executor should not fail here");
 
         // Use a throwaway metrics registry for genesis transaction execution.
@@ -507,7 +612,7 @@ mod test {
                 epoch.epoch_start_timestamp(),
                 input_objects,
                 vec![],
-                SuiGasStatus::new_unmetered(),
+                IotaGasStatus::new_unmetered(),
                 kind,
                 signer,
                 genesis_digest,

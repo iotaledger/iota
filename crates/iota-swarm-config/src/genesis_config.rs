@@ -1,22 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::net::{IpAddr, SocketAddr};
 
 use anyhow::Result;
 use fastcrypto::traits::KeyPair;
+use iota_config::{
+    genesis::{GenesisCeremonyParameters, TokenAllocation},
+    local_ip_utils,
+    node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
+    Config,
+};
+use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
+        AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair, NetworkPublicKey, PublicKey,
+    },
+    multiaddr::Multiaddr,
+};
 use rand::{rngs::StdRng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use sui_config::genesis::{GenesisCeremonyParameters, TokenAllocation};
-use sui_config::node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE};
-use sui_config::{local_ip_utils, Config};
-use sui_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{
-    generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-    AuthorityPublicKeyBytes, NetworkKeyPair, NetworkPublicKey, PublicKey, SuiKeyPair,
-};
-use sui_types::multiaddr::Multiaddr;
 use tracing::info;
 
 // All information needed to build a NodeConfig for a state sync fullnode.
@@ -33,8 +39,8 @@ pub struct ValidatorGenesisConfig {
     pub key_pair: AuthorityKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
     pub worker_key_pair: NetworkKeyPair,
-    #[serde(default = "default_sui_key_pair")]
-    pub account_key_pair: SuiKeyPair,
+    #[serde(default = "default_iota_key_pair")]
+    pub account_key_pair: IotaKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
     pub network_key_pair: NetworkKeyPair,
     pub network_address: Multiaddr,
@@ -49,7 +55,6 @@ pub struct ValidatorGenesisConfig {
     pub narwhal_primary_address: Multiaddr,
     pub narwhal_worker_address: Multiaddr,
     pub consensus_address: Multiaddr,
-    pub consensus_internal_worker_address: Option<Multiaddr>,
     #[serde(default = "default_stake")]
     pub stake: u64,
     pub name: Option<String>,
@@ -68,7 +73,7 @@ impl ValidatorGenesisConfig {
             protocol_key,
             worker_key,
             network_key,
-            account_address: SuiAddress::from(&account_key),
+            account_address: IotaAddress::from(&account_key),
             gas_price: self.gas_price,
             commission_rate: self.commission_rate,
             network_address,
@@ -99,10 +104,11 @@ pub struct ValidatorGenesisConfigBuilder {
     account_key_pair: Option<AccountKeyPair>,
     ip: Option<String>,
     gas_price: Option<u64>,
-    /// If set, the validator will use deterministic addresses based on the port offset.
-    /// This is useful for benchmarking.
+    /// If set, the validator will use deterministic addresses based on the port
+    /// offset. This is useful for benchmarking.
     port_offset: Option<u16>,
-    /// Whether to use a specific p2p listen ip address. This is useful for testing on AWS.
+    /// Whether to use a specific p2p listen ip address. This is useful for
+    /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
 }
 
@@ -207,8 +213,7 @@ impl ValidatorGenesisConfigBuilder {
             narwhal_primary_address,
             narwhal_worker_address,
             consensus_address,
-            consensus_internal_worker_address: None,
-            stake: sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST,
+            stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             name: None,
         }
     }
@@ -250,7 +255,7 @@ impl GenesisConfig {
             account.gas_amounts.iter().for_each(|a| {
                 allocations.push(TokenAllocation {
                     recipient_address: address,
-                    amount_mist: *a,
+                    amount_nanos: *a,
                     staked_with_validator: None,
                 });
             });
@@ -269,7 +274,7 @@ fn default_multiaddr_address() -> Multiaddr {
 }
 
 fn default_stake() -> u64 {
-    sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST
+    iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
@@ -280,14 +285,14 @@ fn default_ed25519_key_pair() -> NetworkKeyPair {
     get_key_pair_from_rng(&mut rand::rngs::OsRng).1
 }
 
-fn default_sui_key_pair() -> SuiKeyPair {
-    SuiKeyPair::Ed25519(get_key_pair_from_rng(&mut rand::rngs::OsRng).1)
+fn default_iota_key_pair() -> IotaKeyPair {
+    IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rand::rngs::OsRng).1)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<SuiAddress>,
+    pub address: Option<IotaAddress>,
     pub gas_amounts: Vec<u64>,
 }
 
@@ -297,8 +302,8 @@ const DEFAULT_NUMBER_OF_ACCOUNT: usize = 5;
 pub const DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT: usize = 5;
 
 impl GenesisConfig {
-    /// A predictable rng seed used to generate benchmark configs. This seed may also be needed
-    /// by other crates (e.g. the load generators).
+    /// A predictable rng seed used to generate benchmark configs. This seed may
+    /// also be needed by other crates (e.g. the load generators).
     pub const BENCHMARKS_RNG_SEED: u64 = 0;
     /// Port offset for benchmarks' genesis configs.
     pub const BENCHMARKS_PORT_OFFSET: u16 = 2000;
@@ -314,7 +319,7 @@ impl GenesisConfig {
         )
     }
 
-    pub fn for_local_testing_with_addresses(addresses: Vec<SuiAddress>) -> Self {
+    pub fn for_local_testing_with_addresses(addresses: Vec<IotaAddress>) -> Self {
         Self::custom_genesis_with_addresses(addresses, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT)
     }
 
@@ -334,7 +339,7 @@ impl GenesisConfig {
     }
 
     pub fn custom_genesis_with_addresses(
-        addresses: Vec<SuiAddress>,
+        addresses: Vec<IotaAddress>,
         num_objects_per_account: usize,
     ) -> Self {
         let mut accounts = Vec::new();
@@ -351,12 +356,15 @@ impl GenesisConfig {
         }
     }
 
-    /// Generate a genesis config allowing to easily bootstrap a network for benchmarking purposes. This
-    /// function is ultimately used to print the genesis blob and all validators configs. All keys and
-    /// parameters are predictable to facilitate benchmarks orchestration. Only the main ip addresses of
-    /// the validators are specified (as those are often dictated by the cloud provider hosing the testbed).
+    /// Generate a genesis config allowing to easily bootstrap a network for
+    /// benchmarking purposes. This function is ultimately used to print the
+    /// genesis blob and all validators configs. All keys and parameters are
+    /// predictable to facilitate benchmarks orchestration. Only the main ip
+    /// addresses of the validators are specified (as those are often
+    /// dictated by the cloud provider hosing the testbed).
     pub fn new_for_benchmarks(ips: &[String]) -> Self {
-        // Set the validator's configs. They should be the same across multiple runs to ensure reproducibility.
+        // Set the validator's configs. They should be the same across multiple runs to
+        // ensure reproducibility.
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         let validator_config_info: Vec<_> = ips
             .iter()
@@ -374,19 +382,20 @@ impl GenesisConfig {
         let account_configs = Self::benchmark_gas_keys(validator_config_info.len())
             .iter()
             .map(|gas_key| {
-                let gas_address = SuiAddress::from(&gas_key.public());
+                let gas_address = IotaAddress::from(&gas_key.public());
 
                 AccountConfig {
                     address: Some(gas_address),
-                    // Generate one genesis gas object per validator (this seems a good rule of thumb to produce
-                    // enough gas objects for most types of benchmarks).
+                    // Generate one genesis gas object per validator (this seems a good rule of
+                    // thumb to produce enough gas objects for most types of
+                    // benchmarks).
                     gas_amounts: vec![Self::BENCHMARK_GAS_AMOUNT; 5],
                 }
             })
             .collect();
 
-        // Benchmarks require a deterministic genesis. Every validator locally generates it own
-        // genesis; it is thus important they have the same parameters.
+        // Benchmarks require a deterministic genesis. Every validator locally generates
+        // it own genesis; it is thus important they have the same parameters.
         let parameters = GenesisCeremonyParameters {
             chain_start_timestamp_ms: 0,
             epoch_duration_ms: Self::BENCHMARK_EPOCH_DURATION_MS,
@@ -402,13 +411,14 @@ impl GenesisConfig {
         }
     }
 
-    /// Generate a predictable and fixed key that will own all gas objects used for benchmarks.
-    /// This function may be called by other parts of the codebase (e.g. load generators) to
-    /// get the same keypair used for genesis (hence the importance of the seedable rng).
-    pub fn benchmark_gas_keys(n: usize) -> Vec<SuiKeyPair> {
+    /// Generate a predictable and fixed key that will own all gas objects used
+    /// for benchmarks. This function may be called by other parts of the
+    /// codebase (e.g. load generators) to get the same keypair used for
+    /// genesis (hence the importance of the seedable rng).
+    pub fn benchmark_gas_keys(n: usize) -> Vec<IotaKeyPair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| SuiKeyPair::Ed25519(NetworkKeyPair::generate(&mut rng)))
+            .map(|_| IotaKeyPair::Ed25519(NetworkKeyPair::generate(&mut rng)))
             .collect()
     }
 
