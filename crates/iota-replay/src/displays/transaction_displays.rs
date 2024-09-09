@@ -1,22 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::displays::Pretty;
-use crate::replay::LocalExec;
-use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
-use move_core_types::language_storage::TypeTag;
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-use sui_execution::Executor;
-use sui_types::execution_mode::ExecutionResult;
-use sui_types::transaction::CallArg::Pure;
-use sui_types::transaction::{
-    write_sep, Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
+use std::{
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
+
+use iota_execution::Executor;
+use iota_types::{
+    execution::ExecutionResult,
+    object::bounded_visitor::BoundedVisitor,
+    transaction::{
+        write_sep, Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
+        ProgrammableTransaction,
+    },
+};
+use move_core_types::{
+    annotated_value::{MoveTypeLayout, MoveValue},
+    language_storage::TypeTag,
 };
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
+
+use crate::{displays::Pretty, replay::LocalExec};
 
 pub struct FullPTB {
     pub ptb: ProgrammableTransaction,
@@ -28,8 +37,9 @@ pub struct ResolvedResults {
     pub return_values: Vec<MoveValue>,
 }
 
-/// These Display implementations provide alternate displays that are used to format info contained
-/// in these Structs when calling the CLI replay command with an additional provided flag.
+/// These Display implementations provide alternate displays that are used to
+/// format info contained in these Structs when calling the CLI replay command
+/// with an additional provided flag.
 impl<'a> Display for Pretty<'a, FullPTB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(full_ptb) = self;
@@ -301,7 +311,10 @@ fn resolve_to_layout(
         }
         TypeTag::Struct(inner) => {
             let mut layout_resolver = executor.type_layout_resolver(Box::new(store_factory));
-            MoveTypeLayout::Struct(layout_resolver.get_annotated_layout(inner).unwrap())
+            layout_resolver
+                .get_annotated_layout(inner)
+                .unwrap()
+                .into_layout()
         }
         TypeTag::Bool => MoveTypeLayout::Bool,
         TypeTag::U8 => MoveTypeLayout::U8,
@@ -321,26 +334,8 @@ fn resolve_value(
     executor: &Arc<dyn Executor + Send + Sync>,
     store_factory: &LocalExec,
 ) -> anyhow::Result<MoveValue> {
-    let mut layout_resolver = executor.type_layout_resolver(Box::new(store_factory.clone()));
-    match type_tag {
-        TypeTag::Vector(inner_type_tag) => {
-            let inner_layout = resolve_to_layout(inner_type_tag, executor, store_factory);
-            MoveValue::simple_deserialize(bytes, &MoveTypeLayout::Vector(Box::from(inner_layout)))
-        }
-        TypeTag::Struct(struct_tag) => {
-            let annotated = layout_resolver.get_annotated_layout(struct_tag)?;
-            MoveValue::simple_deserialize(bytes, &MoveTypeLayout::Struct(annotated))
-        }
-        TypeTag::Bool => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::Bool),
-        TypeTag::U8 => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::U8),
-        TypeTag::U64 => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::U64),
-        TypeTag::U128 => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::U128),
-        TypeTag::Address => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::Address),
-        TypeTag::Signer => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::Signer),
-        TypeTag::U16 => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::U16),
-        TypeTag::U32 => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::U32),
-        TypeTag::U256 => MoveValue::simple_deserialize(bytes, &MoveTypeLayout::U256),
-    }
+    let layout = resolve_to_layout(type_tag, executor, store_factory);
+    BoundedVisitor::deserialize_value(bytes, &layout)
 }
 
 pub fn transform_command_results_to_annotated(

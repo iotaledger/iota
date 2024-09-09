@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_types::{
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_types::{
     digests::TransactionDigest, execution_status::ExecutionFailureStatus,
     transaction::TransactionKind,
 };
@@ -18,8 +19,8 @@ use crate::{
 // Step 1: Get a transaction T from the network
 // Step 2: Create the sandbox and verify the TX does not fork locally
 // Step 3: Create desired mutations of T in set S
-// Step 4: For each mutation in S, replay the transaction with the sandbox state from T
-//         and verify no panic or invariant violation
+// Step 4: For each mutation in S, replay the transaction with the sandbox state
+// from T         and verify no panic or invariant violation
 
 pub struct ReplayFuzzerConfig {
     pub num_mutations_per_base: u64,
@@ -72,6 +73,7 @@ impl ReplayFuzzer {
                 &base_transaction,
                 config.expensive_safety_check_config.clone(),
                 false,
+                None,
                 None,
                 None,
                 None,
@@ -157,8 +159,7 @@ impl ReplayFuzzer {
                     Err(e) => {
                         error!(
                             "Error executing transaction: base tx: {}, mutation: {:?} with error{:?}",
-                            self.sandbox_state.transaction_info.tx_digest,
-                            mutation, e
+                            self.sandbox_state.transaction_info.tx_digest, mutation, e
                         );
                         if self.config.fail_over_on_err {
                             return Err(e);
@@ -201,7 +202,7 @@ pub enum ReplayFuzzError {
     )]
     LocalExecError { err: ReplayEngineError },
     // TODO: how exactly do we catch this?
-    //Panic(TransactionDigest, TransactionKind),
+    // Panic(TransactionDigest, TransactionKind),
 }
 
 impl From<ReplayEngineError> for ReplayFuzzError {

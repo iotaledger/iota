@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::fuzz::TransactionKindMutator;
+use iota_types::transaction::TransactionKind;
 use rand::seq::SliceRandom;
-use sui_types::transaction::TransactionKind;
 use tracing::info;
 
-pub struct ShuffleTransactionInputs {
+use crate::fuzz::TransactionKindMutator;
+
+pub struct DropRandomCommands {
     pub rng: rand::rngs::StdRng,
     pub num_mutations_per_base_left: u64,
 }
 
-impl TransactionKindMutator for ShuffleTransactionInputs {
+impl TransactionKindMutator for DropRandomCommands {
     fn mutate(&mut self, transaction_kind: &TransactionKind) -> Option<TransactionKind> {
         if self.num_mutations_per_base_left == 0 {
             // Nothing else to do
@@ -20,8 +22,15 @@ impl TransactionKindMutator for ShuffleTransactionInputs {
 
         self.num_mutations_per_base_left -= 1;
         if let TransactionKind::ProgrammableTransaction(mut p) = transaction_kind.clone() {
-            p.inputs.shuffle(&mut self.rng);
-            info!("Mutation: Shuffling transaction inputs");
+            if p.commands.is_empty() {
+                return None;
+            }
+            p.commands = p
+                .commands
+                .choose_multiple(&mut self.rng, p.commands.len() - 1)
+                .cloned()
+                .collect();
+            info!("Mutation: Dropping random commands");
             Some(TransactionKind::ProgrammableTransaction(p))
         } else {
             // Other types not supported yet

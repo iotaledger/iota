@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::fuzz::TransactionKindMutator;
-use rand::Rng;
-use sui_types::transaction::TransactionKind;
+use iota_types::transaction::TransactionKind;
+use rand::seq::SliceRandom;
 use tracing::info;
 
-pub struct DropCommandSuffix {
+use crate::fuzz::TransactionKindMutator;
+
+pub struct ShuffleTransactionInputs {
     pub rng: rand::rngs::StdRng,
     pub num_mutations_per_base_left: u64,
 }
 
-impl TransactionKindMutator for DropCommandSuffix {
+impl TransactionKindMutator for ShuffleTransactionInputs {
     fn mutate(&mut self, transaction_kind: &TransactionKind) -> Option<TransactionKind> {
         if self.num_mutations_per_base_left == 0 {
             // Nothing else to do
@@ -20,12 +22,8 @@ impl TransactionKindMutator for DropCommandSuffix {
 
         self.num_mutations_per_base_left -= 1;
         if let TransactionKind::ProgrammableTransaction(mut p) = transaction_kind.clone() {
-            if p.commands.is_empty() {
-                return None;
-            }
-            let slice_index = self.rng.gen_range(0..p.commands.len());
-            p.commands.truncate(slice_index);
-            info!("Mutation: Dropping command suffix");
+            p.inputs.shuffle(&mut self.rng);
+            info!("Mutation: Shuffling transaction inputs");
             Some(TransactionKind::ProgrammableTransaction(p))
         } else {
             // Other types not supported yet

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::transaction::TransactionKind;
 use rand::{seq::SliceRandom, SeedableRng};
-use sui_types::transaction::TransactionKind;
 
 use crate::fuzz::TransactionKindMutator;
 
@@ -13,14 +14,15 @@ pub mod shuffle_commands;
 pub mod shuffle_transaction_inputs;
 pub mod shuffle_types;
 
-// The number of times that we will try to select a different mutator if the selected one is unable
-// to be applied for some reason.
+// The number of times that we will try to select a different mutator if the
+// selected one is unable to be applied for some reason.
 const NUM_TRIES: u64 = 5;
 
 // Combiners for `TransactionKindMutator`s:
 // * `RandomMutator` will select a random mutator from a list of mutators
-// * `ChainedMutator` will apply a list of mutators in sequence. If a given mutator doesn't apply
-//   it will be skipped but other mutations both before and after the failed mutator may still be applied.
+// * `ChainedMutator` will apply a list of mutators in sequence. If a given
+//   mutator doesn't apply it will be skipped but other mutations both before
+//   and after the failed mutator may still be applied.
 pub struct RandomMutator {
     pub rng: rand::rngs::StdRng,
     pub mutators: Vec<Box<dyn TransactionKindMutator + Send + Sync>>,
