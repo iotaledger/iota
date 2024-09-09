@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export enum DisplayStatsBackground {
+export enum DisplayStatsType {
     Default = 'default',
     Highlight = 'highlight',
     Secondary = 'secondary',

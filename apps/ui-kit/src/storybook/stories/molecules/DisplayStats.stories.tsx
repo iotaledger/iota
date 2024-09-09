@@ -3,12 +3,7 @@
 
 import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import {
-    DisplayStats,
-    TooltipPosition,
-    DisplayStatsBackground,
-    DisplayStatsSize,
-} from '@/components';
+import { DisplayStats, TooltipPosition, DisplayStatsType, DisplayStatsSize } from '@/components';
 
 const meta = {
     component: DisplayStats,
@@ -32,6 +27,7 @@ export const Default: Story = {
         value: 'Value',
         supportingLabel: 'IOTA',
         tooltipText: 'Tooltip',
+        type: DisplayStatsType.Default,
     },
     argTypes: {
         label: {
@@ -52,10 +48,10 @@ export const Default: Story = {
         supportingLabel: {
             control: 'text',
         },
-        backgroundColor: {
+        type: {
             control: {
                 type: 'select',
-                options: Object.values(DisplayStatsBackground),
+                options: Object.values(DisplayStatsType),
             },
         },
         size: {

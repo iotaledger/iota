@@ -4,7 +4,7 @@
 import React from 'react';
 import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
-import { DisplayStatsBackground, DisplayStatsSize } from './display-stats.enums';
+import { DisplayStatsType, DisplayStatsSize } from './display-stats.enums';
 import cx from 'classnames';
 import {
     BACKGROUND_CLASSES,
@@ -39,7 +39,7 @@ interface DisplayStatsProps {
     /**
      * The background color of the stats.
      */
-    backgroundColor?: DisplayStatsBackground;
+    type?: DisplayStatsType;
     /**
      * The size of the stats.
      */
@@ -52,12 +52,12 @@ export function DisplayStats({
     tooltipText,
     value,
     supportingLabel,
-    backgroundColor = DisplayStatsBackground.Default,
+    type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
 }: DisplayStatsProps): React.JSX.Element {
-    const backgroundClass = BACKGROUND_CLASSES[backgroundColor];
+    const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
-    const textClass = TEXT_CLASSES[backgroundColor];
+    const textClass = TEXT_CLASSES[type];
     const valueTextClass = VALUE_TEXT_CLASSES[size];
     const labelTextClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
@@ -78,7 +78,7 @@ export function DisplayStats({
                     </Tooltip>
                 )}
             </div>
-            <div className="flex flex-row items-center gap-xxs">
+            <div className="flex flex-row items-baseline gap-xxs">
                 <span className={cx(valueTextClass)}>{value}</span>
                 {supportingLabel && (
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
