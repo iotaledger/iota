@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use eyre::{eyre, Result};
 use std::{
     borrow::Cow,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 };
-use tracing::error;
 
-pub use ::multiaddr::Error;
-pub use ::multiaddr::Protocol;
+pub use ::multiaddr::{Error, Protocol};
+use eyre::{eyre, Result};
+use tracing::error;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Multiaddr(::multiaddr::Multiaddr);
@@ -51,8 +51,8 @@ impl Multiaddr {
         self.0.is_empty()
     }
 
-    /// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}` into an anemo
-    /// address
+    /// Attempts to convert a multiaddr of the form
+    /// `/[ip4,ip6,dns]/{}/udp/{port}` into an anemo address
     pub fn to_anemo_address(&self) -> Result<anemo::types::Address, &'static str> {
         let mut iter = self.iter();
 
@@ -86,8 +86,9 @@ impl Multiaddr {
     }
 
     // Converts a /ip{4,6}/-/tcp/-[/-] Multiaddr to SocketAddr.
-    // Useful when an external library only accepts SocketAddr, e.g. to start a local server.
-    // See `client::endpoint_from_multiaddr()` for converting to Endpoint for clients.
+    // Useful when an external library only accepts SocketAddr, e.g. to start a
+    // local server. See `client::endpoint_from_multiaddr()` for converting to
+    // Endpoint for clients.
     pub fn to_socket_addr(&self) -> Result<SocketAddr> {
         let mut iter = self.iter();
         let ip = match iter.next().ok_or_else(|| {
@@ -101,9 +102,20 @@ impl Multiaddr {
         Ok(SocketAddr::new(ip, tcp_port))
     }
 
-    /// Set the ip address to `0.0.0.0`. For instance, it converts the following address
-    /// `/ip4/155.138.174.208/tcp/1500/http` into `/ip4/0.0.0.0/tcp/1500/http`.
-    /// This is useful when starting a server and you want to listen on all interfaces.
+    // Returns true if the third component in the multiaddr is `Protocol::Tcp`
+    pub fn is_loosely_valid_tcp_addr(&self) -> bool {
+        let mut iter = self.iter();
+        iter.next(); // Skip the ip/dns part
+        match iter.next() {
+            Some(Protocol::Tcp(_)) => true,
+            _ => false, // including `None` and `Some(other)`
+        }
+    }
+
+    /// Set the ip address to `0.0.0.0`. For instance, it converts the following
+    /// address `/ip4/155.138.174.208/tcp/1500/http` into
+    /// `/ip4/0.0.0.0/tcp/1500/http`. This is useful when starting a server
+    /// and you want to listen on all interfaces.
     pub fn with_zero_ip(&self) -> Self {
         let mut new_address = self.0.clone();
         let Some(protocol) = new_address.iter().next() else {
@@ -130,8 +142,9 @@ impl Multiaddr {
         Self(new_address)
     }
 
-    /// Set the ip address to `127.0.0.1`. For instance, it converts the following address
-    /// `/ip4/155.138.174.208/tcp/1500/http` into `/ip4/127.0.0.1/tcp/1500/http`.
+    /// Set the ip address to `127.0.0.1`. For instance, it converts the
+    /// following address `/ip4/155.138.174.208/tcp/1500/http` into
+    /// `/ip4/127.0.0.1/tcp/1500/http`.
     pub fn with_localhost_ip(&self) -> Self {
         let mut new_address = self.0.clone();
         let Some(protocol) = new_address.iter().next() else {
@@ -158,6 +171,18 @@ impl Multiaddr {
         Self(new_address)
     }
 
+    pub fn is_localhost_ip(&self) -> bool {
+        let Some(protocol) = self.0.iter().next() else {
+            error!("Multiaddr is empty");
+            return false;
+        };
+        match protocol {
+            multiaddr::Protocol::Ip4(addr) => addr == Ipv4Addr::LOCALHOST,
+            multiaddr::Protocol::Ip6(addr) => addr == Ipv6Addr::LOCALHOST,
+            _ => false,
+        }
+    }
+
     pub fn hostname(&self) -> Option<String> {
         for component in self.iter() {
             match component {
@@ -178,6 +203,20 @@ impl Multiaddr {
             }
         }
         None
+    }
+
+    pub fn rewrite_udp_to_tcp(&self) -> Self {
+        let mut new = Self::empty();
+
+        for component in self.iter() {
+            if let Protocol::Udp(port) = component {
+                new.push(Protocol::Tcp(port));
+            } else {
+                new.push(component);
+            }
+        }
+
+        new
     }
 }
 
@@ -246,13 +285,10 @@ pub(crate) fn parse_tcp<'a, T: Iterator<Item = Protocol<'a>>>(protocols: &mut T)
 pub(crate) fn parse_http_https<'a, T: Iterator<Item = Protocol<'a>>>(
     protocols: &mut T,
 ) -> Result<&'static str> {
-    match protocols
-        .next()
-        .ok_or_else(|| eyre!("unexpected end of multiaddr"))?
-    {
-        Protocol::Http => Ok("http"),
-        Protocol::Https => Ok("https"),
-        _ => Err(eyre!("expected http/https protocol")),
+    match protocols.next() {
+        Some(Protocol::Http) => Ok("http"),
+        Some(Protocol::Https) => Ok("https"),
+        _ => Ok("http"),
     }
 }
 
@@ -319,28 +355,11 @@ pub(crate) fn parse_ip6(address: &Multiaddr) -> Result<(SocketAddr, &'static str
     Ok((socket_addr, http_or_https))
 }
 
-// Parse a full /unix/-/{http,https} address
-#[cfg(unix)]
-pub(crate) fn parse_unix(address: &Multiaddr) -> Result<(Cow<'_, str>, &'static str)> {
-    let mut iter = address.iter();
-
-    let path = match iter
-        .next()
-        .ok_or_else(|| eyre!("unexpected end of multiaddr"))?
-    {
-        Protocol::Unix(path) => path,
-        other => return Err(eyre!("expected unix found {other}")),
-    };
-    let http_or_https = parse_http_https(&mut iter)?;
-    parse_end(&mut iter)?;
-
-    Ok((path, http_or_https))
-}
-
 #[cfg(test)]
 mod test {
-    use super::Multiaddr;
     use multiaddr::multiaddr;
+
+    use super::Multiaddr;
 
     #[test]
     fn test_to_socket_addr_basic() {
@@ -359,10 +378,30 @@ mod test {
 
     #[test]
     fn test_to_socket_addr_unsupported_protocol() {
-        let multi_addr_dns = Multiaddr(multiaddr!(Dnsaddr("mysten.sui"), Tcp(10500u16)));
+        let multi_addr_dns = Multiaddr(multiaddr!(Dnsaddr("iota.iota"), Tcp(10500u16)));
         let _ = multi_addr_dns
             .to_socket_addr()
             .expect_err("DNS is unsupported");
+    }
+
+    #[test]
+    fn test_is_loosely_valid_tcp_addr() {
+        let multi_addr_ipv4 = Multiaddr(multiaddr!(Ip4([127, 0, 0, 1]), Tcp(10500u16)));
+        assert!(multi_addr_ipv4.is_loosely_valid_tcp_addr());
+        let multi_addr_ipv6 = Multiaddr(multiaddr!(Ip6([172, 0, 0, 1, 1, 1, 1, 1]), Tcp(10500u16)));
+        assert!(multi_addr_ipv6.is_loosely_valid_tcp_addr());
+        let multi_addr_dns = Multiaddr(multiaddr!(Dnsaddr("iota.iota"), Tcp(10500u16)));
+        assert!(multi_addr_dns.is_loosely_valid_tcp_addr());
+
+        let multi_addr_ipv4 = Multiaddr(multiaddr!(Ip4([127, 0, 0, 1]), Udp(10500u16)));
+        assert!(!multi_addr_ipv4.is_loosely_valid_tcp_addr());
+        let multi_addr_ipv6 = Multiaddr(multiaddr!(Ip6([172, 0, 0, 1, 1, 1, 1, 1]), Udp(10500u16)));
+        assert!(!multi_addr_ipv6.is_loosely_valid_tcp_addr());
+        let multi_addr_dns = Multiaddr(multiaddr!(Dnsaddr("iota.iota"), Udp(10500u16)));
+        assert!(!multi_addr_dns.is_loosely_valid_tcp_addr());
+
+        let invalid_multi_addr_ipv4 = Multiaddr(multiaddr!(Ip4([127, 0, 0, 1])));
+        assert!(!invalid_multi_addr_ipv4.is_loosely_valid_tcp_addr());
     }
 
     #[test]
@@ -371,8 +410,8 @@ mod test {
         assert_eq!(Some("127.0.0.1".to_string()), multi_addr_ip4.hostname());
         assert_eq!(Some(10500u16), multi_addr_ip4.port());
 
-        let multi_addr_dns = Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16)));
-        assert_eq!(Some("mysten.sui".to_string()), multi_addr_dns.hostname());
+        let multi_addr_dns = Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16)));
+        assert_eq!(Some("iota.iota".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
     }
 
@@ -391,13 +430,13 @@ mod test {
         .unwrap();
         assert_eq!("[f:f:f:f:f:f:f:1]:10500".to_string(), addr_ip6.to_string());
 
-        let addr_dns = Multiaddr(multiaddr!(Dns("mysten.sui"), Udp(10501u16)))
+        let addr_dns = Multiaddr(multiaddr!(Dns("iota.iota"), Udp(10501u16)))
             .to_anemo_address()
             .unwrap();
-        assert_eq!("mysten.sui:10501".to_string(), addr_dns.to_string());
+        assert_eq!("iota.iota:10501".to_string(), addr_dns.to_string());
 
         let addr_invalid =
-            Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16))).to_anemo_address();
+            Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16))).to_anemo_address();
         assert!(addr_invalid.is_err());
     }
 
@@ -416,7 +455,7 @@ mod test {
         assert_eq!(Some("::".to_string()), multi_addr_ip6.hostname());
         assert_eq!(Some(10500u16), multi_addr_ip4.port());
 
-        let multi_addr_dns = Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16))).with_zero_ip();
+        let multi_addr_dns = Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16))).with_zero_ip();
         assert_eq!(Some("0.0.0.0".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
     }
@@ -437,7 +476,7 @@ mod test {
         assert_eq!(Some(10500u16), multi_addr_ip4.port());
 
         let multi_addr_dns =
-            Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16))).with_localhost_ip();
+            Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16))).with_localhost_ip();
         assert_eq!(Some("127.0.0.1".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
     }

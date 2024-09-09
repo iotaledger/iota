@@ -1,8 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use bytes::{Buf, BufMut};
 use std::{io::Read, marker::PhantomData};
+
+use bytes::{Buf, BufMut};
 use tonic::{
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
     Status,
@@ -105,8 +107,8 @@ impl<U: serde::de::DeserializeOwned> Decoder for BcsSnappyDecoder<U> {
     }
 }
 
-/// A [`Codec`] that implements `bcs` encoding/decoding and snappy compression/decompression
-/// via the serde library.
+/// A [`Codec`] that implements `bcs` encoding/decoding and snappy
+/// compression/decompression via the serde library.
 #[derive(Debug, Clone)]
 pub struct BcsSnappyCodec<T, U>(PhantomData<(T, U)>);
 
@@ -137,9 +139,10 @@ where
 
 // Anemo variant of BCS codec using Snappy for compression.
 pub mod anemo {
+    use std::{io::Read, marker::PhantomData};
+
     use ::anemo::rpc::codec::{Codec, Decoder, Encoder};
     use bytes::Buf;
-    use std::{io::Read, marker::PhantomData};
 
     #[derive(Debug)]
     pub struct BcsSnappyEncoder<T>(PhantomData<T>);
@@ -173,7 +176,8 @@ pub mod anemo {
         }
     }
 
-    /// A [`Codec`] that implements `bcs` encoding/decoding via the serde library.
+    /// A [`Codec`] that implements `bcs` encoding/decoding via the serde
+    /// library.
     #[derive(Debug, Clone)]
     pub struct BcsSnappyCodec<T, U>(PhantomData<(T, U)>);
 

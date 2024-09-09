@@ -1,11 +1,11 @@
 [package]
-name = "mysten-network"
+name = "iota-network-stack"
 version = "0.2.0"
-license = "Apache-2.0"
+authors = ["Brandon Williams <brandon@iota.org>"]
 edition = "2021"
-authors = ["Brandon Williams <brandon@mystenlabs.com>"]
-description = "Mysten's network tooling"
+license = "Apache-2.0"
 publish = false
+description = "IOTA's network tooling"
 
 [dependencies]
 anemo.workspace = true
@@ -15,6 +15,7 @@ eyre.workspace = true
 futures.workspace = true
 http.workspace = true
 multiaddr.workspace = true
+pin-project-lite = "0.2.13"
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
@@ -23,5 +24,4 @@ tonic.workspace = true
 tonic-health.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-pin-project-lite = "0.2.13"
 tracing.workspace = true

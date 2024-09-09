@@ -1,18 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anemo::codegen::BoxError;
-use anemo::codegen::BoxFuture;
-use anemo::codegen::Service;
-use anemo::types::PeerEvent;
-use anemo::Network;
-use anemo::PeerId;
-use anemo::Request;
-use anemo::Response;
-use bytes::Bytes;
-use futures::future::OptionFuture;
-use futures::FutureExt;
 use std::time::Instant;
+
+use anemo::{
+    codegen::{BoxError, BoxFuture, Service},
+    types::PeerEvent,
+    Network, PeerId, Request, Response,
+};
+use bytes::Bytes;
+use futures::{future::OptionFuture, FutureExt};
 
 pub trait NetworkExt {
     fn waiting_peer(&self, peer_id: PeerId) -> WaitingPeer;
